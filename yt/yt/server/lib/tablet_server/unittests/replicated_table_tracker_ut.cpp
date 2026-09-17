@@ -42,6 +42,7 @@ static const int WarmUpIterationCount = 10;
 
 static const std::string Cluster1 = "ReplicaCluster1";
 static const std::string Cluster2 = "ReplicaCluster2";
+static const std::string Cluster3 = "ReplicaCluster3";
 
 static const TYPath TablePath1 = "//tmp/replica_table_1";
 static const TYPath TablePath2 = "//tmp/replica_table_2";
@@ -145,16 +146,23 @@ public:
     TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
         std::vector<TChangeReplicaModeCommand> commands) override
     {
+        TApplyChangeReplicaCommandResults results;
+        results.reserve(commands.size());
         for (const auto& command : commands) {
+            if (ReplicaModeCommandsToFail_.erase(command.ReplicaId) > 0) {
+                results.push_back(TError("Failed to apply replica mode command"));
+                continue;
+            }
+
             auto it = ReplicaIdToInfo_.find(command.ReplicaId);
             EXPECT_NE(it, ReplicaIdToInfo_.end());
             ++it->second.CommandCount;
             it->second.Data.Mode = command.TargetMode;
             ReplicaCreated_(it->second.Data);
+            results.emplace_back();
         }
 
-        TApplyChangeReplicaCommandResults result(commands.size());
-        return MakeFuture(result);
+        return MakeFuture(std::move(results));
     }
 
     void ValidateReplicaModeChanged(TTableReplicaId replicaId, ETableReplicaMode targetMode)
@@ -169,6 +177,18 @@ public:
     void ValidateReplicaModeRemained(TTableReplicaId replicaId) const
     {
         EXPECT_EQ(GetOrCrash(ReplicaIdToInfo_, replicaId).CommandCount, 0);
+    }
+
+    void ResetReplicaModeCommandCounts()
+    {
+        for (auto& [_, replicaInfo] : ReplicaIdToInfo_) {
+            replicaInfo.CommandCount = 0;
+        }
+    }
+
+    void FailNextReplicaModeCommand(TTableReplicaId replicaId)
+    {
+        InsertOrCrash(ReplicaModeCommandsToFail_, replicaId);
     }
 
     ETableReplicaMode GetReplicaMode(TTableReplicaId replicaId) const
@@ -391,7 +411,8 @@ private:
 
     const THashMap<std::string, TStrictMockClientPtr, THash<TStringBuf>, TEqualTo<TStringBuf>> Clusters_ = {
         {Cluster1, New<TStrictMockClient>()},
-        {Cluster2, New<TStrictMockClient>()}
+        {Cluster2, New<TStrictMockClient>()},
+        {Cluster3, New<TStrictMockClient>()},
     };
 
     struct TReplicaInfo
@@ -401,6 +422,7 @@ private:
     };
 
     THashMap<TTableReplicaId, TReplicaInfo> ReplicaIdToInfo_;
+    THashSet<TTableReplicaId> ReplicaModeCommandsToFail_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReplicaLagTimesLock_);
     THashMap<TTableReplicaId, std::optional<TDuration>> ReplicaIdToLagTime_;
@@ -565,6 +587,73 @@ public:
             table1, replica11, replica12,
             table2, replica21, replica22
         };
+    }
+
+    template <class TSetPreferredClusters, class TWidenPreferredClusters>
+    void DoTestPreferredSyncReplicaSwitchCooldown(
+        TSetPreferredClusters setPreferredClusters,
+        TWidenPreferredClusters widenPreferredClusters)
+    {
+        Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);
+        WaitForUpdatesFromTracker();
+
+        auto client1 = Host_->GetMockClient(Cluster1);
+        MockGoodReplicaCluster(client1);
+        MockGoodBundle(client1);
+        MockGoodTable(client1);
+
+        auto client2 = Host_->GetMockClient(Cluster2);
+        MockGoodReplicaCluster(client2);
+        MockGoodBundle(client2);
+        MockGoodTable(client2);
+
+        auto tableId = Host_->CreateReplicatedTable();
+        auto replica1 = Host_->CreateTableReplica(tableId);
+        auto replica2 = Host_->CreateTableReplica(
+            tableId,
+            ETableReplicaMode::Async,
+            /*enabled*/ false,
+            Cluster2);
+
+        WaitForTrackerWarmUp();
+        Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
+
+        Host_->UpdateReplicaEnablement(replica2, /*enabled*/ true);
+        setPreferredClusters(tableId);
+
+        WaitForTrackerWarmUp();
+        Host_->ValidateReplicaModeRemained(replica1);
+        Host_->ValidateReplicaModeRemained(replica2);
+
+        MockBadTable(client1);
+
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
+
+        MockGoodTable(client1);
+
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
+
+        MockBadTable(client1);
+
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Sync);
+
+        MockGoodTable(client1);
+
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeRemained(replica1);
+        Host_->ValidateReplicaModeRemained(replica2);
+
+        widenPreferredClusters(tableId);
+
+        WaitForUpdatesFromTracker();
+        Host_->ValidateReplicaModeChanged(replica1, ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replica2, ETableReplicaMode::Async);
     }
 
     void WaitForTrackerWarmUp()
@@ -754,6 +843,9 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
 
 TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
 {
+    Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);
+    WaitForUpdatesFromTracker();
+
     auto client1 = Host_->GetMockClient(Cluster1);
     MockGoodReplicaCluster(client1);
     MockGoodBundle(client1);
@@ -815,6 +907,206 @@ TEST_F(TReplicatedTableTrackerTest, PreferredReplicaClusters)
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeRemained(replica1);
     Host_->ValidateReplicaModeRemained(replica2);
+}
+
+TEST_F(TReplicatedTableTrackerTest, PreferredSyncReplicaSwitchCooldown)
+{
+    DoTestPreferredSyncReplicaSwitchCooldown(
+        [this] (TTableId tableId) {
+            auto options = Host_->GetTableOptions(tableId);
+            options->PreferredSyncReplicaClusters = {Cluster1};
+            Host_->SetTableOptions(tableId, std::move(options));
+        },
+        [this] (TTableId tableId) {
+            auto options = Host_->GetTableOptions(tableId);
+            // NB: Change the preferred replica list without changing the only applicable preferred cluster.
+            options->PreferredSyncReplicaClusters = {Cluster1, "NonexistentCluster"};
+            Host_->SetTableOptions(tableId, std::move(options));
+        });
+}
+
+TEST_F(TReplicatedTableTrackerTest, PreferredSyncReplicaSwitchCooldownFromClusterConfig)
+{
+    DoTestPreferredSyncReplicaSwitchCooldown(
+        [this] (TTableId /*tableId*/) {
+            Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {Cluster1};
+        },
+        [this] (TTableId /*tableId*/) {
+            // NB: Change the preferred replica list without changing the only applicable preferred cluster.
+            Host_->GetConfig()->ReplicatorHint->PreferredSyncReplicaClusters = {Cluster1, "NonexistentCluster"};
+        });
+}
+
+TEST_F(TReplicatedTableTrackerTest, UnrelatedSuccessfulCommandDoesNotStartPreferredSyncReplicaSwitchCooldown)
+{
+    Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);
+    WaitForUpdatesFromTracker();
+
+    auto client1 = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client1);
+    MockGoodBundle(client1);
+    MockGoodTable(client1);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodTable(client2);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto preferredReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ false,
+        Cluster1);
+    auto currentReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster2);
+    auto badSyncReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Sync,
+        /*enabled*/ false,
+        Cluster3);
+
+    WaitForTrackerWarmUp();
+    Host_->ValidateReplicaModeChanged(currentReplica, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeRemained(preferredReplica);
+    Host_->ValidateReplicaModeRemained(badSyncReplica);
+
+    Host_->UpdateReplicaEnablement(preferredReplica, /*enabled*/ true);
+
+    WaitForTrackerWarmUp();
+    Host_->ValidateReplicaModeRemained(preferredReplica);
+    Host_->ValidateReplicaModeRemained(currentReplica);
+    Host_->ValidateReplicaModeRemained(badSyncReplica);
+
+    Tracker_->DisableTracking();
+
+    auto options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1};
+    Host_->SetTableOptions(tableId, std::move(options));
+    Host_->GetConfig()->ReplicatorHint->BannedReplicaClusters = {Cluster3};
+    Host_->UpdateReplicaEnablement(badSyncReplica, /*enabled*/ true);
+
+    Host_->FailNextReplicaModeCommand(preferredReplica);
+    Host_->FailNextReplicaModeCommand(currentReplica);
+
+    WaitForUpdatesFromTracker();
+    Tracker_->EnableTracking();
+
+    WaitForTrackerWarmUp();
+    Host_->ValidateReplicaModeChanged(preferredReplica, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(currentReplica, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeChanged(badSyncReplica, ETableReplicaMode::Async);
+}
+
+TEST_F(TReplicatedTableTrackerTest, PreferredSyncReplicaSwitchCooldownIsIndependentForReplicaContentTypes)
+{
+    Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);
+    WaitForUpdatesFromTracker();
+
+    auto client1 = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client1);
+    MockGoodBundle(client1);
+    MockGoodBundle(client1, TablePath2);
+    MockGoodTable(client1);
+    MockBadTable(client1, TablePath2);
+
+    auto client2 = Host_->GetMockClient(Cluster2);
+    MockGoodReplicaCluster(client2);
+    MockGoodBundle(client2);
+    MockGoodBundle(client2, TablePath2);
+    MockGoodTable(client2);
+    MockGoodTable(client2, TablePath2);
+
+    auto client3 = Host_->GetMockClient(Cluster3);
+    MockGoodReplicaCluster(client3);
+    MockGoodBundle(client3, TablePath2);
+    MockGoodTable(client3, TablePath2);
+
+    Tracker_->DisableTracking();
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto options = Host_->GetTableOptions(tableId);
+    options->MaxSyncReplicaCount = 1;
+    options->MaxSyncQueueReplicaCount = 2;
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    auto preferredDataReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Data);
+    auto currentDataReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Sync,
+        /*enabled*/ true,
+        Cluster2,
+        TablePath1,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Data);
+    auto preferredQueueReplica = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster1,
+        TablePath2,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+    auto queueReplica2 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Sync,
+        /*enabled*/ true,
+        Cluster2,
+        TablePath2,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+    auto queueReplica3 = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Sync,
+        /*enabled*/ true,
+        Cluster3,
+        TablePath2,
+        /*replicaLagTime*/ TDuration::Zero(),
+        EObjectType::ChaosTableReplica,
+        ETableReplicaContentType::Queue);
+
+    WaitForUpdatesFromTracker();
+    Tracker_->EnableTracking();
+
+    WaitForTrackerWarmUp();
+    EXPECT_EQ(Host_->GetReplicaMode(preferredDataReplica), ETableReplicaMode::Async);
+    EXPECT_EQ(Host_->GetReplicaMode(currentDataReplica), ETableReplicaMode::Sync);
+    EXPECT_EQ(Host_->GetReplicaMode(preferredQueueReplica), ETableReplicaMode::Async);
+    EXPECT_EQ(Host_->GetReplicaMode(queueReplica2), ETableReplicaMode::Sync);
+    EXPECT_EQ(Host_->GetReplicaMode(queueReplica3), ETableReplicaMode::Sync);
+    Host_->ResetReplicaModeCommandCounts();
+
+    options = Host_->GetTableOptions(tableId);
+    options->PreferredSyncReplicaClusters = {Cluster1};
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeChanged(preferredDataReplica, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(currentDataReplica, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeRemained(preferredQueueReplica);
+    Host_->ValidateReplicaModeRemained(queueReplica2);
+    Host_->ValidateReplicaModeRemained(queueReplica3);
+
+    MockGoodTable(client1, TablePath2);
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeChanged(preferredQueueReplica, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(queueReplica2, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeRemained(queueReplica3);
 }
 
 TEST_F(TReplicatedTableTrackerTest, TableCollocationSimple)
@@ -910,6 +1202,63 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
     MockBadTable(client1);
 
     validateSyncOnCluster2();
+}
+
+TEST_F(TReplicatedTableTrackerTest, CollocatedTablesSharePreferredSyncReplicaSwitchCooldown)
+{
+    Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);
+    WaitForUpdatesFromTracker();
+
+    auto [table1, replica11, replica12, table2, replica21, replica22] = CreateTablesForCollocation();
+
+    auto collocationId = Host_->CreateReplicationCollocation({table1, table2});
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeRemained(replica21);
+    Host_->ValidateReplicaModeRemained(replica22);
+
+    // NB: Preferred clusters cannot affect a table where all replicas are synchronous.
+    auto options = Host_->GetTableOptions(table2);
+    options->MaxSyncReplicaCount = 2;
+    Host_->SetTableOptions(table2, std::move(options));
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeRemained(replica11);
+    Host_->ValidateReplicaModeRemained(replica12);
+    Host_->ValidateReplicaModeChanged(replica21, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeRemained(replica22);
+
+    // NB: Only table1 needs a preferred-driven mode change in this iteration.
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<std::string>{Cluster1});
+
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeChanged(replica11, ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeChanged(replica12, ETableReplicaMode::Async);
+    Host_->ValidateReplicaModeRemained(replica21);
+    Host_->ValidateReplicaModeRemained(replica22);
+
+    // NB: Restore the same replica modes for both tables without letting RTT interfere.
+    Tracker_->DisableTracking();
+
+    options = Host_->GetTableOptions(table2);
+    options->MaxSyncReplicaCount = 1;
+    Host_->SetTableOptions(table2, std::move(options));
+
+    Host_->UpdateReplicaMode(replica11, ETableReplicaMode::Async);
+    Host_->UpdateReplicaMode(replica12, ETableReplicaMode::Sync);
+    Host_->UpdateReplicaMode(replica21, ETableReplicaMode::Async);
+
+    WaitForUpdatesFromTracker();
+    Tracker_->EnableTracking();
+
+    // NB: A preferred replica switch must be delayed for the whole collocation.
+    WaitForUpdatesFromTracker();
+    Host_->ValidateReplicaModeRemained(replica11);
+    Host_->ValidateReplicaModeRemained(replica12);
+    Host_->ValidateReplicaModeRemained(replica21);
+    Host_->ValidateReplicaModeRemained(replica22);
 }
 
 TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)
