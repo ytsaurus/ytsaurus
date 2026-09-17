@@ -28,6 +28,9 @@ void TCompositeSettings::Register(TRegistrar registrar)
     registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
         .Default(false);
 
+    registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+        .Default(false);
+
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
 }
