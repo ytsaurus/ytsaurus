@@ -225,6 +225,22 @@ protected:
  */
 };
 
+TEST_F(TTimestampColumnTest, DoesNotMaintainColumnMetaWhenDisabled)
+{
+    TDataBlockWriter blockWriter(
+        /*enableSegmentMetaInBlocks*/ true,
+        /*enableColumnMetaInChunkMeta*/ false);
+    auto timestampWriter = CreateTimestampWriter(&blockWriter, GetNullMemoryUsageTracker());
+
+    timestampWriter->WriteTimestamps(TRange(CreateSegment1()));
+    timestampWriter->FinishCurrentSegment();
+    timestampWriter->WriteTimestamps(TRange(CreateSegment2()));
+
+    auto block = blockWriter.DumpBlock(/*blockIndex*/ 0, /*currentRowCount*/ 3);
+    EXPECT_FALSE(block.Data.empty());
+    EXPECT_EQ(0, timestampWriter->ColumnMeta().segments_size());
+}
+
 TEST_F(TTimestampColumnTest, ScanAllRows)
 {
     TestScanReader(0, 3, 5_ts);

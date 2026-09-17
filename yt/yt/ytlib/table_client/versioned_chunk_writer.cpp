@@ -728,7 +728,9 @@ public:
 
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
-            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(IsSegmentMetaInBlocksEnabled()));
+            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(
+                IsSegmentMetaInBlocksEnabled(),
+                IsColumnMetaInChunkMetaEnabled()));
             return blockWriterIndex;
         };
 

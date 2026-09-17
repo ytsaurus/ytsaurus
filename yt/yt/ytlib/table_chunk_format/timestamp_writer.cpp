@@ -280,7 +280,9 @@ private:
         // This is a rough approximation, but we don't want to pay for additional ByteSize call.
         MetaSize_ += sizeof(TSegmentMeta);
 
-        CurrentBlockSegments_.push_back(segmentMeta);
+        if (BlockWriter_->GetEnableColumnMetaInChunkMeta()) {
+            CurrentBlockSegments_.push_back(segmentMeta);
+        }
 
         BlockWriter_->WriteSegment(TRange(data));
 
