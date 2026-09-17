@@ -35,6 +35,7 @@ bool IsComponentOptional(EClusterComponentType component)
         case EClusterComponentType::QueueAgent:
         case EClusterComponentType::QueryTracker:
         case EClusterComponentType::CypressProxy:
+        case EClusterComponentType::TimestampProxy:
             return true;
         default:
             return false;
@@ -404,6 +405,8 @@ TYPath TComponentDiscoverer::GetCypressDirectory(EClusterComponentType component
             return "//sys/query_tracker/instances";
         case EClusterComponentType::CypressProxy:
             return "//sys/cypress_proxies";
+        case EClusterComponentType::TimestampProxy:
+            return "//sys/timestamp_proxies";
         case EClusterComponentType::RpcProxy:
             return RpcProxiesPath;
         case EClusterComponentType::HttpProxy:
@@ -429,6 +432,7 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClust
         case EClusterComponentType::QueueAgent:
         case EClusterComponentType::QueryTracker:
         case EClusterComponentType::CypressProxy:
+        case EClusterComponentType::TimestampProxy:
             return GetAttributes(
                 component,
                 GetCypressSubpaths(Client_, MasterReadOptions_, component),

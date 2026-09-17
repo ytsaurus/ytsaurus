@@ -1075,6 +1075,7 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["rpc_proxy"] == 2
         assert counts["discovery"] == 1
         assert counts["timestamp_provider"] == 1
+        assert counts["timestamp_proxy"] == 1
         assert counts["master_cache"] == 1
         assert counts["bundle_controller"] == 1
         assert counts["queue_agent"] == 1
