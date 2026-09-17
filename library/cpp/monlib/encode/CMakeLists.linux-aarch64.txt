@@ -33,6 +33,7 @@ target_link_libraries(cpp-monlib-encode PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  cpp-http-io
   cpp-monlib-metrics
   tools-enum_parser-enum_serialization_runtime
 )
