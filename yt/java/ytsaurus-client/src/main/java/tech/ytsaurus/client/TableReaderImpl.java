@@ -51,33 +51,35 @@ class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     }
 
     public CompletableFuture<TableReaderBaseImpl<T>> waitMetadataImpl(SerializationResolver serializationResolver) {
-        TableReaderBaseImpl<T> self = this;
         return readHead().thenApply((data) -> {
-            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
-            if (self.reader == null) {
-                Objects.requireNonNull(self.objectClazz);
+            metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
+            if (reader == null) {
+                Objects.requireNonNull(objectClazz);
 
-                YTreeRowSerializer<T> serializer = serializationResolver.forClass(
-                        self.objectClazz,
-                        ApiServiceUtil.deserializeTableSchema(self.metadata.getSchema()));
-                self.reader = new TableAttachmentWireProtocolReader<>(
+                YTreeRowSerializer<T> serializer = serializationResolver.forClass(objectClazz,
+                        ApiServiceUtil.deserializeTableSchema(metadata.getSchema()));
+                reader = new TableAttachmentWireProtocolReader<>(
                         serializationResolver.createWireRowDeserializer(serializer));
             }
 
-            return self;
+            return this;
         });
     }
 
     public boolean canRead() {
-        return doCanRead();
+        return !reader.isEndOfStream() && doCanRead();
     }
 
     public List<T> read() throws Exception {
-        return reader.parse(doRead());
+        if (reader.isEndOfStream()) {
+            return null;
+        }
+        byte[] attachment = doRead();
+        return attachment == null && doIsEof() ? reader.endOfStream() : reader.parse(attachment);
     }
 
     public CompletableFuture<Void> readyEvent() {
-        return getReadyEvent();
+        return reader.isEndOfStream() ? CompletableFuture.completedFuture(null) : getReadyEvent();
     }
 }
 

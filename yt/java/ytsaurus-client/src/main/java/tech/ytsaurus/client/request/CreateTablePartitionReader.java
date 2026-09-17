@@ -14,7 +14,6 @@ import tech.ytsaurus.client.TablePartitionRowsetReader;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
-import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TReqReadTablePartition;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -25,7 +24,6 @@ import static tech.ytsaurus.client.rows.EntityUtil.isEntityAnnotationPresent;
 public class CreateTablePartitionReader<T>
         extends RequestBase<CreateTablePartitionReader.Builder<T>, CreateTablePartitionReader<T>> {
     private final SerializationContext<T> serializationContext;
-    @Nullable
     private final TablePartitionCookie cookie;
     private final boolean unordered;
     private final boolean omitInaccessibleColumns;
@@ -37,7 +35,7 @@ public class CreateTablePartitionReader<T>
 
     protected CreateTablePartitionReader(BuilderBase<T, ?> builder) {
         super(builder);
-        this.cookie = builder.cookie;
+        this.cookie = Objects.requireNonNull(builder.cookie, "cookie");
         this.serializationContext = Objects.requireNonNull(builder.serializationContext);
         this.unordered = builder.unordered;
         this.omitInaccessibleColumns = builder.omitInaccessibleColumns;
@@ -53,7 +51,7 @@ public class CreateTablePartitionReader<T>
 
     public static Builder<ByteBuffer> binaryArrowBuilder() {
         SerializationContext<ByteBuffer> context = new ReadSerializationContext<>(
-                ERowsetFormat.RF_ARROW,
+                Format.arrow(),
                 new TableAttachmentByteBufferPartitionReader()
         );
         return new Builder<ByteBuffer>().setSerializationContext(context);
