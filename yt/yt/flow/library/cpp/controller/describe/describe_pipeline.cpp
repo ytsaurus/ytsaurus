@@ -694,7 +694,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         markdownText.AppendFormat("* Pipeline rich path: `%v`\n", prettyPath);
         markdownText.AppendFormat("* Draw pipeline debug graph: `ya tool yt-flow-draw-pipeline-graph --input %v`\n", prettyPath);
         markdownText.AppendFormat("* Run job investigation: `ya tool yt-flow-job-investigation --input %v`\n", prettyPath);
-        markdownText.AppendFormat("* Run reshard flow tables: `ya run yt/yt/flow/tools/reshard_flow_tables -- --pipeline-path %v`\n", prettyPath);
+        markdownText.AppendFormat("* Run reshard flow tables: `ya run yt/yt/flow/tools/reshard_flow_tables -- --commit --pipeline-path %v`\n", prettyPath);
         markdownText.AppendFormat("* Show public controller logs: `ya tool yt --proxy %v flow show-logs --pipeline-path %v`\n",
             flowView->EphemeralState->PipelinePath.GetCluster(),
             flowView->EphemeralState->PipelinePath.GetPath());
