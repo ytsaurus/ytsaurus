@@ -1487,7 +1487,7 @@ TEST(TSkiffWriterTest, TestEndOfStream)
         .ThrowOnError();
 
     TMemoryInput resultInput(resultStream.Str());
-    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+    TCheckedSkiffParser checkedSkiffParser(CreateRepeatedVariant16Schema({skiffSchema}), &resultInput);
 
     std::string buf;
 
