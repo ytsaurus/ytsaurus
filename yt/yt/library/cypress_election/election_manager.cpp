@@ -292,7 +292,7 @@ private:
                 .With("TransactionId", transactionId)
                 .With(rspOrError);
             LockNodeId_ = NullObjectId;
-            Transaction_.Reset();
+            YT_UNUSED_FUTURE(Reset());
             rspOrError.ThrowOnError();
         }
     }
@@ -314,8 +314,7 @@ private:
             YT_TLOG_DEBUG("Lock does not exist")
                 .With("LockId", LockId_)
                 .With(rspOrError);
-            Transaction_.Reset();
-            LockId_ = NullObjectId;
+            YT_UNUSED_FUTURE(Reset());
             return false;
         } else {
             rspOrError.ThrowOnError();
@@ -354,7 +353,8 @@ private:
             return;
         }
 
-        Reset();
+        Transaction_.Reset();
+        YT_UNUSED_FUTURE(Reset());
     }
 
     void OnLeadingStarted()
@@ -391,7 +391,8 @@ private:
         WaitFor(LockAcquisitionExecutor_->Stop())
             .ThrowOnError();
 
-        Reset();
+        WaitFor(Reset())
+            .ThrowOnError();
 
         IsActive_ = false;
 
@@ -403,11 +404,12 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
-            Reset();
+            WaitFor(Reset())
+                .ThrowOnError();
         }
     }
 
-    void Reset()
+    TFuture<void> Reset()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -425,8 +427,23 @@ private:
             }
         }
 
-        Transaction_.Reset();
+        auto transaction = std::exchange(Transaction_, {});
         LockId_ = NullObjectId;
+
+        if (!transaction) {
+            return MakeFuture(TError());
+        }
+
+        return transaction->Abort().Apply(BIND([
+            Logger = Logger,
+            transactionId = transaction->GetId()
+        ] (const TError& error) {
+            if (!error.IsOK()) {
+                YT_TLOG_WARNING("Failed to abort lock transaction")
+                    .With("TransactionId", transactionId)
+                    .With(error);
+            }
+        }));
     }
 
     void CreateLockNode()
