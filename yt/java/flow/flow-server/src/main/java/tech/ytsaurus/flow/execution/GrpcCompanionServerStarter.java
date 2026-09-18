@@ -20,6 +20,7 @@ import tech.ytsaurus.flow.internal.utils.FailureCollector;
 import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.service.CompanionRequestProcessor;
 import tech.ytsaurus.flow.service.CompanionService;
+import tech.ytsaurus.flow.service.JobSpecValidator;
 import tech.ytsaurus.flow.service.ResourceStore;
 
 /**
@@ -35,9 +36,17 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
             PipelineContextSnapshot pipelineContext,
             JobContext jobContext,
             MetricsContext metricsContext,
-            Map<String, HttpHandler> httpHandlers
+            Map<String, HttpHandler> httpHandlers,
+            JobSpecValidator jobSpecValidator
     ) {
-        this(new ProductionComponentFactory(config, pipelineContext, jobContext, metricsContext, httpHandlers));
+        this(new ProductionComponentFactory(
+                config,
+                pipelineContext,
+                jobContext,
+                metricsContext,
+                httpHandlers,
+                jobSpecValidator
+        ));
     }
 
     GrpcCompanionServerStarter(ComponentFactory components) {
@@ -120,19 +129,22 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
         private final JobContext jobContext;
         private final MetricsContext metricsContext;
         private final Map<String, HttpHandler> httpHandlers;
+        private final JobSpecValidator jobSpecValidator;
 
         private ProductionComponentFactory(
                 CompanionExecutionConfig config,
                 PipelineContextSnapshot pipelineContext,
                 JobContext jobContext,
                 MetricsContext metricsContext,
-                Map<String, HttpHandler> httpHandlers
+                Map<String, HttpHandler> httpHandlers,
+                JobSpecValidator jobSpecValidator
         ) {
             this.config = config;
             this.pipelineContext = pipelineContext;
             this.jobContext = jobContext;
             this.metricsContext = metricsContext;
             this.httpHandlers = httpHandlers;
+            this.jobSpecValidator = jobSpecValidator;
         }
 
         @Override
@@ -157,10 +169,18 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
 
         @Override
         public CompanionService createCompanionService(
-                MetricsContextSnapshot metricsSnapshot, ResourceStore resources
+                MetricsContextSnapshot metricsSnapshot,
+                ResourceStore resources
         ) {
-            return new CompanionService(new CompanionRequestProcessor(pipelineContext, jobContext, resources),
-                    metricsSnapshot.getRegistry());
+            return new CompanionService(
+                    new CompanionRequestProcessor(
+                            pipelineContext,
+                            jobContext,
+                            resources,
+                            jobSpecValidator
+                    ),
+                    metricsSnapshot.getRegistry()
+            );
         }
 
         @Override
