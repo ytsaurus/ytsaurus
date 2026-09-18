@@ -5,7 +5,8 @@
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/metrics_calculator.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>

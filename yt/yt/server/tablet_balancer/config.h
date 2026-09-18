@@ -75,6 +75,8 @@ struct TTabletBalancerDynamicConfig
 
     bool FetchTabletCellsFromSecondaryMasters;
     bool EnableParameterizedReshardByDefault;
+    bool EnableParameterizedSizeReshard;
+
     bool PickReshardPivotKeys;
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;

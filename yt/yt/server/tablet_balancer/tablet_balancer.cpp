@@ -14,7 +14,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_move_helpers.h>
 
 #include <yt/yt/library/cypress_election/election_manager.h>
 
