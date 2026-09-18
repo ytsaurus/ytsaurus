@@ -182,29 +182,23 @@ TEST(TTraverseTest, ApplyInflightPreservesProducerSystemWatermark)
     EXPECT_EQ(applied->SystemWatermark, TSystemTimestamp(80));
 }
 
-TEST(TTraverseTest, MergeNodeKeepsMatureRatesWhenAnotherPartitionIsYoung)
+TEST(TTraverseTest, MergeNodeDoesNotCombineLocalIterationCycles)
 {
     const TStreamId streamId("stream");
-    auto mature = New<TNodeTraverseData>();
-    mature->IterationCycle = 10;
-    mature->ProcessingRates = New<TComputationProcessingRates>();
-    mature->ProcessingRates->Rate1m.emplace();
-    mature->ProcessingRates->Rate10m.emplace();
-    mature->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond = 500;
-    mature->Streams[streamId] = New<TStreamTraverseData>();
-    mature->Streams[streamId]->InflightMetrics->ProcessedCountPerSec = 100;
+    auto first = New<TNodeTraverseData>();
+    first->IterationCycle = 10;
+    first->Streams[streamId] = New<TStreamTraverseData>();
+    first->Streams[streamId]->InflightMetrics->ProcessedCountPerSec = 100;
+    auto second = New<TNodeTraverseData>();
+    second->IterationCycle = 1;
+    second->Streams[streamId] = New<TStreamTraverseData>();
 
-    auto young = New<TNodeTraverseData>();
-    young->IterationCycle = 1;
-    young->Streams[streamId] = New<TStreamTraverseData>();
-
-    const auto merged = MergeNodeTraverseData({mature, young});
+    const auto merged = MergeNodeTraverseData({first, second});
     EXPECT_EQ(merged->Streams.at(streamId)->InflightMetrics->ProcessedCountPerSec, 100);
     EXPECT_FALSE(merged->IterationCycle);
-    EXPECT_FALSE(merged->ProcessingRates);
 }
 
-TEST(TTraverseTest, CompletedPartitionReplacesLastRatesWithKnownZeros)
+TEST(TTraverseTest, CompletedPartitionHasNoLocalIteration)
 {
     auto spec = New<TExtendedComputationSpec>();
     const TStreamId streamId("source");
@@ -218,126 +212,6 @@ TEST(TTraverseTest, CompletedPartitionReplacesLastRatesWithKnownZeros)
     EXPECT_EQ(stream->SystemWatermark, TSystemTimestamp(300));
     EXPECT_EQ(stream->EventWatermark, TSystemTimestamp(300));
     EXPECT_EQ(stream->InflightMetrics->Count, 0);
-
-    auto previous = CloneYsonStruct(completed);
-    ASSERT_TRUE(previous->ProcessingRates);
-    for (auto window : {&TComputationProcessingRates::Rate1m, &TComputationProcessingRates::Rate10m}) {
-        auto& rate = previous->ProcessingRates.Get()->*window;
-        ASSERT_TRUE(rate);
-        rate->Processed.ProcessedMessagesPerSecond = 10;
-        rate->Processed.ProcessedBytesPerSecond = 100;
-        ASSERT_TRUE(rate->Capacity);
-        rate->Capacity->ProcessedMessagesPerSecond = 20;
-        rate->Capacity->ProcessedBytesPerSecond = 200;
-    }
-    auto advanced = AdvanceNodeTraverseData(previous, completed);
-    auto merged = MergeNodeTraverseData({completed, advanced});
-    ASSERT_TRUE(merged->ProcessingRates);
-    for (auto window : {&TComputationProcessingRates::Rate1m, &TComputationProcessingRates::Rate10m}) {
-        const auto& rate = merged->ProcessingRates.Get()->*window;
-        ASSERT_TRUE(rate);
-        EXPECT_DOUBLE_EQ(rate->Processed.ProcessedMessagesPerSecond, 0);
-        EXPECT_DOUBLE_EQ(rate->Processed.ProcessedBytesPerSecond, 0);
-        ASSERT_TRUE(rate->Capacity);
-        EXPECT_DOUBLE_EQ(rate->Capacity->ProcessedMessagesPerSecond, 0);
-        EXPECT_DOUBLE_EQ(rate->Capacity->ProcessedBytesPerSecond, 0);
-    }
-
-    auto unobserved = New<TNodeTraverseData>();
-    unobserved->Streams[streamId] = New<TStreamTraverseData>();
-    auto incomplete = MergeNodeTraverseData({completed, unobserved});
-    EXPECT_FALSE(incomplete->ProcessingRates);
-    EXPECT_EQ(incomplete->Streams.at(streamId)->State, EStreamState::Active);
-}
-
-TEST(TTraverseTest, MergeNodeSumsLocallyNormalizedCapacity)
-{
-    auto first = New<TNodeTraverseData>();
-    first->ProcessingRates = New<TComputationProcessingRates>();
-    first->ProcessingRates->Rate1m.emplace();
-    first->ProcessingRates->Rate10m.emplace();
-    auto& a = first->ProcessingRates->Rate1m.value();
-    a.Processed.ProcessedMessagesPerSecond = 100;
-    a.Processed.ProcessedBytesPerSecond = 800;
-    a.Capacity = a.Processed;
-
-    auto second = NYTree::CloneYsonStruct(first);
-    auto& b = second->ProcessingRates->Rate1m.value();
-    b.Capacity->ProcessedMessagesPerSecond = 1000;
-    b.Capacity->ProcessedBytesPerSecond = 8000;
-
-    const auto merged = MergeNodeTraverseData({first, second});
-    ASSERT_TRUE(merged->ProcessingRates);
-    const auto& rate = merged->ProcessingRates->Rate1m.value();
-    EXPECT_DOUBLE_EQ(rate.Processed.ProcessedMessagesPerSecond, 200);
-    EXPECT_DOUBLE_EQ(rate.Processed.ProcessedBytesPerSecond, 1600);
-    ASSERT_TRUE(rate.Capacity);
-    EXPECT_DOUBLE_EQ(rate.Capacity->ProcessedMessagesPerSecond, 1100);
-    EXPECT_DOUBLE_EQ(rate.Capacity->ProcessedBytesPerSecond, 8800);
-    EXPECT_DOUBLE_EQ(a.Capacity->ProcessedMessagesPerSecond, 100);
-
-    b.Capacity.reset();
-    const auto partial = MergeNodeTraverseData({first, second});
-    EXPECT_DOUBLE_EQ(partial->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond, 200);
-    EXPECT_FALSE(partial->ProcessingRates->Rate1m.value().Capacity);
-
-    second->ProcessingRates->Rate1m.reset();
-    EXPECT_FALSE(MergeNodeTraverseData({first, second})->ProcessingRates->Rate1m);
-}
-
-TEST(TTraverseTest, ServiceWindowsMergeIndependently)
-{
-    auto first = New<TNodeTraverseData>();
-    first->ProcessingRates = New<TComputationProcessingRates>();
-    first->ProcessingRates->Rate1m.emplace();
-    first->ProcessingRates->Rate10m.emplace();
-    first->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond = 100;
-    first->ProcessingRates->Rate10m.value().Processed.ProcessedMessagesPerSecond = 40;
-    auto second = CloneYsonStruct(first);
-    second->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond = 200;
-    second->ProcessingRates->Rate10m.value().Processed.ProcessedMessagesPerSecond = 60;
-    const auto merged = MergeNodeTraverseData({first, second});
-    EXPECT_DOUBLE_EQ(merged->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond, 300);
-    EXPECT_DOUBLE_EQ(merged->ProcessingRates->Rate10m.value().Processed.ProcessedMessagesPerSecond, 100);
-    second->ProcessingRates->Rate10m.reset();
-    const auto partial = MergeNodeTraverseData({first, second});
-    EXPECT_DOUBLE_EQ(partial->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond, 300);
-    EXPECT_FALSE(partial->ProcessingRates->Rate10m);
-}
-
-TEST(TTraverseTest, AdvanceNodeKeepsProcessingRatesWithItsObservation)
-{
-    auto previous = New<TNodeTraverseData>();
-    previous->ReportTime = TSystemTimestamp(10);
-    previous->IterationCycle = 7;
-    previous->ProcessingRates = New<TComputationProcessingRates>();
-    previous->ProcessingRates->Rate1m.emplace();
-    previous->ProcessingRates->Rate10m.emplace();
-    previous->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond = 100;
-    previous->ProcessingRates->Rate1m.value().Processed.ProcessedBytesPerSecond = 800;
-
-    auto current = New<TNodeTraverseData>();
-    current->ReportTime = TSystemTimestamp(20);
-    current->IterationCycle = 8;
-    current->ProcessingRates = New<TComputationProcessingRates>();
-    current->ProcessingRates->Rate1m.emplace();
-    current->ProcessingRates->Rate10m.emplace();
-    current->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond = 200;
-    current->ProcessingRates->Rate1m.value().Processed.ProcessedBytesPerSecond = 3200;
-
-    auto advanced = AdvanceNodeTraverseData(previous, current);
-    ASSERT_TRUE(advanced->ProcessingRates);
-    EXPECT_EQ(advanced->IterationCycle, 8);
-    EXPECT_EQ(advanced->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond, 200);
-    EXPECT_EQ(advanced->ProcessingRates->Rate1m.value().Processed.ProcessedBytesPerSecond, 3200);
-    EXPECT_EQ(previous->ProcessingRates->Rate1m.value().Processed.ProcessedMessagesPerSecond, 100);
-    EXPECT_EQ(previous->IterationCycle, 7);
-
-    current->IterationCycle = 9;
-    current->ProcessingRates.Reset();
-    advanced = AdvanceNodeTraverseData(advanced, current);
-    EXPECT_EQ(advanced->IterationCycle, 9);
-    EXPECT_FALSE(advanced->ProcessingRates);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,7 @@
 #include "flow_view.h"
 
+#include "computation_statistics.h"
+
 #include "private.h"
 
 #include "checksum.h"
@@ -471,6 +473,9 @@ void TJobStatus::Register(TRegistrar registrar)
         .Default(0);
 
     registrar.Parameter("from_partition_traverse_data", &TThis::FromPartitionTraverseData)
+        .Default();
+    registrar.Parameter("processing_observation", &TThis::ProcessingObservation)
+        .DontSerializeDefault()
         .Default();
 
     registrar.Parameter("performance_metrics", &TThis::PerformanceMetrics)

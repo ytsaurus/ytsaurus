@@ -5,10 +5,9 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     availability_groups_ut.cpp
     compact_output_store_ut.cpp
-    controller_processing_rates_ut.cpp
     computation_base_ut.cpp
     computation_tracer_ut.cpp
-    processing_rate_estimator_ut.cpp
+    processing_observation_accumulator_ut.cpp
     event_timestamp_assigner_ut.cpp
     idle_partition_ut.cpp
     input_store_ut.cpp

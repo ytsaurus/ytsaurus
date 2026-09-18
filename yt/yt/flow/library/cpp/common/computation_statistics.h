@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "stream_statistics.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -17,30 +16,28 @@ struct TBatchStatistics
     TBatchStatistics& operator+=(const TBatchStatistics& other);
 };
 
-struct TPartitionProcessingRates
-    : public NYTree::TYsonStructLite
-{
-    // Counts messages, timers and key visits, including rows consumed by skip_if_expression.
-    TStreamSpeedStatistics Processed;
-    std::optional<TStreamSpeedStatistics> Capacity;
-
-    REGISTER_YSON_STRUCT_LITE(TPartitionProcessingRates);
-    static void Register(TRegistrar registrar);
-};
-
-//! Locally processed rates and capacity assuming an unchanged input-stream mix.
-struct TComputationProcessingRates
+//! Cumulative processing metrics since the start of the job.
+struct TProcessingObservation
     : public NYTree::TYsonStruct
 {
-    // A missing window is unknown, not an observed zero.
-    std::optional<TPartitionProcessingRates> Rate1m;
-    std::optional<TPartitionProcessingRates> Rate10m;
+    i64 Sequence = 0;
+    i64 SpecGeneration = 0;
+    TInstant CapturedAt;
+    TDuration ObservationDuration;
+    // Processing work includes skipped inputs, timers and visits, not unique terminal completions.
+    i64 ProcessedCount = 0;
+    i64 ProcessedByteSize = 0;
+    TDuration ProcessingTime;
+    TDuration InputWaitingTime;
+    TDuration OutputWaitingTime;
+    TDuration OtherWaitingTime;
 
-    REGISTER_YSON_STRUCT(TComputationProcessingRates);
+    REGISTER_YSON_STRUCT(TProcessingObservation);
+
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TComputationProcessingRates);
+DEFINE_REFCOUNTED_TYPE(TProcessingObservation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

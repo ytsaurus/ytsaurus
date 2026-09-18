@@ -18,6 +18,36 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TComputationTracerTest, InputAndOutputWaitsKeepTheirInheritedKinds)
+{
+    auto context = New<TComputationContext>();
+    context->Partition = New<TPartition>();
+    auto tracer = CreateComputationTracer(context, New<TComputationSpec>(), New<TDynamicPartitionTracerSpec>());
+    {
+        TTraceContextGuard epoch(tracer->StartEpochTraceContext(1));
+        {
+            TTraceContextGuard input(tracer->CreateEpochPartTraceContext("InputWait", EEpochPartKind::WaitingForInput));
+            TTraceContextGuard inherited(tracer->CreateEpochPartTraceContext("InputChild"));
+            TDelayedExecutor::WaitForDuration(20ms);
+        }
+        {
+            TTraceContextGuard output(tracer->CreateEpochPartTraceContext("OutputWait", EEpochPartKind::WaitingForOutput));
+            TTraceContextGuard inherited(tracer->CreateEpochPartTraceContext("OutputChild"));
+            TDelayedExecutor::WaitForDuration(20ms);
+        }
+    }
+    auto times = tracer->GetPartStatesByKind();
+    auto parts = tracer->GetPartStates();
+    EXPECT_EQ(times[EEpochPartKind::WaitingForInput].TotalDuration,
+        parts.at("InputWait").TotalDuration + parts.at("InputChild").TotalDuration);
+    EXPECT_EQ(times[EEpochPartKind::WaitingForOutput].TotalDuration,
+        parts.at("OutputWait").TotalDuration + parts.at("OutputChild").TotalDuration);
+    EXPECT_GE(times[EEpochPartKind::WaitingForInput].TotalDuration, 20ms);
+    EXPECT_GE(times[EEpochPartKind::WaitingForOutput].TotalDuration, 20ms);
+    EXPECT_EQ(times[EEpochPartKind::Waiting].TotalDuration, TDuration::Zero());
+    EXPECT_EQ(times[EEpochPartKind::Processing].TotalDuration, parts.at("Unknown").TotalDuration);
+}
+
 TEST(TComputationTracerTest, ExplicitKindsAcrossEpochs)
 {
     auto context = New<TComputationContext>();

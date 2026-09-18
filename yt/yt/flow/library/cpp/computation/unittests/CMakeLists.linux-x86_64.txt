@@ -68,10 +68,9 @@ target_link_options(yt-flow-library-cpp-computation-unittests PRIVATE
 target_sources(yt-flow-library-cpp-computation-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/availability_groups_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/compact_output_store_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/controller_processing_rates_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/computation_base_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/computation_tracer_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/processing_rate_estimator_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/processing_observation_accumulator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/event_timestamp_assigner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/idle_partition_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/input_store_ut.cpp

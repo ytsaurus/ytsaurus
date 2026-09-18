@@ -71,6 +71,8 @@ struct TSinkInitProbe
     bool MismatchedParentKey = false;
     bool DistributeOnPrepare = false;
     bool RunOneEpoch = false;
+    bool CaptureProcessingStatus = false;
+    std::vector<TComputationStatusPtr> ProcessingStatuses;
 };
 
 std::atomic<TSinkInitProbe*>& GetActiveSinkInitProbe()
@@ -254,6 +256,30 @@ private:
         NTracing::TTraceContextGuard&& /*initTraceContextGuard*/) override
     {
         YT_VERIFY(Probe_->RunOneEpoch);
+        if (Probe_->CaptureProcessingStatus) {
+            THashMap<TStreamId, TInflightStreamTraverseDataPtr> inflights{
+                {OutputStreamId, New<TInflightStreamTraverseData>()},
+            };
+            for (int epoch = 0; epoch < 2; ++epoch) {
+                auto iterGuard = StartRunIteration(context);
+                if (epoch == 0) {
+                    UpdateStatus(TSystemTimestamp(1), TSystemTimestamp(1), inflights);
+                }
+                auto transaction = PrepareTransaction(context);
+                Probe_->ProcessingStatuses.push_back(GetStatus());
+                Commit(context, transaction);
+                Probe_->ProcessingStatuses.push_back(GetStatus());
+                auto reportTime = TSystemTimestamp(epoch + 2);
+                UpdateStatus(reportTime, reportTime, inflights);
+                Probe_->ProcessingStatuses.push_back(GetStatus());
+                auto detachedStatus = GetStatus();
+                detachedStatus->NodeTraverse.Reset();
+                detachedStatus->ProcessingObservation.Reset();
+                Probe_->ProcessingStatuses.push_back(GetStatus());
+                FinishRunIteration();
+            }
+            THROW_ERROR_EXCEPTION("Processing status test completed");
+        }
         auto iterGuard = StartRunIteration(context);
         auto transaction = PrepareTransaction(context);
         Commit(context, transaction);
@@ -431,6 +457,45 @@ std::vector<TSinkInitProbe::TEvent> GetEvents(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TComputationStatusPublicationTest, PublishesCommittedObservationWithTraverse)
+{
+    TSinkInitProbe probe;
+    probe.CaptureProcessingStatus = true;
+    auto error = RunProductionWiredComputation(
+        MakeSpec({{TSinkId("ordinary"), true}}),
+        std::nullopt,
+        &probe,
+        /*distributeOnPrepare*/ false,
+        /*runOneEpoch*/ true);
+
+    EXPECT_EQ(error.GetMessage(), "Processing status test completed");
+    ASSERT_EQ(probe.ProcessingStatuses.size(), 8u);
+    const auto& initial = probe.ProcessingStatuses[0];
+    ASSERT_TRUE(initial->NodeTraverse);
+    EXPECT_EQ(initial->NodeTraverse->ReportTime, TSystemTimestamp(1));
+    EXPECT_FALSE(initial->ProcessingObservation);
+
+    for (int epoch = 0; epoch < 2; ++epoch) {
+        for (int index = 2; index <= 3; ++index) {
+            const auto& published = probe.ProcessingStatuses[4 * epoch + index];
+            ASSERT_TRUE(published->NodeTraverse);
+            ASSERT_TRUE(published->ProcessingObservation);
+            EXPECT_EQ(published->NodeTraverse->ReportTime, TSystemTimestamp(epoch + 2));
+            EXPECT_EQ(published->NodeTraverse->IterationCycle, epoch);
+            EXPECT_EQ(published->ProcessingObservation->Sequence, epoch + 1);
+        }
+    }
+    for (int epoch = 0; epoch < 2; ++epoch) {
+        const auto& committed = probe.ProcessingStatuses[4 * epoch + 1];
+        ASSERT_TRUE(committed->ProcessingObservation);
+        EXPECT_EQ(committed->ProcessingObservation->Sequence, epoch + 1);
+        EXPECT_EQ(committed->NodeTraverse, probe.ProcessingStatuses[4 * epoch]->NodeTraverse);
+    }
+    const auto& pending = probe.ProcessingStatuses[4];
+    EXPECT_EQ(pending->NodeTraverse, probe.ProcessingStatuses[2]->NodeTraverse);
+    EXPECT_EQ(pending->ProcessingObservation, probe.ProcessingStatuses[2]->ProcessingObservation);
+}
 
 TEST(TSinkInitTest, RunsPartitionSinkThroughFirstEpoch)
 {

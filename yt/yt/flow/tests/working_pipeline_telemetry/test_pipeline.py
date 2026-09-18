@@ -22,6 +22,30 @@ FAIL_COMMENT = "TELEMETRY_TEST_INTENTIONAL_FAIL"
 ##################################################################
 
 
+def processing_rates(status):
+    observation = status.get("processing_observation")
+    if not observation or observation["processed_count"] <= 0 or observation["processing_time"] <= 0:
+        return None
+    assert "rates" not in observation
+    assert "processing_rates" not in status.get("from_partition_traverse_data", {}).get("node", {})
+    # Check work/time accounting from the committed totals, not a worker-side rate estimator.
+    processing = float(observation["processing_time"]) / 1000
+    wall = (
+        sum(
+            float(observation[name])
+            for name in ("processing_time", "input_waiting_time", "output_waiting_time", "other_waiting_time")
+        )
+        / 1000
+    )
+    return {
+        kind: {
+            "processed_messages_per_second": observation["processed_count"] / seconds,
+            "processed_bytes_per_second": observation["processed_byte_size"] / seconds,
+        }
+        for kind, seconds in (("processed", wall), ("capacity", processing))
+    }
+
+
 class Test(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path(f"{yatest.common.context.project_path}/pipeline/pipeline")
 
@@ -137,9 +161,6 @@ class Test(FlowTestBase):
                     job_status = partition_job_statuses.get(partition_id, {}).get("current_job_status")
                     if not job_status:
                         continue
-                    node = job_status.get("from_partition_traverse_data", {}).get("node", {})
-                    if node.get("processing_rates"):
-                        assert node["iteration_cycle"] > 0
                     if filter_func(job_status):
                         return job_status
                 return None
@@ -157,12 +178,12 @@ class Test(FlowTestBase):
                 rate = get_lineage_ratios().get(output_stream, {}).get(parent_stream, {})
                 return rate.get("count", {}).get("weight", 0) > 0 and rate["count"]["ratio"] > 0
 
-            # Lineage is visible before the first source commit; processing rates are not.
+            # Lineage is visible before the first source commit; processing observations are not.
             wait(lambda: os.path.exists(commit_gate_ready_path + ".reader"), timeout=60)
             wait(lambda: has_lineage_edge("data", "reader/random"), timeout=120)
             wait(lambda: find_job_status("reader", lambda status: status.get("inited_time")), timeout=60)
             pending_status = find_job_status("reader", lambda status: status.get("inited_time"))
-            assert not pending_status.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates")
+            assert not pending_status.get("processing_observation")
 
             with open(commit_gate_release_path, "w"):
                 pass
@@ -175,14 +196,11 @@ class Test(FlowTestBase):
                 selected_partitions["processor"], _ = gate.read().split()
             wait(lambda: find_job_status("processor", lambda status: status.get("inited_time")), timeout=60)
             pending_processor = find_job_status("processor", lambda status: status.get("inited_time"))
-            # Empty epochs may have warmed up while waiting for the source heartbeat.
-            pending_rates = (
-                pending_processor.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates", {})
-            )
-            for rate in pending_rates.values():
-                assert float(rate["processed"]["processed_messages_per_second"]) == 0
-                assert float(rate["processed"]["processed_bytes_per_second"]) == 0
-                assert not rate.get("capacity")
+            # Empty epochs may have committed while waiting for the source heartbeat.
+            pending_observation = pending_processor.get("processing_observation")
+            if pending_observation:
+                assert pending_observation["processed_count"] == 0
+                assert pending_observation["processed_byte_size"] == 0
             with open(commit_gate_release_path + ".service", "w"):
                 pass
 
@@ -212,53 +230,49 @@ class Test(FlowTestBase):
             wait(lambda: find_job_status("reader", get_output_limits_checker("output_store_bytes")), timeout=180)
             wait(lambda: find_job_status("reader", get_output_limits_checker("output_store_count")), timeout=180)
 
-            def get_processing_rates(job_status):
-                return job_status.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates")
-
             def get_cycle(job_status):
                 return job_status["from_partition_traverse_data"]["node"]["iteration_cycle"]
 
-            def check_processing_rates(job_status):
-                processing_rates = get_processing_rates(job_status)
-                rate = processing_rates.get("rate_1m") if processing_rates else None
-                return (
-                    processing_rates
-                    and get_cycle(job_status) > 0
-                    and rate
-                    and all(
-                        rate.get(kind) and math.isfinite(rate[kind][name]) and rate[kind][name] > 0
-                        for kind in ("processed", "capacity")
-                        for name in ("processed_messages_per_second", "processed_bytes_per_second")
-                    )
+            def check_processing_observation(job_status):
+                rate = processing_rates(job_status)
+                return rate and all(
+                    math.isfinite(rate[kind][name]) and rate[kind][name] > 0
+                    for kind in ("processed", "capacity")
+                    for name in ("processed_messages_per_second", "processed_bytes_per_second")
                 )
 
             # Verify the runtime-to-heartbeat path, including a consumer that emits nothing.
             for computation in ("reader", "processor", "consumer"):
-                wait(lambda: find_job_status(computation, check_processing_rates), timeout=180)
-                processing_rates = get_processing_rates(find_job_status(computation, check_processing_rates))
+                wait(lambda: find_job_status(computation, check_processing_observation), timeout=180)
+                status = find_job_status(computation, check_processing_observation)
+                observation = status["processing_observation"]
+                assert observation["sequence"] > 0
+                assert observation["processed_count"] > 0
+                assert observation["processed_byte_size"] > 0
+                rate = processing_rates(status)
                 if computation == "processor":
-                    # Message IDs grow even for fixed payloads. The paired EMA ratio must
+                    # Message IDs grow even for fixed payloads. The cumulative byte/count ratio must
                     # stay within the observed processing batch averages, not the first epoch alone.
                     with open(commit_gate_ready_path + "." + computation + ".input_bytes") as bounds:
                         minimum, maximum = map(float, bounds.read().split())
-                    processed = processing_rates["rate_1m"]["processed"]
+                    processed = rate["processed"]
                     ratio = processed["processed_bytes_per_second"] / processed["processed_messages_per_second"]
                     assert minimum - 1e-6 <= ratio <= maximum + 1e-6, (computation, ratio, minimum, maximum)
                 if computation == "consumer":
-                    assert processing_rates["rate_1m"]["capacity"]["processed_messages_per_second"] <= 1100
-                previous = get_cycle(find_job_status(computation, check_processing_rates))
+                    assert rate["capacity"]["processed_messages_per_second"] <= 1100
+                previous = get_cycle(find_job_status(computation, check_processing_observation))
                 wait(
                     lambda: find_job_status(
                         computation,
-                        lambda status: check_processing_rates(status) and get_cycle(status) > previous,
+                        lambda status: check_processing_observation(status) and get_cycle(status) > previous,
                     ),
                     timeout=180,
                 )
 
             service_ready_path = commit_gate_ready_path + ".service"
             service_release_path = commit_gate_release_path + ".service"
-            # Hold a later epoch before commit; live Traverse must retain the last completed sample.
-            before_gate = find_job_status("processor", check_processing_rates)
+            # Hold a later epoch before commit; job status must retain the last committed observation.
+            before_gate = find_job_status("processor", check_processing_observation)
             previous_cycle = get_cycle(before_gate)
             os.remove(service_ready_path)
             os.remove(service_release_path)
@@ -275,20 +289,39 @@ class Test(FlowTestBase):
 
             wait(lambda: find_job_status("processor", is_pending_epoch), timeout=60)
             pending = find_job_status("processor", is_pending_epoch)
-            retained = get_processing_rates(pending)
-            assert retained
+            retained_observation = pending["processing_observation"]
             assert get_cycle(pending) == published_cycle
             wait(
                 lambda: find_job_status("processor", lambda status: status["update_time"] > pending["update_time"]),
                 timeout=60,
             )
-            assert get_processing_rates(find_job_status("processor", is_pending_epoch)) == retained
+            refreshed = find_job_status("processor", is_pending_epoch)
+            assert refreshed["processing_observation"] == retained_observation
+
+            # The status envelope may advance before the computation applies the new spec.
+            dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+            dynamic_spec["spec"]["computations"]["processor"]["skip_if_expression"] = "false"
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                dynamic_spec["spec"],
+                expected_version=dynamic_spec["version"],
+            )
+            wait(
+                lambda: find_job_status("processor", lambda status: status["epoch"] > pending["epoch"]),
+                timeout=60,
+            )
+            reconfigured = find_job_status("processor", lambda status: status["epoch"] > pending["epoch"])
+            assert reconfigured["processing_observation"] == retained_observation
+            assert reconfigured["processing_observation"]["spec_generation"] < reconfigured["epoch"]
             with open(service_release_path, "w"):
                 pass
             wait(
                 lambda: find_job_status(
                     "processor",
-                    lambda status: check_processing_rates(status) and get_cycle(status) > published_cycle,
+                    lambda status: check_processing_observation(status)
+                    and get_cycle(status) > published_cycle
+                    and status["processing_observation"]["sequence"] > retained_observation["sequence"]
+                    and status["processing_observation"]["spec_generation"] >= reconfigured["epoch"],
                 ),
                 timeout=180,
             )
@@ -311,7 +344,7 @@ class Test(FlowTestBase):
         "computation_class", ["TProcessor", "TFilteringSwiftProcessor", "TReader", "TTransformReader"]
     )
     @pytest.mark.parametrize("skip_all", [False, True])
-    def test_filter_processing_rates(self, computation_class, skip_all):
+    def test_filter_processing_observations(self, computation_class, skip_all):
         run_yt_sync("primary", self.work_yt_path)
         config = get_yson_config(PIPELINE_CONFIG_PATH)
         computation = "reader" if computation_class in ("TReader", "TTransformReader") else "processor"
@@ -359,12 +392,7 @@ class Test(FlowTestBase):
                     status = (
                         view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
                     )
-                    rate = (
-                        status.get("from_partition_traverse_data", {})
-                        .get("node", {})
-                        .get("processing_rates", {})
-                        .get("rate_1m")
-                    )
+                    rate = processing_rates(status)
                     if not rate or not rate.get("capacity"):
                         return False
                     for kind in ("processed", "capacity"):
@@ -407,7 +435,7 @@ class Test(FlowTestBase):
 
     @pytest.mark.authors(["pechatnov"])
     @pytest.mark.parametrize("reader_class", ["TTransformReader", "TDelayedReader"])
-    def test_source_processing_rates(self, reader_class):
+    def test_source_processing_observations(self, reader_class):
         run_yt_sync("primary", self.work_yt_path)
         config = get_yson_config(PIPELINE_CONFIG_PATH)
         reader = config["spec"]["computations"]["reader"]
@@ -442,8 +470,7 @@ class Test(FlowTestBase):
                     status = (
                         view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
                     )
-                    node = status.get("from_partition_traverse_data", {}).get("node", {})
-                    rate = node.get("processing_rates", {}).get("rate_1m")
+                    rate = processing_rates(status)
                     if rate:
                         return rate
                 return None
@@ -565,12 +592,7 @@ class Test(FlowTestBase):
                     status = (
                         view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
                     )
-                    return (
-                        status.get("from_partition_traverse_data", {})
-                        .get("node", {})
-                        .get("processing_rates", {})
-                        .get("rate_1m")
-                    )
+                    return processing_rates(status)
                 return None
 
             wait(get_rate, timeout=180)
@@ -687,14 +709,14 @@ class Test(FlowTestBase):
                 if partition["computation_id"] == "reader":
                     status = flow_view["feedback"]["partition_job_statuses"].get(partition_id, {})
                     job = status.get("current_job_status", {})
-                    assert not job.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates")
+                    assert not job.get("processing_observation")
 
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize(
         "computation_class", ["TReader", "TTransformReader", "TFilteringSwiftProcessor", "TProcessor"]
     )
     @pytest.mark.parametrize("fail_commit", [False, True])
-    def test_processing_rates_commit_boundary(self, computation_class, fail_commit):
+    def test_processing_observation_commit_boundary(self, computation_class, fail_commit):
         run_yt_sync("primary", self.work_yt_path)
         config = get_yson_config(PIPELINE_CONFIG_PATH)
         computation = "reader" if computation_class in ("TReader", "TTransformReader") else "processor"
@@ -734,7 +756,7 @@ class Test(FlowTestBase):
 
             wait(get_status, timeout=60)
             status = get_status()
-            assert not status.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates")
+            assert not status.get("processing_observation") or status["processing_observation"]["processed_count"] == 0
             with open(observation_path) as observation:
                 output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
             assert output_count == input_count > 0
@@ -754,7 +776,10 @@ class Test(FlowTestBase):
                 assert os.path.exists(observation_path)
                 status = get_status()
                 if status:
-                    assert not status.get("from_partition_traverse_data", {}).get("node", {}).get("processing_rates")
+                    assert (
+                        not status.get("processing_observation")
+                        or status["processing_observation"]["processed_count"] == 0
+                    )
             else:
                 wait(lambda: os.path.exists(observation_path), timeout=90)
 
@@ -762,12 +787,7 @@ class Test(FlowTestBase):
                     status = get_status()
                     if not status:
                         return False
-                    rate = (
-                        status.get("from_partition_traverse_data", {})
-                        .get("node", {})
-                        .get("processing_rates", {})
-                        .get("rate_1m")
-                    )
+                    rate = processing_rates(status)
                     return rate and rate["processed"]["processed_messages_per_second"] > 0 and rate.get("capacity")
 
                 wait(has_rates, timeout=180)
@@ -809,14 +829,12 @@ class Test(FlowTestBase):
                     status = (
                         view["feedback"]["partition_job_statuses"].get(partition_id, {}).get("current_job_status", {})
                     )
-                    if status.get("epoch_part_times", {}).get("Input.Throttle", 0) <= 0:
+                    if (
+                        status.get("epoch_part_times", {}).get("Input.Throttle", 0) <= 0
+                        or status.get("processing_observation", {}).get("processing_time", 0) < 10000
+                    ):
                         continue
-                    return (
-                        status.get("from_partition_traverse_data", {})
-                        .get("node", {})
-                        .get("processing_rates", {})
-                        .get("rate_1m")
-                    )
+                    return processing_rates(status)
                 return None
 
             wait(get_rate, timeout=180)

@@ -407,8 +407,7 @@ bool TComputationBase::UpdateTraverse(
     TSystemTimestamp reportTime,
     TSystemTimestamp systemWatermark,
     const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
-    i64 iterationCycle,
-    TComputationProcessingRatesPtr processingRates)
+    i64 iterationCycle)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
@@ -420,7 +419,6 @@ bool TComputationBase::UpdateTraverse(
     auto traverseData = New<TNodeTraverseData>();
     traverseData->ReportTime = reportTime;
     traverseData->IterationCycle = iterationCycle;
-    traverseData->ProcessingRates = std::move(processingRates);
 
     // Deep copy because traverseData->Streams will be mutated.
     for (const auto& [streamId, streamTraverseData] : GetInputTraverse()) {
@@ -468,7 +466,7 @@ bool TComputationBase::UpdateTraverse(
 
     YT_TLOG_INFO("Built traverse")
         .With("TraverseData", ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
-    NodeTraverse_.Store(traverseData);
+    NodeTraverse_.Store(std::move(traverseData));
     YT_TLOG_INFO("Traverse updated")
         .With("IsFinished", isFinished);
 
@@ -751,8 +749,8 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto status = New<TComputationStatus>();
-
     status->NodeTraverse = GetNodeTraverse();
+    status->ProcessingObservation = ProcessingObservation_.Acquire();
 
     {
         auto guard = Guard(LimitsLock_);
@@ -855,8 +853,7 @@ bool TUniversalComputationBase::UpdateStatus(
         reportTime,
         systemWatermark,
         inflights,
-        RunIteration_,
-        ProcessingRates_);
+        RunIteration_);
 
     auto inputLimits = GetExtraInputLimits();
 
@@ -1418,9 +1415,8 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     }
     GetThrottlerFactory()->SetPriority(priority.Underlying());
 
-    ProcessingRates_.Reset();
     auto epochTraceContext = Tracer_->StartEpochTraceContext(++RunIteration_);
-    ProcessingRateEstimator_.StartEpoch(Tracer_->GetPartStatesByKind());
+    ProcessingObservationAccumulator_.StartEpoch(Tracer_->GetPartStatesByKind());
     TTraceContextGuard epochTraceGuard(epochTraceContext);
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Start"));
     TPromise<void> promise;
@@ -1524,9 +1520,11 @@ void TUniversalComputationBase::Commit(
 {
     YT_VERIFY(transaction);
     bool committed = false;
-    auto publishRates = Finally([&] {
+    auto publishObservation = Finally([&] {
         if (committed) {
-            ProcessingRates_ = ProcessingRateEstimator_.Commit(Tracer_->GetPartStatesByKind());
+            auto observation = ProcessingObservationAccumulator_.Commit(Tracer_->GetPartStatesByKind());
+            observation->SpecGeneration = GetSpecGeneration();
+            ProcessingObservation_.Store(std::move(observation));
         }
     });
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
@@ -1689,7 +1687,7 @@ void TUniversalComputationBase::RegisterResults(
     THashMap<TStreamId, TBatchStatistics> skipped)
 {
     auto statistics = AddLineageInputs(&lineageDelta, GetSpec(), *inputs, std::move(skipped));
-    ProcessingRateEstimator_.AddInputs(statistics.Count, statistics.ByteSize);
+    ProcessingObservationAccumulator_.AddInputs(statistics.Count, statistics.ByteSize);
     if (const auto& tracker = GetContext()->JobLineageTracker) {
         tracker->Add(std::move(lineageDelta));
     }
@@ -1701,19 +1699,19 @@ void TUniversalComputationBase::WaitForBackoff(
     bool emptyInput) const
 {
     if (outputLimitsCheckResult.OutputStoreOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::Waiting));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output store overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.OutputBufferOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::Waiting));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.BlockedByController) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController", EEpochPartKind::Waiting));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Blocked by controller epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (emptyInput) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty", EEpochPartKind::Waiting));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty", EEpochPartKind::WaitingForInput));
         YT_TLOG_INFO("Empty epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }

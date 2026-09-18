@@ -152,7 +152,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             auto inputsFuture = context->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams);
             inputTimers = TimerStore_->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams, dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
             {
-                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::Waiting));
+                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::WaitingForInput));
                 inputs = WaitFor(inputsFuture).ValueOrThrow();
             }
 
