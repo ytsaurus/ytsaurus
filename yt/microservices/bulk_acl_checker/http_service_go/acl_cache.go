@@ -222,9 +222,8 @@ func DumpToACLDump(data any) (result *ACLDump, err error) {
 	return
 }
 
-func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExportsPath ypath.Path) {
+func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExportsPath ypath.Path, delay time.Duration) {
 	timer := time.NewTimer(0)
-	delay := time.Duration(30 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
@@ -256,10 +255,10 @@ func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Comman
 	userExportsPathStr := ytmsvc.Must(cmd.Flags().GetString("user-root"))
 	userExportsPath := ypath.Path(userExportsPathStr)
 	tokenEnvVariable := ytmsvc.Must(cmd.Flags().GetString("token-env-variable"))
+	delay := ytmsvc.Must(cmd.Flags().GetDuration("cache-update-period"))
 	sem := make(chan struct{}, concurrencyLevel)
 	runningClusters := make(map[string]context.CancelCauseFunc)
 	timer := time.NewTimer(0)
-	delay := time.Duration(30 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
@@ -279,7 +278,7 @@ func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Comman
 					if !exists {
 						clusterCtx, cancel := context.WithCancelCause(ctx)
 						runningClusters[cluster] = cancel
-						go loadFromClusterLoop(clusterCtx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath)
+						go loadFromClusterLoop(clusterCtx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath, delay)
 					}
 				}
 				if Cache.IsInitialized.Load() {
