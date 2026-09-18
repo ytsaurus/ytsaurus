@@ -1,6 +1,6 @@
 #include "balancing_helpers.h"
 #include "config.h"
-#include "parameterized_balancing_helpers.h"
+#include "parameterized_move_helpers.h"
 #include "public.h"
 #include "replica_balancing_helpers.h"
 #include "table.h"

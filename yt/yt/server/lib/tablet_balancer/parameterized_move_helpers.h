@@ -15,20 +15,6 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const std::string DefaultParameterizedMetricFormula;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const std::vector<NYPath::TYPath> ParameterizedBalancingAttributes;
-
-double ExtractMetricValue(
-    const NTableClient::TUnversionedValue& value,
-    const std::string& metric,
-    TTabletId tabletId,
-    TTableId tableId);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! The ultimate goal of this class is to evenly distribute tablets between cells.
 //!
 //! A metric is calculated for each tablet based on its statistics and performance counters.
@@ -46,16 +32,6 @@ struct IParameterizedReassignSolver
 };
 
 DEFINE_REFCOUNTED_TYPE(IParameterizedReassignSolver)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IParameterizedResharder
-    : public TRefCounted
-{
-    virtual std::vector<TReshardDescriptor> BuildTableActionDescriptors(const TTablePtr& table) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IParameterizedResharder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,16 +64,7 @@ struct TParameterizedReassignSolverConfig
         std::optional<int> maxMoveActionHardLimit = std::nullopt) const;
 };
 
-struct TParameterizedResharderConfig
-{
-    bool EnableReshardByDefault = false;
-    std::string Metric;
-
-    TParameterizedResharderConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
-};
-
 void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf spec);
-void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,13 +87,6 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
     NConcurrency::IThreadPoolPtr workerPool,
-    const NLogging::TLogger& logger);
-
-IParameterizedResharderPtr CreateParameterizedResharder(
-    TTabletCellBundlePtr bundle,
-    std::vector<std::string> performanceCountersKeys,
-    TParameterizedResharderConfig config,
-    TGroupName groupName,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
