@@ -3775,11 +3775,12 @@ def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     # externalized_nested_tx: 6
     externalized_type = 5 if original_type == 1 else 6
 
+    # Must match MakeExternalizedTransactionId.
     return "-".join([
         f"{parts[0]:x}",
         f"{parts[1]:x}",
-        f"{shifted_native_cell_tag | externalized_type:x}",
-        f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])
+        f"{(int(externalizing_cell_tag) << 16) | externalized_type:x}",
+        f"{(parts[3] & 0xffff) | shifted_native_cell_tag:x}"])
 
 
 def start_distributed_write_session(path: str, cookie_count: int, **kwargs):
