@@ -67,7 +67,7 @@ private:
         return GetOrCrash(JobTypeToJobController_, job->GetType());
     }
 
-    const IJobControllerPtr& GetControllerForJobType(EJobType jobType)
+    const IJobControllerPtr& GetControllerForJobType(EJobType jobType) const
     {
         return GetOrCrash(JobTypeToJobController_, jobType);
     }

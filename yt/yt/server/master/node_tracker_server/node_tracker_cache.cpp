@@ -1,5 +1,9 @@
 #include "node_tracker_cache.h"
 
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/error.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NNodeTrackerServer {

@@ -1,11 +1,17 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/companion/server/monitoring.h>
 #include <yt/yt/flow/library/cpp/companion/server/server.h>
 
 #include <yt/yt/flow/library/cpp/companion/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/testing/common/network.h>
 
@@ -64,6 +70,38 @@ TEST(TCompanionServerTest, CompanionInfoAndGetJfr)
         EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_ERROR);
         EXPECT_THAT(rsp->error_message(), testing::HasSubstr("JFR"));
     }
+
+    server->Stop();
+}
+
+TEST(TCompanionServerTest, MonitoringBindFailureDoesNotStopRpc)
+{
+    auto rpcPort = NTesting::GetFreePort();
+    auto monitoringPort = NTesting::GetFreePort();
+
+    auto blockerConfig = New<NHttp::TServerConfig>();
+    blockerConfig->Port = monitoringPort;
+    blockerConfig->BindRetryCount = 1;
+    auto blocker = NHttp::CreateServer(blockerConfig);
+    blocker->Start();
+    auto blockerGuard = Finally([&] {
+        blocker->Stop();
+    });
+
+    auto config = New<NCompanion::TCompanionExecutionConfig>();
+    config->Port = rpcPort;
+    config->MonitoringPort = monitoringPort;
+
+    TPipeline pipeline;
+    pipeline.AddTransform<TServerUnittestFunction>("my_transform");
+
+    auto server = New<TCompanionServer>(config, pipeline);
+    server->Start();
+    EXPECT_FALSE(server->GetMonitoring()->GetSolomonExporter());
+
+    auto proxy = NCompanion::CreateCompanionProxy(Format("localhost:%v", static_cast<int>(rpcPort)));
+    auto rsp = proxy.CompanionInfo()->Invoke().BlockingGet().ValueOrThrow();
+    EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
 
     server->Stop();
 }

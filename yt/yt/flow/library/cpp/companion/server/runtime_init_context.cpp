@@ -10,14 +10,20 @@ namespace NYT::NFlow::NCompanionServer {
 TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     TCompanionStateStorePtr stateStore,
     NYTree::IMapNodePtr parametersNode,
+    NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> resources,
-    std::string prefix)
+    std::string prefix,
+    NProfiling::TProfiler profiler,
+    TCompanionServerContextPtr serverContext)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
             : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , ParametersObject_(std::move(parametersObject))
     , Resources_(std::move(resources))
     , Prefix_(std::move(prefix))
+    , Profiler_(std::move(profiler))
+    , ServerContext_(std::move(serverContext))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TCompanionRuntimeInitContext::CreateMutableStateKeyProvider(
@@ -47,8 +53,11 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
     return New<TCompanionRuntimeInitContext>(
         StateStore_,
         ParametersNode_,
+        ParametersObject_,
         Resources_,
-        ExtendStateNamePrefix(Prefix_, prefix));
+        ExtendStateNamePrefix(Prefix_, prefix),
+        Profiler_,
+        ServerContext_);
 }
 
 const std::string& TCompanionRuntimeInitContext::GetPrefix() const
@@ -59,6 +68,11 @@ const std::string& TCompanionRuntimeInitContext::GetPrefix() const
 NYTree::IMapNodePtr TCompanionRuntimeInitContext::GetParametersNode() const
 {
     return ParametersNode_;
+}
+
+NYTree::TYsonStructPtr TCompanionRuntimeInitContext::GetParametersObject() const
+{
+    return ParametersObject_;
 }
 
 IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const
@@ -73,7 +87,21 @@ IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& 
 
 NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
 {
-    return {};
+    return Profiler_;
+}
+
+NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpClient() const
+{
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpClient,
+        "HTTP client is not available in this companion init context");
+    return ServerContext_->HttpClient;
+}
+
+NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpsClient() const
+{
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpsClient,
+        "HTTPS client is not available in this companion init context");
+    return ServerContext_->HttpsClient;
 }
 
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const

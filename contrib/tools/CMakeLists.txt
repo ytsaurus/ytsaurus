@@ -13,3 +13,4 @@
 # changes in this file.
 
 add_subdirectory(protoc)
+add_subdirectory(open-vcdiff)

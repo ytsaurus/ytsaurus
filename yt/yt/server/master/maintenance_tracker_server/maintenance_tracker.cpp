@@ -419,9 +419,9 @@ private:
 
         auto errorOrComponent = DoFindComponent(component, address, componentRegistryId);
         if (!errorOrComponent.IsOK()) {
-            YT_LOG_ALERT("No such %v (Address: %v)",
-                FormatMaintenanceComponent(component),
-                address);
+            YT_TLOG_ALERT("No such maintenance component")
+                .With("Component", FormatMaintenanceComponent(component))
+                .With("Address", address);
             return nullptr;
         }
 

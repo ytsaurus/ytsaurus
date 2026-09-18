@@ -27,6 +27,14 @@ DECLARE_REFCOUNTED_STRUCT(TCompactUnversionedOwningRowData);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+NTableClient::TRowBufferPtr& GetCompactRowBuffer();
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A compact owning variant of TUnversionedRow.
 //! Object occupies exactly 8 bytes (one intrusive pointer) + single allocation ref-counts, row header, values, and string data.
 class TCompactUnversionedOwningRow

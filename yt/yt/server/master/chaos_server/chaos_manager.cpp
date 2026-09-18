@@ -24,6 +24,8 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
@@ -575,7 +577,6 @@ private:
 
         Load(context, *AlienClusterRegistry_);
 
-        // COMPAT(ponasenko-rs)
         Load(context, EnabledMetadataClusters_);
 
         Load(context, Queues_);

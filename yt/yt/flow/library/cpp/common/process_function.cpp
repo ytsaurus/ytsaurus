@@ -4,6 +4,8 @@
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
+#include <yt/yt/core/actions/bind.h>
+
 #include <util/generic/hash.h>
 
 namespace NYT::NFlow {
@@ -36,6 +38,47 @@ void IKeyedBatchProcessFunction::ProcessKey(const IInputContextPtr& /*input*/, c
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ProcessMessages(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TMessageProcessor& callback)
+{
+    for (const auto& message : input->GetMessages()) {
+        TagErrorWithKey("message", message->Key, [&] {
+            callback(message, output->SetParents({message}, {}, {}), context);
+        });
+    }
+}
+
+void ProcessTimers(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TTimerProcessor& callback)
+{
+    for (const auto& timer : input->GetTimers()) {
+        TagErrorWithKey("timer", timer->Key, [&] {
+            callback(timer, output->SetParents({}, {timer}, {}), context);
+        });
+    }
+}
+
+void ProcessVisits(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TVisitProcessor& callback)
+{
+    for (const auto& visit : input->GetVisits()) {
+        TagErrorWithKey("visit", visit->Key, [&] {
+            callback(visit, output->SetParents({}, {}, {visit}), context);
+        });
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 //! Drives a per-element function over the whole epoch: timer, then message, then visit (the
@@ -50,21 +93,9 @@ public:
 
     void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
     {
-        for (const auto& timer : input->GetTimers()) {
-            TagErrorWithKey("timer", timer->Key, [&] {
-                Function_->ProcessTimer(timer, output->SetParents({}, {timer}, {}), context);
-            });
-        }
-        for (const auto& message : input->GetMessages()) {
-            TagErrorWithKey("message", message->Key, [&] {
-                Function_->ProcessMessage(message, output->SetParents({message}, {}, {}), context);
-            });
-        }
-        for (const auto& visit : input->GetVisits()) {
-            TagErrorWithKey("visit", visit->Key, [&] {
-                Function_->ProcessVisit(visit, output->SetParents({}, {}, {visit}), context);
-            });
-        }
+        ProcessTimers(input, output, context, BIND(&IProcessFunction::ProcessTimer, Function_));
+        ProcessMessages(input, output, context, BIND(&IProcessFunction::ProcessMessage, Function_));
+        ProcessVisits(input, output, context, BIND(&IProcessFunction::ProcessVisit, Function_));
     }
 
 private:

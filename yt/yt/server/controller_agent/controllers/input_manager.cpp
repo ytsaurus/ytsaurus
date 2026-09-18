@@ -20,7 +20,6 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -250,6 +249,7 @@ void TInputCluster::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, UnavailableInputChunkIds_);
     PHOENIX_REGISTER_FIELD(6, PathToInputTables_);
 }
+
 PHOENIX_DEFINE_TYPE(TInputCluster);
 
 TLogger TInputCluster::GetLogger() const
@@ -1296,7 +1296,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     std::remove_if(
                         dataSlices.begin(),
                         dataSlices.end(),
-                        [&] (TLegacyDataSlicePtr slice) {
+                        [&] (TDataSlicePtr slice) {
                             try {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
                             } catch (const std::exception& ex) {
@@ -1612,6 +1612,7 @@ void TInputManager::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(7, Clusters_);
     PHOENIX_REGISTER_FIELD(8, ClusterResolver_);
 }
+
 PHOENIX_DEFINE_TYPE(TInputManager);
 
 ////////////////////////////////////////////////////////////////////////////////

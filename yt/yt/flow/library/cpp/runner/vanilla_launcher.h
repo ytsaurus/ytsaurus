@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/runner/public.h>
 
+#include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
+
 #include <yt/yt/client/cache/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -36,6 +38,8 @@ struct TVanillaTaskConfig
     //! Byte size; accepts human-readable forms like "12g" (NYTree::TSize).
     std::optional<NYTree::TSize> MemoryLimit;
     std::optional<int> CpuLimit;
+    //! Request a container CPU ceiling on execution backends that support it.
+    bool SetContainerCpuLimit{};
 
     //! When positive, the task requests this many YT-allocated ports (exposed as YT_PORT_<i>),
     //! overriding the fixed ports from the node config. Needed on a shared-network host
@@ -133,13 +137,21 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     std::optional<std::string> proxyRole,
     std::optional<int> workerPortCount);
 
+//! Applies a node config |patch| to |nodeConfig|.
+//!
+//! A patch that names an election backend replaces the whole election manager config: the settings
+//! of the backend it switches away from are not inherited.
+TFlowNodeConfigPtr PatchVanillaNodeConfig(
+    const TFlowNodeConfigPtr& nodeConfig,
+    const NYTree::INodePtr& patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Submits a YT vanilla operation that runs a Flow federation for the given pipeline.
 //! |pipelinePath| must carry the cluster annotation (`<cluster=...>/path/to/pipeline`).
 //! |clientsCache| supplies the clients for the pipeline, runtime and prior-operation clusters.
 //! Called by TSimpleRunnerProgram when the runner config contains a "vanilla" block.
-void LaunchInVanillaJob(
+TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanilla,
@@ -164,6 +176,7 @@ struct TFlowVanillaTask
     std::vector<std::string> Layers;
     std::optional<std::string> SystemLayerPath;
     std::optional<std::string> DockerImage;
+    bool SetContainerCpuLimit = false;
 };
 
 //! Options for launching a Flow federation as a vanilla operation directly, without the pipeline

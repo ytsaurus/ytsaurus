@@ -29,7 +29,7 @@ public:
     using TFileResourceBase::TFileResourceBase;
 
 protected:
-    TTextDataPtr Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources) override;
+    TTextDataPtr Initialize(const TMaterializedFileProviderSnapshotPtr& fileProviders) override;
     void Validate(const TTextDataPtr& data) override;
 };
 

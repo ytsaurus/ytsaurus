@@ -9,7 +9,7 @@
 **Значение по умолчанию**: `{}`
 Автоматическое заполнение `EventTimestamp` всех `output` сообщений на базе значения определённой колонки. ||
 || `watermark_generator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TWatermarkGeneratorSpec](./all_yson_structs#NYT_NFlow_TWatermarkGeneratorSpec)`>`
-Настройки алгоритма генерации `EventWatermark`. При отсутствии - `EventWatermark` будет равен `MaxEventTimestamp` ||
+Настройки алгоритма генерации `EventWatermark`. Для `Computation` хотя бы с одним `source` отсутствие параметра эквивалентно пустому блоку с настройками по умолчанию. `Computation` с несколькими `source` обрабатывается как несколько независимых single-source `Computation`: для каждого `source` по отдельности и в этом порядке применяются эвристики недоступных групп, idle-партиций и late-data-партиций, а подготовленные партиции объединяются только после этого. `idle_partitions.max_ratio` применяется отдельно к каждому `source`, а решения о подавлении availability-групп одного `source` не влияют на другие. Поэтому полностью idle `source` не считается partial-idle stall и сам по себе не поднимает `/idle_partitions_watermark_stall`, даже если он удерживает итоговый watermark `Computation`, пока другой `source` остаётся активным. Идентификаторы availability-групп между источниками могут различаться. ||
 || `watermark_alignment` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TWatermarkAlignmentSpec](./all_yson_structs#NYT_NFlow_TWatermarkAlignmentSpec)`>`
 Настройки выравнивания `source` между разными партициями, в том числе разных `Computation` ||
 || `watermark_percentile` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TWatermarkPercentileSpec](./all_yson_structs#NYT_NFlow_TWatermarkPercentileSpec)`>`

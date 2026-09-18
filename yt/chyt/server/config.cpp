@@ -28,6 +28,9 @@ void TCompositeSettings::Register(TRegistrar registrar)
     registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
         .Default(false);
 
+    registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+        .Default(false);
+
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
 }
@@ -104,6 +107,10 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_after_refresh_query", &TThis::ThrowExceptionAfterRefreshQuery)
         .Default(false);
+    registrar.Parameter("throw_exception_after_refresh_commit", &TThis::ThrowExceptionAfterRefreshCommit)
+        .Default(false);
+    registrar.Parameter("fail_materialized_view_refresh_query_response_for_partition", &TThis::FailMaterializedViewRefreshQueryResponseForPartition)
+        .Default();
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
@@ -124,6 +131,8 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
         .Default();
     registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
+        .Default();
+    registrar.Parameter("materialized_view_consumer_commit_breakpoint", &TThis::MaterializedViewConsumerCommitBreakpoint)
         .Default();
 }
 
@@ -545,6 +554,8 @@ void TMaterializedViewsConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("query_timeout", &TThis::QueryTimeout)
         .Default(TDuration::Minutes(20));
+    registrar.Parameter("table_mount_timeout", &TThis::TableMountTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
         .Default(TDuration::Minutes(30));
 }
@@ -636,6 +647,8 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("clique_incarnation", &TThis::CliqueIncarnation)
         .Default(-1);
+    registrar.Parameter("orchid_root", &TThis::OrchidRoot)
+        .Default();
     registrar.Parameter("address", &TThis::Address)
         .Default();
     registrar.Parameter("clique_instance_count", &TThis::CliqueInstanceCount)

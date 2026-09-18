@@ -80,6 +80,13 @@ def add_partitions_by_current_job_status_cell(row):
         **Unknown/Recovering/Has_retryable_errors** are bad statuses.
         If you constantly have jobs in these statuses, your pipeline degrades significantly.
 
+        **Failed** means that the job has finished with an error and is waiting to be dropped;
+        the partition gets a new job on one of the next scheduling iterations.
+
+        **Gracefully moving** means that the balancer is moving the partition to another worker:
+        the job has finished its epoch and is waiting to be recreated there. This is a regular
+        balancing state, not a failure.
+
         **Warming up** is semi-good status. These jobs are working, but not for a long time.
 
         **Working** is good status. If all jobs are `Working` pipeline has no problems with job deaths.
@@ -95,6 +102,8 @@ def add_partitions_by_current_job_status_cell(row):
                     job_status("working_young", "Warming up (working ≤ 5 min after recovering)"),
                     job_status("working_with_retryable_error", "Has retryable errors"),
                     job_status("preparing", "Recovering (new job is preparing)"),
+                    job_status("gracefully_moving", "Gracefully moving (balancer moves the partition)"),
+                    job_status("failed", "Failed (job finished with an error)"),
                     job_status("unknown", "Unknown"),
                     job_status("stopped", "Stopped"))
                     .min(0.8)
@@ -106,6 +115,8 @@ def add_partitions_by_current_job_status_cell(row):
                     "Warming up (working ≤ 5 min after recovering)": "#b7e500",
                     "Has retryable errors": "#cc0000",
                     "Recovering (new job is preparing)": "#ffa500",
+                    "Gracefully moving (balancer moves the partition)": "#00cccc",
+                    "Failed (job finished with an error)": "#610000",
                     "Unknown": "#11114e",
                     "Stopped": "#84c1ff",
                 },

@@ -8,6 +8,9 @@
 || `external_state_manager_class_name` | **Тип**: `std::string`
 **Значение по умолчанию**: `NYT::NFlow::TSimpleExternalStateManager`
 Полное имя класса external state manager'а. Должен быть зарегистрирован макросом `YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER` (или быть библиотечной реализацией, как `NYT::NFlow::TSimpleExternalStateManager`). ||
+|| `auto_preload` | **Тип**: `bool`
+**Значение по умолчанию**: `true`
+Если `true` (по умолчанию), фреймворк сам вызывает `PreloadKeyStates` у этого менеджера перед каждым `DoProcess` со всеми ключами сообщений, таймеров и визитов эпохи. Если `false`, computation сам отвечает за вызов `Client.PreloadKeyStates(IInputContextPtr)`, `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)` или `PreloadKeyStates(THashSet<TKey>)` до `GetState`; `GetState` по непредзагруженному ключу бросает исключение. Запрещено для companion-вычислений. ||
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Параметры выбранной реализации external state manager'а. Ожидаемая схема определяется полем `class_name`. ||
 |#

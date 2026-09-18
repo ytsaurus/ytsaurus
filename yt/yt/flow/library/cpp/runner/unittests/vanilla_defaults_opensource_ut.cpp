@@ -25,7 +25,7 @@ TEST(TVanillaConfigTest, OpenSourceBuildHasNoDefaultNetworkProject)
     // The out-of-the-box opensource launch shares the exec node's network, so it must ask YT
     // for ports instead of the colliding fixed ones.
     EXPECT_EQ(config->Controller->PortCount, std::optional<int>(2));
-    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(3));
+    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(4));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

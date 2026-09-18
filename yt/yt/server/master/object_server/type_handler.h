@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <optional>
 
 namespace NYT::NObjectServer {
@@ -146,4 +148,3 @@ DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

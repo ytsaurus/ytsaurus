@@ -98,6 +98,27 @@ func TestOutputCollectorAlignsDistributeWhenFirstMessageOptsOut(t *testing.T) {
 	require.Equal(t, []bool{false, true}, group.Distribute)
 }
 
+func TestOutputCollectorAlignsMessageIDSuffixes(t *testing.T) {
+	root := newRootCollector()
+
+	out := root.WithParentIDs("m1")
+	out.AddMessage(testMessage("a"))
+	out.AddMessage(testMessage("b"), AddMessageOptions{MessageIDSuffix: PayloadHashMessageIDSuffix()})
+	out.AddMessage(testMessage("c"))
+
+	group := root.CollectResults()[0]
+	require.Equal(t, []MessageIDSuffix{
+		SequenceNumberMessageIDSuffix(),
+		PayloadHashMessageIDSuffix(),
+		SequenceNumberMessageIDSuffix(),
+	}, group.MessageIDSuffixes)
+}
+
+func TestUserDefinedMessageIDSuffixRejectsEmptyValue(t *testing.T) {
+	_, err := UserDefinedMessageIDSuffix("")
+	require.Error(t, err)
+}
+
 func TestOutputCollectorCollectsTimers(t *testing.T) {
 	root := newRootCollector()
 

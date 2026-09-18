@@ -1,21 +1,22 @@
-#include "chunk.h"
-#include "dynamic_store.h"
-#include "chunk_list.h"
-#include "chunk_view.h"
-#include "chunk_manager.h"
 #include "chunk_owner_node_proxy.h"
+
+#include "chunk.h"
+#include "chunk_list.h"
+#include "chunk_manager.h"
 #include "chunk_reincarnator.h"
+#include "chunk_replica_fetcher.h"
+#include "chunk_view.h"
 #include "chunk_visitor.h"
 #include "config.h"
+#include "dynamic_store.h"
 #include "helpers.h"
 #include "medium_base.h"
 #include "private.h"
-#include "chunk_replica_fetcher.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
-#include <yt/yt/server/master/cell_master/multicell_manager.h>
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
@@ -24,9 +25,10 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
+#include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/security_server/access_log.h>
@@ -1464,13 +1466,11 @@ void TChunkOwnerNodeProxy::SetReplication(
     OnStorageParametersUpdated();
 
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-    YT_LOG_DEBUG(
-        IsHunk
-            ? "Chunk owner hunk replication changed (NodeId: %v, HunkPrimaryMedium: %v, HunkReplication %v)"
-            : "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication %v)",
-        node->GetId(),
-        medium->GetName(),
-        replication);
+    YT_TLOG_DEBUG("Chunk owner replication changed")
+        .With("Hunk", IsHunk)
+        .With("NodeId", node->GetId())
+        .With("PrimaryMedium", medium->GetName())
+        .With("Replication", replication);
 }
 
 template <bool IsHunk>
@@ -1517,12 +1517,10 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(const std::string& mediumName, bool 
 
     OnStorageParametersUpdated();
 
-    YT_LOG_DEBUG(
-        IsHunk
-        ? "Chunk owner hunk primary medium changed (NodeId: %v, PrimaryMedium: %v)"
-        : "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
-        node->GetId(),
-        medium->GetName());
+    YT_TLOG_DEBUG("Chunk owner primary medium changed")
+        .With("Hunk", IsHunk)
+        .With("NodeId", node->GetId())
+        .With("PrimaryMedium", medium->GetName());
 }
 
 void TChunkOwnerNodeProxy::RemoveHunkPrimaryMedium()

@@ -1,5 +1,7 @@
 GTEST(unittester-library-gpu)
 
+EXPLICIT_DATA()
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

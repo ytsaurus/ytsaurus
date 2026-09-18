@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: gevent
-Version: 26.7.0
+Version: 26.8.0
 Summary: Coroutine-based network library
 Home-page: http://www.gevent.org/
 Author: Denis Bilenko
@@ -14,7 +14,6 @@ Project-URL: Documentation, http://www.gevent.org
 Project-URL: Changes, https://www.gevent.org/changelog.html
 Keywords: greenlet coroutine cooperative multitasking light threads monkey
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
@@ -28,11 +27,11 @@ Classifier: Topic :: Internet
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Classifier: Intended Audience :: Developers
 Classifier: Development Status :: 4 - Beta
-Requires-Python: >=3.9
+Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 Requires-Dist: greenlet>=3.2.2; platform_python_implementation == "CPython"
-Requires-Dist: cffi>=1.17.1; platform_python_implementation == "CPython" and sys_platform == "win32"
+Requires-Dist: cffi>=2.1.1; platform_python_implementation == "CPython" and sys_platform == "win32"
 Requires-Dist: zope.event
 Requires-Dist: zope.interface
 Provides-Extra: dnspython
@@ -42,7 +41,7 @@ Provides-Extra: events
 Provides-Extra: monitor
 Requires-Dist: psutil>=6.0.0; (sys_platform != "win32" or platform_python_implementation == "CPython") and extra == "monitor"
 Provides-Extra: recommended
-Requires-Dist: cffi>=1.17.1; platform_python_implementation == "CPython" and extra == "recommended"
+Requires-Dist: cffi>=2.1.1; platform_python_implementation == "CPython" and extra == "recommended"
 Requires-Dist: dnspython<2.0,>=1.16.0; python_version < "3.10" and extra == "recommended"
 Requires-Dist: idna; python_version < "3.10" and extra == "recommended"
 Requires-Dist: psutil>=6.0.0; (sys_platform != "win32" or platform_python_implementation == "CPython") and extra == "recommended"
@@ -53,7 +52,7 @@ Requires-Dist: repoze.sphinx.autointerface; extra == "docs"
 Requires-Dist: sphinxcontrib-programoutput; extra == "docs"
 Requires-Dist: zope.schema; extra == "docs"
 Provides-Extra: test
-Requires-Dist: cffi>=1.17.1; platform_python_implementation == "CPython" and extra == "test"
+Requires-Dist: cffi>=2.1.1; platform_python_implementation == "CPython" and extra == "test"
 Requires-Dist: dnspython<2.0,>=1.16.0; python_version < "3.10" and extra == "test"
 Requires-Dist: idna; python_version < "3.10" and extra == "test"
 Requires-Dist: psutil>=6.0.0; (sys_platform != "win32" or platform_python_implementation == "CPython") and extra == "test"

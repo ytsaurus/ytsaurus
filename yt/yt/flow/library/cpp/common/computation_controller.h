@@ -16,17 +16,6 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A common context shared between all computation controllers.
-struct TComputationControllerCommonContext
-    : public TRefCounted
-{
-    //! Latest instant when the controller decided to recreate all partitions (perhaps to change their count).
-    //! Currently is modified only by universal controller for a computation with input streams (not a source computation).
-    TInstant LastRepartitioningInstant = TInstant::Zero();
-};
-
-DEFINE_REFCOUNTED_TYPE(TComputationControllerCommonContext);
-
 struct TComputationControllerContextBase
 {
     TComputationSpecPtr ComputationSpec;
@@ -52,9 +41,7 @@ struct TComputationControllerContext
     : public TRefCounted
     , public TComputationControllerContextBase
 {
-    TComputationControllerCommonContextPtr CommonContext;
-
-    TComputationControllerContext(TComputationControllerCommonContextPtr commonContext);
+    IVersionProviderPtr VersionProvider;
 };
 
 DEFINE_REFCOUNTED_TYPE(TComputationControllerContext);
@@ -79,10 +66,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicComputationControllerContext);
 struct TProcessPartitionTraverseDataResult
     : public TRefCounted
 {
-    // Aggregated traverse data. Includes future partitions, partitions without traverse data
-    // and ignored partition replacements (when partition is ignored as idle/unavailable it still holds watermark).
-    // Contains null if controller cannot handle incomplete partition traverse data.
-    TNodeTraverseDataPtr MergedTraverseData;
+    //! Traverse data accepted by the controller after merging current and future partitions and
+    //! advancing the previously accepted data. Ready to become the computation's current traverse.
+    TNodeTraverseDataPtr AcceptedTraverseData;
 
     THashMap<TStreamId, TStreamTraverseDataMetricsPtr> StreamMetrics;
 };
@@ -113,6 +99,49 @@ private:
     };
 
 public:
+    struct TPartitioningStatus
+    {
+        //! All current source keys; a null value means that job feedback is not available yet.
+        THashMap<TKey, TExtendedSourcePartitionStatusPtr> SourcePartitions;
+    };
+
+    struct TPartitioningDescription
+    {
+        struct TRange
+        {
+            //! Dynamic policy used to calculate the desired count and key ranges.
+            TPartitioningSpecPtr PartitioningSpec;
+            //! Widest last-known channel count among currently configured sinks, or null when none is available.
+            std::optional<i64> MaxSinkChannelCount;
+            //! Version of the accumulated last-known per-sink channel counts; zero means none were observed.
+            TVersion SinkTopologyVersion;
+        };
+
+        struct TSource
+        {
+            //! Current source keys and their worker specs; null means enumeration is unavailable.
+            std::optional<THashMap<TKey, NYTree::IMapNodePtr>> ExpectedKeys;
+            //! Keys whose availability group was suppressed by the last accepted traverse.
+            THashSet<TKey> UnavailableKeys;
+        };
+
+        std::variant<TRange, TSource> Value;
+    };
+
+    struct TPartitioningTopology
+    {
+        struct TRange
+        { };
+
+        struct TSource
+        {
+            //! Expected source keys; null means enumeration is unavailable.
+            std::optional<THashSet<TKey>> ExpectedKeys;
+        };
+
+        std::variant<TRange, TSource> Value;
+    };
+
     // Provide TParameter[Ptr] and TDynamicParameter[Ptr] aliases. They are types of specs `Parameters` fields.
     // These types are used in computation controller registration for future parsing. They may be shadowed by macroses
     // YT_FLOW_EXTEND_PARAMETERS and YT_FLOW_EXTEND_DYNAMIC_PARAMETERS in derived types.
@@ -123,17 +152,17 @@ public:
     virtual void Sync() = 0;
     virtual void Commit() = 0;
 
-    virtual bool IsFullCoverage(
-        const std::vector<TPartitionId>& computationPartitions,
-        const TFlowViewPtr& flowView) = 0;
-
-    virtual void DoPartitioning(
-        const std::vector<TPartitionId>& computationPartitions,
-        const TFlowViewPtr& flowView) = 0;
-
     virtual TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+        const TNodeTraverseDataPtr& currentTraverseData,
         const TFlowViewPtr& flowView) = 0;
+
+    //! Describes the desired partition keyspace without processing worker status.
+    virtual TPartitioningTopology DescribePartitioningTopology() = 0;
+
+    //! Describes the desired partitioning without mutating the execution layout.
+    virtual TPartitioningDescription DescribePartitioning(
+        const TPartitioningStatus& status) = 0;
 
     virtual double ComputePartitionWeight(const TPartitionId& partitionId, const TFlowViewPtr& flowView) = 0;
 

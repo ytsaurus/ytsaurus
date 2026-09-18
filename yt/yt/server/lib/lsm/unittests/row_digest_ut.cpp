@@ -122,7 +122,7 @@ TTableSchemaPtr CreateSchemaForFillKind(EDigestFillKind fillKind)
 TStoreCompactionHint CreateHint(EStoreCompactionReason reason, TInstant timestamp = TInstant::Zero())
 {
     // Being used only for logging.
-    static auto tablet = New<TTablet>();
+    static const auto tablet = New<TTablet>();
     static TStore store;
     store.SetTablet(tablet.Get());
 
@@ -253,6 +253,7 @@ TEST_P(TRowDigestTest, RowDigestTest)
     mountConfig->MaxDataTtl = params.MaxDataTtl;
     mountConfig->MinDataVersions = params.MinDataVersions;
     mountConfig->MaxDataVersions = params.MaxDataVersions;
+    mountConfig->CompactionHints->MinCompactionDataSize = 0;
     mountConfig->CompactionHints->RowDigest->EnableNonAggregates = true;
     mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = params.MaxObsoleteTimestampRatio;
     mountConfig->CompactionHints->RowDigest->MaxTimestampsPerValue = params.MaxTimestampsPerValue;
@@ -290,6 +291,7 @@ TEST(TRowDigestStoreTest, MissingFirstTimestampDigestSkipsTtlCleanup)
     mountConfig->MaxDataVersions = 1;
     mountConfig->MinDataTtl = TDuration::Days(1);
     mountConfig->MaxDataTtl = TDuration::Days(2);
+    mountConfig->CompactionHints->MinCompactionDataSize = 0;
     mountConfig->CompactionHints->RowDigest->EnableNonAggregates = true;
     mountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = FloorWithPrecision(2. / 3, 6);
 
@@ -316,7 +318,7 @@ struct TAggregateConfigParams
     TDuration MaxDataTtl;
 
     // Expected TTL timestamp for the "100 rows × 3 versions" data pattern.
-    TInstant ExpectedTtlTimestamp3Versions() const
+    TInstant GetExpectedTtlTimestampFor3Versions() const
     {
         if (MinDataVersions == 1) {
             return StartDate + MinDataTtl + TDuration::Hours(3);
@@ -338,6 +340,7 @@ struct TAggregateRowDigestTestBase
         MountConfig->MaxDataTtl = params.MaxDataTtl;
         MountConfig->MinDataVersions = params.MinDataVersions;
         MountConfig->MaxDataVersions = params.MaxDataVersions;
+        MountConfig->CompactionHints->MinCompactionDataSize = 0;
         MountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio =
             FloorWithPrecision(2. / 3, 6);
 
@@ -436,7 +439,7 @@ TEST_P(TAggregateRowDigestTest, SingleStoreTtlCleanupExpected)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         Accuracy.GetValue());
 }
 
@@ -510,7 +513,7 @@ TEST_P(TAggregateRowDigestTest, TwoStoresOldThenNewPrefixOfOne)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         Accuracy.GetValue());
 }
 
@@ -550,8 +553,31 @@ TEST_P(TAggregateRowDigestTest, FiveStoresMaxStoreCountEqualFiveHintFires)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         TDuration::Hours(2).GetValue());
+}
+
+TEST_P(TAggregateRowDigestTest, SmallPrefixIsSkipped)
+{
+    MountConfig->CompactionHints->MinCompactionDataSize = 100;
+    MountConfig->CompactionHints->RowDigest->MaxObsoleteTimestampRatio = 0.5;
+
+    auto [partition, hint] = MakePartition();
+
+    auto firstStore = MakeStore(Tablet, CreateDigestFiller(100, 3, 0));
+    firstStore->SetCompressedDataSize(40);
+    partition->Stores().push_back(std::move(firstStore));
+
+    auto secondStore = MakeStore(
+        Tablet,
+        CreateDigestFiller(10, 1, 0, EDigestFillKind::Write, TDuration::Hours(1), TDuration::Days(100)));
+    secondStore->SetCompressedDataSize(60);
+    partition->Stores().push_back(std::move(secondStore));
+    partition->SetCompressedDataSize(100);
+
+    ASSERT_TRUE(hint->RecalculateHint(partition.get()));
+    EXPECT_EQ(hint->GetReason(), EStoreCompactionReason::AggregateTtlCleanupExpected);
+    EXPECT_EQ(ssize(hint->StoreIds()), 2);
 }
 
 TEST_P(TAggregateDeleteRowDigestTest, FiveStoresTooManyTimestampsFirstPrefix)

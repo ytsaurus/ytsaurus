@@ -315,6 +315,10 @@ private:
                 };
             }
 
+            if (!PrefetchStarted_ && !TryResolveReplicaDescriptors()) {
+                continue;
+            }
+
             auto result = Phase_ == EPhase::Active
                 ? RunActivePhaseIteration()
                 : RunFinalPhaseIteration();
@@ -343,6 +347,39 @@ private:
         TDelayedExecutor::WaitForDuration(ErrorBackoffStrategy_.GetBackoff());
     }
 
+    bool TryResolveReplicaDescriptors()
+    {
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+        auto descriptorsKnown = [&] {
+            return !Replicas_.empty() && std::all_of(Replicas_.begin(), Replicas_.end(), [&] (auto replica) {
+                return nodeDirectory->FindDescriptor(replica.GetNodeId());
+            });
+        };
+
+        if (descriptorsKnown()) {
+            return true;
+        }
+
+        auto replicaUpdateResult = UpdateReplicasFromMaster();
+        if (!replicaUpdateResult.IsOK()) {
+            InnerErrors_.push_back(replicaUpdateResult);
+        } else if (descriptorsKnown()) {
+            return true;
+        } else {
+            YT_TLOG_DEBUG("Failed to resolve distributed chunk session reader replica descriptors")
+                .With("ReplicaCount", Replicas_.size());
+            InnerErrors_.push_back(Replicas_.empty()
+                ? TError("Chunk %v has no replicas on master", ChunkId_)
+                : TError(
+                    NNodeTrackerClient::EErrorCode::NoSuchNode,
+                    "Cannot resolve node descriptors for replicas %v of chunk %v",
+                    Replicas_,
+                    ChunkId_));
+        }
+        AccountError();
+        return false;
+    }
+
     void TryFetchChunkRecordCount()
     {
         YT_TLOG_DEBUG("Computing distributed chunk session chunk quorum info")
@@ -359,7 +396,8 @@ private:
             Config_->ReplicaLagLimit,
             ToReplicaDescriptors(Replicas_),
             Config_->QuorumProbeTimeout,
-            Client_->GetChannelFactory()));
+            Client_->GetChannelFactory(),
+            MakeWorkloadDescriptor()));
 
         if (quorumInfoOrError.IsOK()) {
             ChunkRecordCount_ = quorumInfoOrError.Value().RowCount;
@@ -974,10 +1012,20 @@ private:
             seedReplicas);
     }
 
-    static IChunkReader::TReadBlocksOptions MakeReadOptions()
+    TWorkloadDescriptor MakeWorkloadDescriptor() const
+    {
+        return Config_->UnderlyingReaderConfig->EnableWorkloadFifoScheduling
+            ? Config_->WorkloadDescriptor.SetCurrentInstant()
+            : Config_->WorkloadDescriptor;
+    }
+
+    IChunkReader::TReadBlocksOptions MakeReadOptions() const
     {
         return IChunkReader::TReadBlocksOptions{
             .ClientOptions = {
+                // Not MakeWorkloadDescriptor(): the replication reader stamps the FIFO instant
+                // itself, from its own config.
+                .WorkloadDescriptor = Config_->WorkloadDescriptor,
                 .ReadSessionId = TGuid::Create(),
             },
         };
@@ -992,6 +1040,8 @@ private:
         const auto& channelFactory = Client_->GetChannelFactory();
         const auto& networks = connection->GetNetworks();
 
+        auto workloadDescriptor = MakeWorkloadDescriptor();
+
         std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkMetaPtr>> futures;
         futures.reserve(Replicas_.size());
         for (const auto& replica : Replicas_) {
@@ -1003,7 +1053,7 @@ private:
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->set_all_extension_tags(false);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            NRpc::SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+            NRpc::SetRequestWorkloadDescriptor(req, workloadDescriptor);
             futures.push_back(req->Invoke());
         }
 

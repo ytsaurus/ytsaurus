@@ -4,6 +4,7 @@
 #include "graph_entity_id.h"
 #include "intermediate_description.h"
 
+#include <yt/yt/flow/library/cpp/common/authenticator.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/yt_connector.h>
 
@@ -177,6 +178,10 @@ struct TPipelineDescription
     EPipelineState Status{};
     std::vector<TMessage> Messages;
 
+    TPipelineAuthenticationDescriptionPtr Authentication;
+    i64 WorkerCount{};
+    TCurrentResourceUsagePtr CurrentResourceUsage;
+
     THashMap<TStreamId, TStream> Streams;
     THashMap<TStreamId, TSource> Sources;
     THashMap<TSinkId, TSink> Sinks;
@@ -196,7 +201,7 @@ struct TDescribePipelineArguments
     THashMap<std::string, TError> ControllerErrors;
     NLogging::TLogger Logger;
     IPipelineAuthenticatorPtr Authenticator;
-    bool StatusOnly = false; // If true, then only Status and Messages fields are filled.
+    bool StatusOnly = false;
     std::string ControllerFlowCoreVersion;
     // Leader-controller's build type, taken from its node_info. Empty means the controller
     // is on a binary that predates the field; describe omits the line and the slow-build

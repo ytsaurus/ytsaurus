@@ -2,12 +2,6 @@ name: C++ CI
 
 on:
   workflow_dispatch:
-    inputs:
-      build_types:
-        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
-        required: false
-        default: '["relwithdebinfo"]'
-        type: string
   push:
     branches:
       - main
@@ -70,8 +64,8 @@ jobs:
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
-      build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
       version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
+      is-release-branch: ${{ steps.tag.outputs.IS_RELEASE_BRANCH }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -101,11 +95,12 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
+          if [[ $GITHUB_REF =~ ^refs/heads/(stable|query-tracker|chyt)/ ]]; then
+            IS_RELEASE_BRANCH=true
           else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            IS_RELEASE_BRANCH=false
           fi
+          echo "IS_RELEASE_BRANCH=$IS_RELEASE_BRANCH" >> $GITHUB_OUTPUT
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
           LAST_COMMIT_DATE=$(git -C ytsaurus log -n 1 --format="%cd" --date=format:"%y%m%d")
@@ -124,19 +119,20 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
+      build-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       build-query-tracker: true
       build-python: true
       build-chyt: true
       update-remote-cache: true
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
       version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  docker-ya-make:
-    name: Docker images with ya-make
+  docker-ya-make-relwithdebinfo:
+    name: Docker profile images with ya-make
     needs:
       - start-vm
       - tag
@@ -150,7 +146,7 @@ jobs:
       publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
@@ -163,7 +159,7 @@ jobs:
           || startsWith(github.ref_name, 'chyt/') }}
     needs:
       - tag
-      - docker-ya-make
+      - docker-ya-make-relwithdebinfo
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: release-tests
@@ -177,23 +173,100 @@ jobs:
     name: Check
     needs:
       - start-vm
-      - build-ya-make
+      - tag
+      - docker-ya-make-relwithdebinfo
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result != 'skipped' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
-      run-flow-tests: true
+      run-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       run-python-tests: true
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
+
+  clear-caches:
+    name: Clear caches
+    needs:
+      - start-vm
+      - check
+      - docker-ya-make-relwithdebinfo
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result == 'success' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 120
+    steps:
+      - name: Clear local caches
+        run: |
+          set -euxo pipefail
+
+          df -h
+          ./ytsaurus/ya gc cache \
+            --cache-size=0GiB \
+            --tools-cache-size=0GiB \
+            --symlinks-ttl=0h
+          docker buildx prune --all --force
+          docker system prune --all --force --volumes
+          df -h
+
+  prepare-release:
+    name: Prepare release layout and strip artifacts
+    needs:
+      - start-vm
+      - clear-caches
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.clear-caches.result == 'success' }}
+    uses: ./.github/workflows/strip-artifacts.yaml
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      source: ../build_ya-make_relwithdebinfo
+      destination: ../build_ya-make_release
+
+  prepare-yql-release:
+    name: Prepare YQL release layout and strip artifacts
+    needs:
+      - start-vm
+      - prepare-release
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.prepare-release.result == 'success' }}
+    uses: ./.github/workflows/strip-artifacts.yaml
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      source: ../build_yql_ya-make_relwithdebinfo
+      destination: ../build_yql_ya-make_release
+
+  docker-ya-make-release:
+    name: Docker release images with ya-make
+    needs:
+      - start-vm
+      - tag
+      - prepare-release
+      - prepare-yql-release
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.tag.result == 'success' && needs.prepare-release.result == 'success' && needs.prepare-yql-release.result == 'success' }}
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+      build-types: '["release"]'
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
+      - build-ya-make
+      - docker-ya-make-relwithdebinfo
       - check
-      - docker-ya-make
+      - clear-caches
+      - prepare-release
+      - prepare-yql-release
+      - docker-ya-make-release
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -211,7 +284,11 @@ jobs:
     needs:
       - check
       - build-ya-make
-      - docker-ya-make
+      - docker-ya-make-relwithdebinfo
+      - clear-caches
+      - prepare-release
+      - prepare-yql-release
+      - docker-ya-make-release
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:

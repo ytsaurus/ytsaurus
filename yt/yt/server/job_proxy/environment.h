@@ -153,6 +153,10 @@ struct TUserJobEnvironmentOptions
 
     NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
 
+    //! Non-root UID to which the trusted executor switches before executing
+    //! user code. Its presence also requires starting the executor as root.
+    std::optional<int> TargetUserId;
+
     i64 ThreadLimit;
 
     //! Allowed places for creation of volumes and layers. "***" means any place.

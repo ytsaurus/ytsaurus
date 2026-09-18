@@ -3,6 +3,8 @@
 #include "private.h"
 #include "tablet.h"
 #include "tablet_cell.h"
+#include "tablet_chunk_manager.h"
+#include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
@@ -14,11 +16,14 @@
 
 #include <yt/yt/client/table_client/public.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/core/misc/ema_counter.h>
 
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
+using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -45,9 +50,44 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableBalancingAttributes)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleTabletStoresUpdate)
+            .SetInvoker(bootstrap->GetTabletManager()->GetStoresUpdateThrottlerInvoker()));
     }
 
 private:
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, ThrottleTabletStoresUpdate)
+    {
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        auto bundleName = request->has_bundle_name()
+            ? FromProto<std::string>(request->bundle_name())
+            : std::string{};
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+        auto storeCounts = FromProto<std::vector<int>>(request->store_counts());
+
+        context->SetRequestInfo("SubrequestCount: %v, TotalStoreCount: %v, BundleName: %v, UpdateReason: %v",
+            ssize(storeCounts),
+            std::accumulate(storeCounts.begin(), storeCounts.end(), 0),
+            bundleName,
+            updateReason);
+
+        for (auto storeCount : storeCounts) {
+            THROW_ERROR_EXCEPTION_IF(
+                storeCount < 0,
+                "Store count cannot be negative")
+                .With("store_count", storeCount);
+        }
+
+        const auto& tabletChunkManager = Bootstrap_->GetTabletManager()->GetTabletChunkManager();
+        response->set_accepted_request_count(tabletChunkManager->ThrottleTabletStoresUpdate(
+            bundleName,
+            updateReason,
+            storeCounts));
+
+        context->Reply();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, GetTableBalancingAttributes)
     {
         ValidateClusterInitialized();

@@ -43,6 +43,43 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateYsonStringFields(const Message& message)
+{
+    const auto* reflection = message.GetReflection();
+    std::vector<const FieldDescriptor*> fields;
+    reflection->ListFields(message, &fields);
+
+    for (const auto* fieldDescriptor : fields) {
+        if (IsYsonStringField(fieldDescriptor)) {
+            YT_VERIFY(fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_STRING);
+            if (fieldDescriptor->is_repeated()) {
+                for (int index = 0; index < reflection->FieldSize(message, fieldDescriptor); ++index) {
+                    ValidateYsonString(reflection->GetRepeatedString(message, fieldDescriptor, index));
+                }
+            } else {
+                ValidateYsonString(reflection->GetString(message, fieldDescriptor));
+            }
+        } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
+            if (fieldDescriptor->is_repeated()) {
+                for (int index = 0; index < reflection->FieldSize(message, fieldDescriptor); ++index) {
+                    ValidateYsonStringFields(reflection->GetRepeatedMessage(message, fieldDescriptor, index));
+                }
+            } else {
+                ValidateYsonStringFields(reflection->GetMessage(message, fieldDescriptor));
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConvertToYsonStringFieldValue(const INodePtr& value)
+{
+    return ConvertToYsonString(value).ToString();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TSelf, class TValueType>
 class TSetVisitorBase
     : public TProtoVisitor<Message*, TSelf>
@@ -103,6 +140,41 @@ public:
 
 protected:
     const TProtobufWriterOptions& Options_;
+
+    void VisitScalarSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            const auto* reflection = message->GetReflection();
+            reflection->SetString(
+                message,
+                fieldDescriptor,
+                ConvertToYsonStringFieldValue(CurrentValue_));
+            return;
+        }
+
+        TSetVisitorBase::VisitScalarSingularField(message, fieldDescriptor, reason);
+    }
+
+    void VisitScalarRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            message->GetReflection()->SetRepeatedString(
+                message,
+                fieldDescriptor,
+                index,
+                ConvertToYsonStringFieldValue(CurrentValue_));
+            return;
+        }
+
+        TSetVisitorBase::VisitScalarRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
 
     void VisitRegularMessage(
         Message* message,
@@ -374,6 +446,31 @@ public:
     { }
 
 protected:
+    void VisitScalarSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            ValidateYsonString(CurrentValue_.LastOrEmptyPart().AsStringView());
+        }
+
+        TSetVisitorBase::VisitScalarSingularField(message, fieldDescriptor, reason);
+    }
+
+    void VisitScalarRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            ValidateYsonString(CurrentValue_.LastOrEmptyPart().AsStringView());
+        }
+
+        TSetVisitorBase::VisitScalarRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
     void VisitRegularMessage(
         Message* message,
         const Descriptor* descriptor,
@@ -386,6 +483,7 @@ protected:
             if (DiscardUnknownFields_) {
                 message->DiscardUnknownFields();
             }
+            ValidateYsonStringFields(*message);
             return;
         }
 
@@ -432,6 +530,7 @@ protected:
                 if (DiscardUnknownFields_) {
                     nestedMessage->DiscardUnknownFields();
                 }
+                ValidateYsonStringFields(*nestedMessage);
             }
             return;
         }
@@ -446,6 +545,13 @@ protected:
     {
         if (PathComplete()) {
             const auto* reflection = message->GetReflection();
+
+            if (IsYsonStringField(fieldDescriptor)) {
+                for (auto wireStringPart : CurrentValue_) {
+                    ValidateYsonString(wireStringPart.AsStringView());
+                }
+            }
+
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
                 if (fieldDescriptor->message_type()) {
@@ -454,6 +560,7 @@ protected:
                     if (DiscardUnknownFields_) {
                         nestedMessage->DiscardUnknownFields();
                     }
+                    ValidateYsonStringFields(*nestedMessage);
                 } else {
                     AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart)
                         .ThrowOnError();
@@ -1050,9 +1157,10 @@ bool AreScalarAttributesEqualByPath(
 {
     if (path.empty()) {
         return lhs == rhs;
-    } else {
-        return NYTree::TryGetAny(lhs.AsStringBuf(), path) == NYTree::TryGetAny(rhs.AsStringBuf(), path);
     }
+
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+        "YSON string does not support nested access");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

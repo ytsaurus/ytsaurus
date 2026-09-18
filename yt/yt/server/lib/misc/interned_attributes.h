@@ -74,6 +74,7 @@
     XX(CellId, cell_id) \
     XX(CellIds, cell_ids) \
     XX(CellTag, cell_tag) \
+    XX(CellTags, cell_tags) \
     XX(Cellars, cellars) \
     XX(ChangelogAccountViolatedResourceLimits, changelog_account_violated_resource_limits) \
     XX(ChaosCellBundle, chaos_cell_bundle) \
@@ -184,6 +185,7 @@
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableFairShareTruncationInFifoPool, enable_fair_share_truncation_in_fifo_pool) \
+    XX(EnableFifoChildrenReorderingForGuaranteeUtilization, enable_fifo_children_reordering_for_guarantee_utilization) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \

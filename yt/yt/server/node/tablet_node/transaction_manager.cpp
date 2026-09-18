@@ -1805,12 +1805,11 @@ private:
         if (it != PreparedTransactions_.end()) {
             PreparedTransactions_.erase(it);
         } else {
-            YT_LOG_ALERT("Attempted to unregister nonexistent transaction prepare timestamp "
-                "(%v, PrepareTimestamp: %v)",
-                FormatTransactionId(
+            YT_TLOG_ALERT("Attempted to unregister nonexistent transaction prepare timestamp")
+                .With("TransactionId", FormatTransactionId(
                     transaction->GetId(),
-                    transaction->GetExternalizationToken()),
-                prepareTimestamp);
+                    transaction->GetExternalizationToken()))
+                .With("PrepareTimestamp", prepareTimestamp);
         }
 
         CheckBarrier();

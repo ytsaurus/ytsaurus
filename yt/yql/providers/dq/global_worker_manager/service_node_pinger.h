@@ -18,6 +18,7 @@ NActors::IActor* CreateServiceNodePinger(
     const THashMap<TString, TString>& attributes,
     const IServiceNodeResolver::TPtr& ptr,
     const ICoordinationHelper::TPtr& coordinator,
-    const TResourceManagerOptions& rmOptions);
+    const TResourceManagerOptions& rmOptions,
+    TGlobalWorkerManagerActorIdOptions actorIdOptions = {});
 
 } // namespace NYql

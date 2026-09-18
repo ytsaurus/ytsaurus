@@ -26,7 +26,7 @@ public:
 
     bool IsEmpty() const;
 
-    void Insert(double cost, TPayload&& payload);
+    void Insert(double cost, TPayload payload);
 
     TElement ExtractMax();
 

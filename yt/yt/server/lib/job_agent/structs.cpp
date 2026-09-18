@@ -17,25 +17,37 @@ using NYT::FromProto;
 
 void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile)
 {
-    protoProfile->set_profiling_binary(ToProto(profile.ProfilingBinary));
-    protoProfile->set_profiler_type(ToProto(profile.ProfilerType));
-    protoProfile->set_blob(profile.Blob);
-    protoProfile->set_profiling_probability(profile.ProfilingProbability);
+    protoProfile->set_profiling_binary(ToProto(profile.ProfilingBinary_));
+    protoProfile->set_profiler_type(ToProto(profile.ProfilerType_));
+    protoProfile->set_blob(profile.Blob_);
+    protoProfile->set_profiling_probability(profile.ProfilingProbability_);
 }
 
 void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile)
 {
-    profile->ProfilingBinary = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilingBinary>(protoProfile.profiling_binary()));
-    profile->ProfilerType = GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilerType>(protoProfile.profiler_type()));
-    profile->Blob = protoProfile.blob();
-    profile->ProfilingProbability = protoProfile.profiling_probability();
+    *profile = TJobProfile(
+        GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilingBinary>(protoProfile.profiling_binary())),
+        GetOrCrash(TryCheckedEnumCast<NScheduler::EProfilerType>(protoProfile.profiler_type())),
+        protoProfile.profiling_probability(),
+        protoProfile.blob());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobProfile::TJobProfile(
+    NScheduler::EProfilingBinary profilingBinary,
+    NScheduler::EProfilerType profilerType,
+    double profilingProbability,
+    TString blob)
+    : ProfilingBinary_(profilingBinary)
+    , ProfilerType_(profilerType)
+    , ProfilingProbability_(profilingProbability)
+    , Blob_(std::move(blob))
+{ }
+
 std::string TJobProfile::GetType() const
 {
-    return Format("%lv_%lv", ProfilingBinary, ProfilerType);
+    return Format("%lv_%lv", ProfilingBinary_, ProfilerType_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

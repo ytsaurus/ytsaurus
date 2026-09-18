@@ -66,6 +66,7 @@ DEFINE_ENUM(EStoreCompactionReason,
     (ApplyDeletions)
     (NarrowChunkView)
     (Global)
+    (OldEdenChunk)
 );
 
 DEFINE_ENUM(EStoreRotationReason,

@@ -17,7 +17,7 @@ You can add compute resources to a clique in two ways:
 - Through the web interface
 
     1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-    1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) section or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) section or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Select the **Resources** tab on the left.
     1. In the _Instances_ field, enter the number of instances for the clique (from 1 to 100).
 
@@ -97,7 +97,7 @@ You can set the `Instance CPU` and `Instance Total Memory` options via:
 - Web interface
 
     1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-    1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) section or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) section or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Select the **Resources** tab on the left.
     1. In the _Instance CPU_ field, specify the number of CPU cores per instance.
     1. In the _Instance Total Memory_ field, specify the amount of RAM per instance.

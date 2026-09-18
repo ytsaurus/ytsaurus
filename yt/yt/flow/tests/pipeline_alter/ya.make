@@ -30,7 +30,7 @@ FORK_SUBTESTS()
 
 # Under TSAN in the YT team CI each rename scenario runs for minutes; sharing one
 # 600s MEDIUM chunk leaves no headroom.
-SPLIT_FACTOR(6)
+SPLIT_FACTOR(8)
 
 SIZE(MEDIUM)
 

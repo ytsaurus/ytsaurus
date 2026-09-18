@@ -330,6 +330,10 @@ type testTimeTypes struct {
 	D1 Datetime
 	D2 Timestamp
 	D3 Interval
+	D4 Date32
+	D5 Datetime64
+	D6 Timestamp64
+	D7 Interval64
 }
 
 func TestInferTime(t *testing.T) {
@@ -342,6 +346,10 @@ func TestInferTime(t *testing.T) {
 			{Name: "D1", Type: TypeDatetime, Required: true},
 			{Name: "D2", Type: TypeTimestamp, Required: true},
 			{Name: "D3", Type: TypeInterval, Required: true},
+			{Name: "D4", Type: TypeDate32, Required: true},
+			{Name: "D5", Type: TypeDatetime64, Required: true},
+			{Name: "D6", Type: TypeTimestamp64, Required: true},
+			{Name: "D7", Type: TypeInterval64, Required: true},
 		},
 	}, s)
 }

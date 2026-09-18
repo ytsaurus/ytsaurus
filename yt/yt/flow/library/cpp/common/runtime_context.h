@@ -19,7 +19,6 @@
 #include <yt/yt/core/ytree/public.h>
 
 #include <optional>
-#include <typeindex>
 
 namespace NYT::NFlow {
 
@@ -71,8 +70,13 @@ struct IRuntimeContext
     //! GetDynamicParameters<T>() helper.
     virtual NYTree::IMapNodePtr GetDynamicParametersNode() const = 0;
 
-    //! Deserializes the dynamic ``function_parameters`` block into the YSON struct |T| (defaults
-    //! applied if absent). Memoized: reparsed only when the parameters node or |T| changes.
+    //! The dynamic ``function_parameters`` block parsed into the registered YSON struct (defaults
+    //! applied), reparsed only on reconfiguration. Null if the spec names no processing function
+    //! (possible only under the test builder).
+    virtual NYTree::TYsonStructPtr GetDynamicParametersObject() const = 0;
+
+    //! The dynamic ``function_parameters`` as the YSON struct |T| the function registered (defaults
+    //! applied if absent). |T| must match the registered dynamic-parameters type (throws otherwise).
     template <class T>
     TIntrusivePtr<T> GetDynamicParameters() const;
 
@@ -84,17 +88,6 @@ struct IRuntimeContext
     //! Typed deserialization of a message/timer key into a YSON struct, using GetKeySchema().
     template <class T>
     TIntrusivePtr<T> ConvertToYsonKey(const TKey& key) const;
-
-private:
-    //! Single-slot memo for the typed parameters parse: last node and type, type-erased result.
-    struct TDynamicParametersCache
-    {
-        NYTree::IMapNodePtr Node;
-        std::type_index Type = std::type_index(typeid(void));
-        TIntrusivePtr<TRefCounted> Value;
-    };
-
-    mutable TDynamicParametersCache DynamicParametersCache_;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRuntimeContext)

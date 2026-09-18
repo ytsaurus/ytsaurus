@@ -10,11 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.job.Job;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.Visit;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.flow.stream.StreamSpecs;
 import tech.ytsaurus.ysontree.YTree;
@@ -34,12 +33,13 @@ public class RequestContext implements YTreeConvertible {
     private final List<Timer> timers;
     private final List<Visit> visits;
     private final StreamSpecs streamSpecs;
-    private final Map<String, StatesHolder<InternalState>> internalStates;
-    private final Map<String, StatesHolder<ExternalState>> externalStates;
-    private final Map<String, StatesHolder<ExternalState>> joinedExternalStates;
+    private final Map<String, StatesHolder> internalStates;
+    private final Map<String, StatesHolder> externalStates;
+    private final Map<String, StatesHolder> joinedExternalStates;
     private final Map<String, Long> watermarks;
     private final Long minWatermark;
     private final Job job;
+    private final Map<String, FlowResource> resources;
 
     RequestContext(Builder builder) {
         this.jobId = Objects.requireNonNull(builder.jobId);
@@ -54,6 +54,7 @@ public class RequestContext implements YTreeConvertible {
         this.watermarks = builder.watermarks;
         this.minWatermark = builder.minWatermark;
         this.job = builder.job;
+        this.resources = builder.resources;
         if (builder.streamSpecsOverride != null) {
             // User overrides from input request.
             this.streamSpecs = builder.streamSpecsOverride;
@@ -98,18 +99,18 @@ public class RequestContext implements YTreeConvertible {
         return visits;
     }
 
-    public Map<String, StatesHolder<InternalState>> getInternalStates() {
+    public Map<String, StatesHolder> getInternalStates() {
         return internalStates;
     }
 
-    public Map<String, StatesHolder<ExternalState>> getExternalStates() {
+    public Map<String, StatesHolder> getExternalStates() {
         return externalStates;
     }
 
     /**
      * Read-only external state joined from another computation. Never written back.
      */
-    public Map<String, StatesHolder<ExternalState>> getJoinedExternalStates() {
+    public Map<String, StatesHolder> getJoinedExternalStates() {
         return joinedExternalStates;
     }
 
@@ -119,6 +120,14 @@ public class RequestContext implements YTreeConvertible {
 
     public Long getMinWatermark() {
         return minWatermark;
+    }
+
+    /**
+     * Companion-hosted resources acquired for this batch, keyed by the alias from the job's
+     * resource references.
+     */
+    public Map<String, FlowResource> getResources() {
+        return resources;
     }
 
     @Override
@@ -183,10 +192,11 @@ public class RequestContext implements YTreeConvertible {
         private Map<String, Long> watermarks = Collections.emptyMap();
         private @Nullable Long minWatermark;
         private @Nullable StreamSpecs streamSpecsOverride;
-        private Map<String, StatesHolder<InternalState>> internalStates = Collections.emptyMap();
-        private Map<String, StatesHolder<ExternalState>> externalStates = Collections.emptyMap();
-        private Map<String, StatesHolder<ExternalState>> joinedExternalStates = Collections.emptyMap();
+        private Map<String, StatesHolder> internalStates = Collections.emptyMap();
+        private Map<String, StatesHolder> externalStates = Collections.emptyMap();
+        private Map<String, StatesHolder> joinedExternalStates = Collections.emptyMap();
         private @Nullable Job job;
+        private Map<String, FlowResource> resources = Collections.emptyMap();
 
         Builder() {
         }
@@ -226,17 +236,17 @@ public class RequestContext implements YTreeConvertible {
             return this;
         }
 
-        public Builder setInternalStates(Map<String, StatesHolder<InternalState>> internalStates) {
+        public Builder setInternalStates(Map<String, StatesHolder> internalStates) {
             this.internalStates = internalStates;
             return this;
         }
 
-        public Builder setExternalStates(Map<String, StatesHolder<ExternalState>> externalStates) {
+        public Builder setExternalStates(Map<String, StatesHolder> externalStates) {
             this.externalStates = externalStates;
             return this;
         }
 
-        public Builder setJoinedExternalStates(Map<String, StatesHolder<ExternalState>> joinedExternalStates) {
+        public Builder setJoinedExternalStates(Map<String, StatesHolder> joinedExternalStates) {
             this.joinedExternalStates = joinedExternalStates;
             return this;
         }
@@ -253,6 +263,14 @@ public class RequestContext implements YTreeConvertible {
 
         public Builder setJob(Job job) {
             this.job = job;
+            return this;
+        }
+
+        /**
+         * Sets the companion-hosted resources acquired for this batch, keyed by alias.
+         */
+        public Builder setResources(Map<String, FlowResource> resources) {
+            this.resources = resources;
             return this;
         }
 

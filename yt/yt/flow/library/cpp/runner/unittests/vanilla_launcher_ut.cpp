@@ -2,6 +2,8 @@
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 #include <yt/yt/flow/library/cpp/runner/vanilla_launcher.h>
 
+#include <yt/yt/flow/library/cpp/controller/config.h>
+
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
@@ -23,6 +25,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/string/cast.h>
 #include <util/system/env.h>
 
 #include <set>
@@ -69,7 +72,7 @@ TEST(TVanillaConfigTest, DefaultsPortCountsWithoutNetworkProject)
         TYsonStringBuf(R"({pool=test;worker={count=1};network_project=#})"));
 
     EXPECT_EQ(config->Controller->PortCount, std::optional<int>(2));
-    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(3));
+    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(4));
 }
 
 TEST(TVanillaConfigTest, KeepsFixedPortsUnderNetworkProject)
@@ -155,8 +158,7 @@ DEFINE_REFCOUNTED_TYPE(TAssertClientsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// The companion is dialed on a fixed in-job port, just like rpc and monitoring: a companion
-// pipeline must not have to request YT-allocated ports to run in a vanilla job.
+// Fixed-port workers configure companion RPC and monitoring ports.
 TEST(TVanillaNodeConfigTest, CarriesCompanionPort)
 {
     auto nodeConfig = BuildDefaultVanillaNodeConfig(
@@ -166,11 +168,11 @@ TEST(TVanillaNodeConfigTest, CarriesCompanionPort)
 
     ASSERT_TRUE(nodeConfig->Companion);
     EXPECT_GT(nodeConfig->Companion->Port, 0);
+    EXPECT_GT(nodeConfig->Companion->MonitoringPort, 0);
+    EXPECT_NE(nodeConfig->Companion->Port, nodeConfig->Companion->MonitoringPort);
 }
 
-// A worker on YT-allocated ports runs where fixed ones collide, so the fixed companion port
-// would point at whatever neighbouring job took it. It is left out: with `port_count = 3` the
-// port comes from YT_PORT_2, and with fewer the companion refuses to start.
+// YT-allocated workers receive companion ports from YT_PORT_2 and YT_PORT_3.
 TEST(TVanillaNodeConfigTest, OmitsCompanionPortForYtAllocatedPorts)
 {
     auto nodeConfig = BuildDefaultVanillaNodeConfig(
@@ -215,6 +217,45 @@ TEST(TVanillaConfigTest, RetainsStderrOfEveryJobByDefault)
 {
     EXPECT_EQ(MakeVanillaConfig()->MaxStderrCount, DefaultMaxStderrCount);
     EXPECT_EQ(MakeVanillaConfig("max_stderr_count=7")->MaxStderrCount, 7);
+}
+
+TEST(TVanillaSpecTest, CarriesCpuLimitToJobEnvironment)
+{
+    TVanillaSpec spec;
+    spec.Tasks.push_back(TVanillaTaskSpec{
+        .Name = "worker",
+        .FlowMode = "worker",
+        .CpuLimit = 10,
+    });
+    auto operation = BuildVanillaOperationSpec(spec);
+    auto worker = operation->GetChildOrThrow("tasks")->AsMap()->GetChildOrThrow("worker")->AsMap();
+    auto environment = ConvertTo<THashMap<std::string, std::string>>(worker->GetChildOrThrow("environment"));
+
+    EXPECT_DOUBLE_EQ(FromString<double>(environment.at("YT_FLOW_CPU_LIMIT")), 10);
+    EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 10);
+}
+
+TEST(TVanillaSpecTest, RequestsCpuLimitOnlyForSelectedTasks)
+{
+    TVanillaSpec spec;
+    spec.Tasks = {
+        TVanillaTaskSpec{
+            .Name = "controller",
+            .CpuLimit = 1,
+        },
+        TVanillaTaskSpec{
+            .Name = "worker",
+            .CpuLimit = 2,
+            .SetContainerCpuLimit = true,
+        },
+    };
+    auto tasks = BuildVanillaOperationSpec(spec)->GetChildOrThrow("tasks")->AsMap();
+    auto controller = tasks->GetChildOrThrow("controller")->AsMap();
+    auto worker = tasks->GetChildOrThrow("worker")->AsMap();
+
+    EXPECT_FALSE(controller->FindChild("set_container_cpu_limit"));
+    EXPECT_TRUE(ConvertTo<bool>(worker->GetChildOrThrow("set_container_cpu_limit")));
+    EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 2);
 }
 
 TEST(TVanillaSpecTest, CarriesMaxStderrCount)
@@ -314,6 +355,73 @@ TEST(TVanillaLauncherSecretEnvTest, AcceptsSetSecretEnv)
             MakeVanillaConfig("secret_env=[FLOW_UT_SECRET]"),
             cache),
         Format("%v \"pipeline-cluster\"", StopMarker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The patch is merged into a fully serialized default config, and all three backends spell their
+// leader lease the same way. A patch that switches the backend must therefore not leave the
+// previous backend's values behind: the Cypress TTL is five seconds, while chaos wants its own
+// minute and dyntable would not even load with five.
+
+TEST(TPatchVanillaNodeConfigTest, SwitchingToChaosKeepsTheChaosDefaults)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+    ASSERT_EQ(nodeConfig->Controller->ElectionManager.GetType(), NController::EElectionBackend::Cypress);
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={backend=chaos;chaos_cell_bundle=\"test-bundle\"}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Chaos);
+    auto backendConfig = electionManager.GetConcrete<NController::TChaosElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->ChaosCellBundle, "test-bundle");
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Minutes(1));
+    EXPECT_EQ(backendConfig->LeaderLeasePingPeriod, TDuration::Seconds(12));
+}
+
+TEST(TPatchVanillaNodeConfigTest, SwitchingToDyntableKeepsTheDyntableDefaults)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={backend=dyntable}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Dyntable);
+    auto backendConfig = electionManager.GetConcrete<NController::TDyntableElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Minutes(1));
+    EXPECT_EQ(backendConfig->DetachTimeout, TDuration::Minutes(1));
+}
+
+// A patch that does not name a backend keeps refining the one already there.
+TEST(TPatchVanillaNodeConfigTest, KeepsTheElectionSettingsWhenTheBackendStays)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={lock_acquisition_period=\"7s\"}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Cypress);
+    auto backendConfig = electionManager.GetConcrete<NController::TCypressElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(7));
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

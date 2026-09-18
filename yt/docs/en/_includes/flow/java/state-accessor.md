@@ -11,7 +11,7 @@ For simplicity, the following description focuses on an example with external st
 
 You can think of each row in the state table as having two parts: key columns and value columns:
 
-![](../../../flow/images/state_line_example.svg)
+![](../../../flow/_images/state_line_example.svg)
 
 The key columns in the state table must match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation) that uses this state.
 
@@ -32,7 +32,8 @@ You write new values to the state table as a transaction within an [epoch](../..
   ```java
   public interface StateAccessor<T> {
       /** Get the state value. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Get the state value or a default value. */
       default T getOrDefault(T defaultValue);
@@ -45,6 +46,9 @@ You write new values to the state table as a transaction within an [epoch](../..
 
       /** Get the state class. */
       Class<T> getStateClass();
+
+      /** Get a read-only view of the accessor. */
+      default StateAccessor<T> readOnly();
   }
   ```
 
@@ -53,7 +57,7 @@ You write new values to the state table as a transaction within an [epoch](../..
   ```kotlin
   interface StateAccessor<T> {
       /** Get the state value. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Get the state value or a default value. */
       fun getOrDefault(defaultValue: T): T
@@ -66,7 +70,12 @@ You write new values to the state table as a transaction within an [epoch](../..
 
       /** Get the state class. */
       fun getStateClass(): Class<T>
+
+      /** Get a read-only view of the accessor. */
+      fun readOnly(): StateAccessor<T>
   }
   ```
 
 {% endlist %}
+
+The value of an internal state returned by `get()` and `getOrDefault()` is live: the changes made to it are written without a `set()` call, and `readOnly()` returns an untracked view — see [Changing the value in place](../../../flow/java/internal-state.md#in-place). A default returned by `getOrDefault()` is not written to {{product-name}}: it becomes the state value only if the computation changes it.

@@ -74,6 +74,11 @@ private:
         TWatermarkGeneratorCookie WatermarkGeneratorCookie;
     };
 
+    struct TPublishResult
+    {
+        bool EmptyEpoch = false;
+    };
+
     std::deque<TProcessedBatch> DelayedMessages_;
 
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> GetExtraInputLimits() override;
@@ -83,7 +88,7 @@ private:
     TSystemTimestamp GetTriggerTimestamp(const std::vector<TMessage>& batch);
 
     void ProcessSourceBatches(std::vector<ISource::TMessageBatch>&& sourceMessageBatches);
-    bool CheckDelayedMessages(
+    TPublishResult CheckDelayedMessages(
         IComputationRunContextPtr context,
         NTracing::TTraceContextPtr epochTraceContext,
         TSystemTimestamp now,

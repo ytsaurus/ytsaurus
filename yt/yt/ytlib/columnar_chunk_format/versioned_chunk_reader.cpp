@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
@@ -985,10 +986,12 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
 
 TSharedRange<TRowRange> ClipRanges(
     TSharedRange<TRowRange> ranges,
-    TUnversionedRow lower,
-    TUnversionedRow upper,
-    THolderPtr holder)
+    const NTableClient::TLegacyOwningKey& lowerBound,
+    const NTableClient::TLegacyOwningKey& upperBound)
 {
+    auto lower = lowerBound.Get();
+    auto upper = upperBound.Get();
+
     auto startIt = ranges.begin();
     auto endIt = ranges.end();
 
@@ -1029,7 +1032,8 @@ TSharedRange<TRowRange> ClipRanges(
         return MakeSharedRange(
             std::move(items),
             std::move(ranges.ReleaseHolder()),
-            std::move(holder));
+            lowerBound,
+            upperBound);
     } else {
         return {}; // Empty ranges.
     }

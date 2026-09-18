@@ -2469,13 +2469,10 @@ private:
     {
         auto proxy = Client_->CreateChunkServiceWriteProxy(DstObject_.ExternalCellTag);
 
-        auto batchReq = proxy.ExecuteBatch();
-        NRpc::GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
+        auto req = proxy.AttachChunkTrees();
+        NRpc::GenerateMutationId(req);
+        SetSuppressUpstreamSync(&req->Header(), true);
 
-        auto req = batchReq->add_attach_chunk_trees_subrequests();
         ToProto(req->mutable_parent_id(), ChunkListId_);
 
         for (const auto& chunkSpec : ChunkSpecs_) {
@@ -2483,13 +2480,11 @@ private:
         }
         req->set_request_statistics(true);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to %v",
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunks to %v",
             DstObject_.GetPath());
-        const auto& batchRsp = batchRspOrError.Value();
 
-        const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
-        DataStatistics_ = rsp.statistics();
+        DataStatistics_ = rspOrError.Value()->statistics();
     }
 
     void EndUpload()

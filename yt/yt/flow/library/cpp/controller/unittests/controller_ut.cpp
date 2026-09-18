@@ -10,7 +10,11 @@
 
 #include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/authenticator.h>
+
+#include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -69,6 +73,41 @@ private:
 };
 
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::atomic<i64> ControllerTestSinkChannelCount{5};
+
+class TControllerTestSinkController
+    : public TSinkControllerBase
+{
+public:
+    using TSinkControllerBase::TSinkControllerBase;
+
+    std::optional<i64> GetReceiverChannelCount() override
+    {
+        return ControllerTestSinkChannelCount.load();
+    }
+};
+
+class TControllerTestSink
+    : public TOrderedBatchingAsyncSinkBase
+{
+public:
+    using TSinkController = TControllerTestSinkController;
+
+    using TOrderedBatchingAsyncSinkBase::TOrderedBatchingAsyncSinkBase;
+
+    void DoInit(const std::string& /*producerId*/) override
+    { }
+
+    TFuture<void> DoDistribute(const std::vector<TOutputMessageConstPtr>& /*messages*/, i64 /*seqNo*/) override
+    {
+        return OKFuture;
+    }
+};
+
+YT_FLOW_DEFINE_SINK(TControllerTestSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +183,12 @@ private:
 struct TPersistedStateManagerLocalState
     : public TRefCounted
 {
+    struct TPartitionLayoutSummary
+    {
+        int Executing = 0;
+        int Interrupting = 0;
+    };
+
     void CheckImportantVersions(const TPipelineImportantVersionsPtr& expectedVersions)
     {
         auto actual = MakePipelineImportantVersions(FlowView->State, Spec);
@@ -167,6 +212,10 @@ struct TPersistedStateManagerLocalState
     TVersionedPipelineSpecPtr Spec = New<TVersionedPipelineSpec>();
     TVersionedDynamicPipelineSpecPtr DynamicSpec = New<TVersionedDynamicPipelineSpec>();
     TVersionedFlowCoreTargetPtr FlowCoreTarget = New<TVersionedFlowCoreTarget>();
+    bool ObserveSinkTopologyRetry = false;
+    bool SinkTopologyPersistenceFailureInjected = false;
+    std::optional<TPartitionLayoutSummary> LastPersistedPartitionLayout;
+    std::vector<TPartitionLayoutSummary> SinkTopologyPersistenceAttempts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +243,26 @@ public:
             .WillRepeatedly(
                 [state = PersistedStateManagerLocalState] (const TFlowStatePtr& flowState, const TPipelineImportantVersionsPtr& expectedVersions) {
                     auto guard = Guard(state->Lock);
+                    TPersistedStateManagerLocalState::TPartitionLayoutSummary summary;
+                    for (const auto& [_, partition] : flowState->ExecutionSpec->Layout->Partitions) {
+                        if (partition->State == EPartitionState::Executing) {
+                            ++summary.Executing;
+                        } else if (partition->State == EPartitionState::Interrupting) {
+                            ++summary.Interrupting;
+                        }
+                    }
+                    state->LastPersistedPartitionLayout = summary;
+                    if (state->ObserveSinkTopologyRetry) {
+                        if (state->SinkTopologyPersistenceFailureInjected || summary.Interrupting > 0) {
+                            state->SinkTopologyPersistenceAttempts.push_back(summary);
+                        }
+                        if (!state->SinkTopologyPersistenceFailureInjected && summary.Interrupting > 0) {
+                            state->SinkTopologyPersistenceFailureInjected = true;
+                            THROW_ERROR_EXCEPTION(
+                                NFlow::EErrorCode::SpecVersionMismatch,
+                                "Injected flow state persistence failure");
+                        }
+                    }
                     flowState->CommitMutation();
                     state->CheckImportantVersions(expectedVersions);
                     state->FlowView->State = CloneYsonStruct(flowState);
@@ -258,6 +327,7 @@ public:
                 });
 
         auto transaction = New<StrictMock<NApi::TMockTransaction>>();
+        Transaction = transaction;
         EXPECT_CALL(*transaction, SetNode(_, _, _))
             .WillRepeatedly(Return(OKFuture));
         EXPECT_CALL(*transaction, Commit(_))
@@ -286,6 +356,10 @@ public:
 
         EXPECT_CALL(*YTConnector, IsLeader())
             .WillRepeatedly(Return(true));
+        // Leadership published long ago, so the warm-up never holds job management back; the tests
+        // that care about the warm-up override this.
+        EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+            .WillRepeatedly(Return(TInstant::Now() - TDuration::Hours(1)));
         EXPECT_CALL(*YTConnector, GetPipelinePath())
             .WillRepeatedly(Return(NYPath::TRichYPath("cluster://path")));
 
@@ -362,6 +436,7 @@ public:
             YTConnector,
             PersistedStateManager,
             authenticator,
+            /*httpClient*/ nullptr,
             /*ignoreSingletonsDynamicConfig*/ false,
             /*clockClusterTag*/ NObjectClient::InvalidCellTag,
             CreateSyncStatusProfiler());
@@ -397,6 +472,8 @@ public:
     TMockPersistedStateManagerPtr PersistedStateManager;
     TMockWorkerTrackerPtr WorkerTracker;
     TMockYTConnectorPtr YTConnector;
+    //! The transaction every mocked start and attach hands out; job leases are built on it.
+    TIntrusivePtr<StrictMock<NApi::TMockTransaction>> Transaction;
     TControlActionQueuePtr ControlActionQueue;
     NConcurrency::IFairShareThreadPoolPtr ControllerThreadPool;
 
@@ -409,6 +486,195 @@ public:
     NRpc::IServerPtr LocalServer;
     std::unique_ptr<TControllerServiceProxy> ControllerServiceProxy;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, FailedPersistenceRetriesSinkTopologyRecreation)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+    ControllerTestSinkChannelCount = 5;
+
+    auto schema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{
+        NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
+    auto spec = New<TPipelineSpec>();
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    computationSpec->GroupBySchema = schema;
+    computationSpec->InputStreamIds.insert("input_stream");
+    computationSpec->OutputStreamIds.insert("output_stream");
+    computationSpec->Sinks["sink"] = New<TSinkSpec>();
+    computationSpec->Sinks["sink"]->SinkClassName = TypeName<TControllerTestSink>();
+    spec->Computations["computation"] = computationSpec;
+    for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
+        spec->Streams[streamId] = New<TStreamSpec>();
+        spec->Streams[streamId]->ClassName = "FakeClassName";
+        spec->Streams[streamId]->Schema = schema;
+    }
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->TargetState = EPipelineState::Working;
+    dynamicSpec->JobManager->AsyncBalancing = false;
+    dynamicSpec->Computations["computation"] = New<TDynamicComputationSpec>();
+    dynamicSpec->Computations["computation"]->Parameters->AddChild(
+        "desired_partition_count",
+        ConvertToNode(10));
+
+    auto versionProvider = New<TFakeVersionProvider>(1);
+    const auto& state = PersistedStateManagerLocalState;
+    state->FlowView->State->AttachToControl(state->PersistedMasterControl);
+    state->PersistedMasterControl->Recover();
+    state->Spec->TrySetValue(spec, versionProvider);
+    state->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
+    state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    state->FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(
+        BuildExtendedPipelineSpec(spec),
+        versionProvider);
+    state->FlowView->State->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(state->DynamicSpec);
+    state->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(
+        EPipelineState::Working,
+        versionProvider);
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto waitFor = [&] (auto&& predicate) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(60);
+            while (!predicate() && TInstant::Now() < deadline) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+            return predicate();
+        };
+
+        if (!waitFor([&] {
+                auto guard = Guard(state->Lock);
+                return state->LastPersistedPartitionLayout &&
+                    state->LastPersistedPartitionLayout->Executing == 10 &&
+                    state->LastPersistedPartitionLayout->Interrupting == 0;
+            })) {
+            StopLeading();
+            FAIL() << "Initial partition layout was not persisted";
+        }
+
+        {
+            auto guard = Guard(state->Lock);
+            state->ObserveSinkTopologyRetry = true;
+        }
+        ControllerTestSinkChannelCount = 7;
+
+        if (!waitFor([&] {
+                auto guard = Guard(state->Lock);
+                return state->SinkTopologyPersistenceAttempts.size() >= 2;
+            })) {
+            StopLeading();
+            FAIL() << "Sink topology persistence retry was not observed";
+        }
+
+        StopLeading();
+
+        auto guard = Guard(state->Lock);
+        ASSERT_GE(state->SinkTopologyPersistenceAttempts.size(), 2u);
+        for (int index = 0; index < 2; ++index) {
+            EXPECT_EQ(state->SinkTopologyPersistenceAttempts[index].Executing, 10);
+            EXPECT_EQ(state->SinkTopologyPersistenceAttempts[index].Interrupting, 10);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
+{
+    ControllerConfig->WarmUpTime = TDuration::Hours(1);
+    ControllerConfig->FeedbackPeriod = TDuration::MilliSeconds(10);
+
+    const auto partitionId = TPartitionId(TGuid::Create());
+    const auto oldJobId = TJobId(TGuid::Create());
+    const auto replacementJobId = TJobId(TGuid::Create());
+    const auto initialStateTimestamp = TInstant::Now();
+
+    const auto& state = PersistedStateManagerLocalState->FlowView->State;
+    state->AttachToControl(PersistedStateManagerLocalState->PersistedMasterControl);
+    PersistedStateManagerLocalState->PersistedMasterControl->Recover();
+
+    state->StartMutation();
+    auto partition = New<TPartition>();
+    partition->PartitionId = partitionId;
+    partition->ComputationId = TComputationId("computation");
+    partition->State = EPartitionState::Executing;
+    partition->StateEpoch = 7;
+    partition->StateTimestamp = initialStateTimestamp;
+    state->ExecutionSpec->Layout->CreatePartition(partition);
+
+    auto oldJob = New<TJob>();
+    oldJob->JobId = oldJobId;
+    oldJob->PartitionId = partitionId;
+    oldJob->WorkerAddress = "old-worker";
+    oldJob->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->ExecutionSpec->Layout->CreateJob(oldJob);
+    state->CommitMutation();
+
+    state->StartMutation();
+    state->ExecutionSpec->Layout->RemoveJob(oldJobId, EJobFinishReason::LostWorker);
+    auto replacementJob = New<TJob>();
+    replacementJob->JobId = replacementJobId;
+    replacementJob->PartitionId = partitionId;
+    replacementJob->WorkerAddress = "replacement-worker";
+    replacementJob->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->ExecutionSpec->Layout->CreateJob(replacementJob);
+    state->CommitMutation();
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto waitForFeedback = [&] (auto&& predicate) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+            while (!predicate()) {
+                ASSERT_LT(TInstant::Now(), deadline);
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+        };
+
+        waitForFeedback([&] {
+            // Hold the view: the controller replaces it on every feedback collection.
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto* status = flowView->Feedback->PartitionJobStatuses.FindPtr(partitionId);
+            return status && (*status)->CurrentJobId == replacementJobId;
+        });
+
+        const auto feedbackUpdateTime = Controller->GetFlowViewKeeper()->GetFlowView()->Feedback->UpdateTime;
+        auto staleStatus = New<TJobStatus>();
+        staleStatus->JobId = oldJobId;
+        staleStatus->IsFinished = true;
+        staleStatus->Epoch = 100;
+        staleStatus->UpdateTime = TInstant::Now();
+        Controller->RegisterJobStatus(oldJobId, staleStatus);
+
+        waitForFeedback([&] {
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            return flowView->Feedback->UpdateTime > feedbackUpdateTime;
+        });
+
+        const auto& flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+        const auto& jobStatus = GetOrCrash(flowView->Feedback->PartitionJobStatuses, partitionId);
+        EXPECT_EQ(jobStatus->CurrentJobId, replacementJobId);
+        EXPECT_FALSE(jobStatus->CurrentJobStatus);
+
+        const auto& currentPartition = GetOrCrash(flowView->State->ExecutionSpec->Layout->Partitions, partitionId);
+        EXPECT_EQ(currentPartition->CurrentJobId, replacementJobId);
+        EXPECT_EQ(currentPartition->State, EPartitionState::Executing);
+        EXPECT_EQ(currentPartition->StateEpoch, 7);
+        EXPECT_EQ(currentPartition->StateTimestamp, initialStateTimestamp);
+        EXPECT_TRUE(flowView->State->ExecutionSpec->Layout->Jobs.contains(replacementJobId));
+        EXPECT_FALSE(flowView->State->ExecutionSpec->Layout->Jobs.contains(oldJobId));
+
+        StopLeading();
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -949,6 +1215,227 @@ INSTANTIATE_TEST_SUITE_P(
     [] (const auto& info) {
         return Format("%vTo%v", info.param.PipelineState, info.param.TargetState);
     });
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    auto schema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{
+        NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
+    auto spec = New<TPipelineSpec>();
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    computationSpec->GroupBySchema = schema;
+    computationSpec->InputStreamIds.insert("input_stream");
+    computationSpec->OutputStreamIds.insert("output_stream");
+    spec->Computations["computation"] = computationSpec;
+    for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
+        spec->Streams[streamId] = New<TStreamSpec>();
+        spec->Streams[streamId]->ClassName = "FakeClassName";
+        spec->Streams[streamId]->Schema = schema;
+    }
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->TargetState = EPipelineState::Working;
+    dynamicSpec->JobManager->AsyncBalancing = false;
+    dynamicSpec->Computations["computation"] = New<TDynamicComputationSpec>();
+
+    auto versionProvider = New<TFakeVersionProvider>(1);
+    const auto& state = PersistedStateManagerLocalState;
+    state->FlowView->State->AttachToControl(state->PersistedMasterControl);
+    state->PersistedMasterControl->Recover();
+    state->Spec->TrySetValue(spec, versionProvider);
+    state->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
+    state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    state->FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(
+        BuildExtendedPipelineSpec(spec),
+        versionProvider);
+    state->FlowView->State->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(state->DynamicSpec);
+    state->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(
+        EPipelineState::Working,
+        versionProvider);
+
+    TWorkerInfo earlyWorker;
+    earlyWorker.RpcAddress = "early-worker.net:81";
+    earlyWorker.State = EWorkerState::Registered;
+    earlyWorker.IncarnationId = TIncarnationId(TGuid::Create());
+
+    TWorkerInfo lateWorker;
+    lateWorker.RpcAddress = "late-worker.net:81";
+    lateWorker.State = EWorkerState::Registered;
+    lateWorker.IncarnationId = TIncarnationId(TGuid::Create());
+
+    auto createJob = [&] (const TWorkerInfo& worker) {
+        auto partition = New<TPartition>();
+        partition->PartitionId = TPartitionId(TGuid::Create());
+        partition->ComputationId = TComputationId("computation");
+        partition->State = EPartitionState::Executing;
+        partition->StateTimestamp = TInstant::Now();
+        state->FlowView->State->ExecutionSpec->Layout->CreatePartition(partition);
+
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->PartitionId = partition->PartitionId;
+        job->WorkerAddress = worker.RpcAddress;
+        job->WorkerIncarnationId = worker.IncarnationId;
+        state->FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+        return job->JobId;
+    };
+    state->FlowView->State->StartMutation();
+    const auto earlyJobId = createJob(earlyWorker);
+    const auto lateJobId = createJob(lateWorker);
+    state->FlowView->State->CommitMutation();
+
+    Prepare();
+
+    // The leader address is never published, so the warm-up holds job management off for the
+    // whole test and the recovered jobs stay in the layout.
+    EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+        .WillRepeatedly(Return(TInstant::Zero()));
+
+    // The recovered jobs have no leases; the leader grants them on the fixture transaction.
+    EXPECT_CALL(*Transaction, GetId())
+        .WillRepeatedly(Return(TGuid::Create()));
+    EXPECT_CALL(*Transaction, SubscribeAborted(_))
+        .Times(AnyNumber());
+    EXPECT_CALL(*Transaction, Abort(_))
+        .WillRepeatedly(Return(OKFuture));
+
+    std::atomic<bool> lateWorkerRegistered = false;
+    EXPECT_CALL(*WorkerTracker, GetWorkers())
+        .WillRepeatedly([&] {
+            std::vector<TWorkerInfo> workers{earlyWorker};
+            if (lateWorkerRegistered.load()) {
+                workers.push_back(lateWorker);
+            }
+            return workers;
+        });
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto registeredWorkerCount = [&] {
+            return std::ssize(Controller->GetFlowViewKeeper()->GetFlowView()->State->Workers);
+        };
+        auto waitForRegisteredWorkers = [&] (int count) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(30);
+            while (registeredWorkerCount() != count && TInstant::Now() < deadline) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+            return registeredWorkerCount() == count;
+        };
+
+        auto expectIndexMatchesLayout = [&] {
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto& layout = flowView->State->ExecutionSpec->Layout;
+            EXPECT_TRUE(layout->Jobs.contains(earlyJobId));
+            EXPECT_TRUE(layout->Jobs.contains(lateJobId));
+
+            THashMap<TIncarnationId, THashSet<TJobId>> expected;
+            for (const auto& [jobId, job] : layout->Jobs) {
+                expected[job->WorkerIncarnationId].insert(jobId);
+            }
+            EXPECT_EQ(flowView->EphemeralState->WorkerIncarnationsJobs, expected);
+        };
+
+        if (!waitForRegisteredWorkers(1)) {
+            StopLeading();
+            FAIL() << "The early worker was not registered";
+        }
+        expectIndexMatchesLayout();
+
+        lateWorkerRegistered = true;
+        if (!waitForRegisteredWorkers(2)) {
+            StopLeading();
+            FAIL() << "The late worker was not registered";
+        }
+        expectIndexMatchesLayout();
+
+        StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TControllerHelpersTest, LeadershipWarmupTimeout)
+{
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    const auto& connector = dynamicSpec->ControllerConnector;
+
+    // Derived from the periods that govern how long a worker needs to reconnect, so that raising
+    // one of them raises the wait with it instead of leaving a fixed value meaningless.
+    auto derived = [&] {
+        return (connector->ControllerDiscoverPeriod + connector->ControllerHeartbeatPeriod) * 2 + TDuration::Seconds(5);
+    };
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+
+    connector->ControllerDiscoverPeriod = TDuration::Seconds(30);
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+    EXPECT_GT(GetLeadershipWarmupTimeout(dynamicSpec), TDuration::Seconds(30));
+
+    connector->ControllerHeartbeatPeriod = TDuration::Seconds(4);
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+
+    // Waiting past the point where the workers abandon their jobs is pointless.
+    connector->ControllerDiscoverPeriod = connector->ControllerWaitTimeout;
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), connector->ControllerWaitTimeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TControllerHelpersTest, LeadershipWarmupLeft)
+{
+    auto now = TInstant::Now();
+
+    auto flowView = New<TFlowView>();
+    TTestDatabase database;
+    auto control = New<TPersistedStateControl<std::string>>(New<TStorageHandler>(database));
+    flowView->State->AttachToControl(control);
+    control->Recover();
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    const auto Warmup = GetLeadershipWarmupTimeout(dynamicSpec);
+    ASSERT_GT(Warmup, TDuration::Seconds(5));
+
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+
+    // An empty layout has nothing to protect: a starting pipeline must not be delayed even before
+    // the leader address is published.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), TDuration::Zero());
+
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = TComputationId("computation");
+    partition->State = EPartitionState::Executing;
+    partition->StateTimestamp = now;
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->PartitionId = partition->PartitionId;
+    job->WorkerAddress = "worker.net:81";
+    flowView->State->StartMutation();
+    layout->CreatePartition(partition);
+    layout->CreateJob(job);
+    flowView->State->CommitMutation();
+
+    // Not published yet: the workers cannot discover this leader at all, so the whole warm-up is
+    // still ahead no matter how long ago leadership was won.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), Warmup);
+
+    // Published: the window is counted from the publication, not from the leadership.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - TDuration::Seconds(5), now), Warmup - TDuration::Seconds(5));
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - Warmup, now), TDuration::Zero());
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - TDuration::Hours(1), now), TDuration::Zero());
+
+    // A pipeline whose workers are not expected to wait for the controller at all leaves nothing to
+    // warm up for: the cap collapses the wait to zero.
+    dynamicSpec->ControllerConnector->ControllerWaitTimeout = TDuration::Zero();
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), TDuration::Zero());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

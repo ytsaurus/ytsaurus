@@ -1,10 +1,12 @@
 import io
 import os
 import tarfile
+import time
 
 import requests
 import pytest
 import yatest.common
+import yt.yson as yson
 
 from yt.common import wait
 
@@ -13,6 +15,16 @@ from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTes
 from yt.yt.flow.library.python.queue import batching_write_rows
 
 from .yt_sync import run_yt_sync
+
+BLOB_PART_SIZE = 4 * 1024 * 1024
+BLOB_TABLE_SCHEMA = yson.to_yson_type(
+    [
+        {"name": "filename", "type": "string", "sort_order": "ascending"},
+        {"name": "part_index", "type": "int64", "sort_order": "ascending"},
+        {"name": "data", "type": "string"},
+    ],
+    attributes={"strict": True, "unique_keys": True},
+)
 
 
 class TestFileResourceLifecycle(FlowTestBase):
@@ -27,10 +39,25 @@ class TestFileResourceLifecycle(FlowTestBase):
         self.output_queue = f"{self.work_yt_path}/output_queue"
         run_yt_sync("primary", self.work_yt_path)
 
-    def prepare_pipeline(self, source_class_name, source_path):
-        return self.prepare_named_pipeline({"file": (source_class_name, source_path)})
+    def prepare_pipeline(
+        self,
+        provider_class_name,
+        provider_path,
+        provider_parameters=None,
+        provider_spec=None,
+    ):
+        return self.prepare_named_pipeline(
+            {
+                "file": (
+                    provider_class_name,
+                    provider_path,
+                    provider_parameters or {},
+                    provider_spec or {},
+                )
+            }
+        )
 
-    def prepare_named_pipeline(self, file_sources):
+    def prepare_named_pipeline(self, file_providers):
         source = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline.yson")
         config = get_yson_config(source)
         computation = config["spec"]["computations"]["enricher"]
@@ -41,15 +68,52 @@ class TestFileResourceLifecycle(FlowTestBase):
             }
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
-        config["spec"]["resources"]["text"]["file_sources"] = {
-            name: {
-                "file_source_class_name": source_class_name,
-                "parameters": {"path": source_path},
+        configured_providers = {}
+        for name, provider in file_providers.items():
+            provider_class_name, provider_path, *extra = provider
+            parameters = {"path": provider_path}
+            if extra:
+                parameters.update(extra[0])
+            configured_provider = {
+                "file_provider_class_name": provider_class_name,
+                "parameters": parameters,
             }
-            for name, (source_class_name, source_path) in file_sources.items()
-        }
+            if len(extra) > 1:
+                configured_provider.update(extra[1])
+            configured_providers[name] = configured_provider
+        config["spec"]["resources"]["text"]["file_providers"] = configured_providers
         self.patch_config(config)
         return self.dump_config_to_log_dir(config, "pipeline.yson")
+
+    def write_blob_table(self, path, files, part_size=BLOB_PART_SIZE):
+        assert not self.client.exists(path)
+        self.client.create(
+            "table",
+            path,
+            attributes={"schema": BLOB_TABLE_SCHEMA},
+        )
+        rows = []
+        for filename, data in sorted(files.items()):
+            parts = [data[index : index + part_size] for index in range(0, len(data), part_size)] or [b""]
+            rows.extend({"filename": filename, "part_index": index, "data": part} for index, part in enumerate(parts))
+        self.client.write_table(path, rows)
+
+    def write_blob_file(self, path, data, filename="file", part_size=BLOB_PART_SIZE):
+        self.write_blob_table(path, {filename: data}, part_size=part_size)
+
+    def publish_blob_revision(self, link_path, revision, files):
+        revision_root = f"{link_path}-revisions"
+        if not self.client.exists(revision_root):
+            self.client.create("map_node", revision_root, recursive=True)
+        table_path = f"{revision_root}/{revision}"
+        self.write_blob_table(table_path, files)
+        self.client.link(table_path, link_path, force=True)
+        return table_path
+
+    def write_cypress_file(self, path, data):
+        if not self.client.exists(path):
+            self.client.create("file", path)
+        self.client.write_file(path, data)
 
     def make_node_config(
         self,
@@ -168,7 +232,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         return next((snapshot_id for snapshot_id in active_ids if snapshot_id != excluded_id), None)
 
     def snapshot_state_counts(self, state):
-        counts = self.resource_view().get("file_sources", {}).get("file_snapshot_state_counts", {})
+        counts = self.resource_view().get("file_providers", {}).get("file_snapshot_state_counts", {})
         suffix = f"/{state}"
         return {int(key.split("/", 1)[0]): count for key, count in counts.items() if key.endswith(suffix)}
 
@@ -179,9 +243,8 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_yt_file_update_and_snapshot_metrics(self):
         file_path = f"{self.work_yt_path}/file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"first")
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        self.publish_blob_revision(file_path, "001", {"file": b"first"})
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -208,7 +271,7 @@ class TestFileResourceLifecycle(FlowTestBase):
                 ignore_exceptions=True,
             )
 
-            self.client.write_file(file_path, b"second")
+            self.publish_blob_revision(file_path, "002", {"file": b"second"})
             second = self.wait_for_updated_output("updated", "second")
             assert second["resource_revision"] > first["resource_revision"]
             wait(
@@ -229,14 +292,134 @@ class TestFileResourceLifecycle(FlowTestBase):
             )
 
     @pytest.mark.authors(["mikari"])
+    def test_cypress_file_update(self):
+        file_path = f"{self.work_yt_path}/cypress-file"
+        self.write_cypress_file(file_path, b"first")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
+        node_config, _, worker_overrides = self.make_node_config()
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("before")
+            self.wait_output("before", "first")
+            self.write_cypress_file(file_path, b"second")
+            self.wait_for_updated_output("updated", "second")
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("directory_last", [False, True])
+    @pytest.mark.parametrize("object_type", ["file", "table"])
+    def test_selected_file_reload_without_job_restart(self, directory_last, object_type):
+        directory = f"{self.work_yt_path}/versions"
+        self.client.create("map_node", directory)
+        file_path = f"{directory}/001"
+
+        def write_payload(payload):
+            if object_type == "file":
+                self.write_cypress_file(file_path, payload)
+            elif self.client.exists(file_path):
+                self.client.write_table(file_path, [{"filename": "file", "part_index": 0, "data": payload}])
+            else:
+                self.write_blob_file(file_path, payload)
+
+        write_payload(b"first")
+        provider_class = "TYTDirectoryLastFileProvider" if directory_last else "TYTFileProvider"
+        pipeline = self.prepare_pipeline(
+            f"NYT::NFlow::{provider_class}",
+            f"<cluster=primary>{directory if directory_last else file_path}",
+        )
+        config = get_yson_config(pipeline)
+        config["spec"]["resources"]["text"]["always_on"] = True
+        pipeline = self.dump_config_to_log_dir(config, "reload-pipeline.yson")
+        node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
+
+        def wait_for_reload(previous_id=None):
+            result = None
+
+            def converged():
+                nonlocal result
+                counts = self.snapshot_state_counts("active")
+                if len(counts) != 1:
+                    return False
+                snapshot_id, count = next(iter(counts.items()))
+                if count != 2 or snapshot_id == previous_id:
+                    return False
+                result = snapshot_id
+                return True
+
+            wait(converged, timeout=120, ignore_exceptions=True)
+            return result
+
+        def job_ids():
+            return set(
+                self.client.get_flow_view(
+                    self.pipeline_path, view_path="/state/execution_spec/layout/jobs", cache=False
+                )
+            )
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("before")
+            self.wait_output("before", "first")
+            first_id = wait_for_reload()
+            initial_jobs = job_ids()
+            assert initial_jobs
+            cached_before = [self.count_cached_objects(path) for path in cache_paths]
+
+            content_revision = self.client.get(f"{file_path}/@content_revision")
+            self.client.set(f"{file_path}/@reload_test", 1)
+            assert self.client.get(f"{file_path}/@content_revision") == content_revision
+            time.sleep(2)
+            assert self.snapshot_state_counts("active") == {first_id: 2}
+            assert [self.count_cached_objects(path) for path in cache_paths] == cached_before
+
+            write_payload(b"second")
+            second_id = wait_for_reload(first_id)
+            assert all(self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before))
+            self.write_input("after-reload")
+            row = self.wait_output("after-reload", "second")
+            assert row["file_snapshot_id"] == second_id
+
+            old_object_id = self.client.get(f"{file_path}/@id")
+            cached_before_replace = [self.count_cached_objects(path) for path in cache_paths]
+            with self.client.Transaction():
+                self.client.remove(file_path)
+                write_payload(b"replacement")
+            assert self.client.get(f"{file_path}/@id") != old_object_id
+            replacement_id = wait_for_reload(second_id)
+            assert all(
+                self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before_replace)
+            )
+            self.write_input("after-replace")
+            row = self.wait_output("after-replace", "replacement")
+            assert row["file_snapshot_id"] == replacement_id
+
+            write_payload(b"corrupt")
+            self.wait_for_pipeline_error("Test file resource rejected corrupt payload")
+            self.write_input("failed-reload")
+            self.wait_output("failed-reload", "replacement")
+
+            write_payload(b"third")
+            third_id = wait_for_reload(replacement_id)
+            self.write_input("recovered")
+            row = self.wait_output("recovered", "third")
+            assert row["file_snapshot_id"] == third_id
+            assert job_ids() == initial_jobs
+
+    @pytest.mark.authors(["mikari"])
     def test_two_workers_report_independent_cache_and_rollout_state(self):
         file_path = f"{self.work_yt_path}/file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"ok")
+        self.publish_blob_revision(file_path, "001", {"file": b"ok"})
         self.client.unmount_table(self.input_queue, sync=True)
         self.client.reshard_table(self.input_queue, tablet_count=2, sync=True)
         self.client.mount_table(self.input_queue, sync=True)
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
         worker_overrides[1]["worker"]["file_storage"].update(
             {
@@ -275,7 +458,7 @@ class TestFileResourceLifecycle(FlowTestBase):
                 ignore_exceptions=True,
             )
 
-            self.client.write_file(file_path, b"too-large")
+            self.publish_blob_revision(file_path, "002", {"file": b"too-large"})
             self.wait_for_pipeline_error("File storage hard size limit exceeded")
 
             def rollout_is_split():
@@ -309,12 +492,11 @@ class TestFileResourceLifecycle(FlowTestBase):
         left_path = f"{self.work_yt_path}/left"
         right_path = f"{self.work_yt_path}/right"
         for path, value in ((left_path, b"left-v1"), (right_path, b"right-v1")):
-            self.client.create("file", path)
-            self.client.write_file(path, value)
+            self.publish_blob_revision(path, "001", {"file": value})
         pipeline = self.prepare_named_pipeline(
             {
-                "left": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{left_path}"),
-                "right": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{right_path}"),
+                "left": ("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{left_path}"),
+                "right": ("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{right_path}"),
             }
         )
         node_config, _, worker_overrides = self.make_node_config()
@@ -327,7 +509,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("before")
             first = self.wait_output("before", "left-v1|right-v1")
 
-            self.client.write_file(right_path, b"right-v2")
+            self.publish_blob_revision(right_path, "002", {"file": b"right-v2"})
             second = self.wait_for_updated_output("updated", "left-v1|right-v2")
             assert second["resource_revision"] > first["resource_revision"]
 
@@ -335,9 +517,8 @@ class TestFileResourceLifecycle(FlowTestBase):
     def test_large_yt_file_is_streamed_into_the_cache(self):
         payload_size = 64 * 1024 * 1024
         file_path = f"{self.work_yt_path}/large-file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"x" * payload_size)
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        self.write_blob_file(file_path, b"x" * payload_size)
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config(
             soft_size_limit=payload_size,
             hard_size_limit=payload_size + 16 * 1024 * 1024,
@@ -352,16 +533,30 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_output("large", f"size:{payload_size}")
 
     @pytest.mark.authors(["mikari"])
-    def test_yt_directory_selects_greatest_direct_file(self):
+    def test_yt_file_provider_materializes_all_blob_table_files(self):
+        table_path = f"{self.work_yt_path}/files"
+        self.write_blob_table(table_path, {"a": b"left", "b": b"right"})
+        pipeline = self.prepare_pipeline(
+            "NYT::NFlow::TYTFileProvider",
+            f"<cluster=primary>{table_path}",
+        )
+        node_config, _, worker_overrides = self.make_node_config()
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("all")
+            self.wait_output("all", "left|right")
+
+    @pytest.mark.authors(["mikari"])
+    def test_yt_directory_selects_greatest_blob_table(self):
         directory = f"{self.work_yt_path}/versions"
         self.client.create("map_node", directory)
-        self.client.create("file", f"{directory}/001")
-        self.client.write_file(f"{directory}/001", b"first")
-        self.client.create("map_node", f"{directory}/zzz")
-        self.client.create("file", f"{directory}/zzz/nested")
-        self.client.write_file(f"{directory}/zzz/nested", b"nested")
+        self.write_blob_table(f"{directory}/001", {"file": b"first"})
         pipeline = self.prepare_pipeline(
-            "NYT::NFlow::TYTDirectoryLastFileSource",
+            "NYT::NFlow::TYTDirectoryLastFileProvider",
             f"<cluster=primary>{directory}",
         )
         node_config, _, worker_overrides = self.make_node_config()
@@ -373,23 +568,21 @@ class TestFileResourceLifecycle(FlowTestBase):
         ):
             self.write_input("before")
             self.wait_output("before", "first")
-            self.client.create("file", f"{directory}/002")
-            self.client.write_file(f"{directory}/002", b"second")
+            self.write_blob_table(f"{directory}/002", {"file": b"second"})
             self.wait_for_updated_output("updated", "second")
 
             self.client.set_pipeline_dynamic_spec(
                 self.pipeline_path,
                 {"file": {"parameters": {"pinned_file_name": "001"}}},
-                spec_path="/resources/text/file_sources",
+                spec_path="/resources/text/file_providers",
             )
             self.wait_for_updated_output("pinned", "first")
 
     @pytest.mark.authors(["mikari"])
     def test_yt_file_cache_survives_restart_and_cleans_old_revision(self):
         file_path = f"{self.work_yt_path}/file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"first")
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        self.publish_blob_revision(file_path, "001", {"file": b"first"})
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, cache_paths, worker_overrides = self.make_node_config(soft_size_limit=6, hard_size_limit=32)
 
         with self.start_flow_process_federation(
@@ -407,8 +600,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("after-restart")
             self.wait_output("after-restart", "first")
 
-            self.client.create("file", file_path)
-            self.client.write_file(file_path, b"second")
+            self.publish_blob_revision(file_path, "002", {"file": b"second"})
             self.wait_for_updated_output("updated", "second")
             wait(
                 lambda: self.count_cached_objects(cache_paths[0]) == 1,
@@ -419,7 +611,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_local_file_download_error_is_reported_and_retried(self):
         local_path = os.path.abspath(os.path.join(self.path_to_flow_logs, "missing-local-file"))
-        pipeline = self.prepare_pipeline("NYT::NFlow::TLocalFileSource", local_path)
+        pipeline = self.prepare_pipeline("NYT::NFlow::TLocalFileProvider", local_path)
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -435,7 +627,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_missing_and_corrupt_yt_file_report_errors_and_recover(self):
         file_path = f"{self.work_yt_path}/missing"
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -443,19 +635,18 @@ class TestFileResourceLifecycle(FlowTestBase):
             pipeline_binary_args={"--config": pipeline},
             worker_node_config_overrides=worker_overrides,
         ):
-            self.wait_for_pipeline_description_error("File source discovery failed")
+            self.wait_for_pipeline_description_error("File provider discovery failed")
 
-            self.client.create("file", file_path)
-            self.client.write_file(file_path, b"valid")
+            self.publish_blob_revision(file_path, "001", {"file": b"valid"})
             valid = self.wait_for_updated_output("valid", "valid")
 
-            self.client.write_file(file_path, b"corrupt")
+            self.publish_blob_revision(file_path, "002", {"file": b"corrupt"})
             self.wait_for_pipeline_error("Test file resource rejected corrupt payload")
             self.write_input("during-corruption")
             still_valid = self.wait_output("during-corruption", "valid")
             assert still_valid["file_snapshot_id"] == valid["file_snapshot_id"]
 
-            self.client.write_file(file_path, b"recovered")
+            self.publish_blob_revision(file_path, "003", {"file": b"recovered"})
             recovered = self.wait_for_updated_output("recovered", "recovered")
             assert recovered["resource_revision"] > valid["resource_revision"]
             assert recovered["file_snapshot_id"] != valid["file_snapshot_id"]
@@ -463,9 +654,8 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_capacity_error_keeps_previous_revision(self):
         file_path = f"{self.work_yt_path}/file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"ok")
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        self.publish_blob_revision(file_path, "001", {"file": b"ok"})
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config(soft_size_limit=4, hard_size_limit=8)
 
         with self.start_flow_process_federation(
@@ -476,14 +666,14 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("before")
             valid = self.wait_output("before", "ok")
 
-            self.client.write_file(file_path, b"too-large")
+            self.publish_blob_revision(file_path, "002", {"file": b"too-large"})
             self.wait_for_pipeline_error("File storage hard size limit exceeded")
             self.write_input("after")
             preserved = self.wait_output("after", "ok")
             assert preserved["file_snapshot_id"] == valid["file_snapshot_id"]
 
     @pytest.mark.authors(["mikari"])
-    def test_archive_with_two_files(self):
+    def test_archive_postprocessing_with_two_files(self):
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as output:
             for name, value in (("a.txt", b"left"), ("b.txt", b"right")):
@@ -492,9 +682,13 @@ class TestFileResourceLifecycle(FlowTestBase):
                 output.addfile(info, io.BytesIO(value))
 
         file_path = f"{self.work_yt_path}/files.tar"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, archive.getvalue())
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        self.write_blob_file(file_path, archive.getvalue(), filename="files.tar")
+        postprocess_command = '/usr/bin/tar -xf "$YT_FLOW_RESOURCE_PATH/files.tar" -C "$YT_FLOW_POSTPROCESSING_PATH"'
+        pipeline = self.prepare_pipeline(
+            "NYT::NFlow::TYTFileProvider",
+            f"<cluster=primary>{file_path}",
+            provider_spec={"postprocess_command": postprocess_command},
+        )
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(

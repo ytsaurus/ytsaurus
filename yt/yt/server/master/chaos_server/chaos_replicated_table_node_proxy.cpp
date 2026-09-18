@@ -461,7 +461,7 @@ private:
                 };
 
                 return GetReplicationCard(options)
-                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
                         auto replicasLags = ComputeReplicasLag(card->Replicas);
                         auto lastEraTimestamp = GetLastEraTimestamp(card);
                         return BuildYsonStringFluently()
@@ -538,7 +538,7 @@ private:
 
             case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
                 return GetReplicationCard(FetchOptionsWithProgress, /*bypassCache*/ false)
-                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                    .Apply(BIND([] (const TReplicationCardPtr& card) {
                         auto lastEraTimestamp = GetLastEraTimestamp(card);
 
                         bool allReplicasReachedLastGlobalEra = true;

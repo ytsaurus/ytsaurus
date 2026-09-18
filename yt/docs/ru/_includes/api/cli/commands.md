@@ -5033,7 +5033,7 @@ yt spark find-cluster [-h] [--discovery-path DISCOVERY_PATH]
 
 ##### livy
 
-SPYT Livy commands
+SPYT Livy commands. Deprecated and unavailable starting with SPYT 2.10.0.
 
 ```bash
 yt spark livy [-h] livy_command ...
@@ -5093,7 +5093,7 @@ yt spyt find-cluster [-h] [--discovery-path DISCOVERY_PATH]
 
 ##### livy
 
-SPYT Livy commands
+SPYT Livy commands. Deprecated and unavailable starting with SPYT 2.10.0.
 
 ```bash
 yt spyt livy [-h] livy_command ...

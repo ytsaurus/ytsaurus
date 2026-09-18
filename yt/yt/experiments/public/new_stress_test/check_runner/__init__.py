@@ -71,7 +71,7 @@ def run_and_track_success(
     Prepares environment for the Odin check, runs the callback and reports its status.
 
     Execution steps:
-        - create a subdirectory under |base_path|
+        - create a subdirectory under |base_path| with the failure expiration time
         - start a transaction with |transaction_title|
         - take a shared lock for the subdirectory
         - run |callback| with a subdirectory path as an argument
@@ -95,13 +95,16 @@ def run_and_track_success(
 
     success_attribute_set = False
 
+    def _get_expiration_time(timeout):
+        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
+        return yt_common.datetime_to_string(expiration_time)
+
     def _set_expiration_timeout(timeout):
         if timeout is None:
             return
 
         logging.info(f"Set expiration timeout to {timeout} seconds")
-        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
-        client.set(path + "/@expiration_time", yt_common.datetime_to_string(expiration_time))
+        client.set(path + "/@expiration_time", _get_expiration_time(timeout))
 
     def _report_success():
         nonlocal success_attribute_set
@@ -157,7 +160,12 @@ def run_and_track_success(
 
         logging.info(f"Initializing instance {path}")
 
-        client.create("map_node", path)
+        attributes = {}
+        if failure_expiration_timeout is not None:
+            logging.info(f"Set initial expiration timeout to {failure_expiration_timeout} seconds")
+            attributes["expiration_time"] = _get_expiration_time(failure_expiration_timeout)
+
+        client.create("map_node", path, attributes=attributes)
 
         # Add a little slack so that timeout handler will be executed earlier and give cleaner error message.
         deadline = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout + 120)

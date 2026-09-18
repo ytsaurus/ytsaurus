@@ -7,9 +7,12 @@ import javax.persistence.Entity;
 
 import org.junit.jupiter.api.Test;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
+import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.stream.FlowStreams;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PipelineContextSnapshotTest {
@@ -62,6 +65,31 @@ public class PipelineContextSnapshotTest {
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> snapshot.getStreams().put("words", FlowStreams.typed("words", Word.class)));
+    }
+
+    @Test
+    public void testGetStatesIsFrozenAtCreationAndKeepsOrder() {
+        var context = new PipelineContext();
+        var joined = StateDescriptors.externalReadOnly("/joined-state");
+        context.registerState(StateDescriptors.external("/state"));
+        context.registerState(joined);
+
+        var snapshot = new PipelineContextSnapshot(context);
+        context.registerState(StateDescriptors.raw("late-state"));
+
+        assertEquals(
+                List.of("/state", "/joined-state"),
+                snapshot.getStates().stream().map(StateDescriptor::getName).toList());
+        assertSame(joined, snapshot.getStates().get(1));
+    }
+
+    @Test
+    public void testGetStatesIsUnmodifiable() {
+        var snapshot = new PipelineContextSnapshot(new PipelineContext());
+
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> snapshot.getStates().add(StateDescriptors.external("/state")));
     }
 
     @Entity

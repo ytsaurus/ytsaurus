@@ -12,7 +12,7 @@ StateAccessor — интерфейс для чтения, модификации
 
 Каждую строку в таблице стейта можно условно разделить на ключевые колонки и колонки значений:
 
-![](../../../flow/images/state_line_example.svg)
+![](../../../flow/_images/state_line_example.svg)
 
 Для `TTransformCompanionComputation` ключевые колонки в таблице стейта совпадают с `group_by_schema` [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation). Для внутреннего стейта `TTransformOrderedSourceCompanionComputation` ключом служит ключ партиции источника: `group_by_schema` в таком SourceComputation не поддерживается.
 
@@ -33,7 +33,8 @@ StateAccessor — интерфейс для чтения, модификации
   ```java
   public interface StateAccessor<T> {
       /** Получить значение стейта. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Получить значение стейта или дефолтное значение. */
       default T getOrDefault(T defaultValue);
@@ -46,6 +47,9 @@ StateAccessor — интерфейс для чтения, модификации
 
       /** Получить класс стейта. */
       Class<T> getStateClass();
+
+      /** Получить read-only представление аксессора. */
+      default StateAccessor<T> readOnly();
   }
   ```
 
@@ -54,7 +58,7 @@ StateAccessor — интерфейс для чтения, модификации
   ```kotlin
   interface StateAccessor<T> {
       /** Получить значение стейта. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Получить значение стейта или дефолтное значение. */
       fun getOrDefault(defaultValue: T): T
@@ -67,7 +71,12 @@ StateAccessor — интерфейс для чтения, модификации
 
       /** Получить класс стейта. */
       fun getStateClass(): Class<T>
+
+      /** Получить read-only представление аксессора. */
+      fun readOnly(): StateAccessor<T>
   }
   ```
 
 {% endlist %}
+
+Значение внутреннего стейта, полученное через `get()` и `getOrDefault()`, живое: изменения, сделанные в нём, записываются без вызова `set()`, а `readOnly()` возвращает неотслеживаемое представление — см. [Изменение значения на месте](../../../flow/java/internal-state.md#in-place). Дефолт, который вернул `getOrDefault()`, в {{product-name}} не записывается: он становится значением стейта, только если вычисление его изменит.

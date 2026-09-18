@@ -13,17 +13,6 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortedChunkPoolStatistics final
-{
-    i64 ForeignSlicesCheckCountInDecideRowSliceability = 0;
-
-    PHOENIX_DECLARE_TYPE(TSortedChunkPoolStatistics, 0x71181524);
-};
-
-using TSortedChunkPoolStatisticsPtr = TIntrusivePtr<TSortedChunkPoolStatistics>;
-
-void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf spec);
-
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
@@ -67,6 +56,13 @@ IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
     TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISortedChunkPoolPtr CreateSortedChunkPool(
+    const TSortedChunkPoolOptions& options,
+    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
+    TInputStreamDirectory inputStreamDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,6 +20,7 @@ PEERDIR(
     yt/yt/library/query/engine
     yt/yt/client/cache
     yt/yt/client/unittests/mock
+    yt/yt/core/http/mock
 )
 
 END()

@@ -520,15 +520,37 @@ public:
         ProxySignatureAuthenticator_.Store(std::move(authenticator));
     }
 
-    std::string GetAuthDescription() override
+    TPipelineAuthenticationDescriptionPtr GetPipelineAuthenticationDescription() override
     {
+        auto description = New<TPipelineAuthenticationDescription>();
         if (ClientOptions_.Token.has_value()) {
-            return Format("OAUTH token of %v", GetUserLogin());
+            description->Method = EPipelineAuthenticationMethod::OAuth;
+            description->SubjectType = EPipelineAuthenticationSubjectType::User;
+            if (auto userLogin = GetUserLogin()) {
+                description->Subject = userLogin;
+                description->DisplayName = std::move(*userLogin);
+            } else {
+                description->DisplayName = "unknown OAuth user";
+            }
+            return description;
         }
-        if (TvmService_) {
-            return Format("TVM service %v", GetTvmName());
+
+        YT_VERIFY(TvmService_);
+        description->Method = EPipelineAuthenticationMethod::Tvm;
+        description->SubjectType = EPipelineAuthenticationSubjectType::Tvm;
+        auto tvmId = TvmService_->TryGetSelfTvmId();
+        if (!tvmId) {
+            description->DisplayName = "unknown TVM service";
+            return description;
         }
-        return "unknown authentication method";
+
+        description->Subject = Format("%v", *tvmId);
+        if (auto tvmName = GetTvmName(*tvmId)) {
+            description->DisplayName = Format("%v (%v)", *tvmName, *description->Subject);
+        } else {
+            description->DisplayName = *description->Subject;
+        }
+        return description;
     }
 
     NYTree::IMapNodePtr RequestHttpJson(std::string url, NHttp::THeadersPtr headers = nullptr)
@@ -549,25 +571,23 @@ public:
         return result;
     }
 
-    std::string GetTvmName()
+    std::optional<std::string> GetTvmName(TTvmId tvmId)
     {
         YT_VERIFY(TvmService_);
-        auto tvmId = TvmService_->TryGetSelfTvmId().value_or(TTvmId(0));
         auto url = FormatTvmInfoUrl(tvmId);
         if (url.empty()) {
-            return Format("%v", tvmId);
+            return std::nullopt;
         }
         try {
-            auto name = RequestHttpJson(url)->GetChildValueOrThrow<std::string>("name");
-            return Format("%v (%v)", name, tvmId);
+            return RequestHttpJson(url)->GetChildValueOrThrow<std::string>("name");
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to get TVM name by token")
                 .With(ex);
-            return Format("%v", tvmId);
+            return std::nullopt;
         }
     }
 
-    std::string GetUserLogin()
+    std::optional<std::string> GetUserLogin()
     {
         YT_VERIFY(ClientOptions_.Token.has_value());
         try {
@@ -579,7 +599,7 @@ public:
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to get user login by token")
                 .With(ex);
-            return "unknown-user";
+            return std::nullopt;
         }
     }
 
@@ -680,6 +700,18 @@ void TAuthenticatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("require_proxy_signature", &TThis::RequireProxySignature)
         // TODO(pechatnov): Flip the default to true once proxy signatures are rolled out to all prod Flow clusters (YTFLOW-276).
         .Default(false);
+}
+
+void TPipelineAuthenticationDescription::Register(TRegistrar registrar)
+{
+    registrar.Parameter("method", &TThis::Method)
+        .Default(EPipelineAuthenticationMethod::OAuth);
+    registrar.Parameter("subject_type", &TThis::SubjectType)
+        .Default(EPipelineAuthenticationSubjectType::User);
+    registrar.Parameter("subject", &TThis::Subject)
+        .Default();
+    registrar.Parameter("display_name", &TThis::DisplayName)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

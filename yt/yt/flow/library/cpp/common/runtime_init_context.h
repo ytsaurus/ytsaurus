@@ -12,6 +12,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/http/public.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,8 +64,8 @@ public:
     template <class TStateHolder>
     void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
-    //! Deserializes the static ``function_parameters`` block of the computation spec into
-    //! the user's YSON struct |T| (defaults applied if the block is absent).
+    //! The static ``function_parameters`` as the YSON struct |T| the function registered (defaults
+    //! applied if absent). |T| must match the registered static-parameters type (throws otherwise).
     template <class T>
     TIntrusivePtr<T> GetParameters() const;
 
@@ -71,15 +73,24 @@ public:
     //! map when the block is absent). Prefer the typed GetParameters<T>() helper.
     virtual NYTree::IMapNodePtr GetParametersNode() const = 0;
 
+    //! The static ``function_parameters`` block parsed into the registered YSON struct (defaults
+    //! applied), parsed once at job init. The test environment serves the struct supplied via
+    //! SetStaticParameters instead; null when none was set (possible only there).
+    virtual NYTree::TYsonStructPtr GetParametersObject() const = 0;
+
     //! Returns a resource the hosting computation declared in its
     //! ``required_resource_ids`` (worker side). Throws if the resource is not found there.
     //! String literals convert implicitly (TResourceId is a semi-strong typedef).
     virtual IResourcePtr GetStaticResource(const TResourceId& resourceId) const = 0;
 
-    //! The computation's profiler, already tagged with its ``computation_id``. Build the
-    //! function's sensors from it in Init() and keep them. Sensors aggregate over the partitions
-    //! a worker hosts, and are no-ops out of process.
+    //! The computation profiler, tagged with |computation_id| and stable across hosting modes.
     virtual NProfiling::TProfiler GetProfiler() const = 0;
+
+    //! The hosting process' shared plain-HTTP client, running on its HTTP poller
+    //! (the worker's in process, the companion's out of process). Throws where no
+    //! client was configured.
+    virtual NHttp::IClientPtr GetHttpClient() const = 0;
+    virtual NHttp::IClientPtr GetHttpsClient() const = 0;
 
     //! Id of the partition this function instance serves; fixed for the instance's lifetime.
     //! Throws out of process, where the hosting partition is not known.

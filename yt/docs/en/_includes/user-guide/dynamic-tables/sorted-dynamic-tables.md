@@ -55,16 +55,33 @@ Since the data in the system is actually sorted by a set of key columns, the sys
 
 When building the query, remember that if the system fails to infer non-trivial `key ranges`, `full scan` of the data will occur. `Full scan` occurs, for example, if you specify `key1, key2` as key columns and set filtering only by `key2`.
 
-### Writing rows { #insert_rows }
+### Limiting the read time range { #retention-timestamp }
 
-The client can write using the `insert_rows` method within the active transaction. To do this, the rows to be written must be reported. All key fields must be present in each such row. Some of the data fields from those specified in the schema may be missing.
+When reading a sorted dynamic table, you can specify the `retention_timestamp` option — the inclusive lower bound of the time range. If the `timestamp` option is also specified, the result is built from value versions in the range `[retention_timestamp; timestamp]`. The `retention_timestamp` value can’t be greater than `timestamp`. You can’t combine the `retention_timestamp` option with versioned lookup.
 
-Semantically, if a row with the specified key is not in the table, it appears. If there is already a row with this key, some of the columns are overwritten.
+The bound is applied to each column separately. If one column was written before `retention_timestamp` and another after, the first will contain `null` and the second will contain the written value. If no values remain in a row after applying the bound, the row is considered absent. By default, `lookup_rows` doesn’t return such a row; with the `keep_missing_rows` option, `null` is returned instead.
 
-There are 2 modes when some of the fields are specified:
+`retention_timestamp` affects only the read result and doesn’t delete old versions. Physical data deletion is controlled by [TTL settings](#remove_old_data).
 
-- `overwrite` (default): All unspecified fields update their values to `null`.
-- `update`: Enabled by the `update == true` option. The previous value will then be retained. In this mode, all columns marked with the `required` attribute must be transmitted.
+{% note warning "Warning" %}
+
+For aggregating columns, the semantics of `retention_timestamp` are **undefined**. Values before the bound don’t participate in aggregation, and compaction may pre-merge versions on different sides of the bound. As a result, the read result for an aggregating column before and after compaction may differ. **Don’t use this option to read the tail of changes for an aggregating column.**
+
+{% endnote %}
+
+
+### Inserting a row { #insert_rows }
+
+You can insert data using the `insert_rows` method within an active transaction. To do this, you must provide the rows to write. Each such row must include all key fields. Some data fields specified in the schema may be missing.
+
+Semantically, if a row with the specified key doesn’t exist in the table, it’s created. If a row with that key already exists, some columns are overwritten.
+
+When specifying only some fields, there are two modes:
+
+- `overwrite` (default) — all unspecified fields are updated to `null`.
+- `update` — enabled with the `update == true` option. In this case, the previous value is preserved. In this mode, you must provide all columns marked with the `required` attribute.
+
+
 
 {% note info "Note" %}
 

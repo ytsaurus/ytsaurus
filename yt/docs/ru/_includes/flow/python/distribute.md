@@ -27,7 +27,7 @@
 Логика фильтрации переносится в функцию обработки: вместо отдельного шага фильтрации сообщение эмитится с нужным флагом.
 
 ```python
-from yt.yt.flow.library.python.companion.computation import RowFunction
+from yt.yt.flow.library.python.companion.computation import AddMessageOptions, RowFunction
 
 
 class HitParsingFunction(RowFunction):
@@ -37,7 +37,10 @@ class HitParsingFunction(RowFunction):
         builder.set("hit_payload", message.payload["hit_payload"])
         # Дубликаты эмитятся, но не публикуются дальше.
         is_duplicate = message.payload["hit_payload"] == "duplicate_payload"
-        output.add_message(builder.finish(), distribute=not is_duplicate)
+        output.add_message(
+            builder.finish(),
+            AddMessageOptions(distribute=not is_duplicate),
+        )
 ```
 
 ## Регистрация source-компьютейшена {#registration}

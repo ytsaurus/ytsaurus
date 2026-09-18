@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job_manager.h"
 #include "lease_manager.h"
+#include "lineage_aggregator.h"
 #include "persisted_state_manager.h"
 #include "throttler_host.h"
 #include "worker.h"
@@ -59,6 +60,14 @@ using NTransactionClient::ETransactionType;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ControllerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Shape of the derived leadership warm-up, see #GetLeadershipWarmupTimeout. The factor leaves room
+//! for a discovery tick missed just before the address was published (the executor is jittered), the
+//! extra time covers the RPC latency and the registration stampede of a large fleet.
+static constexpr int LeadershipWarmupPeriodFactor = 2;
+static constexpr auto LeadershipWarmupExtraTime = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,15 +236,15 @@ public:
         void Apply(const TAggregatedNodePerformanceMetricsPtr& metrics)
         {
             CpuUsageTotalGauge_.Update(metrics->Total->CpuUsageCurrent.value_or(0));
-            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent);
+            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent.value_or(0));
 
             // CpuUsageCurrent/MemoryUsageCurrent is bad metric for taking maximum.
             PartitionCpuUsageMaxGauge_.Update(metrics->Max->CpuUsage30s.value_or(0));
             // Per-partition memory metric is very noisy, so use 10-min smoothed metric.
-            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m);
+            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m.value_or(0));
 
             PartitionCpuUsageAvgGauge_.Update(metrics->Avg->CpuUsageCurrent.value_or(0));
-            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent);
+            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent.value_or(0));
         }
 
         void ResetPerformanceMetrics()
@@ -339,6 +348,8 @@ public:
             TProfiler Profiler;
 
             TGauge Unknown = Profiler.Gauge("/unknown");
+            TGauge Failed = Profiler.Gauge("/failed");
+            TGauge GracefullyMoving = Profiler.Gauge("/gracefully_moving");
             TGauge Preparing = Profiler.Gauge("/preparing");
             TGauge WorkingYoung = Profiler.Gauge("/working_young");
             TGauge WorkingOld = Profiler.Gauge("/working_old");
@@ -412,6 +423,7 @@ public:
         const NProfiling::TProfiler& profiler,
         IYTConnectorPtr connector,
         IPipelineAuthenticatorPtr authenticator,
+        NHttp::IClientPtr httpClient,
         TControllerConfigPtr config,
         TNodeInfoPtr nodeInfo,
         const IInvokerPtr& invoker,
@@ -421,6 +433,7 @@ public:
         IStatusProfilerPtr statusProfiler)
         : Connector_(std::move(connector))
         , PipelineAuthenticator_(std::move(authenticator))
+        , HttpClient_(std::move(httpClient))
         , TimeProvider_(CreateRetryingTimeProvider(Connector_->GetClient(), clockClusterTag, invoker, statusProfiler, ControllerLogger()))
         , VersionProvider_(CreateVersionProvider(TimeProvider_))
         , Config_(std::move(config))
@@ -432,8 +445,10 @@ public:
         , LeaseManager_(CreateLeaseManager(
             Connector_,
             Config_->LeaseManager,
-            Config_->ElectionManager.GetType() == EElectionBackend::Dyntable,
-            Config_->PersistedStateManager->MaxWritesPerTransaction))
+            Config_->ElectionManager.GetType(),
+            Config_->ElectionManager.TryGetConcrete<TChaosElectionBackendConfig>(),
+            Config_->PersistedStateManager->MaxWritesPerTransaction,
+            invoker))
         , MutationMetrics_(Profiler_)
         , CurrentEpochGauge_(Profiler_.Gauge("/current_epoch"))
         , ComputationCountGauge_(Profiler_.Gauge("/computation_count"))
@@ -459,7 +474,6 @@ public:
         THashMap<EWorkerState, ui64> counts;
         flowView->State->Workers.clear();
         flowView->EphemeralState->FlowCoreTargetMismatchedWorkers.clear();
-        THashSet<TIncarnationId> incarnations;
 
         const auto& flowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget;
         ui64 flowCoreTargetMismatchCount = 0;
@@ -482,12 +496,10 @@ public:
                     worker->RegisterTime = w.RegisterTime;
                     worker->LegacyAddress = worker->RpcAddress;
                     flowView->State->Workers[worker->RpcAddress] = worker;
-                    incarnations.insert(w.IncarnationId);
                 }
             }
             counts[w.State] += 1;
         }
-        DropMissingKeys(flowView->EphemeralState->WorkerIncarnationsJobs, incarnations);
         for (const auto& [state, count] : counts) {
             if (!WorkerCountGauges_.contains(state)) {
                 WorkerCountGauges_[state] = Profiler_.WithTag("state", ToString(state)).Gauge("/worker_count");
@@ -522,10 +534,13 @@ public:
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
 
+        LineageAggregator_.Update(flowView);
+
         if (!UpdateSpecs(flowView, spec, dynamicSpec)) {
             YT_TLOG_WARNING("No job manager, fast stop");
             auto context = New<TJobManagerContext>();
             context->ClientsCache = Connector_->GetClientsCache();
+            context->HttpClient = HttpClient_;
             context->PipelinePath = Connector_->GetPipelinePath();
             context->Invoker = Invoker_;
             context->MainCycleInvoker = MainCycleInvoker_;
@@ -621,6 +636,15 @@ public:
         if (JobManager_) {
             JobManager_->Commit(flowView);
         }
+    }
+
+    void AddWorkerStatistics(
+        TIncarnationId workerIncarnationId,
+        TWorkerStatisticsPtr statistics)
+    {
+        LineageAggregator_.AddWorkerRatios(
+            workerIncarnationId,
+            std::move(statistics->LineageRatios));
     }
 
     void UpdateMetrics(const TFlowViewPtr& flowView)
@@ -722,6 +746,7 @@ public:
 private:
     const IYTConnectorPtr Connector_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
+    const NHttp::IClientPtr HttpClient_;
     const ITimeProviderPtr TimeProvider_;
     const IVersionProviderPtr VersionProvider_;
     const TControllerConfigPtr Config_;
@@ -732,6 +757,7 @@ private:
     const IThrottlerHostPtr ThrottlerHost_;
     const ILeaseManagerPtr LeaseManager_;
     IJobManagerPtr JobManager_;
+    TLineageAggregator LineageAggregator_;
 
     TMutationMetrics MutationMetrics_;
     THashMap<TStreamId, TStreamMetrics> StreamMetrics_;
@@ -766,6 +792,7 @@ private:
             try {
                 auto context = New<TJobManagerContext>();
                 context->ClientsCache = Connector_->GetClientsCache();
+                context->HttpClient = HttpClient_;
                 context->PipelinePath = Connector_->GetPipelinePath();
                 context->Invoker = Invoker_;
                 context->MainCycleInvoker = MainCycleInvoker_;
@@ -893,8 +920,12 @@ private:
             }
         }
 
-        void OnUpdateJob(const TJobPtr& /*oldJob*/, const TJobPtr& /*newJob*/) override
+        void OnUpdateJob(const TJobPtr& oldJob, const TJobPtr& newJob) override
         {
+            // An update keeps the job where it is; a job on another worker or partition is a
+            // new job, and #WorkerIncarnationsJobs relies on that.
+            YT_VERIFY(newJob->WorkerIncarnationId == oldJob->WorkerIncarnationId);
+            YT_VERIFY(newJob->PartitionId == oldJob->PartitionId);
             if (auto strongLeader = WeakLeader_.Lock()) {
                 strongLeader->MutationMetrics_.UpdateJobLeaseCounter.Increment();
             }
@@ -913,7 +944,13 @@ private:
                 }
                 state->PreviousJobFinishReason = reason;
 
-                EphemeralState_->WorkerIncarnationsJobs[oldJob->WorkerIncarnationId].erase(oldJob->JobId);
+                auto incarnationIt = EphemeralState_->WorkerIncarnationsJobs.find(oldJob->WorkerIncarnationId);
+                if (incarnationIt != EphemeralState_->WorkerIncarnationsJobs.end()) {
+                    incarnationIt->second.erase(oldJob->JobId);
+                    if (incarnationIt->second.empty()) {
+                        EphemeralState_->WorkerIncarnationsJobs.erase(incarnationIt);
+                    }
+                }
             }
         }
 
@@ -924,6 +961,8 @@ private:
 
     void DoScheduling(const TFlowViewPtr& flowView)
     {
+        JobManager_->BeginIteration();
+
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
         };
@@ -948,7 +987,17 @@ private:
         auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
         checkLeases();
         if (state == EPipelineState::Working || state == EPipelineState::Draining) {
-            manageJobs();
+            // Job management is held off as a whole, which keeps RemoveLostJobs and DistributeJobs
+            // consistent: a job left pointing at a not-yet-registered worker is exactly what the
+            // latter refuses to distribute.
+            auto warmupLeft = GetLeadershipWarmupLeft(flowView, Connector_->GetLeadershipPublishTime(), TInstant::Now());
+            if (warmupLeft > TDuration::Zero()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Skipping job management during leadership warm-up")
+                    .With("WarmupLeft", warmupLeft)
+                    .With("Jobs", flowView->State->ExecutionSpec->Layout->Jobs.size());
+            } else {
+                manageJobs();
+            }
         }
         if (state == EPipelineState::Working || state == EPipelineState::Draining) {
             LeaseManager_->PrepareLeases(flowView);
@@ -979,6 +1028,8 @@ private:
         struct TCounters
         {
             ui64 Unknown = 0;
+            ui64 Failed = 0;
+            ui64 GracefullyMoving = 0;
             ui64 Preparing = 0;
             ui64 WorkingYoung = 0;
             ui64 WorkingOld = 0;
@@ -1028,8 +1079,15 @@ private:
             const auto& status = statusIt->second;
             if (!status->CurrentJobStatus) {
                 handlePartitionWithoutJobStatus();
-            } else if (!status->CurrentJobStatus->Error.IsOK()) {
-                reasonCounters.Unknown += 1;
+            } else if (const auto& error = status->CurrentJobStatus->Error; !error.IsOK()) {
+                // The job is done but still assigned: it is waiting for the controller to drop it
+                // (and, for a graceful move, to recreate it on the target worker). Both are regular
+                // lifecycle states, so keep them apart from a partition with no job at all.
+                if (error.FindMatching(NFlow::EErrorCode::GracefulShutdown)) {
+                    reasonCounters.GracefullyMoving += 1;
+                } else {
+                    reasonCounters.Failed += 1;
+                }
             } else if (!status->CurrentJobStatus->RetryableErrors.empty()) {
                 reasonCounters.WorkingWithRetryableError += 1;
             } else if (!status->CurrentJobStatus->InitedTime.has_value()) {
@@ -1052,6 +1110,8 @@ private:
 
                 auto& reasonMetrics = computationMetrics.ReasonMetrics[reason];
                 reasonMetrics.Unknown.Update(reasonCounters.Unknown);
+                reasonMetrics.Failed.Update(reasonCounters.Failed);
+                reasonMetrics.GracefullyMoving.Update(reasonCounters.GracefullyMoving);
                 reasonMetrics.Preparing.Update(reasonCounters.Preparing);
                 reasonMetrics.WorkingYoung.Update(reasonCounters.WorkingYoung);
                 reasonMetrics.WorkingOld.Update(reasonCounters.WorkingOld);
@@ -1059,6 +1119,8 @@ private:
                 reasonMetrics.Stopped.Update(reasonCounters.Stopped);
 
                 totalCounters.Unknown += reasonCounters.Unknown;
+                totalCounters.Failed += reasonCounters.Failed;
+                totalCounters.GracefullyMoving += reasonCounters.GracefullyMoving;
                 totalCounters.Preparing += reasonCounters.Preparing;
                 totalCounters.WorkingYoung += reasonCounters.WorkingYoung;
                 totalCounters.WorkingOld += reasonCounters.WorkingOld;
@@ -1077,6 +1139,8 @@ private:
             .With("WorkingYoung", totalCounters.WorkingYoung)
             .With("WorkingWithRetryableError", totalCounters.WorkingWithRetryableError)
             .With("Preparing", totalCounters.Preparing)
+            .With("GracefullyMoving", totalCounters.GracefullyMoving)
+            .With("Failed", totalCounters.Failed)
             .With("Unknown", totalCounters.Unknown)
             .With("Stopped", totalCounters.Stopped)
             .With("FlowViewAge", TInstant::Now() - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
@@ -1248,10 +1312,14 @@ private:
             }
         }
 
-        // Remove WorkerSpecs entries for workers that no longer exist.
+        // Remove the WorkerSpecs of workers that no longer exist and of workers that re-registered
+        // with a new incarnation: a new incarnation has no preloaded resources.
         std::vector<std::string> staleWorkerAddresses;
         for (const auto& [workerAddress, workerSpec] : flowLayout->WorkerSpecs) {
-            if (!flowView->State->Workers.contains(workerAddress)) {
+            auto* worker = flowView->State->Workers.FindPtr(workerAddress);
+            if (!worker ||
+                (workerSpec->WorkerIncarnationId && *workerSpec->WorkerIncarnationId != (*worker)->IncarnationId))
+            {
                 staleWorkerAddresses.push_back(workerAddress);
             }
         }
@@ -1274,6 +1342,7 @@ public:
         IYTConnectorPtr connector,
         IPersistedStateManagerPtr persistedStateManager,
         IPipelineAuthenticatorPtr authenticator,
+        NHttp::IClientPtr httpClient,
         bool ignoreSingletonsDynamicConfig,
         NObjectClient::TCellTag clockClusterTag,
         IStatusProfilerPtr rootStatusProfiler)
@@ -1285,6 +1354,7 @@ public:
         , Connector_(std::move(connector))
         , PersistedStateManager_(persistedStateManager)
         , PipelineAuthenticator_(std::move(authenticator))
+        , HttpClient_(std::move(httpClient))
         , IgnoreSingletonsDynamicConfig_(ignoreSingletonsDynamicConfig)
         , FlowViewKeeper_(New<TFlowViewKeeper>())
         , ClockClusterTag_(clockClusterTag)
@@ -1333,8 +1403,19 @@ public:
     void RegisterWorkerStatus(TStringBuf workerAddress, TWorkerStatusPtr status) override
     {
         EnsureIsLeader();
+        if (status->Statistics) {
+            if (status->WorkerIncarnationId) {
+                if (auto leader = WeakLeader_.Lock()) {
+                    leader->AddWorkerStatistics(
+                        *status->WorkerIncarnationId,
+                        std::move(status->Statistics));
+                }
+            }
+            status->Statistics.Reset();
+        }
+
         auto guard = Guard(FreshStatusesLock_);
-        FreshWorkerStatuses_[std::string(workerAddress)] = status;
+        FreshWorkerStatuses_[std::string(workerAddress)] = std::move(status);
     }
 
 private:
@@ -1363,6 +1444,7 @@ private:
     const IYTConnectorPtr Connector_;
     const IPersistedStateManagerPtr PersistedStateManager_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
+    const NHttp::IClientPtr HttpClient_;
     const IFlowExecutorPtr FlowExecutor_;
     const bool IgnoreSingletonsDynamicConfig_;
     const TFlowViewKeeperPtr FlowViewKeeper_;
@@ -1425,6 +1507,7 @@ private:
             leaderProfiler,
             Connector_,
             PipelineAuthenticator_,
+            HttpClient_,
             Config_,
             NodeInfo_,
             cancelableInvoker,
@@ -1606,8 +1689,9 @@ private:
                         auto error = TError("Failed to execute %v iteration", name).With(ex);
                         activityContext.FailedIterations.Increment();
                         activityContext.ErrorState->SetError(error);
-                        YT_TLOG_EVENT(Logger, getLogLevel(error), "")
-                            .With(error);
+                        YT_TLOG_EVENT(Logger, getLogLevel(error), "Iteration failed")
+                            .With("Name", name)
+                            .With(ex);
                     }
                     TDelayedExecutor::WaitForDuration(period);
                 }
@@ -1812,6 +1896,7 @@ IControllerPtr CreateController(
     IYTConnectorPtr connector,
     IPersistedStateManagerPtr stateManager,
     IPipelineAuthenticatorPtr authenticator,
+    NHttp::IClientPtr httpClient,
     bool ignoreSingletonsDynamicConfig,
     NObjectClient::TCellTag clockClusterTag,
     IStatusProfilerPtr rootStatusProfiler)
@@ -1825,9 +1910,45 @@ IControllerPtr CreateController(
         std::move(connector),
         std::move(stateManager),
         std::move(authenticator),
+        std::move(httpClient),
         ignoreSingletonsDynamicConfig,
         clockClusterTag,
         std::move(rootStatusProfiler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDuration GetLeadershipWarmupTimeout(const TDynamicPipelineSpecPtr& dynamicSpec)
+{
+    const auto& connector = dynamicSpec->ControllerConnector;
+
+    auto timeout =
+        (connector->ControllerDiscoverPeriod + connector->ControllerHeartbeatPeriod) * LeadershipWarmupPeriodFactor +
+        LeadershipWarmupExtraTime;
+
+    return std::min(timeout, connector->ControllerWaitTimeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDuration GetLeadershipWarmupLeft(const TFlowViewPtr& flowView, TInstant publishTime, TInstant now)
+{
+    // A layout with no jobs has nothing to protect, so a starting pipeline is never delayed.
+    if (flowView->State->ExecutionSpec->Layout->Jobs.size() == 0) {
+        return TDuration::Zero();
+    }
+
+    auto warmupTimeout = GetLeadershipWarmupTimeout(flowView->CurrentDynamicSpec->GetValue());
+    if (warmupTimeout == TDuration::Zero()) {
+        return TDuration::Zero();
+    }
+
+    if (publishTime == TInstant::Zero()) {
+        return warmupTimeout;
+    }
+
+    auto deadline = publishTime + warmupTimeout;
+    return now < deadline ? deadline - now : TDuration::Zero();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

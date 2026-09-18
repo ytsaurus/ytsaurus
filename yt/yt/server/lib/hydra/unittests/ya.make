@@ -12,12 +12,14 @@ SRCS(
     changelog_ut.cpp
     hostname_sanitization_ut.cpp
     unbuffered_file_changelog_ut.cpp
+    snapshot_load_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
     yt/yt/server/lib/hydra
+    yt/yt/server/lib/hydra/mock
 )
 
 SIZE(MEDIUM)

@@ -87,9 +87,10 @@ void SetCurrentReignOverride(NHydra::TReign reign)
             .With("PreviousReign", GetCurrentReign())
             .With("NewReign", reign);
 
-        YT_LOG_FATAL_UNLESS(reign == InvalidReign || reign > ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue()),
-            "Reign override must be either %v or greater than any valid reign",
-            InvalidReign);
+        YT_TLOG_FATAL_UNLESS(
+            reign == InvalidReign || reign > ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue()),
+            "Reign override must be either invalid or greater than any valid reign")
+            .With("InvalidReign", InvalidReign);
 
         ReignOverride = reign;
     }

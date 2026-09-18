@@ -3,21 +3,23 @@
 #include "public.h"
 
 #include "pipeline.h"
+#include "server_context.h"
 
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
-#include <yt/yt/core/actions/public.h>
-
 #include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates the companion-side implementation of the CompanionService gRPC contract.
+//! Creates CompanionService; |registry| defaults to the process-wide registry.
 NRpc::IServicePtr CreateCompanionService(
     TPipeline pipeline,
-    IInvokerPtr invoker);
+    TCompanionServerContextPtr context,
+    NProfiling::TSolomonRegistryPtr registry = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

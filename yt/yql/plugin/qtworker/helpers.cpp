@@ -45,6 +45,18 @@ NYql::NProto::ETaskAction ExecuteModeToProto(int executeMode)
     }
 }
 
+std::optional<TString> ExtractDefaultCluster(const NYql::TGatewaysConfig& config)
+{
+    if (config.HasYt()) {
+        for (const auto& mapping : config.GetYt().GetClusterMapping()) {
+            if (mapping.GetDefault()) {
+                return mapping.GetName();
+            }
+        }
+    }
+    return {};
+}
+
 void UpdateTaskResultData(NYql::NProto::TTaskResult& to, const NYql::NProto::TTaskResult& from)
 {
     if (from.HasAst()) {
@@ -84,19 +96,6 @@ TString BuildYsonResultList(const NYql::NProto::TTaskResult& result)
 
 TQueryResult TaskResultToYqlResult(const NYql::NProto::TTaskResult& result, TString progress)
 {
-    if (result.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
-        if (result.IssuesSize() > 0) {
-            NYql::TIssues issues;
-            IssuesFromMessage(result.GetIssues(), issues);
-            return TQueryResult{
-                .YsonError = IssuesToYtErrorYson(issues),
-            };
-        }
-        return TQueryResult{
-            .YsonError = MessageToYtErrorYson("Query finished with ERROR status on worker"),
-        };
-    }
-
     TString ysonResult = BuildYsonResultList(result);
     auto queryResult = TQueryResult{
         .YsonResult = ysonResult ? std::make_optional(ysonResult) : std::nullopt,
@@ -106,10 +105,14 @@ TQueryResult TaskResultToYqlResult(const NYql::NProto::TTaskResult& result, TStr
         .Ast = result.HasAst() ? std::make_optional(result.GetAst()) : std::nullopt,
     };
 
-    if (result.IssuesSize() > 0) {
-        NYql::TIssues issues;
-        IssuesFromMessage(result.GetIssues(), issues);
-        queryResult.YsonError = IssuesToYtErrorYson(issues);
+    if (result.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
+        if (result.IssuesSize() > 0) {
+            NYql::TIssues issues;
+            IssuesFromMessage(result.GetIssues(), issues);
+            queryResult.YsonError = IssuesToYtErrorYson(issues);
+        } else {
+            queryResult.YsonError = MessageToYtErrorYson("Query finished with ERROR status on worker");
+        }
     }
 
     return queryResult;

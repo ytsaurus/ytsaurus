@@ -1,5 +1,7 @@
 RECURSE(
     actors
+    clique
+    common
     control
     gateway
     global_worker_manager
@@ -11,3 +13,9 @@ RECURSE(
     service
     stats_collector
 )
+
+IF (NOT OPENSOURCE AND NOT OS_WINDOWS)
+    RECURSE(
+        clique_discovery
+    )
+ENDIF()

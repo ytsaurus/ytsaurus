@@ -6,14 +6,20 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMessageBatchLimiter::TMessageBatchLimiter(i64 maxRowsPerBatch, i64 maxBytesPerBatch)
+TMessageBatchLimiter::TMessageBatchLimiter(
+    i64 maxRowsPerBatch,
+    i64 maxBytesPerBatch,
+    std::optional<i64> maxKeysPerBatch)
     : MaxRowsPerBatch_(maxRowsPerBatch)
     , MaxBytesPerBatch_(maxBytesPerBatch)
+    , MaxKeysPerBatch_(maxKeysPerBatch)
 { }
 
 bool TMessageBatchLimiter::IsFull() const
 {
-    return CurrentRowsCount_ >= MaxRowsPerBatch_ || CurrentByteSize_ >= MaxBytesPerBatch_;
+    return CurrentRowsCount_ >= MaxRowsPerBatch_ ||
+        CurrentByteSize_ >= MaxBytesPerBatch_ ||
+        (MaxKeysPerBatch_ && std::ssize(Keys_) >= *MaxKeysPerBatch_);
 }
 
 void TMessageBatchLimiter::Add(i64 messageSize)
@@ -30,14 +36,15 @@ void TMessageBatchLimiter::Add(const TMessage& message)
 
 void TMessageBatchLimiter::Add(const TInputMessageConstPtr& message)
 {
-    CurrentRowsCount_ += 1;
-    CurrentByteSize_ += message->ByteSize;
+    Add(message->ByteSize);
+    if (MaxKeysPerBatch_) {
+        Keys_.insert(message->Key);
+    }
 }
 
 void TMessageBatchLimiter::Add(const TInputTimerConstPtr& timer)
 {
-    CurrentRowsCount_ += 1;
-    CurrentByteSize_ += timer->ByteSize;
+    Add(timer->ByteSize);
 }
 
 i64 TMessageBatchLimiter::GetMaxRowsPerBatch() const

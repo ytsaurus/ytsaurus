@@ -1538,6 +1538,13 @@ void TTablet::AsyncLoad(TLoadContext& context)
         auto effectiveSettings = RawSettings_.BuildEffectiveSettings(&errors, nullptr);
         Settings_.MountConfig = effectiveSettings.MountConfig;
         Settings_.TabletBalancerConfig = effectiveSettings.TabletBalancerConfig;
+
+        if (!errors.empty()) {
+            auto error = TError("Errors occurred while deserializing tablet config")
+                .With("tablet_id", GetId())
+                .With(errors);
+            RuntimeData_->Errors.ConfigError.Store(std::move(error));
+        }
     }
 
     Load(context, PivotKey_);
@@ -3117,13 +3124,13 @@ i64 TTablet::Lock(ETabletLockType lockType)
 
 i64 TTablet::Unlock(ETabletLockType lockType)
 {
-    YT_LOG_FATAL_IF(TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
-        "Attempted to unlock tablet with nonpositive lock count "
-        "(%v, LockType: %lv, TotalTabletLockCount: %v, LockCountPerType: %v)",
-        GetLoggingTags(),
-        lockType,
-        TotalTabletLockCount_,
-        MakeFormattableView(
+    YT_TLOG_FATAL_IF(
+        TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
+        "Attempted to unlock tablet with nonpositive lock count")
+        .With(GetLoggingTags())
+        .With("LockType", lockType)
+        .With("TotalTabletLockCount", TotalTabletLockCount_)
+        .With("LockCountPerType", MakeFormattableView(
             TEnumTraits<ETabletLockType>::GetDomainValues(),
             [&] (auto* builder, auto lockType) {
                 builder->AppendFormat("%lv: %v", lockType, TabletLockCount_[lockType]);
@@ -3180,10 +3187,10 @@ void TTablet::PushDynamicStoreIdToPool(
     YT_VERIFY(storeId);
     DynamicStoreIdPool_.push_back(storeId);
 
-    YT_LOG_DEBUG("Dynamic store id added to pool (%v, StoreId: %v, Reason: %lv)",
-        LoggingTags_,
-        storeId,
-        reservationReason);
+    YT_TLOG_DEBUG("Dynamic store id added to pool")
+        .With(LoggingTags_)
+        .With("StoreId", storeId)
+        .With("Reason", reservationReason);
 
     if (reservationReason) {
         ++ReservedDynamicStoreIdCount_[*reservationReason];
@@ -3201,9 +3208,9 @@ TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
 void TTablet::ReleaseReservedDynamicStoreId(
     EDynamicStoreIdReservationReason reason)
 {
-    YT_LOG_DEBUG("Reserved dynamic store id released from pool (%v, Reason: %lv)",
-        LoggingTags_,
-        reason);
+    YT_TLOG_DEBUG("Reserved dynamic store id released from pool")
+        .With(LoggingTags_)
+        .With("Reason", reason);
 
     YT_VERIFY(ReservedDynamicStoreIdCount_[reason] > 0);
     --ReservedDynamicStoreIdCount_[reason];
@@ -3583,6 +3590,10 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
         .Item("replication_progress").Value(RuntimeData()->ReplicationProgress.Acquire())
         .Item("replication_era").Value(RuntimeData()->ReplicationEra.load())
         .Item("replication_round").Value(ChaosData()->ReplicationRound.load())
+        .Item("prepared_write_pulled_rows_transaction_id")
+            .Value(ChaosData()->PreparedWritePulledRowsTransactionId.Load())
+        .Item("prepared_advance_replication_progress_transaction_id")
+            .Value(ChaosData()->PreparedAdvanceReplicationProgressTransactionId.Load())
         .Item("write_mode").Value(RuntimeData()->WriteMode.load())
         .Item("lsm_statistics")
             .BeginMap()

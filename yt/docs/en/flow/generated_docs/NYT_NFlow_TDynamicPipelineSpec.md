@@ -16,7 +16,7 @@ Named list of all pipeline nodes. ||
  ||
 || `throttlers` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
 **Default value**: `{}`
-A set of named distributed throttlers common to all `Computation` pipeline nodes. Key &mdash; throttler ID. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
+A set of named distributed throttlers common to all `Computation` pipeline nodes. Keys are throttler IDs and must match `[0-9A-Za-z_-]+`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `job_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
 **Default value**: `{}`
 `JobManager` settings. ||

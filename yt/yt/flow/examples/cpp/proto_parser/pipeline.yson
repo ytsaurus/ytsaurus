@@ -2,7 +2,8 @@
     "spec" = {
         "computations" = {
             "parser" = {
-                "computation_class_name" = "NYT::NFlow::NExample::TProtoLogParserComputation";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+                "processing_function" = "NYT::NFlow::NExample::TProtoLogParserFunction";
                 "output_stream_ids" = ["records"];
                 "source_streams" = {
                     "queue" = {

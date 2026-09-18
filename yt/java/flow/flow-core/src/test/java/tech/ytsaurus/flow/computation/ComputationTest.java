@@ -29,7 +29,6 @@ import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
-import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.flow.stream.FlowStreams;
@@ -76,7 +75,7 @@ public class ComputationTest {
         private final TableSchema keySchema;
         private final StreamSpecs streamSpecs;
         private final Job job;
-        private final Map<String, StatesHolder<InternalState>> states;
+        private final Map<String, StatesHolder> states;
 
         TestFixture() {
             this.inputSchema = TableSchema.builder()
@@ -94,7 +93,7 @@ public class ComputationTest {
                     .build();
 
             this.states = new HashMap<>();
-            states.put("word-state", new StatesHolder<>("word-state", keySchema, null));
+            states.put("word-state", new StatesHolder("word-state", keySchema, null));
 
             var stream = FlowStreams.raw(STREAM_ID, outputSchema);
             var typedStream = FlowStreams.typed(TYPED_STREAM_ID, WordLength.class);
@@ -368,9 +367,8 @@ public class ComputationTest {
                                 new WordCountByteArrayCodec()),
                         message
                 );
-                long newCount = state.get()
-                        .map(wc -> wc.count + 1)
-                        .orElse(1L);
+                WordCount current = state.get();
+                long newCount = current != null ? current.count + 1 : 1L;
 
                 var stateEntry = new WordCount();
                 stateEntry.word = word;

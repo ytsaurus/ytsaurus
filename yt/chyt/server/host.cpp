@@ -51,7 +51,7 @@
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
@@ -112,8 +112,6 @@ static const std::vector<std::string> DiscoveryAttributes{
     "clique_id",
     "clique_incarnation",
 };
-
-static const TString SysClickHouse = "//sys/clickhouse";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -725,6 +723,11 @@ public:
         return DictionaryAccessControl_ ? DictionariesClient_ : RootClient_;
     }
 
+    NApi::NNative::IClientPtr GetSqlObjectsClient() const
+    {
+        return SqlObjectsClient_;
+    }
+
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
@@ -995,6 +998,7 @@ private:
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
     NApi::NNative::IClientPtr DictionariesClient_;
+    NApi::NNative::IClientPtr SqlObjectsClient_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
     TPermissionCachePtr PermissionCache_;
@@ -1029,6 +1033,8 @@ private:
     {
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+        connectionOptions.CreateQueueConsumerRegistrationManager =
+            Config_->CypressObjectRepository && Config_->MaterializedViews;
 
         Connection_ = NApi::NNative::CreateConnection(
             ConnectionConfig_,
@@ -1048,6 +1054,7 @@ private:
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
         DictionariesClient_ = getClientForUser(DictionariesUserName);
+        SqlObjectsClient_ = getClientForUser(ChytSqlObjectsUserName);
     }
 
     void InitializeCaches()
@@ -1243,7 +1250,11 @@ private:
 
     void CreateOrchidNode()
     {
-        const auto& host = NNet::GetLocalHostName();
+        if (Config_->OrchidRoot.empty()) {
+            return;
+        }
+
+        const auto& host = *Config_->Address;
         NApi::TCreateNodeOptions options;
         options.Recursive = true;
         options.Force = true;
@@ -1251,7 +1262,7 @@ private:
         attributes->Set("remote_addresses", GetLocalAddresses({{"default", host}}, Ports_.Rpc));
         options.Attributes = std::move(attributes);
 
-        auto path = SysClickHouse + "/orchids/" + ToString(Config_->CliqueId) + "/" + ToString(InstanceCookie_);
+        auto path = Format("%v/%v", Config_->OrchidRoot, InstanceCookie_);
 
         WaitFor(RootClient_->CreateNode(path, EObjectType::Orchid, options))
             .ThrowOnError();
@@ -1444,6 +1455,11 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
 NApi::NNative::IClientPtr THost::GetDictionariesClient() const
 {
     return Impl_->GetDictionariesClient();
+}
+
+NApi::NNative::IClientPtr THost::GetSqlObjectsClient() const
+{
+    return Impl_->GetSqlObjectsClient();
 }
 
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const

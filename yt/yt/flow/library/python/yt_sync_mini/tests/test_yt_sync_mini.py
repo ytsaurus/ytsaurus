@@ -1,10 +1,7 @@
 """Schema-drift regression test for ``yt_sync_mini``.
 
-The Python-side schema catalogue
-(``yt/yt/flow/library/python/pipeline_tables/schemas.py``) is the
-single source of truth shared between ``yt_sync_mini`` and ``yt_sync``.
-The cpp counterpart is ``yt/yt/flow/library/cpp/native_client/pipeline_init.cpp:GetTables()``;
-both must stay in sync.
+The embedded ``definitions.yson`` resource is shared by ``yt_sync_mini``,
+``yt_sync``, and the native client.
 
 This test creates a pipeline via ``client.create("pipeline", ...)``
 (i.e. through ``NYT::NFlow::CreatePipelineNode``) and asserts that the Python
@@ -16,8 +13,9 @@ catalogue and cpp agree on:
   ``sort_order``, ``expression``).
 
 The test does NOT compare richer per-column attributes (``group``,
-``max_inline_hunk_size``) — those are yt_sync-only schema enrichments not
-present in cpp ``GetTables()``.
+``max_inline_hunk_size``), since the recipe uses a prebuilt ytserver that may
+lag behind the working-copy resource. Hermetic loader/consumer tests cover
+those attributes.
 """
 
 import os
@@ -32,8 +30,8 @@ from yt.yt.flow.library.python.pipeline_tables.schemas import (
 )
 
 # Per-column attributes that cpp sets and the Python schema entry must match.
-# ``group`` and ``max_inline_hunk_size`` are deliberately excluded — they're
-# yt_sync-only schema enrichments not present in cpp ``GetTables()``.
+# ``group`` and ``max_inline_hunk_size`` are covered by hermetic resource tests;
+# the recipe's prebuilt ytserver may lag behind the working copy.
 COMPARED_COLUMN_KEYS = ("name", "type", "sort_order", "expression")
 
 
@@ -50,7 +48,7 @@ def _normalise_column(column):
 
 
 def test_python_catalogue_matches_cpp(yt_client):
-    """Python catalogue and cpp ``GetTables()`` must agree on tables and schemas."""
+    """Python catalogue and native ``GetPipelineTableDefinitions()`` must agree."""
     server_path = "//tmp/yt_sync_mini_drift"
     if yt_client.exists(server_path):
         yt_client.remove(server_path, recursive=True, force=True)
@@ -73,7 +71,7 @@ def test_python_catalogue_matches_cpp(yt_client):
         errors.append(
             f"Python catalogue lists {missing_in_cpp} but a pipeline node does not get them. "
             "The node is materialized by the native client compiled into the recipe's prebuilt "
-            "ytserver, so a table just added to cpp GetTables() shows up here only after "
+            "ytserver, so a table just added to the shared definitions.yson shows up here only after "
             "yt/packages/ytflow_latest is rebuilt and its resource pin bumped."
         )
 

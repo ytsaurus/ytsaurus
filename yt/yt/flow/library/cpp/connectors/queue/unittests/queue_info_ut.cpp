@@ -55,10 +55,10 @@ TEST(TQueueInfoControllerTest, RetriesFailedLookupBeforeNormalPeriod)
     EXPECT_CALL(*client, GetNode(TYPath("//queue"), _))
         .WillOnce(Return(MakeFuture<NYson::TYsonString>(TError("Transient failure"))))
         .WillOnce(Return(MakeFuture<NYson::TYsonString>(TError("Transient failure"))))
-        .WillOnce(Invoke([&] (const TYPath&, const TGetNodeOptions&) {
+        .WillOnce([&] (const TYPath&, const TGetNodeOptions&) {
             retryStarted.Set();
             return retryResult.ToFuture();
-        }));
+        });
 
     auto actionQueue = New<TActionQueue>();
     auto controller = New<TQueueInfoController>(

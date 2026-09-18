@@ -85,14 +85,16 @@ TSyncQueueSink::TSyncQueueSink(
 { }
 
 void TSyncQueueSink::DoInit()
-{
-    if (TabletRouter_) {
-        TabletRouter_->Start();
-    }
-}
+{ }
 
 void TSyncQueueSink::DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages)
 {
+    if (messages.empty()) {
+        return;
+    }
+    if (TabletRouter_) {
+        TabletRouter_->Start();
+    }
     YT_TLOG_INFO("Synchronously writing messages to queue")
         .With("MessagesCount", std::ssize(messages));
 
@@ -433,7 +435,13 @@ TAsyncQueueSinkImpl::TAsyncQueueSinkImpl(
         GetParameters()->WriteFlowQueueMeta
             ? NameTable_->FindId(GetParameters()->FlowQueueMetaColumn)
             : std::nullopt)
-{ }
+{
+    SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
+        if (Writer_) {
+            Writer_->Reconfigure(GetDynamicParameters());
+        }
+    }));
+}
 
 TAsyncQueueSinkImpl::~TAsyncQueueSinkImpl()
 {

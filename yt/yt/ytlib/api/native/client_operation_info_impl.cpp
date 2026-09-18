@@ -87,10 +87,12 @@ static const THashSet<std::string> SupportedOperationAttributes = {
     "controller_features",
     "alert_events",
     "has_failed_jobs",
+    "cumulative_spec_patch",
 };
 
 static const THashMap<std::string, int> CompatOperationAttributesToArchiveVersion = {
     {"scheduling_attributes_per_pool_tree", 52},
+    {"cumulative_spec_patch", 69},
 };
 
 static const THashSet<std::string> ArchiveOnlyAttributes = {
@@ -1094,6 +1096,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
             .AlertEvents = record->AlertEvents.value_or(TYsonString()),
             .TaskNames = record->TaskNames.value_or(TYsonString()),
             .ControllerFeatures = record->ControllerFeatures.value_or(TYsonString()),
+            .CumulativeSpecPatch = record->CumulativeSpecPatch.value_or(TYsonString()),
         };
 
         auto operationId = TOperationId(TGuid(record->Key.IdHi, record->Key.IdLo));

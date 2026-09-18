@@ -7,6 +7,7 @@
 #include "session.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/file_changelog.h>
@@ -182,12 +183,16 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
         std::ssize(alreadyReadBlocks) + blockCount == std::ssize(blockCookies));
 
     if (!blocksOrError.IsOK()) {
-        auto error = TError("Error occured while reading block range %v:%v of journal chunk %v",
+        auto error = TError("Error occured while reading %v blocks starting from block %v of journal chunk %v",
+            blockCount,
             firstBlockIndex,
-            firstBlockIndex + blockCount,
             Id_)
             .With(blocksOrError);
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Error reading block range of journal chunk")
+            .With("ChunkId", Id_)
+            .With("FirstBlockIndex", firstBlockIndex)
+            .With("BlockCount", blockCount)
+            .With(blocksOrError);
 
         if (!blockCookies.empty()) {
             // Just try to propagate error to each cookie, even if some had already been set.
@@ -206,8 +211,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
 
     YT_TLOG_DEBUG("Successfully read block range of journal chunk")
         .With("ChunkId", Id_)
-        .With("FirstBlockIndex", firstBlockIndex)
-        .With("BlockCount", blockCount)
+        .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
         .With("NewlyReadBlockCount", std::ssize(blocks))
         .With("AlreadyReadBlockCount", std::ssize(alreadyReadBlocks))
         .With("CookieCount", std::ssize(blockCookies));
@@ -249,11 +253,14 @@ void TJournalChunk::OnBlockReadFromDiskForPrecache(
     YT_VERIFY(precachedBlockInfo.Cookie->IsActive());
 
     if (!blocksOrError.IsOK()) {
+        YT_TLOG_DEBUG("Error reading block of chunk for precache")
+            .With("ChunkId", Id_)
+            .With("BlockIndex", precachedBlockInfo.BlockIndex)
+            .With(blocksOrError);
         auto error = TError("Error occured while reading block %v of chunk %v for precache",
             precachedBlockInfo.BlockIndex,
             Id_)
             .With(blocksOrError);
-        YT_LOG_DEBUG(error);
 
         precachedBlockInfo.Cookie->SetBlock(std::move(error));
         return;
@@ -491,14 +498,16 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         YT_TLOG_DEBUG("Started reading journal chunk blocks")
             .With("ChunkId", Id_)
-            .With("Blocks", FormatBlocks(firstBlockIndex, lastBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
             .With("LocationId", Location_->GetId())
             .With("LocationUuid", Location_->GetUuid())
             .With("LocationIndex", Location_->GetIndex());
 
         TWallTimer timer;
 
-        auto maxBytesPerRead = Context_->DataNodeConfig->MaxBytesPerRead;
+        const auto dynamicConfig = Context_->DynamicConfigManager->GetConfig()->DataNode;
+        auto maxBytesPerRead = dynamicConfig->MaxBytesPerRead.value_or(Context_->DataNodeConfig->MaxBytesPerRead);
+        auto maxBlocksPerRead = dynamicConfig->MaxBlocksPerRead.value_or(Context_->DataNodeConfig->MaxBlocksPerRead);
 
         // NB: The actual read request is still bounded by the config limit; the estimate
         // is only used to size the memory reservation, avoiding gross over-reservation
@@ -526,11 +535,11 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 session->Options.WorkloadDescriptor,
                 readBytesEstimate);
             if (!memoryGuardOrError.IsOK()) {
-                Location_->ReportThrottledRead();
-                auto error = TError("Read session aborted due to memory pressure");
-                YT_LOG_DEBUG(error);
+                Location_->ReportThrottledRead(ELocationReadThrottlingReason::ReadMemoryTrackerLimitExceeded);
+                static constexpr auto Message = "Read session aborted due to memory pressure"_sb;
+                YT_TLOG_DEBUG(Message);
 
-                session->Promise.TrySet(std::move(error));
+                session->Promise.TrySet(TError(Message));
                 return;
             }
 
@@ -545,7 +554,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto blocksFuture = changelog->Read(
             firstBlockIndex,
-            std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
+            std::min(blockCount, maxBlocksPerRead),
             maxBytesPerRead);
         session->ChangelogReadFuture.Store(blocksFuture.As<void>());
 
@@ -586,7 +595,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         YT_TLOG_DEBUG("Finished reading journal chunk blocks")
             .With("ChunkId", Id_)
-            .With("Blocks", FormatBlocks(firstBlockIndex, lastBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
             .With("LocationId", Location_->GetId())
             .With("LocationUuid", Location_->GetUuid())
             .With("LocationIndex", Location_->GetIndex())

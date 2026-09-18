@@ -1,0 +1,8 @@
+Invocation: m003-hahn.sas.yp-c.yandex.net --component master-sas5-4416 --type access -t "2026-08-21 02:15:00,000" -e "2026-08-21 17:35:00,000" --connect-timeout 30 -v -x "grep -F -- 33c20-506275-3fe0191-b2115d4d"
+
+Captured pre-collection result:
+exit_code=2
+collection_attempted=false
+logslice.py: error: unknown log type 'access'; expected debug, info, error, a comma-separated combination, or all
+
+This capture is a parser failure, not a successful collection with zero matches.

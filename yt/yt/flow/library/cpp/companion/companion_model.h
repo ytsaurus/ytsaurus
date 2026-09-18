@@ -1,6 +1,8 @@
 #pragma once
 #include "public.h"
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/output_collector.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -11,6 +13,7 @@
 namespace NYT::NFlow::NProto::NCompanion {
 
 class TCompanionResourceInstanceReference;
+class TMessageIdSuffix;
 
 } // namespace NYT::NFlow::NProto::NCompanion
 
@@ -41,6 +44,13 @@ void ToProto(
 void FromProto(
     TCompanionResourceInstanceReference* reference,
     const NProto::NCompanion::TCompanionResourceInstanceReference& protoReference);
+
+void ToProto(
+    NProto::NCompanion::TMessageIdSuffix* protoSuffix,
+    const TOutputMessageIdSuffix& suffix);
+
+TOutputMessageIdSuffix FromProto(
+    const NProto::NCompanion::TMessageIdSuffix& protoSuffix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +88,11 @@ struct TStateHolder
     std::string StateName;
     std::vector<TStateItem<TStatePayload>> StateItems;
     NTableClient::TTableSchemaPtr Schema;
+    //! Wire format of the item payloads; non-default formats are gated by the
+    //! companion's advertised supported_state_formats.
+    EStateFormat Format = EStateFormat::SimpleRow;
+    //! Fully qualified proto message name of the payloads; set for #EStateFormat::Proto.
+    std::string ProtoType;
 };
 
 struct TStreamWatermark
@@ -102,10 +117,12 @@ struct TCompanionProcessRequest
     std::vector<TInputTimerConstPtr> Timers;
     std::vector<TInputVisitConstPtr> Visits;
     THashMap<std::string, TStateHolder<std::string>> InternalStates;
-    THashMap<std::string, TStateHolder<TPayload>> ExternalStates;
+    //! External state payloads are pre-encoded by ICompanionStateAdapter; the wire
+    //! carries them verbatim, and the ref travels uncopied to the serializer.
+    THashMap<std::string, TStateHolder<TSharedRef>> ExternalStates;
     //! Read-only external state joined from another computation. Sent in the request only;
     //! never written back.
-    THashMap<std::string, TStateHolder<TPayload>> JoinedExternalStates;
+    THashMap<std::string, TStateHolder<TSharedRef>> JoinedExternalStates;
     std::vector<TStreamWatermark> Watermarks;
     // Flag indicating that companion client should send JobInfo along with request.
     bool SendJobInfo{};
@@ -129,6 +146,8 @@ struct TCompanionResponseGroup
     std::vector<TMessage> Messages;
     //! Per-message distribute flag, aligned with Messages. Empty means "distribute all".
     std::vector<bool> Distribute;
+    //! Per-message message ID suffix selector, aligned with Messages.
+    std::vector<TOutputMessageIdSuffix> MessageIdSuffixes;
     std::vector<TNewTimer> Timers;
     std::vector<TMessageId> ParentIds;
 };
@@ -139,7 +158,7 @@ struct TCompanionResponse
     ECompanionResponseStatus Status{};
     std::vector<TCompanionResponseGroup> Groups;
     std::vector<TStateHolder<std::string>> InternalStates;
-    std::vector<TStateHolder<TPayload>> ExternalStates;
+    std::vector<TStateHolder<TSharedRef>> ExternalStates;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionResponse);
@@ -151,6 +170,10 @@ struct TCompanionComputationInfo
 {
     TComputationId ComputationId;
     ECompanionComputationType CompanionComputationType{};
+    //! State wire formats the companion SDK can decode, by #EStateFormat name
+    //! (e.g. "simple_row", "proto"). Old SDKs advertise nothing and default to
+    //! simple rows only; unknown names are ignored by the worker.
+    std::vector<std::string> SupportedStateFormats;
 
     REGISTER_YSON_STRUCT(TCompanionComputationInfo);
 

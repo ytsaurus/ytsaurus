@@ -53,6 +53,10 @@
         "min_langver": "2026.02",
         "is_backport_allowed": true
     },
+    "DecimalIntegralArithmetic": {
+        "description": "Addition and subtraction between Decimal and integral values",
+        "min_langver": "2026.02"
+    },
     "TypeErasure": {
         "min_langver": "2026.02"
     },
@@ -107,6 +111,11 @@
     },
     "WriteOffsetWithColon": {
         "min_langver": "2025.05",
+        "is_backport_allowed": true
+    },
+    "DateTimeInit": {
+        "description": "DateTime::Init",
+        "min_langver": "2026.03",
         "is_backport_allowed": true
     },
     "DateTimeFormatZ": {

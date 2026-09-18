@@ -1,6 +1,7 @@
 RECURSE(
     bin
     examples
+    extensions
     library
     tests
     tools

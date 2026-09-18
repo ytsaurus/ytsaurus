@@ -52,6 +52,8 @@ struct TCompositeSettings
 
     bool ConvertUnsupportedTypesToString;
 
+    bool AnnotateResultSchemaWithNativeTypes;
+
     bool EnableComplexNullConverison;
 
     static TCompositeSettingsPtr Create(
@@ -154,6 +156,8 @@ struct TTestingSettings
     bool ThrowExceptionInSubquery;
     bool ThrowExceptionInWriterFinish;
     bool ThrowExceptionAfterRefreshQuery;
+    bool ThrowExceptionAfterRefreshCommit;
+    std::optional<int> FailMaterializedViewRefreshQueryResponseForPartition;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;
@@ -167,6 +171,7 @@ struct TTestingSettings
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
     std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
     std::optional<NYPath::TYPath> DropTableBreakpoint;
+    std::optional<NYPath::TYPath> MaterializedViewConsumerCommitBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -692,6 +697,7 @@ struct TMaterializedViewsConfig
     TDuration ScanPeriod;
     i64 MaxRowsPerRefresh;
     TDuration QueryTimeout;
+    TDuration TableMountTimeout;
     TDuration TransactionTimeout;
 
     REGISTER_YSON_STRUCT(TMaterializedViewsConfig);
@@ -793,6 +799,7 @@ struct TYtConfig
     TGuid InstanceId;
     TString CliqueAlias;
     i64 CliqueIncarnation;
+    NYPath::TYPath OrchidRoot;
     //! Address override when entering discovery group.
     std::optional<TString> Address;
     //! Clique size for better profiling.

@@ -1,5 +1,9 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 
 namespace NYT::NTimestampProvider {
@@ -25,6 +29,11 @@ void TTimestampProviderBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("alien_timestamp_providers", &TThis::AlienProviders)
         .Default();
 
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .Default();
+
+    registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

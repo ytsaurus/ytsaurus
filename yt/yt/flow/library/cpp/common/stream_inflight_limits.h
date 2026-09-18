@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <util/generic/hash.h>
@@ -32,6 +34,16 @@ struct TStreamUsage
         return (CumulativeByteIn - CumulativeByteOut) + (CumulativeCountIn - CumulativeCountOut) * inflationPerMessage;
     }
 };
+
+struct TStreamUsageSerializer
+    : public virtual NYTree::TExternalizedYsonStruct
+{
+    REGISTER_EXTERNALIZED_YSON_STRUCT(TStreamUsage, TStreamUsageSerializer);
+
+    static void Register(TRegistrar registrar);
+};
+
+ASSIGN_EXTERNAL_YSON_SERIALIZER(TStreamUsage, TStreamUsageSerializer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

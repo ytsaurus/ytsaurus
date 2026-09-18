@@ -214,7 +214,21 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         auto sink = New<TTestSink>(context, dynamicSinkContext, queue);
         sink->Init(stateManager->CreateContext());
         std::vector<std::shared_ptr<std::atomic<bool>>> firedFlags;
-        for (auto i : xrange(messagesCount.BeforeFailPersisted, messagesCount.Total)) {
+
+        // The first recovery epoch ends before the old batch boundary. The sink
+        // must keep the partial batch until message 14 arrives in a later epoch.
+        for (auto i : xrange(messagesCount.BeforeFailPersisted, messagesCount.BeforeFailPersisted + 2)) {
+            firedFlags.push_back(distributeWithFlag(sink, messages.at(i)));
+        }
+        doSync(sink);
+        EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
+        sink->Commit();
+        EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
+        for (const auto& fired : firedFlags) {
+            EXPECT_FALSE(fired->load());
+        }
+
+        for (auto i : xrange(messagesCount.BeforeFailPersisted + 2, messagesCount.Total)) {
             firedFlags.push_back(distributeWithFlag(sink, messages.at(i)));
         }
         doSync(sink);
@@ -240,6 +254,118 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
     }
 
     EXPECT_EQ(expectedIds, gotIds);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPromiseSink
+    : public TOrderedBatchingAsyncSinkBase
+{
+public:
+    using TSinkController = TTestSinkController;
+
+    TPromiseSink(
+        TSinkContextPtr context,
+        TDynamicSinkContextPtr dynamicContext,
+        std::shared_ptr<std::vector<TPromise<void>>> promises = {})
+        : TOrderedBatchingAsyncSinkBase(std::move(context), std::move(dynamicContext))
+        , Promises_(std::move(promises))
+    { }
+
+    void DoInit(const std::string& /*producerId*/) override
+    { }
+
+    TFuture<void> DoDistribute(const std::vector<TOutputMessageConstPtr>& /*messages*/, i64 /*seqNo*/) override
+    {
+        auto promise = NewPromise<void>();
+        Promises_->push_back(promise);
+        return promise.ToFuture();
+    }
+
+private:
+    std::shared_ptr<std::vector<TPromise<void>>> Promises_;
+};
+
+YT_FLOW_DEFINE_SINK(TPromiseSink);
+
+TEST(TOrderedBatchingAsyncSinkTest, FailsEpochOnDistributeError)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("data", EValueType::Int64),
+    });
+
+    auto streamSpec = New<TStreamSpec>();
+    streamSpec->Schema = schema;
+    THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>> specs;
+    specs[TStreamId("test")][TStreamSpecId(1)] = streamSpec;
+    auto specStorage = New<TComputationStreamSpecStorage>(
+        New<TStreamSpecs>(specs),
+        /*groupBySchema*/ New<TTableSchema>(),
+        /*evaluatorCache*/ nullptr);
+
+    auto makeTestMessage = [&] (i64 id) {
+        TMessageBuilder builder("test", schema);
+        builder.SetMessageId(TMessageId(LexicographicallySerialize(id)));
+        builder.SetSystemTimestamp(TSystemTimestamp(1700000000));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(1700000000));
+        builder.SetEventTimestamp(TSystemTimestamp(1700000000));
+        builder.Payload().Set<i64>(id, "data");
+        return New<TOutputMessage>(builder.Finish(), specStorage);
+    };
+
+    auto context = New<TSinkContext>();
+    context->Logger = Logger;
+    auto spec = New<TSinkSpec>();
+    auto dynamicSpec = New<TDynamicSinkSpec>();
+    dynamicSpec->Parameters->AddChild("max_rows_per_batch", NYTree::ConvertToNode(1));
+    spec->InputStreamIds = {"test"};
+    spec->SinkClassName = TypeName<TPromiseSink>();
+    context->SinkSpec = spec;
+
+    auto dynamicSinkContext = New<TDynamicSinkContext>();
+    dynamicSinkContext->DynamicSinkSpec = dynamicSpec;
+
+    TStateManagerMockPtr stateManager = New<TStateManagerMock>();
+    auto doSync = [&] (auto sink) {
+        sink->Sync(nullptr);
+        stateManager->Sync();
+    };
+
+    auto noop = [] {
+        return TOnDistributedCallback::FromCallback([] {
+        });
+    };
+
+    {
+        auto promises = std::make_shared<std::vector<TPromise<void>>>();
+        auto sink = New<TPromiseSink>(context, dynamicSinkContext, promises);
+        sink->Init(stateManager->CreateContext());
+
+        sink->Distribute(makeTestMessage(0), noop());
+        sink->Distribute(makeTestMessage(1), noop());
+        doSync(sink);
+        sink->Commit();
+        ASSERT_EQ(std::ssize(*promises), 2);
+
+        // In-flight write does not fail the epoch yet.
+        EXPECT_NO_THROW(doSync(sink));
+
+        (*promises)[0].Set(TError("injected distribute failure"));
+        (*promises)[1].Set();
+
+        // Failed batch must not be persisted, even if a later batch succeeded.
+        EXPECT_THROW_WITH_SUBSTRING(sink->Sync(nullptr), "Async sink distribute failed");
+        EXPECT_THROW_WITH_SUBSTRING(sink->Sync(nullptr), "seq_no");
+    }
+
+    auto replayed = std::make_shared<std::vector<TPromise<void>>>();
+    auto recovered = New<TPromiseSink>(context, dynamicSinkContext, replayed);
+    recovered->Init(stateManager->CreateContext());
+    recovered->Distribute(makeTestMessage(0), noop());
+    recovered->Distribute(makeTestMessage(1), noop());
+    doSync(recovered);
+    recovered->Commit();
+    EXPECT_EQ(std::ssize(*replayed), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

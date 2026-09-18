@@ -42,7 +42,7 @@ Parameters:
 
 | Method | Description |
 | --- | --- |
-| `get()` | Get the current state value (`Optional<T>`) |
+| `get()` | Get the current state value (`T`, `null` when there is no value) |
 | `set(T value)` | Set a new state value |
 | `getOrDefault(T defaultValue)` | Get the value or return the default value |
 | `clear()` | Delete the state for the current key |
@@ -165,7 +165,7 @@ Annotate the state class with `@YTreeObject` to serialize it to YSON:
 
 | Method | Description |
 | --- | --- |
-| `get()` | Get the current state value (`Optional<Payload>`) |
+| `get()` | Get the current state value (`Payload`, `null` when there is no value) |
 | `getOrDefault()` | Get the value or an empty `Payload` |
 | `set(Payload value)` | Set a new state value |
 | `clear()` | Delete the state for the current key |
@@ -245,7 +245,7 @@ When you process timers, the state is available via the `timer` object, which co
       ExternalStateAccessor stateAccessor =
               ctx.getExternalStateAccessor("join-state", timer);
 
-      Payload joinState = stateAccessor.get().orElseThrow();
+      Payload joinState = Objects.requireNonNull(stateAccessor.get());
 
       // process the state and generate output messages
       var messageBuilder = ctx.createMessageBuilder("output_stream");
@@ -264,7 +264,7 @@ When you process timers, the state is available via the `timer` object, which co
   override fun onTimer(timer: Timer, output: OutputCollector, ctx: RuntimeContext) {
       val stateAccessor = ctx.getExternalStateAccessor("join-state", timer)
 
-      val joinState = stateAccessor.get().orElseThrow()
+      val joinState = stateAccessor.get()!!
 
       // process the state and generate output messages
       val messageBuilder = ctx.createMessageBuilder("output_stream")

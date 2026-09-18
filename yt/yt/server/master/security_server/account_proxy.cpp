@@ -21,12 +21,14 @@
 #include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/yson/async_writer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityServer {
 

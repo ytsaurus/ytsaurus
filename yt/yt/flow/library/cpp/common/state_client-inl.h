@@ -218,6 +218,22 @@ TFuture<void> TMutableStateKeyClient<T>::PreloadKeyStates(const IInputContextPtr
 }
 
 template <class T>
+TFuture<void> TMutableStateKeyClient<T>::PreloadKeyStates(
+    const IInputContextPtr& inputContext,
+    const TExtractKeysOptions& options) const
+{
+    EnsureProvider();
+    return Provider_->PreloadKeyStates(ExtractKeys(inputContext, options));
+}
+
+template <class T>
+void TMutableStateKeyClient<T>::EraseState(const TKey& key) const
+{
+    EnsureProvider();
+    Provider_->EraseKeyState(key);
+}
+
+template <class T>
 NTableClient::TTableSchemaPtr TMutableStateKeyClient<T>::GetKeySchema() const
 {
     EnsureProvider();

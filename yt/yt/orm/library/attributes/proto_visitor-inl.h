@@ -160,6 +160,15 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
+    if (IsYsonStringField(fieldDescriptor) &&
+        !fieldDescriptor->is_repeated() &&
+        !Self()->PathComplete())
+    {
+        THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+            "Cannot traverse inside YSON string field %v",
+            fieldDescriptor->full_name());
+    }
+
     if (fieldDescriptor->is_map()) {
         Self()->VisitMapField(message, fieldDescriptor, reason);
     } else if (fieldDescriptor->is_repeated()) {
@@ -355,6 +364,14 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntry(
     int index,
     EVisitReason reason)
 {
+    if (IsYsonStringField(fieldDescriptor) &&
+        !Self()->PathComplete())
+    {
+        THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+            "Cannot traverse inside YSON string field %v",
+            fieldDescriptor->full_name());
+    }
+
     if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
         TMessageReturn next =
             TTraits::GetMessageFromRepeatedField(message, fieldDescriptor, index);

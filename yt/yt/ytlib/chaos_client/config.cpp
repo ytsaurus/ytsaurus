@@ -6,11 +6,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("use_has_chaos_object", &TThis::UseHasChaosObject)
-        .Default(true);
-}
+void TChaosResidencyCacheConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
 {
@@ -60,6 +57,18 @@ void TReplicationCardsWatcherConfig::Register(TRegistrar registrar)
     registrar.Parameter("gone_cards_expiration_time", &TThis::GoneCardsExpirationTime)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("replication_card_keep_alive_period", &TThis::ExpirationSweepPeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosLeasesWatcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("poll_expiration_time", &TThis::PollExpirationTime)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("gone_leases_expiration_time", &TThis::GoneLeasesExpirationTime)
+        .Default(TDuration::Minutes(10));
+    registrar.Parameter("expiration_sweep_period", &TThis::ExpirationSweepPeriod)
         .Default(TDuration::Seconds(10));
 }
 

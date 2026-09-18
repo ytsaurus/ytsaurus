@@ -25,6 +25,8 @@ namespace NYT::NFlow::NTables {
 struct TTransactionManagerContext
     : public TContext
 {
+    //! The prerequisite of every commit: a master transaction of the leader under the Cypress
+    //! backend, a chaos lease under the Chaos one.
     NTransactionClient::TTransactionId LeaseId;
     TPartitionId PartitionId;
     IStatusProfilerPtr StatusProfiler;

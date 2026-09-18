@@ -1,9 +1,8 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_replica.h"
+#include "private.h"
+
 #include "chunk_tree_statistics.h"
-#include "config.h"
 #include "cumulative_statistics.h"
 #include "stored_chunk_replica.h"
 
@@ -256,9 +255,8 @@ int ComputeReplicaDeficit(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, ...)                      YT_LOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), __VA_ARGS__)
-#define YT_VERBOSE_LOG_CHUNK_EVENT_IF(condition, chunk, ...)        if (condition)    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, __VA_ARGS__)
-#define YT_VERBOSE_LOG_CHUNK_EVENT_UNLESS(condition, chunk, ...)    if (!(condition)) YT_VERBOSE_LOG_CHUNK_EVENT(chunk, __VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, message) \
+    YT_TLOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), message)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,12 +28,12 @@ struct IJournalChunkWriter
 
     //! Writes #record to nodes. Performs its erasure encoding beforehand if needed.
     //! The returned future is set with the record's index once it reaches the write quorum.
-    virtual TFuture<i64> WriteRecord(TSharedRef record) = 0;
+    virtual TFuture<i64> WriteRecord(TSharedRef record) noexcept = 0;
 
     //! Only for erasure chunk writer.
     //! Writes #recordParts as-is to corresponding nodes without performing erasure encoding.
     //! Size of #recordParts must coinside with number of nodes (i.e. total part count).
-    virtual TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) = 0;
+    virtual TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) noexcept = 0;
 
     virtual bool IsCloseDemanded() const = 0;
 

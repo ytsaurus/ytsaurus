@@ -4,7 +4,7 @@
 
 Многие задачи потоковой обработки требуют ожидания: «если в течение 30 минут после показа не пришёл клик — считать конверсию несостоявшейся». Стандартный обмен сообщениями между компьютейшенами для этого не подходит: сообщение либо есть, либо нет, а ждать «отсутствия» события нельзя.
 
-Таймеры решают эту задачу. `TransformComputation` может создать таймер — сказать системе «разбуди меня, когда время X наступит». Когда момент наступает, компьютейшен получает вызов `on_timer` / `onTimer` / `DoProcessTimer` и может принять решение на основе накопленного [стейта](../../../flow/concepts/glossary.md#state).
+Таймеры решают эту задачу. Process function в transform-режиме может создать таймер — сказать системе «разбуди меня, когда время X наступит». Когда момент наступает, функция получает вызов `ProcessTimer` / `on_timer` / `onTimer` и может принять решение на основе накопленного [стейта](../../../flow/concepts/glossary.md#state).
 
 Типичные сценарии применения:
 - **Джойн с ожиданием**: коррелировать показ рекламы с кликом, который может прийти с задержкой.
@@ -31,12 +31,12 @@
 
 ## Какие компьютейшены поддерживают таймеры {#supported-computations}
 
-| Computation | Поддержка таймеров |
+| Адаптер process function | Поддержка таймеров |
 |---|---|
-| `TTransformComputation` | ✓ |
-| `TSwiftMapComputation` | ✗ |
-| `TSwiftOrderedSourceComputation` | ✗ |
-| `TTransformOrderedSourceComputation` | ✗ |
+| `TProcessFunctionComputation` | ✓ |
+| `TProcessFunctionSwiftMapComputation` | ✗ |
+| `TProcessFunctionSourceComputation` | ✗ |
+| `TProcessFunctionTransformOrderedSourceComputation` | ✗ |
 
 ## Конфигурация {#configuration}
 
@@ -64,19 +64,29 @@
 ### C++ {#api-cpp}
 
 ```cpp
-// Создать таймер в DoProcessMessage:
-output->AddTimer(TSystemTimestamp(message.EventTimestamp.Underlying() + TDuration::Minutes(30).Seconds()));
+void ProcessMessage(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& /*context*/) override
+{
+    output->AddTimer(
+        TSystemTimestamp(message->EventTimestamp.Underlying() + TDuration::Minutes(30).Seconds()),
+        message->EventTimestamp);
+}
 
-// Обработать сработавший таймер:
-void DoProcessTimer(const TTimer& timer, IOutputCollectorPtr output) override {
-    // timer.Key, timer.EventTimestamp, timer.TriggerTimestamp
-    auto builder = MakeMessageBuilder();
+void ProcessTimer(
+    const TInputTimerConstPtr& timer,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context) override
+{
+    // timer->Key, timer->EventTimestamp, timer->TriggerTimestamp
+    auto builder = context->MakeOutputMessageBuilder();
     // ...
     output->AddMessage(builder.Finish());
 }
 ```
 
-Подробнее — в разделе [Computation (C++)](../../../flow/cpp/computation.md).
+Подробнее — в разделе [Process function (C++)](../../../flow/cpp/process-functions.md).
 
 ### Java {#api-java}
 
@@ -158,7 +168,7 @@ func (f myFunction) OnTimers(ctx context.Context, rt flow.Runtime, timers []flow
 
 {% endnote %}
 
-- **`TSwiftMapComputation`** не поддерживает таймеры. Если нужна работа с таймерами — используйте `TTransformComputation`.
+- Swift-map режим не поддерживает таймеры. Если нужна работа с таймерами, запускайте process function под `TProcessFunctionComputation`.
 - Временны́е метки передаются в наносекундах (uint64).
 
 ## См. также

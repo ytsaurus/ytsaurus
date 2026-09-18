@@ -21,7 +21,7 @@ TString MessageToYtErrorYson(const TString& message)
 
     writer.OnBeginMap();
     writer.OnKeyedItem("code");
-    writer.OnInt64Scalar(1); // Generic error
+    writer.OnInt64Scalar(1);
     writer.OnKeyedItem("message");
     writer.OnStringScalar(message);
     writer.OnKeyedItem("attributes");

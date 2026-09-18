@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
@@ -15,6 +16,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 

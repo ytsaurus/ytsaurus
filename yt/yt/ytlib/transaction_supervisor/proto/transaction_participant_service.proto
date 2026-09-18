@@ -21,6 +21,19 @@ message TRspPrepareTransaction
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRecordCommitTimestamp
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+    optional int32 commit_timestamp_cluster_tag = 3 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
+}
+
+message TRspRecordCommitTimestamp
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): Deprecated. Can be removed after 26.2.
 message TReqMakeTransactionReadyToCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -28,6 +41,7 @@ message TReqMakeTransactionReadyToCommit
     optional int32 commit_timestamp_cluster_tag = 3 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
 }
 
+// COMPAT(h0pless): Deprecated. Can be removed after 26.2.
 message TRspMakeTransactionReadyToCommit
 { }
 

@@ -609,7 +609,7 @@ private:
         while (currentBlockIndex < blockCount) {
             if (DynamicConfig_->EnableReplicationJobThrottling) {
                 auto startThorttling = TInstant::Now();
-                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ false, /*isReplication*/ true).Enabled) {
+                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ false, /*isReplication*/ true).IsEnabled()) {
                     if (TInstant::Now() - startThorttling > DynamicConfig_->ThrottlingSleepDeadline) {
                         THROW_ERROR_EXCEPTION("Throttling timeout exceeded");
                     }
@@ -665,7 +665,7 @@ private:
             }
 
             YT_TLOG_DEBUG("Enqueuing blocks for replication")
-                .With("Blocks", FormatBlocks(currentBlockIndex, currentBlockIndex + std::ssize(writeBlocks) - 1));
+                .With("Blocks", FormatBlockIndexRange(currentBlockIndex, currentBlockIndex + std::ssize(writeBlocks) - 1));
 
             auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {
@@ -874,6 +874,16 @@ private:
             Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairOut));
     }
 
+    TChunkReaderMemoryManagerHolderPtr CreateReaderMemoryManagerHolder()
+    {
+        auto options = TChunkReaderMemoryManagerOptions(
+            DynamicConfig_->WindowSize,
+            /*profilingTagList*/ {},
+            /*enableDetailedLogging*/ false,
+            MemoryUsageTracker_);
+        return TChunkReaderMemoryManager::CreateHolder(options);
+    }
+
     TFuture<void> StartChunkRepairJob(
         NErasure::ICodec* codec,
         NErasure::TPartIndexList erasedPartIndexes,
@@ -884,8 +894,9 @@ private:
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
 
-        // TODO(gritukan): Implement adaptive repair for striped erasure.
-        if (readerConfig->EnableAutoRepair && !stripedErasure) {
+        if (readerConfig->EnableAutoRepair &&
+            (!stripedErasure || DynamicConfig_->EnableAdaptiveRepairForStripedErasureChunks))
+        {
             YT_TLOG_INFO("Executing adaptive chunk repair")
                 .With("ReplicationReaderSpeedLimitPerSec", readerConfig->ReplicationReaderSpeedLimitPerSec)
                 .With("SlowReaderExpirationTimeout", readerConfig->SlowReaderExpirationTimeout)
@@ -896,17 +907,47 @@ private:
             for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
                 readers.push_back(CreateReader(partIndex));
             }
-            auto future = AdaptiveRepairErasedParts(
-                ChunkId_,
-                codec,
-                readerConfig,
-                erasedPartIndexes,
-                readers,
-                BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
-                readBlocksOptions,
-                std::move(writeBlocksOptions),
-                Logger,
-                Sensors_.AdaptivelyRepairedChunksCounter);
+            TFuture<void> future;
+            if (stripedErasure) {
+                auto repairErasedParts = [=, this, this_ = MakeStrong(this)] (
+                    const NErasure::TPartIndexList& unavailablePartIndexes,
+                    const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders,
+                    const std::vector<IChunkWriterPtr>& attemptWriters)
+                {
+                    return RepairErasedPartsStriped(
+                        readerConfig,
+                        codec,
+                        unavailablePartIndexes,
+                        availableReaders,
+                        attemptWriters,
+                        CreateReaderMemoryManagerHolder(),
+                        readBlocksOptions,
+                        writeBlocksOptions);
+                };
+
+                future = AdaptiveRepairErasedPartsWithCallback(
+                    ChunkId_,
+                    codec,
+                    readerConfig,
+                    erasedPartIndexes,
+                    readers,
+                    BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
+                    std::move(repairErasedParts),
+                    Logger,
+                    Sensors_.AdaptivelyRepairedChunksCounter);
+            } else {
+                future = AdaptiveRepairErasedParts(
+                    ChunkId_,
+                    codec,
+                    readerConfig,
+                    erasedPartIndexes,
+                    readers,
+                    BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
+                    readBlocksOptions,
+                    std::move(writeBlocksOptions),
+                    Logger,
+                    Sensors_.AdaptivelyRepairedChunksCounter);
+            }
 
             future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& handler) {
                 if (handler.IsOK()) {
@@ -939,20 +980,13 @@ private:
         }
 
         if (stripedErasure) {
-            auto windowSize = DynamicConfig_->WindowSize;
-            auto options = TChunkReaderMemoryManagerOptions(
-                windowSize,
-                {},
-                false,
-                MemoryUsageTracker_);
-            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(options);
-
             return RepairErasedPartsStriped(
                 readerConfig,
                 codec,
+                std::move(erasedPartIndexes),
                 std::move(readers),
                 std::move(writers),
-                std::move(memoryManagerHolder),
+                CreateReaderMemoryManagerHolder(),
                 std::move(readBlocksOptions),
                 std::move(writeBlocksOptions));
         } else {
@@ -1464,15 +1498,14 @@ private:
         ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
         ToProto(jobResultExt->mutable_chunk_meta_validation_error(), ChunkMetaValidationError_);
 
-        auto validateError = [this, this_ = MakeStrong(this)] (auto error, auto message) {
-            if (!error.IsOK()) {
-                YT_LOG_ALERT(error, "%v", message);
-                THROW_ERROR error;
-            }
-        };
-
-        validateError(ShallowMergeValidationError_, "Shallow merge validation failed");
-        validateError(ChunkMetaValidationError_, "Chunk meta validation failed");
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(ShallowMergeValidationError_, "Shallow merge validation failed");
+            THROW_ERROR_EXCEPTION_IF_FAILED(ChunkMetaValidationError_, "Chunk meta validation failed");
+        } catch (const std::exception& ex) {
+            YT_TLOG_ALERT("Validation failed")
+                .With(ex);
+            throw;
+        }
     }
 
     TFuture<void> DoRun() override
@@ -2928,11 +2961,16 @@ private:
             if (replicaOrError.IsOK()) {
                 succeededWriters.push_back(writers[index]);
             } else {
-                auto error = TError("Tail replica writer failed")
+                static constexpr auto Message = "Tail replica writer failed"_sb;
+
+                YT_TLOG_WARNING(Message)
+                    .With("TailChunkId", TailChunkId_)
+                    .With("WriterIndex", index)
+                    .With(replicaOrError);
+                auto error = TError(Message)
                     .With("tail_chunk_id", TailChunkId_)
                     .With("writer_index", index)
                     .With(replicaOrError);
-                YT_LOG_WARNING(error);
                 writerErrors.push_back(std::move(error));
             }
         }

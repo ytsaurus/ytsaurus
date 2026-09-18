@@ -47,6 +47,8 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/security_client/acl.h>
 
 #include <yt/yt/client/hydra/version.h>
@@ -61,6 +63,7 @@
 
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/async_consumer.h>
@@ -807,12 +810,12 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (owner->IsUser()) {
-                YT_LOG_ALERT_IF(
+                YT_TLOG_ALERT_IF(
                     owner->AsUser()->GetPendingRemoval(),
-                    "User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
-                    EInternedAttributeKey::Owner.Unintern(),
-                    owner->GetName(),
-                    GetId());
+                    "User pending for removal is being set as an attribute for object")
+                    .With("Attribute", EInternedAttributeKey::Owner.Unintern())
+                    .With("User", owner->GetName())
+                    .With("ObjectId", GetId());
             }
 
             if (!force) {
@@ -1180,6 +1183,87 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     , CustomAttributesImpl_(New<TCustomAttributeDictionary>(this))
 {
     CustomAttributes_ = CustomAttributesImpl_.Get();
+}
+
+TFuture<TYsonString> TNontemplateNonversionedObjectProxyBase::FetchFromShepherd(const TYPath& path)
+{
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), NHydra::EPeerKind::Follower));
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+    batchReq->SetUser(user->GetName());
+
+    auto req = TYPathProxy::Get(path);
+    // NB: it's legal to fetch attributes of Sequoia objects this way so it's
+    // marked explicitly.
+    SetAllowResolveFromSequoiaObject(req, true);
+    batchReq->AddRequest(req);
+
+    return batchReq->Invoke()
+        .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
+                    path)
+                    .With(cumulativeError);
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
+            return TYsonString(rsp->value());
+        })
+        .AsyncVia(TDispatcher::Get()->GetHeavyInvoker()));
+}
+
+std::vector<TFuture<TYsonString>> TNontemplateNonversionedObjectProxyBase::FetchYsonFromSwarm(
+    TInternedAttributeKey key)
+{
+    YT_VERIFY(IsPrimaryMaster());
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto* user = securityManager->GetAuthenticatedUser();
+
+    std::vector<TFuture<TYsonString>> asyncResults;
+
+    for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetUser(user->GetName());
+
+        auto attribute = key.Unintern();
+        auto path = FromObjectId(Object_->GetId()) + "/@" + attribute;
+        auto req = TYPathProxy::Get(path);
+        // NB: it's legal to fetch attributes of Sequoia objects this way so
+        // it's marked explicitly.
+        SetAllowResolveFromSequoiaObject(req, true);
+        batchReq->AddRequest(req, "get");
+
+        asyncResults.push_back(batchReq->Invoke()
+            .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                auto cumulativeError = GetCumulativeError(batchRspOrError);
+                if (!cumulativeError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Error fetching attribute %Qv from cell %v",
+                        attribute,
+                        cellTag)
+                        .With(cumulativeError);
+                }
+
+                const auto& batchRsp = batchRspOrError.Value();
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
+                return TYsonString(rsp->value());
+            })
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())));
+    }
+
+    return asyncResults;
 }
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IYPathServiceContextPtr& context)

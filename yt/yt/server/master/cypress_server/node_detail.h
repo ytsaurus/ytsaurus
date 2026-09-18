@@ -16,14 +16,15 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>
-#include <yt/yt/server/master/security_server/detailed_master_memory.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/server/lib/security_server/public.h>
+
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 

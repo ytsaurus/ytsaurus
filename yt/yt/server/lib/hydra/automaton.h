@@ -37,7 +37,7 @@ struct IAutomaton
     //! Clears the instance.
     virtual void Clear() = 0;
 
-    //! Brings the instance it to the state corresponding to zero version.
+    //! Brings the instance to the state corresponding to zero version.
     //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
     virtual void SetZeroState() = 0;
 

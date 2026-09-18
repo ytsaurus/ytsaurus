@@ -2,11 +2,10 @@
 
 #include "public.h"
 
+#include "chunk.h"
 #include "chunk_replica.h"
-#include "chunk_view.h"
-#include "chunk_replica_fetcher.h"
 #include "chunk_requisition.h"
-#include "data_node_tracker.h"
+#include "chunk_view.h"
 #include "medium_base.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -30,7 +29,7 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NChunkServer {
 

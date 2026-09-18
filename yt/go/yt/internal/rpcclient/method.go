@@ -20,6 +20,7 @@ const (
 	MethodSelectRows                 Method = "SelectRows"
 	MethodLookupRows                 Method = "LookupRows"
 	MethodMultiLookup                Method = "MultiLookup"
+	MethodGetTableMountInfo          Method = "GetTableMountInfo"
 	MethodModifyRows                 Method = "ModifyRows"
 	MethodDeleteRows                 Method = "DeleteRows"
 	MethodMountTable                 Method = "MountTable"

@@ -456,18 +456,18 @@ class TGroupCoordinatorManager
     : public IGroupCoordinatorManager
 {
 public:
-    explicit TGroupCoordinatorManager()
+    TGroupCoordinatorManager()
         : DynamicConfigStore_(New<TDynamicConfigStore>())
     { }
 
-    std::optional<IGroupCoordinatorPtr> GetGroupCoordinator(const NKafka::TGroupId& groupId) override
+    IGroupCoordinatorPtr FindGroupCoordinator(const NKafka::TGroupId& groupId) override
     {
         auto guard = ReaderGuard(GroupCoordinatorMapLock_);
         auto groupCoordinatorIt = GroupCoordinators_.find(groupId);
         if (groupCoordinatorIt != GroupCoordinators_.end()) {
             return groupCoordinatorIt->second;
         }
-        return std::nullopt;
+        return nullptr;
     }
 
     IGroupCoordinatorPtr GetOrCreateGroupCoordinator(const NKafka::TGroupId& groupId) override

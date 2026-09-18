@@ -8,6 +8,20 @@ from yt.environment.init_cluster import get_default_resource_limits
 
 from yt.environment.migrationlib import TableInfo, Conversion, Migration
 
+# DO NOT EDIT SPECIAL "# __IF_OS:" MARKERS
+
+try:
+    pass
+    # __IF_NOT_OS:
+    from yt.environment import init_operations_archive_config_yandex as archive_config
+except ImportError:
+    pass
+    # __IF_NOT_OS:
+    from yt.environment import init_operations_archive_config_opensource as archive_config
+
+# __IF_OS:
+# from yt.environment import init_operations_archive_config_opensource as archive_config
+
 import argparse
 import logging
 import time
@@ -63,19 +77,26 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
 
 
 def table_init_callback(client, table_path):
-    one_day = 1000 * 3600 * 24
-    one_week = one_day * 7
-    one_month = one_day * 30
-    two_years = one_month * 12 * 2
-
     _, table_name = ypath_split(table_path)
     if not client.exists(table_path):
         return
 
     if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces", "job_profiles"]:
-        set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
+        set_table_ttl(
+            client,
+            table_path,
+            ttl=archive_config.JOB_TABLES_TTL,
+            auto_compaction_period=archive_config.JOB_TABLES_AUTO_COMPACTION_PERIOD,
+            forbid_obsolete_rows=True,
+        )
     if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
-        set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
+        set_table_ttl(
+            client,
+            table_path,
+            ttl=archive_config.OPERATION_TABLES_TTL,
+            auto_compaction_period=archive_config.OPERATION_TABLES_AUTO_COMPACTION_PERIOD,
+            forbid_obsolete_rows=True,
+        )
 
 
 def update_tablet_cell_bundle(client, tablet_cell_bundle):
@@ -1350,6 +1371,51 @@ TRANSFORMS[68] = [
             })),
 ]
 
+TRANSFORMS[69] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo(
+            [
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any", {"lock": "controller_agent"}),
+                ("provided_spec", "any"),
+                ("spec", "any"),
+                ("full_spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any", {"lock": "controller_agent"}),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any", {"lock": "controller_features"}),
+                ("alert_events", "any", {"lock": "alert_events"}),
+                ("scheduling_attributes_per_pool_tree", "any"),
+                ("cumulative_spec_patch", "any"),
+            ],
+            in_memory=False,
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 
@@ -1501,6 +1567,10 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
+    logging.info(
+        "Using %s configuration",
+        "opensource" if archive_config.IS_OPENSOURCE else "internal",
+    )
     client = YtClient(proxy=args.proxy, config=get_client_config())
 
     run(

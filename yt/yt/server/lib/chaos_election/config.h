@@ -19,7 +19,6 @@ struct TChaosElectionManagerConfig
     TDuration LeaseTimeout;
     TDuration LeasePingPeriod;
     TDuration LockAcquisitionPeriod;
-    TDuration LeaderCacheUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TChaosElectionManagerConfig);
 

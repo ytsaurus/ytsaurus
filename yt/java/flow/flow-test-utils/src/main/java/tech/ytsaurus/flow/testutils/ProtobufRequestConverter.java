@@ -7,27 +7,26 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.protobuf.ByteString;
-import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.TGuid;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.MessageProtoMapper;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
-import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
-import tech.ytsaurus.flow.row.codec.InternalStateValueCodec;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
-import tech.ytsaurus.flow.row.codec.PayloadCodec;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TState;
 import tech.ytsaurus.flow.rpc.TStateItem;
 import tech.ytsaurus.flow.rpc.TStream;
 import tech.ytsaurus.flow.rpc.TWatermark;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
+import tech.ytsaurus.flow.state.State;
+import tech.ytsaurus.flow.state.StateFormat;
+import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
@@ -48,6 +47,7 @@ public class ProtobufRequestConverter {
 
     private TGuid jobId = ProtobufRequestBuilder.PROTO_JOB_ID;
     private CodecRegistry codecRegistry = CodecRegistry.getInstance();
+    private List<TCompanionResourceInstanceReference> companionResources = List.of();
 
     /**
      * Overrides the job id used for subsequent {@code create*} calls.
@@ -62,7 +62,7 @@ public class ProtobufRequestConverter {
 
     /**
      * Overrides the {@link CodecRegistry} used to (de)serialize message keys, timer keys,
-     * internal-state keys/values, and external-state keys/values.
+     * internal-state keys, and external-state keys.
      * <p>
      * Test-only override; defaults to {@link CodecRegistry#getInstance()}, which is the
      * JVM-wide registry resolved via {@code ServiceLoader<CodecRegistryProvider>}. Production
@@ -73,6 +73,22 @@ public class ProtobufRequestConverter {
      */
     public ProtobufRequestConverter setCodecRegistry(CodecRegistry codecRegistry) {
         this.codecRegistry = Objects.requireNonNull(codecRegistry, "codecRegistry must not be null");
+        return this;
+    }
+
+    /**
+     * Sets the companion resource instance references attached to the job info of subsequent
+     * {@code create*} calls; the companion resolves them against its resource store when the batch
+     * is processed.
+     *
+     * @param companionResources the instance references required by the job
+     * @return this converter
+     */
+    public ProtobufRequestConverter setCompanionResources(
+            List<TCompanionResourceInstanceReference> companionResources
+    ) {
+        this.companionResources = List.copyOf(
+                Objects.requireNonNull(companionResources, "companionResources must not be null"));
         return this;
     }
 
@@ -88,6 +104,7 @@ public class ProtobufRequestConverter {
      * @param externalStates       external-state contents keyed by state name and entry key
      * @param joinedExternalStates read-only joined external-state contents keyed by state name and key
      * @param externalStateSchemas optional per-state schemas used when no values are supplied
+     * @param protoStateTypes      proto message type per proto-format external state name
      * @param watermarks           per-stream watermarks
      * @return the protobuf process-batch request
      */
@@ -97,10 +114,11 @@ public class ProtobufRequestConverter {
             List<Timer> timers,
             YTreeNode pipelineSpec,
             FlowStreamsContext streamsContext,
-            Map<String, Map<Payload, InternalState>> internalStates,
-            Map<String, Map<Payload, ExternalState>> externalStates,
-            Map<String, Map<Payload, ExternalState>> joinedExternalStates,
+            Map<String, Map<Payload, State>> internalStates,
+            Map<String, Map<Payload, State>> externalStates,
+            Map<String, Map<Payload, State>> joinedExternalStates,
             Map<String, TableSchema> externalStateSchemas,
+            Map<String, String> protoStateTypes,
             Map<String, Long> watermarks
     ) {
         var builder = TReqProcessBatch.newBuilder()
@@ -109,7 +127,9 @@ public class ProtobufRequestConverter {
                 .setComputationId(computationId);
 
         var pipelineContext = extractPipelineContext(computationId, pipelineSpec, streamsContext);
-        builder.setJobInfo(pipelineContext.jobInfo());
+        builder.setJobInfo(pipelineContext.jobInfo().toBuilder()
+                .addAllCompanionResources(companionResources)
+                .build());
 
         var protoMessages = convertExtendedMessagesToProto(
                 messages,
@@ -119,20 +139,20 @@ public class ProtobufRequestConverter {
         builder.addAllMessages(protoMessages);
         builder.addAllInternalStates(convertInternalStatesToProto(
                 internalStates,
-                codecRegistry.getKeyCodec(),
-                codecRegistry.getInternalStateValueCodec()
+                codecRegistry.getKeyCodec()
         ));
         builder.addAllExternalStates(convertExternalStatesToProto(
                 externalStates,
                 externalStateSchemas,
-                codecRegistry.getKeyCodec(),
-                codecRegistry.getPayloadCodec()
+                protoStateTypes,
+                codecRegistry.getKeyCodec()
         ));
+        // Joined states are seeded as rows only, so none of them is in the proto format.
         builder.addAllJoinedExternalStates(convertExternalStatesToProto(
                 joinedExternalStates,
                 externalStateSchemas,
-                codecRegistry.getKeyCodec(),
-                codecRegistry.getPayloadCodec()
+                Map.of(),
+                codecRegistry.getKeyCodec()
         ));
         builder.addAllTimers(convertTimersToProto(timers, codecRegistry.getKeyCodec()));
 
@@ -311,84 +331,69 @@ public class ProtobufRequestConverter {
     // --- State conversion ---
 
     /**
-     * Converts internal states to proto format.
-     * Iterates over each key in the state map and serializes the key/value pairs using the
-     * supplied codecs so that custom {@link KeyCodec} / {@link InternalStateValueCodec}
-     * registrations are honoured on the wire.
+     * Converts internal states to proto format through the production
+     * {@link InternalStateProtoMapper}, so that a seed reaches the wire exactly as the worker
+     * would send it. A value that encodes to no bytes travels as a reset. Keys are serialized
+     * with the supplied {@link KeyCodec} so that custom registrations are honoured on the wire.
      */
     private static List<TState> convertInternalStatesToProto(
-            Map<String, Map<Payload, InternalState>> internalStates,
-            KeyCodec keyCodec,
-            InternalStateValueCodec valueCodec
+            Map<String, Map<Payload, State>> internalStates,
+            KeyCodec keyCodec
     ) {
+        // toProto never reads the key schema: it serves createHolder and the holder's YSON
+        // rendering, neither of which runs on this path.
+        var mapper = new InternalStateProtoMapper(null, keyCodec);
         var result = new ArrayList<TState>(internalStates.size());
         for (var entry : internalStates.entrySet()) {
-            var stateName = entry.getKey();
-            var stateMap = entry.getValue();
-            TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
-
-            var stateItems = new ArrayList<TStateItem>(stateMap.size());
-            for (var stateEntry : stateMap.entrySet()) {
-                TStateItem.Builder itemBuilder = TStateItem.newBuilder()
-                        .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
-                        .setReset(stateEntry.getValue().isReset());
-                if (!stateEntry.getValue().isReset() && stateEntry.getValue().getValue() != null) {
-                    itemBuilder.setState(valueCodec.encode((byte[]) stateEntry.getValue().getValue()));
-                }
-                stateItems.add(itemBuilder.build());
+            var holder = new StatesHolder(entry.getKey(), null);
+            for (var stateEntry : entry.getValue().entrySet()) {
+                holder.set(stateEntry.getKey().getRow(), stateEntry.getValue());
             }
-            stateBuilder.addAllStateItems(stateItems);
-            result.add(stateBuilder.build());
+            result.add(mapper.toProto(holder, holder.collectModifiedStates()));
         }
         return result;
     }
 
     /**
-     * Converts external states to proto format.
-     * Derives schema from the first non-reset state value, falling back to user-provided schemas.
-     * Uses the supplied codecs so that custom {@link KeyCodec} / {@link PayloadCodec}
-     * registrations are honoured on the wire.
+     * Converts external states to proto format. State values are already wire bytes; every
+     * row-format state that carries one must have a schema declared on the harness, and every
+     * proto-format state is listed in {@code protoStateTypes}. Uses the supplied
+     * {@link KeyCodec} so that custom registrations are honoured on the wire.
      */
     private static List<TState> convertExternalStatesToProto(
-            Map<String, Map<Payload, ExternalState>> externalStates,
+            Map<String, Map<Payload, State>> externalStates,
             Map<String, TableSchema> externalStateSchemas,
-            KeyCodec keyCodec,
-            PayloadCodec payloadCodec
+            Map<String, String> protoStateTypes,
+            KeyCodec keyCodec
     ) {
         var result = new ArrayList<TState>();
 
         for (var entry : externalStates.entrySet()) {
             var stateName = entry.getKey();
             var stateValuesMap = entry.getValue();
+            String protoType = protoStateTypes.get(stateName);
+            if (protoType != null) {
+                result.add(convertProtoFormatStateToProto(stateName, protoType, stateValuesMap, keyCodec));
+                continue;
+            }
             TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
 
-            // Resolve the schema: derive from the first non-reset state with a non-null
-            // payload, otherwise fall back to the user-provided schemas.
-            TableSchema valueSchema = firstNonResetSchema(stateValuesMap);
-            if (valueSchema == null) {
-                valueSchema = externalStateSchemas.get(stateName);
-            }
+            TableSchema valueSchema = externalStateSchemas.get(stateName);
             if (valueSchema != null) {
                 stateBuilder.setSchema(YsonUtils.protoFromYTree(valueSchema.toYTree()));
             }
-
-            // Bind the payload codec to the per-state schema once: the schema is the same for
-            // all items inside a single TState message. Items without a stored value (resets or
-            // null payloads) do not need a bound codec.
-            ByteStringCodec<Payload> boundValueCodec =
-                    valueSchema != null ? payloadCodec.codecFor(valueSchema) : null;
 
             var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
             for (var stateEntry : stateValuesMap.entrySet()) {
                 TStateItem.Builder itemBuilder = TStateItem.newBuilder()
                         .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
                         .setReset(stateEntry.getValue().isReset());
-                if (!stateEntry.getValue().isReset() && stateEntry.getValue().getValue() != null) {
+                if (!stateEntry.getValue().isReset() && stateEntry.getValue().getBytes() != null) {
                     Objects.requireNonNull(
-                            boundValueCodec,
-                            "External state value codec was not bound (missing schema)"
+                            valueSchema,
+                            () -> "External state '" + stateName + "' has values but no schema"
                     );
-                    itemBuilder.setState(boundValueCodec.encode(stateEntry.getValue().getValue()));
+                    itemBuilder.setState(stateEntry.getValue().getBytes());
                 }
                 stateItems.add(itemBuilder.build());
             }
@@ -410,12 +415,32 @@ public class ProtobufRequestConverter {
         return result;
     }
 
-    private static @Nullable TableSchema firstNonResetSchema(Map<Payload, ExternalState> stateValuesMap) {
-        for (var stateValue : stateValuesMap.values()) {
-            if (!stateValue.isReset() && stateValue.getValue() != null) {
-                return stateValue.getValue().getSchema();
+    /**
+     * Converts a proto-format external state: payloads are serialized-message bytes, the state
+     * carries {@code format = proto} and the proto type.
+     */
+    private static TState convertProtoFormatStateToProto(
+            String stateName,
+            String protoType,
+            Map<Payload, State> stateValuesMap,
+            KeyCodec keyCodec
+    ) {
+        TState.Builder stateBuilder = TState.newBuilder()
+                .setName(stateName)
+                .setFormat(StateFormat.PROTO.getWireValue())
+                .setProtoType(protoType);
+        var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
+        for (var stateEntry : stateValuesMap.entrySet()) {
+            var state = stateEntry.getValue();
+            var itemBuilder = TStateItem.newBuilder()
+                    .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
+                    .setReset(state.isReset());
+            if (!state.isReset()) {
+                itemBuilder.setState(Objects.requireNonNull(state.getBytes(), "Non-reset state must have bytes"));
             }
+            stateItems.add(itemBuilder.build());
         }
-        return null;
+        stateBuilder.addAllStateItems(stateItems);
+        return stateBuilder.build();
     }
 }

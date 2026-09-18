@@ -23,7 +23,8 @@ def compute_timer_precision(timer):
     points = 0
     timeout = timeout_timer() + 1.0
     previous = timer()
-    while timeout_timer() < timeout or points < 5:
+    # Stop as soon as we have enough data points or the timeout expires.
+    while timeout_timer() < timeout and points < 100:
         for _ in range(10):
             t1 = timer()
             t2 = timer()

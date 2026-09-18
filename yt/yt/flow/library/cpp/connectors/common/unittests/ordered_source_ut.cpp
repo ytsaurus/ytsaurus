@@ -73,17 +73,26 @@ public:
 
     TTestSource(
         TSourceContextPtr context,
-        TDynamicSourceContextPtr dynamicContext)
+        TDynamicSourceContextPtr dynamicContext,
+        std::optional<i64> initialMaxOffset = 0,
+        i64 initialCommittedOffset = 0)
         : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
         , Schema_(
             New<TTableSchema>(std::vector{
                 TColumnSchema("data", EValueType::Uint64),
             }))
+        , MaxOffsetExclusive_(initialMaxOffset.value_or(0))
     {
-        UpdatePartitionInfo(TPartitionInfoUpdate{.MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_)});
+        auto update = TPartitionInfoUpdate{};
+        if (initialMaxOffset) {
+            update.MaxOffsetExclusive = IntToOffset(*initialMaxOffset);
+        }
+        if (initialCommittedOffset > 0) {
+            update.CommittedOffsetExclusive = IntToOffset(initialCommittedOffset);
+        }
+        UpdatePartitionInfo(update);
     }
 
-    using TOrderedSourceBase::GetOfferedCount;
     using TOrderedSourceBase::GetSourceTotalBytes;
     using TOrderedSourceBase::GetSourceTotalCount;
     using TOrderedSourceBase::UpdatePartitionInfo;
@@ -99,9 +108,22 @@ public:
         UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = IntToOffset(offsetExclusive)});
     }
 
+    void Reposition(i64 offsetExclusive)
+    {
+        UpdatePartitionInfo(TPartitionInfoUpdate{
+            .CommittedOffsetExclusive = IntToOffset(offsetExclusive),
+            .Repositioned = true,
+        });
+    }
+
     void SetTestError(TError error)
     {
         Error_ = std::move(error);
+    }
+
+    void SetProgressRecord(i64 offsetExclusive)
+    {
+        ProgressOffsetExclusive_ = offsetExclusive;
     }
 
     void SetExtraError(TError error)
@@ -130,8 +152,11 @@ private:
         TOffset nextOffsetAsKey,
         std::optional<TOffset> offsetLimitOptionalAsKey) final
     {
-        i64 nextOffset = OffsetToInt(nextOffsetAsKey);
-        std::optional<i64> offsetLimitOptional = offsetLimitOptionalAsKey ? std::optional(OffsetToInt(*offsetLimitOptionalAsKey)) : std::nullopt;
+        auto nextPosition = OffsetToInt(nextOffsetAsKey);
+        std::optional<i64> offsetLimitPosition;
+        if (offsetLimitOptionalAsKey) {
+            offsetLimitPosition = OffsetToInt(*offsetLimitOptionalAsKey);
+        }
 
         ReadErrorState_->SetError(Error_);
 
@@ -140,35 +165,48 @@ private:
             return MakeFuture(records);
         }
 
-        const i64 offsetLimit = std::min({
-            offsetLimitOptional.value_or(std::numeric_limits<i64>::max()),
-            nextOffset + settings->MaxRowsPerBatch,
-            MaxOffsetExclusive_,
-        });
-
         TPayloadBuilder builder(Schema_);
-        while (nextOffset < offsetLimit) {
-            builder.SetValue(MakeUnversionedUint64Value(nextOffset), "data");
+        while (std::ssize(records) < settings->MaxRowsPerBatch &&
+            nextPosition < MaxOffsetExclusive_ &&
+            (!offsetLimitPosition || nextPosition < *offsetLimitPosition))
+        {
+            builder.SetValue(MakeUnversionedUint64Value(nextPosition), "data");
 
-            auto writeTimestamp = nextOffset < std::ssize(WriteTimestamps_) ? TSystemTimestamp(WriteTimestamps_[nextOffset]) : TSystemTimestamp(nextOffset + 1);
+            auto writeTimestamp = nextPosition < std::ssize(WriteTimestamps_)
+                ? TSystemTimestamp(WriteTimestamps_[nextPosition])
+                : TSystemTimestamp(nextPosition + 1);
 
             TRecord record = {
-                .Offset = IntToOffset(nextOffset),
+                .Offset = IntToOffset(nextPosition),
                 .WriteTimestamp = writeTimestamp,
-                .CreateTimestamp = TSystemTimestamp(nextOffset + 1),
+                .CreateTimestamp = TSystemTimestamp(nextPosition + 1),
                 .Payloads = {builder.Finish()},
                 .PayloadSchema = builder.GetSchema(),
             };
 
             records.push_back(record);
-            nextOffset += 1;
+            ++nextPosition;
+        }
+        if (ProgressOffsetExclusive_ && nextPosition >= MaxOffsetExclusive_) {
+            auto continuationOffsetExclusive = *ProgressOffsetExclusive_;
+            if (offsetLimitPosition) {
+                continuationOffsetExclusive = std::min(continuationOffsetExclusive, *offsetLimitPosition);
+            }
+            if (continuationOffsetExclusive > nextPosition) {
+                records.push_back(TRecord{
+                    .Offset = IntToOffset(continuationOffsetExclusive - 1),
+                    .WriteTimestamp = TSystemTimestamp(continuationOffsetExclusive),
+                    .CreateTimestamp = TSystemTimestamp(continuationOffsetExclusive),
+                    .PayloadSchema = Schema_,
+                });
+            }
         }
         return BIND(
-            [records] () {
+            [records = std::move(records)] () mutable {
                 for (int i = 0; i < 10; ++i) { // Imitate delay without wasting time.
                     NConcurrency::Yield();
                 }
-                return records;
+                return std::move(records);
             })
             .AsyncVia(GetContext()->SerializedInvoker)
             .Run();
@@ -193,6 +231,7 @@ private:
     i64 MaxOffsetExclusive_ = 0;
     TError Error_;
     std::vector<ui64> WriteTimestamps_;
+    std::optional<i64> ProgressOffsetExclusive_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestSource);
@@ -260,10 +299,13 @@ public:
         return ctx;
     }
 
-    TTestSourcePtr MakeTestSource(const TSourceSpecPtr& spec)
+    TTestSourcePtr MakeTestSource(
+        const TSourceSpecPtr& spec,
+        std::optional<i64> initialMaxOffset = 0,
+        i64 initialCommittedOffset = 0)
     {
         SourceContext->SourceSpec = spec;
-        return New<TTestSource>(SourceContext, MakeDynamicSourceContext());
+        return New<TTestSource>(SourceContext, MakeDynamicSourceContext(), initialMaxOffset, initialCommittedOffset);
     }
 
     template <typename TFunctor>
@@ -429,6 +471,137 @@ TEST_F(TOrderedSourceTest, Simple)
     }
 }
 
+TEST_F(TOrderedSourceTest, PayloadlessRecordAdvancesWithoutMessages)
+{
+    const auto initialMessageId = RunInInvoker([&] {
+        return Source->GetMaxPersistedMessageIdExclusive();
+    });
+
+    const auto [state, alignmentTimestamp] = RunInInvoker([&] {
+        Source->SetProgressRecord(5);
+        auto batches = WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow();
+        EXPECT_TRUE(batches.empty());
+        auto alignmentTimestamp = Source->GetReadAlignmentTimestamp();
+        Source->Sync();
+        StateManager->Sync();
+        return std::pair(
+            ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0")),
+            alignmentTimestamp);
+    });
+
+    EXPECT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->PublishedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->MaxOffsetExclusive), 5);
+    EXPECT_TRUE(state->OffsetMemory->empty());
+    EXPECT_TRUE(state->AlignmentTimestampMemory->empty());
+    EXPECT_EQ(state->LastPersistedWriteTimestamp, TSystemTimestamp(5));
+    EXPECT_EQ(alignmentTimestamp, TSystemTimestamp(5));
+    EXPECT_GT(state->PersistedMessageIdExclusive, initialMessageId);
+}
+
+TEST_F(TOrderedSourceTest, PayloadlessRecordWaitsForInflightRecord)
+{
+    const auto data = RunInInvoker([&] {
+        Source->SetMaxOffset(1);
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 1u);
+
+    const auto blockedState = RunInInvoker([&] {
+        Source->SetProgressRecord(5);
+        auto batches = WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow();
+        EXPECT_TRUE(batches.empty());
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+    EXPECT_EQ(OffsetToInt(blockedState->PersistedOffsetExclusive), 0);
+    EXPECT_EQ(OffsetToInt(blockedState->PublishedOffsetExclusive), 0);
+    EXPECT_EQ(OffsetToInt(blockedState->MaxOffsetExclusive), 5);
+
+    const auto advancedState = RunInInvoker([&] {
+        Source->MarkPublished(data[0].Cookie);
+        Source->MarkPersisted(data[0].Cookie);
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+    EXPECT_EQ(OffsetToInt(advancedState->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(advancedState->PublishedOffsetExclusive), 5);
+    EXPECT_TRUE(advancedState->OffsetMemory->empty());
+    EXPECT_EQ(advancedState->LastPersistedWriteTimestamp, TSystemTimestamp(5));
+}
+
+TEST_F(TOrderedSourceTest, PayloadRecordsWithProgressTailAdvanceToContinuation)
+{
+    const auto data = RunInInvoker([&] {
+        Source->SetMaxOffset(2);
+        Source->SetProgressRecord(5);
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 2u);
+
+    const auto state = RunInInvoker([&] {
+        for (const auto& item : data) {
+            Source->MarkPublished(item.Cookie);
+            Source->MarkPersisted(item.Cookie);
+        }
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+
+    EXPECT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->PublishedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->MaxOffsetExclusive), 5);
+    EXPECT_TRUE(state->OffsetMemory->empty());
+    EXPECT_EQ(state->LastPersistedWriteTimestamp, TSystemTimestamp(5));
+}
+
+TEST_F(TOrderedSourceTest, ReplayAfterCheckpointPreservesMessageId)
+{
+    TMessageId originalMessageId;
+    {
+        const auto data = RunInInvoker([&] {
+            Source->SetMaxOffset(1);
+            return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        });
+        ASSERT_EQ(data.size(), 1u);
+        originalMessageId = data[0].Message->MessageId;
+
+        RunInInvoker([&] {
+            Source->MarkPublished(data[0].Cookie);
+            Source->Sync();
+            StateManager->Sync();
+        });
+    }
+
+    RunInInvoker([&] {
+        Source->Terminate();
+    });
+    Source.Reset();
+
+    Source = MakeTestSource(SourceSpec);
+    {
+        const auto replayedData = RunInInvoker([&] {
+            Source->Init(StateManager->CreateContext()->WithPrefix("source"));
+            Source->SetMaxOffset(1);
+            return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        });
+        ASSERT_EQ(replayedData.size(), 1u);
+        EXPECT_EQ(replayedData[0].Message->MessageId, originalMessageId);
+
+        RunInInvoker([&] {
+            Source->MarkPublished(replayedData[0].Cookie);
+            Source->MarkPersisted(replayedData[0].Cookie);
+            Source->Sync();
+            StateManager->Sync();
+        });
+    }
+
+    Reset();
+}
+
 TEST_F(TOrderedSourceTest, SourceTotalCounters)
 {
     const auto advanceMaxOffset = [&] (i64 maxOffset) {
@@ -463,6 +636,8 @@ TEST_F(TOrderedSourceTest, BacklogRateContributesToNewRate)
     });
     EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewCountPerSec, 123);
     EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewBytesPerSec, 456);
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->OfferedCountPerSec, 123);
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->OfferedBytesPerSec, 456);
 }
 
 TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
@@ -474,7 +649,6 @@ TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
     ASSERT_EQ(beforeRead->InflightMetrics->Count, 5);
     ASSERT_EQ(beforeRead->InflightMetrics->ReadyCount, 5);
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 0);
 
     const auto messages = RunInInvoker([&] {
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
@@ -486,14 +660,12 @@ TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
     EXPECT_EQ(afterRead->InflightMetrics->Count, 5);
     EXPECT_EQ(afterRead->InflightMetrics->ReadyCount, 0);
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 5);
 
     const auto empty = RunInInvoker([&] {
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
     });
     EXPECT_TRUE(empty.empty());
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 5);
 }
 
 TEST_F(TOrderedSourceTest, EmptyPartition)
@@ -684,6 +856,31 @@ TEST_F(TOrderedSourceTest, UnavailablePartitionAfterRestart)
             ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
         }
     }
+}
+
+TEST_F(TOrderedSourceTest, RepositionedUpdateSkipsForward)
+{
+    // An external position ahead of the persisted offset (a consumer offset an operator moved) is
+    // honored like a trim rewind, minus the alarm.
+    const auto source = MakeTestSource(SourceSpec);
+    RunInInvoker([&] () {
+        source->Init(StateManager->CreateContext()->WithPrefix("reposition"));
+        source->Reposition(100);
+    });
+
+    const auto data = RunInInvoker([&] () {
+        source->SetMaxOffset(105);
+        return UnpackBatches(WaitFor(source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 5u);
+    ASSERT_EQ(GetColumnValue<i64>(data[0].Message, "data"), 100);
+
+    const auto state = RunInInvoker([&] () {
+        source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/reposition/v0"));
+    });
+    ASSERT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 100LL);
 }
 
 TEST_F(TOrderedSourceTest, RestartGapIsNotCountedAsUnavailable)
@@ -1113,6 +1310,121 @@ TEST_F(TOrderedSourceTest, UnorderedUpdates)
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
     });
     ASSERT_EQ(data.size(), 5u);
+}
+
+TEST_F(TOrderedSourceTest, ArrivalRateExcludesInitialBacklogAndIgnoresLowerMaximum)
+{
+    struct TCase
+    {
+        std::string Name;
+        i64 CommittedOffset;
+        i64 RestoredMaximum;
+        TTestSourcePtr Source;
+        TInflightMetricsPtr Before;
+    };
+
+    std::vector<TCase> cases{
+        {"fresh", 0, 0, {}, {}},
+        {"trimmed", 50, 0, {}, {}},
+        {"restored", 50, 70, {}, {}},
+        {"restored_equal", 50, 100, {}, {}},
+    };
+    TTestSourcePtr unconfirmedSource;
+    RunInInvoker([&] {
+        auto spec = CloneYsonStruct(SourceSpec);
+        spec->Parameters->AddChild("update_info_period", ConvertToNode(TDuration::Hours(1)));
+        unconfirmedSource = MakeTestSource(spec, std::nullopt);
+        unconfirmedSource->Init(StateManager->CreateContext()->WithPrefix("unconfirmed_source_rate"));
+        for (auto& testCase : cases) {
+            auto prefix = "source_rate_" + testCase.Name;
+            if (testCase.RestoredMaximum) {
+                auto state = New<TOrderedSourcePartitionState>();
+                state->MaxOffsetExclusive = IntToOffset(testCase.RestoredMaximum);
+                state->MaxOffsetIsConfirmed = true;
+                StateManager->Set("/" + prefix + "/v0", ConvertToYsonString(state));
+            }
+            testCase.Source = MakeTestSource(spec, 100, testCase.CommittedOffset);
+            testCase.Source->Init(StateManager->CreateContext()->WithPrefix(prefix));
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+            testCase.Source->BuildInflight();
+        }
+    });
+
+    // Warm up the real counters together without adding a test clock to the source API.
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(31));
+    });
+    auto unconfirmed = RunInInvoker([&] {
+        unconfirmedSource->SetCommittedOffset(10);
+        return unconfirmedSource->BuildInflight()->InflightMetrics;
+    });
+    EXPECT_FALSE(unconfirmed->NewCountPerSec);
+    EXPECT_FALSE(unconfirmed->NewBytesPerSec);
+    EXPECT_FALSE(unconfirmed->OfferedCountPerSec);
+    EXPECT_FALSE(unconfirmed->OfferedBytesPerSec);
+
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        const auto& source = testCase.Source;
+        auto initial = RunInInvoker([&] {
+            source->SetMaxOffset(100);
+            return source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(initial->NewCountPerSec);
+        ASSERT_TRUE(initial->NewBytesPerSec);
+        EXPECT_DOUBLE_EQ(*initial->NewCountPerSec, 0);
+        EXPECT_DOUBLE_EQ(*initial->NewBytesPerSec, 0);
+        EXPECT_EQ(initial->OfferedCountPerSec, initial->NewCountPerSec);
+        EXPECT_EQ(initial->OfferedBytesPerSec, initial->NewBytesPerSec);
+        EXPECT_EQ(initial->ReadyCount, 100 - testCase.CommittedOffset);
+        EXPECT_DOUBLE_EQ(source->GetSourceTotalCount(), 100 - testCase.RestoredMaximum);
+        EXPECT_DOUBLE_EQ(source->GetSourceTotalBytes(), 100 - testCase.RestoredMaximum);
+    }
+
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    });
+    for (auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        testCase.Before = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(200);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(testCase.Before->NewCountPerSec);
+        ASSERT_TRUE(testCase.Before->NewBytesPerSec);
+        EXPECT_GT(*testCase.Before->NewCountPerSec, 0);
+        EXPECT_GT(*testCase.Before->NewBytesPerSec, 0);
+    }
+
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    });
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        auto afterLower = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(10);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        EXPECT_EQ(afterLower->NewCountPerSec, testCase.Before->NewCountPerSec);
+        EXPECT_EQ(afterLower->NewBytesPerSec, testCase.Before->NewBytesPerSec);
+        EXPECT_EQ(afterLower->OfferedCountPerSec, testCase.Before->NewCountPerSec);
+        EXPECT_EQ(afterLower->OfferedBytesPerSec, testCase.Before->NewBytesPerSec);
+    }
+
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    });
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        auto afterUnchanged = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(200);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(afterUnchanged->NewCountPerSec);
+        ASSERT_TRUE(afterUnchanged->NewBytesPerSec);
+        EXPECT_LT(*afterUnchanged->NewCountPerSec, *testCase.Before->NewCountPerSec);
+        EXPECT_LT(*afterUnchanged->NewBytesPerSec, *testCase.Before->NewBytesPerSec);
+    }
 }
 
 TEST_F(TOrderedSourceTest, Timestamps)

@@ -2,12 +2,14 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload.h>
-#include <yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_computation.h>
+#include <yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_process_function.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 

@@ -4,6 +4,10 @@
 #include "tablet.h"
 #include "sorted_chunk_store.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -14,13 +18,35 @@ namespace NYT::NTabletNode {
 using namespace NYTree;
 using namespace NLogging;
 using namespace NProfiling;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipeline::TCompactionHintFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchThrottlers::TCompactionHintFetchThrottlers(
+    const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs)
+{
+    for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+        RequestThrottlers_[storeKind] = CreateReconfigurableThroughputThrottler(configs[storeKind]->RequestThrottler);
+    }
+}
+
+void TCompactionHintFetchThrottlers::Reconfigure(
+    const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs)
+{
+    for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+        RequestThrottlers_[storeKind]->Reconfigure(configs[storeKind]->RequestThrottler);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompactionHintFetchPipeline::TCompactionHintFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
     : Store_(store)
+    , RetryBackoff_(retryBackoffOptions)
 { }
 
 void TCompactionHintFetchPipeline::Enqueue()
@@ -56,6 +82,29 @@ void TCompactionHintFetchPipeline::ExecuteParse(const std::function<void()>& par
     TWallTimer timer;
     parser();
     GetFetcher()->Context().ParseCumulativeTime.Add(timer.GetElapsedTime());
+}
+
+IMemoryUsageTrackerPtr TCompactionHintFetchPipeline::MaybeGetMemoryUsageTracker() const
+{
+    auto nodeMemoryTracker = Store_->GetTablet()->TryGetNodeMemoryUsageTracker();
+    return nodeMemoryTracker
+        ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletBackground)
+        : nullptr;
+}
+
+TClientChunkReadOptions TCompactionHintFetchPipeline::CreateChunkReadOptions() const
+{
+    return {
+        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+        .ReadSessionId = TReadSessionId::Create(),
+        .MemoryUsageTracker = MaybeGetMemoryUsageTracker(),
+    };
+}
+
+i64 TCompactionHintFetchPipeline::GetEstimatedChunkMetaSize() const
+{
+    // Per-extension sizes are unavailable; we hope rough estimate is good enough.
+    return 8_KB;
 }
 
 void TCompactionHintFetchPipeline::OnStoreHasNoHint()
@@ -97,15 +146,25 @@ void TCompactionHintFetchPipeline::OnRequestFailed(const TError& error)
     const auto& context = GetFetcher()->Context();
     const auto& Logger = context.Logger;
 
-    YT_TLOG_WARNING("Failed to fetch compaction hint for store, retry")
+    RetryBackoff_.Next();
+
+    auto backoffTime = RetryBackoff_.GetBackoff();
+
+    YT_TLOG_WARNING("Failed to fetch compaction hint for store; retrying with backoff")
         .With("StoreId", Store_->GetId())
         .With("ChunkId", Store_->GetChunkId())
+        .With("RetryIndex", RetryBackoff_.GetInvocationIndex())
+        .With("BackoffTime", backoffTime)
         .With(error);
 
     context.FailedRequestCount.Increment();
 
-    // Pipeline is stateless, so we can just put it in fetcher to retry.
-    GetFetcher()->EnqueuePipeline(this);
+    // The delayed callback only re-enqueues the pipeline; the actual request remains subject
+    // to the fetcher throttler.
+    TDelayedExecutor::Submit(
+        BIND(&TCompactionHintFetchPipeline::Enqueue, MakeWeak(this)),
+        backoffTime,
+        GetEpochAutomatonInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,12 +178,13 @@ TCompactionHintFetcher::TCompactionHintFetcher(
     TTabletCellId cellId,
     TLogger logger,
     const TProfiler& profiler,
-    TCompactionHintFetcherConfigPtr config)
+    TCompactionHintFetcherConfigPtr config,
+    IReconfigurableThroughputThrottlerPtr requestThrottler)
     : Config_(std::move(config))
     , Profiler_(profiler.WithTag("cell_id", ToString(cellId)))
     , RequestCount_(Profiler_.Counter("/request_count"))
     , ThrottledRequestCount_(Profiler_.Counter("/throttled_request_count"))
-    , RequestThrottler_(CreateReconfigurableThroughputThrottler(Config_->RequestThrottler))
+    , RequestThrottler_(std::move(requestThrottler))
     , Context_{
         .FinishedRequestCount = Profiler_.Counter("/finished_request_count"),
         .FailedRequestCount = Profiler_.Counter("/failed_request_count"),
@@ -149,8 +209,6 @@ void TCompactionHintFetcher::Start(IInvokerPtr epochAutomatonInvoker, TCompactio
         BIND(&TCompactionHintFetcher::ExecuteEnqueuedPipelines, MakeWeak(this)),
         Config_->PeriodicExecutor);
     FetchingExecutor_->Start();
-
-    RequestThrottler_->Reconfigure(Config_->RequestThrottler);
 }
 
 void TCompactionHintFetcher::Stop()
@@ -181,8 +239,13 @@ void TCompactionHintFetcher::Reconfigure(const TCompactionHintFetcherConfigPtr& 
     Config_ = config;
 
     FetchingExecutor_->SetOptions(Config_->PeriodicExecutor);
+}
 
-    RequestThrottler_->Reconfigure(Config_->RequestThrottler);
+const TExponentialBackoffOptions& TCompactionHintFetcher::GetRetryBackoffOptions() const
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+    return Config_->RetryBackoff;
 }
 
 void TCompactionHintFetcher::EnqueuePipeline(const TCompactionHintFetchPipelinePtr& pipeline)
@@ -211,26 +274,20 @@ void TCompactionHintFetcher::ExecuteEnqueuedPipelines()
         return;
     }
 
-    i64 limit = RequestThrottler_->TryAcquireAvailable(std::numeric_limits<i64>::max());
-
-    if (limit == 0) {
-        ThrottledRequestCount_.Increment();
-        return;
-    }
-
-    i64 remainingLimit = limit;
-    for (; remainingLimit > 0; --remainingLimit) {
-        // NB(dave11ar): Be careful!
-        // Fetch can cancel fetching of other pipelines and remove element from Pipelines_.
-        if (Pipelines_.Empty()) {
+    i64 requestCount = 0;
+    while (!Pipelines_.Empty()) {
+        if (RequestThrottler_->TryAcquireAvailable(1) == 0) {
+            ThrottledRequestCount_.Increment();
             break;
         }
 
+        // NB(dave11ar): Be careful!
+        // Fetch can cancel fetching of other pipelines and remove element from Pipelines_.
         Pipelines_.PopBack()->Fetch();
+        ++requestCount;
     }
 
-    RequestThrottler_->Release(remainingLimit);
-    RequestCount_.Increment(limit - remainingLimit);
+    RequestCount_.Increment(requestCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

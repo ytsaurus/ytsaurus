@@ -458,14 +458,14 @@ TInflightStreamTraverseDataPtr TInflightTracker::BuildInflight()
 
     inflight->InflightMetrics->Count = GetCount();
     inflight->InflightMetrics->ByteSize = GetByteSize();
-    inflight->InflightMetrics->NewCountPerSec = RegisteredCount_.GetRate();
-    inflight->InflightMetrics->NewBytesPerSec = RegisteredBytes_.GetRate();
+    inflight->InflightMetrics->NewCountPerSec = RegisteredCount_.GetDecayedRate();
+    inflight->InflightMetrics->NewBytesPerSec = RegisteredBytes_.GetDecayedRate();
     inflight->InflightMetrics->ReadyCount = ReadyCount_;
     inflight->InflightMetrics->ReadyByteSize = ReadyByteSize_;
-    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetRate();
-    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetRate();
-    inflight->InflightMetrics->ProcessedCountPerSec = UnregisteredCount_.GetRate();
-    inflight->InflightMetrics->ProcessedBytesPerSec = UnregisteredBytes_.GetRate();
+    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetDecayedRate();
+    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = UnregisteredCount_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedBytesPerSec = UnregisteredBytes_.GetDecayedRate();
 
     inflight->Empty = inflight->InflightMetrics->Count == 0;
     inflight->Suspended = false;

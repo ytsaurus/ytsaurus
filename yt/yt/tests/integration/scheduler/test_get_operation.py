@@ -7,7 +7,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls, get,
-    set, remove,
+    set, remove, patch_op_spec,
     exists, start_transaction, lock, insert_rows, lookup_rows, write_table, map, vanilla, abort_op,
     complete_op, suspend_op, resume_op, get_operation, list_operations, run_test_vanilla, run_sleeping_vanilla,
     clean_operations, get_operation_cypress_path, sync_create_cells, create_pool,
@@ -585,6 +585,36 @@ class TestGetOperation(YTEnvSetup):
             run_test_vanilla("sleep 1")
 
         clean_operations()
+
+    @authors("coteeq")
+    def test_cumulative_spec_patch(self):
+        op = run_sleeping_vanilla(track=False)
+        wait(lambda: op.get_job_count("running") == 1)
+
+        assert "cumulative_spec_patch" not in get_operation(op.id)
+
+        patch_op_spec(
+            op.id,
+            patches=[
+                {"path": "/tasks/task/job_count", "value": 2},
+            ]
+        )
+        wait(lambda: op.get_job_count("running") == 2)
+
+        expected = {
+            "tasks": {
+                "task": {
+                    "job_count": 2,
+                },
+            },
+        }
+        assert expected == get_operation(op.id, attributes=["cumulative_spec_patch"])["cumulative_spec_patch"]
+
+        op.abort(wait_until_finished=True)
+        clean_operations()
+
+        assert expected == get_operation(op.id, attributes=["cumulative_spec_patch"])["cumulative_spec_patch"]
+
 
 ##################################################################
 

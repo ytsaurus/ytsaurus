@@ -3,6 +3,7 @@ import time
 
 import pytest
 import yatest.common
+import yt.yson as yson
 
 from yt.common import wait
 
@@ -11,6 +12,15 @@ from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTes
 from yt.yt.flow.library.python.queue import batching_write_rows
 
 from .yt_sync import run_yt_sync
+
+BLOB_TABLE_SCHEMA = yson.to_yson_type(
+    [
+        {"name": "filename", "type": "string", "sort_order": "ascending"},
+        {"name": "part_index", "type": "int64", "sort_order": "ascending"},
+        {"name": "data", "type": "string"},
+    ],
+    attributes={"strict": True, "unique_keys": True},
+)
 
 
 class TestFileResource(FlowTestBase):
@@ -23,7 +33,7 @@ class TestFileResource(FlowTestBase):
         self.output_queue = f"{self.work_yt_path}/output_queue"
         run_yt_sync("primary", self.work_yt_path)
 
-    def prepare_pipeline(self, source_path):
+    def prepare_pipeline(self, provider_path):
         source = yatest.common.source_path(f"{yatest.common.context.project_path}/../pipeline-yt-file.yson")
         config = get_yson_config(source)
         reader = config["spec"]["computations"]["reader"]
@@ -37,10 +47,10 @@ class TestFileResource(FlowTestBase):
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
         resource_spec = config["spec"]["resources"]["text"]
-        resource_spec["file_sources"]["file"]["parameters"]["path"] = source_path
+        resource_spec["file_providers"]["file"]["parameters"]["path"] = provider_path
         config.setdefault("dynamic_spec", {}).setdefault("resources", {})["text"] = {
-            "file_source_discover_period": 100,
-            "file_source_update_retry_period": 100,
+            "file_provider_discover_period": 100,
+            "file_provider_update_retry_period": 100,
             "file_snapshot_min_creation_period": 100,
         }
         self.patch_config(config)
@@ -68,6 +78,22 @@ class TestFileResource(FlowTestBase):
 
         wait(probe, timeout=120, ignore_exceptions=True)
 
+    def write_blob_file(self, path, data):
+        assert not self.client.exists(path)
+        self.client.create("table", path, attributes={"schema": BLOB_TABLE_SCHEMA})
+        self.client.write_table(
+            path,
+            [{"filename": "config-file", "part_index": 0, "data": data}],
+        )
+
+    def publish_blob_revision(self, link_path, revision, data):
+        revision_root = f"{link_path}-revisions"
+        if not self.client.exists(revision_root):
+            self.client.create("map_node", revision_root, recursive=True)
+        table_path = f"{revision_root}/{revision}"
+        self.write_blob_file(table_path, data)
+        self.client.link(table_path, link_path, force=True)
+
     def make_node_config(self):
         base_cache_path = os.path.abspath(os.path.join(self.path_to_flow_logs, "file-storage", "unused"))
         worker_cache_path = os.path.abspath(os.path.join(self.path_to_flow_logs, "file-storage", "worker-0"))
@@ -91,8 +117,7 @@ class TestFileResource(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_yt_file_update(self):
         file_path = f"{self.work_yt_path}/file"
-        self.client.create("file", file_path)
-        self.client.write_file(file_path, b"first")
+        self.publish_blob_revision(file_path, "001", b"first")
         pipeline = self.prepare_pipeline(f"<cluster=primary>{file_path}")
 
         node_config, worker_overrides = self.make_node_config()
@@ -103,5 +128,5 @@ class TestFileResource(FlowTestBase):
         ):
             self.write_input("before")
             self.wait_output("before", "first")
-            self.client.write_file(file_path, b"second")
+            self.publish_blob_revision(file_path, "002", b"second")
             self.wait_for_updated_output("updated-file", "second")

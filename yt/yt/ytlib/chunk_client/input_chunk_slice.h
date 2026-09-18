@@ -24,40 +24,6 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A lightweight representation of NProto::TReadLimit for input slices.
-struct TLegacyInputSliceLimit
-{
-    TLegacyInputSliceLimit() = default;
-    explicit TLegacyInputSliceLimit(const TLegacyReadLimit& other);
-    TLegacyInputSliceLimit(
-        const NProto::TReadLimit& other,
-        const NTableClient::TRowBufferPtr& rowBuffer,
-        TRange<NTableClient::TLegacyKey> keySet);
-
-    std::optional<i64> RowIndex;
-    NTableClient::TLegacyKey Key;
-
-    void MergeLowerRowIndex(i64 rowIndex);
-    void MergeUpperRowIndex(i64 rowIndex);
-
-    void MergeLowerKey(NTableClient::TLegacyKey key);
-    void MergeUpperKey(NTableClient::TLegacyKey key);
-
-    void MergeLowerLimit(const TLegacyInputSliceLimit& limit);
-    void MergeUpperLimit(const TLegacyInputSliceLimit& limit);
-
-    PHOENIX_DECLARE_TYPE(TLegacyInputSliceLimit, 0xde2a20a0);
-};
-
-void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf spec);
-
-bool IsTrivial(const TLegacyInputSliceLimit& limit);
-
-void ToProto(NProto::TReadLimit* protoLimit, const TLegacyInputSliceLimit& limit);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A lightweight representation of NProto::TReadLimit for input slices.
-//! This version uses TKeyBound instead of TLegacyKey to represent slices by key.
 struct TInputSliceLimit
 {
     TInputSliceLimit() = default;
@@ -108,32 +74,21 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(i64, ValueCount);
 
     DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyLowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyUpperLimit);
     DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
     //! Index of this chunk slice among all slices of the same chunk returned by chunk slice fetcher.
     DEFINE_BYVAL_RW_PROPERTY(int, SliceIndex, 0);
 
-    bool IsLegacy = true;
-
 public:
     TInputChunkSlice() = default;
     TInputChunkSlice(TInputChunkSlice&& other) = default;
 
-    explicit TInputChunkSlice(
-        const TInputChunkPtr& inputChunk,
-        NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
-        NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
-
-    // Suitable both for legacy and new data slices.
-    explicit TInputChunkSlice(const TInputChunkSlice& inputSlice);
-
-    // COMPAT(max42): Legacy.
     TInputChunkSlice(
-        const TInputChunkSlice& inputSlice,
-        NTableClient::TLegacyKey lowerKey,
-        NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+        const TInputChunkPtr& inputChunk,
+        TInputSliceLimit lowerLimit,
+        TInputSliceLimit upperLimit);
+
+    explicit TInputChunkSlice(const TInputChunkSlice& inputSlice);
 
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
@@ -150,27 +105,6 @@ public:
         i64 uncompressedDataSize);
 
     TInputChunkSlice(
-        const TInputChunkPtr& inputChunk,
-        int partIndex,
-        i64 lowerRowIndex,
-        std::optional<i64> upperRowIndex,
-        i64 dataWeight,
-        i64 compressedDataSize,
-        i64 uncompressedDataSize);
-
-    TInputChunkSlice(
-        const TInputChunkPtr& inputChunk,
-        const NTableClient::TRowBufferPtr& rowBuffer,
-        const NProto::TChunkSlice& protoChunkSlice,
-        TRange<NTableClient::TLegacyKey> keySet);
-
-    TInputChunkSlice(
-        const TInputChunkSlice& chunkSlice,
-        const NTableClient::TRowBufferPtr& rowBuffer,
-        const NProto::TChunkSlice& protoChunkSlice,
-        TRange<NTableClient::TLegacyKey> keySet);
-
-    TInputChunkSlice(
         const TInputChunkSlice& chunkSlice,
         const NTableClient::TComparator& comparator,
         const NTableClient::TRowBufferPtr& rowBuffer,
@@ -181,7 +115,8 @@ public:
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
-        const NProto::TChunkSpec& protoChunkSpec);
+        const NProto::TChunkSpec& protoChunkSpec,
+        const NTableClient::TComparator& comparator);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
     //! If #rowBuffer is given, also capture
@@ -197,13 +132,16 @@ public:
 
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
 
-    void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
-    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, std::optional<int> keyLength);
-
-    //! Transform to new assuming that there are no non-trivial key bounds in read limits.
-    void TransformToNewKeyless();
-
 private:
+    friend TInputChunkSlicePtr CreateInputChunkSliceFromCompleteErasureChunkPart(
+        const TInputChunkPtr& inputChunk,
+        int partIndex,
+        i64 lowerRowIndex,
+        i64 upperRowIndex,
+        i64 dataWeight,
+        i64 compressedDataSize,
+        i64 uncompressedDataSize);
+
     int PartIndex_ = DefaultPartIndex;
 
     bool SizeOverridden_ = false;
@@ -229,23 +167,25 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkSlicePtr& slice, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Constructs a new chunk slice from the chunk spec, restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
+//! Constructs a chunk slice and copies keyless read limits from the input chunk.
+TInputChunkSlicePtr CreateKeylessInputChunkSlice(
+    const TInputChunkPtr& inputChunk);
+
+//! Constructs a chunk slice with explicit key-bound limits.
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
-    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
-    NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+    TInputSliceLimit lowerLimit,
+    TInputSliceLimit upperLimit);
 
-//! Constructs a copy of a chunk slice. Suitable both for legacy and new chunk slices.
-TInputChunkSlicePtr CreateInputChunkSlice(const TInputChunkSlice& inputSlice);
-
-// COMPAT(max42): Legacy.
-//! Constructs a new chunk slice from another slice, restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
+//! Constructs a chunk slice from the input chunk read limits,
+//! preserving row indices and converting legacy keys to key bounds.
 TInputChunkSlicePtr CreateInputChunkSlice(
-    const TInputChunkSlice& inputSlice,
-    NTableClient::TLegacyKey lowerKey,
-    NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+    const TInputChunkPtr& inputChunk,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const NTableClient::TComparator& comparator);
+
+//! Constructs a copy of a chunk slice.
+TInputChunkSlicePtr CreateInputChunkSlice(const TInputChunkSlice& inputSlice);
 
 //! Constructs a new chunk slice from another slice, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
@@ -259,10 +199,20 @@ TInputChunkSlicePtr CreateInputChunkSlice(
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const NTableClient::TRowBufferPtr& rowBuffer,
-    const NProto::TChunkSpec& protoChunkSpec);
+    const NProto::TChunkSpec& protoChunkSpec,
+    const NTableClient::TComparator& comparator);
 
-//! Constructs separate chunk slice for each part of erasure chunk.
-std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
+TInputChunkSlicePtr CreateInputChunkSliceFromCompleteErasureChunkPart(
+    const TInputChunkPtr& inputChunk,
+    int partIndex,
+    i64 lowerRowIndex,
+    i64 upperRowIndex,
+    i64 dataWeight,
+    i64 compressedDataSize,
+    i64 uncompressedDataSize);
+
+//! Constructs a separate chunk slice for each data part of a complete erasure chunk.
+std::vector<TInputChunkSlicePtr> CreateInputChunkSlicesFromCompleteErasureChunk(
     const TInputChunkPtr& inputChunk,
     NErasure::ECodec codecId);
 
@@ -271,11 +221,6 @@ void InferLimitsFromBoundaryKeys(
     const NTableClient::TRowBufferPtr& rowBuffer,
     std::optional<int> keyColumnCount = std::nullopt,
     NTableClient::TComparator comparator = NTableClient::TComparator());
-
-std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
-    const TInputChunkPtr& inputChunk,
-    i64 sliceDataSize,
-    i64 sliceRowCount);
 
 //! Comparator should correspond to table this containing chunk.
 void ToProto(

@@ -4,14 +4,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.computation.TransformResult;
 import tech.ytsaurus.flow.request.ResponseContext;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.NewTimer;
-import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
+import tech.ytsaurus.flow.state.StatesHolder;
 
 /**
  * The response from {@code TestComputationHarness.doProcess()}, which contains all outputs
@@ -24,23 +21,23 @@ public class TestDoProcessResponse {
     private final StateView modifiedStates;
 
     /**
-     * Creates a response that merges the request's loaded states with the computation's changes.
+     * Creates a response that merges the states the request carried with the computation's
+     * changes. Both sides are parsed off the wire, so the views agree with what the computation
+     * itself observed.
      *
-     * @param responseContext      the processing result (carries the modified states)
-     * @param loadedExternalStates external states supplied in the request, keyed by name and key
-     * @param loadedInternalStates internal states supplied in the request, keyed by name and key
-     * @param externalStateSchemas per-name external state schemas (used to build default payloads)
+     * @param responseContext       the processing result (carries the modified states)
+     * @param requestExternalStates external states as parsed from the request, by name
+     * @param requestInternalStates internal states as parsed from the request, by name
      */
-    public TestDoProcessResponse(
+    TestDoProcessResponse(
             ResponseContext responseContext,
-            Map<String, Map<Payload, ExternalState>> loadedExternalStates,
-            Map<String, Map<Payload, InternalState>> loadedInternalStates,
-            Map<String, TableSchema> externalStateSchemas
+            Map<String, StatesHolder> requestExternalStates,
+            Map<String, StatesHolder> requestInternalStates
     ) {
         this.responseContext = responseContext;
         var views = StateViews.from(
                 responseContext.getExternalStates(), responseContext.getInternalStates(),
-                loadedExternalStates, loadedInternalStates, externalStateSchemas);
+                requestExternalStates, requestInternalStates);
         this.allStates = views.all();
         this.modifiedStates = views.modified();
     }
@@ -73,7 +70,8 @@ public class TestDoProcessResponse {
 
     /**
      * Returns the read-only view over all states: request states with the computation's changes
-     * overlaid.
+     * overlaid. Every external state the request carried is named here, including those with no
+     * entries.
      */
     public StateView allStates() {
         return allStates;

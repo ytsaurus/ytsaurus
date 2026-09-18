@@ -73,6 +73,10 @@ TCompanionInternalStateProvider::TCompanionInternalStateProvider(
 
 IStateHolderPtr TCompanionInternalStateProvider::GetState(const TKey& key)
 {
+    THROW_ERROR_EXCEPTION_IF(Erased_.contains(key),
+        "Internal state %Qv for key %v was erased in this batch",
+        Name_,
+        key);
     auto it = Holders_.find(key);
     if (it == Holders_.end()) {
         auto holder = Ctor_();
@@ -90,6 +94,12 @@ TFuture<void> TCompanionInternalStateProvider::PreloadKeyStates(const THashSet<T
     return OKFuture;
 }
 
+void TCompanionInternalStateProvider::EraseKeyState(const TKey& key)
+{
+    Holders_.erase(key);
+    Erased_.insert(key);
+}
+
 NTableClient::TTableSchemaPtr TCompanionInternalStateProvider::GetKeySchema() const
 {
     return KeySchema_;
@@ -100,6 +110,7 @@ void TCompanionInternalStateProvider::LoadBatch(
 {
     Holders_.clear();
     Incoming_.clear();
+    Erased_.clear();
     if (!incoming) {
         return;
     }
@@ -114,6 +125,10 @@ void TCompanionInternalStateProvider::CollectModified(
     std::vector<NCompanion::TStateItem<std::string>>* items,
     const THashSet<TKey>& batchKeys) const
 {
+    for (const auto& key : Erased_) {
+        ValidateModifiedKey(key, batchKeys, Name_);
+        items->push_back({.Key = key, .Reset = true, .State = {}});
+    }
     for (const auto& [key, holder] : Holders_) {
         auto serialized = dynamic_cast<IYsonSerializable&>(*holder).Serialize();
         auto incomingIt = Incoming_.find(key);
@@ -142,6 +157,10 @@ TCompanionExternalStateManager::TCompanionExternalStateManager(
 
 IStateHolderPtr TCompanionExternalStateManager::GetState(const TKey& key)
 {
+    THROW_ERROR_EXCEPTION_IF(Erased_.contains(key),
+        "External state %Qv for key %v was erased in this batch",
+        Name_,
+        key);
     auto it = Holders_.find(key);
     if (it == Holders_.end()) {
         THROW_ERROR_EXCEPTION_UNLESS(StateSchema_,
@@ -162,6 +181,12 @@ IStateHolderPtr TCompanionExternalStateManager::GetState(const TKey& key)
 TFuture<void> TCompanionExternalStateManager::PreloadKeyStates(const THashSet<TKey>& /*keys*/)
 {
     return OKFuture;
+}
+
+void TCompanionExternalStateManager::EraseKeyState(const TKey& key)
+{
+    Holders_.erase(key);
+    Erased_.insert(key);
 }
 
 NTableClient::TTableSchemaPtr TCompanionExternalStateManager::GetKeySchema() const
@@ -194,6 +219,7 @@ void TCompanionExternalStateManager::LoadBatch(
 {
     Holders_.clear();
     Incoming_.clear();
+    Erased_.clear();
     if (!incoming) {
         return;
     }
@@ -213,6 +239,10 @@ void TCompanionExternalStateManager::CollectModified(
 {
     holder->StateName = Name_;
     holder->Schema = StateSchema_;
+    for (const auto& key : Erased_) {
+        ValidateModifiedKey(key, batchKeys, Name_);
+        holder->StateItems.push_back({.Key = key, .Reset = true, .State = {}});
+    }
     for (const auto& [key, stateHolder] : Holders_) {
         const auto& state = stateHolder->Get();
         auto incomingIt = Incoming_.find(key);

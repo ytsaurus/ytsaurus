@@ -52,6 +52,9 @@ TPipelineDescription UnrollPipelineDescription(const TPipelineDescription& origi
     TPipelineDescription result;
     result.Status = original.Status;
     result.Messages = original.Messages;
+    result.Authentication = original.Authentication;
+    result.WorkerCount = original.WorkerCount;
+    result.CurrentResourceUsage = original.CurrentResourceUsage;
     result.Streams = original.Streams;
     result.Sources = original.Sources;
     result.Sinks = original.Sinks;

@@ -226,6 +226,10 @@ TEST(TGetNodeInfoTest, VanillaJobIPv4AddressWithIPv4Config)
     TEnvGuard opGuard("YT_OPERATION_ID", "1-2-3-4");
     TEnvGuard jobGuard("YT_JOB_ID", "5-6-7-8");
 
+    TEnvGuard factorGuard("YT_CPU_TO_VCPU_FACTOR", "1.5");
+    TEnvGuard cpuLimitGuard("YT_FLOW_CPU_LIMIT", "10");
+    TEnvGuard vcpuLimitGuard("YT_VCPU_LIMIT");
+
     auto config = MakeConfig(TString(R"({
         cluster_url = "test-cluster";
         path = "//home/test";
@@ -242,6 +246,16 @@ TEST(TGetNodeInfoTest, VanillaJobIPv4AddressWithIPv4Config)
     ConfigureAddressResolver(config);
 
     auto nodeInfo = GetNodeInfo(config, Logger);
+
+    EXPECT_EQ(nodeInfo->VcpuLimit, std::optional<double>(15000));
+    {
+        TEnvGuard explicitLimitGuard("YT_VCPU_LIMIT", "23000");
+        EXPECT_EQ(GetNodeInfo(config, Logger)->VcpuLimit, std::optional<double>(23000));
+    }
+    {
+        TEnvGuard noCpuLimitGuard("YT_FLOW_CPU_LIMIT");
+        EXPECT_FALSE(GetNodeInfo(config, Logger)->VcpuLimit);
+    }
 
     EXPECT_THAT(nodeInfo->RpcAddress, testing::HasSubstr("127.0.0.1"));
     EXPECT_THAT(nodeInfo->RpcAddress, testing::HasSubstr("9999"));

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/http/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/client/cache/public.h>
@@ -25,7 +27,9 @@ struct TResourceControllerContext
     TResourceSpecPtr ResourceSpec;
 
     // Common infrastructure.
+    IPipelineAuthenticatorPtr PipelineAuthenticator;
     NClient::NCache::IClientsCachePtr ClientsCache;
+    NHttp::IClientPtr HttpClient;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     ITimeProviderPtr TimeProvider;
@@ -64,7 +68,7 @@ struct IResourceController
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicResourceControllerContext>
 {
-    static constexpr bool SupportsFileSourceDiscovery = false;
+    static constexpr bool SupportsFileProviderDiscovery = false;
 
     // Provide TParameter[Ptr] aliases. It is type of spec `Parameters` field.
     // This type is used in resource registration for future parsing.

@@ -96,6 +96,11 @@ public:
         return 0;
     }
 
+    NObjectClient::TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return NObjectClient::TCellTag(0);
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;
@@ -280,7 +285,8 @@ public:
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName), (override));
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -469,7 +475,7 @@ class TPoolTreeElementHostMock
 {
 public:
     explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
+        : ResourceTree_(New<TResourceTree>(StrategyLogger(), treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
     TResourceTree* GetResourceTree() override
@@ -477,10 +483,9 @@ public:
         return ResourceTree_.Get();
     }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+        const TPoolTreeElement* /*element*/) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -870,6 +875,57 @@ TEST_F(TPoolTreeElementTest, TestSatisfactionRatio)
         EXPECT_NEAR(0.5, digest->GetQuantile(0.51), 1e-7);
         EXPECT_NEAR(0.5, digest->GetQuantile(0.75), 1e-7);
         EXPECT_NEAR(0.5, digest->GetQuantile(1.0), 1e-7);
+    }
+}
+
+TEST_F(TPoolTreeElementTest, TestFifoChildrenReorderingForGuaranteeUtilizationIsInherited)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    // Only the subtree root specifies the option, everything below it inherits.
+    auto subtreeRootConfig = New<TPoolConfig>();
+    subtreeRootConfig->EnableFifoChildrenReorderingForGuaranteeUtilization = true;
+    auto subtreeRoot = CreateTestPool(strategyHost.Get(), "SubtreeRoot", std::move(subtreeRootConfig));
+    subtreeRoot->AttachParent(rootElement.Get());
+
+    auto childPool = CreateTestPool(strategyHost.Get(), "ChildPool");
+    childPool->AttachParent(subtreeRoot.Get());
+
+    auto grandchildPool = CreateTestPool(strategyHost.Get(), "GrandchildPool");
+    grandchildPool->AttachParent(childPool.Get());
+
+    auto unrelatedPool = CreateTestPool(strategyHost.Get(), "UnrelatedPool");
+    unrelatedPool->AttachParent(rootElement.Get());
+
+    {
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+        EXPECT_TRUE(subtreeRoot->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_TRUE(childPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_TRUE(grandchildPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+
+        EXPECT_FALSE(rootElement->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(unrelatedPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+    }
+
+    {
+        // An explicit setting wins over the inherited one and is itself inherited further down.
+        auto childPoolConfig = New<TPoolConfig>();
+        childPoolConfig->EnableFifoChildrenReorderingForGuaranteeUtilization = false;
+        childPool->SetConfig(std::move(childPoolConfig));
+
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+        EXPECT_TRUE(subtreeRoot->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(childPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(grandchildPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
     }
 }
 

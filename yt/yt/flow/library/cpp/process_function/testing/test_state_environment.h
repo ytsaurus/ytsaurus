@@ -3,6 +3,7 @@
 #include "entity_builders.h"
 #include "in_memory_external_state_manager.h"
 
+#include <yt/yt/flow/library/cpp/common/process_function.h>
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
 
 #include <yt/yt/flow/library/cpp/computation/job_state/state_manager.h>
@@ -17,6 +18,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 
+#include <concepts>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -35,23 +37,49 @@ public:
     const IRuntimeInitContextPtr& GetInitContext() const;
     const TJobStateManagerPtr& GetStateManager() const;
 
+    //! Snapshots and freezes the configured constructor dependencies. Repeated snapshots are allowed.
+    TProcessFunctionContextPtr CreateProcessFunctionContext();
+
+    template <class TFunction>
+    IProcessFunctionBasePtr CreateProcessFunction()
+    {
+        return CreateProcessFunction<TFunction>(CreateProcessFunctionContext());
+    }
+
+    template <class TFunction>
+    IProcessFunctionBasePtr CreateProcessFunction(
+        const TProcessFunctionContextPtr& context)
+    {
+        return ConstructProcessFunction<TFunction>(context);
+    }
+
+    void InitProcessFunction(const IProcessFunctionBasePtr& function);
+    void InitProcessFunction(
+        const IProcessFunctionBasePtr& function,
+        const TProcessFunctionContextPtr& context);
+
     //! The partition id the init context reports, freshly generated per environment.
     TPartitionId GetPartitionId() const;
 
-    //! Sets the static ``function_parameters`` node the init context hands to
-    //! IRuntimeInitContext::GetParameters<T>(); rebuilds the init context. Call before Init.
-    void SetStaticParametersNode(NYTree::IMapNodePtr node);
-
-    //! Typed convenience over SetStaticParametersNode: serializes |parameters| to a node.
-    template <class T>
-    void SetStaticParameters(const TIntrusivePtr<T>& parameters)
-    {
-        SetStaticParametersNode(NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters));
-    }
+    //! Sets the static ``function_parameters`` the init context hands out: |parameters| is
+    //! served by GetParameters<T>() as is (production parses the block into the registered type
+    //! instead) and serialized to the raw node. Call before Create<T>().
+    void SetStaticParameters(const NYTree::TYsonStructPtr& parameters);
 
     //! Sets the profiler the init context hands to IRuntimeInitContext::GetProfiler(); rebuilds
-    //! the init context. Call before Init. Defaults to a null profiler.
+    //! the init context. Call before Create<T>(). Defaults to a null profiler.
     void SetProfiler(NProfiling::TProfiler profiler);
+
+    //! Sets the HTTP clients exposed by the init context. Call before Create<T>().
+    void SetHttpClient(NHttp::IClientPtr client);
+    void SetHttpsClient(NHttp::IClientPtr client);
+
+    //! Configures constructor-only dependencies. Call before Create<T>().
+    void SetLogger(NLogging::TLogger logger);
+    void SetStatusProfiler(IStatusProfilerPtr statusProfiler);
+    void SetClientsCache(NClient::NCache::IClientsCachePtr clientsCache);
+    void SetInvoker(IInvokerPtr invoker);
+    void SetPrimaryRetryableClient(IRetryableClientPtr client);
 
     //! Persists pending state into the in-memory tables.
     void Sync();
@@ -83,8 +111,9 @@ public:
     //! constructed over a mock YT client.
     void RegisterExternalState(TStringBuf name, IExternalStateManagerPtr manager);
 
-    //! Convenience over RegisterExternalState: builds an in-memory simple manager and returns
-    //! it so the test can read the resulting state back via GetState(key) after the function ran.
+    //! Convenience over RegisterExternalState: builds an in-memory simple manager, synced at
+    //! every CommitEpoch, and returns it so the test can read the resulting state back via
+    //! GetState(key) after the function ran.
     TInMemorySimpleExternalStateManagerPtr RegisterExternalState(
         TStringBuf name,
         NTableClient::TTableSchemaPtr stateSchema,
@@ -126,6 +155,17 @@ public:
         return *client.GetState(key);
     }
 
+    template <class TState>
+        requires std::derived_from<TState, TRefCounted>
+    TIntrusivePtr<TState> ReadRefCountedKeyState(TStringBuf name, const TKey& key)
+    {
+        auto initContext = MakeReloadedInitContext();
+        auto client = NConcurrency::WaitFor(initContext->CreateMutableStateKeyClient<TState>(name)).ValueOrThrow();
+        NConcurrency::WaitFor(client.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+        return NYTree::ConvertTo<TIntrusivePtr<TState>>(
+            NYson::ConvertToYsonString(*client.GetState(key)));
+    }
+
     //! Reads back external state of type |TState| for |key| from the manager registered under
     //! |name|, after the function ran. Symmetric to ReadKeyState (which reads internal state).
     template <class TState>
@@ -148,14 +188,24 @@ private:
     std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
     std::shared_ptr<TStaticResourceMap> StaticResources_;
-    NYTree::IMapNodePtr ParametersNode_;
     NProfiling::TProfiler Profiler_;
+    NHttp::IClientPtr HttpClient_;
+    NHttp::IClientPtr HttpsClient_;
+    NLogging::TLogger Logger_;
+    IStatusProfilerPtr StatusProfiler_;
+    NClient::NCache::IClientsCachePtr ClientsCache_;
+    IInvokerPtr Invoker_;
+    IRetryableClientPtr PrimaryRetryableClient_;
     IRuntimeInitContextPtr InitContext_;
+    NYTree::IMapNodePtr StaticParametersNode_;
+    NYTree::TYsonStructPtr StaticParametersObject_;
+    bool ProcessFunctionContextFrozen_ = false;
 
     std::vector<std::function<void(const IRetryableTransactionPtr&)>> EpochCommits_;
 
-    //! Rebuilds InitContext_ over the current parameters node and profiler.
+    //! Rebuilds InitContext_ from the current static parameters, profiler and HTTP clients.
     void RebuildInitContext();
+    void EnsureProcessFunctionContextMutable() const;
 
     //! Syncs pending state and returns an init context over a fresh manager bound to the
     //! same in-memory tables.

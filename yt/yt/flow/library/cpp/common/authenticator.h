@@ -22,6 +22,34 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPipelineAuthenticationMethod,
+    ((OAuth) (0) ("oauth"))
+    ((Tvm)   (1) ("tvm"))
+);
+
+DEFINE_ENUM(EPipelineAuthenticationSubjectType,
+    ((User) (0) ("user"))
+    ((Tvm)  (1) ("tvm"))
+);
+
+struct TPipelineAuthenticationDescription
+    : public NYTree::TYsonStruct
+{
+    EPipelineAuthenticationMethod Method{};
+    EPipelineAuthenticationSubjectType SubjectType{};
+    std::optional<std::string> Subject;
+    std::string DisplayName;
+
+    REGISTER_YSON_STRUCT(TPipelineAuthenticationDescription);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_TYPE(TPipelineAuthenticationDescription);
+DEFINE_REFCOUNTED_TYPE(TPipelineAuthenticationDescription);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -64,8 +92,7 @@ struct IPipelineAuthenticator
     //! Returns authenticator for controller service to authenticate requests from YT.
     virtual NRpc::IAuthenticatorPtr CreateYTControllerRpcAuthenticator() = 0;
 
-    //! Returns human-readable text with description of used auth method.
-    virtual std::string GetAuthDescription() = 0;
+    virtual TPipelineAuthenticationDescriptionPtr GetPipelineAuthenticationDescription() = 0;
 };
 
 IPipelineAuthenticatorPtr CreatePipelineAuthenticator(

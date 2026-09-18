@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/library/discovery_client/config.h>
-
 #include <yt/yt/ytlib/queue_client/config.h>
 
 #include <yt/yt/client/security_client/public.h>
+
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -96,6 +96,10 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
         .Default(EQueueExporterImplementation::Old);
     registrar.Parameter("enable_row_count_check", &TThis::EnableRowCountCheck)
         .Default(true);
+    registrar.Parameter("max_hunk_chunk_count_per_fetch", &TThis::MaxHunkChunkCountPerFetch)
+        .Default(1000)
+        .GreaterThan(0)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TQueueExporterDynamicConfig* config) {
         THROW_ERROR_EXCEPTION_UNLESS(config->RetryBackoff.InvocationCount == DefaultRetryBackoff.InvocationCount, "Invalid value of \"invocation_count\"");

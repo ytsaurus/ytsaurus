@@ -44,15 +44,20 @@ struct TArtifactStatistics
     i64 FilesCopiedSize = 0;
     //! Bytes downloaded from data nodes for layers (cache miss only).
     i64 LayersDownloadedSize = 0;
+    //! Compressed archive size of layers imported by Porto (excludes SquashFS layers).
+    i64 LayersImportedSize = 0;
 
-    //! Sum of monotonic CPU durations of per-file network downloads.
-    TCpuDuration FilesDownloadCpuDuration = 0;
-    //! Sum of monotonic CPU durations of per-file copying from cache to sandbox.
-    TCpuDuration FilesCopyCpuDuration = 0;
-    //! Sum of monotonic CPU durations of per-layer network downloads.
-    TCpuDuration LayersDownloadCpuDuration = 0;
-    //! Sum of monotonic CPU durations of per-layer porto imports.
-    TCpuDuration LayersImportCpuDuration = 0;
+    //! Wall time (monotonic clock) of caching file artifacts (excludes cache-bypassed and virtual-sandbox files).
+    TCpuDuration FilesDownloadedDuration = 0;
+
+    //! Sum of per-file network download durations (monotonic clock).
+    TCpuDuration FilesDownloadedAggrDuration = 0;
+    //! Sum of per-file copying durations from cache to sandbox (monotonic clock).
+    TCpuDuration FilesCopiedAggrDuration = 0;
+    //! Sum of per-layer network download durations (monotonic clock).
+    TCpuDuration LayersDownloadedAggrDuration = 0;
+    //! Sum of per-layer Porto import durations (monotonic clock).
+    TCpuDuration LayersImportedAggrDuration = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

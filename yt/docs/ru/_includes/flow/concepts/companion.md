@@ -30,7 +30,7 @@ Computation на стороне Worker-a собирает батч сообще�
 
 В дальнейшем планируется использовать и unix sockets.
 
-![](../../../flow/images/companion_v1.svg)
+![](../../../flow/_images/companion_v1.svg)
 
 Управление процессом-компаньоном осуществляется через [ресурс](../../../flow/concepts/glossary.md#resource) `CompanionManager`.
 
@@ -107,6 +107,8 @@ int main(int argc, const char** argv)
     };
 };
 ```
+
+Process function в компаньоне может брать в `Init` HTTP-клиенты из `IRuntimeInitContext` (`GetHttpClient()`, `GetHttpsClient()`). Клиенты настраиваются полями `http_client_config`, `https_client_config` и `http_poller_threads` блока `companion` конфига воркера ([TCompanionConfig](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig)).
 
 Ограничения первой версии C++ компаньона:
 

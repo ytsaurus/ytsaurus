@@ -1,7 +1,5 @@
 # Release notes
 
-> Note: This page is only available in English.
-
 Thanks to multiple outside contributors for the active participation in {{product-name}} development.
 
 
@@ -24,6 +22,10 @@ Thanks to multiple outside contributors for the active participation in {{produc
 ## SPYT
 
 {% include notitle [SPYT](../_includes/releases/spyt.md) %}
+
+## Flow
+
+{% include notitle [Flow](../_includes/releases/flow.md) %}
 
 ## Kubernetes operator
 

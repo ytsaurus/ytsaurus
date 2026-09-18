@@ -22,6 +22,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
@@ -39,6 +40,7 @@ struct TShuffleWireRecordTag { };
 struct TRecordEntry
 {
     TSharedRef Record;
+    TDistributedChunkSessionWriteStatistics Statistics;
     int SendAttempts = 0;
 };
 
@@ -66,6 +68,8 @@ struct TPartitionState
 
     // Eviction-heap key; cached Builder->GetDataSize(), updated per AddRow.
     i64 BufferedDataSize = 0;
+    // Logical data weight of the buffered rows; reported with the flushed record.
+    i64 BufferedDataWeight = 0;
     // Slot in EvictionHeap_, or -1 when there is no builder.
     int HeapIndex = -1;
 };
@@ -78,6 +82,7 @@ class TPushBasedShuffleWriter
 public:
     TPushBasedShuffleWriter(
         TShuffleWriterConfigPtr config,
+        ECodec codec,
         IPartitionWriteSessionProviderPtr sessionProvider,
         IPartitionerPtr partitioner,
         TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -85,6 +90,7 @@ public:
         IInvokerPtr invoker,
         THashMap<int, TSessionDescriptor> seededSessions)
         : Config_(std::move(config))
+        , Codec_(codec)
         , SessionProvider_(std::move(sessionProvider))
         , Partitioner_(std::move(partitioner))
         , CreateDistributedChunkWriter_(std::move(createDistributedChunkWriter))
@@ -142,6 +148,7 @@ public:
 
 private:
     const TShuffleWriterConfigPtr Config_;
+    const ECodec Codec_;
     const IPartitionWriteSessionProviderPtr SessionProvider_;
     const IPartitionerPtr Partitioner_;
     const TCreateDistributedChunkWriterCallback CreateDistributedChunkWriter_;
@@ -194,11 +201,13 @@ private:
             auto& partitionState = Partitions_[partitionIndex];
             if (!partitionState.Builder) {
                 YT_ASSERT(partitionState.BufferedDataSize == 0);
+                YT_ASSERT(partitionState.BufferedDataWeight == 0);
                 partitionState.Builder.emplace(WriterId_, partitionState.NextRowId);
                 PushToEvictionHeap(partitionIndex);
             }
             i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
             partitionState.Builder->AddRow(row);
+            partitionState.BufferedDataWeight += GetDataWeight(row);
             i64 allocationDelta = partitionState.Builder->GetAllocatedDataSize() - prevAllocation;
 
             // The builder grew; resift it toward the heap front.
@@ -324,17 +333,28 @@ private:
         YT_VERIFY(record);
         BuildersBytes_ -= prevAllocation;
         partitionState.NextRowId += record->Header.RowCount;
+        TDistributedChunkSessionWriteStatistics statistics{
+            .DataWeight = partitionState.BufferedDataWeight,
+            .UncompressedDataSize = static_cast<i64>(
+                sizeof(TRecordHeader) + GetByteSize(record->UncompressedPayload)),
+            .RowCount = record->Header.RowCount,
+        };
         partitionState.Builder.reset();
         partitionState.BufferedDataSize = 0;
+        partitionState.BufferedDataWeight = 0;
         RemoveFromEvictionHeap(partitionIndex);
 
         // TODO(apollo1321): IDistributedChunkWriter::WriteRecord currently
         // takes a single TSharedRef, forcing a payload-sized memcpy here.
         // Switch WriteRecord to TRange<TSharedRef> and drop the merge.
         auto compressed = MergeRefsToRef<TShuffleWireRecordTag>(
-            CompressShuffleRecord(*record, Config_->Codec));
+            CompressShuffleRecord(*record, Codec_));
         InFlightBytes_ += compressed.Size();
-        partitionState.Pending.push_back({.Record = std::move(compressed), .SendAttempts = 0});
+        partitionState.Pending.push_back({
+            .Record = std::move(compressed),
+            .Statistics = statistics,
+            .SendAttempts = 0,
+        });
         ++OutstandingWork_;
 
         if (partitionState.Session) {
@@ -362,7 +382,9 @@ private:
             ++entry.SendAttempts;
             i64 cookie = partitionState.NextSendCookie++;
             auto sessionId = partitionState.Session->SessionId;
-            auto writeFuture = partitionState.Writer->WriteRecord(entry.Record);
+            auto writeFuture = partitionState.Writer->WriteRecord(
+                entry.Record,
+                entry.Statistics);
             partitionState.InFlight[cookie] = TInFlightEntry{
                 .Entry = std::move(entry),
                 .SessionId = sessionId,
@@ -551,6 +573,7 @@ private:
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,
@@ -569,6 +592,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
 
     return New<TPushBasedShuffleWriter>(
         std::move(config),
+        codec,
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createWriter),
@@ -579,6 +603,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -587,6 +612,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
 {
     return New<TPushBasedShuffleWriter>(
         std::move(config),
+        codec,
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createDistributedChunkWriter),

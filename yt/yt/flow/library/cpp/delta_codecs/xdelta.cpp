@@ -82,12 +82,32 @@ TSharedRef TXDeltaCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& pa
     }
 
     TRecordSize size = 0;
-    Y_ABORT_UNLESS(patch.size() >= sizeof(size));
+    // The patch is untrusted stored bytes: a truncated frame is corruption,
+    // not a programming error.
+    if (patch.size() < sizeof(size)) {
+        THROW_ERROR_EXCEPTION("XDelta patch is shorter than its length prefix")
+            .With("patch_size", patch.size());
+    }
     memcpy(&size, patch.data(), sizeof(size));
     size = InetToHost(size);
 
     if (size == 0) {
         return TSharedRef::MakeEmpty();
+    }
+
+    // The length prefix comes from untrusted stored bytes; validate it
+    // before allocating so a corrupt frame produces an error, not a giant
+    // allocation. The prefix is a ui32, so corruption can claim up to
+    // 4 GiB. The cap is a damage bound, not a format limit, and is
+    // deliberately loose: callers that store patches in YT table cells are
+    // bounded by the 16 MB cell limit anyway, but this library also serves
+    // plain in-memory blobs, so the cap sits far above any legitimate
+    // decoded size while still keeping a hostile allocation bounded.
+    constexpr TRecordSize MaxDecodedSize = 1 << 30;
+    if (size > MaxDecodedSize) {
+        THROW_ERROR_EXCEPTION("XDelta patch claims a decoded size above the limit")
+            .With("claimed_size", size)
+            .With("limit", MaxDecodedSize);
     }
 
     TBlob buffer;

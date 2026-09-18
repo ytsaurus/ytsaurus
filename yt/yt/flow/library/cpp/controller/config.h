@@ -37,11 +37,22 @@ DEFINE_REFCOUNTED_TYPE(TPersistedStateManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Job leases: the prerequisites workers attach to the commits of their epochs. Not to be confused
+//! with the leader lease of #TElectionBackendConfigBase and its descendants.
 struct TLeaseManagerConfig
     : public virtual NYTree::TYsonStruct
 {
+    //! How long a lease outlives its last prolongation. Under the dyntable backend the leases share
+    //! a single deadline, so this is the lifetime of the whole fleet rather than of one lease.
     TDuration LeaseTimeout;
+    //! How often the leader prolongs the leases. Every backend prolongs from the leader and none
+    //! from the worker, but the machinery differs: the chaos leases are pinged by one periodic
+    //! executor, the Cypress ones by a client-side pinger per lease transaction, and the shared
+    //! dyntable deadline is simply rewritten.
     TDuration LeasePingPeriod;
+    //! Caps the lease requests the manager keeps in flight at once when it attaches to leases or
+    //! terminates them. Prolongation is not capped by it: the chaos pings are dispatched in one
+    //! fire-and-forget round, and the Cypress ones belong to the lease transactions themselves.
     i64 MaxConcurrentRequests{};
 
     REGISTER_YSON_STRUCT(TLeaseManagerConfig);
@@ -65,21 +76,37 @@ inline constexpr int MinLeaderLeaseTtlToCadenceRatio = 3;
 
 //! How many leader lease ttls the pipeline-wide lease deadline must outlast, checked at config
 //! load. A replica cannot take over before the leader lease expires, and only then does it read
-//! the lease table and refresh the deadline — all of it inside whatever the deceased leader left
-//! of the deadline, which is at most a third short of the full timeout. Three ttls leave the
-//! handover the same kind of margin the cadence check leaves an iteration.
+//! the lease table and refresh the deadline. Three ttls leave the handover the same kind of margin
+//! the cadence check leaves an iteration. What is left of the deadline by then is short of the
+//! full timeout by up to one refresh period, so that period is added on top rather than counted in.
 inline constexpr int MinLeaseTimeoutToLeaderLeaseTtlRatio = 3;
+
+//! How many prolongation rounds a job lease must outlast, checked at config load. The rounds are
+//! the only thing keeping the leases alive, so a timeout that covers just one of them kills every
+//! job of the pipeline on a single failed round; three leave two whole retry windows.
+inline constexpr int MinLeaseTimeoutToLeasePingPeriodRatio = 3;
+
+//! How many handovers a job lease must outlast under the chaos backend, checked at config load.
+//! Chaos job leases are pinged by the leader alone and the pinger stops with its leadership, so a
+//! lease has to survive the whole change of leader: waiting out the dead leader's own lease,
+//! winning the lock, recovering the state and warming up. Those make up the handover estimate;
+//! doubling it leaves room for the recovery, whose duration the config cannot know. The lease is
+//! also up to a ping period old by then, so that period is added on top rather than counted in.
+inline constexpr int MinLeaseTimeoutToChaosHandoverRatio = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings shared by every mechanism that elects the leader and fences its transactions.
+//!
+//! Each backend also carries a |leader_lease_ttl|: how long the fence outlives the leader's last
+//! confirmation, and therefore how long a contender waits before considering the leadership free.
+//! It is registered per backend rather than here because the defaults differ.
 struct TElectionBackendConfigBase
     : public virtual NYTree::TYsonStruct
 {
-    //! How often a follower attempts to win the election.
+    //! How often a follower attempts to win the election. Adds to the duration of a handover, so
+    //! there is little reason to raise it; an attempt is cheap under every backend.
     TDuration LockAcquisitionPeriod;
-    //! How often the cached leader identity is refreshed.
-    TDuration LeaderCacheUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TElectionBackendConfigBase);
 
@@ -94,8 +121,15 @@ DEFINE_REFCOUNTED_TYPE(TElectionBackendConfigBase);
 struct TCypressElectionBackendConfig
     : public TElectionBackendConfigBase
 {
-    TDuration TransactionTimeout;
-    TDuration TransactionPingPeriod;
+    //! The timeout of the lock transaction: the master releases the lock to the next contender
+    //! once it goes unpinged for this long.
+    TDuration LeaderLeaseTtl;
+    //! How often the transaction is pinged.
+    TDuration LeaderLeasePingPeriod;
+    //! How often the identity of the leader is refetched into the election manager's cache.
+    //! Cypress-only: the other backends publish the leader into the flow control table, which is
+    //! what every reader of ours goes to anyway.
+    TDuration LeaderCacheUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TCypressElectionBackendConfig);
 
@@ -111,7 +145,8 @@ DEFINE_REFCOUNTED_TYPE(TCypressElectionBackendConfig);
 struct TDyntableElectionBackendConfig
     : public TElectionBackendConfigBase
 {
-    //! How long a written leader lease stays fresh.
+    //! How long a written leader lease stays fresh. There is no ping period to go with it: the
+    //! lease rides the fenced commits, and the election loop only renews it during recovery.
     TDuration LeaderLeaseTtl;
     //! Self-demote when no renewal has succeeded for this long (the leases table is unreachable).
     TDuration DetachTimeout;
@@ -122,6 +157,28 @@ struct TDyntableElectionBackendConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDyntableElectionBackendConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A chaos lease recorded in the pipeline's leader election lock table; the same bundle hosts the
+//! per-job leases the workers commit under.
+struct TChaosElectionBackendConfig
+    : public TElectionBackendConfigBase
+{
+    std::string ChaosCellBundle;
+
+    //! How long the chaos lease outlives its last ping, and the value the contenders read out of
+    //! the lock table to decide that the leadership is free.
+    TDuration LeaderLeaseTtl;
+    //! How often the lease is pinged and the ping recorded in the lock table.
+    TDuration LeaderLeasePingPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosElectionBackendConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosElectionBackendConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +197,8 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_CUSTOM_DISCRIMINATOR_AND_DEFAULT(
     EElectionBackend,
     Cypress,
     TElectionBackendConfigBase,
-    ((Cypress)(TCypressElectionBackendConfig))((Dyntable)(TDyntableElectionBackendConfig)));
+    ((Cypress)(TCypressElectionBackendConfig))((Dyntable)(TDyntableElectionBackendConfig))(
+        (Chaos)(TChaosElectionBackendConfig)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +234,11 @@ struct TControllerConfig
     TDuration WriteOwnRetryableErrorsPeriod;
     TDuration PublishRetryPeriod;
     TDuration PublishTimeout;
+    //! The lifetime of the transactions a leadership publication attempt opens, and the timeout of
+    //! the attribute write it makes. It does not bound every request of the attempt: the commits
+    //! and the confirming FlowExecute carry their own deadlines. A failed attempt is retried, so
+    //! this decides how long the publication may hang on those two before the retry.
+    TDuration PublishRequestTimeout;
 
     TElectionManagerConfig ElectionManager;
 

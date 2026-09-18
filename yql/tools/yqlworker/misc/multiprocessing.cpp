@@ -279,6 +279,15 @@ bool TProcessPool::Empty() const
     return ProcessesByPid_.empty();
 }
 
+bool TProcessPool::Empty(ui32 type) const
+{
+    auto it = ProcessesByType_.find(type);
+    if (it == ProcessesByType_.end()) {
+        return true;
+    }
+    return it->second.empty();
+}
+
 const TProcessPool::TProcessInfo& TProcessPool::GetProcessInfo(ui32 type)
 {
     auto it = ProcessInfos_.find(type);

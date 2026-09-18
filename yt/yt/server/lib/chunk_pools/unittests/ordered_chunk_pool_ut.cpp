@@ -7,9 +7,9 @@
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -129,11 +129,10 @@ protected:
             }));
     }
 
-    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    TDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateKeylessInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
-        dataSlice->TransformToNewKeyless();
         dataSlice->Tag = chunk->GetChunkId().Parts64[0] ^ chunk->GetChunkId().Parts64[1];
         return dataSlice;
     }

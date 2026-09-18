@@ -5,6 +5,7 @@ from yt_commands import (
     create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells, build_snapshot,
     sync_unmount_table, raises_yt_error, start_transaction, commit_transaction, abort_transaction,
     sync_reshard_table, mount_table, wait_for_tablet_state, gc_collect, build_master_snapshots,
+    update_nodes_dynamic_config,
 )
 
 from yt_helpers import master_exit_read_only_sync
@@ -93,6 +94,22 @@ class TestDynamicTablesLeases(YTEnvSetup):
         tx = start_transaction(type="tablet", atomicity=atomicity)
         insert_rows("//tmp/t", [{"k": key, "v": "v"}], tx=tx)
         commit_transaction(tx, prerequisite_transaction_ids=[lease_id])
+
+    def _set_lease_removal_config(self, max_leases_per_removal, lease_removal_period):
+        update_nodes_dynamic_config({
+            "cellar_node": {
+                "cellar_manager": {
+                    "cellars": {
+                        "tablet": {
+                            "lease_manager": {
+                                "max_leases_per_removal": max_leases_per_removal,
+                                "lease_removal_period": lease_removal_period,
+                            },
+                        },
+                    },
+                },
+            },
+        })
 
     @authors("gritukan")
     @pytest.mark.parametrize("mode", ["commit", "abort"])
@@ -651,3 +668,24 @@ class TestDynamicTablesLeases(YTEnvSetup):
         unreference_lease(cell_id, tx)
 
         wait(lambda: get(f"#{tx}/@leases_state") == "revoked")
+
+    @authors("dave11ar")
+    def test_lease_removal_throttling(self):
+        cell_id = sync_create_cells(1)[0]
+
+        self._set_lease_removal_config(max_leases_per_removal=1, lease_removal_period=1000)
+
+        lease_count = 20
+        lease_ids = [f"1-2-3-{i + 1}" for i in range(lease_count)]
+        for lease_id in lease_ids:
+            issue_lease(cell_id, lease_id)
+
+        assert len(self._get_leases(cell_id)) == lease_count
+
+        remove(f"#{cell_id}")
+
+        time.sleep(8)
+        assert len(self._get_leases(cell_id)) > lease_count // 2
+
+        self._set_lease_removal_config(max_leases_per_removal=lease_count, lease_removal_period=1)
+        wait(lambda: not exists(f"#{cell_id}"))

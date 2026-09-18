@@ -1,6 +1,6 @@
 #include "chunk_pool.h"
 
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
@@ -110,89 +110,73 @@ PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);
 
 // IPersistentChunkPoolOutput implementation.
 
-template <class TJobManager>
-TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger)
+TChunkPoolOutputWithJobManagerBase::TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger)
     : JobManager_(New<TJobManager>(logger))
 { }
 
-template <class TJobManager>
-NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase<TJobManager>::GetApproximateStripeStatistics() const
+NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase::GetApproximateStripeStatistics() const
 {
     return JobManager_->GetApproximateStripeStatistics();
 }
 
-template <class TJobManager>
-IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase<TJobManager>::Extract(TNodeId /*nodeId*/)
+IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase::Extract(TNodeId /*nodeId*/)
 {
     return JobManager_->ExtractCookie();
 }
 
-template <class TJobManager>
-TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeList(IChunkPoolOutput::TCookie cookie)
+TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
     return JobManager_->GetStripeList(cookie);
 }
 
-template <class TJobManager>
-int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
+int TChunkPoolOutputWithJobManagerBase::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
 {
     return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
+void TChunkPoolOutputWithJobManagerBase::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
 {
     JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Failed(IChunkPoolOutput::TCookie cookie)
+void TChunkPoolOutputWithJobManagerBase::Failed(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Failed(cookie);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
+void TChunkPoolOutputWithJobManagerBase::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
     JobManager_->Aborted(cookie, reason);
 }
 
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::Lost(IChunkPoolOutput::TCookie cookie)
+void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Lost(cookie);
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetJobCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
 {
     return JobManager_->JobCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataWeightCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataWeightCounter() const
 {
     return JobManager_->DataWeightCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetRowCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetRowCounter() const
 {
     return JobManager_->RowCounter();
 }
 
-template <class TJobManager>
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataSliceCounter() const
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataSliceCounter() const
 {
     return JobManager_->DataSliceCounter();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-PHOENIX_DEFINE_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, (NPhoenix::_));
-
-// Explicit instantiations.
-template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
+PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithJobManagerBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

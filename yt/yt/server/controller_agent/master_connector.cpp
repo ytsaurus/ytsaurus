@@ -432,7 +432,7 @@ private:
     void DoCleanup()
     {
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Scheduler disconnected"));
+            CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Scheduler disconnected"));
             CancelableContext_.Reset();
         }
 
@@ -1384,15 +1384,15 @@ private:
         }
 
         if (!Config_->EnableSnapshotLoading && Config_->EnableSnapshotLoadingDisabledAlert) {
-            auto error = TError("Snapshot loading is disabled; consider enabling it using the controller agent config");
-            YT_LOG_WARNING(error);
-            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, error);
+            static constexpr auto Message = "Snapshot loading is disabled; consider enabling it using the controller agent config"_sb;
+            YT_TLOG_WARNING(Message);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotLoadingDisabled, TError(Message));
         }
 
         if (!Config_->EnableSnapshotBuilding && Config_->EnableSnapshotBuildingDisabledAlert) {
-            auto error = TError("Snapshot building is disabled; consider enabling it using the controller agent config");
-            YT_LOG_WARNING(error);
-            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, error);
+            static constexpr auto Message = "Snapshot building is disabled; consider enabling it using the controller agent config"_sb;
+            YT_TLOG_WARNING(Message);
+            SetControllerAgentAlert(EControllerAgentAlertType::SnapshotBuildingDisabled, TError(Message));
         }
     }
 

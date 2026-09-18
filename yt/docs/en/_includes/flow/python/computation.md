@@ -273,8 +273,20 @@ Use `OutputCollector` to send processing results:
 | Method | Description |
 | --- | --- |
 | `output.add_message(message)` | Add an output message (a `Message` object obtained via `builder.finish()`) |
+| `output.add_message(message, options)` | Add a message with `AddMessageOptions` controlling distribution and the Swift message ID suffix |
 | `output.add_timer(trigger_timestamp, event_timestamp, stream_id)` | Add a [timer](../../../flow/concepts/glossary.md#timer) with the specified trigger time |
 | `output.set_parent_ids(parent_ids)` | Set parent IDs to track the [lineage](../../../flow/concepts/lineage.md) of messages. Returns a new `OutputCollector` |
+
+For a Swift computation, `MessageIdSuffix.payload_hash()` or `MessageIdSuffix.user_defined(value)` makes message identity independent of emission order:
+
+```python
+output.add_message(
+    message,
+    AddMessageOptions(message_id_suffix=MessageIdSuffix.payload_hash()),
+)
+```
+
+Default options use the message sequence number. Payload-hash and user-defined suffixes are supported only by Swift computations.
 
 Example of creating an output message and a timer:
 

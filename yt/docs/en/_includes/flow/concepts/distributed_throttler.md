@@ -46,6 +46,14 @@ If `classes` is absent, the previous single-queue behavior and the previous toke
 }
 ```
 
+### Weights as absolute rates
+
+Setting `use_class_weights_as_limit = %true` makes the bucket rate the sum of the declared class weights, so a weight reads as quota units per second instead of a share of a separately chosen `limit`. With `5.0`, `3.0` and `1.0` the throttler emits 9 units per second, and each class is served at its weight while all of them stay backlogged. Work conservation is unchanged: a class still exceeds its weight while the others are idle, so the weight is a floor under contention, not a cap.
+
+The option requires at least one class and is mutually exclusive with `limit` — setting both is rejected by validation.
+
+The reserved `default` class is not part of the sum. Classless traffic on such a throttler competes at weight `1.0` on top of the declared rate and pushes every declared class below its weight; the throttler's `/classless_requests` and `/unknown_class_requests` sensors show when that happens.
+
 ### Class switching latency
 
 The scheduler reconsiders the active classes after the current server chunk completes. `max_grant_amount` sets the maximum chunk size in absolute quota units; leaving it unset lets a single request hold the token bucket for as long as its whole prefetch window takes, which delays every other class by that much. The observed latency also includes `drain_period`, the RPC, the local prefetch, the source's `empty_batch_backoff`, and the Flow commit.
@@ -56,9 +64,9 @@ Observed shares match the configured weights only while every measured class sta
 
 ## Live reconfiguration {#reconfigure}
 
-All throttler parameters (`limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`, `classes`, `max_grant_amount`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
+All throttler parameters (`limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`, `classes`, `max_grant_amount`, `use_class_weights_as_limit`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
 
-Weights and the server chunk size change without rebuilding the prefetch client. Changing `input_rows_throttler_class_id` or `input_bytes_throttler_class_id` affects subsequent RPCs; quota already fetched locally or still in flight stays accounted to the previous class.
+Weights and the server chunk size change without rebuilding the prefetch client. The exception is `use_class_weights_as_limit`: a weight is then part of the rate, so a weight change that resizes the prefetch window rebuilds the client — a change too small to move that window leaves the client, and its prefetched quota, in place. The new rate applies on the server either way. Changing `input_rows_throttler_class_id` or `input_bytes_throttler_class_id` affects subsequent RPCs; quota already fetched locally or still in flight stays accounted to the previous class.
 
 ## Quota classes and watermark alignment {#watermark-alignment}
 
@@ -114,9 +122,9 @@ The ID must be declared in `dynamic_spec/throttlers`. Both fields may be set at 
 
 ### Manual: `GetThrottlerOrThrow(id)` from user code {#manual}
 
-If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — you get the throttler directly from your user `Computation`. The base class has a `GetThrottlerOrThrow(id)` method that returns `IThroughputThrottlerPtr` — the standard YT throttler. You call `Throttle(amount)` on it and wait for the result. `GetThrottlerOrThrow` throws if the id is not declared in `throttlers`; `TryGetThrottler(id)` returns `nullptr` instead — handy when declaring a throttler in `dynamic_spec` is what turns throttling on for the matching entity (say, one throttler per model or per external service).
+If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — a process function gets the throttler from `IRuntimeContext`. `context->GetThrottlerOrThrow(id)` returns `IThroughputThrottlerPtr`, the standard YT throttler. Call `Throttle(amount)` on it and wait for the result. `GetThrottlerOrThrow` throws if the id isn’t declared in `throttlers`; `context->TryGetThrottler(id)` returns `nullptr` instead — useful when declaring a throttler in `dynamic_spec` enables throttling for the matching entity, such as one throttler per model or external service.
 
-The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so you can store it in `DoInit` and keep using it without re-fetching. This does not apply to a `nullptr` from `TryGetThrottler`: it only means "not declared right now", and once the throttler is added to `dynamic_spec` you have to query it again.
+The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so a process function can store it in `Init` and keep using it without re-fetching. This does not apply to a `nullptr` from `TryGetThrottler`: it only means "not declared right now", and once the throttler is added to `dynamic_spec` you have to query it again.
 
 Right now, this mechanism is supported only in C++.
 

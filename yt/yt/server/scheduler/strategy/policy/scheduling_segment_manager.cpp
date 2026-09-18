@@ -239,6 +239,7 @@ void TSchedulingSegmentManager::DoUpdateSchedulingSegments(TUpdateSchedulingSegm
     // Process operations.
     CollectCurrentResourceAmountPerSegment(context);
     CollectFairResourceAmountPerSegment(context);
+    LogOperationFairShareTransitions(context);
     ResetOperationModuleAssignments(context);
     AssignOperationsToModules(context);
 
@@ -548,6 +549,41 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
             auto reserve = Config_->ReserveFairResourceAmount.At(segment).GetOrDefault();
             context->FairResourceAmountPerSegment.At(segment).Mutable() += reserve;
         }
+    }
+}
+
+void TSchedulingSegmentManager::LogOperationFairShareTransitions(TUpdateSchedulingSegmentsContext* context) const
+{
+    for (const auto& [operationId, operation] : context->OperationStates) {
+        auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
+        if (!element) {
+            continue;
+        }
+
+        const auto& segment = operation->SchedulingSegment;
+        if (!segment || !IsModuleAwareSchedulingSegment(*segment)) {
+            // Segment may be unset due to a race, and in this case we silently ignore the operation.
+            continue;
+        }
+
+        if (!operation->IsGang) {
+            continue;
+        }
+
+        const auto& fairShare = element->Attributes().FairShare.Total;
+        bool isPreemptible = Dominates(TResourceVector::Epsilon(), fairShare);
+
+        if (isPreemptible != operation->PreemptibleAtLastUpdate) {
+            LogStructuredGpuEventFluently(
+                isPreemptible
+                    ? EGpuSchedulingLogEventType::OperationLostFairShare
+                    : EGpuSchedulingLogEventType::OperationReceivedFairShare)
+                .Item("operation_id").Value(operationId)
+                .Item("resource_demand").Value(element->ResourceDemand())
+                .Item("fair_resources").Value(element->GetTotalResourceLimits() * fairShare);
+        }
+
+        operation->PreemptibleAtLastUpdate = isPreemptible;
     }
 }
 
@@ -1050,10 +1086,9 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
     TSchedulingSegmentMap<bool> segmentUnsatisfied;
     TSchedulingSegmentMap<bool> segmentOversatisfied;
     bool imbalanced = !CheckSegmentBalance(context, &segmentUnsatisfied, &segmentOversatisfied);
-    YT_LOG_WARNING_IF(imbalanced,
-        "Failed to satisfy all scheduling segments during rebalancing (SegmentUnsatisfied: %v, SegmnetOversatisfied: %v)",
-        segmentUnsatisfied,
-        segmentOversatisfied);
+    YT_TLOG_WARNING_IF(imbalanced, "Failed to satisfy all scheduling segments during rebalancing")
+        .With("SegmentUnsatisfied", segmentUnsatisfied)
+        .With("SegmentOversatisfied", segmentOversatisfied);
 
     YT_TLOG_DEBUG("Finished node scheduling segments rebalancing")
         .With("TotalMovedNodeCount", movedNodes.size())
@@ -1326,6 +1361,7 @@ TOneShotFluentLogEvent TSchedulingSegmentManager::LogStructuredGpuEventFluently(
     return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
         .Item("timestamp").Value(TInstant::Now())
         .Item("event_type").Value(eventType)
+        .Item("policy_kind").Value(EPolicyKind::Classic)
         .Item(EventLogPoolTreeKey).Value(TreeId_);
 }
 

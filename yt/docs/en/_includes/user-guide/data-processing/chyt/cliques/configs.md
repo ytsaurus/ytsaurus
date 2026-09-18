@@ -47,7 +47,7 @@ To change clique options, use:
 
 - Editing the file in Cypress: open the `speclet` file at the path `//sys/strawberry/chyt/<alias>/speclet` and click **Edit**;
 - The CLI utility: run the `yt clickhouse ctl set-option` command with the needed option from the list of [available options](#options);
-- The web interface: click ![](../../../../../../images/edit-btn.png){width=24 height=24} **Edit speclet** in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui) block, or the button **Edit Speclet** tab on the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
+- The web interface: click ![](../../../../../../_images/edit-btn.png){width=24 height=24} **Edit speclet** in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui) block, or the button **Edit Speclet** tab on the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
 
 For step‑by‑step instructions and practical examples of setting options, see the [Adding compute resources](../../../../../user-guide/data-processing/chyt/how-to-guides/manage-resources.md) and [Configuring advanced settings](../../../../../user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md) sections.
 

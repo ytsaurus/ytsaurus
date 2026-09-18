@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from yt.common import parts_to_uuid, uuid_to_parts
 
+from .computation import MessageIdSuffixMode
 from .context import RequestContext, ResponseContext
 from .job import Job
 from .row import (
@@ -322,8 +323,10 @@ def internal_states_to_proto(states_holder: StatesHolder, TState, TStateItem):
     for row_key, state_val in states_holder.modified_items():
         item = TStateItem()
         item.key = writer.write_unversioned_row(row_key)
-        item.reset = state_val.reset
-        if not state_val.reset and state_val.state is not None:
+        # A value that encodes to no bytes is no value, and the wire says that with a reset:
+        # the worker rejects a non-reset item with an empty payload.
+        item.reset = state_val.reset or not state_val.state
+        if not item.reset:
             item.state = state_val.state
         state.stateItems.append(item)
     return state
@@ -422,18 +425,35 @@ def map_process_batch_response(stream_specs: StreamSpecs, response: ResponseCont
         for distribute in transform_result.distribute:
             group.distribute.append(distribute)
 
+        if transform_result.message_id_suffixes and len(transform_result.message_id_suffixes) != len(
+            transform_result.messages
+        ):
+            raise ValueError("Message ID suffixes count must match output messages count")
+
+        if any(suffix.mode != MessageIdSuffixMode.SEQUENCE_NUMBER for suffix in transform_result.message_id_suffixes):
+            for suffix in transform_result.message_id_suffixes:
+                proto_suffix = group.message_id_suffixes.add()
+                if suffix.mode == MessageIdSuffixMode.SEQUENCE_NUMBER:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_SEQUENCE_NUMBER
+                elif suffix.mode == MessageIdSuffixMode.PAYLOAD_HASH:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_PAYLOAD_HASH
+                else:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_USER_DEFINED
+                    proto_suffix.user_defined = suffix.value.encode("utf-8")
+
         for timer in transform_result.timers:
             group.timers.append(timer_to_proto(timer, TNewTimerProto))
 
         data.output.append(group)
 
-    # Only states changed via accessors are sent back; skip holders with no modifications.
+    # Only changed states are sent back; collect_modified() is what picks up the values changed
+    # in place, so holders with no modifications are skipped after it ran.
     for states_holder in response.internal_states.values():
-        if states_holder.has_modified():
+        if states_holder.collect_modified():
             data.internal_states.append(internal_states_to_proto(states_holder, TState, TStateItem))
 
     for states_holder in response.external_states.values():
-        if states_holder.has_modified():
+        if states_holder.collect_modified():
             data.external_states.append(external_states_to_proto(states_holder, TState, TStateItem))
 
     return data

@@ -1,5 +1,6 @@
 #include "object_service_proxy.h"
 
+#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>

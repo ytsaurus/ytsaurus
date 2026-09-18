@@ -35,7 +35,9 @@ bool IsLocalModeCluster(const NApi::IClientPtr& client);
 
 //! Uploads `localPath` (whose content hash is `md5`) into the per-cluster content-addressed cache at
 //! `cacheDir`, reusing an existing blob when the md5 already matches (no re-upload). The cache is
-//! shared across all flow operations on the cluster. Returns the Cypress path of the cached file.
+//! shared across all flow operations on the cluster. The upload is staged as a throwaway node in the
+//! parent of `cacheDir`, removed once copied into the cache or when the upload fails; a node orphaned
+//! by a launcher crash expires on its own. Returns the Cypress path of the cached file.
 NYPath::TYPath EnsureFileInCache(
     const NApi::IClientPtr& client,
     const std::string& localPath,

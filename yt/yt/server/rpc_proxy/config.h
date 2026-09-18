@@ -153,8 +153,6 @@ struct TProxyBootstrapConfig
 
     TProxyMemoryLimitsPtr MemoryLimits;
 
-    bool EnableShuffleService;
-
     THeapProfilerConfigPtr HeapProfiler;
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;

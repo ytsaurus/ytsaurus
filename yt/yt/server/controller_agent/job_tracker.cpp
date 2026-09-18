@@ -730,21 +730,26 @@ TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
 { }
 
 template <NMpl::CInvocable<void(const TError&)> TCallback>
-void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
+void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled, const NLogging::TLogger& Logger) const
 {
     if (Future_.IsSet()) {
         return;
     }
 
-    auto callback = BIND([onCanceled = std::forward<TCallback>(onCanceled)] (const TError& error) mutable {
+    auto callback = BIND([
+        onCanceled = std::forward<TCallback>(onCanceled),
+        Logger = Logger
+    ] (const TError& error) mutable {
         if (error.IsOK()) {
             return;
         }
 
         if (error.GetCode() == NYT::EErrorCode::Canceled) {
+            YT_TLOG_DEBUG("New job settling barrier cancelled")
+                .With(error);
             std::forward<TCallback>(onCanceled)(error);
         } else {
-            YT_TLOG_ALERT("Unexpected exception while waiting for in barrier")
+            YT_TLOG_ALERT("Unexpected exception while waiting for new job settling barrier")
                 .With(error);
         }
     });
@@ -1870,10 +1875,9 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
 
             increaseJobMessageSizes(/*isKnownJob:*/ false);
 
-            YT_LOG_INFO(
-                "Request node to %v unknown job (JobState: %v)",
-                shouldAbortJob ? "abort" : "remove",
-                jobSummary.JobSummary->State);
+            YT_TLOG_INFO("Requesting node to discard unknown job")
+                .With("Action", shouldAbortJob ? "abort" : "remove")
+                .With("JobState", jobSummary.JobSummary->State);
 
             ++heartbeatCounters.UnknownJobCount;
 
@@ -2411,11 +2415,11 @@ void TJobTracker::WaitForNewSettleJobBarrier(TAllocationInfo& allocationInfo, co
 
                 AccountWaitingOnBarrier(/*created*/ true);
 
-                Barrier_.Wait(/*onCanceled*/ [jobTracker = &JobTracker_, Logger = this->Logger] (const TError& error) {
-                    YT_TLOG_DEBUG("Cancelled new job settling barrier")
-                        .With(error);
-                    jobTracker->CancelledSettleJobRequestWaitingOnBarrierCount_.Increment();
-                });
+                Barrier_.Wait(
+                    /*onCanceled*/ [jobTracker = &JobTracker_] (const TError& /*error*/) {
+                        jobTracker->CancelledSettleJobRequestWaitingOnBarrierCount_.Increment();
+                    },
+                    Logger);
             }
 
             ~TBarierAwaiter()
@@ -3290,14 +3294,11 @@ void TJobTracker::ProcessAllocationEvents(
     const auto& Logger = context.OperationLogger;
 
     auto logOperationIsNotRunningEvent = [&] (const auto& operationStatus) {
-        YT_LOG_INFO(
-            "Received allocation events of operation that is %v; ignore it"
-            " (OperationId: %v, IncarnationId: %v, FinishedAllocationCount: %v, AbortedAllocationCount: %v)",
-            operationStatus,
-            operationId,
-            IncarnationId_,
-            std::size(finishedAllocations),
-            std::size(abortedAllocations));
+        YT_TLOG_INFO("Received allocation events of an operation that is not running; ignoring them")
+            .With("OperationStatus", operationStatus)
+            .With("IncarnationId", IncarnationId_)
+            .With("FinishedAllocationCount", std::size(finishedAllocations))
+            .With("AbortedAllocationCount", std::size(abortedAllocations));
     };
 
     auto operationIt = RegisteredOperations_.find(operationId);
@@ -3404,13 +3405,11 @@ void TJobTracker::ProcessFinishedAllocations(
             TNodeInfo* nodeInfo,
             std::optional<TNodeJobs::TAllocationIterator> maybeAllocationIt)
         {
-            YT_LOG_INFO(
-                "%v; send finished allocation event to operation controller"
-                " (AllocationId: %v, NodeId: %v, NodeAddress: %v)",
-                message,
-                event.Id,
-                nodeId,
-                GetNodeAddressForLogging(nodeId));
+            YT_TLOG_INFO("Sending finished allocation event to operation controller")
+                .With("Reason", message)
+                .With("AllocationId", event.Id)
+                .With("NodeId", nodeId)
+                .With("NodeAddress", GetNodeAddressForLogging(nodeId));
             operationUpdatesProcessingContext.FinishedAllocations.push_back(std::move(event));
 
             if (nodeInfo && maybeAllocationIt) {
@@ -3445,15 +3444,13 @@ void TJobTracker::ProcessAbortedAllocations(
             TNodeInfo* nodeInfo,
             std::optional<TNodeJobs::TAllocationIterator> maybeAllocationIt)
         {
-            YT_LOG_INFO(
-                "%v; send aborted allocation event to operation controller"
-                " (AllocationId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v, AbortionError: %v)",
-                message,
-                event.Id,
-                nodeId,
-                GetNodeAddressForLogging(nodeId),
-                event.AbortReason,
-                event.Error);
+            YT_TLOG_INFO("Sending aborted allocation event to operation controller")
+                .With("Reason", message)
+                .With("AllocationId", event.Id)
+                .With("NodeId", nodeId)
+                .With("NodeAddress", GetNodeAddressForLogging(nodeId))
+                .With("AbortReason", event.AbortReason)
+                .With("AbortionError", event.Error);
 
             operationUpdatesProcessingContext.AbortedAllocations.push_back(std::move(event));
 

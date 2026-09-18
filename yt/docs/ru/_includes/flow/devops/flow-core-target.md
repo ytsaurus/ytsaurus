@@ -16,7 +16,7 @@
 
 {% if audience == "internal" %}
 
-![Сообщение binary mismatch в блоке Messages](../../../flow/images/flow_core_target_messages.png)
+![Сообщение binary mismatch в блоке Messages](../../../flow/_images/flow_core_target_messages.png)
 
 {% endif %}
 

@@ -36,11 +36,12 @@ IOutputCollectorPtr TRecordingOutputCollector::SetParents(
     return New<TRecordingOutputCollector>(Sink_, std::move(parentIds));
 }
 
-void TRecordingOutputCollector::AddMessage(TMessage&& message, bool distribute)
+void TRecordingOutputCollector::DoAddMessage(TMessage&& message, TAddMessageOptions options)
 {
     Sink_->Messages.push_back(TRecordedMessage{
         .Message = std::move(message),
-        .Distribute = distribute,
+        .Distribute = options.Distribute,
+        .MessageIdSuffix = std::move(options.MessageIdSuffix),
         .ParentIds = ParentIds_,
     });
 }

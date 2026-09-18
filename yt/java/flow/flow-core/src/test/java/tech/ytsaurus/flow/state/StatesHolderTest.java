@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.state;
 
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests for {@link StatesHolder} modified-state tracking: only states changed through
  * {@link StatesHolder#set} (accessor writes) are reported by
- * {@link StatesHolder#getModifiedStates}, while states populated from the request through
+ * {@link StatesHolder#collectModifiedStates}, while states populated from the request through
  * {@link StatesHolder#load} are not, so that unmodified states are not sent back.
  */
 class StatesHolderTest {
@@ -26,37 +27,38 @@ class StatesHolderTest {
         return new PayloadBuilder(KEY_SCHEMA).set("k", value).finish().getRow();
     }
 
-    private static InternalState state(String value) {
-        return new InternalState(value.getBytes());
+    private static State state(String value) {
+        return new State(ByteString.copyFromUtf8(value));
     }
 
     @Test
     @DisplayName("load() does not mark a state as modified")
     void loadDoesNotMarkModified() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.load(key("a"), state("1"));
         holder.load(key("b"), state("2"));
 
         assertEquals(2, holder.getStates().size());
-        assertTrue(holder.getModifiedStates().isEmpty());
+        assertTrue(holder.collectModifiedStates().isEmpty());
     }
 
     @Test
     @DisplayName("set() marks a state as modified")
     void setMarksModified() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.set(key("a"), state("1"));
 
-        assertEquals(1, holder.getModifiedStates().size());
-        assertTrue(holder.getModifiedStates().containsKey(key("a")));
+        var modifiedStates = holder.collectModifiedStates();
+        assertEquals(1, modifiedStates.size());
+        assertTrue(modifiedStates.containsKey(key("a")));
     }
 
     @Test
     @DisplayName("only states modified after load are reported as modified")
     void onlyModifiedAfterLoadAreReported() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.load(key("a"), state("1"));
         holder.load(key("b"), state("2"));
@@ -64,13 +66,13 @@ class StatesHolderTest {
         holder.set(key("a"), state("11"));
 
         assertEquals(2, holder.getStates().size());
-        var modifiedStates = holder.getModifiedStates();
+        var modifiedStates = holder.collectModifiedStates();
         assertEquals(1, modifiedStates.size());
         assertTrue(modifiedStates.containsKey(key("a")));
-        assertArrayEqualsState("11", holder.get(key("a")));
+        assertStateEquals("11", holder.get(key("a")));
     }
 
-    private static void assertArrayEqualsState(String expected, InternalState actual) {
-        assertEquals(expected, new String(actual.getValue()));
+    private static void assertStateEquals(String expected, State actual) {
+        assertEquals(expected, actual.getBytes().toStringUtf8());
     }
 }

@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(unittests)
+add_subdirectory(benchmarks)
 add_subdirectory(tests)
 
 add_library(library-cpp-multiplexer)
@@ -31,13 +33,15 @@ target_link_libraries(library-cpp-multiplexer PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-common
-  library-cpp-computation
   library-cpp-misc
+  library-cpp-process_function
   yt-yt-client
+  yt-client-cache
   yt-yt-core
 )
 
 target_sources(library-cpp-multiplexer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_computation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_process_function.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/multiplexer_process_function.cpp
 )
 

@@ -1,4 +1,5 @@
 #include "schema.h"
+#include "object_detail.h"
 #include "private.h"
 #include "type_handler.h"
 

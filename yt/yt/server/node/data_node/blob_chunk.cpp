@@ -417,6 +417,9 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     bool diskFetchNeeded = false;
 
     const auto& config = Context_->DataNodeConfig;
+    const auto dynamicConfig = Context_->DynamicConfigManager->GetConfig()->DataNode;
+    const auto maxBytesPerRead = dynamicConfig->MaxBytesPerRead.value_or(config->MaxBytesPerRead);
+    const auto maxBlocksPerRead = dynamicConfig->MaxBlocksPerRead.value_or(config->MaxBlocksPerRead);
 
     session->BlocksExt = blocksExt;
 
@@ -474,8 +477,8 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         pendingDataSize += blockInfo.Size;
         pendingBlockCount += 1;
 
-        if (pendingDataSize >= config->MaxBytesPerRead ||
-            pendingBlockCount >= config->MaxBlocksPerRead)
+        if (pendingDataSize >= maxBytesPerRead ||
+            pendingBlockCount >= maxBlocksPerRead)
         {
             session->EntryCount = entryIndex + 1;
             YT_TLOG_DEBUG("Read session trimmed due to read constraints")
@@ -566,7 +569,7 @@ void TBlobChunkBase::DoReadSession(
     auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, alignedPendingDataSize);
     if (!memoryGuardOrError.IsOK()) {
         YT_TLOG_DEBUG("Read session aborted due to memory pressure");
-        Location_->ReportThrottledRead();
+        Location_->ReportThrottledRead(ELocationReadThrottlingReason::ReadMemoryTrackerLimitExceeded);
 
         auto error = TError("Read session aborted due to memory pressure");
         for (auto i = 0; i < session->EntryCount; ++i) {
@@ -626,14 +629,14 @@ TBlobChunkBase::FindLastEntryWithinReadGap(
 
         if (readGapSize > Location_->GetCoalescedReadMaxGapSize()) {
             YT_TLOG_DEBUG("Stopping run due to large gap")
-                .With("GapBlocks", FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex + 1))
+                .With("GapBlocks", FormatBlockIndexRange(previousEntry->BlockIndex + 1, entry.BlockIndex + 1))
                 .WithFormat("GapBlockOffsets", "[%v,%v)", previousEntry->EndOffset, entry.BeginOffset)
                 .With("GapBlockCount", entry.BlockIndex - previousEntry->BlockIndex - 1)
                 .With("GapSize", readGapSize);
             break;
         } else if (readGapSize > 0) {
             YT_TLOG_DEBUG("Coalesced read gap")
-                .With("GapBlocks", FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex))
+                .With("GapBlocks", FormatBlockIndexRange(previousEntry->BlockIndex + 1, entry.BlockIndex))
                 .WithFormat("GapBlockOffsets", "[%v,%v)", previousEntry->EndOffset, entry.BeginOffset)
                 .With("GapBlockCount", entry.BlockIndex - previousEntry->BlockIndex - 1)
                 .With("GapSize", readGapSize);
@@ -689,7 +692,7 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
 {
     YT_TLOG_DEBUG("Started reading blob chunk blocks")
         .With("ChunkId", Id_)
-        .With("Blocks", FormatBlocks(
+        .With("Blocks", FormatBlockIndexRange(
             readBlocksRequest.FirstBlockIndex,
             readBlocksRequest.FirstBlockIndex + readBlocksRequest.BlocksToRead - 1))
         .With("LocationId", Location_->GetId())
@@ -1115,7 +1118,7 @@ void TBlobChunkBase::OnBlocksRead(
 
     YT_TLOG_DEBUG("Finished reading blob chunk blocks")
         .With("ChunkId", Id_)
-        .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blocksToRead - 1))
+        .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blocksToRead - 1))
         .With("LocationId", Location_->GetId())
         .With("LocationUuid", Location_->GetUuid())
         .With("LocationIndex", Location_->GetIndex())

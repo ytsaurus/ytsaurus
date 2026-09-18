@@ -14,6 +14,7 @@
 
 add_subdirectory(library)
 add_subdirectory(bin)
+add_subdirectory(extensions)
 add_subdirectory(tests)
 add_subdirectory(tools)
 add_subdirectory(examples)

@@ -982,6 +982,10 @@ ru:
       to: /flow/extensions/grut-watchlog.md
       type: redirect
 
+    - from: /flow/connectors/http.md
+      to: /flow/extensions/http.md
+      type: redirect
+
     # Redirects for Cluster Access article
 
     - from: /admin-guide/cluster-access-proxy.md#how-to-resolve

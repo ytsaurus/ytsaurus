@@ -2,12 +2,15 @@
 
 from ._api import Pipeline  # noqa: F401
 from .computation import (  # noqa: F401
+    AddMessageOptions,
     BatchFunction,
     Computation,
+    MessageIdSuffix,
     RowFunction,
     SourceComputation,
 )
 from .context import PipelineContext  # noqa: F401
+from .http_client import HttpClient, HttpClients, HttpResponse  # noqa: F401
 from .resource import FlowResource, ResourceContext  # noqa: F401
 from .row import ExtendedMessage, Message, Payload, Timer, Visit  # noqa: F401
 from .server import GrpcServerExecution  # noqa: F401

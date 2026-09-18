@@ -1521,10 +1521,22 @@ private:
             // Note also that this is not a compat. The key here requests "write"
             // permission, so it should never receive row-level acl in the response.
             auto future = permissionCache->Get(permissionKey).AsVoid();
-            auto result = future.TryGet();
-            if (!result || !result->IsOK()) {
-                futures->push_back(std::move(future));
+            if (auto result = future.TryGet(); result && result->IsOK()) {
+                return;
             }
+            if (UpstreamReplicaId_) {
+                future = future.Apply(BIND([
+                    replicaCluster = client->GetNativeConnection()->GetClusterName().value(),
+                    replicaPath = TableInfo_->Path
+                ] (const TError& error) {
+                    return error.IsOK()
+                        ? error
+                        : error
+                            .With("replica_cluster", replicaCluster)
+                            .With("replica_path", replicaPath);
+                }));
+            }
+            futures->push_back(std::move(future));
         }
 
         void RegisterSyncReplicas(std::vector<TFuture<void>>* futures)

@@ -23,7 +23,7 @@ The key idea is that Spark delegates resource management to the {{product-name}}
 
 In this mode, the scheduler allocates resources to executors directly as part of a separate Vanilla operation on the {{product-name}} cluster. A job within the operation corresponds to one Spark executor. The specifications for executors (number of CPUs, amount of memory, disk type, etc.) are described in the Task section of the operation specification. It is possible to describe different resource profiles for Spark executors for tasks with heterogeneous workload during the lifecycle.
 
-![](../../../../../../images/spyt-direct-submit-operation-concept.png){ .center }
+![](../../../../../../_images/spyt-direct-submit-operation-concept.png){ .center }
 
 ### Configuring {{product-name}} Operation {#operation-config}
 

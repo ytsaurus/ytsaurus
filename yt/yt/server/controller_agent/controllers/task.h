@@ -166,6 +166,10 @@ public:
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob, NChunkClient::TChunkId chunkId);
+
+    //! Returning false makes loss of this output a no-op: no suspension, replay, or failure.
+    virtual bool IsJobOutputNeeded(const TCompletedJobPtr& completedJob) const;
+
     void OnOperationRevived();
 
     virtual void OnStripeRegistrationFailed(
@@ -343,7 +347,8 @@ protected:
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
-        NTableClient::TComparator comparator = NTableClient::TComparator());
+        NTableClient::TComparator comparator,
+        NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
     void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
@@ -380,15 +385,15 @@ protected:
     //! It transforms data slices into new mode, adapts them for using in corresponding chunk pool
     //! (using task-dependent AdaptInputDataSlice virtual method) and registers data slice
     //! input read limits in the InputChunkToReadBounds_ mapping.
-    void AdjustInputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
+    void AdjustInputKeyBounds(const NChunkClient::TDataSlicePtr& dataSlice);
 
     //! Default implementation simply drops key bounds which is perfectly OK for non-sorted chunk pools.
-    virtual void AdjustDataSliceForPool(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+    virtual void AdjustDataSliceForPool(const NChunkClient::TDataSlicePtr& dataSlice) const;
 
     //! This method is called for each output data slice before serializing it to the job spec.
     //! It applies data slice input read limits from the InputChunkToReadBounds_ mapping.
     //! It is overridden only in the legacy version of sorted controller.
-    void AdjustOutputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+    void AdjustOutputKeyBounds(const NChunkClient::TDataSlicePtr& dataSlice) const;
 
     //! This method processes `chunkListIds`, forming the chunk stripes (maybe with boundary
     //! keys taken from `schedulerJobResult` if they are present) and sends them to the destination pools

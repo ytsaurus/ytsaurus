@@ -7,13 +7,13 @@ from yt_commands import (
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
     abandon_job, abort_job, get_operation,
     raises_yt_error, list_jobs, sync_create_cells,
-    set_node_banned, get_table_columnar_statistics, update_controller_agent_config)
+    set_node_banned, disable_write_sessions_on_node, enable_write_sessions_on_node,
+    get_table_columnar_statistics, update_controller_agent_config)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
 from yt_helpers import skip_if_old, skip_if_component_old
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import yt_error_codes
 import yt.yson as yson
@@ -113,10 +113,10 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
                     "tolerance": 1.0,
                 },
                 "sorted_merge_job_size_adjuster": {},
+                "enable_partition_map_job_size_adjustment": True,
+                "enable_ordered_partition_map_job_size_adjustment": True,
+                "enable_sorted_merge_in_sort_job_size_adjustment": True,
             },
-            "enable_partition_map_job_size_adjustment": True,
-            "enable_ordered_partition_map_job_size_adjustment": True,
-            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -652,7 +652,6 @@ print("x={0}\ty={1}".format(x, y))
         assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_live_preview(self):
         create_user("u")
         create("table", "//tmp/t1")
@@ -717,7 +716,6 @@ print("x={0}\ty={1}".format(x, y))
             wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
@@ -768,7 +766,6 @@ print("x={0}\ty={1}".format(x, y))
             remove("//sys/operations&/@acl/-1")
 
     @authors("dagorokhov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize(
         "output_format,extract_names,expected_error",
         [
@@ -1288,6 +1285,7 @@ print("x={0}\ty={1}".format(x, y))
     @authors("klyachin", "coteeq")
     @pytest.mark.parametrize("ordered", [True, False])
     def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
         skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
 
         create("table", "//tmp/t_input")
@@ -1325,6 +1323,8 @@ print("x={0}\ty={1}".format(x, y))
     @authors("coteeq")
     @pytest.mark.timeout(300)
     def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
         for row in original_data:
@@ -4163,6 +4163,250 @@ class TestSchedulerMapReduceCommandsSequoia(TestSchedulerMapReduceCommandsSysOpe
         "13": {"roles": ["chunk_host"]},
         "14": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestCompletedSortedPartitionReplay(TestSchedulerMapReduceBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_reduce_operation_options": {"min_uncompressed_block_size": 1},
+        },
+    }
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("scenario", ["loss_after_completion", "replay_before_completion"])
+    def test_completed_partition_is_not_reopened(self, scenario):
+        """
+        Check that lost intermediate chunks do not reopen a completed sorted partition.
+
+        Initial intermediate chunks are placed on one node, while their reducers read
+        the input and stop at breakpoints. The node is then banned to trigger recovery.
+        The test covers both recovery started after partition completion and a producer
+        replay that is already running when the partition completes.
+
+        See YT-29628.
+        """
+        replay_before_completion = scenario == "replay_before_completion"
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        rows = [{"key": f"{i:04d}", "value": "a" * 1000} for i in range(100)]
+        rows.append({"key": "1000", "value": "blocker"})
+        write_table("//tmp/t_in", rows[:50])
+        write_table("<append=%true>//tmp/t_in", rows[50:])
+
+        nodes = ls("//sys/cluster_nodes")
+        producer_node = nodes[0]
+        set(f"//sys/cluster_nodes/{producer_node}/@user_tags", ["run_here"])
+        for node in nodes[1:]:
+            disable_write_sessions_on_node(node)
+
+        events = events_on_fs()
+        combiner_command = f"""
+cat > input
+# Task job indices 0 and 1 belong to the two initial reduce-combiner jobs;
+# subsequent indices belong to replays of their lost output.
+if [ "$YT_TASK_JOB_INDEX" -lt 2 ]; then
+    cat input
+    {events.breakpoint_cmd("original_combiner", timeout=datetime.timedelta(seconds=300))}
+else
+    {events.breakpoint_cmd("replay", timeout=datetime.timedelta(seconds=300))}
+    # Preserve key order and boundary keys, but change the row count.
+    awk '{{print; print}}' input
+fi
+"""
+        reducer_command = f"""
+cat > input
+if grep -q 'value=blocker' input; then
+    {events.breakpoint_cmd("partition_reduce", timeout=datetime.timedelta(seconds=300))}
+else
+    {events.breakpoint_cmd("sorted_reduce", timeout=datetime.timedelta(seconds=300))}
+fi
+cat input
+"""
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="key",
+            sort_by="key",
+            mapper_command="cat",
+            reduce_combiner_command=combiner_command,
+            reducer_command=reducer_command,
+            spec={
+                "mapper": {"format": "dsv"},
+                "reduce_combiner": {"format": "dsv"},
+                "reducer": {
+                    "format": "dsv",
+                    # Delay speculation until the initial reducers reach their breakpoints.
+                    **({"job_speculation_timeout": 10000} if replay_before_completion else {}),
+                },
+                "job_splitter": {
+                    "enable_job_speculation": replay_before_completion,
+                },
+                "map_job_count": 2,
+                "pivot_keys": [["1000"]],
+                "data_size_per_sort_job": 60000,
+                "enable_intermediate_output_recalculation": True,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "scheduling_tag_filter": "run_here",
+            },
+            track=False,
+        )
+        op.wait_for_state("running")
+
+        # Store the initial intermediate chunks on producer_node before moving
+        # subsequent scheduling to the other nodes.
+        events.wait_breakpoint("original_combiner", job_count=2)
+        op.suspend()
+        events.release_breakpoint("original_combiner")
+        wait(lambda: get(op.get_path() + "/@progress/reduce_combiner/completed/total", default=0) == 2)
+        for chunk_id in self._find_intermediate_chunks():
+            assert [str(replica) for replica in get(f"#{chunk_id}/@stored_replicas")] == [producer_node]
+        set(f"//sys/cluster_nodes/{producer_node}/@user_tags", [])
+        for node in nodes[1:]:
+            enable_write_sessions_on_node(node)
+            set(f"//sys/cluster_nodes/{node}/@user_tags", ["run_here"])
+        wait(lambda: "run_here" not in get(f"//sys/scheduler/orchid/scheduler/nodes/{producer_node}/tags"))
+        op.resume()
+
+        def get_original_jobs_at_breakpoint(jobs, job_type):
+            running_jobs = op.get_running_jobs()
+            return [
+                job_id
+                for job_id in jobs
+                if job_id in running_jobs
+                and running_jobs[job_id]["job_type"] == job_type
+                and not running_jobs[job_id]["speculative"]
+            ]
+
+        def all_original_sorted_reduce_jobs_started(jobs):
+            originals = get_original_jobs_at_breakpoint(jobs, "sorted_reduce")
+            return bool(originals) and len(originals) == get(op.get_path() + "/@progress/sorted_reduce/total")
+
+        reduce_jobs = events.wait_breakpoint(
+            "sorted_reduce",
+            check_fn=all_original_sorted_reduce_jobs_started,
+        )
+        events.wait_breakpoint(
+            "partition_reduce",
+            check_fn=lambda jobs: bool(get_original_jobs_at_breakpoint(jobs, "partition_reduce")),
+        )
+
+        original_sorted_reduce_jobs = get_original_jobs_at_breakpoint(reduce_jobs, "sorted_reduce")
+        original_sorted_reduce_count = get(op.get_path() + "/@progress/sorted_reduce/total")
+
+        # Two input chunks together with map_job_count=2 produce two partition-map jobs.
+        # Both jobs contribute data to the large partition. Its total data weight is about
+        # 100 KB, so data_size_per_sort_job=60 KB produces two reduce-combiner jobs.
+        # Depending on how rows are split between reduce-combiner outputs, the sorted pool
+        # builds one or two sorted-reduce jobs. Preserve this initial count. The small
+        # partition has one partition-reduce job.
+        assert get(op.get_path() + "/@progress/partition_map/total") == 2
+        assert get(op.get_path() + "/@progress/reduce_combiner/total") == 2
+        assert get(op.get_path() + "/@progress/partition_reduce/total") == 1
+
+        def get_sorted_reduce_task():
+            return next(
+                task for task in get(op.get_path() + "/@progress/tasks")
+                if task["task_name"] == "sorted_reduce")
+
+        if not replay_before_completion:
+            for job_id in original_sorted_reduce_jobs:
+                events.release_breakpoint("sorted_reduce", job_id=job_id)
+            wait(lambda: get_sorted_reduce_task()["completed"])
+
+            # Let any replay reach stripe registration instead of stopping at the breakpoint.
+            events.release_breakpoint("replay")
+
+        # Stop scheduling and abort every partition-reduce job that may already have read
+        # its input before banning the producer node. New attempts detect the lost
+        # partition-map chunk and start the intermediate chunk scraper.
+        op.suspend()
+        for job_id, info in op.get_running_jobs().items():
+            if info["job_type"] == "partition_reduce":
+                abort_job(job_id)
+        set_node_banned(producer_node, True)
+        op.resume()
+
+        if replay_before_completion:
+            replay_jobs = events.wait_breakpoint("replay", job_count=2)
+            for job_id in original_sorted_reduce_jobs:
+                events.release_breakpoint("sorted_reduce", job_id=job_id)
+            wait(lambda: get_sorted_reduce_task()["completed"])
+
+            events.release_breakpoint("replay", job_id=replay_jobs[0])
+            wait(lambda: get(op.get_path() + "/@progress/reduce_combiner/completed/total") == 1)
+            # Wait until jobs created by a possible reset are extracted. If the task
+            # remains completed, there are no pending jobs.
+            wait(lambda: get(op.get_path() + "/@progress/sorted_reduce/pending") == 0)
+            partition_reopened = not get_sorted_reduce_task()["completed"]
+
+            # If the task becomes incomplete, continue with a speculative candidate
+            # and invalidate its cookie with the next replay.
+            if partition_reopened:
+                def get_intermediate_generation_jobs():
+                    return {
+                        job_id for job_id, info in op.get_running_jobs().items()
+                        if info["job_type"] == "sorted_reduce" and not info["speculative"]
+                        and job_id not in original_sorted_reduce_jobs
+                    }
+
+                wait(lambda: bool(get_intermediate_generation_jobs()))
+                op.suspend()
+                # If speculation has already started, return to a single original job
+                # before waiting for a queued candidate.
+                for job_id, info in op.get_running_jobs().items():
+                    if info["job_type"] == "sorted_reduce" and info["speculative"]:
+                        abort_job(job_id)
+                intermediate_generation_jobs = get_intermediate_generation_jobs()
+                events.wait_breakpoint(
+                    "sorted_reduce",
+                    check_fn=lambda jobs: intermediate_generation_jobs.issubset(jobs),
+                )
+                # Suspension prevents the speculative candidate from being scheduled
+                # before its cookie is invalidated by the second replay.
+                wait(lambda: get_sorted_reduce_task()["speculative_job_counter"]["pending"] > 0)
+            else:
+                op.suspend()
+
+            # Let the second replay register its incompatible output while scheduling is
+            # suspended, so its invalidation precedes speculative candidate scheduling.
+            events.release_breakpoint("replay", job_id=replay_jobs[1])
+            wait(lambda: get(op.get_path() + "/@progress/reduce_combiner/completed/total") == 2)
+            # The completed job event has registered both incompatible replay outputs
+            # in the controller before scheduling resumes.
+            op.resume()
+            if partition_reopened:
+                # Exercise scheduling of the speculative candidate after its cookie
+                # has been invalidated.
+                wait(lambda: get_sorted_reduce_task()["speculative_job_counter"]["running"] > 0)
+
+        events.release_breakpoint("partition_reduce")
+        # All replay breakpoints have been released above, so no regenerated output
+        # remains blocked inside a job while operation completion is tracked.
+        op.track()
+
+        if not replay_before_completion:
+            assert get(op.get_path() + "/@progress/reduce_combiner/lost") == 0
+        assert get(op.get_path() + "/@progress/sorted_reduce/total") == original_sorted_reduce_count
+        assert_items_equal(read_table("//tmp/t_out"), rows)
 
 
 ##################################################################

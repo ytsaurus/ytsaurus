@@ -38,9 +38,9 @@ Overview
 .. |supported-implementations| image:: https://img.shields.io/pypi/implementation/pytest-benchmark.svg
     :alt: Supported implementations
     :target: https://pypi.org/project/pytest-benchmark
-.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.2.3.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.3.0.svg
     :alt: Commits since latest release
-    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.2.3...master
+    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.3.0...master
 
 A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen
 timer.
@@ -167,6 +167,11 @@ Histogram (``--benchmark-histogram``):
 ..
 
     Also, it has `nice tooltips <https://cdn.rawgit.com/ionelmc/pytest-benchmark/master/docs/sample.svg>`_.
+
+Compare between mode (``pytest-benchmark compare --between``):
+
+.. image:: https://github.com/ionelmc/pytest-benchmark/raw/master/docs/screenshot-compare-between.png
+    :alt: Screenshot of pytest summary in compare between mode
 
 Development
 ===========

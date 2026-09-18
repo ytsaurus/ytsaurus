@@ -1,6 +1,6 @@
 # Async Request в {{product-name}} Flow (C++)
 
-[Пайплайн](../../../../flow/concepts/glossary.md#pipeline) демонстрирует паттерн асинхронных внешних запросов с использованием `TSwiftMapComputation`. События поступают на вход, преобразуются в запросы, обрабатываются детерминированным процессором и результаты накапливаются в [стейте](../../../../flow/concepts/glossary.md#state).
+[Пайплайн](../../../../flow/concepts/glossary.md#pipeline) демонстрирует паттерн асинхронных внешних запросов с использованием [process functions](../../../../flow/cpp/process-functions.md). События поступают на вход, преобразуются в запросы, обрабатываются детерминированной функцией и результаты накапливаются в [стейте](../../../../flow/concepts/glossary.md#state).
 
 [Исходный код]({{source-root}}/yt/yt/flow/examples/cpp/async_request)
 
@@ -8,18 +8,18 @@
 
 ### TStateKeeper
 
-`TStateKeeper` наследуется от `TTransformComputation` и использует `TSimpleExternalStateManager` для работы с внешним стейтом. Он обрабатывает два вида входных сообщений:
+`TStateKeeper` реализует `IProcessFunction` и запускается адаптером `TProcessFunctionComputation`. Функция использует `TSimpleExternalStateManager` для работы с внешним стейтом и обрабатывает два вида входных сообщений:
 
 - **Поток `event`**: при получении события создает `TRequestMessage` с уникальным `RequestId` и отправляет его в поток `request`.
 - **Поток `response`**: при получении ответа обновляет стейт &mdash; суммирует `total_length` из всех полученных ответов.
 
-Различение потоков происходит через `ysonMessage->Meta->StreamId`.
+Различение потоков происходит через `message->StreamId`.
 
 ### TRequestProcessor
 
-`TRequestProcessor` наследуется от `TSwiftMapComputation` &mdash; это детерминированный компьютейшен, который не сохраняет входные и выходные сообщения в {{product-name}}. Он получает `TRequestMessage`, выполняет обработку (в данном примере &mdash; вычисляет длину запроса) и генерирует `TResponseMessage`.
+`TRequestProcessor` реализует `IProcessFunction` и запускается адаптером `TProcessFunctionSwiftMapComputation`, который не сохраняет входные и выходные сообщения в {{product-name}}. Функция получает `TRequestMessage`, выполняет обработку (в данном примере &mdash; вычисляет длину запроса) и генерирует `TResponseMessage`.
 
-Использование `TSwiftMapComputation` обосновано тем, что обработка запроса является чистой функцией: при одинаковых входных данных всегда генерируется одинаковый результат.
+Использование SwiftMap-адаптера обосновано тем, что обработка запроса является чистой функцией: при одинаковых входных данных всегда генерируется одинаковый результат.
 
 ## Типы сообщений
 
@@ -39,13 +39,18 @@
 
 `TStateKeeper` одновременно является и потребителем событий, и потребителем ответов. Он использует `input_stream_ids = ["event", "response"]` и определяет тип входного сообщения по `StreamId`.
 
+В спеке process functions связываются с адаптерами явно:
+
+- для `state` указаны `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` и `processing_function = "NYT::NFlow::NExample::TStateKeeper"`;
+- для `processor` указаны `computation_class_name = "NYT::NFlow::TProcessFunctionSwiftMapComputation"` и `processing_function = "NYT::NFlow::NExample::TRequestProcessor"`.
+
 ## Управление стейтом
 
-`TStateKeeper` использует `TSimpleExternalStateManager` для хранения суммы длин всех обработанных запросов. Клиент стейта (`TMutableStateKeyClient<TSimpleExternalState>`) привязывается в `DoInit()` через `InitExternalStateClient(StateClient_, "/state")`. Параметры стейта (`path` к таблице и т.п.) объявляются в секции `external_state_managers` [спеки](../../../../flow/concepts/glossary.md#spec-and-dynamic-spec) `Computation`.
+`TStateKeeper` использует `TSimpleExternalStateManager` для хранения суммы длин всех обработанных запросов. Клиент стейта (`TMutableStateKeyClient<TSimpleExternalState>`) привязывается в `Init(const IRuntimeInitContextPtr&)` через `initContext->InitExternalStateClient(StateClient_, "/state")`. Параметры стейта (`path` к таблице и т.п.) объявляются в секции `external_state_managers` [спеки](../../../../flow/concepts/glossary.md#spec-and-dynamic-spec) компьютейшена.
 
 ## Функция main
 
-В `main` регистрируются три потока:
+В `main` регистрируются три потока, а process functions регистрируются через `YT_FLOW_DEFINE_PROCESS_FUNCTION`:
 - `RegisterStream<TEventMessage>("event")` &mdash; входные события
 - `RegisterStream<TRequestMessage>("request")` &mdash; запросы к процессору
 - `RegisterStream<TResponseMessage>("response")` &mdash; ответы от процессора
@@ -59,5 +64,3 @@
 ### TStateKeeper
 
 {% code '/yt/yt/flow/examples/cpp/async_request/lib/async_request_functions.cpp' lang='cpp' lines='[BEGIN state_keeper]-[END state_keeper]' keep-indents %}
-
-

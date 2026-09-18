@@ -200,6 +200,7 @@ private:
 
         YT_TLOG_INFO("Listening for RPC requests")
             .With("Port", Config_->RpcPort);
+        RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
     }
 };

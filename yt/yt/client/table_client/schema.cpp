@@ -157,7 +157,7 @@ TColumnSchema::TColumnSchema()
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     EValueType type,
     std::optional<ESortOrder> sortOrder)
     : TColumnSchema(
@@ -167,7 +167,7 @@ TColumnSchema::TColumnSchema(
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     ESimpleLogicalValueType type,
     std::optional<ESortOrder> sortOrder)
     : TColumnSchema(
@@ -177,11 +177,11 @@ TColumnSchema::TColumnSchema(
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     TLogicalTypePtr type,
     std::optional<ESortOrder> sortOrder)
-    : StableName_(name)
-    , Name_(name)
+    : StableName_(std::string(name))
+    , Name_(std::string(name))
     , SortOrder_(sortOrder)
 {
     SetLogicalType(std::move(type));
@@ -1935,6 +1935,13 @@ void ValidateSystemColumnSchema(
     if (it != allowedSystemColumns.end()) {
         validateType(it->second);
         return;
+    }
+
+    if (options.AllowShuffleColumns) {
+        if (name == ShuffleProducerIdColumnName || name == ShuffleRowIdColumnName) {
+            validateType(ESimpleLogicalValueType::Int64);
+            return;
+        }
     }
 
     if (options.AllowOperationColumns) {

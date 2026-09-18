@@ -17,6 +17,6 @@ Key value (YSON Dict `{column = value; ...}` by `key_schema`). ||
 **Required parameter**
 Content of the states under this key: a dict `state_name → YSON value`. The YSON value here is the serialized user payload of the state (the type is determined by the specific `State`/`ExternalState` in the Computation code; for built-in types like counters it is just a number, for arbitrary user structs &mdash; a YSON dict with all their fields).
 
-For the `external_key_states` / `joined_external_key_states` sections, the state name matches the name of the external_state client (what is passed to `IJobInitContext::InitExternalStateClient`, e.g., `/state`). ||
+For the `external_key_states` / `joined_external_key_states` sections, the state name matches the name of the external-state client (what the process function passes to `IRuntimeInitContext::InitExternalStateClient`, for example `/state`). ||
 |#
 

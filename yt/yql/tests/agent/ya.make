@@ -10,6 +10,7 @@ TEST_SRCS(
     conftest.py
     test_simple.py
     test_udfs.py
+    test_ytflow.py
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
@@ -17,8 +18,11 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
-
+    yt/yql/tests/agent/throwing_udf
     yt/yql/tools/mrjob
+    yt/yql/tools/ytflow_worker
+
+    yql/essentials/udfs/common/datetime2
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
     yql/essentials/udfs/common/python/python3_small
@@ -34,6 +38,7 @@ PEERDIR(
     yql/essentials/providers/common/proto
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
+    yt/yql/tests/common/test_framework
 )
 
 IF (NOT OPENSOURCE)
@@ -54,9 +59,14 @@ ELSE()
     )
 ENDIF()
 
-FORK_SUBTESTS()
-SPLIT_FACTOR(64)
+FORK_TESTS()
+SPLIT_FACTOR(16)
 
 ENV(YT_LOCAL=1)
+
+# Undo YT_DISABLE_MULTIDAEMON=true set by YaMakeBoilerplateForTests.txt so this suite can run the
+# cluster as a single multidaemon process (TestQueriesYqlBase sets ENABLE_MULTIDAEMON = True).
+# An empty value reads as falsy in yt_env_setup, unlike "false".
+ENV(YT_DISABLE_MULTIDAEMON=)
 
 END()

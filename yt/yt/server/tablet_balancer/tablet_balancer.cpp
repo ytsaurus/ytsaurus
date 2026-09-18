@@ -14,7 +14,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/parameterized_move_helpers.h>
 
 #include <yt/yt/library/cypress_election/election_manager.h>
 
@@ -267,7 +267,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
-    // Used for forcing iteration by request by |RequestBalancing|.
     THashSet<TGlobalGroupTag> GroupsToReshardOnNextIteration_;
     IActionManagerPtr ActionManager_;
     IClusterStateProviderPtr ClusterStateProvider_;
@@ -1318,7 +1317,7 @@ void TTabletBalancer::RequestBalancing(
 
         auto group = tabletIt->second->Table->GetBalancingGroup();
         if (!group) {
-            YT_TLOG_DEBUG("No group for tablet for on-demand balancing")
+            YT_TLOG_DEBUG("Tablet has no balancing group; skipping on-demand balancing")
                 .With("BundleName", balancingRequest.BundleName)
                 .With("TabletId", tabletId);
             continue;
@@ -1867,17 +1866,15 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             }
 
             ++actionCount;
-            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, "
-                "DataSize: %v, TableId: %v, TabletIndexes: %v-%v, TablePath: %v, CorrelationId: %v, PendingTabletIds: %v)",
-                descriptor.Tablets,
-                descriptor.TabletCount,
-                descriptor.DataSize,
-                table->Id,
-                firstTabletIndex,
-                lastTabletIndex,
-                table->Path,
-                descriptor.CorrelationId,
-                descriptor.PendingTabletIds);
+            YT_TLOG_DEBUG("Reshard action created")
+                .With("TabletIds", descriptor.Tablets)
+                .With("TabletCount", descriptor.TabletCount)
+                .With("DataSize", descriptor.DataSize)
+                .With("TableId", table->Id)
+                .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
+                .With("TablePath", table->Path)
+                .With("CorrelationId", descriptor.CorrelationId)
+                .With("PendingTabletIds", descriptor.PendingTabletIds);
 
             reshardIteration->UpdateProfilingCounters(table, descriptor);
         }
@@ -2006,32 +2003,26 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
         auto rspOrError = responses[index];
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_ERROR(rspOrError,
-                "Failed to pick pivot keys for reshard action "
-                "(TabletIds: %v, TabletCount: %v, DataSize: %v, "
-                "TableId: %v, TabletIndexes: %v-%v, CorrelationId: %v)",
-                descriptorIt->Tablets,
-                descriptorIt->TabletCount,
-                descriptorIt->DataSize,
-                table->Id,
-                firstTabletIndex,
-                lastTabletIndex,
-                descriptorIt->CorrelationId);
+            YT_TLOG_ERROR("Failed to pick pivot keys for reshard action")
+                .With("TabletIds", descriptorIt->Tablets)
+                .With("TabletCount", descriptorIt->TabletCount)
+                .With("DataSize", descriptorIt->DataSize)
+                .With("TableId", table->Id)
+                .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
+                .With("CorrelationId", descriptorIt->CorrelationId)
+                .With(rspOrError);
 
             PickPivotFailures_.Increment(1);
 
             if (reshardIteration->GetDynamicConfig()->CancelActionIfPickPivotKeysFails) {
-                YT_LOG_DEBUG(rspOrError,
-                    "Cancelled tablet action creation because pick pivot keys failed "
-                    "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v, "
-                    "TabletIndexes: %v-%v, CorrelationId: %v)",
-                    descriptorIt->Tablets,
-                    descriptorIt->TabletCount,
-                    descriptorIt->DataSize,
-                    table->Id,
-                    firstTabletIndex,
-                    lastTabletIndex,
-                    descriptorIt->CorrelationId);
+                YT_TLOG_DEBUG("Cancelled tablet action creation because pick pivot keys failed")
+                    .With("TabletIds", descriptorIt->Tablets)
+                    .With("TabletCount", descriptorIt->TabletCount)
+                    .With("DataSize", descriptorIt->DataSize)
+                    .With("TableId", table->Id)
+                    .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
+                    .With("CorrelationId", descriptorIt->CorrelationId)
+                    .With(rspOrError);
                 continue;
             }
         } else {

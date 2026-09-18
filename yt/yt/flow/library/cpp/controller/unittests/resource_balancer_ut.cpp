@@ -6,285 +6,14 @@
 #include <yt/yt/flow/library/cpp/controller/job_balancer_resource_queue.h>
 #include <yt/yt/flow/library/cpp/controller/job_balancer_result.h>
 
+#include <yt/yt/flow/library/cpp/controller/unittests/mock/resource_balancer_helpers.h>
+
 namespace NYT::NFlow::NBalancer {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Test fixture for DoBalanceResourceQueue.
-//!
-//! The fixture builds a minimal TFlowView from scratch:
-//!   - FlowView->State->Workers                            — worker registry
-//!   - FlowView->State->ExecutionSpec->Layout->Partitions  — partition registry
-//!   - FlowView->State->ExecutionSpec->Layout->Jobs        — job registry (partition→worker)
-//!   - FlowView->State->ExecutionSpec->Layout->WorkerSpecs — preload state issued by controller
-//!   - FlowView->CurrentSpec                               — pipeline spec (computations + resources)
-//!   - FlowView->Feedback->WorkerStatuses                  — per-worker resource queue stats
-//!   - FlowView->Feedback->PartitionJobStatuses            — per-partition Rps
-
-using TWorkerId = std::string;
-
-//! ID helpers.
-
-static TPartitionId MakePartitionId(int n)
-{
-    return TPartitionId(TGuid::FromString(Format("%08x-%08x-%08x-%08x", 0, 0, 0, n)));
-}
-
-static std::atomic<int> JobIdCounter{1};
-
-static TJobId MakeUniqueJobId()
-{
-    int n = JobIdCounter.fetch_add(1);
-    return TJobId(TGuid::FromString(Format("%08x-%08x-%08x-%08x", 0, 0, 1, n)));
-}
-
-static TComputationId MakeComputationId(const std::string& name)
-{
-    return TComputationId(name);
-}
-
-static TResourceId MakeResourceId(const std::string& name)
-{
-    return TResourceId(name);
-}
-
-static TWorkerGroupId MakeWorkerGroup(const std::string& name = "default")
-{
-    return TWorkerGroupId(name);
-}
-
-//! No-op storage handler for TFlowView initialization.
-
-class TNoopStorageHandler : public TPersistedStateStorageHandlerBase<std::string>
-{
-public:
-    using TStorageRow = typename TPersistedStateStorageHandlerBase<std::string>::TStorageRow;
-
-    void Select(TSequenceId, std::vector<TStorageRow>&) override
-    { }
-
-    void Execute(std::vector<TStorageRow>&&, const std::vector<TSequenceId>&, bool, const std::vector<TPersistedStateCommitContext*>&) override
-    { }
-};
-
-//! FlowView builder.
-
-static TFlowViewPtr MakeEmptyFlowView()
-{
-    auto flowView = New<TFlowView>();
-
-    auto storageHandler = New<TNoopStorageHandler>();
-    auto control = New<TPersistedStateControl<std::string>>(storageHandler);
-    flowView->State->AttachToControl(control);
-    control->Recover();
-
-    flowView->Feedback = New<TFlowFeedback>();
-
-    auto pipelineSpec = New<TPipelineSpec>();
-    auto dynamicSpec = New<TDynamicPipelineSpec>();
-    flowView->CurrentSpec->TrySetValue(pipelineSpec, TestVersionProvider());
-    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
-    flowView->State->ExecutionSpec->PipelineSpec->TrySetValue(pipelineSpec, TestVersionProvider());
-    flowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
-    flowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(pipelineSpec), TestVersionProvider());
-
-    return flowView;
-}
-
-//! Spec builders.
-
-static TResourceSpecPtr MakeResourceSpec(
-    THashMap<std::string, ssize_t> requiredCaps = {},
-    bool preloadRequired = false)
-{
-    auto spec = New<TResourceSpec>();
-    spec->RequiredCapabilities = std::move(requiredCaps);
-    spec->PreloadRequired = preloadRequired;
-    return spec;
-}
-
-static TComputationSpecPtr MakeComputationSpec(
-    const TWorkerGroupId& workerGroup,
-    const std::vector<TResourceId>& resourceIds = {})
-{
-    auto spec = New<TComputationSpec>();
-    spec->WorkerGroup = workerGroup;
-    for (const auto& resourceId : resourceIds) {
-        spec->RequiredResourceIds[resourceId] = New<TResourceDescription>();
-    }
-    return spec;
-}
-
-static TDynamicJobBalancerSpecPtr MakeBalancerSpec(
-    double planningHorizonSeconds = 60.0,
-    double zeroQueueLatencySeconds = 1.0)
-{
-    auto spec = New<TDynamicJobBalancerSpec>();
-    spec->PlanningHorizon = TDuration::Seconds(static_cast<ui64>(planningHorizonSeconds));
-    spec->ZeroQueueLatency = TDuration::Seconds(static_cast<ui64>(zeroQueueLatencySeconds));
-    return spec;
-}
-
-//! Worker builder.
-
-static void AddWorker(
-    const TFlowViewPtr& flowView,
-    const TWorkerId& address,
-    const TWorkerGroupId& group,
-    THashMap<std::string, ssize_t> capabilities = {})
-{
-    auto worker = New<TWorker>();
-    worker->RpcAddress = address;
-    worker->Groups = {group};
-    worker->Capabilities = std::move(capabilities);
-    flowView->State->Workers[address] = worker;
-}
-
-//! Partition + Job builders.
-
-static void AddPartition(
-    const TFlowViewPtr& flowView,
-    const TPartitionId& partitionId,
-    const TComputationId& computationId,
-    double rps = 1.0,
-    std::optional<TWorkerId> workerAddress = std::nullopt)
-{
-    auto partition = New<TPartition>();
-    partition->PartitionId = partitionId;
-    partition->ComputationId = computationId;
-    partition->State = EPartitionState::Executing;
-    partition->StateTimestamp = TInstant::Now();
-
-    flowView->State->StartMutation();
-    flowView->State->ExecutionSpec->Layout->CreatePartition(partition);
-    flowView->State->CommitMutation();
-
-    if (workerAddress) {
-        auto job = New<TJob>();
-        job->JobId = MakeUniqueJobId();
-        job->PartitionId = partitionId;
-        job->WorkerAddress = *workerAddress;
-
-        flowView->State->StartMutation();
-        flowView->State->ExecutionSpec->Layout->CreateJob(job);
-        flowView->State->CommitMutation();
-
-        auto partitionJobStatus = New<TPartitionJobStatus>();
-        partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
-        partitionJobStatus->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
-        auto inputMetrics = New<TNodeInputMetrics>();
-        inputMetrics->Global.MessagesPerSecond = rps;
-        partitionJobStatus->CurrentJobStatus->InputMetrics = inputMetrics;
-        flowView->Feedback->PartitionJobStatuses[partitionId] = partitionJobStatus;
-    }
-}
-
-//! Worker resource status.
-
-static void SetWorkerResourceStatus(
-    const TFlowViewPtr& flowView,
-    const TWorkerId& address,
-    const TResourceId& resourceId,
-    double putRate,
-    double fetchRate,
-    double queueSize = 0.0,
-    double queueGrowthRate = 0.0)
-{
-    auto& workerStatus = flowView->Feedback->WorkerStatuses[address];
-    if (!workerStatus) {
-        workerStatus = New<TWorkerStatus>();
-    }
-    auto resourceStatus = New<TWorkerResourceStatus>();
-    resourceStatus->QueuePushRate10m = putRate;
-    resourceStatus->QueueFetchRate10m = fetchRate;
-    resourceStatus->QueueSize10m = queueSize;
-    resourceStatus->QueueGrowthRate10m = queueGrowthRate;
-    workerStatus->ResourceStatuses[resourceId] = resourceStatus;
-}
-
-//! Preload state helpers.
-
-static void SetPreloadCompleted(
-    const TFlowViewPtr& flowView,
-    const TWorkerId& address,
-    const TResourceId& resourceId)
-{
-    auto& workerStatus = flowView->Feedback->WorkerStatuses[address];
-    if (!workerStatus) {
-        workerStatus = New<TWorkerStatus>();
-    }
-    workerStatus->PreloadedResourceStates[resourceId] = EPreloadedResourceState::Preloaded;
-}
-
-static void SetPreloadIssued(
-    const TFlowViewPtr& flowView,
-    const TWorkerId& address,
-    const TResourceId& resourceId)
-{
-    flowView->State->StartMutation();
-    auto workerSpec = New<TWorkerSpec>();
-    workerSpec->PreloadResources.insert(resourceId);
-    // Merge with existing if any.
-    auto existingIt = flowView->State->ExecutionSpec->Layout->WorkerSpecs.find(address);
-    if (existingIt != flowView->State->ExecutionSpec->Layout->WorkerSpecs.end()) {
-        for (const auto& r : existingIt->second->PreloadResources) {
-            workerSpec->PreloadResources.insert(r);
-        }
-    }
-    flowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign(address, workerSpec);
-    flowView->State->CommitMutation();
-}
-
-//! Result helpers.
-
-//! Returns map: partitionId → workerAddress for Add actions.
-static THashMap<TPartitionId, TWorkerId> GetAddActions(const TRebalanceResult& result)
-{
-    THashMap<TPartitionId, TWorkerId> adds;
-    for (const auto& action : result.Actions) {
-        if (action.Type == ERebalanceActionType::Add) {
-            adds[action.PartitionId] = action.WorkerAddress;
-        }
-    }
-    return adds;
-}
-
-//! Returns set of partitionIds from Del actions.
-static THashSet<TPartitionId> GetDelActions(const TRebalanceResult& result)
-{
-    THashSet<TPartitionId> dels;
-    for (const auto& action : result.Actions) {
-        if (action.Type == ERebalanceActionType::Del) {
-            dels.insert(action.PartitionId);
-        }
-    }
-    return dels;
-}
-
-//! Returns preload actions as vector for inspection.
-static std::vector<TWorkerPreloadResultAction> GetPreloadAddActions(const TRebalanceResult& result)
-{
-    std::vector<TWorkerPreloadResultAction> adds;
-    for (const auto& action : result.PreloadResourceActions) {
-        if (action.Type == ERebalanceActionType::Add) {
-            adds.push_back(action);
-        }
-    }
-    return adds;
-}
-
-//! Returns preload Del actions as vector for inspection.
-static std::vector<TWorkerPreloadResultAction> GetPreloadDelActions(const TRebalanceResult& result)
-{
-    std::vector<TWorkerPreloadResultAction> dels;
-    for (const auto& action : result.PreloadResourceActions) {
-        if (action.Type == ERebalanceActionType::Del) {
-            dels.push_back(action);
-        }
-    }
-    return dels;
-}
+using namespace NYT::NFlow::NBalancer::NTesting;
 
 //! Test fixture.
 class TResourceBalancerTest : public ::testing::Test
@@ -320,6 +49,11 @@ protected:
     {
         auto balancerSpec = MakeBalancerSpec(planningHorizonSeconds);
         return DoBalanceResourceQueue(FlowView, balancerSpec, Group);
+    }
+
+    TResourceContextSnapshot Snapshot()
+    {
+        return CollectResourceContextForTesting(FlowView, MakeBalancerSpec(), Group);
     }
 };
 
@@ -1505,6 +1239,521 @@ TEST_F(TResourceBalancerTest, NoEqualizationChurnWhenNearlyBalanced)
 
     // Already balanced (absolute CV drop < threshold) → no equalization moves, no churn.
     EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! A resource no worker of the group reports (a model, a client factory, an encoder) has no queue
+//! and must get consumption multiplier 0, not the average of the computation's other resources.
+//! With five resources and feedback from one, the fallback made TotalConsumptionMultiplier 5x, so a
+//! computation that keeps up looked 80% starved and Step 2 pulled in an extra worker every round.
+//! Observable: no preload Add on the idle worker (Step 4.5 is inert with a single partition).
+TEST_F(TResourceBalancerTest, SilentResourcesGetZeroMultiplier)
+{
+    auto compId = MakeComputationId("comp1");
+    auto queueRes = MakeResourceId("queue");
+    auto modelRes = MakeResourceId("model");
+    std::vector<TResourceId> silent = {modelRes, MakeResourceId("client"), MakeResourceId("encoder"), MakeResourceId("workingset")};
+
+    SetResourceSpec(queueRes, MakeResourceSpec());
+    SetResourceSpec(modelRes, MakeResourceSpec({}, /*preloadRequired=*/true));
+    for (const auto& resId : silent) {
+        if (resId != modelRes) {
+            SetResourceSpec(resId, MakeResourceSpec());
+        }
+    }
+    std::vector<TResourceId> all = silent;
+    all.push_back(queueRes);
+    SetComputationSpec(compId, MakeComputationSpec(Group, all));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    SetPreloadCompleted(FlowView, "worker1", modelRes);
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/10.0, "worker1");
+
+    // Only the queue resource reports: worker1 keeps up (put == fetch) with a small standing queue,
+    // so its capacity is capped at the measured fetch rate (10) — exactly the multiplied consumption.
+    SetWorkerResourceStatus(FlowView, "worker1", queueRes,
+        /*putRate=*/10.0,
+        /*fetchRate=*/10.0,
+        /*queueSize=*/5.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto snapshot = Snapshot();
+    const auto& multipliers = snapshot.ResourceConsumptionMultiplier.at(compId);
+    EXPECT_DOUBLE_EQ(multipliers.at(queueRes), 1.0);
+    for (const auto& resId : silent) {
+        EXPECT_DOUBLE_EQ(multipliers.at(resId), 0.0) << resId.Underlying();
+    }
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compId), 1.0);
+
+    auto result = RunBalancer();
+
+    // Not starving → Step 2 adds no worker → no preload issued on worker2.
+    for (const auto& action : GetPreloadAddActions(result)) {
+        EXPECT_NE(action.WorkerAddress, "worker2");
+    }
+    EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! A resource that reports on some worker is not silent even when this computation has no valid
+//! pair for it: the priority 1 average over other computations applies, not 0.
+TEST_F(TResourceBalancerTest, ReportedElsewhereUsesResourceAverageNotZero)
+{
+    auto compA = MakeComputationId("compA");
+    auto compB = MakeComputationId("compB");
+    auto sharedRes = MakeResourceId("shared");
+    auto queueB = MakeResourceId("queueB");
+
+    SetResourceSpec(sharedRes, MakeResourceSpec());
+    SetResourceSpec(queueB, MakeResourceSpec());
+    SetComputationSpec(compA, MakeComputationSpec(Group, {sharedRes}));
+    SetComputationSpec(compB, MakeComputationSpec(Group, {sharedRes, queueB}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compA, /*rps=*/10.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compB, /*rps=*/10.0, "worker2");
+
+    // worker1 reports shared for compA (multiplier 2); worker2 reports only queueB.
+    SetWorkerResourceStatus(FlowView, "worker1", sharedRes, /*putRate=*/20.0, /*fetchRate=*/20.0);
+    SetWorkerResourceStatus(FlowView, "worker2", queueB, /*putRate=*/10.0, /*fetchRate=*/10.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compA).at(sharedRes), 2.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(sharedRes), 2.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(queueB), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compB), 3.0);
+}
+
+//! Cold start: no worker reports anything, so no resource is silent and every multiplier is 1.0.
+TEST_F(TResourceBalancerTest, ColdStartKeepsUnitMultipliers)
+{
+    auto compId = MakeComputationId("comp1");
+    auto queueRes = MakeResourceId("queue");
+    auto modelRes = MakeResourceId("model");
+
+    SetResourceSpec(queueRes, MakeResourceSpec());
+    SetResourceSpec(modelRes, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {queueRes, modelRes}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/10.0, "worker1");
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compId).at(queueRes), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compId).at(modelRes), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compId), 2.0);
+}
+
+//! A computation with no placed partitions (a new stage, only strays) has nothing reporting for
+//! it, but its resources are not silent: nothing is deployed yet. It must keep the averaging
+//! fallback, otherwise Consumption is 0, Step 1 adds a single worker and Step 6 packs every stray
+//! on it because each partition weighs 0.
+TEST_F(TResourceBalancerTest, NotYetRunningStageSpreadsOverWorkers)
+{
+    auto compA = MakeComputationId("compA");
+    auto compB = MakeComputationId("compB");
+    auto queueA = MakeResourceId("queueA");
+    auto queueB = MakeResourceId("queueB");
+
+    SetResourceSpec(queueA, MakeResourceSpec());
+    SetResourceSpec(queueB, MakeResourceSpec());
+    SetComputationSpec(compA, MakeComputationSpec(Group, {queueA}));
+    SetComputationSpec(compB, MakeComputationSpec(Group, {queueB}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    // compA runs on worker1 and reports; compB has only strays and nobody reports queueB.
+    AddPartition(FlowView, MakePartitionId(1), compA, /*rps=*/10.0, "worker1");
+    SetWorkerResourceStatus(FlowView, "worker1", queueA, /*putRate=*/10.0, /*fetchRate=*/10.0);
+    std::vector<TPartitionId> strays;
+    for (int i = 2; i <= 5; ++i) {
+        strays.push_back(MakePartitionId(i));
+        AddPartition(FlowView, strays.back(), compB, /*rps=*/10.0, std::nullopt);
+    }
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(queueB), 1.0);
+
+    auto result = RunBalancer();
+    auto adds = GetAddActions(result);
+    THashSet<TWorkerId> workersUsed;
+    for (const auto& partitionId : strays) {
+        ASSERT_TRUE(adds.contains(partitionId));
+        workersUsed.insert(adds.at(partitionId));
+    }
+    EXPECT_GT(workersUsed.size(), 1u);
+}
+
+//! An idle worker borrows the capacity of its loaded peers. A backlogged peer must lend its
+//! measured FetchRate, not incomingLoad: the cap has to apply before the per-capability averaging.
+TEST_F(TResourceBalancerTest, IdleWorkerBorrowsCappedCapacityFromBackloggedPeer)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/100.0, "worker1");
+
+    // worker1: incoming 100/s (multiplier 1), drains 50/s, queue 200 >= ZeroQueueLatency * rate.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/50.0,
+        /*queueSize=*/200.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker1"), 50.0);
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker2"), 50.0);
+}
+
+//! Packed layout: two computations, each entirely on its own saturated worker (load == capacity,
+//! standing queue above the zero level), three idle workers with preloads done. Step 4.5 enrolls
+//! the idle workers, Step 8 spreads onto them (each partition takes its queue share along, so the
+//! spread stops at even loads instead of evacuating the source), Step 9 accepts because the
+//! deviation over the enrolled workers drops.
+TEST_F(TResourceBalancerTest, PackedComputationsSpreadToIdleWorkers)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+
+    SetResourceSpec(res1, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(res2, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+
+    const std::vector<TWorkerId> loaded = {"worker1", "worker2"};
+    const std::vector<TWorkerId> idle = {"worker3", "worker4", "worker5"};
+    for (const auto& w : loaded) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+        SetPreloadCompleted(FlowView, w, res1);
+        SetPreloadCompleted(FlowView, w, res2);
+    }
+    SetPreloadCompleted(FlowView, "worker1", res1);
+    SetPreloadCompleted(FlowView, "worker2", res2);
+
+    THashMap<TPartitionId, TComputationId> partitionComputation;
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker2");
+        partitionComputation[MakePartitionId(i)] = comp1;
+        partitionComputation[MakePartitionId(10 + i)] = comp2;
+    }
+
+    // Both loaded workers keep up (put == fetch) with a standing queue of 1.5 s of their rate;
+    // idle workers report nothing.
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    auto dels = GetDelActions(result);
+    auto adds = GetAddActions(result);
+    ASSERT_FALSE(dels.empty());
+    ASSERT_EQ(adds.size(), dels.size());
+
+    THashMap<TWorkerId, THashSet<TComputationId>> received;
+    THashMap<TComputationId, int> movedPerComputation;
+    for (const auto& [partitionId, workerAddress] : adds) {
+        EXPECT_TRUE(dels.contains(partitionId));
+        EXPECT_TRUE(std::find(idle.begin(), idle.end(), workerAddress) != idle.end()) << workerAddress;
+        received[workerAddress].insert(partitionComputation.at(partitionId));
+        ++movedPerComputation[partitionComputation.at(partitionId)];
+    }
+    for (const auto& w : idle) {
+        EXPECT_TRUE(received[w].contains(comp1)) << w;
+        EXPECT_TRUE(received[w].contains(comp2)) << w;
+    }
+    // A spread, not an evacuation: each loaded worker keeps a share of its own computation.
+    for (const auto& [computationId, moved] : movedPerComputation) {
+        EXPECT_LE(moved, 8) << computationId.Underlying();
+    }
+}
+
+//! Step 8 tie-break: idle workers all project to queue 0, so ties break by load/capacity and the
+//! moves round-robin across them instead of saturating the first one found; the source keeps its
+//! even share.
+TEST_F(TResourceBalancerTest, IdleWorkersTiedByLoadShare)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    const std::vector<TWorkerId> idle = {"worker2", "worker3", "worker4"};
+    AddWorker(FlowView, "worker1", Group);
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (int i = 1; i <= 30; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/1.0, "worker1");
+    }
+    // worker1 keeps up with a standing queue above the zero level; idle workers report nothing.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/30.0,
+        /*fetchRate=*/30.0,
+        /*queueSize=*/45.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    THashMap<TWorkerId, int> received;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        ++received[workerAddress];
+    }
+    int minReceived = std::numeric_limits<int>::max();
+    int maxReceived = 0;
+    int totalReceived = 0;
+    for (const auto& w : idle) {
+        minReceived = std::min(minReceived, received[w]);
+        maxReceived = std::max(maxReceived, received[w]);
+        totalReceived += received[w];
+    }
+    EXPECT_GE(minReceived, 1);
+    EXPECT_LE(maxReceived - minReceived, 1);
+    // worker1 keeps its share: the moves spread the partitions over four workers, not three.
+    EXPECT_LT(totalReceived, 30);
+}
+
+//! Below the group's zero-queue level (total projected queue under ZeroQueueLatency worth of
+//! load) there is nothing to balance: uneven but tiny draining queues must not trigger moves,
+//! even though their Cv is large.
+TEST_F(TResourceBalancerTest, NoEqualizationWhenQueuesBelowZeroLevel)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), compId, /*rps=*/10.0, "worker2");
+    }
+    // Both workers drain (fetch > put); queues are 0.3 s and 0.8 s of their rate, well below the
+    // 1 s zero level, but uneven.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/150.0,
+        /*queueSize=*/30.0,
+        /*queueGrowthRate=*/-50.0);
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/150.0,
+        /*queueSize=*/80.0,
+        /*queueGrowthRate=*/-50.0);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetDelActions(result).empty());
+    EXPECT_TRUE(GetAddActions(result).empty());
+}
+
+//! The metric is dimensional: worker1 carries a growing backlog, worker2 has ample spare capacity
+//! and drains whatever it receives, so after the moves the projected queues keep their shape (one
+//! large, one near zero) but the large one shrinks. A scale-free Cv would reject the plan.
+TEST_F(TResourceBalancerTest, EqualizationAcceptedWhenBacklogDrains)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/1.0, "worker1");
+    }
+    AddPartition(FlowView, MakePartitionId(11), compId, /*rps=*/1.0, "worker2");
+
+    // worker1: load 10, capacity 2, queue grows by 8/s.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/10.0,
+        /*fetchRate=*/2.0,
+        /*queueSize=*/1000.0,
+        /*queueGrowthRate=*/8.0);
+    // worker2: load 1, capacity 100, queue draining.
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate=*/1.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/60.0,
+        /*queueGrowthRate=*/-99.0);
+
+    auto result = RunBalancer();
+
+    auto dels = GetDelActions(result);
+    auto adds = GetAddActions(result);
+    EXPECT_FALSE(dels.empty());
+    for (const auto& partitionId : dels) {
+        ASSERT_TRUE(adds.contains(partitionId));
+        EXPECT_EQ(adds.at(partitionId), "worker2");
+    }
+}
+
+//! A resource removed from the spec while a worker still has it issued and loaded must not
+//! crash the balancer and must be released with a preload Del.
+TEST_F(TResourceBalancerTest, ResourceRemovedFromSpecWhileIssuedIsReleased)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+
+    // The worker still reports and holds a resource that is not in the spec any more.
+    SetPreloadIssued(FlowView, "worker1", goneResId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    auto result = RunBalancer();
+
+    auto dels = GetPreloadDelActions(result);
+    ASSERT_EQ(dels.size(), 1u);
+    EXPECT_EQ(dels[0].ResourceId, goneResId);
+    EXPECT_EQ(dels[0].WorkerAddress, "worker1");
+    EXPECT_TRUE(GetPreloadAddActions(result).empty());
+}
+
+//! The round after the Del is applied: the resource is gone from WorkerSpecs.PreloadResources,
+//! but the worker still reports it as preloaded. Nothing to release, and no crash.
+TEST_F(TResourceBalancerTest, ResourceRemovedFromSpecWhileCompletedIsIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetPreloadDelActions(result).empty());
+    EXPECT_TRUE(GetPreloadAddActions(result).empty());
+}
+
+//! Feedback of a resource that is gone from the spec must not shape the worker's capacity
+//! estimate: only the stats of res1 (capacity = put - growth = 1) are counted.
+TEST_F(TResourceBalancerTest, StaleStatsOfRemovedResourceAreIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 1.0,
+        /*fetchRate*/ 1.0,
+        /*queueSize*/ 0.0,
+        /*queueGrowthRate*/ 0.0);
+    // Stale, still non-zero stats of the removed resource.
+    SetWorkerResourceStatus(FlowView, "worker1", goneResId,
+        /*putRate*/ 10.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 100.0,
+        /*queueGrowthRate*/ 8.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker1"), 1.0);
+}
+
+//! The balancer skips a preload spec of a previous incarnation of the address: the new incarnation
+//! has no preloaded resources, so the model is requested again.
+TEST_F(TResourceBalancerTest, PreloadOfPreviousIncarnationIsReissued)
+{
+    auto compId = MakeComputationId("comp1");
+    auto modelId = MakeResourceId("model");
+
+    SetResourceSpec(modelId, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {modelId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    FlowView->State->Workers.at("worker1")->IncarnationId = TIncarnationId(TGuid::Create());
+    SetPreloadIssued(FlowView, "worker1", modelId);
+    {
+        // Stamp the spec with the incarnation it was issued to.
+        FlowView->State->StartMutation();
+        auto workerSpec = CloneYsonStruct(FlowView->State->ExecutionSpec->Layout->WorkerSpecs.at("worker1"));
+        workerSpec->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+        FlowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign("worker1", workerSpec);
+        FlowView->State->CommitMutation();
+    }
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/1.0, std::nullopt);
+
+    auto result = RunBalancer();
+
+    bool reissued = false;
+    for (const auto& action : GetPreloadAddActions(result)) {
+        if (action.WorkerAddress == "worker1" && action.ResourceId == modelId) {
+            reissued = true;
+        }
+    }
+    EXPECT_TRUE(reissued);
+}
+
+//! The balancer skips a worker status of a previous incarnation of the address: the model it
+//! reports as preloaded is not on the new incarnation, so a stray partition is not placed there.
+TEST_F(TResourceBalancerTest, FeedbackOfPreviousIncarnationIsIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto modelId = MakeResourceId("model");
+
+    SetResourceSpec(modelId, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {modelId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    FlowView->State->Workers.at("worker1")->IncarnationId = TIncarnationId(TGuid::Create());
+    SetPreloadIssued(FlowView, "worker1", modelId);
+    SetPreloadCompleted(FlowView, "worker1", modelId);
+    FlowView->Feedback->WorkerStatuses.at("worker1")->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/1.0, std::nullopt);
+
+    auto result = RunBalancer();
+
+    EXPECT_FALSE(GetAddActions(result).contains(MakePartitionId(1)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

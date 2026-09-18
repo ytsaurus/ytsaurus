@@ -217,9 +217,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     auto expected = ESlotManagerState::Disabled;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
-        YT_LOG_DEBUG(
-            "Slot manager is already in (%v) state; skipping environment initialization",
-            expected);
+        YT_TLOG_DEBUG("Slot manager is in an unexpected state; skipping environment initialization")
+            .With("State", expected);
         return OKFuture;
     }
 
@@ -268,12 +267,12 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     InitializeSlots();
 
     if (!jobEnvironment->IsEnabled()) {
-        auto error = TError("Job environment is disabled");
-        YT_LOG_WARNING(error);
+        static constexpr auto Message = "Job environment is disabled"_sb;
+        YT_TLOG_WARNING(Message);
 
         SetDisabledState();
 
-        return MakeFuture(error);
+        return MakeFuture(TError(Message));
     }
 
     {
@@ -357,7 +356,8 @@ void TSlotManager::OnDynamicConfigChanged(
                 try {
                     jobEnvironment->OnDynamicConfigChanged(oldConfig, newConfig);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(TError(ex));
+                    YT_TLOG_ERROR("Failed to apply dynamic config to job environment")
+                        .With(ex);
                 }
             }
         }));
@@ -787,9 +787,8 @@ void TSlotManager::ForceInitialize()
     auto expected = ESlotManagerState::Disabled;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
-        YT_LOG_DEBUG(
-            "Slot manager is already in (%v) state; skipping ForceInitialize",
-            expected);
+        YT_TLOG_DEBUG("Slot manager is in an unexpected state; skipping forced initialization")
+            .With("State", expected);
     } else {
         State_.store(ESlotManagerState::Initialized);
     }
@@ -857,9 +856,8 @@ bool TSlotManager::Disable(TError error)
     auto expected = ESlotManagerState::Initialized;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Disabling)) {
-        YT_LOG_DEBUG(
-            "Slot manager is already in (%v) state; skipping Disable",
-            expected);
+        YT_TLOG_DEBUG("Slot manager is in an unexpected state; skipping disabling")
+            .With("State", expected);
         return false;
     }
 
@@ -1247,11 +1245,12 @@ void TSlotManager::FinishInitialization(const TError& error)
         YT_TLOG_INFO("Slot manager async initialization finished");
         State_.store(ESlotManagerState::Initialized);
     } else {
-        auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Initialization failed")
+        static constexpr auto Message = "Initialization failed"_sb;
+        auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, Message)
             .With(error);
 
-        YT_TLOG_WARNING("Initialization failed")
-            .With(wrappedError);
+        YT_TLOG_WARNING(Message)
+            .With(error);
 
         {
             auto guard = WriterGuard(AlertsLock_);
@@ -1341,11 +1340,9 @@ void TSlotManager::PushSlot(int slotIndex)
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     for (auto slot : TRingQueueIterableWrapper(FreeSlots_)) {
-        YT_LOG_FATAL_IF(
-            slot == slotIndex,
-            "Slot is already free (SlotIndex: %v, InitializationEpoch: %v)",
-            InitializationEpoch_,
-            slotIndex);
+        YT_TLOG_FATAL_IF(slot == slotIndex, "Slot is already free")
+            .With("SlotIndex", slotIndex)
+            .With("InitializationEpoch", InitializationEpoch_);
     }
 
     FreeSlots_.push(slotIndex);

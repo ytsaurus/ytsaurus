@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 #include <yt/yt/server/master/chunk_server/chunk_replication_queue.h>
 
@@ -22,6 +24,10 @@
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
@@ -67,6 +73,29 @@ struct TIncrementalHeartbeatCounters
     NProfiling::TCounter AddedDestroyedReplicas;
 
     explicit TIncrementalHeartbeatCounters(const NProfiling::TProfiler& profiler);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellSlot
+{
+    NCellServer::TCellBaseRawPtr Cell;
+    NHydra::EPeerState PeerState = NHydra::EPeerState::None;
+    int PeerId = NHydra::InvalidPeerId;
+
+    //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
+    int PreloadPendingStoreCount = 0;
+
+    //! Sum of `PreloadCompletedStoreCount` over all tablets in slot.
+    int PreloadCompletedStoreCount = 0;
+
+    //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
+    int PreloadFailedStoreCount = 0;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+    // Used in cell balancer to check peer state.
+    bool IsWarmedUp() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,7 +210,7 @@ public:
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, LeaseTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LastSeenLeaseTransactionTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LeaseTransactionTimeoutBeforeExtension);
 
     // Exec Node stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
@@ -233,28 +262,6 @@ public:
     // Used for CRP-enabled chunks only.
     using TChunkPullReplicationSet = THashMap<TChunkId, TMediumMap<int>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
-
-    // Cell Manager stuff.
-    struct TCellSlot
-    {
-        NCellServer::TCellBaseRawPtr Cell;
-        NHydra::EPeerState PeerState = NHydra::EPeerState::None;
-        int PeerId = NHydra::InvalidPeerId;
-
-        //! Sum of `PreloadPendingStoreCount` over all tablets in slot.
-        int PreloadPendingStoreCount = 0;
-
-        //! Sum of `PreloadCompletedStoreCount` over all tablets in slot.
-        int PreloadCompletedStoreCount = 0;
-
-        //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
-        int PreloadFailedStoreCount = 0;
-
-        void Persist(const NCellMaster::TPersistenceContext& context);
-
-        // Used in cell balancer to check peer state.
-        bool IsWarmedUp() const;
-    };
 
     using TCellar = TCompactVector<TCellSlot, NCellarClient::TypicalCellarSize>;
     using TCellarMap = THashMap<NCellarClient::ECellarType, TCellar>;

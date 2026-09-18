@@ -31,11 +31,8 @@ using TAccessControlObjectNamespaceId = NObjectServer::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr double MaxExternalCellBias = 16.0;
-
 DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
-DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressManager)
 DECLARE_REFCOUNTED_STRUCT(IPortalManager)
@@ -73,7 +70,6 @@ using TInheritedAttributeDictionaryPtr = TIntrusivePtr<TInheritedAttributeDictio
 using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
 
 using TCypressNodeList = TCompactVector<TCypressNode*, 8>;
-using TCypressNodeExpirationMap = std::multimap<TInstant, NObjectServer::TRawObjectPtr<TCypressNode>>;
 
 struct TLockRequest;
 
@@ -81,22 +77,6 @@ template <class TChild>
 class TMapNodeImpl;
 using TCypressMapNode = TMapNodeImpl<TCypressNodeRawPtr>;
 using TSequoiaMapNode = TMapNodeImpl<TNodeId>;
-
-template <class T>
-class TScalarNode;
-using TStringNode  = TScalarNode<std::string>;
-using TInt64Node   = TScalarNode<i64>;
-using TUint64Node  = TScalarNode<ui64>;
-using TDoubleNode  = TScalarNode<double>;
-using TBooleanNode = TScalarNode<bool>;
-
-template <class T>
-class TScalarNodeTypeHandler;
-using TStringNodeTypeHandler  = TScalarNodeTypeHandler<std::string>;
-using TInt64NodeTypeHandler   = TScalarNodeTypeHandler<i64>;
-using TUint64NodeTypeHandler  = TScalarNodeTypeHandler<ui64>;
-using TDoubleNodeTypeHandler  = TScalarNodeTypeHandler<double>;
-using TBooleanNodeTypeHandler = TScalarNodeTypeHandler<bool>;
 
 struct TCreateNodeContext;
 

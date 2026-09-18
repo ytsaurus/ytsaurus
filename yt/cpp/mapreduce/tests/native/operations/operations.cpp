@@ -2666,6 +2666,90 @@ TEST(Operations, FileCacheModes)
                 .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
 }
 
+TEST(Operations, LockFileStorage)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    TConfig::Get()->LockFileStorage = true;
+
+    CreateTableWithFooColumn(client, workingDir + "/input");
+
+    TTempFile tempFile(MakeTempName());
+    {
+        TOFStream os(tempFile.Name());
+        // Create a file with unique contents to get cache miss
+        os << CreateGuidAsString();
+    }
+
+    const auto poolName = TString("lock_file_storage");
+    auto poolGuard = CreateSchedulerPool(client, poolName, TNode()("max_running_operation_count", 1));
+
+    auto sleepingOp = client->Map(
+        TMapOperationSpec()
+            .Pool(poolName)
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
+        new TSleepingMapper(TDuration::Minutes(10)),
+        TOperationOptions()
+            .Wait(false));
+
+    auto abortSleepingOpGuard = Finally([&] {
+        if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
+            sleepingOp->AbortOperation();
+        }
+    });
+
+    // Pending operations keep their file transaction (and thus the lock) alive.
+    auto customStorageOp = client->Map(
+        TMapOperationSpec()
+            .Pool(poolName)
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output_1")
+            .MapperSpec(TUserJobSpec()
+                .AddLocalFile(tempFile.Name())),
+        new TIdMapper,
+        TOperationOptions()
+            .Wait(false)
+            .FileStorage(workingDir + "/file_storage"));
+
+    auto abortCustomStorageOpGuard = Finally([&] {
+        if (customStorageOp->GetBriefState() == EOperationBriefState::InProgress) {
+            customStorageOp->AbortOperation();
+        }
+    });
+
+    auto defaultStorageOp = client->Map(
+        TMapOperationSpec()
+            .Pool(poolName)
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output_2")
+            .MapperSpec(TUserJobSpec()
+                .AddLocalFile(tempFile.Name())),
+        new TIdMapper,
+        TOperationOptions()
+            .Wait(false));
+
+    auto abortDefaultStorageOpGuard = Finally([&] {
+        if (defaultStorageOp->GetBriefState() == EOperationBriefState::InProgress) {
+            defaultStorageOp->AbortOperation();
+        }
+    });
+
+    auto hasSharedLock = [&] (const TYPath& path) {
+        auto locks = client->Get(path + "/@locks");
+        return AnyOf(locks.AsList(), [] (const TNode& lock) {
+            return lock["mode"].AsString() == "shared";
+        });
+    };
+
+    EXPECT_TRUE(hasSharedLock(workingDir + "/file_storage/new_cache"));
+
+    // The default file storage must not be locked even when the option is enabled.
+    EXPECT_FALSE(hasSharedLock(TConfig::Get()->RemoteTempFilesDirectory + "/new_cache"));
+}
+
 TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
 {
     TTestFixture fixture;
@@ -3304,12 +3388,19 @@ TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
                 ("blah2", 2)));
 
     TNode unrecognizedSpec;
-    TStringBuf prefix = "WARNING! Unrecognized spec for operation";
+    // The spec is the trailing tag of the log event, so it runs to the closing paren.
+    constexpr TStringBuf marker = "UnrecognizedSpec: ";
     for (TStringBuf line : StringSplitter(stream.Str()).Split('\n')) {
-        if (line.StartsWith(prefix)) {
-            unrecognizedSpec = NodeFromYsonString(line.After(':'));
-            break;
+        auto pos = line.find(marker);
+        if (pos == TStringBuf::npos) {
+            continue;
         }
+        auto spec = line.substr(pos + marker.size());
+        if (spec.EndsWith(')')) {
+            spec.Chop(1);
+        }
+        unrecognizedSpec = NodeFromYsonString(spec);
+        break;
     }
 
     EXPECT_EQ(unrecognizedSpec.GetType(), TNode::Map);

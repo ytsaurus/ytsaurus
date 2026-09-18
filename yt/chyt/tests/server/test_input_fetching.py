@@ -6,7 +6,7 @@ from yt_type_helpers import optional_type
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
-from .helpers import get_disabled_cache_config
+from helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
@@ -1087,6 +1087,29 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
     @authors("buyval01")
+    def test_min_max_filtering_optional_tagged_string(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type_v3": optional_type({
+                "type_name": "tagged",
+                "tag": "AggregateFunction(uniq, Nullable(String))",
+                "item": "string",
+            })},
+        ]})
+        write_table("//tmp/t", [{"key": 1, "value": "foo"}])
+        write_table("<append=%true>//tmp/t", [{"key": 2, "value": None}])
+        write_table("<append=%true>//tmp/t", [{"key": 3, "value": "bar"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query(
+                'select key, value from "//tmp/t" order by key'
+            ) == [{"key": 1, "value": "foo"}, {"key": 2, "value": None}, {"key": 3, "value": "bar"}]
+            assert clique.make_query_and_validate_read_row_count(
+                'select key from "//tmp/t" where value = \'foo\' '
+                'settings optimize_move_to_prewhere = 0', exact=1
+            ) == [{"key": 1}]
+
+    @authors("buyval01")
     def test_predicate_pushdown_through_subquery(self):
         table_path = "//tmp/t"
         create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -1213,6 +1236,26 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(1, config_patch=config_patch) as clique:
             query = f'explain plan actions = 1 select a from (select * from \'{table_path}\') t where t.a > 19'
             assert any(expl["explain"].strip().startswith("Pushed filter:") for expl in clique.make_query(query))
+
+    @authors("ivanzhukov")
+    def test_explain_distributed(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        with Clique(1) as clique:
+            query_no_dist = f'EXPLAIN PLAN /*distributed=1*/ SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            query_dist = f'EXPLAIN PLAN   distributed=1   SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            output_no_dist = clique.make_query(query_no_dist)
+            output_dist = clique.make_query(query_dist)
+
+            # Check that the output for distributed=1 is an addition to the first one.
+            assert output_dist[:len(output_no_dist)] == output_no_dist
+
+            output_last_line_no_dist = output_no_dist[-1]["explain"].strip()
+            output_last_line_dist = output_dist[-1]["explain"].strip()
+
+            assert output_last_line_no_dist.endswith("ReadFromYTRemote (Tables: [//tmp/t, ] )")
+            assert output_last_line_dist.endswith("ReadFromPreparedSource (Read from NullSource)")
 
     @authors("buyval01")
     def test_timestamp_key_filtering(self):

@@ -166,6 +166,7 @@ TEST(TCodecTest, SerializesResponseGroups)
     auto& group = groups.emplace_back();
     group.Messages.push_back(message);
     group.Distribute = {false};
+    group.MessageIdSuffixes = {TOutputMessageIdSuffix::FromUserDefined("semantic-key")};
     group.Timers.push_back(NCompanion::TNewTimer{
         .TriggerTimestamp = TSystemTimestamp(100),
         .EventTimestamp = TSystemTimestamp(50),
@@ -182,6 +183,11 @@ TEST(TCodecTest, SerializesResponseGroups)
     EXPECT_EQ(protoGroup.messages(0).stream_spec_id(), 9);
     ASSERT_EQ(protoGroup.distribute_size(), 1);
     EXPECT_FALSE(protoGroup.distribute(0));
+    ASSERT_EQ(protoGroup.message_id_suffixes_size(), 1);
+    EXPECT_EQ(
+        protoGroup.message_id_suffixes(0).mode(),
+        NProto::NCompanion::TMessageIdSuffix::MIS_USER_DEFINED);
+    EXPECT_EQ(protoGroup.message_id_suffixes(0).user_defined(), "semantic-key");
     ASSERT_EQ(protoGroup.timers_size(), 1);
     EXPECT_EQ(protoGroup.timers(0).trigger_timestamp(), ui64{100});
     EXPECT_EQ(protoGroup.timers(0).event_timestamp(), ui64{50});
@@ -205,11 +211,13 @@ TEST(TCodecTest, DistributeOmittedWhenAllTrue)
             builder.Payload().Set(ui64{1}, "key");
         }));
     group.Distribute = {true};
+    group.MessageIdSuffixes = {TOutputMessageIdSuffix::FromSequenceNumber()};
     group.ParentIds.push_back(TMessageId("parent-1"));
 
     NProto::NCompanion::TResponseData data;
     SerializeProcessBatchResponse(&data, groups, {}, {}, specs);
     EXPECT_EQ(data.output(0).distribute_size(), 0);
+    EXPECT_EQ(data.output(0).message_id_suffixes_size(), 0);
 }
 
 TEST(TCodecTest, EmptyParentIdsThrow)

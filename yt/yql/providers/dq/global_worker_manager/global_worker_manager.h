@@ -16,6 +16,7 @@ NActors::IActor* CreateGlobalWorkerManager(
         const TVector<TResourceManagerOptions>& resourceUploaderOptions,
         IMetricsRegistryPtr metricsRegistry,
         const NProto::TDqConfig::TScheduler& schedulerConfig,
-        TDuration scheduleInterval = TDuration::MilliSeconds(100));
+        TDuration scheduleInterval = TDuration::MilliSeconds(100),
+        TGlobalWorkerManagerActorIdOptions actorIdOptions = {});
 
 } // namespace NYql

@@ -1,19 +1,19 @@
 #include "chunk_service.h"
 
-#include "private.h"
-#include "config.h"
 #include "chunk.h"
 #include "chunk_manager.h"
-#include "chunk_replicator.h"
-#include "helpers.h"
 #include "chunk_owner_base.h"
-#include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk_replica_fetcher.h"
+#include "chunk_replicator.h"
+#include "config.h"
+#include "dynamic_store.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/multi_phase_cell_sync_session.h>
@@ -25,6 +25,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/table_server/public.h>
@@ -447,14 +448,14 @@ private:
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
 
-                    if (!IsObjectAlive(chunk)) {
+                    if (!IsObjectAlive(ephemeralChunk)) {
                         subresponse->set_missing(true);
                         continue;
                     }
 
                     BuildChunkSpec(
                         Bootstrap_,
-                        chunk.Get(),
+                        ephemeralChunk.Get(),
                         replicas,
                         rowIndex,
                         /*tabletIndex*/ {},
@@ -648,24 +649,20 @@ private:
                     subresponse->add_replicas(ToProto(replica));
                 }
 
-                YT_LOG_DEBUG("Write targets allocated "
-                    "(SessionId: %v%v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, Targets: %v)",
-                    sessionId,
-                    MakeFormatterWrapper([&] (auto* builder) {
-                        if (hasConsistentReplicaPlacementHash) {
-                            builder->AppendFormat(
-                                ", ConsistentReplicaPlacementHash: %x",
-                                consistentReplicaPlacementHash);
-                        }
-                    }),
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    allocatedAddresses,
-                    MakeFormattableView(targets, TNodePtrAddressFormatter()));
+                YT_TLOG_DEBUG("Write targets allocated")
+                    .With("SessionId", sessionId)
+                    .WithFormatIf(
+                        hasConsistentReplicaPlacementHash,
+                        "ConsistentReplicaPlacementHash",
+                        "%x",
+                        consistentReplicaPlacementHash)
+                    .With("DesiredTargetCount", desiredTargetCount)
+                    .With("MinTargetCount", minTargetCount)
+                    .With("ReplicationFactorOverride", replicationFactorOverride)
+                    .With("PreferredHostName", preferredHostName)
+                    .With("ForbiddenAddresses", forbiddenAddresses)
+                    .With("AllocatedAddresses", allocatedAddresses)
+                    .With("Targets", MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 YT_TLOG_DEBUG("Error allocating write targets")

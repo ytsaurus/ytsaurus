@@ -71,6 +71,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -1689,38 +1690,25 @@ private:
             batch.BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch.Indexes.push_back(subrequestIndex);
 
-            YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v%v, Retry: %v, CellTag: %v, PeerKind: %v)",
-                batch.BatchReq->GetRequestId(),
-                requestHeader.service(),
-                requestHeader.method(),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.TargetPathRewrite) {
-                        builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
-                    }
-                }),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
-                        builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
-                    }
-                }),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
-                        builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
-                    }
-                }),
-                RpcContext_->GetAuthenticationIdentity(),
-                ypathExt.mutating(),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (!ypathExt.mutating()) {
-                        return;
-                    }
-                    builder->AppendFormat(", OriginMutationId: %v",
-                        NRpc::GetMutationId(subrequest.RequestHeader));
-                }),
-                subrequest.RequestHeader.retry(),
-                subrequest.ForwardedCellTag,
-                peerKind);
+            YT_TLOG_DEBUG("Forwarding object request")
+                .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                .With("Service", requestHeader.service())
+                .With("Method", requestHeader.method())
+                .WithIf(static_cast<bool>(subrequest.TargetPathRewrite), "TargetPath", subrequest.TargetPathRewrite)
+                .WithIf(
+                    subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty(),
+                    "AdditionalPaths",
+                    subrequest.AdditionalPathRewrites)
+                .WithIf(
+                    subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty(),
+                    "PrerequisiteRevisionPaths",
+                    subrequest.PrerequisiteRevisionPathRewrites)
+                .With("AuthenticationIdentity", RpcContext_->GetAuthenticationIdentity())
+                .With("Mutating", ypathExt.mutating())
+                .WithIf(ypathExt.mutating(), "OriginMutationId", NRpc::GetMutationId(subrequest.RequestHeader))
+                .With("Retry", subrequest.RequestHeader.retry())
+                .With("CellTag", subrequest.ForwardedCellTag)
+                .With("PeerKind", peerKind);
         }
 
         for (auto& [cellTag, batchReqOrError] : batchMap) {
@@ -2102,19 +2090,17 @@ private:
                 if (sequenceNumber) {
                     // We should have patched it before.
                     if (!response.GroundUpdateQueueSequenceNumber) {
-                        YT_LOG_ALERT("Mutation response is missing GroundUpdateQueueSequenceNumber "
-                            "(MutationId: %v: GroundUpdateQueueSequenceNumber: %v, Origin: %v)",
-                            mutationId,
-                            sequenceNumber,
-                            response.Origin);
+                        YT_TLOG_ALERT("Mutation response is missing GroundUpdateQueueSequenceNumber")
+                            .With("MutationId", mutationId)
+                            .With("GroundUpdateQueueSequenceNumber", sequenceNumber)
+                            .With("Origin", response.Origin);
                         subrequest->GroundUpdateQueueSequenceNumber = *sequenceNumber;
                     }
                     if (response.GroundUpdateQueueSequenceNumber && response.GroundUpdateQueueSequenceNumber != sequenceNumber) {
-                        YT_LOG_ALERT("GroundUpdateQueueSequenceNumber is different in response keeper and mutation response"
-                            "(MutationId: %v: ResponserGroundUpdateQueueSequenceNumber: %v, ResponseKeeperGroundUpdateQueueSequenceNumber: %v)",
-                            mutationId,
-                            response.GroundUpdateQueueSequenceNumber,
-                            sequenceNumber);
+                        YT_TLOG_ALERT("GroundUpdateQueueSequenceNumber differs between response keeper and mutation response")
+                            .With("MutationId", mutationId)
+                            .With("ResponseGroundUpdateQueueSequenceNumber", response.GroundUpdateQueueSequenceNumber)
+                            .With("ResponseKeeperGroundUpdateQueueSequenceNumber", sequenceNumber);
                         subrequest->GroundUpdateQueueSequenceNumber = std::max(*response.GroundUpdateQueueSequenceNumber, *sequenceNumber);
                     }
                 }
@@ -2212,9 +2198,24 @@ private:
             } else {
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(
+                    .Apply(
                         BIND(onRemoteTransactionReplicated)
-                            .Via(LocalReadInvoker_));
+                            .Via(LocalReadInvoker_))
+                    .Subscribe(BIND([Logger = Logger, weakThis = MakeWeak(this), requestId = GetRequestId()] (const TError& error) {
+                        if (error.IsOK()) {
+                            return;
+                        }
+
+                        YT_TLOG_ALERT(
+                            "Unexpected error while handling remote transaction replication")
+                            .With("RequestId", requestId)
+                            .With(error);
+
+                        auto this_ = weakThis.Lock();
+                        if (this_ && !this_->RpcContext_->IsReplied()) {
+                            this_->Reply(error);
+                        }
+                    }));
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);

@@ -3,6 +3,7 @@
 #include <yt/yt/flow/library/cpp/common/payload.h>
 
 #include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NFlow::NTesting {
 
@@ -17,6 +18,9 @@ TInMemorySimpleExternalStateManager::TInMemorySimpleExternalStateManager(
 
 IStateHolderPtr TInMemorySimpleExternalStateManager::GetState(const TKey& key)
 {
+    THROW_ERROR_EXCEPTION_IF(Erased_.contains(key),
+        "In-memory external state for key %v was erased in this epoch",
+        key);
     auto it = States_.find(key);
     if (it == States_.end()) {
         auto holder = New<TStateHolder<TSimpleExternalState>>();
@@ -38,8 +42,16 @@ NTableClient::TTableSchemaPtr TInMemorySimpleExternalStateManager::GetKeySchema(
     return KeySchema_;
 }
 
+void TInMemorySimpleExternalStateManager::EraseKeyState(const TKey& key)
+{
+    States_.erase(key);
+    Erased_.insert(key);
+}
+
 void TInMemorySimpleExternalStateManager::Sync(IRetryableTransactionPtr /*transaction*/)
-{ }
+{
+    Erased_.clear();
+}
 
 void TInMemorySimpleExternalStateManager::ValidateStateClass(const std::type_info& expectedStateType) const
 {

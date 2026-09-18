@@ -419,11 +419,15 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
 
                         auto it = PartNameToLoaderDescriptor_.find(name);
                         if (it == PartNameToLoaderDescriptor_.end()) {
+                            auto logLevel = HydraManager_->GetUnknownAutomatonPartsLogLevel();
+
                             SERIALIZATION_DUMP_WRITE(context, "<skipped>");
-                            YT_TLOG_INFO("Started skipping unknown automaton part")
+                            YT_TLOG_EVENT(Logger, logLevel, "Started skipping unknown automaton part")
                                 .With("Name", name)
                                 .With("Version", version);
+
                             auto size = readPart([] { });
+
                             YT_TLOG_INFO("Finished skipping unknown automaton part")
                                 .With("Name", name)
                                 .With("Size", size);

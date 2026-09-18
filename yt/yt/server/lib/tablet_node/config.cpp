@@ -119,6 +119,10 @@ void TMinHashDigestConfig::Register(TRegistrar registrar)
 
 void TCompactionHintsConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_compaction_data_size", &TThis::MinCompactionDataSize)
+        .GreaterThanOrEqual(0)
+        .Default(8_MB);
+
     registrar.Parameter("row_digest", &TThis::RowDigest)
         .DefaultNew();
     registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)
@@ -289,6 +293,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_partitioning_store_count", &TThis::MaxPartitioningStoreCount)
         .Default(5)
         .GreaterThan(0);
+    registrar.Parameter("max_old_eden_chunk_partitioning_lag", &TThis::MaxOldEdenChunkPartitioningLag)
+        .Optional();
 
     registrar.Parameter("min_compaction_store_count", &TThis::MinCompactionStoreCount)
         .Default(3)

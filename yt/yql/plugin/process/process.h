@@ -36,10 +36,12 @@ public:
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) override;
 
+    TClustersResult GetClustersInfo(TQueryId queryId) override;
 
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
@@ -50,6 +52,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) override;
@@ -62,7 +65,7 @@ public:
 
     void OnUdfMetaChanged(TUdfMetaPtr udfMeta) override;
 
-    void RegisterQuery(TQueryId queryId) override;
+    void RegisterQuery(TQueryId queryId, NYson::TYsonString settings) override;
     void UnregisterQuery(TQueryId queryId) override;
 
     void Stop();

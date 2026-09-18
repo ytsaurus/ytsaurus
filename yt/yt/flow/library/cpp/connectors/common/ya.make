@@ -14,6 +14,7 @@ SRCS(
     sink_controller_base.cpp
     source_base.cpp
     source_controller_base.cpp
+    sync_replica.cpp
     sync_sink_base.cpp
 )
 

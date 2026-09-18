@@ -57,6 +57,8 @@ struct TArchiveOperationRequest
     NYson::TYsonString ControllerFeatures;
     // Archive version >= 46
     NYson::TYsonString ProvidedSpec;
+    // Archive version >= 69
+    NYson::TYsonString CumulativeSpecPatch;
 
     static const std::vector<std::string>& GetAttributeKeys();
     static const std::vector<std::string>& GetProgressAttributeKeys();

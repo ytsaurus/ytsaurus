@@ -162,8 +162,9 @@ void TSimpleRunnerProgram::DoRun()
         .Parameters = config->ClientsCacheFactory,
     });
 
+    std::optional<TVanillaOperationHandle> vanillaOperation;
     if (config->Vanilla && config->Vanilla->Enable) {
-        LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla, clientsCache);
+        vanillaOperation = LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla, clientsCache);
     }
 
     bool setFlowCoreTarget = true;
@@ -189,12 +190,17 @@ void TSimpleRunnerProgram::DoRun()
         config->Path,
         config->Spec,
         config->DynamicSpec,
-        setFlowCoreTarget);
+        setFlowCoreTarget,
+        /*graceful*/ {},
+        DefaultWaitPipelineTimeout,
+        /*enablePipelineCreation*/ true,
+        /*enablePipelineStopOrPause*/ true,
+        vanillaOperation);
 
     PrintPipelineUiUrl(config->ClusterUrl, config->Path);
 
     if (FromString<bool>(GetEnv("YT_FLOW_WAIT", "1"))) {
-        WaitPipeline(client, pipelinePath);
+        WaitPipeline(client, pipelinePath, DefaultWaitPipelineTimeout, vanillaOperation);
     }
 }
 

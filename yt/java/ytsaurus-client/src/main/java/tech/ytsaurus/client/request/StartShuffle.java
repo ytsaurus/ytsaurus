@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
@@ -33,7 +34,10 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
     private final TableSchema schema;
 
     @Nullable
-    private final YTreeMapNode pushConfig;
+    private final YTreeMapNode config;
+
+    @Nullable
+    private final Compression codec;
 
     public StartShuffle(BuilderBase<?> builder) {
         super(builder);
@@ -44,7 +48,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         this.replicationFactor = builder.replicationFactor;
         this.schema = builder.schema;
         this.usePushBasedShuffle = builder.usePushBasedShuffle;
-        this.pushConfig = builder.pushConfig;
+        this.config = builder.config;
+        this.codec = builder.codec;
     }
 
     public static StartShuffle.Builder builder() {
@@ -72,8 +77,12 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             builder.setSchema(ApiServiceUtil.serializeTableSchema(schema));
         }
 
-        if (pushConfig != null) {
-            builder.setPushConfig(ByteString.copyFrom(pushConfig.toBinary()));
+        if (config != null) {
+            builder.setConfig(ByteString.copyFrom(config.toBinary()));
+        }
+
+        if (codec != null) {
+            builder.setCodec(codec.getValue());
         }
     }
 
@@ -86,7 +95,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
                 .setReplicationFactor(replicationFactor)
                 .setSchema(schema)
                 .setUsePushBasedShuffle(usePushBasedShuffle)
-                .setPushConfig(pushConfig);
+                .setConfig(config)
+                .setCodec(codec);
     }
 
     public static class Builder extends StartShuffle.BuilderBase<StartShuffle.Builder> {
@@ -118,7 +128,10 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         private TableSchema schema = null;
 
         @Nullable
-        private YTreeMapNode pushConfig = null;
+        private YTreeMapNode config = null;
+
+        @Nullable
+        private Compression codec = null;
 
         public TBuilder setAccount(String account) {
             this.account = account;
@@ -155,8 +168,13 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             return self();
         }
 
-        public TBuilder setPushConfig(@Nullable YTreeMapNode pushConfig) {
-            this.pushConfig = pushConfig;
+        public TBuilder setConfig(@Nullable YTreeMapNode config) {
+            this.config = config;
+            return self();
+        }
+
+        public TBuilder setCodec(@Nullable Compression codec) {
+            this.codec = codec;
             return self();
         }
 
@@ -175,8 +193,11 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             if (schema != null) {
                 sb.append("schema=").append(schema).append(", ");
             }
-            if (pushConfig != null) {
-                sb.append("pushConfig=").append(pushConfig).append(", ");
+            if (config != null) {
+                sb.append("config=").append(config).append(", ");
+            }
+            if (codec != null) {
+                sb.append("codec=").append(codec).append(", ");
             }
             super.writeArgumentsLogString(sb);
         }

@@ -5,12 +5,14 @@
 #include "hunk_storage_node.h"
 #include "mount_config_storage.h"
 #include "public.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_owner_base.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_proxy.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_node_proxy.h>
@@ -38,6 +40,44 @@ using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateHunkStorageJournalAttributes(
+    NErasure::ECodec erasureCodec,
+    int replicationFactor,
+    int readQuorum,
+    int writeQuorum)
+{
+    auto isMatch = [&] (
+        NErasure::ECodec expectedErasureCodec,
+        int expectedReplicationFactor,
+        int expectedReadQuorum,
+        int expectedWriteQuorum)
+    {
+        return
+            erasureCodec == expectedErasureCodec &&
+            replicationFactor == expectedReplicationFactor &&
+            readQuorum == expectedReadQuorum &&
+            writeQuorum == expectedWriteQuorum;
+    };
+
+    if (isMatch(NErasure::ECodec::None, 3, 2, 2) ||
+        isMatch(NErasure::ECodec::ReedSolomon_3_3, 1, 4, 5))
+    {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Hunk storage journal attributes must match either the non-erasure or the erasure configuration "
+        "(erasure_codec: %Qlv/%Qlv, replication_factor: 3/1, read_quorum: 2/4, write_quorum: 2/5)",
+        NErasure::ECodec::None,
+        NErasure::ECodec::ReedSolomon_3_3)
+        .With("erasure_codec", erasureCodec)
+        .With("replication_factor", replicationFactor)
+        .With("read_quorum", readQuorum)
+        .With("write_quorum", writeQuorum);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,14 +312,23 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
         auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
+        auto erasureCodec = hunkStorage->GetErasureCodec();
+        auto readQuorum = hunkStorage->GetReadQuorum();
+        auto writeQuorum = hunkStorage->GetWriteQuorum();
+
+        ValidateHunkStorageJournalAttributes(
+            erasureCodec,
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
 
         auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
         storeWriterOptions->MediumName = primaryMedium->GetName();
         storeWriterOptions->Account = hunkStorage->Account()->GetName();
-        storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
+        storeWriterOptions->ErasureCodec = erasureCodec;
         storeWriterOptions->ReplicationFactor = replicationFactor;
-        storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
-        storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
+        storeWriterOptions->ReadQuorum = readQuorum;
+        storeWriterOptions->WriteQuorum = writeQuorum;
         storeWriterOptions->EnableMultiplexing = false;
         storeWriterOptions->Postprocess();
 

@@ -9,6 +9,8 @@
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 
+#include <library/cpp/yt/error/error.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +80,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TMessageId> OldBounds_;
     TRequest Request_;
+    TError DistributeError_;
 
     std::deque<TRequest> RegisteredRequests_;
     std::deque<TRequest> DistributedRequests_;

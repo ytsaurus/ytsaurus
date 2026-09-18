@@ -69,7 +69,7 @@ The RPC layer operates above the `bus` layer, assembling Protobuf messages from 
 The diagram below shows how {{product-name}} cluster components interact with one another and with external clients. Traffic encryption is configured and applied only within the cluster — between its components such as HTTP proxies, master servers, and data nodes. The type of external client doesn't affect encryption: it can be a regular HTTP client, CHYT, SPYT, or any other service. For the full list of components that support encryption, see [Components for configuration](#components-list).
 
 
-![](../../../images/encryption-diagram-en.svg)
+![](../../../_images/encryption-diagram-en.svg)
 
 Each component (master server, scheduler, data node, and others) performs two roles at once:
 

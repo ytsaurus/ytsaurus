@@ -38,7 +38,8 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    void StartServer(std::initializer_list<std::pair<std::string, std::optional<double>>> throttlers)
+    static TDistributedThrottlerServiceConfigPtr MakeServiceConfig(
+        std::initializer_list<std::pair<std::string, std::optional<double>>> throttlers)
     {
         auto config = New<TDistributedThrottlerServiceConfig>();
         for (const auto& [name, limit] : throttlers) {
@@ -46,12 +47,24 @@ protected:
             bucketConfig->Throttler->Limit = limit;
             config->Throttlers[name] = bucketConfig;
         }
+        return config;
+    }
+
+    void StartServer(std::initializer_list<std::pair<std::string, std::optional<double>>> throttlers)
+    {
         Service_ = CreateDistributedThrottlerService(
-            std::move(config),
+            MakeServiceConfig(throttlers),
             ActionQueue_->GetInvoker(),
             NLogging::TLogger("Test"));
         LocalServer_->RegisterService(Service_->GetRpcService());
         LocalServer_->Start();
+    }
+
+    //! Lifts a deliberately starved bucket so a request parked on the token
+    //! bucket is granted at once.
+    void ReconfigureServer(std::initializer_list<std::pair<std::string, std::optional<double>>> throttlers)
+    {
+        Service_->Reconfigure(MakeServiceConfig(throttlers));
     }
 
     static TDynamicThrottlerSpecPtr MakeSpec(std::optional<double> limit, TDuration period = TDuration::Seconds(1))
@@ -278,6 +291,51 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleResumesAfterNameReadded)
     EXPECT_EQ(handle.Get(), factory->TryGetClient(TThrottlerId("api")).Get());
     // The cached handle is rewired to a fresh underlying client.
     EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
+    EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, PendingThrottleSurvivesClientRebuild)
+{
+    // Starved bucket: the request parks on the server's token bucket instead of
+    // being granted inside Throttle().
+    StartServer({{"api", 1}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1.0)}});
+
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
+    auto future = handle->Throttle(3);
+    EXPECT_FALSE(future.IsSet());
+
+    // A client-visible spec change rebuilds the underlying client while the
+    // request above is still in flight.
+    auto updatedSpec = MakeSpec(1.0);
+    updatedSpec->RpcTimeout = TDuration::Seconds(6);
+    factory->Reconfigure({{TThrottlerId("api"), updatedSpec}});
+
+    ReconfigureServer({{"api", 1000}});
+
+    auto error = WaitFor(future);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, CanceledThrottleStaysCancelable)
+{
+    StartServer({{"api", 1}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1.0)}});
+
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
+    auto future = handle->Throttle(3);
+    EXPECT_FALSE(future.IsSet());
+
+    // Retaining the client through a subscriber must not replace the caller's
+    // future or suppress its cancellation.
+    EXPECT_TRUE(future.Cancel(TError(NYT::EErrorCode::Canceled, "Test cancellation")));
+
+    auto error = WaitFor(future);
+    EXPECT_EQ(error.GetCode(), NYT::EErrorCode::Canceled) << ToString(error);
+
+    // The prefetcher does not propagate caller cancellation to its batched RPC;
+    // let that RPC drain before checking the client remains usable.
+    ReconfigureServer({{"api", 1000}});
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 }
 

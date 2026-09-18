@@ -2,7 +2,8 @@
 
 Only states changed via set() (accessor writes) are reported by modified_items()/has_modified()
 and serialized into the response proto; states populated from the request via load() are not, so
-unmodified states are not sent back to the worker.
+unmodified states are not sent back to the worker.  Changes made to a state value in place are
+picked up by collect_modified(), covered by test_internal_state_tracking.py.
 """
 
 from yt.yt.flow.library.python.companion.proto_mapper import (

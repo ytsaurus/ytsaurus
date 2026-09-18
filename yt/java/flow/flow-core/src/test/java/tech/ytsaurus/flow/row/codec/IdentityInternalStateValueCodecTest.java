@@ -8,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Verifies that {@link IdentityInternalStateValueCodec} is byte-for-byte compatible with
- * the legacy direct {@link ByteString}/{@code byte[]} conversion used in the state mappers.
+ * the legacy direct {@link ByteString}/{@code byte[]} conversion used by the internal state
+ * accessor.
  */
 class IdentityInternalStateValueCodecTest {
 

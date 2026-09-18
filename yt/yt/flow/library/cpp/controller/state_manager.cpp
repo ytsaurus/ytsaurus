@@ -35,6 +35,11 @@ IInitContextPtr TStateManager::CreateResourceContext(const TResourceId& resource
     return CreateContext(TComputationId(Format("resource:%v", resourceId.Underlying())), std::move(prefix));
 }
 
+IInitContextPtr TStateManager::CreatePartitioningContext(std::string prefix)
+{
+    return CreateContext(TComputationId(PartitioningStateComputationId), std::move(prefix));
+}
+
 void TStateManager::Sync()
 {
     for (auto& [computationId, states] : States_) {

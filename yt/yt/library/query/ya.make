@@ -4,6 +4,7 @@ RECURSE(
     distributed
     engine_api
     engine
+    portable_engine
     proto
     row_comparer
     row_comparer_api

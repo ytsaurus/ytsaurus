@@ -7,6 +7,71 @@ The public API of this library consists of the functions declared in file
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-05-21
+### Added
+- `cellsToMultiPolygon` function (#1104, #1113)
+    - Internal for now, will be added to the public API in a future release
+    - `destroyGeoMultiPolygon` function (#1104)
+    - (internal) `geoLoopArea` function (#1101)
+- `reverseDirectedEdge` function (#1098)
+- Bidirectional `gridPathCells` (#1111)
+- `h3.pc` pkg-config file (#1115)
+
+### Changed
+- `cellsToLinkedMultiPolygon` now uses `cellsToMultiPolygon` internally (#1126, #1133, #1136)
+    - `cellsToLinkedMultiPolygon` (and `cellsToMultiPolygon`) now return errors for invalid cells (`E_CELL_INVALID`), mixed resolutions (`E_RES_MISMATCH`), and duplicate cells (`E_DOMAIN`) instead of producing undefined output
+- `cellAreaRads2` uses `geoLoopArea` (#1101)
+- Refactor of indexing code to use Vec3d (#1145, #1155)
+- Refactor of CoordIJK code to be inlineable (#1154)
+
+### Fixed
+- CLI handling of invalid cell input (#1125, #1124)
+- `destroyLinkedMultiPolygon` is now idempotent (safe to call twice) (#1136)
+
+## [4.4.1] - 2025-11-11
+### Fixed
+- Proper version set in `VERSION` file (#1091)
+
+## [4.4.0] - 2025-11-06
+### Added
+- `getIndexDigit` function for inspecting specific index digits of an H3 index. (#1024, #1042)
+- `isValidIndex` function (#1056, #1079)
+- `constructCell` function (#1063, #1074, #1078)
+- New `H3_INDEX_INVALID`, `E_BASE_CELL_DOMAIN`, `E_DIGIT_DOMAIN`, `E_DELETED_DIGIT` error codes and `H3_ERROR_END` (#1063, #1064, #1065)
+
+### Changed
+- Updated minimum version of macOS in CI. (#1069)
+
+## [4.3.0] - 2025-06-17
+### Added
+- Added `gridRing` function, that works even if encountering pentagon distortion. (#1011, #1013, #1015)
+
+## [4.2.1] - 2025-03-10
+### Fixed
+- Fixed MSVC/WIN32 checks in CMake. (#981)
+- Fixed potential memory leak in `polygonStringToGeoPolygon` (#976)
+
+### Changed
+- Added arm64 tests in CI. (#975, #974)
+- Faster `isValidCell` (#968)
+- Moved `ContainmentMode` enum for `polygonToCellsExperimental` to `h3api.h`. (#958)
+
+## [4.2.0] - 2024-12-04
+### Added
+- Added experimental new algorithm for `polygonToCells`, called `polygonToCellsExperimental`, that supports more containment flags and is more memory-efficient (#785, #800, #947)
+- `h3` binary for shell scripts ready for use (#818, #826, #846, #923, #924, #931, #933)
+
+### Fixed
+- Fixed compacting all or many resolution 1 cells (#919)
+
+### Changed
+- `compactCells` internally uses int64 for array indexing. (#920)
+- Reorganize tests into public / internal. (#762)
+- Performance enhancement for aarch64, may improve other platforms (#790, #792, #852, #905, #913)
+- `clang-format` upgraded to version 14. (#834)
+- Fixed tests that incorrectly did not test resolution 15. (#820)
+- Use `CMAKE_INSTALL_LIBDIR` when choosing where to install library files. (#819)
+
 ## [4.1.0] - 2023-01-18
 ### Added
 - Functions for `cellToChildPos` and `childPosToCell` (#719)

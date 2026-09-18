@@ -228,8 +228,8 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cell balancer requests moves (before filter): %v",
-                MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
+            YT_TLOG_DEBUG("Tablet cell balancer requests moves before filtering")
+                .With("MoveDescriptors", MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -241,8 +241,8 @@ public:
         FilterActions();
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cell balancer requests moves (after filter): %v",
-                MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
+            YT_TLOG_DEBUG("Tablet cell balancer requests moves after filtering")
+                .With("MoveDescriptors", MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
                         action.PeerId,
@@ -347,17 +347,17 @@ private:
     void DumpState(TGuid dumpId)
     {
         for (const auto& node : Nodes_) {
-            YT_LOG_DEBUG("Tablet cell distribution: %v %v (DumpId: %v)",
-                node.GetNode()->GetDefaultAddress(),
-                MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TCellBase*, int>& pair) {
+            YT_TLOG_DEBUG("Tablet cell distribution")
+                .With("Address", node.GetNode()->GetDefaultAddress())
+                .With("Slots", MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TCellBase*, int>& pair) {
                     auto [cell, peerId] = pair;
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         cell->CellBundle()->GetName(),
                         cell->GetArea()->GetName(),
                         cell->GetId(),
                         peerId);
-                }),
-                dumpId);
+                }))
+                .With("DumpId", dumpId);
         }
     }
 

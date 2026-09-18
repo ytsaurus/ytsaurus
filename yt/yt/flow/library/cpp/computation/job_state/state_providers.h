@@ -177,6 +177,7 @@ public:
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
+    void EraseKeyState(const TKey& key) override;
     NTableClient::TTableSchemaPtr GetKeySchema() const override;
 
     TFuture<void> Init();
@@ -192,6 +193,8 @@ private:
 
     THashMap<TKey, IStateHolderPtr> States_;
     THashMap<TKey, TRemoteStatePtr> RemoteStates_;
+    //! Keys erased in this epoch; disjoint with the maps above.
+    THashSet<TKey> Erased_;
 
 private:
     IStateHolderPtr GetImpl(const TKey& key, i64 revision);

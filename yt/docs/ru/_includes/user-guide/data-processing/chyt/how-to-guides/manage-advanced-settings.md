@@ -14,7 +14,7 @@
 - конфигурирование серверных настроек — блок [{{clickhouse}} config](#ch-config);
 - конфигурирование YT‑части инстансов — блок [YT config](#yt-config);
 - выделение памяти — блок [Instance memory](#memory);
-- кеширование запросов — блок [Sticky query distribution](#sticky-query).
+- кеширование запросов — блок [Query cache](#query-cache).
 
 ## Query settings { #query-settings }
 
@@ -28,7 +28,7 @@
 
     1. В [документации {{clickhouse}}](https://clickhouse.com/docs/ru/operations/settings/settings) найдите нужные настройки и скопируйте их названия.
     1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-    1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева раздел **Advanced**.
     1. Найдите раздел **Query settings**.
     1. В поле *Use JSON syntax* введите параметры и их значения в JSON-синтаксисе, в виде пар `ключ: значение`, заключённых в фигурные скобки `{ }`. Например:
@@ -152,7 +152,7 @@
 - Веб-интерфейс
 
     1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-    1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева раздел **Advanced**.
     1. Найдите раздел **Clickhouse config**.
     1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации.
@@ -234,7 +234,7 @@ YT-часть конфигурации инстанса задаётся в оп
 - Веб-интерфейс
 
     1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-    1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева раздел **Advanced**.
     1. Найдите раздел **YT config**.
     1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации, например:
@@ -305,7 +305,7 @@ YT-часть конфигурации инстанса задаётся в оп
 
 На схеме показано, как распределяется память внутри инстанса CHYT: из каких объёмов складывается общий лимит и какие пороги определяют поведение системы при нехватке памяти.
 
-![memory](../../../../../../images/chyt_memory.png)
+![memory](../../../../../../_images/chyt_memory.png)
 
 Ниже описан каждый параметр схемы — объёмы памяти, которые входят в общий лимит инстанса, и пороги:
 
@@ -335,7 +335,7 @@ YT-часть конфигурации инстанса задаётся в оп
 
 На шкале RSS на схеме распределения памяти цифрами отмечены критические области значений, при достижении которых система прерывает процесс.
 
-![memory](../../../../../../images/chyt_memory_rss.png)
+![memory](../../../../../../_images/chyt_memory_rss.png)
 
 Если объём физической оперативной памяти процесса достигает интервала:
 
@@ -349,7 +349,7 @@ YT-часть конфигурации инстанса задаётся в оп
 Рекомендуем использовать веб-интерфейс:
 
 1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
 1. Выберите слева раздел **Advanced**.
 1. Найдите раздел **Instance memory**.
 1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации. В качестве шаблона можно использовать пример конфигурации:
@@ -372,24 +372,43 @@ YT-часть конфигурации инстанса задаётся в оп
 
 {% include [memory-usage-warning](./_includes/memory-usage-warning.md) %}
 
-## Sticky query distribution { #sticky-query }
+## Query cache { #query-cache }
 
-Продвинутые опции **Enable sticky query distribution** и **Query sticky group size** управляют распределением запросов по инстансам с учётом кеширования.
+Для кеширования запросов используйте настройки:
 
-Если запросы повторяются с заданной периодичностью, полезно кешировать их результаты. Кеш запроса сохраняется на том инстансе, на котором он выполнился.
+- **Enable sticky query distribution** — опция включает распределение запросов по инстансам с учётом хешей запросов.
+- **Query sticky group size** — опция задаёт размер группы инстансов, выбранных детерминированно по хешу запроса. Среди этих инстансов будет выбран координатор для исполнения запроса. Настройка работает только при включённой опции **Enable sticky query distribution**.
 
-По умолчанию запросы распределяются по инстансам в случайном порядке. Чтобы перенаправить запросы на инстансы, где они выполнялись ранее и где хранится их кеш, используют настройки:
-
-- **Enable sticky query distribution** — опция включает распределение запросов по инстансам с учётом хешей этих запросов;
-- **Query sticky group size** — опция задаёт размер группы инстансов, выбранных детерминированно по хешу запроса. Среди этих инстансов будет равномерно выбран координатор для исполнения запроса. Имеет смысл только при включённой опции **Enable sticky query distribution**.
-
-### Как включить перенаправление запросов на инстансы с кешем { #cache-instruction }
-
-Рекомендуем использовать веб-интерфейс:
+Чтобы включить кеширование, воспользуйтесь веб-интерфейсом:
 
 1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
-1. Выберите слева раздел **Advanced**.
-1. Найдите опцию **Enable sticky query distribution** и включите её.
-1. Найдите опцию **Query sticky group size** и в поле введите число — размер группы инстансов. Запрос будет случайно направлен координатором на один из инстансов группы.
+1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu), либо кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. В левой части модального окна выберите раздел **Advanced**.
+1. Включите опцию **Enable sticky query distribution**.
+1. В опции **Query sticky group size** укажите значение `1`.
+1. В блоке **Query settings** добавьте параметры:
+
+    ```json
+    {
+        "query_cache_ttl": 1800,
+        "use_query_cache": true
+    }
+    ```
+
+1. В блоке **Clickhouse config** добавьте поле `query_cache`. Значения параметров подбирайте под потребности клики:
+
+    ```json
+    {
+        "query_cache": {
+            "max_entries": 20000,
+            "max_entry_size_in_bytes": 524288,
+            "max_entry_size_in_rows": 100000,
+            "max_size_in_bytes": 104585760000,
+            "min_query_duration": 500
+        }
+    }
+    ```
+
+    Параметры совпадают с [настройками query cache в {{clickhouse}}](https://clickhouse.com/docs/operations/query-cache).
+
 1. Чтобы применить изменения, нажмите кнопку **Confirm**.

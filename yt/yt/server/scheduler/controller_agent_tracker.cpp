@@ -1291,7 +1291,9 @@ private:
                     try {
                         return node->Attributes().Get<THashSet<std::string>>("tags");
                     } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Cannot parse tags of agent %v", agentId);
+                        YT_TLOG_WARNING("Cannot parse agent tags")
+                            .With("AgentId", agentId)
+                            .With(ex);
                         return {};
                     }
                 }();
@@ -1325,7 +1327,7 @@ private:
 
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
-                    TError{"Too few agents matching tag"}
+                    TError("Too few agents matching tag")
                         .With(TErrorAttribute{"controller_agent_tag", tag})
                         .With(TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag})
                         .With(TErrorAttribute{"agents", agentsWithTag})
@@ -1339,8 +1341,11 @@ private:
 
         TError error;
         if (!errors.empty()) {
-            error = TError{EErrorCode::WatcherHandlerFailed, "Too few matching agents"}.With(std::move(errors));
-            YT_LOG_WARNING(error);
+            static constexpr auto Message = "Too few matching agents"_sb;
+            error = TError(EErrorCode::WatcherHandlerFailed, Message)
+                .With(std::move(errors));
+            YT_TLOG_WARNING(Message)
+                .With(error);
         }
         Bootstrap_->GetScheduler()->GetMasterConnector()->SetSchedulerAlert(
             ESchedulerAlertType::TooFewControllerAgentsAlive, error);

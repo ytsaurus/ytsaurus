@@ -11,11 +11,14 @@ SRCS(
     key_visitor.cpp
     static_table_key_visitor_joiner.cpp
     key_visitor_store.cpp
+    lineage_accumulator.cpp
     message_filter.cpp
     meta_setter.cpp
     ordered_source_computation_base.cpp
     passthrough_computation.cpp
     simple_external_state_manager.cpp
+    processing_rate_estimator.cpp
+    job_state/job_init_context.cpp
     job_state/state_providers.cpp
     job_state/state_manager.cpp
     stores/compact_output_store.cpp
@@ -25,7 +28,6 @@ SRCS(
     swift_ordered_source_computation.cpp
     transform_computation.cpp
     transform_ordered_source_computation.cpp
-    universal_controller_helpers.cpp
     universal_controller.cpp
     watermark_aligner.cpp
     watermark_generator.cpp

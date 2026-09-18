@@ -61,7 +61,7 @@ void TStrongOrderingManager::OnCommitPrepare(
     RegisterTransaction(transactionId, prepareTimestamp, isCoordinator, std::move(strongOrderingTags));
 }
 
-TCommitInfos TStrongOrderingManager::OnCommitReadyToCommit(
+TCommitInfos TStrongOrderingManager::OnCommitCommitTimestampKnown(
     TTransactionId transactionId,
     TTimestamp commitTimestamp,
     TClusterTag commitTimestampClusterTag)
@@ -145,14 +145,14 @@ void TStrongOrderingManager::PromoteLastCommitTimestamp(
 void TStrongOrderingManager::ValidateProfilingMetricsConsistency() const
 {
     int preparedTransactionCount = 0;
-    int readyToCommitTransactionCount = 0;
+    int commitTimestampKnownTransactionCount = 0;
     int readyToFlushTransactionCount = 0;
 
     for (const auto& [transactionId, transactionInfo] : TransactionIdToTransactionInfo_) {
         if (transactionInfo.CanFlush) {
             ++readyToFlushTransactionCount;
         } else if (transactionInfo.CommitTimestamp != NullTimestamp) {
-            ++readyToCommitTransactionCount;
+            ++commitTimestampKnownTransactionCount;
         } else {
             ++preparedTransactionCount;
         }
@@ -165,10 +165,10 @@ void TStrongOrderingManager::ValidateProfilingMetricsConsistency() const
         .With("ActualValue", PreparedTransactionCount_.load(std::memory_order::relaxed));
 
     YT_TLOG_ALERT_UNLESS(
-        readyToCommitTransactionCount == ReadyToCommitTransactionCount_.load(std::memory_order::relaxed),
-        "Ready to commit transaction count is wrong")
-        .With("ExpectedValue", readyToCommitTransactionCount)
-        .With("ActualValue", ReadyToCommitTransactionCount_.load(std::memory_order::relaxed));
+        commitTimestampKnownTransactionCount == CommitTimestampKnownTransactionCount_.load(std::memory_order::relaxed),
+        "Recorded commit timestamp transaction count is wrong")
+        .With("ExpectedValue", commitTimestampKnownTransactionCount)
+        .With("ActualValue", CommitTimestampKnownTransactionCount_.load(std::memory_order::relaxed));
 
     YT_TLOG_ALERT_UNLESS(
         readyToFlushTransactionCount == ReadyToFlushTransactionCount_.load(std::memory_order::relaxed),
@@ -183,8 +183,8 @@ void TStrongOrderingManager::OnProfiling(TSensorBuffer* buffer) const
         "/transaction_supervisor/strong_ordering_manager/prepared_transaction_count",
         PreparedTransactionCount_.load(std::memory_order::relaxed));
     buffer->AddGauge(
-        "/transaction_supervisor/strong_ordering_manager/ready_to_commit_transaction_count",
-        ReadyToCommitTransactionCount_.load(std::memory_order::relaxed));
+        "/transaction_supervisor/strong_ordering_manager/commit_timestamp_known_transaction_count",
+        CommitTimestampKnownTransactionCount_.load(std::memory_order::relaxed));
     buffer->AddGauge(
         "/transaction_supervisor/strong_ordering_manager/ready_to_flush_transaction_count",
         ReadyToFlushTransactionCount_.load(std::memory_order::relaxed));
@@ -198,7 +198,7 @@ void TStrongOrderingManager::Persist(const TStreamPersistenceContext& context)
     Persist(context, TransactionIdToTransactionInfo_);
     Persist(context, MaxObservedTimestamp_);
     Persist(context, PreparedTransactionCount_);
-    Persist(context, ReadyToCommitTransactionCount_);
+    Persist(context, CommitTimestampKnownTransactionCount_);
     Persist(context, ReadyToFlushTransactionCount_);
 
     if (context.IsLoad()) {
@@ -212,7 +212,7 @@ void TStrongOrderingManager::Clear()
     TransactionIdToTransactionInfo_.clear();
     MaxObservedTimestamp_ = NullTimestamp;
     PreparedTransactionCount_.store(0, std::memory_order::relaxed);
-    ReadyToCommitTransactionCount_.store(0, std::memory_order::relaxed);
+    CommitTimestampKnownTransactionCount_.store(0, std::memory_order::relaxed);
     ReadyToFlushTransactionCount_.store(0, std::memory_order::relaxed);
     PreparedCommitCount_.store(0, std::memory_order::relaxed);
     PreparedCommitsFinished_.Transform([] (TPromise<void>& promise) {
@@ -228,7 +228,7 @@ void TStrongOrderingManager::TStrongOrderingShard::Persist(const TStreamPersiste
     using NYT::Persist;
 
     Persist(context, CommitTimestampLowerBounds);
-    Persist(context, ReadyToCommitTransactions);
+    Persist(context, CommitTimestampToTransactionId);
     Persist(context, LastCommitTimestamp);
 }
 
@@ -362,11 +362,11 @@ std::optional<TTransactionId> TStrongOrderingManager::RemoveCommitTimestampLower
         return std::nullopt;
     }
 
-    if (shard->ReadyToCommitTransactions.empty()) {
+    if (shard->CommitTimestampToTransactionId.empty()) {
         return std::nullopt;
     }
 
-    auto smallestCommitTimestamp = shard->ReadyToCommitTransactions.begin()->first;
+    auto smallestCommitTimestamp = shard->CommitTimestampToTransactionId.begin()->first;
     // If smallest lower bound is greater than the smallest commit timestamp,
     // then transaction should have been marked as the first one in the shard already.
     if (commitTimestampLowerBound > smallestCommitTimestamp) {
@@ -382,11 +382,11 @@ std::optional<TTransactionId> TStrongOrderingManager::MaybeMarkTransactionAsFirs
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasHydraContext());
 
-    if (shard->ReadyToCommitTransactions.empty()) {
+    if (shard->CommitTimestampToTransactionId.empty()) {
         return std::nullopt;
     }
 
-    auto [smallestCommitTimestamp, transactionId] = *(shard->ReadyToCommitTransactions.begin());
+    auto [smallestCommitTimestamp, transactionId] = *(shard->CommitTimestampToTransactionId.begin());
     // If commit timestamp lower bound is equal to the commit timestamp, then
     // we could rely on the fact that commit timestamps are unique and let the
     // commit happen. But it would make it harder to debug and the profit seems
@@ -446,7 +446,7 @@ TCommitInfos TStrongOrderingManager::FlushCommits(std::vector<TTransactionId> tr
         for (const auto& tag : strongOrderingTags) {
             auto* shard = GetShardOrCrash(tag);
 
-            auto [smallestCommitTimestamp, transactionIdToVerify] = *(shard->ReadyToCommitTransactions.begin());
+            auto [smallestCommitTimestamp, transactionIdToVerify] = *(shard->CommitTimestampToTransactionId.begin());
             YT_TLOG_FATAL_UNLESS(
                 commitTimestamp == smallestCommitTimestamp,
                 "Cannot commit transaction since transaction with smaller commit timestamp is not committed yet")
@@ -517,12 +517,12 @@ std::vector<TTransactionId> TStrongOrderingManager::ForgetTransaction(TTransacti
                 transactionsToFlush.push_back(*transactionToFlush);
             }
         }
-    } else if (state == ECommitState::ReadyToCommit || state == ECommitState::Commit) {
+    } else if (state == ECommitState::CommitTimestampKnown || state == ECommitState::Commit) {
         for (const auto& tag : strongOrderingTags) {
             auto* shard = GetShardOrCrash(tag);
-            auto transactionToRemoveIt = GetIteratorOrCrash(shard->ReadyToCommitTransactions, transactionInfo.CommitTimestamp);
-            auto isRemovedTransactionFirst = transactionToRemoveIt == shard->ReadyToCommitTransactions.begin();
-            shard->ReadyToCommitTransactions.erase(transactionToRemoveIt);
+            auto transactionToRemoveIt = GetIteratorOrCrash(shard->CommitTimestampToTransactionId, transactionInfo.CommitTimestamp);
+            auto isRemovedTransactionFirst = transactionToRemoveIt == shard->CommitTimestampToTransactionId.begin();
+            shard->CommitTimestampToTransactionId.erase(transactionToRemoveIt);
 
             if (isRemovedTransactionFirst) {
                 auto transactionToFlush = MaybeMarkTransactionAsFirstInShard(shard);
@@ -537,7 +537,7 @@ std::vector<TTransactionId> TStrongOrderingManager::ForgetTransaction(TTransacti
     if (transactionInfo.CanFlush) {
         ReadyToFlushTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
     } else if (transactionInfo.CommitTimestamp != NullTimestamp) {
-        ReadyToCommitTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
+        CommitTimestampKnownTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
     } else {
         PreparedTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
     }
@@ -564,7 +564,7 @@ void TStrongOrderingManager::MaybeRemoveShard(const std::string& tag)
     YT_VERIFY(HasHydraContext());
 
     auto it = GetIteratorOrCrash(OrderingTagToShard_, tag);
-    if (it->second.CommitTimestampLowerBounds.empty() && it->second.ReadyToCommitTransactions.empty()) {
+    if (it->second.CommitTimestampLowerBounds.empty() && it->second.CommitTimestampToTransactionId.empty()) {
         OrderingTagToShard_.erase(it);
         YT_TLOG_DEBUG("Strong ordering shard removed")
             .With("Tag", tag);
@@ -626,7 +626,7 @@ TCommitInfos TStrongOrderingManager::RecordCommitTimestamp(
     // - Missing on the coordinator, then a crash is in order.
     // - In a wrong state on the coordinator, then a crash is in order.
     // - Missing on the participant, then it's unusual, but it can happen
-    //   if ReadyToCommit request arrived after Commit or Abort and the
+    //   if RecordCommitTimestamp request arrived after Commit or Abort and the
     //   transaction was already removed from the strong ordering manager.
     // - In a wrong state on the participant, then the same logic applies,
     //   but to a lesser extent, since the transaction was not flushed yet.
@@ -675,12 +675,12 @@ TCommitInfos TStrongOrderingManager::RecordCommitTimestamp(
 
     transactionInfo.CommitTimestamp = commitTimestamp;
     transactionInfo.CommitTimestampClusterTag = commitTimestampClusterTag;
-    transactionInfo.CommitState = ECommitState::ReadyToCommit;
+    transactionInfo.CommitState = ECommitState::CommitTimestampKnown;
 
     std::vector<TTransactionId> transactionsToFlush;
     for (const auto& tag : strongOrderingTags) {
         auto* shard = GetShardOrCrash(tag);
-        EmplaceOrCrash(shard->ReadyToCommitTransactions, commitTimestamp, transactionId);
+        EmplaceOrCrash(shard->CommitTimestampToTransactionId, commitTimestamp, transactionId);
         auto transactionToFlush = RemoveCommitTimestampLowerBound(shard, commitTimestampLowerBound);
         if (transactionToFlush) {
             transactionsToFlush.push_back(*transactionToFlush);
@@ -688,7 +688,7 @@ TCommitInfos TStrongOrderingManager::RecordCommitTimestamp(
     }
 
     PreparedTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
-    ReadyToCommitTransactionCount_.fetch_add(1, std::memory_order::relaxed);
+    CommitTimestampKnownTransactionCount_.fetch_add(1, std::memory_order::relaxed);
 
     return FlushCommits(std::move(transactionsToFlush));
 }
@@ -704,7 +704,7 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     YT_VERIFY(HasHydraContext());
 
     YT_TLOG_FATAL_UNLESS(
-        commitState == ECommitState::ReadyToCommit && isCoordinator ||
+        commitState == ECommitState::CommitTimestampKnown && isCoordinator ||
         commitState == ECommitState::Commit && !isCoordinator,
         "Transaction commit was marked as flushable while being in a wrong commit state")
         .With("TransactionId", transactionId)
@@ -723,8 +723,8 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     if (!ValidateCommitState(
         transactionId,
         isCoordinator
-            ? std::vector{ECommitState::ReadyToCommit}
-            : std::vector{ECommitState::Prepare, ECommitState::ReadyToCommit},
+            ? std::vector{ECommitState::CommitTimestampKnown}
+            : std::vector{ECommitState::Prepare, ECommitState::CommitTimestampKnown},
         /*actionOnMissingTransaction*/ EActionOnValidationFailure::Crash,
         /*actionOnUnexpectedState*/ isCoordinator
             ? EActionOnValidationFailure::Crash
@@ -736,7 +736,8 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     auto& transactionInfo = GetIteratorOrCrash(TransactionIdToTransactionInfo_, transactionId)->second;
 
     TCommitInfos transactionsToCommit;
-    // This can happen on the participant if Commit request arrives before ReadyToCommit one does.
+    // This can happen on the participant if Commit request arrives before
+    // RecordCommitTimestamp one does.
     if (transactionInfo.CommitState == ECommitState::Prepare) {
         YT_VERIFY(!transactionInfo.IsCoordinator);
         transactionsToCommit = RecordCommitTimestamp(
@@ -747,7 +748,7 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     }
 
     // Sanity checks.
-    YT_VERIFY(transactionInfo.CommitState == ECommitState::ReadyToCommit);
+    YT_VERIFY(transactionInfo.CommitState == ECommitState::CommitTimestampKnown);
     YT_VERIFY(transactionInfo.IsCoordinator == isCoordinator);
 
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
@@ -762,7 +763,7 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     transactionInfo.CommitState = commitState;
     transactionInfo.CanFlush = true;
 
-    ReadyToCommitTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
+    CommitTimestampKnownTransactionCount_.fetch_sub(1, std::memory_order::relaxed);
     ReadyToFlushTransactionCount_.fetch_add(1, std::memory_order::relaxed);
 
     // Transaction is the first in every shard, it should be committed.
@@ -794,7 +795,7 @@ TCommitInfos TStrongOrderingManager::UnregisterTransaction(
     // - In a wrong state on the participant, then a crash is in order.
     if (!ValidateCommitState(
         transactionId,
-        {ECommitState::Prepare, ECommitState::ReadyToCommit},
+        {ECommitState::Prepare, ECommitState::CommitTimestampKnown},
         /*actionOnMissingTransaction*/ EActionOnValidationFailure::Skip,
         /*actionOnUnexpectedState*/ EActionOnValidationFailure::Crash))
     {
@@ -815,7 +816,7 @@ TCommitInfos TStrongOrderingManager::UnregisterTransaction(
         .With("IsCoordinator", isCoordinator)
         .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
-    YT_VERIFY(commitState == ECommitState::Prepare || commitState == ECommitState::ReadyToCommit);
+    YT_VERIFY(commitState == ECommitState::Prepare || commitState == ECommitState::CommitTimestampKnown);
 
     auto transactionsToFlush = ForgetTransaction(transactionId);
     return FlushCommits(std::move(transactionsToFlush));

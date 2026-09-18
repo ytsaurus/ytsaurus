@@ -14,6 +14,8 @@ from unittest.mock import patch
 
 import os
 import json
+import pyarrow
+import pyarrow.parquet
 import pytest
 import random
 import subprocess
@@ -167,6 +169,78 @@ class TestYtBinary(object):
 
         yt_cli.check_output(["yt", "write", "//home/wrapper_test/test_table", "--format", "dsv"], stdin="value=y\nvalue=x\n")
         assert yt_cli.check_output(["yt", "read", "//home/wrapper_test/test_table", "--format", "dsv"]) == b"value=y\nvalue=x\n"
+
+    @authors("ilyaibraev")
+    def test_parquet_commands(self, yt_cli: YtCli):
+        table = "//home/wrapper_test/table"
+        input_file = os.path.join(yt_cli.cwd, "input.parquet")
+        output_file = os.path.join(yt_cli.cwd, "output.parquet")
+        arrow_schema = pyarrow.schema([
+            pyarrow.field("key", pyarrow.string(), nullable=False),
+            pyarrow.field("value", pyarrow.int64(), nullable=False),
+            pyarrow.field("optional_value", pyarrow.float64()),
+            pyarrow.field("bool_value", pyarrow.bool_(), nullable=False),
+            pyarrow.field("uint64_value", pyarrow.uint64(), nullable=False),
+            pyarrow.field("int32_value", pyarrow.int32(), nullable=False),
+            pyarrow.field("float32_value", pyarrow.float32(), nullable=False),
+            pyarrow.field("binary_value", pyarrow.binary(), nullable=False),
+        ])
+        rows = [
+            {
+                "key": "привет",
+                "value": -(2 ** 63),
+                "optional_value": 1.5,
+                "bool_value": True,
+                "uint64_value": 2 ** 64 - 1,
+                "int32_value": -(2 ** 31),
+                "float32_value": 1.25,
+                "binary_value": b"\x00\xff",
+            },
+            {
+                "key": "",
+                "value": 2 ** 63 - 1,
+                "optional_value": None,
+                "bool_value": False,
+                "uint64_value": 0,
+                "int32_value": 2 ** 31 - 1,
+                "float32_value": -0.5,
+                "binary_value": b"",
+            },
+        ]
+        parquet_table = pyarrow.Table.from_pydict(
+            {name: [row[name] for row in rows] for name in arrow_schema.names},
+            schema=arrow_schema,
+        )
+        pyarrow.parquet.write_table(parquet_table, input_file)
+
+        yt_cli.check_output(["yt", "upload-parquet", table, "--input-file", input_file])
+
+        schema = yson.loads(yt_cli.check_output(["yt", "get", table + "/@schema"]))
+        assert schema.attributes["strict"]
+        assert [(column["name"], column["type_v3"]) for column in schema] == [
+            ("key", "utf8"),
+            ("value", "int64"),
+            ("optional_value", {"type_name": "optional", "item": "double"}),
+            ("bool_value", "bool"),
+            ("uint64_value", "uint64"),
+            ("int32_value", "int32"),
+            ("float32_value", "float"),
+            ("binary_value", "string"),
+        ]
+        actual_rows = list(yson.loads(
+            yt_cli.check_output(["yt", "read", table, "--format", "yson"]),
+            yson_type="list_fragment",
+        ))
+        for row in actual_rows:
+            row["binary_value"] = yson.get_bytes(row["binary_value"])
+        assert actual_rows == rows
+
+        yt_cli.check_output(["yt", "dump-parquet", table, "--output-path", output_file])
+
+        input_parquet = pyarrow.parquet.read_table(input_file)
+        output_parquet = pyarrow.parquet.read_table(output_file)
+        assert output_parquet.schema == input_parquet.schema
+        assert output_parquet.to_pydict() == input_parquet.to_pydict()
 
     @authors("ilyaibraev")
     def test_file_commands(self, yt_cli: YtCli):

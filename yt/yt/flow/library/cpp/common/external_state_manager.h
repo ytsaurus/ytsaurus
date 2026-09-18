@@ -37,9 +37,11 @@ struct TExternalStateManagerContext
     NTableClient::TTableSchemaPtr KeySchema;
 
     NClient::NCache::IClientsCachePtr ClientsCache;
+    THashMap<TResourceId, IResourcePtr> StaticResources;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr SerializedInvoker;
     IStatusProfilerPtr StatusProfiler;
+    NProfiling::TProfiler Profiler;
 
     NLogging::TLogger Logger;
 };
@@ -94,6 +96,12 @@ public:
 
     virtual void ValidateStateClass(const std::type_info& expectedStateType) const = 0;
 
+    //! Companion-facing encode/apply bridge for this manager's states;
+    //! |stateName| is the name the state is declared under in the spec.
+    //! Null (the default) means the manager cannot serve companion
+    //! computations; using it on one is a spec-validation error.
+    virtual ICompanionStateAdapterPtr CreateCompanionAdapter(std::string stateName);
+
     struct TFilter
     {
         std::optional<TKey> LowerKey;
@@ -105,6 +113,14 @@ public:
         std::vector<TKey> Keys;
         std::optional<TKey> OffsetExclusive;
     };
+
+    //! Validates that List() can serve a key-visitor sweep with this
+    //! manager's configuration; called once when a key visitor that would
+    //! sweep this manager is constructed. Throwing here fails the job at
+    //! initialization instead of stalling the sweep cursor behind
+    //! retryable List() errors.
+    virtual void ValidateListable() const
+    { }
 
     virtual TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive = std::nullopt);
 };
@@ -205,6 +221,12 @@ public:
     //! AutoPreload.
     virtual bool IsVisitorDriven() const;
 
+    //! Companion-facing encode bridge for this joiner's states;
+    //! |stateName| is the name the state is declared under in the spec.
+    //! Null (the default) means the joiner cannot serve companion
+    //! computations; using it on one is a spec-validation error.
+    virtual ICompanionStateAdapterPtr CreateCompanionAdapter(std::string stateName);
+
     struct TFilter
     {
         std::optional<TKey> LowerKey;
@@ -216,6 +238,12 @@ public:
         std::vector<TKey> Keys;
         std::optional<TKey> OffsetExclusive;
     };
+
+    //! Validates that List() can serve a key-visitor sweep with this
+    //! joiner's configuration; the visitor-side contract matches
+    //! IExternalStateManager::ValidateListable.
+    virtual void ValidateListable() const
+    { }
 
     virtual TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive = std::nullopt);
 };

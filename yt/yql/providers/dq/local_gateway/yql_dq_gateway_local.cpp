@@ -17,8 +17,10 @@
 #include <library/cpp/messagebus/network.h>
 
 #include <util/system/env.h>
+#include <util/system/user.h>
 #include <util/generic/size_literals.h>
 #include <util/folder/dirut.h>
+#include <util/folder/path.h>
 
 namespace NYql {
 
@@ -82,7 +84,8 @@ public:
             TActorSetupCmd(resman, TMailboxType::Simple, 0));
 
         if (withSpilling) {
-            auto tempDir = NDq::GetTmpSpillingRootForCurrentUser();
+            TFsPath tempDir = GetSystemTempDir();
+            tempDir /= "spilling-tmp-" + GetUsername();
             MakeDirIfNotExist(tempDir);
 
             auto spillingActor = NDq::CreateDqLocalFileSpillingService(NDq::TFileSpillingServiceConfig{.Root = tempDir, .CleanupOnShutdown = true}, MakeIntrusive<NDq::TSpillingCounters>(lwmGroup));

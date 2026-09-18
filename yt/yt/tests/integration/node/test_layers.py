@@ -2051,10 +2051,9 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         print_debug(f"First operation job id is {job_id}")
 
-        logs = self._get_node_debug_logs("Volume added to cache")
-        assert len(logs) == initial_adding_log_count + 1
-        logs = self._get_node_debug_logs("Volume removed from cache")
-        assert len(logs) == initial_removing_log_count + 1
+        # The node flushes its debug log once a second, so the records lag the events.
+        wait(lambda: len(self._get_node_debug_logs("Volume added to cache")) == initial_adding_log_count + 1)
+        wait(lambda: len(self._get_node_debug_logs("Volume removed from cache")) == initial_removing_log_count + 1)
 
         # Wait some time for sensors to be collected.
         time.sleep(1)
@@ -2088,10 +2087,8 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         wait(lambda: finished_job_counter.get_delta() == 1)
         assert cache_hit_counter.get_delta() > cache_hit_count
 
-        logs = self._get_node_debug_logs("Volume added to cache")
-        assert len(logs) == initial_adding_log_count + 2
-        logs = self._get_node_debug_logs("Volume removed from cache")
-        assert len(logs) == initial_removing_log_count + 2
+        wait(lambda: len(self._get_node_debug_logs("Volume added to cache")) == initial_adding_log_count + 2)
+        wait(lambda: len(self._get_node_debug_logs("Volume removed from cache")) == initial_removing_log_count + 2)
 
         assert squashfs_volume_count.get() == 1
 
@@ -2924,7 +2921,7 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             in_="//tmp/t_in4",
             out="//tmp/t_out4",
             command="cat",
-            mode="ordered",
+            ordered=True,
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
@@ -3942,12 +3939,14 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
 
         # First job must have downloaded and imported the layer.
         assert stats1["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] > 0
+        assert stats1["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] > 0
 
         # Second job in same allocation must not have downloaded or imported any layers.
         assert stats2["exec_agent"]["artifacts"]["layers_cached_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_aggr_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_imported_aggr_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] == 0
 
     @authors("pogorelov")
     def test_layer_evicted_when_allocation_not_reused(self):

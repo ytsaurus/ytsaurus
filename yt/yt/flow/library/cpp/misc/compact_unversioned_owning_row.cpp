@@ -14,6 +14,7 @@
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/new.h>
+#include <library/cpp/yt/misc/tls.h>
 #include <library/cpp/yt/string/string_builder.h>
 #include <library/cpp/yt/yson/consumer.h>
 
@@ -22,6 +23,18 @@
 namespace NYT::NFlow {
 
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+struct TCompactRowFromProtoTag
+{ };
+
+YT_DEFINE_THREAD_LOCAL(TRowBufferPtr, GetCompactRowBuffer, New<TRowBuffer>());
+YT_DEFINE_THREAD_LOCAL(TRowBufferPtr, GetFromProtoRowBuffer, New<TRowBuffer>(TCompactRowFromProtoTag{}));
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,19 +264,16 @@ void ToProto(TProtobufString* protoRow, const TCompactUnversionedOwningRow& row)
     NTableClient::ToProto(protoRow, row.Get());
 }
 
-struct TCompactRowFromProtoTag
-{ };
-
 void FromProto(TCompactUnversionedOwningRow* row, const TProtobufString& protoRow)
 {
     NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
-    static thread_local TRowBufferPtr rowBufferCache = New<TRowBuffer>(TCompactRowFromProtoTag{});
+    auto& rowBuffer = NDetail::GetFromProtoRowBuffer();
     Y_DEFER
     {
-        rowBufferCache->Clear();
+        rowBuffer->Clear();
     };
     TUnversionedRow unversionedRow;
-    NTableClient::FromProto(&unversionedRow, protoRow, rowBufferCache);
+    NTableClient::FromProto(&unversionedRow, protoRow, rowBuffer);
     *row = TCompactUnversionedOwningRow(unversionedRow);
 }
 

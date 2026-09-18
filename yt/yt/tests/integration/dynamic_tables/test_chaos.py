@@ -71,14 +71,6 @@ class TestChaos(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -919,7 +911,7 @@ class TestChaos(ChaosTestBase):
         wait(_try_insert_rows)
         assert lookup_rows("//tmp/t", [{"key": 1}]) == values
 
-    @authors("savrus")
+    @authors("savrus", "osidorkin")
     def test_replication_progress(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
@@ -948,23 +940,35 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
-        orchid = get("#{0}/orchid".format(tablet_id))
+        def _check():
+            tablet_orchid = get(f"#{tablet_id}/orchid")
+            if tablet_orchid["prepared_write_pulled_rows_transaction_id"] != "0-0-0-0":
+                return False
+
+            if tablet_orchid["prepared_advance_replication_progress_transaction_id"] != "0-0-0-0":
+                return False
+
+            return tablet_orchid["table_puller"]["iteration_skip_reason"] == "self_replica_is_disabled"
+
+        wait(_check)
+
+        orchid = get(f"#{tablet_id}/orchid")
         progress = orchid["replication_progress"]
 
         sync_unmount_table("//tmp/t")
-        assert get("#{0}/@replication_progress".format(tablet_id)) == progress
+        assert get(f"#{tablet_id}/@replication_progress") == progress
 
         sync_mount_table("//tmp/t")
-        orchid = get("#{0}/orchid".format(tablet_id))
+        orchid = get(f"#{tablet_id}/orchid")
         assert orchid["replication_progress"] == progress
 
-        cell_id = get("#{0}/@cell_id".format(tablet_id))
+        cell_id = get(f"#{tablet_id}/@cell_id")
         build_snapshot(cell_id=cell_id)
-        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
         set_node_banned(peer, True)
         wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
-        orchid = get("#{0}/orchid".format(tablet_id))
+        orchid = get(f"#{tablet_id}/orchid")
         assert orchid["replication_progress"] == progress
 
     @authors("savrus")
@@ -4907,14 +4911,6 @@ class TestChaosSpecial(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -5294,14 +5290,6 @@ class TestChaosNativeProxy(ChaosTestBase):
         "enable_read_from_async_replicas": True,
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     @authors("osidorkin")
     def test_partial_pull_rows(self):
         metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -5565,7 +5553,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
-                "use_has_chaos_object": True,
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
                 "expire_after_access_time": 60000,
@@ -5835,14 +5822,6 @@ class TestChaosMetaCluster(ChaosTestBase):
                     "replication_card_keep_alive_period": 0,
                 },
                 "leftover_migration_period": 5,
-            },
-        },
-    }
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
             },
         },
     }
@@ -6639,6 +6618,100 @@ class TestChaosMetaCluster(ChaosTestBase):
 
 
 class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
+    @authors("shamteev")
+    def test_chaos_lease_manager_waits_for_removal_before_disabling(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        cluster_names = self.get_cluster_names()
+        drivers = self._get_drivers()
+        alpha_driver = drivers[-2]
+        beta_driver = drivers[-1]
+        coordinator_driver = drivers[0]
+
+        coordinator_peer_cluster_names = cluster_names[:1]
+        coordinator_meta_cluster_names = cluster_names[1:]
+        create_chaos_area(
+            "coordinator_c",
+            "c",
+            coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names)
+        create_chaos_area(
+            "coordinator_d",
+            "c",
+            coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names)
+
+        align_chaos_cell_tag()
+        coordinator_cell_c = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names,
+            area="coordinator_c")
+        coordinator_cell_d = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names,
+            area="coordinator_d")
+
+        def get_lease_manager_orchid(path):
+            return self._get_chaos_cell_orchid(
+                alpha_cell,
+                f"/chaos_lease_manager/{path}",
+                driver=alpha_driver)
+
+        def get_beta_lease_manager_state():
+            return self._get_chaos_cell_orchid(
+                beta_cell,
+                "/chaos_lease_manager/internal/state",
+                driver=beta_driver)
+
+        lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 120000})
+        expected_coordinator_cell_ids = {
+            alpha_cell,
+            beta_cell,
+            coordinator_cell_c,
+            coordinator_cell_d,
+        }
+
+        def check_lease_coordinators():
+            coordinators = get_lease_manager_orchid(f"chaos_leases/{lease_id}/coordinators")
+            return (
+                builtins.set(coordinators) == expected_coordinator_cell_ids and
+                all(state == "granted" for state in coordinators.values()))
+
+        wait(check_lease_coordinators)
+        coordinator_d_area_id = get(
+            f"#{coordinator_cell_d}/@area_id",
+            driver=coordinator_driver)
+
+        def check_only_coordinator_d_is_revoking():
+            coordinators = get_lease_manager_orchid(f"chaos_leases/{lease_id}/coordinators")
+            return coordinators == {coordinator_cell_d: "revoking"}
+
+        try:
+            with self.CellsDisabled(
+                    clusters=coordinator_peer_cluster_names,
+                    area_ids=[coordinator_d_area_id]):
+                remove_response = execute_command(
+                    "remove",
+                    {"path": f"#{lease_id}"},
+                    return_response=True)
+                wait(lambda: get_lease_manager_orchid(
+                    f"chaos_leases/{lease_id}/state") == "revoking_shortcuts_for_removal")
+                wait(check_only_coordinator_d_is_revoking)
+
+                suspend_chaos_cells([alpha_cell])
+
+                assert not remove_response.is_set()
+                assert get_lease_manager_orchid("internal/state") == "disabling"
+                wait(lambda: get_beta_lease_manager_state() == "enabling")
+
+            remove_response.wait()
+            assert remove_response.is_ok()
+            wait(lambda: get_lease_manager_orchid("internal/state") == "disabled")
+            wait(lambda: get_beta_lease_manager_state() == "enabled")
+        finally:
+            resume_chaos_cells([alpha_cell])
+
     @authors("osidorkin")
     def test_forsake_revoking_coordinator(self):
         cluster_names = self.get_cluster_names()
@@ -6897,14 +6970,6 @@ class TestChaosMetaClusterNativeProxyWithAlerts(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     @authors("osidorkin")
     def test_forsake_shortcut(self):
         cluster_names = self.get_cluster_names()
@@ -6999,14 +7064,6 @@ class TestChaosSingleCluster(ChaosTestBase):
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):
@@ -7155,14 +7212,6 @@ class ChaosSingleClusterNativeProxyBase(ChaosTestBase):
         "enable_read_from_async_replicas": True,
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     def _create_cross_shard_directory(self):
         raise NotImplementedError()
 
@@ -7277,14 +7326,6 @@ class TestChaosSingleClusterNativeProxySequoia(ChaosSingleClusterNativeProxyBase
 class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
     NUM_CHAOS_NODES = 2
     NUM_REMOTE_CLUSTERS = 1
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
 
     def _prepare_test(self, path, failure_probability, retry_count, cell_count=4):
         self._configure_retries(failure_probability, retry_count)

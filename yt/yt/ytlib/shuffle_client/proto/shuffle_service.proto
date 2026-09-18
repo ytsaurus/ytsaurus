@@ -5,6 +5,7 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,8 +22,11 @@ message TReqStartShuffle
     // schemaful: the schema is the single source of the column name-to-id
     // mapping shared by writers and readers.
     optional NYT.NTableClient.NProto.TTableSchemaExt schema = 7;
-    // YSON-serialized TPushShuffleConfig; push-based only.
-    optional bytes push_config = 8;
+    reserved 8;
+    // YSON-serialized TShuffleConfig.
+    optional bytes config = 9;
+    // NCompression::ECodec.
+    optional int32 codec = 10 [default = 0];
 }
 
 message TRspStartShuffle
@@ -116,4 +120,5 @@ message TRspFetchChunks
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 1;
     // Push-based only.
     repeated int32 valid_writer_ids = 2;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
 }

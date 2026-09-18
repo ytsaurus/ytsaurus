@@ -12,7 +12,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `upstream_streams` | **Type**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
 List of the computation's input and source streams whose completion the visitor waits for. Only meaningful with `finite=%true` (see the dynamic spec): with `finite=%false` the visitor never finishes, so the parameter has no effect.
 When unset, the visitor waits for every input and source stream, that is, it finishes together with the whole input of the computation.
-Narrowing the list matters for a cyclic topology: when the computation emits from `DoProcessVisit` into an output that comes back to it as an input stream. Such a stream only ends once the visitor stops scanning the state, so it cannot be followed.
+Narrowing the list matters for a cyclic topology: when the process function emits from `ProcessVisit` into an output that comes back to the same computation as an input stream. Such a stream only ends once the visitor stops scanning the state, so it cannot be followed.
 In a production pipeline this makes no difference: sources are infinite, input streams never complete, and no value of `upstream_streams` starts a final pass. Narrowing is needed where all pipeline sources are finite and the pipeline must reach `completed`, that is, in integration tests. ||
 || `bucket_count` | **Type**: `int`
 **Default value**: `8`

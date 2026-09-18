@@ -80,20 +80,20 @@ typedef uint32_t H3Error;
 
 typedef enum {
     E_SUCCESS = 0,  // Success (no error)
-    E_FAILED =
-        1,  // The operation failed but a more specific error is not available
-    E_DOMAIN = 2,  // Argument was outside of acceptable range (when a more
-                   // specific error code is not available)
-    E_LATLNG_DOMAIN =
-        3,  // Latitude or longitude arguments were outside of acceptable range
-    E_RES_DOMAIN = 4,    // Resolution argument was outside of acceptable range
+    E_FAILED = 1,   // The operation failed but a more specific error is not
+                    // available
+    E_DOMAIN = 2,   // Argument was outside the acceptable range (when a more
+                    // specific error code is not available)
+    E_LATLNG_DOMAIN = 3,  // Latitude or longitude arguments were outside the
+                          // acceptable range
+    E_RES_DOMAIN = 4,    // Resolution argument was outside the acceptable range
     E_CELL_INVALID = 5,  // `H3Index` cell argument was not valid
     E_DIR_EDGE_INVALID = 6,  // `H3Index` directed edge argument was not valid
     E_UNDIR_EDGE_INVALID =
         7,                 // `H3Index` undirected edge argument was not valid
     E_VERTEX_INVALID = 8,  // `H3Index` vertex argument was not valid
     E_PENTAGON = 9,  // Pentagon distortion was encountered which the algorithm
-                     // could not handle it
+                     // could not handle
     E_DUPLICATE_INPUT = 10,  // Duplicate input was encountered in the arguments
                              // and the algorithm could not handle it
     E_NOT_NEIGHBORS = 11,    // `H3Index` cell arguments were not neighbors
@@ -101,13 +101,30 @@ typedef enum {
         12,  // `H3Index` cell arguments had incompatible resolutions
     E_MEMORY_ALLOC = 13,   // Necessary memory allocation failed
     E_MEMORY_BOUNDS = 14,  // Bounds of provided memory were not large enough
-    E_OPTION_INVALID = 15  // Mode or flags argument was not valid.
+
+    E_OPTION_INVALID = 15,  // Mode or flags argument was not valid
+    E_INDEX_INVALID = 16,   // `H3Index` argument was not valid
+    E_BASE_CELL_DOMAIN =
+        17,                // Base cell number was outside of acceptable range
+    E_DIGIT_DOMAIN = 18,   // Child digits invalid
+    E_DELETED_DIGIT = 19,  // Deleted subsequence indicates invalid index
+
+    // Sentinel value; not a real error. One past the last valid code.
+    H3_ERROR_END
 } H3ErrorCodes;
+
+/** @defgroup describeH3Error describeH3Error
+ * Functions for describeH3Error
+ * @{
+ */
+/** @brief converts the provided H3Error value into a description string */
+DECLSPEC const char *H3_EXPORT(describeH3Error)(H3Error err);
+/** @} */
 
 /* library version numbers generated from VERSION file */
 // clang-format off
 #define H3_VERSION_MAJOR 4
-#define H3_VERSION_MINOR 1
+#define H3_VERSION_MINOR 5
 #define H3_VERSION_PATCH 0
 // clang-format on
 
@@ -156,6 +173,18 @@ typedef struct {
     int numPolygons;
     GeoPolygon *polygons;
 } GeoMultiPolygon;
+
+/**
+ * Values representing polyfill containment modes, to be used in
+ * the `flags` bit field for `polygonToCellsExperimental`.
+ */
+typedef enum {
+    CONTAINMENT_CENTER = 0,       ///< Cell center is contained in the shape
+    CONTAINMENT_FULL = 1,         ///< Cell is fully contained in the shape
+    CONTAINMENT_OVERLAPPING = 2,  ///< Cell overlaps the shape at any point
+    CONTAINMENT_OVERLAPPING_BBOX = 3,  ///< Cell bounding box overlaps shape
+    CONTAINMENT_INVALID = 4  ///< This mode is invalid and should not be used
+} ContainmentMode;
 
 /** @struct LinkedLatLng
  *  @brief A coordinate node in a linked geo structure, part of a linked list
@@ -262,34 +291,55 @@ DECLSPEC H3Error H3_EXPORT(gridDiskDistances)(H3Index origin, int k,
                                               H3Index *out, int *distances);
 /** @} */
 
-/** @defgroup gridRingUnsafe gridRingUnsafe
- * Functions for gridRingUnsafe
+/** @defgroup gridRing gridRing
+ * Functions for gridRing
  * @{
  */
-/** @brief hollow hexagon ring at some origin */
+/** @brief maximum number of hexagons in hollow k-ring */
+DECLSPEC H3Error H3_EXPORT(maxGridRingSize)(int k, int64_t *out);
+
+/** @brief hollow hexagon ring k distance from origin */
 DECLSPEC H3Error H3_EXPORT(gridRingUnsafe)(H3Index origin, int k, H3Index *out);
+
+/** @brief hollow hexagon ring k distance from origin */
+DECLSPEC H3Error H3_EXPORT(gridRing)(H3Index origin, int k, H3Index *out);
 /** @} */
 
 /** @defgroup polygonToCells polygonToCells
  * Functions for polygonToCells
  * @{
  */
-/** @brief maximum number of hexagons that could be in the geoloop */
+/** @brief maximum number of cells that could be in the polygon */
 DECLSPEC H3Error H3_EXPORT(maxPolygonToCellsSize)(const GeoPolygon *geoPolygon,
                                                   int res, uint32_t flags,
                                                   int64_t *out);
 
-/** @brief hexagons within the given geopolygon */
+/** @brief cells within the given polygon */
 DECLSPEC H3Error H3_EXPORT(polygonToCells)(const GeoPolygon *geoPolygon,
                                            int res, uint32_t flags,
                                            H3Index *out);
+/** @} */
+
+/** @defgroup polygonToCellsExperimental polygonToCellsExperimental
+ * Functions for polygonToCellsExperimental.
+ * This is an experimental-only API and is subject to change in minor versions.
+ * @{
+ */
+/** @brief maximum number of cells that could be in the polygon */
+DECLSPEC H3Error H3_EXPORT(maxPolygonToCellsSizeExperimental)(
+    const GeoPolygon *polygon, int res, uint32_t flags, int64_t *out);
+
+/** @brief cells within the given polygon */
+DECLSPEC H3Error H3_EXPORT(polygonToCellsExperimental)(
+    const GeoPolygon *polygon, int res, uint32_t flags, int64_t size,
+    H3Index *out);
 /** @} */
 
 /** @defgroup cellsToMultiPolygon cellsToMultiPolygon
  * Functions for cellsToMultiPolygon (currently a binding-only concept)
  * @{
  */
-/** @brief Create a LinkedGeoPolygon from a set of contiguous hexagons */
+/** @brief Create a LinkedGeoPolygon from a set of cells */
 DECLSPEC H3Error H3_EXPORT(cellsToLinkedMultiPolygon)(const H3Index *h3Set,
                                                       const int numHexes,
                                                       LinkedGeoPolygon *out);
@@ -437,7 +487,7 @@ DECLSPEC H3Error H3_EXPORT(getNumCells)(int res, int64_t *out);
  * @{
  */
 /** @brief returns the number of resolution 0 cells (hexagons and pentagons) */
-DECLSPEC int H3_EXPORT(res0CellCount)();
+DECLSPEC int H3_EXPORT(res0CellCount)(void);
 
 /** @brief provides all base cells in H3Index format*/
 DECLSPEC H3Error H3_EXPORT(getRes0Cells)(H3Index *out);
@@ -448,7 +498,7 @@ DECLSPEC H3Error H3_EXPORT(getRes0Cells)(H3Index *out);
  * @{
  */
 /** @brief returns the number of pentagons per resolution */
-DECLSPEC int H3_EXPORT(pentagonCount)();
+DECLSPEC int H3_EXPORT(pentagonCount)(void);
 
 /** @brief generates all pentagons at the specified resolution */
 DECLSPEC H3Error H3_EXPORT(getPentagons)(int res, H3Index *out);
@@ -472,6 +522,28 @@ DECLSPEC int H3_EXPORT(getResolution)(H3Index h);
  * Note: Technically works on H3 edges, but will return base cell of the
  * origin cell. */
 DECLSPEC int H3_EXPORT(getBaseCellNumber)(H3Index h);
+/** @} */
+
+/** @defgroup getIndexDigit getIndexDigit
+ * Functions for getIndexDigit
+ * @{
+ */
+/** @brief returns the indexing digit of the provided H3 cell at a given
+ * resolution
+ *
+ * Indexing digits are 1-indexed beginning with the digit for resolution 1. */
+DECLSPEC H3Error H3_EXPORT(getIndexDigit)(H3Index h, int res, int *out);
+/** @} */
+
+/** @defgroup constructCell constructCell
+ * Functions for constructCell
+ * @{
+ */
+/** @brief create a cell from its components
+ * Only allows for constructing valid H3 cells.
+ **/
+DECLSPEC H3Error H3_EXPORT(constructCell)(int res, int baseCellNumber,
+                                          const int *digits, H3Index *out);
 /** @} */
 
 /** @defgroup stringToH3 stringToH3
@@ -498,6 +570,17 @@ DECLSPEC H3Error H3_EXPORT(h3ToString)(H3Index h, char *str, size_t sz);
  * In particular, returns 0 (False) for H3 directed edges or invalid data
  */
 DECLSPEC int H3_EXPORT(isValidCell)(H3Index h);
+/** @} */
+
+/** @defgroup isValidIndex isValidIndex
+ * Functions for isValidIndex
+ * @{
+ */
+/** @brief confirms if an H3Index is valid for any mode (cell, directed edge, or
+ * vertex) Returns 1 if the H3 index is valid for any supported type, 0
+ * otherwise
+ */
+DECLSPEC int H3_EXPORT(isValidIndex)(H3Index h);
 /** @} */
 
 /** @defgroup cellToParent cellToParent
@@ -686,6 +769,15 @@ DECLSPEC H3Error H3_EXPORT(originToDirectedEdges)(H3Index origin,
 /** @brief Returns the CellBoundary containing the coordinates of the edge */
 DECLSPEC H3Error H3_EXPORT(directedEdgeToBoundary)(H3Index edge,
                                                    CellBoundary *gb);
+/** @} */
+
+/** @defgroup reverseDirectedEdge reverseDirectedEdge
+ * Functions for reverseDirectedEdge
+ * @{
+ */
+/** @brief Returns the directed edge with origin and destination cells reversed
+ */
+DECLSPEC H3Error H3_EXPORT(reverseDirectedEdge)(H3Index edge, H3Index *out);
 /** @} */
 
 /** @defgroup cellToVertex cellToVertex

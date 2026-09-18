@@ -10,6 +10,11 @@
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
@@ -18,6 +23,8 @@
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -30,6 +37,8 @@
 
 #include <yt/yt/core/https/server.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/server.h>
 
@@ -41,11 +50,13 @@
 namespace NYT::NTimestampProvider {
 
 using namespace NAdmin;
+using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NObjectClient;
 using namespace NOrchid;
+using namespace NServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NYTree;
@@ -98,6 +109,10 @@ private:
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
+
+    IConnectionPtr Connection_;
+    NApi::IClientPtr RootClient_;
+    ICypressRegistrarPtr CypressRegistrar_;
 
     const IInvokerPtr& GetControlInvoker() const
     {
@@ -164,6 +179,23 @@ private:
             GetControlInvoker(),
             ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             /*authenticator*/ nullptr));
+
+        if (Config_->ClusterConnection) {
+            Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+            RootClient_ = Connection_->CreateClient(NApi::TClientOptions::Root());
+
+            auto address = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+            TCypressRegistrarOptions options{
+                .RootPath = Format("//sys/timestamp_proxies/%v", NYPath::ToYPathLiteral(address)),
+                .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
+                .ExpireSelf = true,
+            };
+            CypressRegistrar_ = CreateCypressRegistrar(
+                std::move(options),
+                Config_->CypressRegistrar,
+                RootClient_,
+                GetControlInvoker());
+        }
     }
 
     void DoStart()
@@ -180,6 +212,10 @@ private:
         YT_TLOG_INFO("Listening for RPC requests")
             .With("Port", Config_->RpcPort);
         RpcServer_->Start();
+
+        if (CypressRegistrar_) {
+            CypressRegistrar_->Start({});
+        }
     }
 };
 

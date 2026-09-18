@@ -1,13 +1,21 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
+#include <yt/yt/flow/library/cpp/companion/server/server_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
+
+#include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
+
+#include <yt/yt/core/concurrency/poller.h>
+
+#include <yt/yt/core/http/client.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -169,6 +177,78 @@ TEST(TCompanionStateStoreTest, InternalStateResetAndUnchanged)
     ASSERT_EQ(std::ssize(internalStates[0].StateItems), 1);
     EXPECT_EQ(internalStates[0].StateItems[0].Key, key1);
     EXPECT_TRUE(internalStates[0].StateItems[0].Reset);
+}
+
+// Erase by key alone: no read, the key is unreadable for the rest of the batch, and the
+// worker receives a reset item.
+TEST(TCompanionStateStoreTest, InternalStateEraseWithoutRead)
+{
+    auto store = MakeStore();
+    auto provider = store->RegisterInternalState(
+        "counter",
+        &New<TYsonSerializableStateHolder<i64>>);
+    TMutableStateKeyClient<i64> client(provider);
+
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+
+    auto input = MakeBatchInputWithKeys({1, 2});
+    auto& holder = input.InternalStates["counter"];
+    holder.StateName = "counter";
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = YsonBytes(5)});
+    store->LoadBatch(input);
+
+    client.EraseState(key1);
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key1), "was erased in this batch");
+    // A key the batch carried no state for can be erased too.
+    client.EraseState(key2);
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(internalStates), 1);
+    ASSERT_EQ(std::ssize(internalStates[0].StateItems), 2);
+    for (const auto& item : internalStates[0].StateItems) {
+        EXPECT_TRUE(item.Reset);
+    }
+
+    // The next batch starts afresh.
+    store->LoadBatch(input);
+    EXPECT_EQ(*client.GetState(key1), 5);
+}
+
+TEST(TCompanionStateStoreTest, ExternalStateEraseWithoutRead)
+{
+    auto store = MakeStore();
+    auto manager = store->GetExternalStateManager("profile");
+    TMutableStateKeyClient<TSimpleExternalState> client(manager);
+
+    auto stateSchema = NTesting::DefaultTestKeySchema();
+    auto key1 = MakeKey(ui64{1});
+
+    TPayloadBuilder builder(stateSchema);
+    builder.Set(ui64{5}, "key");
+    auto payload = builder.Finish();
+
+    auto input = MakeBatchInputWithKeys({1});
+    auto& holder = input.ExternalStates["profile"];
+    holder.StateName = "profile";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = payload});
+    store->LoadBatch(input);
+
+    client.EraseState(key1);
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key1), "was erased in this batch");
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(externalStates), 1);
+    ASSERT_EQ(std::ssize(externalStates[0].StateItems), 1);
+    EXPECT_EQ(externalStates[0].StateItems[0].Key, key1);
+    EXPECT_TRUE(externalStates[0].StateItems[0].Reset);
 }
 
 TEST(TCompanionStateStoreTest, UndeclaredStateThrows)
@@ -469,9 +549,12 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
 {
     auto store = MakeStore();
     auto parameters = ConvertTo<IMapNodePtr>(NYson::TYsonString(TStringBuf("{answer=42}")));
-    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters);
+    auto parametersObject = New<TEmptyProcessFunctionParameters>();
+    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters, parametersObject);
 
     EXPECT_EQ(initContext->GetParametersNode()->GetChildOrThrow("answer")->AsInt64()->GetValue(), 42);
+    EXPECT_EQ(initContext->GetParametersObject(), parametersObject);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetParametersObject(), parametersObject);
 
     TMutableStateKeyClient<i64> client;
     initContext->InitClient(client, "counter");
@@ -486,6 +569,35 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetPartitionId()),
         "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpClient()),
+        "HTTP client is not available");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpsClient()),
+        "HTTPS client is not available");
+}
+
+TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
+{
+    auto context = CreateCompanionServerContext(
+        New<NCompanion::TCompanionExecutionConfig>(),
+        /*invoker*/ nullptr);
+
+    auto initContext = New<TCompanionRuntimeInitContext>(
+        MakeStore(),
+        /*parametersNode*/ nullptr,
+        /*parametersObject*/ nullptr,
+        THashMap<TResourceId, IResourcePtr>{},
+        /*prefix*/ std::string(),
+        /*profiler*/ NProfiling::TProfiler(),
+        context);
+
+    EXPECT_EQ(initContext->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->GetHttpsClient(), context->HttpsClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpsClient(), context->HttpsClient);
+
+    context->HttpPoller->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

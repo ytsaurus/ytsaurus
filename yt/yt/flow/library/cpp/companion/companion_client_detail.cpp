@@ -30,6 +30,8 @@ void TCompanionComputationInfo::Register(TRegistrar registrar)
     registrar.Parameter("computation_id", &TThis::ComputationId);
     registrar.Parameter("computation_type", &TThis::CompanionComputationType)
         .Default();
+    registrar.Parameter("supported_state_formats", &TThis::SupportedStateFormats)
+        .Default({FormatEnum(EStateFormat::SimpleRow)});
 }
 
 void TCompanionInfo::Register(TRegistrar registrar)
@@ -286,6 +288,7 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     for (const auto& protoGroup : response->data().output()) {
         TCompanionResponseGroup group;
         group.Messages.reserve(protoGroup.messages().size());
+        group.MessageIdSuffixes.reserve(protoGroup.messages().size());
         group.ParentIds.reserve(protoGroup.parent_ids().size());
         group.Timers.reserve(protoGroup.timers().size());
         // Messages.
@@ -300,6 +303,17 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
             }
         } else {
             group.Distribute.assign(group.Messages.size(), true);
+        }
+        if (protoGroup.message_id_suffixes_size() == std::ssize(group.Messages)) {
+            for (const auto& suffix : protoGroup.message_id_suffixes()) {
+                group.MessageIdSuffixes.push_back(NCompanion::FromProto(suffix));
+            }
+        } else if (protoGroup.message_id_suffixes_size() == 0) {
+            for (size_t index = 0; index < group.Messages.size(); ++index) {
+                group.MessageIdSuffixes.push_back(TOutputMessageIdSuffix::FromSequenceNumber());
+            }
+        } else {
+            THROW_ERROR_EXCEPTION("Message ID suffixes count must match output messages count");
         }
         // ParentIds.
         for (auto& parentId : protoGroup.parent_ids()) {

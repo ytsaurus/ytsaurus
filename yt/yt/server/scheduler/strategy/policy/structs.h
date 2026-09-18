@@ -142,6 +142,8 @@ struct TOperationState final
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;
 
+    bool PreemptibleAtLastUpdate = true;
+
     TOperationState(
         TStrategyOperationSpecPtr spec,
         bool isGang);

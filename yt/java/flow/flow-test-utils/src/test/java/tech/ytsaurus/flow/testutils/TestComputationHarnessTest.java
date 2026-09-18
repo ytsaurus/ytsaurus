@@ -10,9 +10,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -25,14 +25,21 @@ import tech.ytsaurus.flow.computation.Computation;
 import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.computation.SourceComputation;
 import tech.ytsaurus.flow.context.PipelineContext;
+import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.resource.FlowResource;
+import tech.ytsaurus.flow.resource.ResourceContext;
+import tech.ytsaurus.flow.resource.ResourceLoadException;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.state.InternalStateDescriptor;
+import tech.ytsaurus.flow.state.ProtoExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.stream.FlowStream;
+import tech.ytsaurus.flow.test.TOptionalTestMessage;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
@@ -43,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tech.ytsaurus.flow.testutils.ComputationTestUtils.passthroughComputation;
@@ -63,6 +71,12 @@ class TestComputationHarnessTest {
     // StateDescriptors.external(...).
     private static final String EXT_STATE_A = "/state-a";
     private static final String EXT_STATE_B = "/state-b";
+    private static final String INT_PROTO_STATE = "proto-state";
+    private static final InternalStateDescriptor<TOptionalTestMessage> INT_PROTO =
+            StateDescriptors.protobuf(INT_PROTO_STATE, TOptionalTestMessage.class);
+    private static final String EXT_PROTO_STATE = "/proto-state-external";
+    private static final ProtoExternalStateDescriptor<TOptionalTestMessage> EXT_PROTO =
+            StateDescriptors.externalProto(EXT_PROTO_STATE, TOptionalTestMessage.class);
 
     private static String spec;
     private static String jinjaSpec;
@@ -167,6 +181,54 @@ class TestComputationHarnessTest {
                     .endMap().build());
         }
         return node;
+    }
+
+    /**
+     * A copy of the base spec with the given internal states declared on {@link #COMPUTATION_ID},
+     * so the computation is allowed to access those internal states.
+     */
+    private static YTreeNode specDeclaringInternalStates(List<String> stateNames) {
+        var node = YTreeTextSerializer.deserialize(spec);
+        var parameters = node.asMap().get("spec").asMap()
+                .get("computations").asMap()
+                .get(COMPUTATION_ID).asMap()
+                .get("parameters").asMap();
+        var states = YTree.builder().beginList();
+        stateNames.forEach(states::value);
+        parameters.put("internal_states", states.endList().build());
+        return node;
+    }
+
+    /**
+     * Computation that records, per incoming message, whether {@link #INT_PROTO} holds a value
+     * for the message key. Used to observe a seeded state exactly as a computation sees it.
+     */
+    private static Computation internalStateProbe(String computationId, List<Boolean> observed) {
+        return Computation.builder()
+                .setComputationId(computationId)
+                .setProcessFunction(new RowFunction() {
+                    @Override
+                    public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
+                        observed.add(ctx.getState(INT_PROTO, message).get() != null);
+                    }
+                })
+                .build();
+    }
+
+    /**
+     * Computation that records, per incoming message, whether {@link #EXT_PROTO} holds a value
+     * for the message key.
+     */
+    private static Computation externalProtoStateProbe(String computationId, List<Boolean> observed) {
+        return Computation.builder()
+                .setComputationId(computationId)
+                .setProcessFunction(new RowFunction() {
+                    @Override
+                    public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
+                        observed.add(ctx.getState(EXT_PROTO, message).get() != null);
+                    }
+                })
+                .build();
     }
 
     /**
@@ -620,6 +682,250 @@ class TestComputationHarnessTest {
     }
 
     @Nested
+    @DisplayName("Companion Resource Tests")
+    class CompanionResourceTests {
+
+        private static final String RESOURCE_ALIAS = "view";
+
+        /**
+         * Computation handing every message the resource it resolves by alias.
+         */
+        private PipelineContext ctxReadingResource(AtomicReference<FlowResource> seen) {
+            var context = new PipelineContext();
+            context.registerComputation(Computation.builder()
+                    .setComputationId(COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) ->
+                            seen.set(ctx.getResource(RESOURCE_ALIAS)))
+                    .build());
+            return context;
+        }
+
+        @Test
+        @DisplayName("Declared resource: visible to user code by alias, loaded once")
+        void testResourceIsVisibleToUserCode() {
+            // Given: A harness declaring a companion resource under an alias.
+            var seen = new AtomicReference<FlowResource>();
+            var resource = new TestHarnessResource();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, resource)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+
+            // When: Processing the request.
+            harness.doProcess(request);
+
+            // Then: The computation saw the very instance the harness was given.
+            assertAll(
+                    () -> assertSame(resource, seen.get()),
+                    () -> assertEquals(1, resource.loadCount)
+            );
+        }
+
+        @Test
+        @DisplayName("Undeclared resource: the batch is rejected before user code runs")
+        void testUndeclaredResourceIsAbsent() {
+            // Given: A harness declaring no resources at all.
+            var seen = new AtomicReference<FlowResource>();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+
+            // When & Then: The lookup of the missing alias fails inside the computation.
+            assertThrows(RuntimeException.class, () -> harness.doProcess(request));
+        }
+
+        @Test
+        @DisplayName("Two harnesses over one PipelineContext: the shared alias is registered once")
+        void testTwoHarnessesShareOnePipelineContext() {
+            // Given: One PipelineContext reused across harnesses, as a @BeforeAll setup would,
+            // with a fresh resource instance per harness, as a @BeforeEach would.
+            var seen = new AtomicReference<FlowResource>();
+            var pipelineContext = ctxReadingResource(seen);
+            var firstResource = new TestHarnessResource();
+            var first = TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext)
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, firstResource)
+                    .build();
+
+            // When: A second harness is built over the very same context and alias.
+            var secondResource = new TestHarnessResource();
+            var second = TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext)
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, secondResource)
+                    .build();
+
+            // Then: Setup succeeds and each harness serves its own instance — sharing the
+            // synthetic class name would silently hand the second harness the first's.
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+            first.doProcess(request);
+            assertSame(firstResource, seen.get());
+            seen.set(null);
+            second.doProcess(request);
+            assertSame(secondResource, seen.get());
+        }
+
+        /**
+         * Records how often the harness loaded it.
+         */
+        @Test
+        @DisplayName("A shared PipelineContext does not retain the harness resources")
+        void testSharedContextDoesNotRetainResources() {
+            // Given: One context reused across builds, as a @BeforeAll setup would.
+            var seen = new AtomicReference<FlowResource>();
+            var pipelineContext = ctxReadingResource(seen);
+
+            // When: Building harnesses over it, each with its own fixture.
+            for (int i = 0; i < 3; ++i) {
+                TestComputationHarness.builder()
+                        .setPipelineContext(pipelineContext)
+                        .setPipelineSpec(spec)
+                        .addResource(RESOURCE_ALIAS, new TestHarnessResource())
+                        .build();
+            }
+
+            // Then: The context is handed back as it was found. Otherwise each replaced fixture
+            // would stay reachable through the supplier the context kept, for the life of the
+            // context — with nothing bounding a parameterized or repeated test.
+            assertTrue(new PipelineContextSnapshot(pipelineContext).getResourceFactories().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Closing the harness unloads the resources it loaded")
+        void testCloseUnloadsResources() {
+            // Given: A harness holding a loaded companion resource.
+            var seen = new AtomicReference<FlowResource>();
+            var resource = new TestHarnessResource();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, resource)
+                    .build();
+            assertEquals(0, resource.unloadCount);
+
+            // When: Closing it, twice — a test may close explicitly inside try-with-resources.
+            harness.close();
+            harness.close();
+
+            // Then: The unload hook ran exactly once; nothing a resource opened outlives the test.
+            assertEquals(1, resource.unloadCount);
+        }
+
+        @Test
+        void buildNeverMutatesCallerResourceRegistrations() {
+            var registrations = new java.util.concurrent.atomic.AtomicInteger();
+            var context = new PipelineContext() {
+                @Override
+                public void registerResourceClass(
+                        String name, java.util.function.Supplier<? extends FlowResource> factory
+                ) {
+                    registrations.incrementAndGet();
+                    super.registerResourceClass(name, factory);
+                }
+
+                @Override
+                public boolean unregisterResourceClass(String name) {
+                    registrations.incrementAndGet();
+                    return super.unregisterResourceClass(name);
+                }
+            };
+            context.registerResourceClass("Existing", TestHarnessResource::new);
+            var initial = new PipelineContextSnapshot(context).getResourceFactories();
+            var resource = new TestHarnessResource();
+            try (var harness = TestComputationHarness.builder().setPipelineContext(context)
+                    .setPipelineSpec(spec).addResource(RESOURCE_ALIAS, resource).build()) {
+                assertEquals(1, registrations.get());
+                assertEquals(initial, new PipelineContextSnapshot(context).getResourceFactories());
+                assertEquals(1, resource.loadCount);
+            }
+            assertEquals(1, resource.unloadCount);
+            assertEquals(1, registrations.get());
+        }
+
+        @Test
+        void failingHarnessLoadCleansPreviouslyLoadedResourcesWithoutChangingContext() {
+            var pipelineContext = new PipelineContext();
+            var first = new TestHarnessResource();
+            TestHarnessResource second = new TestHarnessResource() {
+                @Override
+                public void load(ResourceContext context) {
+                    throw new IllegalStateException("load failed");
+                }
+            };
+            assertThrows(IllegalStateException.class, () -> TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext).setPipelineSpec(spec)
+                    .addResource("a", first).addResource("b", second).build());
+            // Every instance whose load was entered is cleaned, including the partial one.
+            assertEquals(1, first.loadCount);
+            assertEquals(1, first.unloadCount);
+            assertEquals(1, second.unloadCount);
+            assertTrue(new PipelineContextSnapshot(pipelineContext).getResourceFactories().isEmpty());
+        }
+
+        @Test
+        void typedHarnessLoadFailureCleansEveryAttemptWithoutChangingContext() {
+            var pipelineContext = new PipelineContext();
+            pipelineContext.registerResourceClass("Existing", TestHarnessResource::new);
+            var factories = new PipelineContextSnapshot(pipelineContext).getResourceFactories();
+            var first = new TestHarnessResource();
+            var second = new FlowResource() {
+                private int loadCount;
+                private int unloadCount;
+
+                @Override
+                public void load(ResourceContext context) throws ResourceLoadException {
+                    ++loadCount;
+                    throw new ResourceLoadException(
+                            "Pool initialization failed", new IOException("Connection refused"));
+                }
+
+                @Override
+                public void unload() {
+                    ++unloadCount;
+                }
+            };
+
+            var failure = assertThrows(IllegalStateException.class, () -> TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext).setPipelineSpec(spec)
+                    .addResource("a", first).addResource("b", second).build());
+
+            assertTrue(failure.getMessage().contains("'b'"));
+            assertTrue(failure.getMessage().contains("Pool initialization failed"));
+            assertEquals(1, first.loadCount);
+            assertEquals(1, first.unloadCount);
+            assertEquals(1, second.loadCount);
+            assertEquals(1, second.unloadCount);
+            assertEquals(factories, new PipelineContextSnapshot(pipelineContext).getResourceFactories());
+        }
+
+        private class TestHarnessResource implements FlowResource {
+            private int loadCount;
+            private int unloadCount;
+
+            @Override
+            public void load(ResourceContext context) {
+                ++loadCount;
+            }
+
+            @Override
+            public void unload() {
+                ++unloadCount;
+            }
+        }
+    }
+
+    @Nested
     @DisplayName("DoProcess Tests")
     class DoProcessTests {
 
@@ -929,6 +1235,34 @@ class TestComputationHarnessTest {
         }
 
         @Test
+        @DisplayName("getOrDefault(): a declared state the computation left alone reads its default")
+        void testDeclaredUnmodifiedExternalStateHasDefault() {
+            // Given: A passthrough computation and an external state declared on the harness but
+            // never written. The request carries that state's schema, so the computation reads a
+            // default value for it; both views must agree, the modified one included.
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctx(COMPUTATION_ID, false))
+                    .setPipelineSpec(spec)
+                    .addExternalStateSchema(EXT_STATE_A, PAYLOAD_SCHEMA)
+                    .build();
+            var response = harness.doProcess(TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build());
+            var extA = StateDescriptors.external(EXT_STATE_A);
+            var someKey = new Payload(TestDataUtils.createUnversionedRow(KEY_SCHEMA, 10), KEY_SCHEMA);
+
+            // Then: Both views hand out the empty payload instead of failing for a missing schema.
+            assertAll(
+                    () -> assertEquals(
+                            PAYLOAD_SCHEMA,
+                            response.allStates().get(extA, someKey).getOrDefault().getSchema()),
+                    () -> assertEquals(
+                            PAYLOAD_SCHEMA,
+                            response.modifiedStates().get(extA, someKey).getOrDefault().getSchema())
+            );
+        }
+
+        @Test
         @DisplayName("state readers are empty (not null) for unknown names and keys")
         void testStateAccessorsAreNullSafe() {
             // Given: A processed request with no states at all.
@@ -943,12 +1277,12 @@ class TestComputationHarnessTest {
 
             // Then: Unknown names/keys yield empty readers/sets rather than throwing.
             assertAll(
-                    () -> assertTrue(response.allStates()
-                            .get(StateDescriptors.external("/missing"), someKey).get().isEmpty()),
-                    () -> assertTrue(response.allStates()
-                            .get(StateDescriptors.raw("missing"), someKey).get().isEmpty()),
-                    () -> assertTrue(response.modifiedStates()
-                            .get(StateDescriptors.external("/missing"), someKey).get().isEmpty()),
+                    () -> assertNull(response.allStates()
+                            .get(StateDescriptors.external("/missing"), someKey).get()),
+                    () -> assertNull(response.allStates()
+                            .get(StateDescriptors.raw("missing"), someKey).get()),
+                    () -> assertNull(response.modifiedStates()
+                            .get(StateDescriptors.external("/missing"), someKey).get()),
                     () -> assertTrue(response.allStates().externalKeys("missing").isEmpty()),
                     () -> assertTrue(response.allStates().internalKeys("missing").isEmpty()),
                     () -> assertEquals(0, response.allStates().externalSize("missing"))
@@ -990,15 +1324,84 @@ class TestComputationHarnessTest {
             // Then: The key collapses to a single entry (no stale loaded duplicate), and the
             // all-states view returns the modified value, not the loaded one.
             var extA = StateDescriptors.external(EXT_STATE_A);
-            Optional<Payload> allValue = response.allStates().get(extA, key).get();
-            Optional<Payload> modifiedValue = response.modifiedStates().get(extA, key).get();
+            Payload allValue = response.allStates().get(extA, key).get();
+            Payload modifiedValue = response.modifiedStates().get(extA, key).get();
             assertAll(
                     () -> assertEquals(1, response.allStates().externalSize(EXT_STATE_A)),
                     () -> assertEquals(Set.of(key.getRow()), response.allStates().externalKeys(EXT_STATE_A)),
                     () -> assertEquals(1, response.modifiedStates().externalSize(EXT_STATE_A)),
-                    () -> assertTrue(allValue.isPresent()),
-                    () -> assertEquals(modifiedValue.orElseThrow(), allValue.orElseThrow()),
-                    () -> assertNotEquals(prePayload, allValue.orElseThrow())
+                    () -> assertNotNull(allValue),
+                    () -> assertEquals(modifiedValue, allValue),
+                    () -> assertNotEquals(prePayload, allValue)
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("State Seeding Tests")
+    class StateSeedingTests {
+
+        @Test
+        @DisplayName("a seeded value that encodes to no bytes is observed as absent")
+        void testSeededEmptyProtoStateIsAbsent() {
+            // Given: An all-default protobuf message seeded as an internal state. Setting one in
+            // production sends a reset, the worker drops the row, and the next request carries no
+            // entry for the key: the seeding path must reproduce that, or the test would certify a
+            // state the pipeline cannot be in.
+            var observed = new ArrayList<Boolean>();
+            var context = new PipelineContext();
+            context.registerComputation(internalStateProbe(COMPUTATION_ID, observed));
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(specDeclaringInternalStates(List.of(INT_PROTO_STATE)))
+                    .build();
+            var messages = extMessages(1);
+            var key = messages.get(0).getKey();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(messages)
+                    .setState(INT_PROTO, key, TOptionalTestMessage.getDefaultInstance())
+                    .build();
+
+            // When: Processing the request.
+            var response = harness.doProcess(request);
+
+            // Then: The computation sees no value for the key, and so does the response view: the
+            // assertion surface must not certify a state the computation was never handed.
+            assertAll(
+                    () -> assertEquals(List.of(false), observed),
+                    () -> assertNull(response.allStates().get(INT_PROTO, key).get())
+            );
+        }
+
+        @Test
+        @DisplayName("a seeded all-default proto external state is observed as present")
+        void testSeededEmptyProtoExternalStateIsPresent() {
+            // Given: The same all-default message seeded as an external state. The proto wire
+            // format keeps an empty payload distinct from an absent one, so here the key stays
+            // present — the view must follow the wire, not guess.
+            var observed = new ArrayList<Boolean>();
+            var context = new PipelineContext();
+            context.registerComputation(externalProtoStateProbe(COMPUTATION_ID, observed));
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(specDeclaringExternalStates(List.of(EXT_PROTO_STATE)))
+                    .build();
+            var messages = extMessages(1);
+            var key = messages.get(0).getKey();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(messages)
+                    .setState(EXT_PROTO, key, TOptionalTestMessage.getDefaultInstance())
+                    .build();
+
+            // When: Processing the request.
+            var response = harness.doProcess(request);
+
+            // Then: The computation sees the value, and so does the response view.
+            assertAll(
+                    () -> assertEquals(List.of(true), observed),
+                    () -> assertEquals(
+                            TOptionalTestMessage.getDefaultInstance(),
+                            response.allStates().get(EXT_PROTO, key).get())
             );
         }
     }

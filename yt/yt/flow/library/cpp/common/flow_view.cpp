@@ -219,6 +219,8 @@ bool TPartition::IsWorking() const
 void TJob::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
+    registrar.Parameter("generation", &TThis::Generation)
+        .Default();
 
     registrar.Parameter("worker_address", &TThis::WorkerAddress);
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
@@ -271,9 +273,9 @@ static void NodePerformanceMetricsApply(
     result->CpuUsageCurrent = aggregator(result->CpuUsageCurrent.value_or(0), metrics->CpuUsageCurrent.value_or(0));
     result->CpuUsage30s = aggregator(result->CpuUsage30s.value_or(0), metrics->CpuUsage30s.value_or(0));
     result->CpuUsage10m = aggregator(result->CpuUsage10m.value_or(0), metrics->CpuUsage10m.value_or(0));
-    result->MemoryUsage10m = aggregator(result->MemoryUsage10m, metrics->MemoryUsage10m);
-    result->MemoryUsage30s = aggregator(result->MemoryUsage30s, metrics->MemoryUsage30s);
-    result->MemoryUsageCurrent = aggregator(result->MemoryUsageCurrent, metrics->MemoryUsageCurrent);
+    result->MemoryUsageCurrent = aggregator(result->MemoryUsageCurrent.value_or(0), metrics->MemoryUsageCurrent.value_or(0));
+    result->MemoryUsage30s = aggregator(result->MemoryUsage30s.value_or(0), metrics->MemoryUsage30s.value_or(0));
+    result->MemoryUsage10m = aggregator(result->MemoryUsage10m.value_or(0), metrics->MemoryUsage10m.value_or(0));
 }
 
 template <typename TAggregator>
@@ -305,9 +307,9 @@ TAggregatedNodePerformanceMetricsPtr AggregateNodePerformanceMetrics(const std::
         result->Avg->CpuUsageCurrent = result->Total->CpuUsageCurrent.value_or(0) / count;
         result->Avg->CpuUsage30s = result->Total->CpuUsage30s.value_or(0) / count;
         result->Avg->CpuUsage10m = result->Total->CpuUsage10m.value_or(0) / count;
-        result->Avg->MemoryUsage10m = result->Total->MemoryUsage10m / count;
-        result->Avg->MemoryUsage30s = result->Total->MemoryUsage30s / count;
-        result->Avg->MemoryUsageCurrent = result->Total->MemoryUsageCurrent / count;
+        result->Avg->MemoryUsageCurrent = result->Total->MemoryUsageCurrent.value_or(0) / count;
+        result->Avg->MemoryUsage30s = result->Total->MemoryUsage30s.value_or(0) / count;
+        result->Avg->MemoryUsage10m = result->Total->MemoryUsage10m.value_or(0) / count;
     }
 
     return result;
@@ -553,6 +555,14 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TWorkerStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("lineage_ratios", &TThis::LineageRatios)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWorkerStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
@@ -567,6 +577,8 @@ void TWorkerStatus::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("preloaded_resource_states", &TThis::PreloadedResourceStates)
         .Default();
+    registrar.Parameter("statistics", &TThis::Statistics)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -574,6 +586,8 @@ void TWorkerStatus::Register(TRegistrar registrar)
 void TWorkerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("preload_resources", &TThis::PreloadResources)
+        .Default();
+    registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
         .Default();
 }
 
@@ -1308,16 +1322,6 @@ void TStreamTraverseDataMetrics::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStreamSpeedStatistics::Register(TRegistrar registrar)
-{
-    registrar.Parameter("processed_messages_per_second", &TThis::ProcessedMessagesPerSecond)
-        .Default(0.0);
-    registrar.Parameter("processed_bytes_per_second", &TThis::ProcessedBytesPerSecond)
-        .Default(0.0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TPipelineSpeedStatistics::Register(TRegistrar registrar)
 {
     registrar.Parameter("last_updated", &TThis::LastUpdated)
@@ -1362,6 +1366,8 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
+        .Default();
+    registrar.Parameter("lineage_ratios", &TThis::LineageRatios)
         .Default();
     registrar.Parameter("resource_controller_views", &TThis::ResourceControllerViews)
         .Default();

@@ -71,7 +71,9 @@ protected:
             config->PluginDynamicConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            false);
+            false,
+            config->UseTokenResolver,
+            config->TokenServiceSocketPath);
 
         auto yqlPlugin = CreateYqlPlugin(std::move(options));
         yqlPlugin->Start();

@@ -1,5 +1,7 @@
 #include "pipeline_init.h"
 
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
+
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/core/ypath/helpers.h>
@@ -11,288 +13,19 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NTableClient;
-using namespace NTabletClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-IAttributeDictionaryPtr CreateDynamicTableAttributes(const TTableSchema& tableSchema)
-{
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set("schema", tableSchema);
-    attributes->Set("dynamic", true);
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetInputMessagesTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("system_timestamp", EValueType::Uint64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-
-    attributes->Set(
-        "mount_config",
-        BuildYsonStringFluently(NYson::EYsonFormat::Binary)
-            .BeginMap()
-            .Item("min_data_versions")
-            .Value(0)
-            .Item("min_data_ttl")
-            .Value(0)
-            .Item("row_merger_type")
-            .Value(NTabletClient::ERowMergerType::Watermark)
-            .EndMap());
-
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetCompactInputMessagesTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("deduplication_message_key", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("system_timestamp", EValueType::Uint64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-
-    attributes->Set(
-        "mount_config",
-        BuildYsonStringFluently(NYson::EYsonFormat::Binary)
-            .BeginMap()
-            .Item("min_data_versions")
-            .Value(0)
-            .Item("min_data_ttl")
-            .Value(0)
-            .Item("row_merger_type")
-            .Value(NTabletClient::ERowMergerType::Watermark)
-            .EndMap());
-
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetStatesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("state", EValueType::Any),
-            TColumnSchema("compressed", EValueType::String),
-            TColumnSchema("compressed_patch", EValueType::String),
-            TColumnSchema("format", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetPartitionStatesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
-            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("state", EValueType::Any),
-            TColumnSchema("compressed", EValueType::String),
-            TColumnSchema("compressed_patch", EValueType::String),
-            TColumnSchema("format", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetKeyVisitorStatesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("is_lower", EValueType::Boolean, ESortOrder::Ascending),
-            TColumnSchema("state", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetTimersTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("stream_id", EValueType::String),
-            TColumnSchema("system_timestamp", EValueType::Uint64),
-            TColumnSchema("event_timestamp", EValueType::Uint64),
-            TColumnSchema("trigger_timestamp", EValueType::Uint64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetControllerLogsTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("host", EValueType::String),
-            TColumnSchema("data", EValueType::String),
-            TColumnSchema("codec", EValueType::String),
-            TColumnSchema("$timestamp", EValueType::Uint64),
-            TColumnSchema("$cumulative_data_weight", EValueType::Int64),
-        },
-        /*strict*/ true));
-
-    attributes->Set("tablet_count", 1);
-    attributes->Set(
-        "mount_config",
-        BuildYsonStringFluently(NYson::EYsonFormat::Binary)
-            .BeginMap()
-            .Item("min_data_versions")
-            .Value(0)
-            .Item("min_data_ttl")
-            .Value(0)
-            .Item("max_data_ttl")
-            .Value(86400000) // 1d
-            .EndMap());
-
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetFlowStateTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("sequence_id", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("flags", EValueType::Uint64),
-            TColumnSchema("state_name", EValueType::String),
-            TColumnSchema("key_left", EValueType::String),
-            TColumnSchema("key_right", EValueType::String),
-            TColumnSchema("value", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetFlowStateObsoleteTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetFlowControlTableAttributes()
-{
-    auto attributes = CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-    return attributes;
-}
-
-IAttributeDictionaryPtr GetPartitionTransactionsTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
-            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("last_transaction_start_timestamp", EValueType::Uint64),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetCompactPartitionOutputMessagesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
-            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("chunk_id", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("data", EValueType::String).SetMaxInlineHunkSize(128),
-            TColumnSchema("data_codec", EValueType::Int64),
-            TColumnSchema("processed_mask", EValueType::String),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetCompactOutputMessagesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
-            TColumnSchema("stream_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("chunk_id", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("data", EValueType::String).SetMaxInlineHunkSize(128),
-            TColumnSchema("data_codec", EValueType::Int64),
-            TColumnSchema("processed_mask", EValueType::String),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-IAttributeDictionaryPtr GetLeasesTableAttributes()
-{
-    return CreateDynamicTableAttributes(TTableSchema(
-        std::vector{
-            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(key)")),
-            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("subkey", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Any),
-        },
-        /*strict*/ true,
-        /*uniqueKeys*/ true));
-}
-
-auto GetTables()
-{
-    return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
-        {InputMessagesTableName, GetInputMessagesTableAttributes()},
-        {CompactInputMessagesTableName, GetCompactInputMessagesTableAttributes()},
-        {CompactPartitionOutputMessagesTableName, GetCompactPartitionOutputMessagesTableAttributes()},
-        {CompactOutputMessagesTableName, GetCompactOutputMessagesTableAttributes()},
-        {StatesTableName, GetStatesTableAttributes()},
-        {PartitionStatesTableName, GetPartitionStatesTableAttributes()},
-        {KeyVisitorStatesTableName, GetKeyVisitorStatesTableAttributes()},
-        {TimersTableName, GetTimersTableAttributes()},
-        {ControllerLogsTableName, GetControllerLogsTableAttributes()},
-        {FlowStateTableName, GetFlowStateTableAttributes()},
-        {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
-        {FlowControlTableName, GetFlowControlTableAttributes()},
-        {PartitionTransactionsTableName, GetPartitionTransactionsTableAttributes()},
-        {LeasesTableName, GetLeasesTableAttributes()},
-    };
-}
-
-} // namespace
 
 TNodeId CreatePipelineNode(
     const IClientPtr& client,
     const TYPath& path,
     const TCreateNodeOptions& options)
 {
+    auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
+    auto initializeTables = attributes->GetAndRemove<bool>("initialize_tables", true);
+    attributes->Set(PipelineFormatVersionAttribute, CurrentPipelineFormatVersion);
+
     auto getTablePath = [&path] (TStringBuf tableName) {
         return YPathJoin(path, ToYPathLiteral(tableName));
     };
@@ -309,26 +42,27 @@ TNodeId CreatePipelineNode(
     }();
 
     auto pipelineNodeId = [&] {
-        auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
-        attributes->Set(PipelineFormatVersionAttribute, CurrentPipelineFormatVersion);
         auto createNodeOptions = options;
         createNodeOptions.Attributes = std::move(attributes);
         return WaitFor(transaction->CreateNode(path, EObjectType::MapNode, createNodeOptions))
             .ValueOrThrow();
     }();
 
-    auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
-    auto initializeTables = attributes->Get<bool>("initialize_tables", true);
     if (initializeTables) {
         std::vector<TFuture<void>> createTableFutures;
-        for (const auto& [tableName, tableAttributes] : GetTables()) {
-            TCreateNodeOptions createOptions;
-            createOptions.Attributes = tableAttributes;
-            createOptions.IgnoreExisting = options.IgnoreExisting;
-            createTableFutures.push_back(
-                transaction->CreateNode(getTablePath(tableName), EObjectType::Table, createOptions)
-                    .AsVoid());
-        }
+        auto addCreateFutures = [&] (const auto& definitions) {
+            for (const auto& [name, definition] : definitions) {
+                TCreateNodeOptions createOptions;
+                createOptions.Attributes = BuildPipelineTableAttributes(definition);
+                createOptions.IgnoreExisting = options.IgnoreExisting;
+                createTableFutures.push_back(
+                    transaction->CreateNode(getTablePath(name), EObjectType::Table, createOptions)
+                        .AsVoid());
+            }
+        };
+        const auto& definitions = GetPipelineTableDefinitions();
+        addCreateFutures(definitions.Tables);
+        addCreateFutures(definitions.Queues);
 
         WaitFor(AllSucceeded(std::move(createTableFutures)))
             .ThrowOnError();
@@ -339,10 +73,15 @@ TNodeId CreatePipelineNode(
 
     if (initializeTables) {
         std::vector<TFuture<void>> mountTableFutures;
-        for (const auto& [tableName, _] : GetTables()) {
-            mountTableFutures.push_back(client->MountTable(getTablePath(tableName))
-                    .AsVoid());
-        }
+        auto addMountFutures = [&] (const auto& definitions) {
+            for (const auto& [name, _] : definitions) {
+                mountTableFutures.push_back(client->MountTable(getTablePath(name))
+                        .AsVoid());
+            }
+        };
+        const auto& definitions = GetPipelineTableDefinitions();
+        addMountFutures(definitions.Tables);
+        addMountFutures(definitions.Queues);
         WaitFor(AllSucceeded(std::move(mountTableFutures)))
             .ThrowOnError();
     }

@@ -141,7 +141,7 @@ These sinks inherit from `TSyncSinkBase` and write to Logbroker directly during 
 
 At-most-once guarantees that each message is processed **no more than once**, but allows message loss.
 
-You achieve this semantics by configuring `at_most_once_strategy` on asynchronous sinks:
+You achieve this semantics by configuring `at_most_once_strategy` on asynchronous sinks that support it.
 
 ```
 "sinks" = {
@@ -184,6 +184,13 @@ For more details, see [Queue](../../../flow/connectors/queue.md).
 - **Sink** (`TArrivalOrderTableSink`): exactly-once — the output table and its progress commit in a single master transaction; a per-partition frontier deduplicates replay, so a partially covered replay writes only the uncovered tail without restarting the job; the delivery callback fires only after that external commit and the following Flow commit.
 
 For more details, see [Static Table](../../../flow/connectors/static-table.md).
+
+### HTTP {#http-guarantees}
+
+- **Source**: none.
+- **Asynchronous sink** (`TAsyncHttpSink`): at-least-once — POST requests run outside the epoch transaction, so the receiver must make the operation idempotent or deduplicate the stable message ID sent in `Idempotency-Key` by default. Enabling `at_most_once_strategy` makes spec loading fail.
+
+For more details, see [HTTP extension](../../../flow/extensions/http.md).
 
 {% if audience == "internal" %}
 

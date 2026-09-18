@@ -10,7 +10,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_first_chunk_id, create_dynamic_table, get_tablet_leader_address,
-    raises_yt_error)
+    raises_yt_error, update_nodes_dynamic_config)
 
 from yt_type_helpers import make_schema
 
@@ -1101,4 +1101,103 @@ class TestSortedDynamicTablesCopyReshardSequoia(TestSortedDynamicTablesCopyResha
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+
+class TestUpdateTabletStoresThrottling(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 2
+
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "slot_scan_period": 1000,
+            "resource_limits": {
+                "slots": 2,
+            },
+        },
+    }
+
+    def _get_external_cell_tags(self):
+        if self.NUM_SECONDARY_MASTER_CELLS > 0:
+            return [11 + i for i in range(self.NUM_SECONDARY_MASTER_CELLS)]
+        return [None]
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("cell_count", [1, 4])
+    @pytest.mark.parametrize("bottleneck", ["total", "bundle", "regular"])
+    def test_compaction_throttling(self, bottleneck, cell_count):
+        sync_create_cells(cell_count)
+
+        chunk_count = 5 * cell_count
+
+        external_cell_tags = self._get_external_cell_tags()
+        tables = [f"//tmp/t{i}" for i in range(len(external_cell_tags))]
+        for path, external_cell_tag in zip(tables, external_cell_tags):
+            attributes = {}
+            if external_cell_tag is not None:
+                attributes["external_cell_tag"] = external_cell_tag
+            self._create_simple_table(path, **attributes)
+            set(f"{path}/@replication_factor", 1)
+
+            sync_reshard_table(path, [[]] + [[i * 1000] for i in range(1, chunk_count)])
+            sync_mount_table(path)
+            insert_rows(path, [{"key": i * 1000, "value": str(i)} for i in range(chunk_count)])
+            sync_unmount_table(path)
+
+        def _make_config(bottleneck, rate=1):
+            match bottleneck:
+                case "total":
+                    return {"throttler": {"limit": rate}}
+                case "bundle":
+                    return {"bundle_limit": rate, "regular_relative_limit": 1.}
+                case "regular":
+                    return {"bundle_limit": 1000, "regular_relative_limit": rate / 1000}
+                case "flush":
+                    return {"bundle_limit": 1000, "flush_relative_limit": rate / 1000}
+                case _:
+                    assert False
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "global_stores_update_throttler": {
+                    "enable": True,
+                },
+            },
+        })
+
+        set("//sys/@config/tablet_manager/stores_update_throttler", _make_config(bottleneck))
+
+        old_chunk_ids = {}
+        for path in tables:
+            chunk_ids = builtins.set(get(f"{path}/@chunk_ids"))
+            assert chunk_count == len(chunk_ids)
+            old_chunk_ids[path] = chunk_ids
+
+        for path in tables:
+            set(f"{path}/@forced_compaction_revision", 1)
+            sync_mount_table(path)
+
+        duration = 10
+        # Since we throttle both input and output chunks, we need to count the output chunks here as well.
+        expected_new_chunk_count = duration / 2
+
+        time.sleep(duration)
+
+        for path in tables:
+            new_chunk_ids = get(f"{path}/@chunk_ids")
+            old_chunk_count = len(old_chunk_ids[path].intersection(new_chunk_ids))
+            new_chunk_count = chunk_count - old_chunk_count
+            assert new_chunk_count > expected_new_chunk_count * 0.5
+            assert new_chunk_count < expected_new_chunk_count * 1.5
+
+        for path in tables:
+            wait(lambda: len(old_chunk_ids[path].intersection(get(f"{path}/@chunk_ids"))) == 0)
+
+
+class TestUpdateTabletStoresThrottlingMulticell(TestUpdateTabletStoresThrottling):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }

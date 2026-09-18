@@ -642,12 +642,12 @@ TEST_F(TResourceManagerTest, ReconfigureObservesDirectDynamicResourceFields)
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 
     auto changedDirectField = BuildDynamicResourceSpec("value1");
-    changedDirectField->FileSourceDiscoverPeriod = TDuration::Seconds(47);
+    changedDirectField->FileProviderDiscoverPeriod = TDuration::Seconds(47);
     resourceManager->Reconfigure({{"res", changedDirectField}}, /*targetRevisions*/ {});
     ASSERT_EQ(resource->GetReconfigureCount(), 2);
 
     auto unchanged = BuildDynamicResourceSpec("value1");
-    unchanged->FileSourceDiscoverPeriod = TDuration::Seconds(47);
+    unchanged->FileProviderDiscoverPeriod = TDuration::Seconds(47);
     resourceManager->Reconfigure({{"res", unchanged}}, /*targetRevisions*/ {});
     ASSERT_EQ(resource->GetReconfigureCount(), 2);
 }

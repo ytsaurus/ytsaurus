@@ -29,11 +29,13 @@ target_link_libraries(controller-unittests-mock PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest_extensions
+  common-unittests-mock
   library-cpp-controller
 )
 
 target_sources(controller-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/mock/persisted_state_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/mock/resource_balancer_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/mock/worker_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/mock/yt_connector.cpp
 )

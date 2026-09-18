@@ -560,6 +560,10 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("mutation_handler_failure_log_level_overrides", &TThis::MutationHandlerFailureLogLevelOverrides)
         .Default();
 
+    registrar.Parameter("unknown_automaton_parts_log_level", &TThis::UnknownAutomatonPartsLogLevel)
+        .GreaterThanOrEqual(ELogLevel::Info)
+        .Default(ELogLevel::Fatal);
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->DisableLeaderLeaseGraceDelay && config->LeaderLeaseGraceDelay <= config->LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");

@@ -291,6 +291,14 @@ SELECT
 ;
 ```
 
+Для функций, чувствительных к сортировке, можно явно указать коллацию именованным аргументом `Collation`:
+
+```yql
+SELECT PgCall('upper', 'straße'p, 'de-DE-x-icu' AS Collation); -- 'STRASSE'p
+```
+
+Значение должно быть именем из `pg_catalog.pg_collation`: стандартным `default`, `C`, `POSIX`, `ucs_basic`, `unicode` или ICU-локалью вида `<locale>-x-icu`.
+
 При вызове функции, возвращающей набор `pgrecord`, можно распаковать результат в список структур, используя функцию `PgRangeCall(<имя функции>, <операнды>)`:
 
 ```yql
@@ -367,7 +375,7 @@ SELECT
 <!--
 Not supported yet.
 
-## Использование PostgreSQL синтаксиса
+## Использование PostgreSQL синтаксиса {#postgresql-syntax}
 
 После выбора специального синтаксиса запроса, вы можете писать запросы на обычном PostgreSQL диалекте, при этом типы PostgreSQL не требуют префикса `pg`.
 
@@ -496,4 +504,7 @@ SELECT * FROM Regions;
 set DqEngine='auto';
 set yt.Pool = 'yql_perf';
 ```
+
 -->
+
+Начиная с версии [2026.01](../../changelog/2026.01.md), доступен аналог [PRAGMA Warning](../../syntax/pragma/global.md#warning), например `SET Warning = "error", "4503"`.

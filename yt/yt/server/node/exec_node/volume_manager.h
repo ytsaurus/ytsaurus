@@ -20,6 +20,7 @@ struct IVolumeManager
     //! Create root overlayfs volume from pre-prepared overlay layer data.
     virtual TFuture<IVolumePtr> PrepareVolume(
         std::vector<TOverlayData> overlayDataArray,
+        TBaseVolumeParamsPtr volumeParams,
         const TVolumePreparationOptions& options) = 0;
 
     //! Prepare non-root volumes from pre-prepared overlay layer data.

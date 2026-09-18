@@ -5,6 +5,7 @@
 #include "input_manager.h"
 #include "job.h"
 #include "job_spec.h"
+#include "lineage_tracker.h"
 
 #include "message_distributor.h"
 #include "traced_invoker.h"
@@ -20,6 +21,7 @@
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/misc/ema.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -30,7 +32,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/ema_counter.h>
 
@@ -71,9 +72,14 @@ constexpr auto JobIdTag = "job_id";
 struct TFailedJob
     : public IJob
 {
-    TFailedJob(TJobId jobId, TComputationId computationId, TError error)
+    TFailedJob(
+        TJobId jobId,
+        TComputationId computationId,
+        TJobStreamLimitUsageStates streamLimitUsageStates,
+        TError error)
         : JobId_(jobId)
         , ComputationId_(std::move(computationId))
+        , StreamLimitUsageStates_(std::move(streamLimitUsageStates))
         , Error_(std::move(error))
         , Timestamp_(TInstant::Now())
     { }
@@ -121,6 +127,23 @@ struct TFailedJob
         return ComputationId_;
     }
 
+    TJobOrchidStatePtr GetOrchidState() override
+    {
+        auto readStreamUsages = [] (const TStreamLimitUsageStateMap& streams) {
+            THashMap<TStreamId, TStreamUsage> usages;
+            usages.reserve(streams.size());
+            for (const auto& [streamId, state] : streams) {
+                usages.emplace(streamId, state->Read());
+            }
+            return usages;
+        };
+
+        auto state = New<TJobOrchidState>();
+        state->InputStreams = readStreamUsages(StreamLimitUsageStates_.Input);
+        state->OutputStreams = readStreamUsages(StreamLimitUsageStates_.Output);
+        return state;
+    }
+
     IInputBufferPtr GetInputBuffer() override
     {
         return nullptr;
@@ -138,18 +161,10 @@ struct TFailedJob
         return MakeFuture(status);
     }
 
-    TFuture<TJobOrchidStatePtr> GetOrchidState() override
-    {
-        return GetStatus().Apply(BIND([] (const TJobStatusPtr& status) {
-            auto orchidState = New<TJobOrchidState>();
-            orchidState->Status = status;
-            return orchidState;
-        }));
-    }
-
 private:
     const TJobId JobId_;
     const TComputationId ComputationId_;
+    const TJobStreamLimitUsageStates StreamLimitUsageStates_;
     const TError Error_;
     const TInstant Timestamp_;
 };
@@ -214,6 +229,7 @@ public:
     explicit TJobTracker(TJobTrackerContextPtr context)
         : Context_(std::move(context))
         , ExecutionSpec_(New<TExecutionSpec>())
+        , LineageTracker_(New<TLineageTracker>())
         , BufferStateManager_(CreateBufferStateManager(
             Context_->ControlInvoker,
             Context_->JobDirectory,
@@ -303,6 +319,11 @@ public:
         return ResourceManager_->GetPreloadedStates();
     }
 
+    TLineageRatios GetLineageRatios(TInstant now) override
+    {
+        return LineageTracker_->GetRatios(now);
+    }
+
     void Reconfigure(
         TExecutionSpecPtr newExecutionSpec,
         const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs) override
@@ -359,12 +380,15 @@ public:
                 ExecutionSpec_->ResourceTargetRevisions->GetValue());
         }
 
-        // Update preloaded resources based on WorkerSpecs.
+        // Update preloaded resources based on WorkerSpecs. Skip a spec of a previous incarnation of
+        // this address: the controller will replace it.
         auto workerSpecIt = ExecutionSpec_->Layout->WorkerSpecs.find(Context_->WorkerNodeInfo->RpcAddress);
-        if (workerSpecIt != ExecutionSpec_->Layout->WorkerSpecs.end()) {
-            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
-        } else {
+        if (workerSpecIt == ExecutionSpec_->Layout->WorkerSpecs.end()) {
             ResourceManager_->UpdatePreloadedResources({});
+        } else if (const auto& incarnationId = workerSpecIt->second->WorkerIncarnationId;
+            !incarnationId || *incarnationId == Context_->WorkerNodeInfo->IncarnationId)
+        {
+            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
         }
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
@@ -489,6 +513,7 @@ private:
     i64 ExecutionSpecGeneration_ = -1;
     THashMap<TJobId, TDynamicJobSpecPtr> DynamicJobSpecs_;
 
+    const TLineageTrackerPtr LineageTracker_;
     const IBufferStateManagerPtr BufferStateManager_;
     const IColumnEvaluatorCachePtr EvaluatorCache_;
     const IFairShareThreadPoolPtr JobControlThreadPool_;
@@ -513,9 +538,7 @@ private:
         {
             auto now = TInstant::Now();
             CpuTimeEmaCounter_.Update(cpuTime.SecondsFloat(), now);
-            MemoryUsageCurrent_ = memoryUsage;
-            MemoryUsage30s_.UpdateAt(now, memoryUsage);
-            MemoryUsage10m_.UpdateAt(now, memoryUsage);
+            MemoryUsageEma_.Set(static_cast<i64>(memoryUsage), now);
 
             CpuTimeCounter_.Add(std::max(cpuTime, TotalCpuTime_) - TotalCpuTime_);
             TotalCpuTime_ = cpuTime;
@@ -528,21 +551,18 @@ private:
             metrics->CpuUsageCurrent = CpuTimeEmaCounter_.ImmediateRate;
             metrics->CpuUsage30s = CpuTimeEmaCounter_.GetRate(0);
             metrics->CpuUsage10m = CpuTimeEmaCounter_.GetRate(1);
-            metrics->MemoryUsageCurrent = MemoryUsageCurrent_;
-            metrics->MemoryUsage30s = MemoryUsage30s_.GetAverage();
-            metrics->MemoryUsage10m = MemoryUsage10m_.GetAverage();
+            metrics->MemoryUsageCurrent = MemoryUsageEma_.Last();
+            metrics->MemoryUsage30s = MemoryUsageEma_.Average()[0];
+            metrics->MemoryUsage10m = MemoryUsageEma_.Average()[1];
             return metrics;
         }
 
     private:
         static constexpr int TimeWindowsCount = 2;
-        TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{
-            TDuration::Seconds(30),
-            TDuration::Minutes(10),
-        }};
-        size_t MemoryUsageCurrent_ = 0;
-        TAdjustedExponentialMovingAverage MemoryUsage10m_{TDuration::Minutes(10)};
-        TAdjustedExponentialMovingAverage MemoryUsage30s_{TDuration::Seconds(30)};
+        static constexpr TDuration ShortWindow = TDuration::Seconds(30);
+        static constexpr TDuration LongWindow = TDuration::Minutes(10);
+        TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{ShortWindow, LongWindow}};
+        TMultiWindowEma<i64, TimeWindowsCount, /*CalculateRate*/ false> MemoryUsageEma_{{ShortWindow, LongWindow}};
 
         const NProfiling::TProfiler Profiler_;
         TDuration TotalCpuTime_ = TDuration::Zero();
@@ -676,6 +696,7 @@ private:
                 .WithTag("computation_id", jobSpec->Partition->ComputationId.Underlying())
                 .WithPrefix("/computation")
                 .WithPrefix("/job_state_cache"));
+        jobContext->LineageTracker = LineageTracker_;
 
         auto externalMetricsReporter = New<TExternalPerformanceMetricsReporter>();
         jobContext->ExternalMetricsReporter = externalMetricsReporter;
@@ -703,7 +724,11 @@ private:
             } catch (const std::exception& ex) {
                 YT_TLOG_ERROR("Job creation failed")
                     .With(ex);
-                return New<TFailedJob>(jobId, jobSpec->Partition->ComputationId, TError(ex));
+                return New<TFailedJob>(
+                    jobId,
+                    jobSpec->Partition->ComputationId,
+                    std::move(streamLimitUsageStates),
+                    TError(ex));
             }
         }();
 
@@ -867,23 +892,16 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
-        THashMap<TJobId, TFuture<TJobOrchidStatePtr>> jobOrchidStates;
+        THashMap<TJobId, TJobOrchidStatePtr> jobStates;
+        jobStates.reserve(JobIdToRuntimeState_.size());
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
-            jobOrchidStates[jobId] = state.Job->GetOrchidState();
-        }
-        for (const auto& [jobId, stateFuture] : jobOrchidStates) {
-            Y_UNUSED(WaitForFast(stateFuture));
+            jobStates.emplace(jobId, state.Job->GetOrchidState());
         }
 
         // clang-format off
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("jobs").DoMapFor(jobOrchidStates, [] (auto fluent, const auto& jobIdWithState) {
-                    const auto& [jobId, stateFuture] = jobIdWithState;
-                    if (stateFuture.GetOrCrash().IsOK()) {
-                        fluent.Item(ToString(jobId)).Value(stateFuture.GetOrCrash().Value());
-                    }
-                })
+                .Item("jobs").Value(jobStates)
             .EndMap();
         // clang-format on
     }

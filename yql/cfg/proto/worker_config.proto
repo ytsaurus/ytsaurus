@@ -3,10 +3,11 @@ option java_package = "ru.yandex.yql.proto";
 
 import "yql/essentials/protos/yql_mount.proto";
 import "yt/yql/providers/dq/config/config.proto";
+import "yql/essentials/providers/common/proto/static_gateways_config.proto";
 import "yql/essentials/utils/log/proto/logger_config.proto";
 import "yt/yql/providers/yt/lib/access_provider/proto/access_provider.proto";
 import "yt/yql/providers/yt/lib/tvm_client/proto/tvm_client.proto";
-import "yql/essentials/providers/common/proto/static_gateways_config.proto";
+import "yt/yql/library/token_resolver/proto/config.proto";
 
 message TWorkerServerConfig {
     optional uint32 PortStart = 1;
@@ -97,6 +98,8 @@ message TTaskExecutorConfig {
     optional TYtAccessProviderConfig YtAccessProvider = 31;
     optional TYtTvmConfig YtTvm = 32;
     optional TFmrConfig Fmr = 33;
+    optional string UdfBridgePath = 34; // Path to udf_bridge executable for out-of-process UDF isolation
+    optional TYtTokenResolverConfig YtTokenResolver = 35;
 }
 
 message TSolomonAgentConnectionConfig {

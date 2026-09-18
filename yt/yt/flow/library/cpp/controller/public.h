@@ -23,11 +23,6 @@ YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ControllerProfiler, "", "yt.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EElectionBackend,
-    (Cypress)
-    (Dyntable)
-);
-
 DEFINE_ENUM(EWorkerState,
     // Handshake has been just received, waiting for the first heartbeat.
     (WaitingForInitialHeartbeat)
@@ -47,6 +42,26 @@ DEFINE_ENUM(EControlQueue,
     (StaticOrchid)
     (Admin)
 );
+
+// Backend that elects the leader and fences its transactions, and the job leases along with it.
+DEFINE_ENUM(EElectionBackend,
+    // Exclusive Cypress lock on a node under the pipeline path; its master transaction is the
+    // prerequisite of the leader's and of the workers' transactions.
+    (Cypress)
+    // Leader-lease and per-partition rows in the pipeline tables; fenced transactions validate
+    // and rewrite them on commit.
+    (Dyntable)
+    // Chaos lease recorded in the pipeline's leader election lock table. Meant for a pipeline whose
+    // tables are chaos replicated: such a commit accepts no other kind of prerequisite (and,
+    // conversely, a plain commit accepts no chaos lease).
+    (Chaos)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Env var that makes the controller skip the leadership confirmation through the RPC proxy ("1").
+//! Meant for a cluster that cannot connect to the controller at all.
+constexpr TStringBuf SkipLeaderProxyConfirmationEnvVarName = "YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,6 +87,7 @@ DECLARE_REFCOUNTED_STRUCT(TLeaseManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TElectionBackendConfigBase)
 DECLARE_REFCOUNTED_STRUCT(TCypressElectionBackendConfig)
 DECLARE_REFCOUNTED_STRUCT(TDyntableElectionBackendConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosElectionBackendConfig)
 DECLARE_REFCOUNTED_STRUCT(TControllerServiceConfig)
 
 using TControlActionQueuePtr = NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue>;

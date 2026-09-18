@@ -29,3 +29,7 @@ IF (OPENSOURCE_PROJECT != "yt-cpp-sdk")
 ENDIF()
 
 END()
+
+RECURSE_FOR_TESTS(
+    tests
+)

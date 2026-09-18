@@ -209,7 +209,7 @@ protected:
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> FillShares()
     {
         THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> limits;
-        Accountant_.FillShares(Now_, &limits);
+        Accountant_.FillShares(&limits);
         return limits;
     }
 
@@ -246,6 +246,23 @@ TEST_F(TBlockedTimeShareTest, LongLivedJobThatStartsBlockingReportsIt)
     ASSERT_EQ(Share(), 0.0);
     RunEpochs(static_cast<int>(Window.Seconds()), /*blocked*/ true);
     EXPECT_GT(Share(), 0.8);
+}
+
+TEST_F(TBlockedTimeShareTest, FirstBlockedIntervalUsesKnownIdleHistory)
+{
+    RunEpochs(3600, /*blocked*/ false);
+    RunEpochs(1, /*blocked*/ true);
+    EXPECT_GT(Share(), 0.003);
+    EXPECT_LT(Share(), 0.004);
+}
+
+TEST_F(TBlockedTimeShareTest, ResumedBlockingUsesRecentIdleObservations)
+{
+    RunEpochs(3600, /*blocked*/ true);
+    RunEpochs(3600, /*blocked*/ false);
+    RunEpochs(1, /*blocked*/ true);
+    EXPECT_GT(Share(), 0.003);
+    EXPECT_LT(Share(), 0.004);
 }
 
 TEST_F(TBlockedTimeShareTest, ShareDecaysAfterTheStallEnds)

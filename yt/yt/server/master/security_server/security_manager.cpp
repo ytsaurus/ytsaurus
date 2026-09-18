@@ -7,7 +7,6 @@
 #include "account_resource_usage_lease_proxy.h"
 #include "acl.h"
 #include "config.h"
-#include "detailed_master_memory.h"
 #include "group.h"
 #include "group_proxy.h"
 #include "network_project.h"
@@ -65,6 +64,9 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 #include <yt/yt/server/lib/security_server/helpers.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
@@ -76,6 +78,7 @@
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/intern_registry.h>
 
@@ -1209,6 +1212,7 @@ public:
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta) override
     {
         YT_VERIFY(chunk->IsNative());
+        YT_VERIFY(chunk->IsDiskSizeFinal());
 
         ComputeChunkResourceDelta(
             chunk,
@@ -2137,10 +2141,10 @@ public:
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
         YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
 
-        YT_LOG_DEBUG("Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
-            networkProject->GetId(),
-            networkProject->GetName(),
-            newName);
+        YT_TLOG_DEBUG("Network project renamed")
+            .With("NetworkProject", networkProject->GetId())
+            .With("OldName", networkProject->GetName())
+            .With("NewName", newName);
 
         networkProject->SetName(newName);
     }
@@ -4368,8 +4372,8 @@ private:
             producer->SetEnabled(shouldEnableAccountsProfiling);
         }
 
-        YT_LOG_DEBUG("Account profiling %v",
-            shouldEnableAccountsProfiling ? "started" : "stopped");
+        YT_TLOG_DEBUG("Account profiling toggled")
+            .With("Enabled", shouldEnableAccountsProfiling);
 
         AccountsProfilingEnabled_ = shouldEnableAccountsProfiling;
     }
@@ -5124,11 +5128,13 @@ private:
                     IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
 
                     if (account->ClusterStatistics().ResourceUsage.GetChunkHostCellMasterMemory() < 0) {
-                        YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
+                        YT_TLOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell")
+                            .With("CellTag", cellTag);
                     }
 
                     if (account->ClusterStatistics().CommittedResourceUsage.GetChunkHostCellMasterMemory() < 0) {
-                        YT_LOG_ALERT("Committed chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
+                        YT_TLOG_ALERT("Committed chunk host cell memory is negative after removing chunk host role from cell")
+                            .With("CellTag", cellTag);
                     }
                 } else {
                     auto statisticsDelta = TAccountStatistics(

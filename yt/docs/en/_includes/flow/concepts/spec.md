@@ -179,73 +179,31 @@ Don’t change it unless necessary.
 
 ## Parameters {#parameters}
 
-The `parameters` field exists in the spec classes `Computation`, `Source`, `Sink`, and `Resource`. In any class, this is a weakly typed field (`NYT::NYTree::IMapNodePtr`) that hides parameters specific to a [particular entity implementation](*paramsClasses).
+The `parameters` field exists in the `Computation`, `Source`, `Sink`, and `Resource` specs. It contains parameters of the selected built-in implementation, such as a process-function adapter. Check the selected class’s documentation for supported fields, and don’t use this block for user-logic parameters.
 
-In concrete entity implementations, the `parameters` field is parsed into a [yson struct](../../../user-guide/storage/data-types.md#yson_struct) for convenience and efficiency. The classes that the `parameters` field parses into are named `T*Parameters`, not `T*Spec`. Here’s how it works, using the static `Computation` spec as an example:
+Set C++ process-function parameters separately in `processing_function_parameters`. Declare a regular [yson struct](../../../user-guide/storage/data-types.md#yson_struct), register its type with the function, and read it through the runtime context:
 
 ```cpp
-// Computation spec.
-class TComputationSpec : public virtual NYTree::TYsonStruct
+struct TMyParameters
+    : public NYTree::TYsonStruct
 {
-public:
-    // ...
-    NYTree::IMapNodePtr Parameters; // Weakly typed field with parameters.
-    // ...
+    i64 Threshold;
+
+    REGISTER_YSON_STRUCT(TMyParameters);
+
+    static void Register(TRegistrar registrar);
 };
 
-// Base entity class.
-struct IComputation : public // ...
-{
-private:
-    // Base yson struct class for all classes that the TComputationSpec::Parameters field can parse into.
-    struct TParametersBase : public virtual NYTree::TYsonStruct
-    {
-        // ...
-    };
-public:
-    // The base entity class declares that its descendants can have parameters inherited from TParametersBase.
-    // The macro defines TParameters[Ptr] aliases, linking them to TParametersBase.
-    YT_FLOW_REGISTER_PARAMETERS(TParametersBase);
-    // ...
-};
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
+```
 
-class TTransformComputation
-    : public TUniversalComputationBase // TUniversalComputationBase → TComputationBase → IComputation.
-{
-private:
-    // Parameters for TTransformComputation. They’re inherited from the parent class TTransformComputation’s parameters.
-    // Parameters for TTransformComputation’s descendant classes must inherit from TExtendedParameters.
-    // But you must access them via the alias: TTransformComputation::TParameters, which is declared later in the code.
-    struct TExtendedParameters : public TUniversalComputationBase::TParameters
-    {
-        EProcessingMode ProcessingMode; // Field specific to TTransformComputation.
-        // ...
-    };
-public:
-    // Declare that the class will use more specific parameters.
-    // At the same time, computationSpec->Parameters is parsed into the final parameters class,
-    // and TTransformComputation uses them, casting to a more basic class — TTransformComputation::TExtendedParameters.
-    // The macro defines TParameters[Ptr] aliases, linking them to TExtendedParameters.
-    // Also, a TParametersPtr GetParameters() method appears, which you can use to get the parameters in code.
-    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
-    // ...
-};
-
-// Custom Computation.
-class TMyClassComputation : public TTransformComputation
-{
-private:
-    struct TExtendedParameters : public TTransformComputation::TParameters
-    {
-        // Fields specific to TMyComputation.
-        // ...
-    };
-public:
-    // In custom classes, you can define even more specific parameters.
-    // Like in TTransformComputation, you redefine the TParameters[Ptr] aliases and the TParametersPtr GetParameters() method.
-    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
+```yson
+"processing_function_parameters" = {
+    "threshold" = 10;
 };
 ```
+
+Static parameters are available in `Init` through `initContext->GetParameters<TMyParameters>()`; dynamic parameters are available through `context->GetDynamicParameters<TMyParameters>()`. For more details, see [Process functions](../../../flow/cpp/process-functions.md#parameters).
 
 ## Config
 

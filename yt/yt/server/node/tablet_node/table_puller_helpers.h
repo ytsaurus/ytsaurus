@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -19,7 +19,7 @@ class TBannedReplicaTracker
 public:
     struct TBanInfo
     {
-        int Counter;
+        int Counter = 0;
         TError LastError;
     };
 
@@ -47,9 +47,8 @@ public:
     using TReplicaOrError = TErrorOr<std::tuple<
         NChaosClient::TReplicaId,
         NChaosClient::TReplicaInfo*,
-        NHiveClient::TTimestamp>>;
+        NTransactionClient::TTimestamp>>;
 
-public:
     TQueueReplicaSelector(
         NLogging::TLogger logger,
         std::optional<int> replicaBanDuration,
@@ -87,7 +86,7 @@ private:
     const int CurrentIterationWeight_;
 
     TInstant LastIterationInstant_;
-    TDuration SmoothedItetationDuration_;
+    TDuration SmoothedIterationDuration_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

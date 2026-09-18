@@ -25,6 +25,7 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class JoinProcessFunctionTest {
@@ -186,7 +187,7 @@ public class JoinProcessFunctionTest {
         // External state must be updated with hit_payload
         assertEquals(1, response.allStates().externalSize("/join-state"));
         Payload key = buildKey(hitId, hitTime);
-        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().orElseThrow();
+        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get();
         assertEquals("payload-data", state.get("hit_payload", String.class));
     }
     // [END test_hit]
@@ -212,7 +213,7 @@ public class JoinProcessFunctionTest {
         assertEquals(1, response.getOutputTimersFlatten().size());
 
         Payload key = buildKey(hitId, hitTime);
-        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().orElseThrow();
+        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get();
         assertEquals(actionTime, state.get("show_time", Long.class));
     }
 
@@ -236,7 +237,7 @@ public class JoinProcessFunctionTest {
         assertEquals(1, response.getOutputTimersFlatten().size());
 
         Payload key = buildKey(hitId, hitTime);
-        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().orElseThrow();
+        var state = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get();
         assertEquals(actionTime, state.get("click_time", Long.class));
     }
 
@@ -329,7 +330,7 @@ public class JoinProcessFunctionTest {
         assertEquals(clickTime, joinedAction.getClickTime());
 
         // State must be cleared after timer fires
-        assertTrue(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().isEmpty());
+        assertNull(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get());
     }
 
     @Test
@@ -364,7 +365,7 @@ public class JoinProcessFunctionTest {
         assertFalse(joinedAction.getClick());
         assertEquals(0L, joinedAction.getClickTime());
 
-        assertTrue(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().isEmpty());
+        assertNull(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get());
     }
 
     @Test
@@ -394,7 +395,7 @@ public class JoinProcessFunctionTest {
         assertTrue(response.getOutputMessagesFlatten().isEmpty());
 
         // State is still cleared
-        assertTrue(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().isEmpty());
+        assertNull(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get());
     }
 
     @Test
@@ -423,7 +424,7 @@ public class JoinProcessFunctionTest {
         // No output: hit_payload is null
         assertTrue(response.getOutputMessagesFlatten().isEmpty());
 
-        assertTrue(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().isEmpty());
+        assertNull(response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get());
     }
 
     // -------------------------------------------------------------------------
@@ -452,7 +453,7 @@ public class JoinProcessFunctionTest {
 
         Payload key = buildKey(hitId, hitTime);
         Payload stateAfterHit = hitResponse.allStates()
-                .get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().orElseThrow();
+                .get(JoinProcessFunction.JOINED_ACTION_STATE, key).get();
         assertEquals("full-payload", stateAfterHit.get("hit_payload", String.class));
 
         // Step 2: process show action message, passing the state from step 1
@@ -466,7 +467,7 @@ public class JoinProcessFunctionTest {
 
         assertTrue(showResponse.getOutputMessagesFlatten().isEmpty());
         Payload stateAfterShow = showResponse.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key)
-                .get().orElseThrow();
+                .get();
         assertEquals("full-payload", stateAfterShow.get("hit_payload", String.class));
         assertEquals(showTime, stateAfterShow.get("show_time", Long.class));
 
@@ -481,7 +482,7 @@ public class JoinProcessFunctionTest {
 
         assertTrue(clickResponse.getOutputMessagesFlatten().isEmpty());
         Payload stateAfterClick = clickResponse.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key)
-                .get().orElseThrow();
+                .get();
         assertEquals(clickTime, stateAfterClick.get("click_time", Long.class));
 
         // Step 4: fire the timer with the accumulated state
@@ -501,7 +502,7 @@ public class JoinProcessFunctionTest {
         assertTrue(joinedAction.getClick());
         assertEquals(clickTime, joinedAction.getClickTime());
 
-        assertTrue(timerResponse.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get().isEmpty());
+        assertNull(timerResponse.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key).get());
     }
     // [END test_full_flow]
 
@@ -531,10 +532,10 @@ public class JoinProcessFunctionTest {
         Payload key1 = buildKey(hitId1, hitTime1);
         Payload key2 = buildKey(hitId2, hitTime2);
 
-        Payload state1 = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key1).get().orElseThrow();
+        Payload state1 = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key1).get();
         assertEquals("payload-30", state1.get("hit_payload", String.class));
 
-        Payload state2 = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key2).get().orElseThrow();
+        Payload state2 = response.allStates().get(JoinProcessFunction.JOINED_ACTION_STATE, key2).get();
         assertEquals("payload-31", state2.get("hit_payload", String.class));
     }
 }

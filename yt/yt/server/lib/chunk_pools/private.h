@@ -17,15 +17,15 @@ using NControllerAgent::IPersistent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder)
+DECLARE_REFCOUNTED_STRUCT(ISortedJobBuilder)
 
-DECLARE_REFCOUNTED_CLASS(TNewJobManager)
+DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 struct IShuffleChunkPool;
 
 class TInputStreamDirectory;
 
-class TNewJobStub;
+class TJobStub;
 
 ////////////////////////////////////////////////////////////////////////////////
 

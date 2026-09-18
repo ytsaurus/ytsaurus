@@ -1,10 +1,11 @@
 #include "data_node_tracker_service.h"
 
-#include "private.h"
 #include "data_node_tracker.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -157,11 +158,9 @@ private:
         constexpr bool fullHeartbeat = std::is_same_v<TReqHeartbeat, TReqFullHeartbeat>;
 
         if (!FromProto<TChunkLocationDirectory>(request.location_directory()).IsValid()) {
-            YT_LOG_ALERT(
-                "Invalid data node %v heartbeat: location directory contains duplicates "
-                "(NodeId: %v)",
-                fullHeartbeat ? "full" : "incremental",
-                request.node_id());
+            YT_TLOG_ALERT("Invalid data node heartbeat: location directory contains duplicates")
+                .With("FullHeartbeat", fullHeartbeat)
+                .With("NodeId", request.node_id());
             THROW_ERROR_EXCEPTION("Location directory contains duplicates");
         }
     }

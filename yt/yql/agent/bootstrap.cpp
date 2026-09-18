@@ -4,6 +4,8 @@
 #include "private.h"
 #include "yql_agent.h"
 #include "yql_service.h"
+#include "token_manager.h"
+#include "token_service.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -36,6 +38,7 @@
 
 #include <yt/yt/core/bus/server.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/http/server.h>
@@ -47,6 +50,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
@@ -142,6 +146,29 @@ void TBootstrap::DoRun()
 
     auto clientDirectory = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
+    TokenManagerQueue_ = New<TActionQueue>("TokenManager");
+    TokenManager_ = CreateTokenManager(
+        NativeConnection_->GetClusterDirectory(),
+        TokenManagerQueue_->GetInvoker(),
+        Config_->YqlAgent);
+
+    if (Config_->YqlAgent->UseTokenResolver) {
+        const auto& socketPath = Config_->YqlAgent->TokenService->UnixSocketPath;
+        auto socketDirectory = NFS::GetDirectoryName(socketPath);
+        NFS::MakeDirRecursive(socketDirectory);
+
+        if (NFS::Exists(socketPath)) {
+            NFS::Remove(socketPath);
+        }
+
+        auto busConfig = NTcp::TBusServerConfig::CreateUds(socketPath);
+        TokenBusServer_ = NTcp::CreateBusServer(busConfig);
+        TokenRpcServer_ = NRpc::NBus::CreateBusServer(TokenBusServer_);
+        TokenRpcServer_->RegisterService(CreateTokenService(
+            TokenManagerQueue_->GetInvoker(),
+            TokenManager_));
+    }
+
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
     DynamicConfigManager_->SubscribeBeforeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
@@ -173,6 +200,7 @@ void TBootstrap::DoRun()
         NativeConnection_->GetClusterDirectory(),
         clientDirectory,
         ControlInvoker_,
+        TokenManager_,
         AgentId_);
 
     IMapNodePtr orchidRoot;
@@ -234,6 +262,16 @@ void TBootstrap::DoRun()
     HttpServer_->Start();
 
     YqlAgent_->Start();
+
+    TokenManager_->Start();
+
+    if (TokenRpcServer_) {
+        const auto& socketPath = Config_->YqlAgent->TokenService->UnixSocketPath;
+        TokenRpcServer_->Configure(Config_->RpcServer);
+        TokenRpcServer_->Start();
+        YT_TLOG_INFO("Listening for local token requests")
+            .With("UnixSocketPath", socketPath);
+    }
 
     YT_TLOG_INFO("Listening for RPC requests")
         .With("Port", Config_->RpcPort);

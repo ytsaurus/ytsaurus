@@ -14,7 +14,7 @@ class TResourceControllerBase
     : public IResourceController
 {
 public:
-    static constexpr bool SupportsFileSourceDiscovery = true;
+    static constexpr bool SupportsFileProviderDiscovery = true;
 
     TResourceControllerBase(TResourceControllerContextPtr context, TDynamicResourceControllerContextPtr dynamicContext);
     ~TResourceControllerBase() override;
@@ -57,13 +57,13 @@ protected:
     NYTree::TYsonStructPtr GetDynamicParametersBase() const final;
 
 private:
-    class TFileSourceDiscovery;
+    class TFileProviderDiscovery;
 
     const TResourceControllerContextPtr Context_;
     TAtomicIntrusivePtr<TDynamicResourceControllerContext> DynamicContext_;
     const NYTree::TYsonStructPtr Parameters_;
     TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;
-    const TIntrusivePtr<TFileSourceDiscovery> FileSourceDiscovery_;
+    const TIntrusivePtr<TFileProviderDiscovery> FileProviderDiscovery_;
 
 protected:
     NLogging::TLogger Logger;

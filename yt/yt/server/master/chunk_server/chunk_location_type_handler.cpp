@@ -1,4 +1,5 @@
 #include "chunk_location_type_handler.h"
+
 #include "chunk_location.h"
 #include "chunk_location_proxy.h"
 #include "data_node_tracker_internal.h"

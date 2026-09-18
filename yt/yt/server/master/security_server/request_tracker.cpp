@@ -20,6 +20,7 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

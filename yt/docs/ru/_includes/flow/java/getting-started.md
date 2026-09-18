@@ -15,7 +15,7 @@
 
 Java и Kotlin используются в `Runner` и `Worker`.
 
-![](../../../flow/images/java_flow_cluster.svg)
+![](../../../flow/_images/java_flow_cluster.svg)
 
 ## Два подхода к конфигурации
 

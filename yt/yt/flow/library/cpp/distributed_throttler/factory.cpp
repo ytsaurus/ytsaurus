@@ -37,7 +37,14 @@ public:
     TFuture<void> Throttle(i64 amount) override
     {
         if (auto underlying = Underlying_.Acquire()) {
-            return underlying->Throttle(amount);
+            auto future = underlying->Throttle(amount);
+            if (!future.IsSet()) {
+                // The prefetcher owns pending promises and observes its underlying
+                // request weakly. Keep this client generation alive until completion.
+                future.Subscribe(BIND_NO_PROPAGATE([_ = std::move(underlying)] (const TError&) {
+                }));
+            }
+            return future;
         }
         return MakeFuture(MakeDetachedError());
     }

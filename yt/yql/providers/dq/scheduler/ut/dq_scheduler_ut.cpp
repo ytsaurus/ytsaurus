@@ -296,12 +296,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     }
 
     Y_UNIT_TEST(UpdateMetricsAfterRejectedLargeRequest) {
-        // Regression test for crash in UpdateMetrics() when a new user's large request
-        // is rejected (LargeWaitList full) before per-user counters are initialized.
-        // Without the fix, the user entry stays in AllocationsHistory with null
-        // per-user counter pointers, and UpdateMetrics() dereferences them → crash.
+        // A rejected user remains in AllocationsHistory and must not break metric updates.
+        // Also pins incremental AllocatedTotal across allocation, history expiry and Cleanup().
         NYql::NProto::TDqConfig::TScheduler cfg;
         cfg.SetMaxOperations(1);
+        cfg.SetHistoryKeepingTime(1);
 
         NYql::TSensorsGroupPtr sensorsPtr = MakeIntrusive<NYql::TSensorsGroup>();
         const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensorsPtr));
@@ -313,8 +312,36 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         // Second large request from a brand-new user: rejected because LargeWaitList is full.
         UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
 
-        // Ensure no crash here and metrics are initialized (e.g. Counters.Await)
         scheduler->UpdateMetrics();
+
+        const auto schedulerCounters = sensorsPtr->FindSubgroup("component", "scheduler");
+        UNIT_ASSERT(schedulerCounters);
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user2"));
+
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+
+        const auto now = TInstant::Now();
+        const auto process = [] (const IScheduler::TWaitInfo&) { return true; };
+        scheduler->Process(3U, 3U, process, now);
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
+
+        // The queue is already drained; this call only runs the history expiry sweep.
+        scheduler->Process(3U, 0U, process, now + TDuration::Minutes(1));
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        scheduler->Process(3U, 3U, process, now + TDuration::Minutes(1));
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
+
+        scheduler->Cleanup();
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
     }
 
     Y_UNIT_TEST(UseOnlyHalfForLargeInOverload) {

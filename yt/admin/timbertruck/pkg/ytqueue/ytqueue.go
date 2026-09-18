@@ -23,6 +23,10 @@ const (
 
 	// MaxCompressedRowBytes is the hard limit on row size in YT dynamic tables (16 MiB).
 	MaxCompressedRowBytes = 16 * 1024 * 1024
+
+	// DefaultLargeCompressedRowRatio is the share of MaxCompressedRowBytes starting from which
+	// a compressed row is reported as large by default.
+	DefaultLargeCompressedRowRatio = 0.8
 )
 
 type Config struct {
@@ -51,6 +55,19 @@ type Config struct {
 	//
 	// Default value is 16 MiB.
 	MaxCompressedRowBytes int `yaml:"max_compressed_row_bytes"`
+
+	// LargeUncompressedRowBytes specifies the size in bytes starting from which an uncompressed row
+	// is reported as large: such a row exceeds the row size limit before compression.
+	//
+	// Default value is MaxCompressedRowBytes.
+	LargeUncompressedRowBytes int `yaml:"large_uncompressed_row_bytes"`
+
+	// LargeCompressedRowBytes specifies the size in bytes starting from which a compressed row
+	// is reported as large: such a row is close to MaxCompressedRowBytes.
+	// Must be < MaxCompressedRowBytes.
+	//
+	// Default value is DefaultLargeCompressedRowRatio of MaxCompressedRowBytes.
+	LargeCompressedRowBytes int `yaml:"large_compressed_row_bytes"`
 }
 
 type OutputConfig struct {
@@ -81,8 +98,15 @@ type OutputConfig struct {
 	// Rows exceeding this limit will be skipped.
 	MaxCompressedRowBytes int
 
+	// LargeUncompressedRowBytes specifies the size in bytes starting from which an uncompressed row is reported as large.
+	LargeUncompressedRowBytes int
+
+	// LargeCompressedRowBytes specifies the size in bytes starting from which a compressed row is reported as large.
+	LargeCompressedRowBytes int
+
 	OnSent       func(meta pipelines.RowMeta)
 	OnSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
+	OnLargeRow   func(info pipelines.LargeRowInfo)
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
@@ -90,9 +114,31 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 	if maxCompressedRowBytes == 0 {
 		maxCompressedRowBytes = MaxCompressedRowBytes
 	}
+	if maxCompressedRowBytes < 0 {
+		err = fmt.Errorf("max_compressed_row_bytes (%d) must not be negative", maxCompressedRowBytes)
+		return
+	}
 	if maxCompressedRowBytes > MaxCompressedRowBytes {
 		err = fmt.Errorf("max_compressed_row_bytes (%d) must not exceed %d (YT dynamic tables hard limit)", maxCompressedRowBytes, MaxCompressedRowBytes)
 		return
+	}
+
+	largeUncompressedRowBytes := config.LargeUncompressedRowBytes
+	if largeUncompressedRowBytes < 0 {
+		err = fmt.Errorf("large_uncompressed_row_bytes (%d) must not be negative", largeUncompressedRowBytes)
+		return
+	}
+	if largeUncompressedRowBytes == 0 {
+		largeUncompressedRowBytes = maxCompressedRowBytes
+	}
+
+	largeCompressedRowBytes := config.LargeCompressedRowBytes
+	if largeCompressedRowBytes < 0 || largeCompressedRowBytes >= maxCompressedRowBytes {
+		err = fmt.Errorf("large_compressed_row_bytes (%d) must be in range [0, %d)", largeCompressedRowBytes, maxCompressedRowBytes)
+		return
+	}
+	if largeCompressedRowBytes == 0 {
+		largeCompressedRowBytes = int(float64(maxCompressedRowBytes) * DefaultLargeCompressedRowRatio)
 	}
 
 	arcLogger := ttlog.NewArcadiaLevelCappingLogger(config.Logger, "ytclient")
@@ -133,9 +179,13 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		maxCompressedRowBytes: maxCompressedRowBytes,
 		rowsBatchFlushTimeout: config.RowsBatchFlushTimeout,
 
+		largeUncompressedRowBytes: largeUncompressedRowBytes,
+		largeCompressedRowBytes:   largeCompressedRowBytes,
+
 		logger:       config.Logger,
 		onSent:       config.OnSent,
 		onSkippedRow: config.OnSkippedRow,
+		onLargeRow:   config.OnLargeRow,
 	}
 	o.startAsync()
 	out = o
@@ -170,6 +220,9 @@ type output struct {
 	maxCompressedRowBytes int
 	rowsBatchFlushTimeout time.Duration
 
+	largeUncompressedRowBytes int
+	largeCompressedRowBytes   int
+
 	toCompress     chan sendItem
 	toSend         chan sendItem
 	compressorDone chan struct{}
@@ -177,6 +230,7 @@ type output struct {
 
 	onSent       func(meta pipelines.RowMeta)
 	onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)
+	onLargeRow   func(info pipelines.LargeRowInfo)
 }
 
 type sendItem struct {
@@ -197,31 +251,57 @@ func (o *output) startAsync() {
 
 func (o *output) compressorLoop() {
 	for item := range o.toCompress {
+		uncompressedSize := len(item.row.Value)
+		if uncompressedSize >= o.largeUncompressedRowBytes {
+			o.notifyLargeRow(item.meta.Begin, pipelines.LargeRowKindUncompressed, map[string]any{
+				"uncompressed_size": uncompressedSize,
+			})
+		}
+
 		if o.compressor != nil {
 			item.row.Codec = o.compressor.codec()
 			uncompressedValue := item.row.Value
 			startedAt := time.Now()
 			item.row.Value = o.compressor.compress(item.row.Value)
-			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", len(uncompressedValue), "compressed_size", len(item.row.Value), "duration_ms", time.Since(startedAt).Milliseconds())
+			compressedSize := len(item.row.Value)
+			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", uncompressedSize, "compressed_size", compressedSize, "duration_ms", time.Since(startedAt).Milliseconds())
 
-			if len(item.row.Value) >= o.maxCompressedRowBytes {
+			if compressedSize >= o.maxCompressedRowBytes {
 				if o.onSkippedRow != nil {
 					o.onSkippedRow(bytes.NewBuffer(uncompressedValue), pipelines.SkippedRowInfo{
 						Reason: pipelines.SkipRowReasonCompressedTooLarge,
 						Offset: item.meta.Begin,
 						Attrs: map[string]any{
-							"uncompressed_size": len(uncompressedValue),
-							"compressed_size":   len(item.row.Value),
+							"uncompressed_size": uncompressedSize,
+							"compressed_size":   compressedSize,
 						},
 					})
 				}
 				continue
+			}
+
+			if compressedSize >= o.largeCompressedRowBytes {
+				o.notifyLargeRow(item.meta.Begin, pipelines.LargeRowKindCompressed, map[string]any{
+					"uncompressed_size": uncompressedSize,
+					"compressed_size":   compressedSize,
+				})
 			}
 		}
 		o.toSend <- item
 	}
 	close(o.toSend)
 	close(o.compressorDone)
+}
+
+func (o *output) notifyLargeRow(offset pipelines.FilePosition, kind pipelines.LargeRowKind, attrs map[string]any) {
+	if o.onLargeRow == nil {
+		return
+	}
+	o.onLargeRow(pipelines.LargeRowInfo{
+		Kind:   kind,
+		Offset: offset,
+		Attrs:  attrs,
+	})
 }
 
 func (o *output) senderLoop() {

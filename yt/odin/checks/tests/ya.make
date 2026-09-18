@@ -2,6 +2,7 @@ PY3TEST()
 
 TEST_SRCS(
     conftest.py
+    test_bundle_mutes.py
     test_check_runner.py
     test_controller_agent_alerts.py
     test_controller_agent_count.py
@@ -34,6 +35,7 @@ PEERDIR(
     yt/odin/lib/yt_odin/test_helpers
     yt/odin/lib/yt_odin/logserver
     yt/odin/checks/lib/check_runner
+    yt/odin/checks/lib/bundle_mutes
     yt/odin/checks/lib/chyt_clique_liveness
     yt/odin/checks/lib/master_chunk_management
     yt/odin/checks/lib/quorum_health

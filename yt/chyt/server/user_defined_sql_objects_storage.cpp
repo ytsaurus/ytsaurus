@@ -82,7 +82,7 @@ public:
         , GlobalContext_(std::move(globalContext))
         , Config_(std::move(config))
         , Host_(host)
-        , Client_(Host_->CreateClient(ChytSqlObjectsUserName))
+        , Client_(Host_->GetSqlObjectsClient())
         , ObjectNameRegexp_(New<TRe2>("^[a-zA-Z_][a-zA-Z0-9_]*$"))
         , ActionQueue_(New<TActionQueue>("UserDefinedSqlObjectsStorage"))
         , PeriodicExecutor_(New<TPeriodicExecutor>(

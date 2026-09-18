@@ -222,10 +222,9 @@ std::optional<TJobCollectiveManager::TCollectiveIterator> TJobCollectiveManager:
 {
     auto it = CookieToCollective_.find(joblet->OutputCookie);
     if (it == CookieToCollective_.end()) {
-        YT_LOG_INFO(
-            "Job collective not found: (OutputCookie: %v, JobId: %v)",
-            joblet->OutputCookie,
-            joblet->JobId);
+        YT_TLOG_INFO("Job collective not found")
+            .With("OutputCookie", joblet->OutputCookie)
+            .With("JobId", joblet->JobId);
         return std::nullopt;
     }
     if (!joblet->CollectiveInfo) {

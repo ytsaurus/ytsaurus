@@ -5,11 +5,13 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     buffer_warmup_ut.cpp
     distributing_tracker_ut.cpp
+    dyntable_lease_ut.cpp
     flow_core_build_info_ut.cpp
     flow_core_version_ut.cpp
     flow_view_ut.cpp
     generate_message_id_ut.cpp
     inflight_tracker_ut.cpp
+    input_context_ut.cpp
     interval_ut.cpp
     job_directory_ut.cpp
     joined_state_key_client_ut.cpp
@@ -37,6 +39,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/flow/library/cpp/common
+    yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/library/profiling/solomon
     yt/yt/library/query/engine

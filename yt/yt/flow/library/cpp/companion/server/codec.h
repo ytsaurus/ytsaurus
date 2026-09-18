@@ -42,6 +42,8 @@ struct TOutputGroup
     std::vector<TMessage> Messages;
     //! Aligned with |Messages|.
     std::vector<bool> Distribute;
+    //! Aligned with |Messages|. Empty means sequence numbers.
+    std::vector<TOutputMessageIdSuffix> MessageIdSuffixes;
     std::vector<NCompanion::TNewTimer> Timers;
     std::vector<TMessageId> ParentIds;
 };

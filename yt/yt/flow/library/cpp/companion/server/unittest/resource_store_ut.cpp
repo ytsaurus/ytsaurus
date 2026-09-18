@@ -1,5 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/companion/server/monitoring.h>
 #include <yt/yt/flow/library/cpp/companion/server/resource_store.h>
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/server.h>
@@ -24,6 +25,11 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/profiling/solomon/exporter.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
+
+#include <library/cpp/json/yson/json2yson.h>
 
 #include <library/cpp/testing/common/network.h>
 
@@ -1445,6 +1451,7 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
     auto initContext = New<TCompanionRuntimeInitContext>(
         store,
         /*parametersNode*/ nullptr,
+        /*parametersObject*/ nullptr,
         THashMap<TResourceId, IResourcePtr>{{TResourceId("the_dict"), resource}});
 
     EXPECT_EQ(initContext->GetStaticResource(TResourceId("the_dict")), resource);
@@ -1458,11 +1465,17 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TStringBuf CollectionBarrierSensor = "yt.flow.companion.unittest.collection_barrier";
+
 class TResourceServiceTest
     : public ::testing::Test
 {
 protected:
     ::NTesting::TPortHolder Port_;
+    ::NTesting::TPortHolder MonitoringPort_;
+    NProfiling::TSolomonRegistryPtr Registry_ = New<NProfiling::TSolomonRegistry>();
+    NProfiling::TGauge CollectionBarrier_;
+    int CollectionBarrierValue_ = 0;
     TCompanionServerPtr Server_;
     std::optional<NCompanion::TCompanionProxy> Proxy_;
 
@@ -1477,15 +1490,22 @@ protected:
     void SetUp() override
     {
         Port_ = ::NTesting::GetFreePort();
+        MonitoringPort_ = ::NTesting::GetFreePort();
 
         auto config = New<NCompanion::TCompanionExecutionConfig>();
         config->Port = Port_;
+        config->MonitoringPort = MonitoringPort_;
+        config->Monitoring->GridStep = TDuration::Seconds(1);
+
+        CollectionBarrier_ = NProfiling::TProfiler(Registry_, /*prefix*/ "", "yt.flow.companion")
+            .WithProjectionsDisabled()
+            .Gauge("/unittest/collection_barrier");
 
         TPipeline pipeline;
         pipeline.AddTransform<TUnittestResourceConsumerFunction>("my_computation");
         pipeline.AddResource<TUnittestDictionaryResource>();
 
-        Server_ = New<TCompanionServer>(config, pipeline);
+        Server_ = New<TCompanionServer>(config, pipeline, Registry_);
         Server_->Start();
         Proxy_.emplace(NCompanion::CreateCompanionProxy(
             Format("localhost:%v", static_cast<int>(Port_))));
@@ -1583,6 +1603,50 @@ protected:
         auto rsp = Proxy_->CompanionInfo()->Invoke().BlockingGet().ValueOrThrow();
         return ConvertTo<NCompanion::TCompanionInfoPtr>(NYson::TYsonString(TString(rsp->payload())));
     }
+
+    std::vector<INodePtr> ReadSensors()
+    {
+        auto barrierValue = ++CollectionBarrierValue_;
+        CollectionBarrier_.Update(barrierValue);
+
+        auto deadline = TInstant::Now() + TDuration::Seconds(10);
+        while (TInstant::Now() < deadline) {
+            if (auto json = Server_->GetMonitoring()->GetSolomonExporter()->ReadJson()) {
+                auto yson = NYson::TYsonString(
+                    NJson2Yson::SerializeJsonValueAsYson(NJson::ReadJsonFastTree(*json)));
+                auto sensors = ConvertToNode(yson)->AsMap()->GetChildOrThrow("sensors")->AsList()->GetChildren();
+                for (const auto& sensor : sensors) {
+                    auto labels = sensor->AsMap()->GetChildOrThrow("labels")->AsMap();
+                    if (labels->FindChildValue<std::string>("sensor") == std::string(CollectionBarrierSensor) &&
+                        sensor->AsMap()->GetChildValueOrThrow<double>("value") == barrierValue)
+                    {
+                        return sensors;
+                    }
+                }
+            }
+            Sleep(TDuration::MilliSeconds(10));
+        }
+        THROW_ERROR_EXCEPTION("Timed out waiting for sensor collection");
+    }
+
+    static INodePtr FindResourceMetric(
+        const std::vector<INodePtr>& sensors,
+        ECompanionResourceExecuteStatus status)
+    {
+        for (const auto& sensor : sensors) {
+            auto labels = sensor->AsMap()->GetChildOrThrow("labels")->AsMap();
+            if (labels->GetChildValueOrThrow<std::string>("sensor") ==
+                    "yt.flow.companion.resource.execute.count" &&
+                labels->FindChildValue<std::string>("command") ==
+                    std::optional<std::string>(FormatEnum(ECompanionResourceCommand::Init)) &&
+                labels->FindChildValue<std::string>("status") ==
+                    std::optional<std::string>(FormatEnum(status)))
+            {
+                return sensor;
+            }
+        }
+        return nullptr;
+    }
 };
 
 TEST_F(TResourceServiceTest, ProcessBatchPreCheckAndHealing)
@@ -1642,6 +1706,35 @@ TEST_F(TResourceServiceTest, StaleIncarnationStatusIsSerialized)
     EXPECT_EQ(response->status(), NProto::NCompanion::RES_STALE_RESOURCE_INCARNATION);
     ASSERT_TRUE(response->has_error());
     EXPECT_THAT(FromProto<TError>(response->error()).GetMessage(), testing::HasSubstr("stale"));
+}
+
+TEST_F(TResourceServiceTest, ResourceExecuteMetricsCarryCommandAndStatus)
+{
+    auto predecessorIncarnationId = MakeIncarnationId();
+    EXPECT_EQ(
+        ResourceExecute(
+            ECompanionResourceCommand::Init,
+            BuildInitArgument(
+                BuildResourceSpec(TypeName<TUnittestDictionaryResource>()),
+                BuildDynamicResourceSpec(),
+                ResourceIncarnationId_,
+                1,
+                1))
+            ->status(),
+        NProto::NCompanion::RES_OK);
+    EXPECT_EQ(
+        ResourceExecute(
+            ECompanionResourceCommand::Init,
+            BuildInitArgument(
+                BuildResourceSpec(TypeName<TUnittestDictionaryResource>()),
+                BuildDynamicResourceSpec(),
+                predecessorIncarnationId))
+            ->status(),
+        NProto::NCompanion::RES_STALE_RESOURCE_INCARNATION);
+
+    auto sensors = ReadSensors();
+    EXPECT_TRUE(FindResourceMetric(sensors, ECompanionResourceExecuteStatus::Ok));
+    EXPECT_TRUE(FindResourceMetric(sensors, ECompanionResourceExecuteStatus::StaleResourceIncarnation));
 }
 
 TEST_F(TResourceServiceTest, JobIsReboundAfterConfigurationGenerationChanges)

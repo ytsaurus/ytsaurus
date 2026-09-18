@@ -7,17 +7,17 @@ namespace NYT::NFlow {
 void TFileSnapshot::Register(TRegistrar registrar)
 {
     registrar.Parameter("id", &TThis::Id);
-    registrar.Parameter("file_sources", &TThis::FileSources)
+    registrar.Parameter("file_providers", &TThis::FileProviders)
         .Default();
     registrar.Postprocessor([] (TThis* snapshot) {
         THROW_ERROR_EXCEPTION_UNLESS(
             snapshot->Id.Underlying() > 0,
             "File snapshot id must be positive");
-        for (const auto& [name, fileSourceRevision] : snapshot->FileSources) {
-            ValidateFileSourceName(name.Underlying());
+        for (const auto& [name, fileProviderRevision] : snapshot->FileProviders) {
+            ValidateFileProviderName(name.Underlying());
             THROW_ERROR_EXCEPTION_UNLESS(
-                fileSourceRevision,
-                "File snapshot source %Qv is null",
+                fileProviderRevision,
+                "File snapshot provider %Qv is null",
                 name);
         }
     });

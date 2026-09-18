@@ -137,16 +137,38 @@ public:
         return std::move(prepared.MergedRows);
     }
 
+    void CalculateBatchSignatures() override
+    {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(BatchSignatures_.empty());
+        BatchSignatures_.resize(Batches_.size());
+
+        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
+            auto& batchSignatures = BatchSignatures_[batchIndex];
+
+            auto prepareSignature = CellCommitSession_
+                ->GetPrepareSignatureGenerator()
+                ->GenerateSignature();
+            auto commitSignature = CellCommitSession_
+                ->GetCommitSignatureGenerator()
+                ->GenerateSignature();
+            batchSignatures = TBatchSignatures{
+                .PrepareSignature = prepareSignature,
+                .CommitSignature = commitSignature,
+            };
+        }
+    }
+
     // NB: Concurrent #Invoke calls with different retry indices are possible.
     TFuture<void> Invoke(int retryIndex) override
     {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(Batches_.size() == BatchSignatures_.size());
+
         if (retryIndex == 0) {
-            YT_VERIFY(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->Materialize(Config_->WriteRowsRequestCodec);
             }
-
-            CalculateBatchSignatures();
         }
 
         auto cellId = TabletInfo_->CellId;
@@ -413,15 +435,15 @@ private:
             return firstBatchError.With("retry_skip_reason", "uniform_prepare_signature_disabled");
         }
 
-        int batchCount = std::ssize(Batches_);
-        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
-        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
-        //TODO(alexelexa, kvk1920): update commit signatures as well.
-
         const auto& cellCommitSession = CellCommitSessionProvider_->GetOrCreateCellCommitSession(newTabletInfo->CellId);
         if (auto error = validateCellCommitSession(cellCommitSession, newTabletInfo->CellId); !error.IsOK()) {
             return error;
         }
+
+        int batchCount = std::ssize(Batches_);
+        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
+        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
+        //TODO(alexelexa, kvk1920): update commit signatures as well.
 
         cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount, /*adjustRequestIndex*/ true);
         cellCommitSession->RegisterTabletCommitSession(TabletInfo_->TabletId);
@@ -538,27 +560,6 @@ private:
 
         commitContext->BatchIndex++;
         InvokeNextBatch(commitContext);
-    }
-
-    void CalculateBatchSignatures()
-    {
-        YT_VERIFY(BatchSignatures_.empty());
-        BatchSignatures_.resize(Batches_.size());
-
-        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
-            auto& batchSignatures = BatchSignatures_[batchIndex];
-
-            auto prepareSignature = CellCommitSession_
-                ->GetPrepareSignatureGenerator()
-                ->GenerateSignature();
-            auto commitSignature = CellCommitSession_
-                ->GetCommitSignatureGenerator()
-                ->GenerateSignature();
-            batchSignatures = TBatchSignatures{
-                .PrepareSignature = prepareSignature,
-                .CommitSignature = commitSignature,
-            };
-        }
     }
 };
 
@@ -680,6 +681,12 @@ private:
 
     TFuture<void> DoCommitSessions(int retryIndex)
     {
+        if (retryIndex == 0) {
+            for (const auto& session : Sessions_) {
+                session->CalculateBatchSignatures();
+            }
+        }
+
         std::vector<TFuture<void>> commitFutures;
         commitFutures.reserve(Sessions_.size());
         for (const auto& session : Sessions_) {

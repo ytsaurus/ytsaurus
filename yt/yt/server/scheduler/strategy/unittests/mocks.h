@@ -7,6 +7,7 @@
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
+
 #include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
@@ -78,6 +79,11 @@ public:
     int GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const override
     {
         return 0;
+    }
+
+    NObjectClient::TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return NObjectClient::TCellTag(0);
     }
 
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
@@ -255,7 +261,7 @@ class TPoolTreeElementHostMock
 {
 public:
     explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
+        : ResourceTree_(New<TResourceTree>(StrategyLogger(), treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
     TResourceTree* GetResourceTree() override
@@ -263,10 +269,9 @@ public:
         return ResourceTree_.Get();
     }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+        const TPoolTreeElement* /*element*/) const override
     {
         YT_UNIMPLEMENTED();
     }

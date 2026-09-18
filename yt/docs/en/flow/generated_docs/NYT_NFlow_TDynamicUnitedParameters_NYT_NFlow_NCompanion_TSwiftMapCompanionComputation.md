@@ -5,12 +5,6 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 #|
 || **Parameter** | **Description** ||
-|| `weight_multiplier` | **Type**: `double`
-**Default value**: `1.0`
- ||
-|| `interrupting_weight_multiplier` | **Type**: `double`
-**Default value**: `0.1`
- ||
 || `desired_partition_count` | **Type**: `std::optional<int>`
  ||
 || `min_partition_count` | **Type**: `std::optional<int>`
@@ -34,6 +28,12 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 || `partition_count_double_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
 || `partition_count_half_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+ ||
+|| `weight_multiplier` | **Type**: `double`
+**Default value**: `1.0`
+ ||
+|| `interrupting_weight_multiplier` | **Type**: `double`
+**Default value**: `0.1`
  ||
 |#
 

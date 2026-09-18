@@ -18,9 +18,6 @@ import (
 var (
 	errNoParentIDs         = xerrors.NewSentinel("output group has no parent ids")
 	errEmptyMessagePayload = xerrors.NewSentinel("empty message payload")
-
-	// ErrEmptyStateValue reports a state written as empty bytes rather than cleared.
-	ErrEmptyStateValue = xerrors.NewSentinel("empty state value")
 )
 
 func streamSpecsFromProto(protoStreams []*companion.TStream) (StreamSpecs, error) {
@@ -276,6 +273,9 @@ func groupToProto(result OutputGroup, streams StreamSpecs) (*companion.TResponse
 	if len(result.ParentIDs) == 0 {
 		return nil, errNoParentIDs
 	}
+	if len(result.MessageIDSuffixes) > 0 && len(result.MessageIDSuffixes) != len(result.Messages) {
+		return nil, xerrors.Errorf("message ID suffixes count must match output messages count")
+	}
 
 	group := &companion.TResponseData_TGroup{
 		Messages:   make([]*common.TMessage, 0, len(result.Messages)),
@@ -294,6 +294,23 @@ func groupToProto(result OutputGroup, streams StreamSpecs) (*companion.TResponse
 			return nil, xerrors.Errorf("message %d: %w", i, err)
 		}
 		group.Messages = append(group.Messages, protoMessage)
+	}
+
+	if len(result.MessageIDSuffixes) > 0 {
+		group.MessageIdSuffixes = make([]*companion.TMessageIdSuffix, 0, len(result.MessageIDSuffixes))
+		for _, suffix := range result.MessageIDSuffixes {
+			protoSuffix := &companion.TMessageIdSuffix{}
+			switch suffix.mode {
+			case MessageIDSuffixSequenceNumber:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_SEQUENCE_NUMBER.Enum()
+			case MessageIDSuffixPayloadHash:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_PAYLOAD_HASH.Enum()
+			case MessageIDSuffixUserDefined:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_USER_DEFINED.Enum()
+				protoSuffix.UserDefined = []byte(suffix.value)
+			}
+			group.MessageIdSuffixes = append(group.MessageIdSuffixes, protoSuffix)
+		}
 	}
 
 	for _, timer := range result.Timers {
@@ -360,15 +377,14 @@ func internalStateToProto(holder *StatesHolder[InternalState]) (*companion.TStat
 	state := &companion.TState{Name: proto.String(holder.Name())}
 
 	for key, value := range holder.Modified() {
-		item, err := stateItemToProto(holder.Name(), key, value.Reset)
+		// The worker refuses a non-reset item with an empty payload, so absence
+		// travels as a reset.
+		reset := value.Reset || len(value.Data) == 0
+		item, err := stateItemToProto(holder.Name(), key, reset)
 		if err != nil {
 			return nil, err
 		}
-		if !value.Reset {
-			// Empty data is neither a value nor a reset.
-			if len(value.Data) == 0 {
-				return nil, xerrors.Errorf("flow: internal state %q: %w", holder.Name(), ErrEmptyStateValue)
-			}
+		if !reset {
 			item.State = value.Data
 		}
 		state.StateItems = append(state.StateItems, item)
@@ -381,19 +397,23 @@ func externalStateToProto(holder *StatesHolder[ExternalState]) (*companion.TStat
 	state := &companion.TState{Name: proto.String(holder.Name())}
 
 	for key, value := range holder.Modified() {
-		item, err := stateItemToProto(holder.Name(), key, value.Reset)
-		if err != nil {
-			return nil, err
-		}
+		var encoded []byte
 		if !value.Reset {
-			row := value.Value.row
-			if row == nil {
-				return nil, xerrors.Errorf("flow: external state %q: %w", holder.Name(), ErrEmptyStateValue)
-			}
-			encoded, err := wire.MarshalRowProto(row)
+			var err error
+			encoded, err = wire.MarshalRowProto(value.Value.row)
 			if err != nil {
 				return nil, xerrors.Errorf("flow: external state %q: value: %w", holder.Name(), err)
 			}
+		}
+		// The worker refuses a non-reset item with an empty payload, so absence
+		// travels as a reset. Only a row that was never built encodes to no bytes;
+		// a row with no columns still carries its header.
+		reset := value.Reset || len(encoded) == 0
+		item, err := stateItemToProto(holder.Name(), key, reset)
+		if err != nil {
+			return nil, err
+		}
+		if !reset {
 			item.State = encoded
 		}
 		state.StateItems = append(state.StateItems, item)

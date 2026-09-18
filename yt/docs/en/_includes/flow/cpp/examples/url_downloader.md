@@ -17,11 +17,11 @@ This helper class (a descendant of `TRefCounted`) manages download queues for ea
 
 The key pattern is using `AsyncVia(GetCurrentInvoker())` to run background processing within a serialized invoker. This lets you safely work with shared state without locks.
 
-### TLimitedUrlDownloadComputation
+### TLimitedUrlDownloadFunction
 
-This is the main computation, which inherits from `TTransformComputation`. It coordinates URL downloads using `TUrlDownloader`.
+This is the main process function. It implements `IProcessFunction`, is hosted by `TProcessFunctionComputation`, and coordinates URL downloads using `TUrlDownloader`.
 
-When you process an input message (`DoProcessMessage`):
+When you process an input message (`ProcessMessage`):
 
 1. You read a `TUrlMessage` with the `Host` and `Url` fields.
 2. You save the URL in the host’s state.
@@ -29,7 +29,7 @@ When you process an input message (`DoProcessMessage`):
 4. You set a [timer](../../../../flow/concepts/glossary.md#timer) to periodically check results via `GetNextHostCheck`.
 5. You apply a limit to the state size using `EnforceLimit`.
 
-When the timer fires (`DoProcessTimer`):
+When the timer fires (`ProcessTimer`):
 
 1. You restore the host from the state.
 2. You extract processed URLs from `TUrlDownloader`.
@@ -46,7 +46,7 @@ When the timer fires (`DoProcessTimer`):
 
 ### Internal YsonState
 
-You use `TKeyStateClient<TLimitedHostState>` to store the URL queue for each host. The `TLimitedHostState` state contains:
+You use `TMutableStateKeyClient<TLimitedHostState>` to store the URL queue for each host. The `TLimitedHostState` state contains:
 
 - `Host` — the host name.
 - `Urls` — the URL queue (`std::deque<std::string>`) waiting to be processed.
@@ -60,9 +60,9 @@ The `GetNextHostCheck` method calculates the time for the next host check. The t
 
 ### Dynamic parameters
 
-`TDynamicLimitedUrlDownloadParameters` lets you change parameters without restarting the pipeline:
+`TDynamicLimitedUrlDownloadParameters`, passed through the dynamic `processing_function_parameters` field, lets you change parameters without restarting the pipeline:
 
-- `CheckHostPeriod` — the host check period (default is 5 seconds, minimum is 1 second).
+- `CheckHostPeriod` — the host check period (default is 5 seconds and must be greater than 1 second).
 - `PersistLimit` — the maximum number of URLs stored in the state for a single host (default is 1000).
 
 ### PersistLimit
@@ -78,11 +78,13 @@ During [partition](../../../../flow/concepts/glossary.md#partition) rebalancing,
 ## Pipeline structure
 
 1. **Input queue** → the `urls` stream (`TUrlMessage`).
-2. The `urls` stream → **TLimitedUrlDownloadComputation** (with timers and state) → the `processed_urls` stream (`TProcessedUrlMessage`).
+2. The `urls` stream → **TLimitedUrlDownloadFunction** (with timers and state) → the `processed_urls` stream (`TProcessedUrlMessage`).
+
+In the static spec, `url_downloader` uses `computation_class_name = "NYT::NFlow::TProcessFunctionComputation"` and `processing_function = "NYT::NFlow::NExample::TLimitedUrlDownloadFunction"`. Function settings are passed through `dynamic_spec/computations/url_downloader/processing_function_parameters`.
 
 ## main function
 
-In `main`, you register two streams:
+In `main`, you register two streams; `TLimitedUrlDownloadFunction` is registered via `YT_FLOW_DEFINE_PROCESS_FUNCTION`:
 
 - `RegisterStream<TUrlMessage>("urls")` — input URLs.
 - `RegisterStream<TProcessedUrlMessage>("processed_urls")` — processed URLs.
@@ -93,7 +95,6 @@ In `main`, you register two streams:
 
 {% code '/yt/yt/flow/examples/cpp/url_downloader/lib/url_downloader_functions.cpp' lang='cpp' lines='[BEGIN url_downloader]-[END url_downloader]' keep-indents %}
 
-### TLimitedUrlDownloadComputation
+### TLimitedUrlDownloadFunction
 
 {% code '/yt/yt/flow/examples/cpp/url_downloader/lib/url_downloader_functions.cpp' lang='cpp' lines='[BEGIN limited_url_download]-[END limited_url_download]' keep-indents %}
-

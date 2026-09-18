@@ -41,6 +41,13 @@ struct IYTConnector
      */
     virtual bool IsLeader() const = 0;
 
+    //! Instant when this leader's address became discoverable by workers, or a null instant while
+    //! it has not been published yet (or this node does not lead).
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TInstant GetLeadershipPublishTime() const = 0;
+
     /*!
      *  \note Thread affinity: any
      */
@@ -96,7 +103,9 @@ IYTConnectorPtr CreateYTConnector(
     TControllerConfigPtr config,
     TNodeInfoPtr nodeInfo,
     ICommonYTConnectorPtr commonYTConnector,
-    TControlActionQueuePtr controlQueue);
+    TControlActionQueuePtr controlQueue,
+    bool skipLeaderConfirmation,
+    bool busServerHasTlsMaterial);
 
 ////////////////////////////////////////////////////////////////////////////////
 

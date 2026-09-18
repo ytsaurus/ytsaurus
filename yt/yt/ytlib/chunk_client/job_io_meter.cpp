@@ -6,9 +6,15 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobIoMeter::TJobIoMeter(TDuration maxHistoryDuration)
+TJobIoMeter::TJobIoMeter(TDuration maxHistoryDuration, bool enabled)
     : MaxHistoryDuration_(maxHistoryDuration)
+    , Enabled_(enabled)
 { }
+
+bool TJobIoMeter::IsEnabled() const
+{
+    return Enabled_;
+}
 
 void TJobIoMeter::AccountRead(i64 size)
 {
@@ -22,6 +28,10 @@ void TJobIoMeter::AccountWrite(i64 size)
 
 void TJobIoMeter::Account(i64 size)
 {
+    if (!Enabled_) {
+        return;
+    }
+
     auto now = TInstant::Now();
     auto minute = TInstant::Minutes(now.Minutes());
 
@@ -62,6 +72,35 @@ i64 TJobIoMeter::GetIoConsumedInWindow(TDuration window) const
     }
 
     return consumed;
+}
+
+void TJobIoMeter::SetIoFairShareWeight(double weight)
+{
+    IoFairShareWeight_.Store(weight);
+}
+
+std::optional<double> TJobIoMeter::GetIoFairShareWeight() const
+{
+    return IoFairShareWeight_.Load();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<double> GetEffectiveIoFairShareWeight(
+    std::optional<double> configuredWeight,
+    const TJobIoMeterPtr& jobIoMeter)
+{
+    if (jobIoMeter && !jobIoMeter->IsEnabled()) {
+        return std::nullopt;
+    }
+
+    if (configuredWeight) {
+        return configuredWeight;
+    }
+
+    return jobIoMeter
+        ? jobIoMeter->GetIoFairShareWeight()
+        : std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,16 @@ TTransactionSignatureGenerator::TTransactionSignatureGenerator(TTransactionSigna
     : TargetSignature_(targetSignature)
 { }
 
+ui64 TTransactionSignatureGenerator::PackState(ui32 requestIndex, ui32 requestCount)
+{
+    return (static_cast<ui64>(requestIndex) << 32) | requestCount;
+}
+
+std::pair<ui32, ui32> TTransactionSignatureGenerator::UnpackState(ui64 state)
+{
+    return {state >> 32, static_cast<ui32>(state)};
+}
+
 void TTransactionSignatureGenerator::RegisterRequest()
 {
     RegisterRequests(/*count*/ 1);
@@ -18,9 +28,9 @@ void TTransactionSignatureGenerator::RegisterRequest()
 void TTransactionSignatureGenerator::RegisterRequests(int count, bool /*adjustRequestIndex*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-    YT_VERIFY(RequestIndex_ == 0);
 
-    RequestCount_ += count;
+    auto [requestIndex, _] = UnpackState(SignatureGeneratorState_.fetch_add(PackState(0, count)));
+    YT_VERIFY(requestIndex == 0);
 }
 
 void TTransactionSignatureGenerator::UnregisterRequests(int /*count*/)
@@ -32,13 +42,14 @@ TTransactionSignature TTransactionSignatureGenerator::GenerateSignature()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order::relaxed);
-    YT_VERIFY(requestIndex < RequestCount_);
+    auto [requestIndex, requestCount] = UnpackState(
+        SignatureGeneratorState_.fetch_add(PackState(1, 0), std::memory_order::relaxed));
+    YT_VERIFY(requestIndex < requestCount);
 
     // NB(gritukan): For now it is not important which request has non-trivial signature
     // but probably property that it is first request will be extremely important in future.
     if (requestIndex == 0) {
-        return TargetSignature_ - (RequestCount_ - 1);
+        return TargetSignature_ - (requestCount - 1);
     } else {
         return 1;
     }
@@ -56,11 +67,9 @@ void TUniformSignatureGenerator::RegisterRequests(int count, bool adjustRequestI
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(!FinalSignatureGenerated_.load());
-    RequestCount_ += count;
 
-    if (adjustRequestIndex) {
-        RequestIndex_ += count;
-    }
+    auto requestIndexDelta = adjustRequestIndex ? count : 0;
+    SignatureGeneratorState_.fetch_add(PackState(requestIndexDelta, count));
 }
 
 void TUniformSignatureGenerator::UnregisterRequests(int count)
@@ -70,16 +79,18 @@ void TUniformSignatureGenerator::UnregisterRequests(int count)
     YT_ASSERT(!FinalSignatureGenerated_.load());
     YT_VERIFY(count > 0);
 
-    YT_VERIFY(RequestIndex_.fetch_sub(count) >= static_cast<unsigned>(count));
-    YT_VERIFY(RequestCount_.fetch_sub(count) >= static_cast<unsigned>(count));
+    auto [requestIndex, requestCount] = UnpackState(SignatureGeneratorState_.fetch_sub(PackState(count, count)));
+    YT_VERIFY(requestIndex >= static_cast<ui32>(count));
+    YT_VERIFY(requestCount >= static_cast<ui32>(count));
 }
 
 TTransactionSignature TUniformSignatureGenerator::GenerateSignature()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order::relaxed);
-    YT_VERIFY(requestIndex < RequestCount_);
+    auto [requestIndex, requestCount] = UnpackState(
+        SignatureGeneratorState_.fetch_add(PackState(1, 0), std::memory_order::relaxed));
+    YT_VERIFY(requestIndex < requestCount);
 
     return 1;
 }
@@ -87,7 +98,9 @@ TTransactionSignature TUniformSignatureGenerator::GenerateSignature()
 TTransactionSignature TUniformSignatureGenerator::GetFinalSignature()
 {
     FinalSignatureGenerated_.store(true);
-    return RequestCount_.load();
+
+    auto [_, requestCount] = UnpackState(SignatureGeneratorState_.load());
+    return requestCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

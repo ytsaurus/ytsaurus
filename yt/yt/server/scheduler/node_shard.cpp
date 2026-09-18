@@ -35,8 +35,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -732,6 +732,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         Id_,
         Config_,
         node,
+        Bootstrap_->GetScheduler()->GetBackgroundInvoker(),
         runningAllocations,
         mediumDirectory,
         minSpareResources);
@@ -777,9 +778,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(
-        schedulingHeartbeatContext,
-        delimitedSchedulingAttributesBuilder);
+    {
+        TForbidContextSwitchGuard guard;
+
+        strategyProxy->BuildSchedulingAttributesString(
+            schedulingHeartbeatContext,
+            delimitedSchedulingAttributesBuilder);
+    }
     context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
 
     FillNodeProfilingTags(response, strategyProxy);
@@ -835,10 +840,10 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
-            Config_->MaxOfflineNodeAge,
-            node->GetId(),
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node has not been seen for too long, removing it")
+            .With("MaxOfflineNodeAge", Config_->MaxOfflineNodeAge)
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress());
         UnregisterNode(node);
         RemoveNode(node);
     }
@@ -861,13 +866,11 @@ void TNodeShard::UpdateNodeState(
     node->SetRegistrationError(error);
 
     if (oldMasterState != newMasterState || oldSchedulerState != newSchedulerState) {
-        YT_LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, MasterState: %v -> %v, SchedulerState: %v -> %v)",
-            node->GetId(),
-            node->NodeDescriptor().GetDefaultAddress(),
-            oldMasterState,
-            newMasterState,
-            oldSchedulerState,
-            newSchedulerState);
+        YT_TLOG_INFO("Node state changed")
+            .With("NodeId", node->GetId())
+            .With("NodeAddress", node->NodeDescriptor().GetDefaultAddress())
+            .WithFormat("MasterState", "%v -> %v", oldMasterState, newMasterState)
+            .WithFormat("SchedulerState", "%v -> %v", oldSchedulerState, newSchedulerState);
     }
 }
 
@@ -921,9 +924,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     MaybeDelay(Config_->TestingOptions->HandleNodesAttributesDelay);
 
     if (HasOngoingNodesAttributesUpdate_) {
-        auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
-        YT_LOG_WARNING(error);
-        return {error};
+        static constexpr auto Message = "Node shard is handling nodes attributes update for too long, skipping new update"_sb;
+        YT_TLOG_WARNING(Message);
+        return {TError(Message)};
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
@@ -1018,12 +1021,17 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
-                auto error = TError("Node tags update failed")
+                static constexpr auto Message = "Node tags update failed"_sb;
+                YT_TLOG_WARNING(Message)
+                    .With("NodeId", nodeId)
+                    .With("Address", address)
+                    .With("Tags", tags)
+                    .With(updateResult);
+                auto error = TError(Message)
                     .With("node_id", nodeId)
                     .With("address", address)
                     .With("tags", tags)
                     .With(updateResult);
-                YT_LOG_WARNING(error);
                 errors.push_back(error);
 
                 // State change must happen before aborting allocations.
@@ -1205,6 +1213,10 @@ void TNodeShard::AbortAllocations(const std::vector<TAllocationId>& allocationId
 TNodeYsonList TNodeShard::BuildNodeYsonList() const
 {
     YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
+
+    // NB: A context switch under #BuildNodeYson would let node (un)registration
+    // invalidate the iterator, so it is explicitly forbidden here.
+    TForbidContextSwitchGuard guard;
 
     TNodeYsonList nodeYsons;
     nodeYsons.reserve(std::ssize(IdToNode_));
@@ -1891,24 +1903,18 @@ void TNodeShard::LogOngoingAllocationsOnHeartbeat(
     const TStateToAllocationList& ongoingAllocationsByState,
     const TExecNodePtr& node) const
 {
+    TForbidContextSwitchGuard guard;
+
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& allocations = ongoingAllocationsByState[allocationState];
         if (allocations.empty() || !strategyProxy->HasMatchingTree()) {
             continue;
         }
 
-        TStringBuilder attributesBuilder;
-        TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
-        strategyProxy->BuildSchedulingAttributesStringForOngoingAllocations(
-            allocations,
-            now,
-            delimitedAttributesBuilder);
-
-        YT_LOG_DEBUG(
-            "Allocations are %lv (%v, NodeAddress: %v)",
-            allocationState,
-            attributesBuilder.Flush(),
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Ongoing allocations on heartbeat")
+            .With("AllocationState", allocationState)
+            .With(strategyProxy->BuildSchedulingAttributeTagsForOngoingAllocations(allocations, now))
+            .With("NodeAddress", node->GetDefaultAddress());
     }
 }
 

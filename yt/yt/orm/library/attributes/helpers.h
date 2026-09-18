@@ -19,6 +19,15 @@ std::string RandomString(int length, TStringBuf charset);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsYsonStringField(const NProtoBuf::FieldDescriptor* fieldDescriptor);
+void ValidateYsonString(TStringBuf value);
+
+const NProtoBuf::FieldDescriptor* FindYsonStringFieldDescriptor(
+    const NYson::TProtobufElement& rootElement,
+    NYPath::TYPathBuf path);
+
+////////////////////////////////////////////////////////////////////////////////
+
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
     NYPath::TYPathBuf path,
@@ -36,9 +45,18 @@ NYTree::INodePtr ConvertProtobufToNode(
     TStringBuf payload,
     const NYson::TProtobufParserOptions& options = {});
 
-// Like ConvertProtobufToNode but works with any TProtobufElement, not just message/attribute dictionary elements.
-// Repeated, map, and any elements are not supported.
+// Converts arbitrary protobuf elements; map elements are not supported.
+// Any and repeated-of-any require yson_string semantics.
 NYTree::INodePtr ConvertProtobufElementToNode(
+    const NYson::TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options = {});
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const NYson::TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NYson::TProtobufParserOptions& options = {});
+NYTree::INodePtr ConvertYsonStringProtobufElementToNode(
     const NYson::TProtobufElement& element,
     const TWireString& wireStringPayload,
     const NYson::TProtobufParserOptions& options = {});

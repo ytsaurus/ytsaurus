@@ -1,6 +1,7 @@
 PY3_LIBRARY()
 
 TEST_SRCS(
+    test_cross_cell.py
     test_cypress_acls.py
     test_cypress_annotations.py
     test_cypress_locks.py

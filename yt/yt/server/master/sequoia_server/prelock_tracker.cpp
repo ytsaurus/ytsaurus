@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -81,10 +82,10 @@ public:
         }
 
         if (!lockingTransaction && lockRequest.Mode == ELockMode::Snapshot) {
-            YT_LOG_ALERT("Attempt to take %Qlv prelock without transaction (NodeId: %v, OwningTransactionId: %v)",
-                ELockMode::Snapshot,
-                nodeId,
-                owningTransaction->GetId());
+            YT_TLOG_ALERT("Attempt to take prelock without transaction")
+                .With("LockMode", ELockMode::Snapshot)
+                .With("NodeId", nodeId)
+                .With("OwningTransactionId", owningTransaction->GetId());
             return;
         }
 
@@ -190,7 +191,8 @@ private:
         auto enabled = IsEnabled();
 
         if (enabled != oldConfig->SequoiaManager->EnablePrelockTracker) {
-            YT_LOG_INFO("Prelock tracker %v", enabled ? "enabled" : "disabled");
+            YT_TLOG_INFO("Prelock tracker toggled")
+                .With("Enabled", enabled);
 
             if (!enabled) {
                 ResetState();
@@ -244,7 +246,8 @@ private:
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(transaction);
 
-        YT_LOG_DEBUG("Droping prelocks (TransactionId: %v)", transaction->GetId());
+        YT_TLOG_DEBUG("Dropping prelocks")
+            .With("TransactionId", transaction->GetId());
 
         OnLockingTransactionFinished(transaction);
         OnOwningTransactionFinished(transaction);

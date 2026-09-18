@@ -729,6 +729,9 @@ class Spec():
             return self.size.bundle_node_count * self.read_user_slots_per_node
         return None
 
+    def get(self, key, default_value=None):
+        return self.dct.get(key, default_value)
+
 ##################################################################
 
 def get_spec_preset_names():

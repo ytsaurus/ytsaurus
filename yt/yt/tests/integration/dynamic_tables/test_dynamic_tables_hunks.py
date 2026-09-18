@@ -7,7 +7,8 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue, sort,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
-    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
+    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state,
+    freeze_table, unmount_table)
 
 from yt_type_helpers import make_schema
 
@@ -1922,6 +1923,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [10]])
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
@@ -1937,20 +1939,48 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert statistics["chunk_count"] == 1
         assert statistics["referenced_regular_disk_space"] == 344
 
-        set("//tmp/t/@forced_compaction_revision", 1)
-        remount_table("//tmp/t")
-        wait(lambda: get("//tmp/t/@chunk_row_count") == 3)
-        wait(lambda: get("//tmp/t/@chunk_count") == 4)
+        store_chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids("//tmp/t"))
 
-        statistics = get(f"#{root_chunk_list_id}/@statistics")
-        assert statistics["row_count"] == 3
-        assert statistics["chunk_count"] == 2
-        assert statistics["hunk_data_weight"] == 320
-        assert statistics["hunk_data_size"] == 344
-        assert statistics["hunk_erasure_disk_space"] == 0
-        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
-        assert statistics["chunk_count"] == 2
-        assert statistics["referenced_regular_disk_space"] == 344
+        set("//tmp/t/@forced_compaction_revision", 1)
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+        remount_table("//tmp/t")
+
+        expected_compaction_state = {
+            "store_chunks_replaced": True,
+            "root_statistics": {
+                "row_count": 3,
+                "chunk_count": 2,
+                "hunk_data_weight": 320,
+                "hunk_data_size": 344,
+                "hunk_erasure_disk_space": 0,
+            },
+            "hunk_root_statistics": {
+                "chunk_count": 2,
+                "referenced_regular_disk_space": 344,
+            },
+        }
+
+        def _get_compaction_state():
+            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            root_statistics = get(f"#{root_chunk_list_id}/@statistics")
+            hunk_root_statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+            return {
+                "store_chunks_replaced": store_chunk_ids_before_compaction.isdisjoint(store_chunk_ids),
+                "root_statistics": {
+                    key: root_statistics[key]
+                    for key in expected_compaction_state["root_statistics"]
+                },
+                "hunk_root_statistics": {
+                    key: hunk_root_statistics[key]
+                    for key in expected_compaction_state["hunk_root_statistics"]
+                },
+            }
+
+        wait(
+            lambda: _get_compaction_state() == expected_compaction_state,
+            error_message=lambda: "Unexpected state after compaction: {}".format(
+                _get_compaction_state()),
+        )
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
@@ -2124,9 +2154,51 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+        sync_unmount_table("//tmp/t")
         remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("state", ["frozen", "unmounted"])
+    def test_unlock_hunk_stores_without_periodic_scan(self, state):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "unlock_check_period": 600000,
+                    "hunk_store_extra_lifetime": 600000,
+                },
+            },
+        })
+
+        sync_create_cells(1)
+        self._create_table()
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 600000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "x" * 100}]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        hunk_tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        locks_path = (
+            f"//sys/tablets/{hunk_tablet_id}/orchid/stores/{hunk_store_id}/tablet_locks"
+        )
+        assert get(locks_path)[tablet_id] > 0
+
+        command = freeze_table if state == "frozen" else unmount_table
+        command("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablet_state") == state, timeout=30)
+        wait(lambda: tablet_id not in get(locks_path))
+
+        if state == "unmounted":
+            sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
 
     @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -5407,7 +5479,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
 
         alter_table("//tmp/t", dynamic=True)
         assert get("//tmp/h/@associated_nodes") == []
-        assert not exists("//tmp/t/@hunk_storage_id")
+        assert get("//tmp/t/@hunk_storage_id") == "0-0-0-0"
 
         sync_mount_table("//tmp/t")
         rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
@@ -5662,8 +5734,8 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert statistics["referenced_regular_disk_space"] == 340
         assert statistics["chunk_count"] == 1
 
-        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
-        assert snapshot_statistics["chunk_count"] == 2
+        # Hunk sealing statistics reach the native cell asynchronously.
+        wait(lambda: get("//tmp/t/@snapshot_statistics")["chunk_count"] == 2)
 
         tx = start_transaction()
         copy("//tmp/t", "//tmp/t3", tx=tx)

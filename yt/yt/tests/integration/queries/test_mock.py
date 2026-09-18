@@ -1,7 +1,7 @@
-from yt_env_setup import YTEnvSetup
+from .base import QueriesTestBase
 
 from yt_commands import (
-    add_member, authors, create_access_control_object, remove,
+    abort_transaction, add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
     set, get, insert_rows, sync_compact_table, generate_uuid, ls)
 
@@ -39,7 +39,7 @@ def expect_queries(queries, list_result, incomplete=False):
         raise
 
 
-class TestMetrics(YTEnvSetup):
+class TestMetrics(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -84,7 +84,7 @@ class TestMetrics(YTEnvSetup):
         wait(lambda: state_time_metric.get({"state": "Completing"}) is not None)
 
 
-class TestQueriesMock(YTEnvSetup):
+class TestQueriesMock(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -115,6 +115,19 @@ class TestQueriesMock(YTEnvSetup):
         with raises_yt_error("Query .* aborted"):
             q.track()
         assert q.get_state() == "aborted"
+
+    @authors("ngc224")
+    def test_fail_query_after_lease_loss(self, query_tracker):
+        q = start_query("mock", "complete_after", settings={"duration": 60000})
+        wait(lambda: q.get_state() == "running")
+
+        active_query = q.get(attributes=["lease_transaction_id"])
+        abort_transaction(active_query["lease_transaction_id"])
+
+        with raises_yt_error("Query lease was lost; restarting query execution is unsafe"):
+            q.track()
+
+        assert q.get_state() == "failed"
 
     @authors("max42")
     def test_complete(self, query_tracker):
@@ -371,7 +384,7 @@ class TestQueriesMock(YTEnvSetup):
         assert "tokens" not in self._get_stored_finished_query_settings(q.id)
 
 
-class TestQueryTrackerBan(YTEnvSetup):
+class TestQueryTrackerBan(QueriesTestBase):
     NUM_QUERY_TRACKER = 1
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -417,7 +430,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
 
-class TestQueryTrackerResults(YTEnvSetup):
+class TestQueryTrackerResults(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -489,7 +502,7 @@ class TestQueryTrackerResults(YTEnvSetup):
         assert query.get_result(0)["full_result"] == yson.YsonEntity()
 
 
-class TestQueryTrackerQueryRestart(YTEnvSetup):
+class TestQueryTrackerQueryRestart(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -557,7 +570,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
         query.track()
 
 
-class TestAccessControl(YTEnvSetup):
+class TestAccessControl(QueriesTestBase):
     NUM_TEST_PARTITIONS = 16
 
     DELTA_DRIVER_CONFIG = {
@@ -835,7 +848,7 @@ class TestAccessControl(YTEnvSetup):
         expect_queries([q1, q2], list_queries(filter="asd"))
 
 
-class TestGetQueryTrackerInfo(YTEnvSetup):
+class TestGetQueryTrackerInfo(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -954,7 +967,7 @@ class TestGetQueryTrackerInfo(YTEnvSetup):
             stage='testing')
 
 
-class TestShare(YTEnvSetup):
+class TestShare(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -972,7 +985,7 @@ class TestShare(YTEnvSetup):
         expect_queries([], list_queries(authenticated_user="u2"))
 
 
-class TestSecrets(YTEnvSetup):
+class TestSecrets(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -994,7 +1007,7 @@ class TestSecrets(YTEnvSetup):
         assert q2_info["secrets"] == secrets
 
 
-class TestIndexTables(YTEnvSetup):
+class TestIndexTables(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -1038,7 +1051,7 @@ class TestIndexTables(YTEnvSetup):
         expect_queries([q2, q1], list_queries(authenticated_user="u1", limit=2))
 
 
-class TestMultipleAccessControl(YTEnvSetup):
+class TestMultipleAccessControl(QueriesTestBase):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
@@ -1119,7 +1132,7 @@ class TestMultipleAccessControl(YTEnvSetup):
         expect_queries([q2], list_queries(authenticated_user="u2"))
 
 
-class TestTutorials(YTEnvSetup):
+class TestTutorials(QueriesTestBase):
     @authors("kirsiv40")
     def test_tutorials_are_not_listed_with_standart_queries(self, query_tracker):
         create_user("u1")
@@ -1283,7 +1296,7 @@ class TestTutorials(YTEnvSetup):
 
 
 # Separate list to fit 480 seconds limit for a test class.
-class TestAccessControlList(YTEnvSetup):
+class TestAccessControlList(QueriesTestBase):
     NUM_TEST_PARTITIONS = 16
 
     DELTA_DRIVER_CONFIG = {
@@ -1478,7 +1491,7 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([], list_queries(cursor_direction="future", attributes=["id"], user="u1\") OR ([user]=\"u2"))
 
 
-class TestSearch(YTEnvSetup):
+class TestSearch(QueriesTestBase):
     @authors("kirsiv40")
     @pytest.mark.timeout(900)
     def test_list_search_filters(self, query_tracker):
@@ -1573,7 +1586,7 @@ class TestSearch(YTEnvSetup):
                         expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="\"aco:some-aco'$%^'\" 'aco:everyone'", search_by_token_prefix=True, **params_map)
 
 
-class TestTTL(YTEnvSetup):
+class TestTTL(QueriesTestBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"not_indexed_queries_ttl": 1000}
 
     @authors("mpereskokova")

@@ -114,10 +114,15 @@ func newOutput(config *Config, logConfig BaseLogConfig, task timbertruck.TaskArg
 				BytesPerRowsBatch:     ytQueueConfig.BytesPerRowsBatch,
 				RowsBatchFlushTimeout: ytQueueConfig.RowsBatchFlushTimeout,
 				MaxCompressedRowBytes: ytQueueConfig.MaxCompressedRowBytes,
+
+				LargeUncompressedRowBytes: ytQueueConfig.LargeUncompressedRowBytes,
+				LargeCompressedRowBytes:   ytQueueConfig.LargeCompressedRowBytes,
+
 				OnSent: func(meta pipelines.RowMeta) {
 					task.Controller.NotifyProgress(meta.End)
 				},
 				OnSkippedRow: task.Controller.OnSkippedRow,
+				OnLargeRow:   task.Controller.OnLargeRow,
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]

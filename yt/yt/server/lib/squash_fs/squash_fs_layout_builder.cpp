@@ -1,5 +1,7 @@
 #include "squash_fs_layout_builder.h"
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 namespace NYT::NSquashFS {
 
 using namespace NConcurrency;

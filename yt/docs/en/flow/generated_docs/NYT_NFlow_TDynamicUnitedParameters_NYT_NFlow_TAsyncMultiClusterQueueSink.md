@@ -7,7 +7,7 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 || **Parameter** | **Description** ||
 || `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyDynamicParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyDynamicParameters)`>`
 **Default value**: `{}`
- ||
+Dynamic parameters for `at_most_once_strategy`. Connector support varies; check the connector documentation before configuring them. ||
 |#
 
 

@@ -17,6 +17,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/bus/public.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -31,6 +33,9 @@
 #include <yt/yt/library/cypress_election/election_manager.h>
 
 #include <yt/yt/library/lock_election/election_manager.h>
+
+#include <yt/yt/server/lib/chaos_election/config.h>
+#include <yt/yt/server/lib/chaos_election/election_manager.h>
 
 namespace NYT::NFlow::NController {
 
@@ -51,6 +56,9 @@ using namespace NYson;
 
 constinit const auto Logger = ControllerLogger;
 
+//! Election group the controllers of one pipeline compete in.
+constexpr TStringBuf ElectionGroupName = "FlowController";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYTConnector
@@ -61,13 +69,17 @@ public:
         TControllerConfigPtr config,
         TNodeInfoPtr nodeInfo,
         ICommonYTConnectorPtr commonYTConnector,
-        TControlActionQueuePtr controlQueue)
+        TControlActionQueuePtr controlQueue,
+        bool skipLeaderConfirmation,
+        bool busServerHasTlsMaterial)
         : Config_(std::move(config))
         , NodeInfo_(std::move(nodeInfo))
         , CommonYTConnector_(std::move(commonYTConnector))
         , ControlQueue_(std::move(controlQueue))
         , SerializedInvoker_(ControlQueue_->GetInvoker(EControlQueue::YTConnector))
         , DyntableLeases_(FlowControlTablePath(), LeasesTablePath())
+        , SkipLeaderConfirmation_(skipLeaderConfirmation)
+        , BusServerHasTlsMaterial_(busServerHasTlsMaterial)
     {
         YT_VERIFY(SerializedInvoker_->IsSerialized());
     }
@@ -128,6 +140,13 @@ public:
         return State_ == EYTConnectorState::Leader;
     }
 
+    TInstant GetLeadershipPublishTime() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return LeadershipPublishTime_.load();
+    }
+
     void ValidateLeader() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -148,19 +167,38 @@ public:
             .ThrowOnError();
     }
 
-    //! Fences the transaction with the current leadership: with the Cypress backend the
-    //! leadership prerequisite id is added to prerequisites; with the Dyntable backend a tablet
-    //! transaction is fenced by validating and touching the leader row inside it (master
-    //! transactions cannot be fenced this way and are started as is — they must stay advisory).
+    //! Fences the transaction with the current leadership. Cypress and Chaos add the leadership
+    //! prerequisite id to prerequisites — a master transaction of the leader for the former, a
+    //! chaos lease for the latter, and a chaos lease is accepted only by commits that touch chaos
+    //! tables, so under Chaos it fences tablet transactions alone. Dyntable instead fences a
+    //! tablet transaction by validating and touching the leader row inside it. Master
+    //! transactions that cannot be fenced are started as is — they must stay advisory.
     TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
         TTransactionStartOptions options = {}) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (Config_->ElectionManager.GetType() == EElectionBackend::Cypress) {
-            options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
-            return GetClient()->StartTransaction(type, options);
+        switch (Config_->ElectionManager.GetType()) {
+            case EElectionBackend::Cypress:
+                options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
+                return GetClient()->StartTransaction(type, options);
+
+            // A chaos lease is accepted only by commits that touch chaos tables — that is, by
+            // tablet transactions of a chaos pipeline; master transactions of a chaos-elected
+            // leader stay unfenced and are therefore advisory (see #TryPublishLeadership, which
+            // confirms the published address instead of relying on the write being atomic with
+            // leadership).
+            case EElectionBackend::Chaos:
+                if (type == ETransactionType::Tablet) {
+                    options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
+                } else {
+                    ValidateLeader();
+                }
+                return GetClient()->StartTransaction(type, options);
+
+            case EElectionBackend::Dyntable:
+                break;
         }
 
         ValidateLeader();
@@ -247,9 +285,14 @@ private:
     const TControlActionQueuePtr ControlQueue_;
     const IInvokerPtr SerializedInvoker_;
     const TDyntableLeases DyntableLeases_;
+    const bool SkipLeaderConfirmation_;
+    const bool BusServerHasTlsMaterial_;
     TFuture<void> PublisherFuture_;
 
     std::atomic<EYTConnectorState> State_ = EYTConnectorState::Disconnected;
+    //! Set once TryPublishLeadership succeeds, cleared when leading ends. Read by the controller to
+    //! tell "we lead" from "workers can actually find us".
+    std::atomic<TInstant> LeadershipPublishTime_ = TInstant::Zero();
 
     ILockElectionManagerPtr ElectionManager_;
     //! Set alongside #ElectionManager_ when the Dyntable backend is selected; null otherwise.
@@ -295,9 +338,9 @@ private:
                 auto backendConfig = electionConfig.GetConcrete<TCypressElectionBackendConfig>();
 
                 auto config = New<TCypressElectionManagerConfig>();
-                config->LockPath = YPathJoin(GetPipelinePath().GetPath(), "leader_controller_lock");
-                config->TransactionTimeout = backendConfig->TransactionTimeout;
-                config->TransactionPingPeriod = backendConfig->TransactionPingPeriod;
+                config->LockPath = YPathJoin(GetPipelinePath().GetPath(), LeaderControllerLockName);
+                config->TransactionTimeout = backendConfig->LeaderLeaseTtl;
+                config->TransactionPingPeriod = backendConfig->LeaderLeasePingPeriod;
                 config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
                 config->LeaderCacheUpdatePeriod = backendConfig->LeaderCacheUpdatePeriod;
                 config->MasterTransactionExpirationMode = NTransactionClient::EMasterTransactionExpirationMode::Pessimistic;
@@ -305,7 +348,7 @@ private:
                 auto options = New<TCypressElectionManagerOptions>();
                 auto attrs = CreateEphemeralAttributes();
                 attrs->Set("host", NodeInfo_->GetIdentifyingString());
-                options->GroupName = "FlowController";
+                options->GroupName = ElectionGroupName;
                 options->MemberName = Format("%v(%v;%v)", NodeInfo_->Name, NodeInfo_->RpcAddress, NodeInfo_->IncarnationId);
                 options->TransactionAttributes = std::move(attrs);
                 return CreateCypressElectionManager(
@@ -335,6 +378,28 @@ private:
                 }
                 return manager;
             }
+            case EElectionBackend::Chaos: {
+                auto backendConfig = electionConfig.GetConcrete<TChaosElectionBackendConfig>();
+
+                auto config = New<NChaosElection::TChaosElectionManagerConfig>();
+                // The lock table is provisioned by yt_sync like every other pipeline table; until
+                // it appears, lock acquisition keeps failing and retrying.
+                config->LockTablePath = YPathJoin(GetPipelinePath().GetPath(), LeaderElectionLockTableName);
+                config->ChaosCellBundle = backendConfig->ChaosCellBundle;
+                config->LeaseTimeout = backendConfig->LeaderLeaseTtl;
+                config->LeasePingPeriod = backendConfig->LeaderLeasePingPeriod;
+                config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
+
+                auto options = New<NChaosElection::TChaosElectionManagerOptions>();
+                options->GroupName = ElectionGroupName;
+                options->MemberName = Format("%v(%v;%v)", NodeInfo_->Name, NodeInfo_->RpcAddress, NodeInfo_->IncarnationId);
+
+                return NChaosElection::CreateChaosElectionManager(
+                    GetClient(),
+                    SerializedInvoker_,
+                    std::move(config),
+                    std::move(options));
+            }
         }
         YT_ABORT();
     }
@@ -359,7 +424,8 @@ private:
         // Follower state.
         State_.store(EYTConnectorState::Follower);
         ElectionManager_->Start();
-        YT_TLOG_INFO("YTConnector following started");
+        YT_TLOG_INFO("YTConnector following started")
+            .With("ElectionBackend", Config_->ElectionManager.GetType());
     }
 
     void DoDisconnect()
@@ -414,7 +480,7 @@ private:
         // tablet commit fail, and the master write is never reached.
         try {
             TTransactionStartOptions options;
-            options.Timeout = TDuration::Seconds(1);
+            options.Timeout = Config_->PublishRequestTimeout;
             auto transaction = WaitFor(StartTransaction(ETransactionType::Tablet, options)).ValueOrThrow();
 
             // Publish the full node info (address, fqdn-ish name, incarnation, versions, ...) so the
@@ -427,6 +493,9 @@ private:
             WaitFor(transaction->Commit()).ThrowOnError();
             YT_TLOG_INFO("Published leader controller address to flow_control table")
                 .With("Address", NodeInfo_->RpcAddress);
+            // Only now can a worker discover this leader, so this is where the warm-up window
+            // during which the controller must not touch jobs starts.
+            LeadershipPublishTime_.store(TInstant::Now());
         } catch (const std::exception& ex) {
             YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to publish leader_controller to flow_control table")
                 .With(ex);
@@ -435,11 +504,14 @@ private:
 
         try {
             TTransactionStartOptions options;
-            options.Timeout = TDuration::Seconds(1);
+            options.Timeout = Config_->PublishRequestTimeout;
+            // Under the chaos backend this master transaction carries no leadership prerequisite
+            // (see #StartTransaction), so a demoted controller can still overwrite the attribute;
+            // the incarnation check below is what makes the publication trustworthy.
             auto transaction = WaitFor(StartTransaction(ETransactionType::Master, options)).ValueOrThrow();
             TSetNodeOptions setOptions;
             setOptions.Recursive = true;
-            setOptions.Timeout = TDuration::Seconds(1);
+            setOptions.Timeout = Config_->PublishRequestTimeout;
             WaitFor(transaction->SetNode(
                 Format("%v/@%v", GetPipelinePath().GetPath(), LeaderControllerAddressAttribute),
                 ConvertToYsonString(NodeInfo_->RpcAddress),
@@ -454,17 +526,44 @@ private:
             return false;
         }
 
-        try {
-            WaitFor(CheckControllerLeaderNodeIncarnationIdExternally(NodeInfo_->IncarnationId)).ThrowOnError();
-            YT_TLOG_INFO("Confirmed published leader controller address")
-                .With("Address", NodeInfo_->RpcAddress);
-        } catch (const std::exception& ex) {
-            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to confirm leader_controller_address")
-                .With(ex);
-            return false;
+        TError confirmationError;
+        if (!SkipLeaderConfirmation_) {
+            confirmationError = WaitFor(CheckControllerLeaderNodeIncarnationIdExternally(NodeInfo_->IncarnationId));
         }
 
-        return true;
+        switch (ClassifyLeaderConfirmation(
+            SkipLeaderConfirmation_,
+            confirmationError,
+            NodeInfo_->RpcAddress,
+            BusServerHasTlsMaterial_))
+        {
+            case ELeaderConfirmationResult::Confirmed:
+                YT_TLOG_INFO("Confirmed published leader controller address")
+                    .With("Address", NodeInfo_->RpcAddress);
+                return true;
+
+            case ELeaderConfirmationResult::SkippedByEnvironment:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
+                    "Leadership confirmation through the RPC proxy is skipped; "
+                    "the cluster cannot connect to this controller, so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    .With("EnvironmentVariable", SkipLeaderProxyConfirmationEnvVarName)
+                    .With("Address", NodeInfo_->RpcAddress);
+                return true;
+
+            case ELeaderConfirmationResult::SkippedWithoutTlsMaterial:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
+                    "Leadership confirmation through the RPC proxy is skipped; "
+                    "the cluster requires TLS to connect to this controller, but the controller bus server has no TLS certificate and key, "
+                    "so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    .With("Address", NodeInfo_->RpcAddress)
+                    .With(confirmationError);
+                return true;
+
+            case ELeaderConfirmationResult::Failed:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to confirm leader_controller_address")
+                    .With(confirmationError);
+                return false;
+        }
     }
 
     static void PublishLeadership(TWeakPtr<TYTConnector> weakConnector, TPrerequisiteId prerequisiteId)
@@ -502,6 +601,7 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         State_.store(EYTConnectorState::Leader);
+        LeadershipPublishTime_.store(TInstant::Zero());
 
         PublisherFuture_ = BIND(&TYTConnector::PublishLeadership, MakeWeak(this), ElectionManager_->GetPrerequisiteId())
             .AsyncVia(SerializedInvoker_)
@@ -521,6 +621,7 @@ private:
         DoCleanUp();
 
         State_.store(EYTConnectorState::Follower);
+        LeadershipPublishTime_.store(TInstant::Zero());
 
         PublisherFuture_.Cancel(TError("Leading ended"));
 
@@ -536,13 +637,45 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ELeaderConfirmationResult ClassifyLeaderConfirmation(
+    bool skipConfirmationFromEnv,
+    const TError& confirmationError,
+    const std::string& controllerAddress,
+    bool busServerHasTlsMaterial)
+{
+    if (skipConfirmationFromEnv) {
+        return ELeaderConfirmationResult::SkippedByEnvironment;
+    }
+    if (confirmationError.IsOK()) {
+        return ELeaderConfirmationResult::Confirmed;
+    }
+    if (busServerHasTlsMaterial) {
+        return ELeaderConfirmationResult::Failed;
+    }
+    // The bus client of the RPC proxy attaches the address it dials, which is the published controller address.
+    auto sslError = confirmationError.FindMatching(NBus::EErrorCode::SslError);
+    return sslError && sslError->Attributes().Find<std::string>("address") == controllerAddress
+        ? ELeaderConfirmationResult::SkippedWithoutTlsMaterial
+        : ELeaderConfirmationResult::Failed;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYTConnectorPtr CreateYTConnector(
     TControllerConfigPtr config,
     TNodeInfoPtr nodeInfo,
     ICommonYTConnectorPtr commonYTConnector,
-    TControlActionQueuePtr controlQueue)
+    TControlActionQueuePtr controlQueue,
+    bool skipLeaderConfirmation,
+    bool busServerHasTlsMaterial)
 {
-    return New<TYTConnector>(std::move(config), std::move(nodeInfo), std::move(commonYTConnector), std::move(controlQueue));
+    return New<TYTConnector>(
+        std::move(config),
+        std::move(nodeInfo),
+        std::move(commonYTConnector),
+        std::move(controlQueue),
+        skipLeaderConfirmation,
+        busServerHasTlsMaterial);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

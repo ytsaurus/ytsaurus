@@ -143,7 +143,7 @@ To configure the operation behavior when erasure-coded chunks are unavailable, y
 
 ## C++ and Python Wrapper
 
-Running operations via С~++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
+Running operations via C++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
 * Uploading files to the [File cache](../../../../user-guide/storage/file-cache.md).
 
    **Note**: Automatic file upload to the cache always takes place outside of the user transaction, which may lead to conflicts on Cypress nodes if the file cache directory was not created in advance.

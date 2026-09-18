@@ -1,18 +1,18 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_spec.h"
 #include "data_source.h"
+#include "public.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-
 #include <yt/yt/client/tablet_client/public.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/library/erasure/public.h>
 
@@ -45,7 +45,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
     DEFINE_BYVAL_RW_PROPERTY(int, RangeIndex, 0);
-    DEFINE_BYVAL_RO_PROPERTY(EChunkFormat, ChunkFormat);
+    DEFINE_BYVAL_RW_PROPERTY(EChunkFormat, ChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TabletIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTabletId, TabletId);

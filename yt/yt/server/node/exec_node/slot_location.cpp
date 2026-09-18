@@ -428,26 +428,25 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
 void TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
-    bool hasRootVolume,
-    bool sandboxInsideTmpfs)
+    bool sandboxInsideNonRootVolume)
 {
     ValidateEnabled();
 
     YT_TLOG_DEBUG("Preparing sandbox directories")
         .With("SlotIndex", slotIndex)
-        .With("SandboxInsideTmpfs", sandboxInsideTmpfs);
+        .With("SandboxInsideNonRootVolume", sandboxInsideNonRootVolume);
 
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !hasRootVolume;
+    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !options.RootVolumeParams;
 
-    if (hasRootVolume && options.EnableDiskQuota && options.DiskSpaceLimit) {
+    if (options.RootVolumeParams && options.EnableDiskQuota && options.RootVolumeParams->Size) {
         auto guard = WriterGuard(SlotsLock_);
         SlotsWithQuota_.insert(slotIndex);
     }
 
-    if (shouldApplyQuota && !sandboxInsideTmpfs) {
+    if (shouldApplyQuota && !sandboxInsideNonRootVolume) {
         try {
             auto properties = TJobDirectoryProperties {
                 .DiskSpaceLimit = options.DiskSpaceLimit,
@@ -511,17 +510,18 @@ TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
                     continue;
                 }
                 auto fullPath = NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().native());
-                YT_LOG_DEBUG("Creating fake non-root volume inside root volume (VolumeMount %v)", fullPath);
+                YT_TLOG_DEBUG("Creating fake non-root volume inside root volume")
+                    .With("VolumeMount", fullPath);
                 NFS::MakeDirRecursive(fullPath);
             }
         } else {
-            YT_LOG_DEBUG("");
             for (const auto& volumeMount : volumeMounts) {
                 if (volumeMount->MountPath.Path().native() == "/") {
                     continue;
                 }
                 auto fullPath = NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().native());
-                YT_LOG_DEBUG("Creating fake non-root volumes inside sandbox volume (VolumeMount %v)", fullPath);
+                YT_TLOG_DEBUG("Creating fake non-root volumes inside sandbox volume")
+                    .With("VolumeMount", fullPath);
                 NFS::MakeDirRecursive(fullPath);
             }
         }
@@ -532,8 +532,7 @@ TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
 
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
-    TUserSandboxOptions options,
-    bool hasRootVolume)
+    TUserSandboxOptions options)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
     auto sandboxInsideTmpfs = IsInsideTmpfs(slotIndex, sandboxPath);
@@ -545,7 +544,6 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
         slotIndex,
         options,
-        hasRootVolume,
         sandboxInsideTmpfs)
         .AsyncVia(invoker)
         .Run();
@@ -1187,7 +1185,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             .With(error)
             .With("job_id", jobId);
     } else {
-        YT_LOG_INFO(error, "Failed to build file in sandbox:");
+        YT_TLOG_INFO("Failed to build file in sandbox")
+            .With(error);
 
         auto wrappedError = TError(NExecNode::EErrorCode::ArtifactCopyingFailed,
             "Failed to build file %Qv in sandbox %Qlv",
@@ -1273,8 +1272,6 @@ void TSlotLocation::Disable(const TError& error)
             "Slot location at %v is disabled",
             Config_->Path)
             .With(error);
-
-        YT_LOG_ERROR(alert);
         Alert_.Store(alert);
 
         YT_UNUSED_FUTURE(DiskResourcesUpdateExecutor_->Stop());
@@ -1284,9 +1281,12 @@ void TSlotLocation::Disable(const TError& error)
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
-        if (dynamicConfig->AbortOnLocationDisabled) {
-            YT_LOG_FATAL(alert);
-        }
+        auto level = dynamicConfig->AbortOnLocationDisabled
+            ? NLogging::ELogLevel::Fatal
+            : NLogging::ELogLevel::Error;
+        YT_TLOG_EVENT(Logger, level, "Slot location is disabled")
+            .With("Path", Config_->Path)
+            .With(error);
 
         YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling, error));
     })
@@ -1306,6 +1306,10 @@ void TSlotLocation::UpdateDiskResources()
     }
 
     YT_TLOG_DEBUG("Updating disk resources");
+
+    auto getEffectiveDiskSpaceLimit = [] (const TUserSandboxOptions& sandboxOptions) {
+        return sandboxOptions.RootVolumeParams ? sandboxOptions.RootVolumeParams->Size : sandboxOptions.DiskSpaceLimit;
+    };
 
     try {
         auto locationStatistics = GetDiskSpaceStatistics(Config_->Path);
@@ -1361,16 +1365,20 @@ void TSlotLocation::UpdateDiskResources()
                     slotDiskUsage = WaitFor(future)
                         .ValueOrThrow();
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to get directories size for slot %v", slotIndex);
+                    YT_TLOG_WARNING("Failed to get directories size for slot")
+                        .With("SlotIndex", slotIndex)
+                        .With(ex);
                     // Skip this attempt, do not disable slot location.
                     return;
                 }
             }
 
+            std::optional<i64> diskSpaceLimit = getEffectiveDiskSpaceLimit(sandboxOptions);
+
             diskStatisticsPerSlot.insert(std::pair(
                 slotIndex,
                 TDiskStatistics{
-                    .Limit = sandboxOptions.DiskSpaceLimit,
+                    .Limit = diskSpaceLimit,
                     .Usage = slotDiskUsage,
                 }));
 
@@ -1380,10 +1388,10 @@ void TSlotLocation::UpdateDiskResources()
                 .With("Path", Config_->Path)
                 .With("SlotIndex", slotIndex)
                 .With("Usage", slotDiskUsage)
-                .With("Limit", sandboxOptions.DiskSpaceLimit)
+                .With("Limit", diskSpaceLimit)
                 .With("PathsInsideTmpfs", pathsInsideTmpfs);
-            if (sandboxOptions.DiskSpaceLimit) {
-                i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
+            if (diskSpaceLimit) {
+                i64 slotDiskLimit = *diskSpaceLimit;
                 diskUsage += slotDiskLimit;
                 reservedAvailableSpace += slotDiskLimit - slotDiskUsage;
                 if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
@@ -1416,7 +1424,8 @@ void TSlotLocation::UpdateDiskResources()
                 auto it = sandboxOptionsPerSlot.find(slotIndex);
                 if (it != sandboxOptionsPerSlot.end()) {
                     const auto& sandboxOptions = it->second;
-                    if (!sandboxOptions.DiskSpaceLimit) {
+                    std::optional<i64> diskSpaceLimit = getEffectiveDiskSpaceLimit(sandboxOptions);
+                    if (!diskSpaceLimit) {
                         reservedDiskSpace = GetOrCrash(diskStatisticsPerSlot, slotIndex).Usage;
                     }
                     // Otherwise reserved disk space is same as disk space limit of slot.
@@ -1443,8 +1452,9 @@ void TSlotLocation::UpdateDiskResources()
             }
         }
     } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Disabling slot location")
+            .With(ex);
         auto error = TError("Failed to get disk info").With(ex);
-        YT_LOG_WARNING(error);
         Disable(error);
     }
 
@@ -1470,9 +1480,11 @@ void TSlotLocation::UpdateSlotLocationStatistics()
             slotLocationStatistics.set_available_space(locationStatistics.AvailableSpace);
             slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to get slot location statistics")
+            static constexpr auto Message = "Failed to get slot location statistics"_sb;
+            YT_TLOG_WARNING(Message)
                 .With(ex);
-            YT_LOG_WARNING(error);
+            auto error = TError(Message)
+                .With(ex);
             Disable(error);
             return;
         }
@@ -1561,11 +1573,14 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(
 
     auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout, preservedVolumePaths));
     if (!removeVolumesResult.IsOK()) {
+        YT_TLOG_ERROR("Disabling slot location")
+            .With("PortoPlace", portoPlacePath)
+            .With("SlotIndex", slotIndex)
+            .With(removeVolumesResult);
         auto error = TError("Failed to remove volumes from porto place")
             .With("porto_place", portoPlacePath)
             .With("slot_index", slotIndex)
             .With(removeVolumesResult);
-        YT_LOG_ERROR(error);
         // It would be nice to disable just this particular slot index, not the whole slot.
         Disable(error);
         THROW_ERROR error;
@@ -1601,11 +1616,15 @@ void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManag
 
     auto removeLayersResult = WaitFor(volumeManager->RemoveLayers(portoPlacePath, timeout));
     if (!removeLayersResult.IsOK()) {
-        auto error = TError("Failed to remove layers from porto place")
+        static constexpr auto Message = "Failed to remove layers from porto place"_sb;
+        YT_TLOG_ERROR(Message)
+            .With("PortoPlace", portoPlacePath)
+            .With("SlotIndex", slotIndex)
+            .With(removeLayersResult);
+        auto error = TError(Message)
             .With("porto_place", portoPlacePath)
             .With("slot_index", slotIndex)
             .With(removeLayersResult);
-        YT_LOG_ERROR(error);
         // It would be nice to disable just this particular slot index, not the whole slot.
         Disable(error);
         THROW_ERROR error;

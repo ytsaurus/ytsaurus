@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE, with_portals_dir
 
 from yt_sequoia_helpers import (
     not_implemented_for_mirrored_tx)
@@ -20,24 +20,7 @@ from flaky import flaky
 
 import builtins
 from datetime import datetime, timedelta
-import decorator
 from time import sleep
-
-
-##################################################################
-
-
-def with_portals_dir(func):
-    def wrapper(func, self, *args, **kwargs):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals")
-        try:
-            return func(self, *args, **kwargs)
-        finally:
-            if not self.ENABLE_TMP_PORTAL:
-                remove("//portals", recursive=True)
-
-    return decorator.decorate(func, wrapper)
 
 
 ##################################################################
@@ -703,6 +686,20 @@ class TestMasterTransactions(YTEnvSetup):
         # Should not crash or alert.
         sleep(3.0)
 
+    @authors("ivpiskarev")
+    def test_transaction_owner_change(self):
+        create_user("u")
+        create_user("v")
+        create_group("g")
+
+        tx = start_transaction()
+        set(f"#{tx}/@owner", "u", authenticated_user="u")
+        set(f"#{tx}/@owner", "v", authenticated_user="v")
+        set(f"#{tx}/@owner", "u", authenticated_user="root")
+        with raises_yt_error("Transaction owner must be a user"):
+            set(f"#{tx}/@owner", "g", authenticated_user="root")
+        commit_transaction(tx)
+
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
@@ -866,6 +863,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     @pytest.mark.parametrize("replication_mode", ["r", "w", "rs", "ws"])
+    @with_portals_dir
     def test_lazy_tx_replication(self, replication_mode):
         tx = start_transaction()
         assert get("#" + tx + "/@replicated_to_cell_tags") == []
@@ -874,6 +872,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         assert get("#" + tx + "/@replicated_to_cell_tags") == [13]
 
     @authors("shakurov")
+    @with_portals_dir
     def test_parent_tx_replication(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
@@ -887,6 +886,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     @pytest.mark.parametrize("replication_mode", ["r", "w"])
+    @with_portals_dir
     def test_tx_and_multiple_prerequisite_replication(self, replication_mode):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -956,6 +956,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         assert get("#" + tx + "/@replicated_to_cell_tags") == [10]
 
     @authors("shakurov")
+    @with_portals_dir
     def test_boomerang_mutation_portal_forwarding(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 13})
 
@@ -981,6 +982,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         assert exists("//tmp/qqq")
 
     @authors("h0pless")
+    @with_portals_dir
     def test_foreign_transaction_map(self):
         with pytest.raises(YtError, match="Error parsing GUID"):
             get("//sys/foreign_transactions/1---4")

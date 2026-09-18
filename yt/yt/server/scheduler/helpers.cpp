@@ -258,12 +258,14 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"exec_agent/artifacts/files_cached_size", "Total bytes of files served from cache (from memory or disk)", "bytes"},
         {"exec_agent/artifacts/files_downloaded_size", "Total bytes of files downloaded from data nodes", "bytes"},
         {"exec_agent/artifacts/files_copied_size", "Total bytes of files copied from cache to sandbox", "bytes"},
-        {"exec_agent/artifacts/files_downloaded_total_duration", "Sum of per-file download durations", "ms"},
-        {"exec_agent/artifacts/files_copied_total_duration", "Sum of per-file copy durations", "ms"},
+        {"exec_agent/artifacts/files_downloaded_duration", "Wall time of caching file artifacts (excludes cache-bypassed and virtual-sandbox files)", "ms"},
+        {"exec_agent/artifacts/files_downloaded_aggr_duration", "Sum of per-file download durations", "ms"},
+        {"exec_agent/artifacts/files_copied_aggr_duration", "Sum of per-file copy durations", "ms"},
         {"exec_agent/artifacts/layers_cached_size", "Total bytes of layers served from cache", "bytes"},
         {"exec_agent/artifacts/layers_downloaded_size", "Total bytes of layers downloaded from data nodes", "bytes"},
-        {"exec_agent/artifacts/layers_downloaded_total_duration", "Sum of per-layer download durations", "ms"},
-        {"exec_agent/artifacts/layers_import_total_duration", "Sum of per-layer import durations into porto", "ms"},
+        {"exec_agent/artifacts/layers_imported_size", "Total bytes of layers imported into porto", "bytes"},
+        {"exec_agent/artifacts/layers_downloaded_aggr_duration", "Sum of per-layer download durations", "ms"},
+        {"exec_agent/artifacts/layers_imported_aggr_duration", "Sum of per-layer Porto import durations", "ms"},
 
         // Job Memory.
         {"job/memory/major_page_faults", "Major page faults by the job", "pieces"},
@@ -504,43 +506,6 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
         }
     }
     return timeIntervals;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonMapFragmentBatcher::TYsonMapFragmentBatcher(
-    std::vector<NYson::TYsonString>* batchOutput,
-    int maxBatchSize,
-    EYsonFormat format)
-    : BatchOutput_(batchOutput)
-    , MaxBatchSize_(maxBatchSize)
-    , BatchWriter_(CreateYsonWriter(&BatchStream_, format, EYsonType::MapFragment, /*enableRaw*/ false))
-{ }
-
-void TYsonMapFragmentBatcher::Flush()
-{
-    BatchWriter_->Flush();
-
-    if (BatchStream_.Empty()) {
-        return;
-    }
-
-    BatchOutput_->push_back(TYsonString(BatchStream_.Str(), EYsonType::MapFragment));
-    BatchSize_ = 0;
-    BatchStream_.Clear();
-}
-
-void TYsonMapFragmentBatcher::OnMyKeyedItem(TStringBuf key)
-{
-    BatchWriter_->OnKeyedItem(key);
-    Forward(
-        BatchWriter_.get(),
-        /*onFinished*/ [&] {
-            ++BatchSize_;
-            if (BatchSize_ == MaxBatchSize_) {
-                Flush();
-            }
-        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

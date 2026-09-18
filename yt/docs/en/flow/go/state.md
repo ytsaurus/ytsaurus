@@ -33,7 +33,7 @@ state.Value().Count++
 return nil
 ```
 
-`flow.YSONState[T]` provides `Empty()`, `Value() *T`, and `Clear()`. `Value()` returns a mutable value and creates a zero value for a missing state. A separate `Set` isn’t needed: after the batch is processed successfully, the SDK serializes the changes automatically; if the handler fails, they are discarded.
+`flow.YSONState[T]` provides `Empty()`, `Get() (*T, bool)`, `Value() *T`, `Clear()`, and `ReadOnly()`. `Value()` returns a mutable value and creates a zero value for a missing state. A separate `Set` isn’t needed: after the batch is processed successfully, the SDK serializes the changes automatically; if the handler fails, they are discarded.
 
 {% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_state]-[END word_count_state]' %}
 
@@ -56,7 +56,7 @@ Returns `flow.RawStateAccessor` with the methods:
 - `Set(data []byte) error` — save the value.
 - `Clear() error` — delete the state.
 
-The YSON and Proto accessors are wrappers over the raw one: `RawStateAccessor` itself is needed when the computation performs the serialization on its own.
+The YSON and Proto states are wrappers over the raw accessor: `RawStateAccessor` itself is needed when the computation performs the serialization on its own.
 
 ## Proto State {#proto-state}
 
@@ -66,14 +66,18 @@ To store the state as a Protobuf message:
 state, err := flow.OpenProtoState[TJoinState](rt, "join-state", msg)
 ```
 
-The state type is named by its value form (`TJoinState`), and the accessor works with a pointer to it (`*TJoinState`) — it is on the pointer that the generated code implements `proto.Message`.
+The state type is named by its value form (`TJoinState`), and the state works with a pointer to it (`*TJoinState`) — it is on the pointer that the generated code implements `proto.Message`.
 
-Returns `flow.ProtoStateAccessor[T, PT]` with the methods:
+Returns `*flow.ProtoState[T, PT]` with the methods:
 
-- `Get() (PT, bool, error)` — deserialize and return the message.
-- `Or(fallback PT) (PT, error)` — return the saved message or `fallback`.
-- `Set(value PT) error` — serialize and save.
-- `Clear() error` — delete the state.
+- `Empty() bool` — check whether the value is missing.
+- `Get() (PT, bool)` — return the mutable message.
+- `Or(fallback PT) PT` — return the saved message, or write and return `fallback`.
+- `Set(value PT) error` — replace the whole value.
+- `Clear()` — delete the state.
+- `ReadOnly() flow.ReadOnlyProtoState[T, PT]` — a read-only view.
+
+The message is changed in place: the changes are written at the end of the batch without a `Set`, see [Changing the value in place](internal-state.md#in-place).
 
 ```go
 state, err := flow.OpenProtoState[TJoinState](rt, "join-state", msg)
@@ -81,13 +85,10 @@ if err != nil {
     return err
 }
 
-window, err := state.Or(&TJoinState{})
-if err != nil {
-    return err
-}
+window := state.Or(&TJoinState{})
 window.HitPayload = payload
 
-return state.Set(window)
+return nil
 ```
 
 ## External State {#external-state}

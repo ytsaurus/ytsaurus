@@ -55,6 +55,20 @@ TEST(TEmaTest, WarmAfterFullWindow)
     EXPECT_TRUE(ema.Average().has_value());
 }
 
+TEST(TEmaTest, LastValueIsAvailableBeforeWarmUp)
+{
+    auto t0 = TInstant::Zero();
+    TEma<double> ema(TDuration::Seconds(10));
+    EXPECT_FALSE(ema.Last().has_value());
+
+    ema.Set(42.0, t0);
+    EXPECT_EQ(ema.Last(), 42.0);
+    EXPECT_FALSE(ema.Average().has_value());
+
+    ema.Set(7.0, t0 + TDuration::Seconds(1));
+    EXPECT_EQ(ema.Last(), 7.0);
+}
+
 TEST(TEmaTest, SingleSetValue)
 {
     // After a single Set() followed by a warm-up advance, the EMA equals the

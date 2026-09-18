@@ -580,20 +580,22 @@ public:
 
     //! Diagnostics.
     void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
-    void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const override;
-    void BuildSchedulingAttributesStringForOngoingAllocations(
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        NNodeTrackerClient::TNodeId nodeId,
+        NYTree::TFluentMap fluent) const override;
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+        TInstant now) const override;
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+        const TPoolTreeElement* element) const override;
 
     void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const override;
 

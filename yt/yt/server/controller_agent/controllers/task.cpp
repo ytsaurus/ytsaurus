@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -323,10 +323,7 @@ void TTask::AddInput(TChunkStripePtr stripe)
         // in InputChunkToReadBounds_) as pools have no use for them.
         // For sorted chunk pool behavior is trickier as task adjusts the input read limits
         // to match comparator of sorted chunk pool.
-        YT_VERIFY(!dataSlice->IsLegacy);
         AdjustInputKeyBounds(dataSlice);
-        // Data slice may be either legacy or not depending on whether task uses
-        // legacy sorted chunk pool or not.
     }
 
     if (TaskHost_->GetSpec()->UseClusterThrottlers) {
@@ -354,10 +351,8 @@ void TTask::AddInput(TChunkStripePtr stripe)
     UpdateTask();
 }
 
-void TTask::AdjustInputKeyBounds(const TLegacyDataSlicePtr& dataSlice)
+void TTask::AdjustInputKeyBounds(const TDataSlicePtr& dataSlice)
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
         (dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal()))
     {
@@ -372,10 +367,8 @@ void TTask::AdjustInputKeyBounds(const TLegacyDataSlicePtr& dataSlice)
     AdjustDataSliceForPool(dataSlice);
 }
 
-void TTask::AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const
+void TTask::AdjustDataSliceForPool(const TDataSlicePtr& dataSlice) const
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     dataSlice->LowerLimit().KeyBound = TKeyBound();
     dataSlice->UpperLimit().KeyBound = TKeyBound();
 
@@ -385,9 +378,8 @@ void TTask::AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const
     }
 }
 
-void TTask::AdjustOutputKeyBounds(const TLegacyDataSlicePtr& dataSlice) const
+void TTask::AdjustOutputKeyBounds(const TDataSlicePtr& dataSlice) const
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
     if (dataSlice->ReadRangeIndex) {
         YT_VERIFY(IsInput_);
         const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
@@ -1417,7 +1409,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded) ||
             error.FindMatching(NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded))
         {
-            YT_LOG_ERROR(error);
+            YT_TLOG_ERROR("Job completion failed due to a chunk pool limit")
+                .With(error);
 
             result.OperationFailedError = error;
             return result;
@@ -1576,6 +1569,11 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
     }
 }
 
+bool TTask::IsJobOutputNeeded(const TCompletedJobPtr& /*completedJob*/) const
+{
+    return true;
+}
+
 void TTask::OnStripeRegistrationFailed(
     TError error,
     IChunkPoolInput::TCookie /*cookie*/,
@@ -1701,7 +1699,8 @@ void TTask::AddSequentialInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            comparator);
+            comparator,
+            jobSpecExt);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -1730,7 +1729,8 @@ void TTask::AddParallelInputSpec(
             IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            comparator);
+            comparator,
+            jobSpecExt);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -1739,16 +1739,17 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    TComparator comparator)
+    TComparator comparator,
+    TJobSpecExt* jobSpecExt)
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    stripe = GetChunkMapping()->GetMappedStripe(stripe);
+    auto mappedStripe = GetChunkMapping()->GetMappedStripe(stripe);
+    stripe = std::move(mappedStripe.Stripe);
+    jobSpecExt->set_is_approximate(jobSpecExt->is_approximate() || mappedStripe.IsRegenerated);
 
     for (const auto& dataSlice : stripe->DataSlices()) {
-        YT_VERIFY(!dataSlice->IsLegacy);
         AdjustOutputKeyBounds(dataSlice);
-        YT_VERIFY(!dataSlice->IsLegacy);
 
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         inputSpec->add_virtual_row_index_per_data_slice(dataSlice->VirtualRowIndex.value_or(-1));
@@ -2100,7 +2101,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto jobSpec = ObjectPool<TJobSpec>().Allocate();
+    auto jobSpec = ObjectPool<TJobSpec>().AllocateUnique();
 
     BuildJobSpec(joblet, jobSpec.get());
 
@@ -2126,10 +2127,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
         }
     }
 
-    jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
+    jobSpecExt->set_is_approximate(jobSpecExt->is_approximate() || joblet->InputStripeList->IsApproximate());
 
     // Adjust sizes if approximation flag is set.
-    if (joblet->InputStripeList->IsApproximate()) {
+    if (jobSpecExt->is_approximate()) {
         jobSpecExt->set_input_data_weight(static_cast<i64>(
             jobSpecExt->input_data_weight() *
             ApproximateSizesBoostFactor));
@@ -2330,10 +2331,12 @@ void TTask::RegisterStripe(
                     .With("JobType", joblet->JobType)
                     .With("InputCookie", inputCookie);
             } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Handling stripe registration failure")
+                    .With("InputCookie", inputCookie)
+                    .With(ex);
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     .With(ex)
                     .With("input_cookie", inputCookie);
-                YT_LOG_ERROR(error);
                 OnStripeRegistrationFailed(error, lostIt->second, stripe, streamDescriptor);
             }
 
@@ -2422,11 +2425,9 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         // merge phase over several intermediate chunks.
         inputChunk->SetTableRowIndex(currentTableRowIndex);
         currentTableRowIndex += inputChunk->GetRowCount();
-        auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
+        auto chunkSlice = CreateKeylessInputChunkSlice(std::move(inputChunk));
         chunkSlice->SetSliceIndex(index);
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
-        // TODO(max42): revisit this.
-        dataSlice->TransformToNewKeyless();
         // NB(max42): This heavily relies on the property of intermediate data being deterministic
         // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
         // the same boundary keys when the job output is lost).

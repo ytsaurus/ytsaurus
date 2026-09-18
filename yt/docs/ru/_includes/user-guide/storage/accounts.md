@@ -60,7 +60,7 @@ yt set //sys/account_tree/my_account/@allow_children_limit_overcommit %true
 
 Иерархия аккаунтов представлена на странице **Accounts** (а также в разделе **Dashboard**). Благодаря глобальной уникальности имен, редактируя путь к аккаунту, достаточно указать лишь его имя.
 
-![](../../../../images/account_tree_view.png){ .center }
+![](../../../../_images/account_tree_view.png){ .center }
 
 {% endcut %}
 
@@ -104,7 +104,7 @@ my_subaccount2
 1. На странице **Accounts** нажать **Create account**.
 2. Указать {% if audience == "internal" %}ABC-сервис, {% endif %}название нового аккаунта, имя родительского аккаунта, в который будет вложен создаваемый аккаунт, а также ответственных за новый аккаунт пользователей. При необходимости можно также запросить автоматическое создание домашней директории, соответствующей аккаунту.
 
-![](../../../../images/account_tree_create.png){ .center }
+![](../../../../_images/account_tree_create.png){ .center }
 
 {% endcut %}
 
@@ -209,7 +209,7 @@ yt move //sys/account_tree/my_account/my_subaccount3 //sys/account_tree/my_accou
 3. Указать аккаунт, чьи ресурсы будут перераспределены (по умолчанию предлагается аккаунт-родитель), и новый лимит.
 4. Нажать **Save**.
 
-![](../../../../images/account_tree_transfer_resources.png){ .center }
+![](../../../../_images/account_tree_transfer_resources.png){ .center }
 
 {% endcut %}
 

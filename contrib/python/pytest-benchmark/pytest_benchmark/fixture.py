@@ -11,6 +11,7 @@ import time
 import traceback
 import typing
 from math import ceil
+from math import sqrt
 from pathlib import Path
 
 from .timers import compute_timer_precision
@@ -19,7 +20,7 @@ from .utils import format_time
 from .utils import slugify
 
 statistics: typing.Any
-statistics_error: typing.Optional[str] = None
+statistics_error: str | None = None
 try:
     import statistics
 except (ImportError, SyntaxError):
@@ -69,6 +70,8 @@ class BenchmarkFixture:
         min_rounds,
         min_time,
         max_time,
+        precision,
+        confidence,
         warmup,
         warmup_iterations,
         calibration_precision,
@@ -100,6 +103,12 @@ class BenchmarkFixture:
         self._min_rounds = min_rounds
         self._max_time = float(max_time)
         self._min_time = float(min_time)
+        if precision and confidence:
+            self._confidence = float(confidence)
+            self._precision = float(precision)
+        else:
+            self._confidence = None
+            self._precision = None
         self._add_stats = add_stats
         self._calibration_precision = calibration_precision
         self._warmup = warmup and warmup_iterations
@@ -159,6 +168,8 @@ class BenchmarkFixture:
                 'min_rounds': self._min_rounds,
                 'max_time': self._max_time,
                 'min_time': self._min_time,
+                'precision': self._precision,
+                'confidence': self._confidence,
                 'warmup': self._warmup,
             },
         )
@@ -231,8 +242,11 @@ class BenchmarkFixture:
                     for _ in range(warmup_rounds):
                         runner(loops_range)
             with PauseInstrumentation():
-                for _ in range(rounds):
-                    stats.update(runner(loops_range))
+                if self._precision is None:
+                    for _ in range(rounds):
+                        stats.update(runner(loops_range))
+                else:
+                    self._run_until_precise(runner, loops_range, stats, rounds)
             self._logger.debug(f'  Ran for {format_time(time.time() - run_start)}s.', yellow=True, bold=True)
         if self.cprofile_loops is None:
             cprofile_loops = loops_range or range(1)
@@ -247,6 +261,34 @@ class BenchmarkFixture:
         else:
             function_result = function_to_benchmark(*args, **kwargs)
         return function_result
+
+    def _run_until_precise(self, runner, loops_range, stats, max_rounds):
+        # Two-sided normal quantile (good enough for us).
+        z = statistics.NormalDist().inv_cdf(0.5 + self._confidence / 2)
+        precision = self._precision
+
+        # Welford's online variance algorithm,
+        # see https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+        mean = 0.0
+        m2 = 0.0
+
+        for n in range(1, max_rounds + 1):
+            duration = runner(loops_range)
+            stats.update(duration)
+
+            delta = duration - mean
+            mean += delta / n
+            m2 += delta * (duration - mean)
+
+            if n >= self._min_rounds and n >= 2 and mean > 0:
+                stddev = sqrt(m2 / (n - 1))
+                rel_margin = z * stddev / sqrt(n) / mean
+                if rel_margin <= precision:
+                    self._logger.debug(
+                        f'  Reached precision ±{rel_margin:.2%} (target ±{precision:.2%}) after {n} rounds.',
+                        yellow=True,
+                    )
+                    return
 
     def _raw_pedantic(self, target, args=(), kwargs=None, setup=None, teardown=None, rounds=1, warmup_rounds=0, iterations=1):
         if kwargs is None:
@@ -387,7 +429,7 @@ class BenchmarkFixture:
                 loops = ceil(min_time * loops / duration)
                 self._logger.debug(f'    Estimating {loops} iterations.', green=True)
                 if loops == 1:
-                    # If we got a single loop then bail early - nothing to calibrate if the the
+                    # If we got a single loop then bail early - nothing to calibrate if the
                     # test function is 100 times slower than the timer resolution.
                     loops_range = range(loops)
                     break

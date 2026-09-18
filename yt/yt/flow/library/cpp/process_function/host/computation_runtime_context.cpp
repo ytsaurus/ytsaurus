@@ -39,10 +39,14 @@ void TComputationRuntimeContext::RefreshEpochState(
     std::optional<TUniqueSeqNo> epochUniqueSeqNo)
 {
     WatermarkState_ = std::move(watermarkState);
-    if (dynamicParametersNode) {
-        DynamicParametersNode_ = std::move(dynamicParametersNode);
-    } else {
-        DynamicParametersNode_ = EmptyDynamicParametersNode_;
+    const auto& node = dynamicParametersNode ? dynamicParametersNode : EmptyDynamicParametersNode_;
+    if (DynamicParametersNode_ != node) {
+        DynamicParametersNode_ = node;
+        // A spec without a processing function occurs only under the test builder; there is no
+        // registered type to parse into, so the typed accessor falls back to defaults.
+        DynamicParameters_ = Spec_->ProcessingFunction
+            ? TRegistry::Get()->ParseDynamicProcessFunctionParameters(Spec_, DynamicParametersNode_)
+            : nullptr;
     }
     EpochUniqueSeqNo_ = epochUniqueSeqNo;
 }
@@ -157,6 +161,11 @@ IThroughputThrottlerPtr TComputationRuntimeContext::TryGetThrottler(const TThrot
 IMapNodePtr TComputationRuntimeContext::GetDynamicParametersNode() const
 {
     return DynamicParametersNode_ ? DynamicParametersNode_ : EmptyDynamicParametersNode_;
+}
+
+TYsonStructPtr TComputationRuntimeContext::GetDynamicParametersObject() const
+{
+    return DynamicParameters_;
 }
 
 TStreamId TComputationRuntimeContext::GuessStreamId(std::optional<TStreamId> streamId) const

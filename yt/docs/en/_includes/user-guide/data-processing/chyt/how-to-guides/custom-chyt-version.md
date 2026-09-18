@@ -51,7 +51,7 @@ The update behaviour depends on the option you choose. There are three approache
 1. In the list of available versions, select the required CHYT version or symlink.
 1. Copy the version name (for example, `ytserver-clickhouse-2.17`).
 1. Open the clique interface as described in the section [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} **Edit speclet** in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block, or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} **Edit speclet** in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block, or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
 1. On the left, select the **Advanced** section.
 1. In the *Chyt version* field, paste the copied version name (for example, `ytserver-clickhouse-2.17`).
 

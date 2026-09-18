@@ -27,14 +27,6 @@ IResourcePtr TComputationControllerContextBase::GetStaticResource(const TResourc
     return resource;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TComputationControllerContext::TComputationControllerContext(TComputationControllerCommonContextPtr commonContext)
-    : CommonContext(std::move(commonContext))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void IComputationController::TParametersBase::Register(TRegistrar /*registrar*/)
 { }
 

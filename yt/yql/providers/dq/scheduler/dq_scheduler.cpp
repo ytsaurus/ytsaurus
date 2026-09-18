@@ -59,9 +59,6 @@ private:
         ui64 Allocated = 0ULL;
         ui64 AwaitOperations = 0LL;
         std::queue<std::pair<TInstant, ui32>> History;
-        struct {
-            NMonitoring::TDynamicCounters::TCounterPtr Await, AwaitOperations, Allocated;
-        } Counters;
     };
 
     using THistoryMap = std::unordered_map<TString, TUserInfo>;
@@ -75,15 +72,7 @@ private:
     };
 
      bool Suspend(TWaitInfo&& info) final {
-        const auto ins = AllocationsHistory.emplace(info.Request.GetUser(), TUserInfo());
-        auto& userInfo = *ins.first;
-
-        if (ins.second && Counters) {
-            const auto group = Counters->Group->GetSubgroup("user", info.Request.GetUser());
-            userInfo.second.Counters.Await = group->GetCounter("Await");
-            userInfo.second.Counters.AwaitOperations = group->GetCounter("AwaitOperations");
-            userInfo.second.Counters.Allocated = group->GetCounter("Allocated");
-        }
+        auto& userInfo = *AllocationsHistory.emplace(info.Request.GetUser(), TUserInfo()).first;
 
         if (info.Request.GetCount() > 1U) {
             if (userInfo.second.AwaitOperations >= MaxOperationsPerUser) {
@@ -107,31 +96,16 @@ private:
         std::transform(LargeWaitList.cbegin(), LargeWaitList.cend(), std::back_inserter(senders), [](const TWaitInfo& info) { return info.Sender; });
         SmallWaitList.clear();
         LargeWaitList.clear();
-
-        if (Counters) {
-            for (auto it = AllocationsHistory.cbegin(); AllocationsHistory.cend() != it; ++it) {
-                *it->second.Counters.Await = 0;
-                *it->second.Counters.AwaitOperations = 0;
-                *it->second.Counters.Allocated = 0;
-            }
-        }
-
         AllocationsHistory.clear();
+        AllocatedTotal = 0;
         return senders;
     }
 
     size_t UpdateMetrics() final {
         if (Counters) {
-            auto allocated = 0ULL;
-            for (auto it = AllocationsHistory.cbegin(); AllocationsHistory.cend() != it; ++it) {
-                *it->second.Counters.Await = it->second.Await;
-                *it->second.Counters.AwaitOperations = it->second.AwaitOperations;
-                *it->second.Counters.Allocated = it->second.Allocated;
-                allocated += it->second.Allocated;
-            }
-
+            // TODO(lucius): Restore per-user metrics if Unified Agent starts accepting them.
             *Counters->KnownUsers = AllocationsHistory.size();
-            *Counters->AllocatedTotal = allocated;
+            *Counters->AllocatedTotal = AllocatedTotal;
             *Counters->QueueSizeForSmall = SmallWaitList.size();
             *Counters->QueueSizeForLarge = LargeWaitList.size();
             *Counters->IntegralQueueSizeForLarge = std::accumulate(LargeWaitList.cbegin(), LargeWaitList.cend(), 0ULL,
@@ -145,8 +119,11 @@ private:
     void Process(size_t total, size_t count, const TProcessor& processor, const TInstant& now) final {
         const auto from = now - HistoryKeepingTime;
         for (auto& info : AllocationsHistory) {
-            for (auto& history = info.second.History; !history.empty() && history.front().first <= from; history.pop())
-                info.second.Allocated -= history.front().second;
+            for (auto& history = info.second.History; !history.empty() && history.front().first <= from; history.pop()) {
+                const auto expired = history.front().second;
+                info.second.Allocated -= expired;
+                AllocatedTotal -= expired;
+            }
         };
 
         const auto sort = [](const TFullWaitInfo& lhs, const TFullWaitInfo& rhs) {
@@ -173,6 +150,7 @@ private:
                     info.UserInfo->second.Await -= count;
                     info.UserInfo->second.AwaitOperations -= 1;
                     info.UserInfo->second.Allocated += count;
+                    AllocatedTotal += count;
                     info.UserInfo->second.History.emplace(now, count);
                     quota -= count;
                     return true;
@@ -227,6 +205,7 @@ private:
 
     THistoryMap AllocationsHistory;
     std::list<TFullWaitInfo> SmallWaitList, LargeWaitList;
+    i64 AllocatedTotal = 0;
 
     bool EnableLimiter;
     ui32 LimiterNumerator;

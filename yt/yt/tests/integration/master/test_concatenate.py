@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, create, get, set, remove, concatenate, start_transaction, abort_transaction,
@@ -914,6 +914,7 @@ class TestConcatenatePortal(TestConcatenateMulticell):
     }
 
     @authors("shakurov")
+    @with_portals_dir
     def test_concatenate_between_primary_and_secondary_shards(self):
         create("table", "//tmp/src1", attributes={"external": False})
         write_table("//tmp/src1", [{"a": "b"}])
@@ -930,6 +931,7 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         assert read_table("//portals/p/dst") == [{"a": "b"}, {"c": "d"}]
 
     @authors("shakurov")
+    @with_portals_dir
     def test_concatenate_between_secondary_shards(self):
         create("table", "//tmp/src1", attributes={"external_cell_tag": 11})
         write_table("//tmp/src1", [{"a": "b"}])

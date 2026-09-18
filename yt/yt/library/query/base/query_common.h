@@ -126,6 +126,10 @@ bool IsStringBinaryOp(EBinaryOp opcode);
 //! Cast values.
 TOwningValue CastValueWithCheck(TValue value, EValueType targetType);
 
+//! Throws if non-null operands have different or non-integral types.
+//! Returns a value with default Id and Flags, independent of operand metadata.
+TValue EvaluateModulo(TValue lhs, TValue rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Use opaque data descriptor instead of ObjectId, CellId and MountRevision.
@@ -236,7 +240,9 @@ struct TJoinSubqueryOptionsPatch
     std::optional<int> MaxSubqueries;
 };
 
-TQueryOptions ApplyPatch(const TQueryOptions& base, const TJoinSubqueryOptionsPatch& patch);
+TQueryOptions ApplyJoinSubqueryOptionsPatch(
+    const TQueryOptions& base,
+    const TJoinSubqueryOptionsPatch& patch);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,6 +292,7 @@ struct TPreparePlanFragmentOptions
     int HyperLogLogPrecision = 14;
     bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
     bool AllowReverseScanForOrderBy = false;
+    std::optional<int> MaxProjectionCount;
 };
 
 struct TPreparePlanFragmentContext

@@ -997,13 +997,13 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
+    std::vector<NChunkClient::TDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
-    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
+    std::vector<NChunkClient::TDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
-    std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
+    std::vector<std::deque<NChunkClient::TDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
     virtual void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* jobSpec,

@@ -15,6 +15,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#include <functional>
 #include <list>
 #include <map>
 
@@ -75,6 +76,8 @@ struct TOrderedSourcePartitionState
     void EnsureInvariants() const;
 
     void SyncObsoleteOffsets();
+
+    void NormalizeOffsets(const std::function<TOffset(const TOffset&)>& normalizeOffset);
 
     REGISTER_YSON_STRUCT(TOrderedSourcePartitionState);
 
@@ -156,6 +159,7 @@ protected:
 
         std::vector<TPayload> Payloads;
         NTableClient::TTableSchemaPtr PayloadSchema;
+        std::optional<TOffset> OffsetMemoryKey;
     };
 
     struct TPartitionInfoUpdate
@@ -163,11 +167,15 @@ protected:
         std::optional<TOffset> CommittedOffsetExclusive = {};
         std::optional<TOffset> MaxOffsetExclusive = {};
         std::optional<TInstant> UpdateInstant = {};
+        //! The committed offset is an external position the connector chose to honor (a consumer
+        //! offset), so reading past unread data is a deliberate skip, not evidence of trimming.
+        bool Repositioned = false;
     };
 
     // To implement.
 
     virtual TOffset GetNextOffset(const TOffset& offset) const = 0;
+    virtual TOffset NormalizeOffset(const TOffset& offset) const;
     virtual std::string ConvertOffsetToLexicographicallyComparableString(const TOffset& offset) const = 0;
     virtual bool AreOffsetsConsecutive() const = 0;
     virtual bool CanCommittedOffsetExceedNextReadOffset() const = 0;
@@ -202,7 +210,7 @@ protected:
 
     double GetSourceTotalCount() const;
     double GetSourceTotalBytes() const;
-    double GetOfferedCount() const;
+    std::optional<TSystemTimestamp> GetLastPersistedWriteTimestamp() const;
 
 public:
     enum class EMessageState
@@ -251,10 +259,9 @@ private:
 
     TOffsetInfos InflightOffsets_;
 
+    bool SourceMaxOffsetObserved_ = false;
     TSimpleEmaCounter SourceTotalCount_;
     TSimpleEmaCounter SourceTotalBytes_;
-    TSimpleEmaCounter OfferedCount_;
-    TSimpleEmaCounter OfferedBytes_;
     TSimpleEmaCounter PersistedCount_;
     TSimpleEmaCounter PersistedBytes_;
     const NProfiling::TProfiler Profiler_;
@@ -270,7 +277,8 @@ private:
     void FlushDelayedPartitionInfoUpdates();
     void TryCollapseOffsetInfo(TOffsetInfos::iterator offsetInfoIt);
     void CleanUpInflightOffsets();
-    void MarkMissingMessagesPersisted();
+    //! |trimmed| is false for a deliberate skip, which is not worth the trimming error.
+    void MarkMissingMessagesPersisted(bool trimmed = true);
     void UpdateUnavailability();
     void UpdateStatusProfilerMute();
 };

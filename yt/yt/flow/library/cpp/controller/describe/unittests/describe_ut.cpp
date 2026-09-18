@@ -219,6 +219,7 @@ public:
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+        context->VersionProvider = TestVersionProvider();
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
         FlowView->CurrentSpec->TrySetValue(Spec, TestVersionProvider());
@@ -394,7 +395,7 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
 
         EXPECT_TRUE(*computationDescription.Metrics == *expected.Metrics);
         EXPECT_DOUBLE_EQ(computationDescription.CpuUsage, *expected.Metrics->CpuUsage10m);
-        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expected.Metrics->MemoryUsage10m);
+        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expected.Metrics->MemoryUsage10m.value_or(0));
 
         EXPECT_EQ(computationDescription.HighlightCpuUsage, expected.Highlighted);
         EXPECT_EQ(computationDescription.HighlightMemoryUsage, expected.Highlighted);
@@ -502,19 +503,49 @@ TEST_W(TDescribeTest, WarnsOnPartitionStuckWithoutJob)
         return GetOrCrash(computations, TComputationId("Computation_1"));
     };
 
-    // A partition that has just lost its job is mid-rebalance, not stuck.
-    FlowView->Feedback->UpdateTime = TInstant::Now();
-    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = FlowView->Feedback->UpdateTime;
-    EXPECT_EQ(describe().Status, ELogLevel::Info);
+    for (auto pipelineState : {EPipelineState::Working, EPipelineState::Draining}) {
+        FlowView->State->StartMutation();
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(pipelineState, TestVersionProvider());
+        FlowView->State->CommitMutation();
 
-    // Minutes later it is, and the computation must stop reporting itself as healthy.
-    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime =
-        FlowView->Feedback->UpdateTime - TDuration::Minutes(5);
-    auto description = describe();
-    EXPECT_EQ(description.Status, ELogLevel::Warning)
-        << ConvertToYsonString(description, EYsonFormat::Text).ToString();
-    EXPECT_TRUE(MessagesContain(description.Messages, "have had no job"))
-        << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+        // A partition that has just lost its job is mid-rebalance, not stuck.
+        FlowView->Feedback->UpdateTime = TInstant::Now();
+        FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = FlowView->Feedback->UpdateTime;
+        EXPECT_EQ(describe().Status, ELogLevel::Info);
+
+        // Minutes later it is, and the computation must stop reporting itself as healthy.
+        FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime =
+            FlowView->Feedback->UpdateTime - TDuration::Minutes(5);
+        auto description = describe();
+        EXPECT_EQ(description.Status, ELogLevel::Warning)
+            << ConvertToYsonString(description, EYsonFormat::Text).ToString();
+        EXPECT_TRUE(MessagesContain(description.Messages, "have had no job"))
+            << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+    }
+}
+
+TEST_W(TDescribeTest, DoesNotWarnOnPartitionsWithoutJobsWhenPipelineIsInactive)
+{
+    Prepare();
+
+    auto strandedPartitionId = StripJobOfSomePartition(FlowView, TComputationId("Computation_1"));
+    ASSERT_TRUE(strandedPartitionId.has_value());
+
+    FlowView->Feedback->UpdateTime = TInstant::Now();
+    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = TInstant::Zero();
+
+    for (auto pipelineState : {EPipelineState::Paused, EPipelineState::Stopped}) {
+        FlowView->State->StartMutation();
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(pipelineState, TestVersionProvider());
+        FlowView->State->CommitMutation();
+
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        const auto& description = GetOrCrash(computations, TComputationId("Computation_1"));
+        EXPECT_EQ(description.Status, ELogLevel::Info)
+            << ConvertToYsonString(description, EYsonFormat::Text).ToString();
+        EXPECT_FALSE(MessagesContain(description.Messages, "have had no job"))
+            << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+    }
 }
 
 TEST_W(TDescribeTest, RegisterStreams)
@@ -725,9 +756,21 @@ TEST_W(TDescribeTest, DescribePipeline)
 
     // Add authenticator.
     auto mockAuthenticator = New<StrictMock<TMockPipelineAuthenticator>>();
-    EXPECT_CALL(*mockAuthenticator, GetAuthDescription())
-        .WillRepeatedly(Return("FakeAuthDescription description 1"));
+    auto authentication = New<TPipelineAuthenticationDescription>();
+    authentication->Method = EPipelineAuthenticationMethod::OAuth;
+    authentication->SubjectType = EPipelineAuthenticationSubjectType::User;
+    authentication->Subject = "fake-user";
+    authentication->DisplayName = "FakeAuthDescription description 1";
+    EXPECT_CALL(*mockAuthenticator, GetPipelineAuthenticationDescription())
+        .WillRepeatedly(Return(authentication));
     statusDescription = DescribePipeline({.FlowView = FlowView, .Logger = TLogger("test"), .Authenticator = mockAuthenticator, .StatusOnly = true});
+    EXPECT_EQ(
+        ConvertToYsonString(statusDescription.Authentication).ToString(),
+        ConvertToYsonString(authentication).ToString());
+    EXPECT_EQ(statusDescription.WorkerCount, WorkerCount);
+    ASSERT_TRUE(statusDescription.CurrentResourceUsage);
+    EXPECT_DOUBLE_EQ(statusDescription.CurrentResourceUsage->CpuUsageCores, 9.0);
+    EXPECT_EQ(statusDescription.CurrentResourceUsage->MemoryUsage, 9);
     EXPECT_TRUE(containsText(statusDescription.Messages, "FakeAuthDescription"))
         << "Messages:" << ConvertToYsonString(statusDescription.Messages).ToString();
     messagesSize = statusDescription.Messages.size();
@@ -742,6 +785,33 @@ TEST_W(TDescribeTest, DescribePipeline)
     EXPECT_EQ(description.Status, statusDescription.Status);
     EXPECT_EQ(description.Messages.size(), statusDescription.Messages.size());
     EXPECT_EQ(description.Computations.size(), 3u);
+}
+
+TEST_W(TDescribeTest, DescribePipelineAggregatesBestEffortCurrentResourceUsage)
+{
+    Prepare();
+    auto partitionIt = FlowView->State->ExecutionSpec->Layout->Partitions.begin();
+
+    auto missingCpuPartitionId = partitionIt++->first;
+    FlowView->Feedback->GetCurrentJobStatus(missingCpuPartitionId)->PerformanceMetrics->CpuUsageCurrent.reset();
+
+    auto missingStatusPartitionId = partitionIt++->first;
+    FlowView->Feedback->PartitionJobStatuses[missingStatusPartitionId]->CurrentJobStatus = nullptr;
+
+    auto finishedPartitionId = partitionIt++->first;
+    FlowView->Feedback->GetCurrentJobStatus(finishedPartitionId)->IsFinished = true;
+
+    auto& partitionWithoutJob = partitionIt++->second;
+    partitionWithoutJob->CurrentJobId.reset();
+
+    auto description = DescribePipeline({
+        .FlowView = FlowView,
+        .Logger = TLogger("test"),
+        .StatusOnly = true,
+    });
+    ASSERT_TRUE(description.CurrentResourceUsage);
+    EXPECT_DOUBLE_EQ(description.CurrentResourceUsage->CpuUsageCores, 5.0);
+    EXPECT_EQ(description.CurrentResourceUsage->MemoryUsage, 6);
 }
 
 TEST_W(TDescribeTest, DescribePipelineExposesControllerBuildType)
@@ -896,16 +966,28 @@ TEST_W(TDescribeTest, DescribePipelineNoFlowView)
     EXPECT_EQ(messagesSize, 1u)
         << "Messages:" << ConvertToYsonString(statusDescription.Messages).ToString();
 
+    auto authenticator = New<StrictMock<TMockPipelineAuthenticator>>();
+    auto authentication = New<TPipelineAuthenticationDescription>();
+    authentication->Method = EPipelineAuthenticationMethod::OAuth;
+    authentication->SubjectType = EPipelineAuthenticationSubjectType::User;
+    authentication->Subject = "alice";
+    authentication->DisplayName = "alice";
+    EXPECT_CALL(*authenticator, GetPipelineAuthenticationDescription())
+        .WillOnce(Return(authentication));
     statusDescription = DescribePipeline({
         .FlowView = nullptr,
         .ControllerErrors = {
             {"a", TError("b")},
         },
         .Logger = TLogger("test"),
+        .Authenticator = authenticator,
         .StatusOnly = true,
     });
     EXPECT_EQ(statusDescription.Messages.size(), messagesSize + 1u)
         << "Messages:" << ConvertToYsonString(statusDescription.Messages).ToString();
+    EXPECT_EQ(statusDescription.Authentication, authentication);
+    EXPECT_EQ(statusDescription.WorkerCount, 0);
+    EXPECT_FALSE(statusDescription.CurrentResourceUsage);
 
     EXPECT_THROW(DescribePipeline({.FlowView = nullptr, .Logger = TLogger("test")}), TErrorException);
 }
@@ -948,13 +1030,20 @@ TEST_W(TDescribeTest, DescribePartition)
 TEST_W(TDescribeTest, DescribeWorker)
 {
     Prepare();
+    for (const auto& [_, worker] : FlowView->State->Workers) {
+        worker->VcpuFactor = 1.5;
+        worker->VcpuLimit = 15'000;
+    }
     auto workersDescription = DescribeWorkers(FlowView);
     ASSERT_EQ(workersDescription.Workers.size(), 1u);
+    EXPECT_EQ(workersDescription.Workers[0].VcpuLimit, 15'000);
     auto description = DescribeWorker(FlowView, workersDescription.Workers[0].Address);
     EXPECT_EQ(description.Address, "worker-1.net:81");
     ASSERT_EQ(description.Partitions.size(), 9u);
     EXPECT_GE(description.Messages.size(), 1u);
     EXPECT_GE(description.CpuUsage, 1.0);
+    EXPECT_EQ(description.VcpuFactor, 1.5);
+    EXPECT_EQ(description.VcpuLimit, 15'000);
 }
 
 TEST_W(TDescribeTest, DescribeWorkerShowsDeployStageLink)
@@ -1377,6 +1466,9 @@ TEST(TUnrollPipelineDescriptionTest, SplitsPerStreamsDependencyPair)
     auto out = MakeStreamGraphId(TStreamId("c"));
 
     TPipelineDescription original;
+    original.Authentication = New<TPipelineAuthenticationDescription>();
+    original.WorkerCount = 3;
+    original.CurrentResourceUsage = New<TCurrentResourceUsage>();
     auto& computation = original.Computations[TComputationId("comp")];
     computation.Id = MakeComputationGraphId(TComputationId("comp"));
     computation.InputStreams = {in1, in2};
@@ -1384,6 +1476,10 @@ TEST(TUnrollPipelineDescriptionTest, SplitsPerStreamsDependencyPair)
     computation.StreamsDependency[out] = {in1, in2};
 
     auto unrolled = UnrollPipelineDescription(original);
+
+    EXPECT_EQ(unrolled.Authentication, original.Authentication);
+    EXPECT_EQ(unrolled.WorkerCount, original.WorkerCount);
+    EXPECT_EQ(unrolled.CurrentResourceUsage, original.CurrentResourceUsage);
 
     // Two sub-computations, one per (out, in) pair.
     ASSERT_EQ(unrolled.Computations.size(), 2u);

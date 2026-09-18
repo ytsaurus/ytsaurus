@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.spring;
 
+import java.util.Collection;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -14,22 +15,23 @@ import org.springframework.core.Ordered;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.pipeline.SimpleRunnerProgram;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 
 /**
  * Launches the pipeline in runner mode ({@code YT_FLOW_MODE} unset), so one Spring Boot main serves
  * both modes.
  * <p>
- * Enriches the spec from the registered streams, hands the launch to {@code flow_server} and ends
- * the JVM with its exit code — the application never continues past this runner.
+ * Enriches the spec from the registered streams and states, hands the launch to {@code flow_server}
+ * and ends the JVM with its exit code — the application never continues past this runner.
  * <p>
  * A test context never launches, since a test starts application runners too. Everywhere else the
  * command line is always parsed, so a launch naming no {@code --config} fails rather than exiting
  * successfully without submitting anything. Parsing is strict: property-style options with dotted
  * keys ({@code --spring.*}, {@code --server.port=...}) are skipped, anything else unknown fails.
  * <p>
- * Only the streams are collected, never the computations: submitting a spec runs no user code, and
- * building the process functions would build everything they depend on on every launch.
+ * Only the streams and states are collected, never the computations: submitting a spec runs no user
+ * code, and building the process functions would build everything they depend on on every launch.
  */
 public class FlowRunnerBootstrap implements ApplicationRunner, Ordered {
 
@@ -101,7 +103,7 @@ public class FlowRunnerBootstrap implements ApplicationRunner, Ordered {
                 FlowProperties.RUNNER_ENABLED_PROPERTY);
 
         // Always parsed, so a launch naming no --config fails here.
-        int exitCode = launch(args.getSourceArgs(), snapshot.getStreams());
+        int exitCode = launch(args.getSourceArgs(), snapshot.getStreams(), snapshot.getStates());
         exit(exitCode);
     }
 
@@ -111,8 +113,8 @@ public class FlowRunnerBootstrap implements ApplicationRunner, Ordered {
     }
 
     /**
-     * The pipeline as the launch needs it: the declared streams and nothing else. Built here rather
-     * than injected so that a context which never launches collects nothing at all.
+     * The pipeline as the launch needs it: the declared streams and states and nothing else. Built
+     * here rather than injected so that a context which never launches collects nothing at all.
      */
     PipelineContext buildLaunchPipeline() {
         return FlowComponents.buildRunnerPipelineContext(
@@ -120,8 +122,12 @@ public class FlowRunnerBootstrap implements ApplicationRunner, Ordered {
     }
 
     /** Submits the pipeline. Overridable so a test can drive {@link #run} without a real launch. */
-    int launch(String[] args, Map<String, FlowStream<?>> streams) throws Exception {
-        return SimpleRunnerProgram.runPipeline(args, streams);
+    int launch(
+            String[] args,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states
+    ) throws Exception {
+        return SimpleRunnerProgram.runPipeline(args, streams, states);
     }
 
     /** Closes the context and ends the JVM. Overridable so a test can drive {@link #run}. */

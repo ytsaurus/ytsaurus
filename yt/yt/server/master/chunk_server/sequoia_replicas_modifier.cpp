@@ -10,22 +10,24 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -173,11 +175,10 @@ private:
         } else {
             Profile_.FinishedWithErrorCount.Increment(1);
             Profile_.FinishedWithErrorReplicaCount.Increment(ReplicaCount_);
-            YT_LOG_TRACE(
-                result,
-                "Sequoia replica modification finished with error (TransactionType: %v, ReplicaCount: %v)",
-                TransactionType_,
-                ReplicaCount_);
+            YT_TLOG_TRACE("Sequoia replica modification finished with error")
+                .With("TransactionType", TransactionType_)
+                .With("ReplicaCount", ReplicaCount_)
+                .With(result);
             result.ThrowOnError();
         }
     }

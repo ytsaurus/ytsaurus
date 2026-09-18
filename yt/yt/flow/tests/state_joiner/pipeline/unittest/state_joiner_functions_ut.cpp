@@ -107,8 +107,7 @@ TEST(TStateJoinerFunctionTest, AccumulatorForwardsUserId)
 TEST(TStateJoinerFunctionTest, JoinerEmitsAccumulatedTotal)
 {
     TTestStateEnvironment stateEnv;
-    auto stateJoinerSpec = stateEnv.RegisterStateJoiner("user_total", "/total");
-
+    TStateJoinerSpecPtr stateJoinerSpec;
     auto key = MakeKey<ui64>(1);
 
     // Run the accumulator to populate the internal "/total" state for the user. Its RunEpoch
@@ -118,7 +117,10 @@ TEST(TStateJoinerFunctionTest, JoinerEmitsAccumulatedTotal)
         auto context = TTestRuntimeContextBuilder()
             .RegisterStream<TUserMessage>("users")
             .Build();
-        TProcessFunctionTestHarness accumulator(stateEnv, New<TAccumulatorFunction>(), context);
+        auto accumulator = TProcessFunctionTestHarness::Create<TAccumulatorFunction>(
+            stateEnv,
+            context);
+        stateJoinerSpec = stateEnv.RegisterStateJoiner("user_total", "/total");
         accumulator.RunEpoch({
             MakeEvent(key, "user-1", 10),
             MakeEvent(key, "user-1", 30),
@@ -132,7 +134,7 @@ TEST(TStateJoinerFunctionTest, JoinerEmitsAccumulatedTotal)
         .RegisterStream<TResultMessage>("results")
         .SetSpec(joinerSpec)
         .Build();
-    TProcessFunctionTestHarness joiner(stateEnv, New<TJoinerFunction>(), context);
+    auto joiner = TProcessFunctionTestHarness::Create<TJoinerFunction>(stateEnv, context);
 
     auto userSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
         R"([{name=UserId;type=string};{name=Bucket;type=uint64}])")));

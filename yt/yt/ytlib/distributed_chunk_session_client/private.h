@@ -18,6 +18,7 @@ struct TDistributedChunkSessionPoolTestingOptions
 {
     TCreateControllerCallback CreateController;
     TSendChunkSealRequestCallback SendChunkSealRequest;
+    IDistributedChunkSessionSealMonitorPtr SealMonitor;
 };
 
 IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(
@@ -25,5 +26,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(
     TDistributedChunkSessionPoolTestingOptions options,
     IInvokerPtr invoker,
     NLogging::TLogger logger = DistributedChunkSessionLogger());
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDistributedChunkSessionClient

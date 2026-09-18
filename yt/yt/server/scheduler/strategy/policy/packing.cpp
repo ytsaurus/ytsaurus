@@ -117,17 +117,14 @@ bool TPackingStatistics::CheckPacking(
     bool decision = std::ssize(WindowOfHeartbeats_) >= config->MinWindowSizeForSchedule
         && betterPastSnapshots < config->MaxBetterPastSnapshots;
 
-    YT_ELEMENT_LOG_DETAILED(
-        operationElement,
-        "Packing decision made (BetterPastSnapshots: %v, CurrentMetricValue: %v, "
-        "WindowSize: %v, NodeResources: %v, AllocationResources: %v, Decision: %v)",
-        betterPastSnapshots,
-        currentMetricValue,
-        WindowOfHeartbeats_.size(),
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Packing decision made")
+        .With("BetterPastSnapshots", betterPastSnapshots)
+        .With("CurrentMetricValue", currentMetricValue)
+        .With("WindowSize", WindowOfHeartbeats_.size())
         // TODO(ignat): use TMediumDirectory to log disk resources.
-        FormatResources(heartbeatSnapshot.Resources().Free().ToJobResources()),
-        FormatResources(allocationResourcesWithQuota),
-        decision);
+        .With("NodeResources", FormatResources(heartbeatSnapshot.Resources().Free().ToJobResources()))
+        .With("AllocationResources", FormatResources(allocationResourcesWithQuota))
+        .With("Decision", decision);
 
     return decision;
 }

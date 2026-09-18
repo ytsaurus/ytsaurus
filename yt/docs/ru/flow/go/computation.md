@@ -428,6 +428,7 @@ watermark, ok := rt.Watermark("stream_id")
 | Метод | Описание |
 | --- | --- |
 | `out.AddMessage(msg)` | Добавить выходное сообщение (значение `flow.Message`, полученное через `builder.Finish()`) |
+| `out.AddMessage(msg, options)` | Добавить сообщение с `flow.AddMessageOptions`, задающим публикацию и суффикс message ID для Swift |
 | `out.AddUndistributedMessage(msg)` | Добавить source-сообщение с `distribute = false` |
 | `out.AddTimer(timer)` | Поставить [таймер](../../flow/concepts/glossary.md#timer) на обрабатываемый ключ |
 | `out.WithParentIDs(parentIDs...)` | Вернуть коллектор, пишущий в отдельную группу с указанной [родословной](../../flow/concepts/lineage.md) |
@@ -454,6 +455,33 @@ func (*myFunction) OnMessage(
     return nil
 }
 ```
+
+### Суффикс message ID в Swift {#message-id-suffixes}
+
+`out.AddMessage` принимает не более одного `flow.AddMessageOptions`. Поле `Distribute` управляет публикацией: `flow.DistributeDefault` и `flow.DistributeMessage` публикуют сообщение, а `flow.DoNotDistributeMessage` работает для source-фильтрации так же, как `out.AddUndistributedMessage`. В transform-компьютейшене флаг не влияет на публикацию; для фильтрации не добавляйте сообщение.
+
+В Swift-компьютейшене `MessageIDSuffix` выбирает суффикс производного message ID:
+
+```go
+out.AddMessage(hashedMessage, flow.AddMessageOptions{
+    MessageIDSuffix: flow.PayloadHashMessageIDSuffix(),
+})
+
+suffix, err := flow.UserDefinedMessageIDSuffix(semanticKey)
+if err != nil {
+    return err
+}
+out.AddMessage(keyedMessage, flow.AddMessageOptions{
+    Distribute:      flow.DoNotDistributeMessage,
+    MessageIDSuffix: suffix,
+})
+```
+
+- С options по умолчанию или с `flow.SequenceNumberMessageIDSuffix()` используется текущий порядковый номер сообщения для пары «родительский message ID, выходной стрим».
+- `flow.PayloadHashMessageIDSuffix()` использует 128-битный CityHash от канонического wire-представления payload. Одинаковые payload одного родителя и стрима получают одинаковый message ID; теоретическая коллизия хеша возможна.
+- `flow.UserDefinedMessageIDSuffix(value)` отвергает пустое значение. Вызывающий код отвечает за его стабильность и уникальность среди разных логических сообщений одного родителя и стрима.
+
+Хеш payload и пользовательский суффикс поддерживаются только Swift-компьютейшенами. Они позволяют отвязать идентичность сообщения от порядка порождения, но не отменяют [требование детерминированности Swift](../../flow/concepts/swift.md#determinism): одинаковый message ID всё равно должен обозначать один и тот же логический вывод.
 
 Поле `StreamID` в `flow.TimerRequest` выбирает стрим таймеров; пустое значение означает единственный стрим таймеров пайплайна.
 

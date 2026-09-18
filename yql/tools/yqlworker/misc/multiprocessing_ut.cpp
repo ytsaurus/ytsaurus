@@ -75,6 +75,40 @@ Y_UNIT_TEST_SUITE(TMultiprocessingTest)
         }
     }
 
+    Y_UNIT_TEST(ProcessPoolEmpty) {
+        TProcessPool pool;
+        constexpr ui32 TypeA = 1;
+        constexpr ui32 TypeB = 2;
+
+        // no processes added yet - both types are empty
+        UNIT_ASSERT(pool.Empty(TypeA));
+        UNIT_ASSERT(pool.Empty(TypeB));
+        UNIT_ASSERT(pool.Empty());
+
+        pool.Add(TypeA, "A", 1, [](void*) { return 0; });
+        pool.Add(TypeB, "B", 1, [](void*) { return 0; });
+
+        // added but not spawned - still empty (no running processes)
+        UNIT_ASSERT(pool.Empty(TypeA));
+        UNIT_ASSERT(pool.Empty(TypeB));
+        UNIT_ASSERT(pool.Empty());
+
+        pool.SpawnChildren();
+
+        // spawned - not empty anymore
+        UNIT_ASSERT(!pool.Empty(TypeA));
+        UNIT_ASSERT(!pool.Empty(TypeB));
+        UNIT_ASSERT(!pool.Empty());
+
+        // wait for children to exit (they exit immediately with code 0)
+        pool.Wait();
+
+        // after waiting - empty again
+        UNIT_ASSERT(pool.Empty(TypeA));
+        UNIT_ASSERT(pool.Empty(TypeB));
+        UNIT_ASSERT(pool.Empty());
+    }
+
     Y_UNIT_TEST(ProcessDetach) {
         SOCKET sockets[2];
         SocketPair(sockets);

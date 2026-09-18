@@ -1,17 +1,17 @@
 #include "chunk_sealer.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
 #include "chunk_list.h"
 #include "chunk_location.h"
-#include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
+#include "chunk_scanner.h"
+#include "chunk_tree.h"
 #include "config.h"
 #include "helpers.h"
-#include "chunk_scanner.h"
 #include "job.h"
 #include "job_registry.h"
 #include "private.h"
@@ -35,8 +35,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -714,7 +714,8 @@ private:
                 replicaLagLimit,
                 abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
-                Bootstrap_->GetNodeChannelFactory());
+                Bootstrap_->GetNodeChannelFactory(),
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             quorumInfo = WaitFor(future)
                 .ValueOrThrow();
         }

@@ -31,6 +31,10 @@ items:
     include:
       mode: link
       path: connectors/toc_i.yaml
+  - name: Расширения
+    include:
+      mode: link
+      path: extensions/toc_i.yaml
   - name: Эксплуатация
     include:
       mode: link

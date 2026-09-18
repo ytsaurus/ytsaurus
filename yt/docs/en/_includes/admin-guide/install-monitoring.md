@@ -165,7 +165,7 @@ Automated setup of dashboards and alerts is done using the dedicated Helm chart 
 
       We see the number of chunks for the "sys" account:
 
-      ![Prometheus UI](../../../images/monitoring-install-prometheus-ui-example.png)
+      ![Prometheus UI](../../../_images/monitoring-install-prometheus-ui-example.png)
 
       Fig. 1. Result of querying the number of chunks for the "sys" account in the Prometheus UI.
 
@@ -264,7 +264,7 @@ Automated setup of dashboards and alerts is done using the dedicated Helm chart 
 
       In the `Target health` section, it will be displayed like this:
 
-      ![Odin service in Prometheus UI](../../../images/monitoring-install-prometheus-ui-odin-example.png)
+      ![Odin service in Prometheus UI](../../../_images/monitoring-install-prometheus-ui-odin-example.png)
 
       Fig. 2. Example of Odin service display in Prometheus.
 
@@ -658,11 +658,11 @@ Since you already added the `GRAFANA_BASE_URL` variable during UI setup, a **Gra
 
 Clicking it takes the user to the same dashboard with the same parameters for the same time period directly in the Grafana interface.
 
-![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+![{{product-name}} UI](../../../_images/monitoring-install-redirects-to-grafana-1.png)
 
 Fig. 3. Button demonstration in the cluster’s internal UI.
 
-![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+![Grafana UI](../../../_images/monitoring-install-redirects-to-grafana-2.png)
 
 Fig. 4. Grafana interface with the same parameters as in the internal UI (Fig. 3).
 

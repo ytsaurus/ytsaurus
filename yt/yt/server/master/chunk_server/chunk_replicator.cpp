@@ -1,36 +1,37 @@
 #include "chunk_replicator.h"
 
-#include "chunk_statistics.h"
-#include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
+#include "chunk_manager.h"
 #include "chunk_owner_base.h"
 #include "chunk_placement.h"
+#include "chunk_replica.h"
+#include "chunk_replica_fetcher.h"
+#include "chunk_scanner.h"
+#include "chunk_statistics.h"
 #include "chunk_tree_traverser.h"
 #include "chunk_view.h"
 #include "config.h"
-#include "job.h"
-#include "job_registry.h"
-#include "chunk_scanner.h"
-#include "chunk_replica.h"
+#include "data_node_tracker.h"
 #include "domestic_medium.h"
 #include "helpers.h"
-#include "data_node_tracker.h"
-#include "chunk_manager.h"
 #include "incumbency_epoch.h"
-#include "chunk_replica_fetcher.h"
+#include "job.h"
+#include "job_registry.h"
+#include "private.h"
 #include "sequoia_chunk_refresher.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
-#include <yt/yt/server/master/cell_master/world_initializer.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/world_initializer.h>
+
 #include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
-#include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
 
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
@@ -61,16 +62,14 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
-
 #include <yt/yt/core/ytree/ypath_proxy.h>
-
-#include <yt/yt/core/profiling/timing.h>
 
 #include <library/cpp/yt/compact_containers/compact_queue.h>
 #include <library/cpp/yt/compact_containers/compact_vector.h>
@@ -841,9 +840,8 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
         mediumStatistics.UnsafelyPlacedReplica);
 
     if (targetNodes.empty()) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "No target nodes were allocated while trying to replicate chunk (ChunkId: %v)",
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "No target nodes were allocated while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId());
         return EMisscheduleReason::NoTargetNodes;
     }
 
@@ -855,9 +853,8 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (targetReplicas.empty()) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "All target nodes allocated are dead while trying to replicate chunk (ChunkId: %v)",
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "All target nodes allocated are dead while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId());
         return EMisscheduleReason::NoTargetReplicas;
     }
 
@@ -883,11 +880,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (std::ssize(targetNodes) != replicasNeeded) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "Insufficient nodes allocated while trying to replicate chunk (ChunkId: %v, ReplicasNeeded: %v, NodesAllocated: %v)",
-            replicasNeeded,
-            std::ssize(targetNodes),
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Insufficient nodes allocated while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId())
+            .With("ReplicasNeeded", replicasNeeded)
+            .With("NodesAllocated", std::ssize(targetNodes));
         return EMisscheduleReason::InsufficientTargetReplicas;
     }
 
@@ -1360,10 +1356,9 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                         medium->AsDomestic(),
                         nodeId,
                         replicas);
-                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk.Get(),
-                        "Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
-                        chunkIdWithIndex,
-                        misscheduleReason);
+                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk.Get(), "Misschedule reason when scheduling a job")
+                        .With("ChunkId", chunkIdWithIndex)
+                        .With("Reason", misscheduleReason);
                     if (misscheduleReason == EMisscheduleReason::None) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
@@ -1671,9 +1666,8 @@ void TChunkReplicator::RefreshChunk(
 
     auto wasLostVital = LostVitalChunks_.contains(chunk);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Refreshing chunk (ChunkId: %v)",
-        chunkId);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Refreshing chunk")
+        .With("ChunkId", chunkId);
 
     chunk->OnRefresh();
 
@@ -1686,10 +1680,9 @@ void TChunkReplicator::RefreshChunk(
 
     auto allMediaStatistics = ChunkStatisticsCalculator_->ComputeChunkStatistics(chunk, chunkReplicas);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Computed chunk statistics on refresh (ChunkId: %v, Status: %v)",
-        chunk->GetId(),
-        allMediaStatistics.Status);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Computed chunk statistics on refresh")
+        .With("ChunkId", chunk->GetId())
+        .With("Status", allMediaStatistics.Status);
 
     auto durabilityRequired = IsDurabilityRequired(chunk, chunkReplicas);
 
@@ -2028,11 +2021,11 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         return;
     }
 
-    if (!ShouldProcessChunk(chunk)) {
+    if (!IsObjectAlive(chunk)) {
         return;
     }
 
-    if (!IsObjectAlive(chunk)) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
@@ -2050,11 +2043,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         : std::nullopt;
     auto enqueued = GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Chunk refresh scheduled (ChunkId: %v, Delay: %v, Enqueued: %v)",
-        chunk->GetId(),
-        delay,
-        enqueued);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Chunk refresh scheduled")
+        .With("ChunkId", chunk->GetId())
+        .With("Delay", delay)
+        .With("Enqueued", enqueued);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -2196,11 +2188,10 @@ void TChunkReplicator::OnRefresh()
                         .With("WaitTime", waitTime)
                         .With("AllowedWaitTime", allowedWaitTime);
                 } else {
-                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-                        "Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
-                        chunk->GetId(),
-                        waitTime,
-                        allowedWaitTime);
+                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Chunk has been dequeued from refresh queue")
+                        .With("ChunkId", chunk->GetId())
+                        .With("WaitTime", waitTime)
+                        .With("AllowedWaitTime", allowedWaitTime);
                 }
             }
 
@@ -3221,9 +3212,9 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
     auto updateToggle = [&] (bool* currentValue, bool newValue, void (TChunkReplicator::*scheduleGlobal)(), std::string what) {
         if (newValue != *currentValue) {
             *currentValue = newValue;
-            YT_LOG_INFO("%v %v",
-                what,
-                newValue ? "enabled" : "disabled");
+            YT_TLOG_INFO("Chunk replicator activity toggled")
+                .With("Activity", what)
+                .With("Enabled", newValue);
             if (newValue) {
                 (this->*scheduleGlobal)();
             }
@@ -3342,9 +3333,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
         if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
-                needOnline,
-                gotOnline);
+            YT_TLOG_INFO("Chunk replicator disabled: too few online nodes")
+                .With("NeededOnlineNodeCount", needOnline)
+                .With("OnlineNodeCount", gotOnline);
         }
         return false;
     }
@@ -3359,9 +3350,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
         double gotFraction = static_cast<double>(gotLostChunkCount) / gotChunkCount;
         if (gotFraction > needFraction) {
             if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-                YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
-                    needFraction,
-                    gotFraction);
+                YT_TLOG_INFO("Chunk replicator disabled: lost chunk fraction is too high")
+                    .With("MaxLostChunkFraction", needFraction)
+                    .With("LostChunkFraction", gotFraction);
             }
             return false;
         }
@@ -3369,9 +3360,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
 
     if (gotLostChunkCount > needLostChunkCount) {
         if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
-                needLostChunkCount,
-                gotLostChunkCount);
+            YT_TLOG_INFO("Chunk replicator disabled: absolute number of lost chunks is too high")
+                .With("MaxLostChunkCount", needLostChunkCount)
+                .With("LostChunkCount", gotLostChunkCount);
         }
         return false;
     }

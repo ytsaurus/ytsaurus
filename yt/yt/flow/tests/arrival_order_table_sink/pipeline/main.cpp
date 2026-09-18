@@ -22,13 +22,6 @@ class TArrivalOrderSourceComputation
 public:
     using TSwiftOrderedSourceComputation::TSwiftOrderedSourceComputation;
 
-    void DoInit(IJobInitContextPtr /*initContext*/) override
-    {
-        const auto& sourceKey = GetContext()->Partition->SourceKey;
-        THROW_ERROR_EXCEPTION_UNLESS(sourceKey, "Arrival order sink test requires a source key");
-        GetOrCreateSink(TSinkId("static"), sourceKey, GetDynamicSpec());
-    }
-
     void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
     {
         auto builder = MakeOutputMessageBuilder();

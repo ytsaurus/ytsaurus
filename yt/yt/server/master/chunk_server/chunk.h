@@ -1,10 +1,10 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_requisition.h"
+#include "private.h"
+
 #include "chunk_replica.h"
+#include "chunk_requisition.h"
 #include "chunk_tree.h"
-#include "incumbency_epoch.h"
 #include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -19,8 +19,8 @@
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
-#include <library/cpp/yt/compact_containers/compact_vector.h>
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
@@ -231,10 +231,12 @@ public:
         const NObjectServer::IObjectManagerPtr& objectManager) const;
 
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void SetLocalRequisitionIndex(
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     //! Prerequisite: IsExportedToCell(cellTag).
     TChunkRequisitionIndex GetExternalRequisitionIndex(NObjectServer::TCellTag cellTag) const;
@@ -481,9 +483,11 @@ private:
     const TReplicasDataBase& ReplicasData() const;
     TReplicasDataBase* MutableReplicasData();
 
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     void MaybeResetObsoleteEpochData();
 

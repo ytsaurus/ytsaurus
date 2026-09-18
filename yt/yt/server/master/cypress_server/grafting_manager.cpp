@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NCypressServer {

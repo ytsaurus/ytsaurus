@@ -326,10 +326,23 @@ Use `OutputCollector` to send processing results:
 | Method | Description |
 | --- | --- |
 | `output.addMessage(message)` | Add an output message |
+| `output.addMessage(message, options)` | Add a message with `AddMessageOptions` controlling distribution and the Swift message ID suffix |
 | `output.addTimer(triggerTimestamp)` | Add a [timer](../../../flow/concepts/glossary.md#timer) with the specified trigger time (eventTimestamp = 0) |
 | `output.addTimer(triggerTimestamp, eventTimestamp)` | Add a timer with the specified trigger time and event time |
 | `output.addTimer(timerStreamId, triggerTimestamp, eventTimestamp)` | Add a timer for a specific timer stream |
 | `output.setParentIds(parentIds)` | Set the parent ID to track the [lineage](../../../flow/concepts/lineage.md) of messages. Returns a new `OutputCollector` |
+
+For a Swift computation, `MessageIdSuffix.payloadHash()` or `MessageIdSuffix.userDefined(value)` makes message identity independent of emission order:
+
+```java
+output.addMessage(
+        message,
+        AddMessageOptions.builder()
+                .setMessageIdSuffix(MessageIdSuffix.payloadHash())
+                .build());
+```
+
+Default options use the message sequence number. Payload-hash and user-defined suffixes are supported only by Swift computations.
 
 ## Spring Boot
 

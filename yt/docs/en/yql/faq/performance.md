@@ -16,7 +16,7 @@ When analyzing performance, consider the following factors:
 
  For example, more tables were added to the query or their volume changed significantly. To check if the input data volume changed, click the first {{product-name}} operation in the query plan and view `Data flow`/`Data weight` in the {{product-name}} interface:
 
-![](../../../images/data_weight.png)
+![](../../../_images/data_weight.png)
 
 ### Has the query execution plan changed?
 
@@ -32,7 +32,7 @@ The query must specify the [yt.StaticPool](../syntax/pragma/yt.md#ytstaticpool) 
 ### Checking summary statistics for a query
 
 The YQL query's `Statistics` tab contains the summary query statistics:
-![](../../../images/stat.png)
+![](../../../_images/stat.png)
 
 First of all, note and compare the following metrics:
 * `yt/total/Job_CalcTime` (Sum): Useful time spent across all jobs with user code of all {{product-name}} operations of the query. A change in this value, with no variation in input data volume, indicates performance changes in the YQL runtime.
@@ -45,13 +45,13 @@ First of all, note and compare the following metrics:
 ### Finding the slowest {{product-name}} operation in a query
 
 In the YQL query's `Progress` tab, switch to `Timeline` mode:
-![](../../../images/timeline.png)
+![](../../../_images/timeline.png)
 
 In this mode, you can clearly see which {{product-name}} operation affected the YQL query execution time the most. You can also drill down to execution details at various stages of the operation:
-![](../../../images/pending.png)
+![](../../../_images/pending.png)
 
 Here you can see that the operation was `Pending` for a while due to insufficient limits on the number of running operations in the pool.
 
 For further analysis, you can open a slow operation in the {{product-name}} interface by clicking its name in the timeline column on the left. In a {{product-name}} operation, first of all, pay attention to `Total job wall time` and `Total CPU time spent`. If these values remain largely unchanged for two YQL query runs, but `Duration` has changed, it indicates potential query pool issues. Click the name of the pool
-![](../../../images/pool.png)
+![](../../../_images/pool.png)
 and open it in the `Monitoring` tab in the {{product-name}} interface to analyze its load.

@@ -67,10 +67,10 @@ TCompactUnversionedOwningRow MakeCompactUnversionedOwningRow(Ts&&... values)
     } else {
         // Some types may produce string data: convert via a reusable thread-local row buffer.
         // No fiber context switch happens here, so a simple thread-local is safe.
-        static thread_local NTableClient::TRowBufferPtr RowBuffer = New<NTableClient::TRowBuffer>();
-        RowBuffer->Clear();
+        auto& rowBuffer = NDetail::GetCompactRowBuffer();
+        rowBuffer->Clear();
         int id = 0;
-        NTableClient::TUnversionedValue arr[] = {NTableClient::ToUnversionedValue(std::forward<Ts>(values), RowBuffer, id++)...};
+        NTableClient::TUnversionedValue arr[] = {NTableClient::ToUnversionedValue(std::forward<Ts>(values), rowBuffer, id++)...};
         return TCompactUnversionedOwningRow(NTableClient::TUnversionedValueRange(arr, sizeof...(Ts)));
     }
 }

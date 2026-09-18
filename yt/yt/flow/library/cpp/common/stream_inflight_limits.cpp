@@ -15,6 +15,22 @@ ui64 ComputeSeq(const TStreamUsage& usage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStreamUsageSerializer::Register(TRegistrar registrar)
+{
+    registrar.ExternalClassParameter("cumulative_byte_in", &TThat::CumulativeByteIn)
+        .Default();
+    registrar.ExternalClassParameter("cumulative_byte_out", &TThat::CumulativeByteOut)
+        .Default();
+    registrar.ExternalClassParameter("cumulative_count_in", &TThat::CumulativeCountIn)
+        .Default();
+    registrar.ExternalClassParameter("cumulative_count_out", &TThat::CumulativeCountOut)
+        .Default();
+    registrar.ExternalClassParameter("pending_inflated_bytes", &TThat::PendingInflatedBytes)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStreamLimitUsageState::TStreamLimitUsageState(i64 inflationPerMessage)
     : InflationPerMessage_(inflationPerMessage)
 { }

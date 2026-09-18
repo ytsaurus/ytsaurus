@@ -136,6 +136,7 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
     if (totalSize > static_cast<size_t>(NTableClient::MaxServerVersionedRowDataWeight)) {
         return nullptr;
     }
+
     auto cachedRow = TryNewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
     if (!cachedRow) {
         return nullptr;

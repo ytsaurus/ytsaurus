@@ -1,9 +1,8 @@
 """
-Setup sys.modules aliases so that proto modules generated with PROTO_NAMESPACE(yt)
-can be imported via 'yt.flow...' even though the actual Python
-module path is 'yt.yt.flow...'.
-
-Call ensure_proto_imports() before any proto import.
+Generated code imports protos by the protoc path 'yt.flow...'. In Arcadia
+PY_NAMESPACE packages the modules right there, making this shim a no-op; in
+the open-source layout they stay at the real path 'yt.yt.flow...' and get
+aliased here. Call ensure_proto_imports() before any proto import.
 """
 
 import importlib

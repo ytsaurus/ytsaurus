@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -30,8 +31,10 @@
 #include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_exit_node.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
+#include <yt/yt/server/master/cypress_server/scion_node.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -471,7 +474,7 @@ public:
             cell->SetLeadingPeerId(0);
         }
 
-        cell->GossipStatus().Initialize(Bootstrap_);
+        InitializeGossipValue(&cell->GossipStatus(), Bootstrap_);
 
         MaybeRegisterGlobalCell(cell);
         ReconfigureCell(cell);
@@ -1246,7 +1249,7 @@ private:
                 }
             }
 
-            cell->GossipStatus().Initialize(Bootstrap_);
+            InitializeGossipValue(&cell->GossipStatus(), Bootstrap_);
         }
 
         AfterSnapshotLoaded_.Fire();
@@ -1681,7 +1684,7 @@ private:
         for (int slotIndex = 0; slotIndex < request->cell_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = (*cellar)[slotIndex];
-            slot = TNode::TCellSlot();
+            slot = TCellSlot();
 
             const auto& slotInfo = request->cell_slots(slotIndex);
 
@@ -1702,11 +1705,11 @@ private:
             }
 
             if (GetCellarTypeFromCellId(cellId) != cellarType) {
-                YT_LOG_DEBUG("Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
-                    address,
-                    cellId,
-                    GetCellarTypeFromCellId(cellId),
-                    cellarType);
+                YT_TLOG_DEBUG("Cell with unexpected cellar type is running")
+                    .With("Address", address)
+                    .With("CellId", cellId)
+                    .With("ActualCellarType", GetCellarTypeFromCellId(cellId))
+                    .With("ExpectedCellarType", cellarType);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -1721,12 +1724,11 @@ private:
             }
 
             if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
-                YT_LOG_DEBUG(
-                    "Invalid peer id for cell: %v instead of %v (Address: %v, CellId: %v)",
-                    slotInfo.peer_id(),
-                    peerId,
-                    address,
-                    cellId);
+                YT_TLOG_DEBUG("Invalid peer id for cell")
+                    .With("ReportedPeerId", slotInfo.peer_id())
+                    .With("ExpectedPeerId", peerId)
+                    .With("Address", address)
+                    .With("CellId", cellId);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -2284,10 +2286,10 @@ private:
 
         auto* transaction = cell->GetPrerequisiteTransaction(peerId);
 
-        YT_LOG_DEBUG("Aborting cell prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
-            cell->GetId(),
-            peerId,
-            GetObjectId(transaction));
+        YT_TLOG_DEBUG("Aborting cell prerequisite transaction")
+            .With("CellId", cell->GetId())
+            .With("PeerId", peerId)
+            .With("TransactionId", GetObjectId(transaction));
 
         if (!transaction) {
             return;
@@ -2684,6 +2686,18 @@ private:
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (auto [exitId, exit] : portalManager->GetExitNodes()) {
             if (const auto& attributes = exit->EffectiveInheritableAttributes()) {
+                if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
+                    ++refCounters[*tabletCellBundle];
+                }
+                if (auto chaosCellBundle = attributes->ChaosCellBundle.ToOptional()) {
+                    ++refCounters[*chaosCellBundle];
+                }
+            }
+        }
+
+        const auto& graftingManager = Bootstrap_->GetGraftingManager();
+        for (auto [scionId, scion] : graftingManager->ScionNodes()) {
+            if (const auto& attributes = scion->EffectiveInheritableAttributes()) {
                 if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
                     ++refCounters[*tabletCellBundle];
                 }

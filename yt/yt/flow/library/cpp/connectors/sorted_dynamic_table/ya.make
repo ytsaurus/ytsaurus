@@ -11,6 +11,7 @@ SRCS(
 PEERDIR(
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/connectors/common
+    yt/yt/flow/library/cpp/misc
     yt/yt/flow/library/cpp/resources
     yt/yt/core
     yt/yt/client

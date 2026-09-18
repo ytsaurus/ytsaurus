@@ -8,6 +8,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
@@ -27,6 +28,7 @@ type tabletTx struct {
 
 	txID             yt.TxID
 	txStartTimestamp yt.Timestamp
+	atomicity        yt.Atomicity
 
 	coordinator string
 	c           *client
@@ -56,6 +58,10 @@ func (c *client) BeginTabletTx(
 	if opts == nil {
 		opts = &yt.StartTabletTxOptions{}
 	}
+	tx.atomicity = yt.AtomicityFull
+	if opts.Atomicity != nil {
+		tx.atomicity = *opts.Atomicity
+	}
 
 	txTimeout := yson.Duration(c.conf.GetTxTimeout())
 	if opts.Timeout != nil {
@@ -77,6 +83,17 @@ func (c *client) BeginTabletTx(
 	go tx.pinger.Run()
 
 	return &tx, err
+}
+
+func (tx *tabletTx) LockRows(
+	ctx context.Context,
+	path ypath.Path,
+	locks []string,
+	lockType yt.LockType,
+	keys []any,
+	opts *yt.LockRowsOptions,
+) error {
+	return tx.Encoder.lockRows(ctx, path, locks, lockType, keys, opts, tx.atomicity)
 }
 
 func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {

@@ -51,6 +51,8 @@ struct ILeaseManager
     virtual void SetDecommission(bool decommission) = 0;
     virtual bool IsFullyDecommissioned() const = 0;
 
+    virtual void Reconfigure(TLeaseManagerDynamicConfigPtr dynamicConfig) = 0;
+
     virtual NRpc::IServicePtr GetRpcService() = 0;
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };

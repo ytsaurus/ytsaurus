@@ -211,7 +211,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, Workload: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
+            FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1),
             workloadDescriptor);
 
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {

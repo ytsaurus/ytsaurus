@@ -113,7 +113,10 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             auto inputsFuture = context->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams);
             inputTimers = TimerStore_->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams, dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
-            inputs = WaitFor(inputsFuture).ValueOrThrow();
+            {
+                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::Waiting));
+                inputs = WaitFor(inputsFuture).ValueOrThrow();
+            }
 
             std::vector<TKeyVisitorPtr> allowedVisitors;
             for (const auto& [streamId, visitor] : KeyVisitors_) {
@@ -137,9 +140,12 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
+        auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs));
+
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, deduplicateInput);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs.Messages, deduplicateInput);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
@@ -158,6 +164,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             processResult = outputCollector->CollectResult();
+            RegisterResults(inputContext, std::move(processResult.LineageDelta), std::move(filteredInputs.SkippedStatistics));
         }
 
         YT_TLOG_INFO("Process completed")
@@ -179,7 +186,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
                 outputMessagePtrs.push_back(New<TOutputMessage>(std::move(outputMessage), specStorage));
             }
             OutputStore_->RegisterBatch(outputMessagePtrs);
-            RegisterOutputMessages(context, outputMessagePtrs, std::nullopt, dynamicSpec);
+            RegisterOutputMessages(context, outputMessagePtrs, std::nullopt);
         }
         {
             TimerStore_->Unregister(inputTimers);
@@ -203,14 +210,13 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
 
         FinishRunIteration();
 
-        WaitForBackoff(dynamicSpec, outputLimitsCheckResult,
-            /*emptyInput*/ inputs.empty() && inputTimers.empty() && inputVisits.empty());
+        WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);
 
         ClearAsynchronously(
-            std::move(inputs),
             std::move(inputTimers),
             std::move(inputVisits),
             std::move(unprocessedInputs),
+            std::move(filteredInputs),
             std::move(processResult));
     }
     YT_TLOG_INFO("Completed DoExecute");

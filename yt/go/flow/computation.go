@@ -60,9 +60,9 @@ type Runtime interface {
 	// JoinedExternalState returns a joined external state.
 	JoinedExternalState(name string) (*StatesHolder[ExternalState], error)
 
-	getYSONState(ysonStateKey, func() (trackedYSONState, error)) (trackedYSONState, error)
-	resetYSONStates()
-	flushYSONStates() error
+	getTrackedState(trackedStateKey, func() (trackedState, error)) (trackedState, error)
+	resetTrackedStates()
+	flushTrackedStates() error
 }
 
 // RowFunction handles messages one at a time.
@@ -174,7 +174,7 @@ func (c *Computation) Process(ctx context.Context, rt Runtime, batch Batch) ([]O
 		err = c.processBatch(ctx, rt, batch, root)
 	}
 	if err != nil {
-		rt.resetYSONStates()
+		rt.resetTrackedStates()
 		return nil, err
 	}
 
@@ -182,14 +182,14 @@ func (c *Computation) Process(ctx context.Context, rt Runtime, batch Batch) ([]O
 	if c.typ == computationTypeTransform {
 		for _, result := range results {
 			if len(result.Distribute) != 0 {
-				rt.resetYSONStates()
+				rt.resetTrackedStates()
 				return nil, xerrors.Errorf("computation %q: %w", c.id, ErrDistributeOnTransform)
 			}
 		}
 	}
 
-	if err := rt.flushYSONStates(); err != nil {
-		return nil, xerrors.Errorf("computation %q: flush YSON state: %w", c.id, err)
+	if err := rt.flushTrackedStates(); err != nil {
+		return nil, xerrors.Errorf("computation %q: flush states: %w", c.id, err)
 	}
 
 	return results, nil

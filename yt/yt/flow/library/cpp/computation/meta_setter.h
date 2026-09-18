@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/output_collector.h>
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
@@ -35,7 +36,10 @@ struct IMetaSetter
         TMessageParentsConstPtr ActualParentMessageIds;
     };
 
-    virtual TFillResult Fill(TMessage& message, const TMessageParentsConstPtr& parents) = 0;
+    virtual TFillResult Fill(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix = TOutputMessageIdSuffix::FromSequenceNumber()) = 0;
     virtual TFillResult Fill(TTimer& timer, const TMessageParentsConstPtr& parents) = 0;
 };
 

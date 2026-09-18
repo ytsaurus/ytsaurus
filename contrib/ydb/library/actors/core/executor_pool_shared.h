@@ -9,7 +9,6 @@
 #include "scheduler_queue.h"
 #include <memory>
 #include <contrib/ydb/library/actors/actor_type/indexes.h>
-#include <contrib/ydb/library/actors/util/unordered_cache.h>
 #include <contrib/ydb/library/actors/util/threadparkpad.h>
 #include <library/cpp/monlib/dynamic_counters/counters.h>
 

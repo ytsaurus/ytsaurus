@@ -28,6 +28,5 @@ public class SecretSinkMapper implements RowFunction {
         state.setCount(state.getCount() + 1);
         String secret = System.getenv("YT_MY_SECRET");
         state.setSecret(secret != null ? secret : "");
-        stateAccessor.set(state);
     }
 }

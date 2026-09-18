@@ -1,4 +1,4 @@
-#include "source.h"
+#include "source_impl.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -34,6 +36,13 @@
 #include <yt/yt/library/re2/re2.h>
 
 #include <library/cpp/iterator/zip.h>
+#include <library/cpp/timezone_conversion/convert.h>
+
+#include <util/generic/algorithm.h>
+#include <util/generic/hash_set.h>
+
+#include <algorithm>
+#include <optional>
 
 namespace NYT::NFlow::NStaticTableConnector {
 
@@ -55,11 +64,29 @@ namespace {
 // Appended to a path so GetNode returns the node itself without redirecting through a final symlink
 // to its target (see Cypress link redirects).
 constexpr TStringBuf NoFollowSymlinkSuffix = "&";
+const re2::RE2 ExplicitTimezoneSuffixPattern(
+    R"([Tt ].*(?:[Zz]|[+-][0-9]{2}:?(?:[0-9]{2})?)$)");
 
 template <class TContextPtr>
 IClientPtr CreateClient(const TContextPtr& context, const TRichYPath& path)
 {
     return context->ClientsCache->GetClient(*path.GetCluster());
+}
+
+bool HasExplicitTimezone(TStringBuf timestamp)
+{
+    return re2::RE2::PartialMatch(timestamp, ExplicitTimezoneSuffixPattern);
+}
+
+TInstant InterpretTimestampInTimezone(TInstant instant, const std::string& timezone)
+{
+    const auto civilTime = NDatetime::ToCivilTime(instant, NDatetime::GetUtcTimeZone());
+    const auto result = NDatetime::ToAbsoluteTime(civilTime, NDatetime::GetTimeZone(timezone));
+    THROW_ERROR_EXCEPTION_IF(
+        result == TInstant::Max(),
+        "Timestamp is out of range in timezone %Qv",
+        timezone);
+    return result;
 }
 
 } // namespace
@@ -346,6 +373,8 @@ TError TSource::ClassifyPendingRead(
 void TSource::DropReader(const TError& error)
 {
     ReadErrorState_->SetError(error);
+    YT_TLOG_WARNING("Dropping table reader")
+        .With(error);
     CancelReader(error);
 }
 
@@ -555,9 +584,20 @@ i64 TSourceControllerTable::GetNotDistributedRows() const
     return RowCount - DistributedRows;
 }
 
-std::tuple<i64, TSystemTimestamp, TSystemTimestamp, std::string> TSourceControllerTable::GetOrderingKey() const
+std::tuple<i64, TSystemTimestamp, i64> TSourceControllerTable::GetOrderingKey() const
+{
+    return {Era, EventTimestamp, EventOrdinal};
+}
+
+std::tuple<i64, TSystemTimestamp, TSystemTimestamp, std::string> TSourceControllerTable::GetV1OrderingKey() const
 {
     return {Era, EventTimestamp, SystemTimestamp, Path.GetPath()};
+}
+
+std::string TSourceControllerTable::GetName() const
+{
+    auto path = Path.Attributes().Find<NYPath::TYPath>("original_path").value_or(Path.GetPath());
+    return NYPath::DirNameAndBaseName(path).second;
 }
 
 void TSourceControllerTable::SkipRemainingRows()
@@ -590,9 +630,32 @@ void TSourceControllerTable::Register(TRegistrar registrar)
         .Alias("write_timestamp")
         .Default(ZeroSystemTimestamp);
 
+    registrar.Parameter("event_ordinal", &TThis::EventOrdinal)
+        .Default(0);
+
     registrar.Parameter("distributed_rows", &TThis::DistributedRows)
         .Default(0);
     registrar.Parameter("distributing_ranges", &TThis::DistributingRanges)
+        .Default();
+}
+
+void TClusterProgress::Register(TRegistrar registrar)
+{
+    registrar.Parameter("by_cluster", &TThis::ByCluster)
+        .Default();
+    registrar.Parameter("era", &TThis::Era)
+        .Default(0);
+    registrar.Parameter("event_timestamp", &TThis::EventTimestamp)
+        .Default();
+    registrar.Parameter("event_ordinal", &TThis::EventOrdinal)
+        .Default(0);
+}
+
+void TEventNameOrder::Register(TRegistrar registrar)
+{
+    registrar.Parameter("event_timestamp", &TThis::EventTimestamp)
+        .Default();
+    registrar.Parameter("names", &TThis::Names)
         .Default();
 }
 
@@ -620,6 +683,25 @@ void TSourceControllerState::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("lost_tables", &TThis::LostTables)
         .Default(0);
+
+    registrar.Parameter("event_name_order", &TThis::EventNameOrder)
+        .Default();
+
+    registrar.Parameter("cluster_progress", &TThis::ClusterProgress)
+        .Default();
+    registrar.Parameter("pending_cleanup_tables", &TThis::PendingCleanupTables)
+        .Default();
+    registrar.Parameter("active_cluster_unavailable_since", &TThis::ActiveClusterUnavailableSince)
+        .Default(TInstant::Zero());
+
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default();
+    registrar.Parameter("cutover_era", &TThis::CutoverEra)
+        .Default();
+    registrar.Parameter("cutover_event_timestamp", &TThis::CutoverEventTimestamp)
+        .Default();
+    registrar.Parameter("cutover_processed_table_names", &TThis::CutoverProcessedTableNames)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,6 +722,8 @@ TSourceController::TSourceController(
 void TSourceController::Init(IInitContextPtr initContext)
 {
     initContext->InitClient<TSourceControllerState>(State_, "v0");
+    const bool isNativeV2Source = GetContext()->SourceSpec->SourceClassName != TypeName<TSource>();
+    InitializeMigrationState(State_.Get(), isNativeV2Source);
 }
 
 void TSourceController::Sync()
@@ -647,6 +731,91 @@ void TSourceController::Sync()
 
 void TSourceController::Commit()
 { }
+
+void TSourceController::InitializeMigrationState(
+    TSourceControllerState* state,
+    bool isNativeV2Source)
+{
+    if (!state->Mode) {
+        const bool hasV2State = state->EventNameOrder || state->ClusterProgress;
+        const bool hasV1Progress =
+            state->Inited ||
+            !state->DistributingTable->Path.GetPath().empty() ||
+            state->DistributionFinished ||
+            state->Era != 0 ||
+            state->EraStartInstant != TInstant::Zero() ||
+            state->PendingCount != 0 ||
+            state->PendingBytes != 0 ||
+            state->ProcessedTables != 0 ||
+            state->LostTables != 0;
+        state->Mode = hasV2State || (!hasV1Progress && isNativeV2Source)
+            ? EMigrationMode::V2
+            : EMigrationMode::V1;
+    }
+
+    if (!state->EventNameOrder) {
+        state->EventNameOrder = New<TEventNameOrder>();
+    }
+    if (!state->ClusterProgress) {
+        state->ClusterProgress = New<TClusterProgress>();
+    }
+}
+
+void TSourceController::UpdateMigrationState(
+    TSourceControllerState* state,
+    bool allowV1Migration,
+    const std::vector<TSourceControllerTablePtr>& tables,
+    const TLogger& publicLogger)
+{
+    if (*state->Mode == EMigrationMode::V1 && allowV1Migration) {
+        if (!state->Inited || state->DistributingTable->Path.GetPath().empty()) {
+            state->Mode = EMigrationMode::V2;
+        } else {
+            state->Mode = EMigrationMode::Draining;
+            state->CutoverEra = state->Era;
+            state->CutoverEventTimestamp = state->DistributingTable->EventTimestamp;
+            state->CutoverProcessedTableNames.clear();
+            YT_TLOG_EVENT(publicLogger, ELogLevel::Info, "Static table source V1-to-V2 migration started draining the current timestamp")
+                .With("CutoverEra", *state->CutoverEra)
+                .With("CutoverEventTimestamp", *state->CutoverEventTimestamp);
+        }
+    }
+
+    if (*state->Mode != EMigrationMode::Draining) {
+        return;
+    }
+
+    YT_VERIFY(state->CutoverEra.has_value());
+    YT_VERIFY(state->CutoverEventTimestamp.has_value());
+    const auto& current = state->DistributingTable;
+    for (const auto& table : tables) {
+        if (table->RowCount > 0 &&
+            table->Era == *state->CutoverEra &&
+            table->EventTimestamp == *state->CutoverEventTimestamp &&
+            table->GetV1OrderingKey() <= current->GetV1OrderingKey() &&
+            !Contains(state->CutoverProcessedTableNames, table->GetName()))
+        {
+            state->CutoverProcessedTableNames.push_back(table->GetName());
+        }
+    }
+
+    if (!state->DistributionFinished) {
+        return;
+    }
+
+    const bool hasRemainingV1CutoverTable = AnyOf(tables, [&] (const TSourceControllerTablePtr& table) {
+        return table->RowCount > 0 &&
+            table->Era == *state->CutoverEra &&
+            table->EventTimestamp == *state->CutoverEventTimestamp &&
+            current->GetV1OrderingKey() < table->GetV1OrderingKey();
+    });
+    if (!hasRemainingV1CutoverTable) {
+        state->Mode = EMigrationMode::V2;
+        YT_TLOG_EVENT(publicLogger, ELogLevel::Info, "Static table source V1-to-V2 migration switched to V2 ordering")
+            .With("CutoverEra", *state->CutoverEra)
+            .With("CutoverEventTimestamp", *state->CutoverEventTimestamp);
+    }
+}
 
 TSystemTimestamp TSourceController::ExtractTimestamp(
     const INodePtr& node,
@@ -657,12 +826,17 @@ TSystemTimestamp TSourceController::ExtractTimestamp(
 
     TInstant instant;
     switch (locator->Format) {
-        case ETimestampFormat::Iso8601:
+        case ETimestampFormat::Iso8601: {
             THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp, got %v", timestampNode->GetType());
-            if (TInstant::TryParseIso8601(timestampNode->AsString()->GetValue(), instant)) {
+            const auto& timestampString = timestampNode->AsString()->GetValue();
+            if (TInstant::TryParseIso8601(timestampString, instant)) {
+                if (!HasExplicitTimezone(timestampString) && locator->Timezone) {
+                    instant = InterpretTimestampInTimezone(instant, *locator->Timezone);
+                }
                 return TSystemTimestamp(instant.Seconds());
             }
-            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampNode->AsString()->GetValue());
+            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampString);
+        }
         case ETimestampFormat::Seconds:
             THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::Seconds(timestampNode->AsUint64()->GetValue());
@@ -708,7 +882,12 @@ std::vector<TSourceControllerTablePtr> TSourceController::MakeTables(
     const TTableSourceParametersPtr& sourceParameters,
     const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
     const TSourceControllerTablePtr& lastProcessingTable,
-    i64 era)
+    i64 era,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    const std::vector<std::string>& cutoverProcessedTableNames)
 {
     std::vector<TSourceControllerTablePtr> result;
     for (const auto& tableInfo : tablesInfo) {
@@ -745,19 +924,81 @@ std::vector<TSourceControllerTablePtr> TSourceController::MakeTables(
         result.push_back(distributingTable);
     }
 
-    FilterTables(result, dynamicSourceSpec, lastProcessingTable);
-    SortBy(result, [] (const TSourceControllerTablePtr& table) {
-        return table->GetOrderingKey();
-    });
+    FilterTables(
+        result,
+        dynamicSourceSpec,
+        lastProcessingTable,
+        nameOrder,
+        mode,
+        cutoverEra,
+        cutoverEventTimestamp,
+        cutoverProcessedTableNames);
+    SortTables(result, mode);
 
     return result;
 }
 
+namespace {
+
+std::optional<i64> FindKnownEventOrdinal(
+    const TEventNameOrderPtr& nameOrder,
+    TSystemTimestamp eventTimestamp,
+    const std::string& name)
+{
+    if (!nameOrder || nameOrder->EventTimestamp != eventTimestamp) {
+        return std::nullopt;
+    }
+    auto index = Find(nameOrder->Names, name);
+    if (index == nameOrder->Names.end()) {
+        return std::nullopt;
+    }
+    return std::distance(nameOrder->Names.begin(), index);
+}
+
+std::vector<std::pair<TRichYPath, INodePtr>> ListDirTables(
+    const IClientPtr& client,
+    const TRichYPath& dirPath,
+    const std::vector<std::string>& attributes)
+{
+    TListNodeOptions listOptions;
+    listOptions.Attributes = attributes;
+    auto listNode = ConvertToNode(WaitFor(client->ListNode(dirPath.GetPath(), listOptions)).ValueOrThrow());
+
+    std::vector<std::pair<TRichYPath, INodePtr>> tablesInfo;
+    for (const auto& node : listNode->AsList()->GetChildren()) {
+        auto path = dirPath;
+        path.SetPath(YPathJoin(dirPath.GetPath(), ConvertTo<std::string>(node)));
+        tablesInfo.push_back({path, node});
+    }
+    return tablesInfo;
+}
+
+} // namespace
+
 void TSourceController::FilterTables(
     std::vector<TSourceControllerTablePtr>& tables,
     const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
-    const TSourceControllerTablePtr& lastProcessingTable)
+    const TSourceControllerTablePtr& lastProcessingTable,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    const std::vector<std::string>& cutoverProcessedTableNames)
 {
+    if (mode != EMigrationMode::V2) {
+        EraseIf(tables, [&] (const TSourceControllerTablePtr& table) {
+            if (dynamicSourceParameters->MinEventTimestamp.has_value() && table->EventTimestamp.Underlying() < *dynamicSourceParameters->MinEventTimestamp) {
+                return true;
+            }
+            if (dynamicSourceParameters->MaxEventTimestamp.has_value() && table->EventTimestamp.Underlying() > *dynamicSourceParameters->MaxEventTimestamp) {
+                return true;
+            }
+            return false;
+        });
+        return;
+    }
+
+    auto lastCoarseKey = std::tie(lastProcessingTable->Era, lastProcessingTable->EventTimestamp);
     EraseIf(tables, [&] (const TSourceControllerTablePtr& table) {
         if (dynamicSourceParameters->MinEventTimestamp.has_value() && table->EventTimestamp.Underlying() < *dynamicSourceParameters->MinEventTimestamp) {
             return true;
@@ -765,18 +1006,195 @@ void TSourceController::FilterTables(
         if (dynamicSourceParameters->MaxEventTimestamp.has_value() && table->EventTimestamp.Underlying() > *dynamicSourceParameters->MaxEventTimestamp) {
             return true;
         }
-        return table->GetOrderingKey() < lastProcessingTable->GetOrderingKey() || table->RowCount == 0;
+        if (cutoverEra.has_value() &&
+            cutoverEventTimestamp.has_value() &&
+            table->Era == *cutoverEra)
+        {
+            if (table->EventTimestamp < *cutoverEventTimestamp) {
+                return true;
+            }
+            if (table->EventTimestamp == *cutoverEventTimestamp &&
+                Contains(cutoverProcessedTableNames, table->GetName()))
+            {
+                return true;
+            }
+        }
+        auto coarseKey = std::tie(table->Era, table->EventTimestamp);
+        if (coarseKey < lastCoarseKey) {
+            return true;
+        }
+        if (coarseKey > lastCoarseKey) {
+            return false;
+        }
+        auto ordinal = FindKnownEventOrdinal(nameOrder, table->EventTimestamp, table->GetName());
+        return ordinal.has_value() && *ordinal < lastProcessingTable->EventOrdinal;
     });
 }
 
-std::vector<TSourceControllerTablePtr> TSourceController::GetTables(
+bool TSourceController::IsTableLess(
+    const TSourceControllerTablePtr& lhs,
+    const TSourceControllerTablePtr& rhs,
+    EMigrationMode mode)
+{
+    return mode == EMigrationMode::V2
+        ? lhs->GetOrderingKey() < rhs->GetOrderingKey()
+        : lhs->GetV1OrderingKey() < rhs->GetV1OrderingKey();
+}
+
+bool TSourceController::IsSameTableKey(
+    const TSourceControllerTablePtr& lhs,
+    const TSourceControllerTablePtr& rhs,
+    EMigrationMode mode)
+{
+    return !IsTableLess(lhs, rhs, mode) && !IsTableLess(rhs, lhs, mode);
+}
+
+void TSourceController::SortTables(
+    std::vector<TSourceControllerTablePtr>& tables,
+    EMigrationMode mode)
+{
+    std::sort(tables.begin(), tables.end(), [&] (const auto& lhs, const auto& rhs) {
+        return IsTableLess(lhs, rhs, mode);
+    });
+}
+
+std::vector<TSourceControllerTablePtr> TSourceController::ListClusterTables(
+    const std::string& cluster,
     const TTableSourceParametersPtr& sourceParameters,
     const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
     i64 era,
-    const TSourceControllerTablePtr& lastProcessingTable)
+    const TSourceControllerTablePtr& lastProcessingTable,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    const std::vector<std::string>& cutoverProcessedTableNames)
 {
-    std::vector<TSourceControllerTablePtr> result;
+    auto dirPath = *sourceParameters->TablesPath;
+    dirPath.Attributes().Remove("clusters");
+    dirPath.SetCluster(cluster);
 
+    auto client = CreateClient(GetContext(), dirPath);
+    auto tablesInfo = ListDirTables(client, dirPath, GetRequiredTableAttributes(sourceParameters));
+
+    return MakeTables(
+        tablesInfo,
+        sourceParameters,
+        dynamicSourceParameters,
+        lastProcessingTable,
+        era,
+        nameOrder,
+        mode,
+        cutoverEra,
+        cutoverEventTimestamp,
+        cutoverProcessedTableNames);
+}
+
+TListedTables TSourceController::GetTables(
+    const TTableSourceParametersPtr& sourceParameters,
+    const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
+    i64 era,
+    const TSourceControllerTablePtr& lastProcessingTable,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    std::vector<std::string> cutoverProcessedTableNames)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        mode != EMigrationMode::V2 && IsMultiCluster(sourceParameters),
+        "Multi-cluster input is not supported while static table source is in %Qlv migration mode",
+        mode);
+
+    if (IsMultiCluster(sourceParameters)) {
+        return GetMultiClusterTables(
+            sourceParameters,
+            dynamicSourceParameters,
+            era,
+            lastProcessingTable,
+            nameOrder,
+            mode,
+            cutoverEra,
+            cutoverEventTimestamp,
+            cutoverProcessedTableNames);
+    }
+    return GetSingleClusterTables(
+        sourceParameters,
+        dynamicSourceParameters,
+        era,
+        lastProcessingTable,
+        nameOrder,
+        mode,
+        cutoverEra,
+        cutoverEventTimestamp,
+        cutoverProcessedTableNames);
+}
+
+TListedTables TSourceController::GetMultiClusterTables(
+    const TTableSourceParametersPtr& sourceParameters,
+    const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
+    i64 era,
+    const TSourceControllerTablePtr& lastProcessingTable,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    const std::vector<std::string>& cutoverProcessedTableNames)
+{
+    auto clusters = GetPathClusters(*sourceParameters->TablesPath);
+
+    // Active cluster should be first
+    if (auto active = lastProcessingTable->Path.GetCluster()) {
+        if (auto it = Find(clusters, *active); it != clusters.end()) {
+            std::rotate(clusters.begin(), it, it + 1);
+        }
+    }
+
+    std::vector<std::vector<TSourceControllerTablePtr>> perClusterTables;
+    perClusterTables.reserve(clusters.size());
+    THashSet<std::string> unavailableClusters;
+    for (const auto& cluster : clusters) {
+        try {
+            perClusterTables.push_back(
+                ListClusterTables(
+                    cluster,
+                    sourceParameters,
+                    dynamicSourceParameters,
+                    era,
+                    lastProcessingTable,
+                    nameOrder,
+                    mode,
+                    cutoverEra,
+                    cutoverEventTimestamp,
+                    cutoverProcessedTableNames));
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to list tables on cluster")
+                .With("Cluster", cluster)
+                .With(ex);
+            perClusterTables.emplace_back();
+            unavailableClusters.insert(cluster);
+        }
+    }
+    THROW_ERROR_EXCEPTION_IF(unavailableClusters.size() == clusters.size(), "Failed to list tables from all clusters")
+        .With("clusters", clusters);
+
+    return TListedTables{
+        .Tables = MergeByName(perClusterTables),
+        .UnavailableClusters = std::move(unavailableClusters),
+    };
+}
+
+TListedTables TSourceController::GetSingleClusterTables(
+    const TTableSourceParametersPtr& sourceParameters,
+    const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
+    i64 era,
+    const TSourceControllerTablePtr& lastProcessingTable,
+    const TEventNameOrderPtr& nameOrder,
+    EMigrationMode mode,
+    std::optional<i64> cutoverEra,
+    std::optional<TSystemTimestamp> cutoverEventTimestamp,
+    const std::vector<std::string>& cutoverProcessedTableNames)
+{
     std::vector<std::pair<TRichYPath, INodePtr>> tablesInfo;
     if (sourceParameters->Tables.has_value()) {
         auto attributes = GetRequiredTableAttributes(sourceParameters);
@@ -786,47 +1204,385 @@ std::vector<TSourceControllerTablePtr> TSourceController::GetTables(
         }
     } else {
         auto client = CreateClient(GetContext(), *sourceParameters->TablesPath);
+        tablesInfo = ListDirTables(client, *sourceParameters->TablesPath, GetRequiredTableAttributes(sourceParameters));
+    }
 
-        TListNodeOptions listOptions;
-        listOptions.Attributes = GetRequiredTableAttributes(sourceParameters);
-        auto listNode = ConvertToNode(WaitFor(client->ListNode(sourceParameters->TablesPath->GetPath(), listOptions)).ValueOrThrow());
+    return TListedTables{
+        .Tables = MakeTables(
+            tablesInfo,
+            sourceParameters,
+            dynamicSourceParameters,
+            lastProcessingTable,
+            era,
+            nameOrder,
+            mode,
+            cutoverEra,
+            cutoverEventTimestamp,
+            cutoverProcessedTableNames),
+    };
+}
 
-        for (const auto& node : listNode->AsList()->GetChildren()) {
-            auto path = *sourceParameters->TablesPath;
-            path.SetPath(YPathJoin(path.GetPath(), ConvertTo<std::string>(node)));
+void TSourceController::StashRangesForCleanup(TSourceControllerState* state, const TSourceControllerTablePtr& table)
+{
+    if (table->DistributingRanges.empty()) {
+        return;
+    }
+    auto snapshot = NYTree::CloneYsonStruct(table);
+    snapshot->SkipRemainingRows();
+    state->PendingCleanupTables.push_back(std::move(snapshot));
+}
 
-            tablesInfo.push_back({path, node});
+void TSourceController::ResetStashIfTableChanged(TSourceControllerState* state, const TSourceControllerTablePtr& current)
+{
+    if (!state->ClusterProgress) {
+        state->ClusterProgress = New<TClusterProgress>();
+    }
+    auto& clusterProgress = *state->ClusterProgress;
+    auto stashOrderingKey = std::tie(clusterProgress.Era, clusterProgress.EventTimestamp, clusterProgress.EventOrdinal);
+    if (stashOrderingKey == current->GetOrderingKey()) {
+        return;
+    }
+    for (const auto& [cluster, table] : clusterProgress.ByCluster) {
+        StashRangesForCleanup(state, table);
+    }
+    clusterProgress.ByCluster.clear();
+    stashOrderingKey = current->GetOrderingKey();
+}
+
+void TSourceController::EnsureCurrentPresent(
+    std::vector<TSourceControllerTablePtr>& tables,
+    const TSourceControllerTablePtr& current)
+{
+    bool present = AnyOf(tables, [&] (const TSourceControllerTablePtr& table) {
+        return table->GetOrderingKey() == current->GetOrderingKey();
+    });
+    if (!present) {
+        tables.push_back(current);
+        SortBy(tables, [] (const TSourceControllerTablePtr& table) {
+            return table->GetOrderingKey();
+        });
+    }
+}
+
+void TSourceController::ReconcileDistributingTable(TListedTables listed)
+{
+    auto* state = State_.Get();
+    UpdateMigrationState(
+        state,
+        GetDynamicParameters()->AllowV1Migration,
+        listed.Tables,
+        GetContext()->PublicLogger);
+
+    const auto mode = *state->Mode;
+    if (mode != EMigrationMode::V2) {
+        if (state->Inited) {
+            EraseIf(listed.Tables, [&] (const TSourceControllerTablePtr& table) {
+                return table->RowCount == 0 || IsTableLess(table, state->DistributingTable, mode);
+            });
+        } else {
+            EraseIf(listed.Tables, [] (const TSourceControllerTablePtr& table) {
+                return table->RowCount == 0;
+            });
+        }
+        SortTables(listed.Tables, mode);
+        UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger, mode);
+        return;
+    }
+
+    FilterTables(
+        listed.Tables,
+        GetDynamicParameters(),
+        state->DistributingTable,
+        state->EventNameOrder,
+        mode,
+        state->CutoverEra,
+        state->CutoverEventTimestamp,
+        state->CutoverProcessedTableNames);
+    EraseIf(listed.Tables, [] (const TSourceControllerTablePtr& table) {
+        return table->RowCount == 0;
+    });
+    AssignEventOrdinals(listed.Tables, state);
+    if (state->Inited) {
+        EraseIf(listed.Tables, [&] (const TSourceControllerTablePtr& table) {
+            return IsTableLess(table, state->DistributingTable, mode);
+        });
+    }
+    SortTables(listed.Tables, mode);
+
+    const auto& current = state->DistributingTable;
+
+    const bool canFailover = IsMultiCluster(GetParameters()) &&
+        state->Inited &&
+        !state->DistributionFinished &&
+        !current->Path.GetPath().empty() &&
+        current->Path.GetCluster().has_value();
+
+    if (!canFailover) {
+        UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger);
+        return;
+    }
+
+    auto activeCluster = *current->Path.GetCluster();
+    ResetStashIfTableChanged(state, current);
+
+    const bool activeUnavailable = listed.UnavailableClusters.contains(activeCluster);
+    if (activeUnavailable) {
+        EnsureCurrentPresent(listed.Tables, current);
+        if (state->ActiveClusterUnavailableSince == TInstant::Zero()) {
+            state->ActiveClusterUnavailableSince = TInstant::Now();
+        }
+        if (TInstant::Now() - state->ActiveClusterUnavailableSince <= GetParameters()->FailoverDelay) {
+            UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger);
+            return;
+        }
+    } else {
+        state->ActiveClusterUnavailableSince = TInstant::Zero();
+    }
+
+    auto serving = FindReplicaServingCurrentTable(listed.Tables, current->GetName());
+
+    if (serving &&
+        serving->Path.GetCluster() == current->Path.GetCluster() &&
+        serving->Path.GetPath() != current->Path.GetPath())
+    {
+        YT_TLOG_EVENT(GetContext()->PublicLogger, ELogLevel::Warning, "Current table was recreated under a new object id; rereading from scratch")
+            .With("Cluster", activeCluster)
+            .With("EventTimestamp", current->EventTimestamp)
+            .With("OldId", current->Path.GetPath())
+            .With("NewId", serving->Path.GetPath());
+        StashRangesForCleanup(state, current);
+        current->Path = serving->Path;
+        current->RowCount = serving->RowCount;
+        current->ByteSize = serving->ByteSize;
+        current->DistributedRows = 0;
+        current->DistributingRanges.clear();
+        CommittedOffsetsExclusive_.clear();
+    }
+
+    auto decision = DecideFailover(current, serving, state->ClusterProgress->ByCluster, GetContext()->PublicLogger);
+    if (!decision) {
+        UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger);
+        return;
+    }
+
+    const auto& newTable = decision->NewTable;
+    auto toCluster = *newTable->Path.GetCluster();
+
+    state->ClusterProgress->ByCluster[decision->StashedCluster] = NYTree::CloneYsonStruct(current);
+    state->ClusterProgress->ByCluster.erase(toCluster);
+
+    YT_TLOG_EVENT(
+        GetContext()->PublicLogger,
+        ELogLevel::Info,
+        "Failing over current table to another cluster")
+        .With("EventTimestamp", current->EventTimestamp)
+        .With("FromCluster", decision->StashedCluster)
+        .With("ToCluster", toCluster)
+        .With("ResumedDistributedRows", newTable->DistributedRows)
+        .With("RowCount", newTable->RowCount);
+
+    state->DistributingTable = newTable;
+    CommittedOffsetsExclusive_.clear();
+
+    UpdateControllerState(state, listed.Tables, GetContext()->PublicLogger);
+}
+
+std::vector<std::string> TSourceController::GetPathClusters(const TRichYPath& path)
+{
+    if (auto clusters = path.GetClusters()) {
+        return *clusters;
+    }
+    if (auto cluster = path.GetCluster()) {
+        return {*cluster};
+    }
+    return {};
+}
+
+bool TSourceController::IsMultiCluster(const TTableSourceParametersPtr& sourceSpec)
+{
+    return sourceSpec->TablesPath.has_value() && sourceSpec->TablesPath->GetClusters().has_value();
+}
+
+std::vector<TSourceControllerTablePtr> TSourceController::MergeByName(
+    const std::vector<std::vector<TSourceControllerTablePtr>>& perClusterActiveFirst)
+{
+    THashMap<std::string, TSourceControllerTablePtr> byName;
+    for (const auto& clusterTables : perClusterActiveFirst) {
+        for (const auto& table : clusterTables) {
+            byName.emplace(table->GetName(), table);
         }
     }
 
-    return MakeTables(tablesInfo, sourceParameters, dynamicSourceParameters, lastProcessingTable, era);
+    std::vector<TSourceControllerTablePtr> result;
+    result.reserve(byName.size());
+    for (auto& [_, table] : byName) {
+        result.push_back(std::move(table));
+    }
+    return result;
+}
+
+TSourceControllerTablePtr TSourceController::FindReplicaServingCurrentTable(
+    const std::vector<TSourceControllerTablePtr>& tables,
+    const std::string& name)
+{
+    auto* found = FindIfPtr(tables, [&] (const TSourceControllerTablePtr& table) {
+        return table->GetName() == name;
+    });
+    return found ? *found : nullptr;
+}
+
+TSourceControllerTablePtr TSourceController::MakeFailoverTable(
+    const TSourceControllerTablePtr& current,
+    const TSourceControllerTablePtr& serving,
+    const TSourceControllerTablePtr& resumeFrom)
+{
+    auto newTable = resumeFrom
+        ? NYTree::CloneYsonStruct(resumeFrom)
+        : New<TSourceControllerTable>();
+
+    newTable->Path = serving->Path;
+    newTable->RowCount = serving->RowCount;
+    newTable->ByteSize = serving->ByteSize;
+
+    newTable->Era = current->Era;
+    newTable->EventTimestamp = current->EventTimestamp;
+    newTable->EventOrdinal = current->EventOrdinal;
+
+    auto maxSystemTimestamp = std::max({
+        current->SystemTimestamp.Underlying(),
+        serving->SystemTimestamp.Underlying(),
+        newTable->SystemTimestamp.Underlying(),
+    });
+    newTable->SystemTimestamp = TSystemTimestamp(maxSystemTimestamp);
+
+    return newTable;
+}
+
+std::optional<TFailoverDecision> TSourceController::DecideFailover(
+    const TSourceControllerTablePtr& current,
+    const TSourceControllerTablePtr& servingReplica,
+    const THashMap<std::string, TSourceControllerTablePtr>& stash,
+    const TLogger& publicLogger)
+{
+    if (!servingReplica ||
+        !current->Path.GetCluster().has_value() ||
+        !servingReplica->Path.GetCluster().has_value() ||
+        *servingReplica->Path.GetCluster() == *current->Path.GetCluster())
+    {
+        return std::nullopt;
+    }
+
+    TSourceControllerTablePtr resumeFrom;
+    if (auto it = stash.find(*servingReplica->Path.GetCluster()); it != stash.end()) {
+        resumeFrom = it->second;
+        if (resumeFrom->Path.GetPath() != servingReplica->Path.GetPath()) {
+            YT_TLOG_EVENT(publicLogger, ELogLevel::Warning, "Stashed table was recreated on the target cluster; rereading from scratch")
+                .With("Cluster", *servingReplica->Path.GetCluster())
+                .With("EventTimestamp", current->EventTimestamp)
+                .With("StashedId", resumeFrom->Path.GetPath())
+                .With("LiveId", servingReplica->Path.GetPath());
+            resumeFrom = nullptr;
+        }
+    }
+
+    return TFailoverDecision{
+        .NewTable = MakeFailoverTable(current, servingReplica, resumeFrom),
+        .StashedCluster = *current->Path.GetCluster(),
+    };
+}
+
+namespace {
+
+void AssignOrdinalsInGroup(
+    std::vector<std::string>& names,
+    const std::vector<TSourceControllerTablePtr>& group)
+{
+    THashMap<std::string, i64> indexByName;
+    for (int i = 0; i < std::ssize(names); ++i) {
+        indexByName[names[i]] = i;
+    }
+
+    std::vector<TSourceControllerTablePtr> fresh;
+    for (const auto& table : group) {
+        if (auto it = indexByName.find(table->GetName()); it != indexByName.end()) {
+            table->EventOrdinal = it->second;
+        } else {
+            fresh.push_back(table);
+        }
+    }
+
+    SortBy(fresh, [] (const TSourceControllerTablePtr& table) {
+        return std::pair(table->SystemTimestamp, table->GetName());
+    });
+
+    for (const auto& table : fresh) {
+        table->EventOrdinal = std::ssize(names);
+        names.push_back(table->GetName());
+    }
+}
+
+} // namespace
+
+void TSourceController::AssignEventOrdinals(
+    std::vector<TSourceControllerTablePtr>& tables,
+    TSourceControllerState* state)
+{
+    if (!state->EventNameOrder) {
+        state->EventNameOrder = New<TEventNameOrder>();
+    }
+    auto& nameOrder = *state->EventNameOrder;
+
+    std::optional<TSystemTimestamp> currentEventTimestamp;
+    if (state->Inited) {
+        currentEventTimestamp = state->DistributingTable->EventTimestamp;
+    }
+
+    if (currentEventTimestamp && nameOrder.EventTimestamp != *currentEventTimestamp) {
+        nameOrder.EventTimestamp = *currentEventTimestamp;
+        nameOrder.Names = {state->DistributingTable->GetName()};
+    }
+
+    THashMap<TSystemTimestamp, std::vector<TSourceControllerTablePtr>> byEventTs;
+    for (const auto& table : tables) {
+        byEventTs[table->EventTimestamp].push_back(table);
+    }
+
+    for (auto& [eventTimestamp, group] : byEventTs) {
+        if (currentEventTimestamp && eventTimestamp == *currentEventTimestamp) {
+            AssignOrdinalsInGroup(nameOrder.Names, group);
+        } else {
+            std::vector<std::string> transientNames;
+            AssignOrdinalsInGroup(transientNames, group);
+        }
+    }
 }
 
 void TSourceController::UpdateControllerState(
     TSourceControllerState* state,
     const std::vector<TSourceControllerTablePtr>& tables,
-    const TLogger& publicLogger)
+    const TLogger& publicLogger,
+    EMigrationMode mode)
 {
     if (state->EraStartInstant == TInstant::Zero()) {
         state->EraStartInstant = TInstant::Now();
     }
 
-    YT_VERIFY(IsSortedBy(tables, [] (const TSourceControllerTablePtr& table) {
-        return table->GetOrderingKey();
+    YT_VERIFY(std::is_sorted(tables.begin(), tables.end(), [&] (const auto& lhs, const auto& rhs) {
+        return IsTableLess(lhs, rhs, mode);
     }));
     for (auto& table : tables) {
         YT_VERIFY(table->RowCount != 0, Format("Table %Qv is empty", table->Path));
-        YT_VERIFY(table->GetOrderingKey() >= state->DistributingTable->GetOrderingKey(),
-            Format("Table %Qv has outdated ordering key (Key: %v, ThresholdKey: %v)",
-            table->Path,
-            table->GetOrderingKey(),
-            state->DistributingTable->GetOrderingKey()));
+        if (mode == EMigrationMode::V2) {
+            YT_VERIFY(!IsTableLess(table, state->DistributingTable, mode), Format("Table %Qv has outdated ordering key (Key: %v, ThresholdKey: %v)", table->Path, table->GetOrderingKey(), state->DistributingTable->GetOrderingKey()));
+        } else {
+            YT_VERIFY(!IsTableLess(table, state->DistributingTable, mode), Format("Table %Qv has outdated ordering key (Key: %v, ThresholdKey: %v)", table->Path, table->GetV1OrderingKey(), state->DistributingTable->GetV1OrderingKey()));
+        }
     }
 
     auto it = tables.begin();
 
     // Skip/check current.
-    if (it != tables.end() && (*it)->GetOrderingKey() == state->DistributingTable->GetOrderingKey()) {
+    if (it != tables.end() && IsSameTableKey(*it, state->DistributingTable, mode)) {
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
@@ -874,7 +1630,7 @@ void TSourceController::UpdateControllerState(
     }
 }
 
-void TSourceController::ApplyRestartInstantLogic(
+bool TSourceController::ApplyRestartInstantLogic(
     TSourceControllerState* state,
     TInstant restartInstant,
     const TLogger& publicLogger)
@@ -887,6 +1643,7 @@ void TSourceController::ApplyRestartInstantLogic(
             "Misconfiguration: restart instant in dynamic parameters is greater than now")
             .With("RestartInstant", restartInstant)
             .With("Now", now);
+        return false;
     }
     if (restartInstant > state->EraStartInstant) {
         state->DistributingTable->SkipRemainingRows();
@@ -900,7 +1657,9 @@ void TSourceController::ApplyRestartInstantLogic(
             .With("LastEraStartInstant", state->EraStartInstant)
             .With("NewEraStartInstant", now);
         state->EraStartInstant = now;
+        return true;
     }
+    return false;
 }
 
 bool TSourceController::CheckDistributingTable()
@@ -912,34 +1671,47 @@ bool TSourceController::CheckDistributingTable()
             GetParameters(),
             GetDynamicParameters(),
             State_->Era,
-            State_->DistributingTable)
+            State_->DistributingTable,
+            NYTree::CloneYsonStruct(State_->EventNameOrder),
+            *State_->Mode,
+            State_->CutoverEra,
+            State_->CutoverEventTimestamp,
+            State_->CutoverProcessedTableNames)
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
     if (TablesFuture_.IsSet()) {
         if (TablesFuture_.GetOrCrash().IsOK()) {
             try {
-                ApplyRestartInstantLogic(State_.Get(), GetDynamicParameters()->RestartInstant, GetContext()->PublicLogger);
+                if (ApplyRestartInstantLogic(State_.Get(), GetDynamicParameters()->RestartInstant, GetContext()->PublicLogger)) {
+                    TablesFuture_ = {};
+                    return State_->Inited;
+                }
                 CheckDistributionFinished();
-                UpdateControllerState(State_.Get(), TablesFuture_.GetOrCrash().ValueOrThrow(), GetContext()->PublicLogger);
+                ReconcileDistributingTable(TablesFuture_.GetOrCrash().ValueOrThrow());
                 State_->Inited = true;
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to update distributing table").With(ex);
+                static constexpr auto Message = "Failed to update distributing table"_sb;
+                auto error = TError(Message)
+                    .With(ex);
                 YT_TLOG_EVENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
-                    "Failed to update distributing table")
-                    .With(error);
+                    Message)
+                    .With(ex);
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
-            auto error = TError("Failed to get tables").With(TablesFuture_.GetOrCrash());
+            static constexpr auto Message = "Failed to get tables"_sb;
+            const auto& tablesError = TablesFuture_.GetOrCrash();
+            auto error = TError(Message)
+                .With(tablesError);
             YT_TLOG_EVENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
-                "Failed to get tables")
-                .With(error);
+                Message)
+                .With(tablesError);
             CheckDistributingTableErrorState_->SetError(error);
         }
         TablesFuture_ = {};
@@ -966,29 +1738,50 @@ void TSourceController::ProcessPartitionStatuses(const THashMap<TKey, TExtendedS
         if (status->PartitionState == EPartitionState::Completed) {
             distributingTable->DistributingRanges.erase(rangeId);
             CommittedOffsetsExclusive_.erase(rangeId);
+            for (const auto& cleanupTable : State_->PendingCleanupTables) {
+                cleanupTable->DistributingRanges.erase(rangeId);
+            }
         } else {
             CommittedOffsetsExclusive_[rangeId] = ConvertTo<TPartitionStatusPtr>(status->PartitionStatus)->CommittedOffsetExclusive;
         }
     }
+    EraseIf(State_->PendingCleanupTables, [] (const TSourceControllerTablePtr& table) {
+        return table->DistributingRanges.empty();
+    });
 }
 
 void TSourceController::CheckDistributionFinished()
 {
-    const auto& distributingTable = State_->DistributingTable;
-    if (State_->DistributionFinished) {
+    auto* state = State_.Get();
+    const auto& distributingTable = state->DistributingTable;
+    if (state->DistributionFinished) {
         return;
     }
     if (distributingTable->Path.GetPath().empty()) {
-        State_->DistributionFinished = true;
-    } else if (distributingTable->GetNotDistributedRows() == 0 && distributingTable->DistributingRanges.empty()) {
-        State_->DistributionFinished = true;
-        State_->ProcessedTables += 1;
-        YT_TLOG_EVENT(
-            GetContext()->PublicLogger,
-            ELogLevel::Info,
-            "Table was processed")
-            .With("Table", distributingTable->Path);
+        state->DistributionFinished = true;
+        return;
     }
+    if (distributingTable->GetNotDistributedRows() != 0 || !distributingTable->DistributingRanges.empty()) {
+        return;
+    }
+
+    if (!state->ClusterProgress->ByCluster.empty()) {
+        for (const auto& [cluster, table] : state->ClusterProgress->ByCluster) {
+            StashRangesForCleanup(state, table);
+        }
+        state->ClusterProgress->ByCluster.clear();
+    }
+    if (!state->PendingCleanupTables.empty()) {
+        return;
+    }
+
+    state->DistributionFinished = true;
+    state->ProcessedTables += 1;
+    YT_TLOG_EVENT(
+        GetContext()->PublicLogger,
+        ELogLevel::Info,
+        "Table was processed")
+        .With("Table", distributingTable->Path);
 }
 
 double TSourceController::GetDesiredRowsPerSecond(
@@ -1096,21 +1889,28 @@ std::optional<THashMap<TKey, IMapNodePtr>> TSourceController::ListKeys()
 
     const auto& distributingTable = State_->DistributingTable;
 
-    double desiredRangeRowsPerSecond = GetDesiredRangeRowsPerSecond(GetDynamicParameters(), distributingTable);
-
     auto rangeIdGenerator = [&] {
         return TRangeId(GetContext()->TimeProvider->GenerateSeqNo());
     };
-    auto rangeDynamicSourcePartitionSpecs = DoDistributing(
-        GetDynamicParameters(),
-        desiredRangeRowsPerSecond,
-        CommittedOffsetsExclusive_,
-        distributingTable,
-        rangeIdGenerator);
 
     THashMap<TKey, IMapNodePtr> result;
-    for (const auto& [rangeId, spec] : rangeDynamicSourcePartitionSpecs) {
-        result[GenerateRangeKey(rangeId)] = spec;
+    auto emit = [&] (const TSourceControllerTablePtr& table, const THashMap<TRangeId, i64>& committedOffsets) {
+        auto specs = DoDistributing(
+            GetDynamicParameters(),
+            GetDesiredRangeRowsPerSecond(GetDynamicParameters(), table),
+            committedOffsets,
+            table,
+            rangeIdGenerator);
+        for (const auto& [rangeId, spec] : specs) {
+            result[GenerateRangeKey(rangeId)] = spec;
+        }
+    };
+
+    emit(distributingTable, CommittedOffsetsExclusive_);
+
+    // Emit abandoned ranges so their partitions Complete and reclaim source key state.
+    for (const auto& cleanupTable : State_->PendingCleanupTables) {
+        emit(cleanupTable, /*committedOffsets*/ {});
     }
     return result;
 }
@@ -1119,7 +1919,8 @@ std::optional<TStreamTraverseDataPtr> TSourceController::GetFutureKeysStreamTrav
 {
     const auto& distributingTable = State_->DistributingTable;
     i64 notDistributedCount = distributingTable->GetNotDistributedRows() + State_->PendingCount;
-    bool noFuturePartitions = GetParameters()->Finite && State_->Inited && notDistributedCount == 0;
+    bool noFuturePartitions = GetParameters()->Finite && State_->Inited && notDistributedCount == 0 &&
+        State_->PendingCleanupTables.empty() && State_->ClusterProgress->ByCluster.empty();
 
     auto now = NConcurrency::WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
 

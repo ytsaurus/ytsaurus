@@ -33,9 +33,9 @@ target_link_libraries(yt-flow-library-cpp-multiplexer-tests-pipeline PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  library-cpp-computation
   cpp-connectors-queue
   library-cpp-multiplexer
+  cpp-process_function-host
   library-cpp-runner
   library-cpp-resources
 )

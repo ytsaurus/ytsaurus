@@ -403,15 +403,15 @@ private:
 
         void ApplyConfigChanges(TSchedulerPool* pool, const TPoolResourcesPtr& oldResources)
         {
-            TCompactVector<std::string, 3> logMessages;
+            NLogging::TLoggingTagList updatedResourceTags;
             auto& attributes = pool->SpecifiedAttributes();
             const auto& poolConfig = pool->FullConfig();
             const auto& actualStrongGuaranteeResources = poolConfig->StrongGuaranteeResources;
             if (!oldResources->StrongGuaranteeResources->IsEqualTo(*actualStrongGuaranteeResources)) {
                 attributes[EInternedAttributeKey::StrongGuaranteeResources] = ConvertToYsonString(actualStrongGuaranteeResources);
-                logMessages.push_back(Format(
-                    "StrongGuaranteeResources: %v",
-                    ConvertToYsonString(actualStrongGuaranteeResources, EYsonFormat::Text)));
+                updatedResourceTags.Add(
+                    "StrongGuaranteeResources",
+                    ConvertToYsonString(actualStrongGuaranteeResources, EYsonFormat::Text));
             }
             const auto& actualIntegralGuarantees = poolConfig->IntegralGuarantees;
             const auto& oldBurstGuaranteeResources = oldResources->BurstGuaranteeResources;
@@ -436,20 +436,22 @@ private:
                     updatedIntegralGuarantees->AddChild("resource_flow", ConvertToNode(actualResourceFlow));
                 }
                 attributes[EInternedAttributeKey::IntegralGuarantees] = ConvertToYsonString(updatedIntegralGuarantees);
-                logMessages.push_back(Format(
-                    "IntegralGuarantees: %v",
-                    ConvertToYsonString(actualIntegralGuarantees, EYsonFormat::Text)));
+                updatedResourceTags.Add(
+                    "IntegralGuarantees",
+                    ConvertToYsonString(actualIntegralGuarantees, EYsonFormat::Text));
             }
 
             if (oldResources->MaxOperationCount != poolConfig->MaxOperationCount) {
                 attributes[EInternedAttributeKey::MaxOperationCount] = ConvertToYsonString(poolConfig->MaxOperationCount);
-                logMessages.push_back(Format("MaxOperationCount: %v", poolConfig->MaxOperationCount));
+                updatedResourceTags.Add("MaxOperationCount", poolConfig->MaxOperationCount);
             }
             if (oldResources->MaxRunningOperationCount != poolConfig->MaxRunningOperationCount) {
                 attributes[EInternedAttributeKey::MaxRunningOperationCount] = ConvertToYsonString(poolConfig->MaxRunningOperationCount);
-                logMessages.push_back(Format("MaxRunningOperationCount: %v", poolConfig->MaxRunningOperationCount));
+                updatedResourceTags.Add("MaxRunningOperationCount", poolConfig->MaxRunningOperationCount);
             }
-            YT_LOG_DEBUG("Updated pool resources (PoolName: %v, %v)", pool->GetName(), JoinToString(logMessages));
+            YT_TLOG_DEBUG("Updated pool resources")
+                .With("PoolName", pool->GetName())
+                .With(updatedResourceTags);
         }
     };
 

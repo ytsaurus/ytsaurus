@@ -1174,6 +1174,10 @@ private:
             delimitedBuilder->AppendString(info);
         }
 
+        if (!RequestLoggingTags_.IsEmpty()) {
+            delimitedBuilder->AppendFormat("%v", RequestLoggingTags_);
+        }
+
         if (RuntimeInfo_->Descriptor.Cancelable && !Cancelable_) {
             delimitedBuilder->AppendFormat("Cancelable: %v", Cancelable_);
         }
@@ -1227,6 +1231,10 @@ private:
 
         for (const auto& info : ResponseInfos_) {
             delimitedBuilder->AppendString(info);
+        }
+
+        if (!ResponseLoggingTags_.IsEmpty()) {
+            delimitedBuilder->AppendFormat("%v", ResponseLoggingTags_);
         }
 
         delimitedBuilder->AppendFormat("ExecutionTime: %v, TotalTime: %v",
@@ -2078,8 +2086,11 @@ void TServiceBase::OnRequestAuthenticated(
     --AuthenticationQueueSize_;
 
     if (!authResultOrError.IsOK()) {
+        auto error = authResultOrError.FindMatching(NRpc::EErrorCode::TransientFailure)
+            ? TError(NRpc::EErrorCode::TransientFailure, "Transient failure while authenticating request")
+            : TError(NRpc::EErrorCode::AuthenticationError, "Request authentication failed");
         ReplyError(
-            TError(NRpc::EErrorCode::AuthenticationError, "Request authentication failed")
+            std::move(error)
                 .With(authResultOrError),
             std::move(incomingRequest));
         return;
@@ -2829,6 +2840,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
         {RootUserName, runtimeInfo->DefaultRequestQueue.Get()});
 
     runtimeInfo->Heavy.store(descriptor.Options.Heavy);
+    runtimeInfo->Pooled.store(descriptor.Pooled);
     runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
     runtimeInfo->QueueByteSizeLimit.store(descriptor.QueueByteSizeLimit);
     runtimeInfo->ConcurrencyLimit.Reconfigure(descriptor.ConcurrencyLimit);

@@ -34,6 +34,7 @@ target_link_libraries(server-lib-chaos_election PUBLIC
 )
 
 target_sources(server-lib-chaos_election PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/chaos_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/election_manager.cpp
 )

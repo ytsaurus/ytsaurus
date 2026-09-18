@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/cellar_client/public.h>

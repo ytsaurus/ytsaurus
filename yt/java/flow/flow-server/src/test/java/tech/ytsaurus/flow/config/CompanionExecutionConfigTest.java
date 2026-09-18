@@ -60,6 +60,16 @@ class CompanionExecutionConfigTest {
         assertEquals("", config.pipelinePath());
     }
 
+    // Keep companion configs forward-compatible across SDK versions.
+    @Test
+    public void companionConfigIgnoresUnknownFields() {
+        CompanionExecutionConfig config = CompanionExecutionConfig.fromYTreeText(
+                "{\"port\" = 9999; \"monitoring\" = {\"grid_step\" = 5000}; \"future_field\" = 1}");
+
+        assertEquals(9999, config.port());
+        assertEquals(0, config.monitoringPort());
+    }
+
     @Test
     public void companionConfigRejectsNonMapYson() {
         assertThrows(IllegalArgumentException.class,

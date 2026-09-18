@@ -2,7 +2,7 @@
 
 ## Why you need it
 
-The classic way to write a [Computation](../../../flow/concepts/computation.md) in C++ is to inherit from `TTransformComputation` (or `TSwiftMapComputation` / `TSwiftOrderedSourceComputation`) and override the `DoProcessMessage`, `DoProcessTimer`, `DoProcessVisit`, and `DoInit` methods. In this approach, your custom logic becomes tightly coupled with the `Computation` object: it inherits dozens of protected methods and can only be constructed from a fully built `TComputationContext` (which includes {{product-name}} clients, stores, the state manager, and so on). As a result, it’s nearly impossible to test this logic in isolation with unit tests.
+Implement new C++ user logic only as a process function. Direct inheritance from `TTransformComputation`, `TSwiftMapComputation`, `TSwiftOrderedSourceComputation`, or `TTransformOrderedSourceComputation` is a low-level API for framework and legacy maintenance, not an authoring model for new user computations. Such logic is tightly coupled with the `Computation` object, inherits dozens of protected methods, and can only be constructed from a fully built `TComputationContext`, so it’s nearly impossible to test in isolation with unit tests.
 
 A process function moves your custom logic into a separate, lightweight object. This object receives its dependencies (`IOutputCollector`, `IRuntimeContext`) as narrow interfaces and doesn’t depend on the `Computation` object itself. This lets you test the function in isolation with unit tests.
 
@@ -23,9 +23,9 @@ You can run the same function under different adapters without rebuilding the bi
 
 ## Interfaces
 
-The library is `library/cpp/common` (`common/process_function.h`). The function’s methods mirror the worker’s `Do*` methods. The function selects **one** processing granularity by inheriting the corresponding interface. The spec determines which `Computation` (source, swift map, or transform) the function attaches to (see [Registration](#registration)). The base `IProcessFunctionBase` only includes `Init(initContext)` — initialization at the start of an [epoch](../../../flow/concepts/glossary.md#epoch) (analogous to `TTransformComputation::DoInit`). By default, this is a no-op. The granularity interfaces add the actual processing methods.
+The library is `library/cpp/common` (`common/process_function.h`). The function selects **one** processing granularity by inheriting the corresponding interface. The spec determines which `Computation` (source, swift map, or transform) the function attaches to (see [Registration](#registration)). The base `IProcessFunctionBase` only includes `Init(initContext)` — initialization at the start of an [epoch](../../../flow/concepts/glossary.md#epoch). By default, this is a no-op. The granularity interfaces add the actual processing methods.
 
-Choose the interface based on how you want to process the epoch’s input: one entity at a time, the entire batch at once, or by key. Then override only the methods you need. The worker will call them with the same states and exactly-once semantics as a regular `Computation`.
+Choose the interface based on how you want to process the epoch’s input: one entity at a time, the entire batch at once, or by key. Then override only the methods you need. The worker will call them with the state and exactly-once semantics of the selected mode.
 
 The function inherits one granularity interface and, if needed, the `ISyncProcessFunction` mix-in:
 
@@ -68,21 +68,46 @@ classDiagram
     ISyncProcessFunction <|.. TUserFunction : sync mix-in
 ```
 
-- `IProcessFunction` — element-wise processing (the most common case). The worker calls a method for each entity in the epoch (similar to `TTransformComputation::DoProcessMessage`, etc.). Override the methods you need; all are no-op by default:
+- `IProcessFunction` — element-wise processing (the most common case). The worker calls a method for each entity in the epoch. Override the methods you need; all are no-op by default:
     - `ProcessMessage(message, output, context)` — handles a single message.
     - `ProcessTimer(timer, output, context)` — handles a single [timer](../../../flow/concepts/glossary.md#timer).
     - `ProcessVisit(visit, output, context)` — handles a single visit.
 
     In source mode, only messages arrive, so `ProcessTimer` and `ProcessVisit` aren’t called.
-- `IBatchProcessFunction` — processes the entire epoch input in a single call (similar to `TTransformComputation::DoProcess`). Override `Process(input, output, context)` when your logic works with the whole batch at once (for example, a single batched external request). The input isn’t grouped by key.
+- `IBatchProcessFunction` — processes the entire epoch input in a single call. Override `Process(input, output, context)` when your logic works with the whole batch at once (for example, a single batched external request). The input isn’t grouped by key. To combine batch work with per-entity handling — say, [one state preload](../../../flow/cpp/state.md#external-state-preload) for the whole batch — call the dispatch helpers `ProcessMessages` / `ProcessTimers` / `ProcessVisits(input, output, context, callback)` from `Process`: each sets the parents and tags errors with the key exactly as the worker does around `IProcessFunction` hooks, and takes a `TCallback` — `BIND(&TMyFunction::ProcessMessage, MakeStrong(this))` or a `BIND` of a lambda.
 - `IKeyedBatchProcessFunction` — processes by key using group-by, for keyed modes (swift map and transform). The worker groups the epoch’s input by key and calls `ProcessKey` for each key:
-    - `ProcessKey(input, output, context)` — handles all input for a single key (messages, timers, and visits together; similar to `TTransformComputation::DoProcessKey`). It’s no-op by default. Override it when your logic relies on the entire key batch at once (for example, to reconcile messages and timers via the key’s shared state).
+    - `ProcessKey(input, output, context)` — handles all input for a single key (messages, timers, and visits together). It’s no-op by default. Override it when your logic relies on the entire key batch at once (for example, to reconcile messages and timers via the key’s shared state).
 - `ISyncProcessFunction` — an optional mix-in for functions that commit side effects in a separate sync phase at the end of the epoch. You inherit it in addition to the granularity interface:
-    - `Sync(transaction, context)` — commits side effects in the `transaction` (similar to `TTransformComputation::DoSync`). The `context` gives access to runtime accessors. You must implement this method. It’s called only by a `Computation` adapter that has a sync phase — among the built-in adapters, that’s `TProcessFunctionComputation` (transform). The spec validation checks this match: you can’t attach a function with `Sync` to a `Computation` without a sync phase.
+    - `Sync(transaction, context)` — commits side effects in the `transaction`. The `context` gives access to runtime accessors. You must implement this method. It’s called only by a `Computation` adapter that has a sync phase — among the built-in adapters, that’s `TProcessFunctionComputation` (transform) and `TProcessFunctionTransformOrderedSourceComputation` (ordered source). The spec validation checks this match: you can’t attach a function with `Sync` to a `Computation` without a sync phase.
 
 In `Process` (`IBatchProcessFunction`) and `ProcessKey`, the `output` doesn’t have parent messages set — you must set them yourself via `output->SetParents(...)`. In the element-wise methods of `IProcessFunction` (`ProcessMessage`, `ProcessTimer`, `ProcessVisit`), they’re already set for the corresponding entity.
 
-The `distribute` flag in `output->AddMessage(message, distribute)` mirrors the `OutputCollector` semantics in `Computation`: for source, a message with `distribute = false` isn’t published but is still considered when evaluating the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks); for other `Computation` types, a message with `distribute = false` is simply discarded.
+The `Distribute` field in `TAddMessageOptions` mirrors the `OutputCollector` semantics in `Computation`: for source, a message with `Distribute = false` isn’t published but is still considered when evaluating the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks); for other `Computation` types, such a message is simply discarded.
+
+### Message ID suffixes in Swift {#message-id-suffixes}
+
+In Swift mode, you can select the derived message ID suffix in `TAddMessageOptions`:
+
+```cpp
+output->AddMessage(std::move(message));
+output->AddMessage(
+    std::move(hashedMessage),
+    TAddMessageOptions{
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromPayloadHash(),
+    });
+output->AddMessage(
+    std::move(keyedMessage),
+    TAddMessageOptions{
+        .Distribute = false,
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromUserDefined(semanticKey),
+    });
+```
+
+- With default options, or with `FromSequenceNumber()`, Flow uses the current message sequence number for the parent message ID and output stream pair.
+- `FromPayloadHash()` uses a 128-bit CityHash of the canonical payload wire representation. Equal payloads with the same parent and stream get the same message ID; a hash collision is theoretically possible.
+- `FromUserDefined(...)` accepts a non-empty user-defined suffix. Flow encodes it as a separate lexicographic component, so it cannot impersonate a sequence-number suffix. The caller is responsible for keeping it stable and unique among distinct logical messages with the same parent and stream.
+
+Payload hashes and user-defined suffixes are supported only by Swift computations. They let message identity be independent of emission order, but they don’t remove the [Swift determinism requirement](../../../flow/concepts/swift.md#determinism): the same message ID must still denote the same logical output.
 
 {% note warning %}
 
@@ -108,7 +133,7 @@ A process function is `TRefCounted`, so you must always create it via `New<...>(
 
 ## States
 
-States work the same way as in `Computation`: typed clients (`TMutableStateKeyClient<T>` and others) are stored as function fields and initialized in `Init` via `IRuntimeInitContext` (`common/runtime_init_context.h`), which mirrors the `IJobInitContext` API:
+Typed state clients (`TMutableStateKeyClient<T>` and others) are stored as function fields and initialized in `Init` via `IRuntimeInitContext` (`common/runtime_init_context.h`):
 
 ```cpp
 void Init(const IRuntimeInitContextPtr& initContext) override
@@ -127,7 +152,7 @@ A function can declare its own parameter structure — a regular `TYsonStruct` �
 - Static — `processing_function_parameters` in `spec`, read once in `Init` via `initContext->GetParameters<T>()`.
 - Dynamic — `processing_function_parameters` in `dynamic_spec`, read via `context->GetDynamicParameters<T>()` and reflect the latest reconfiguration.
 
-If the `processing_function_parameters` field is missing, the structure is filled with default values. `GetDynamicParameters<T>()` caches the result and reparses the node only when it changes (that is, on reconfiguration).
+Both blocks are parsed into the parameter types declared when registering the function (see below), so `T` in `GetParameters<T>()` / `GetDynamicParameters<T>()` must be the registered type — a mismatch throws. If the `processing_function_parameters` field is missing, the structure is filled with default values. The static block is parsed once at job init; the dynamic one is reparsed only when it changes (that is, on reconfiguration).
 
 You specify parameter types when registering the function via macro arguments: `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams)` for the static block, `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams, TDynamicParams)` also for the dynamic one. Then the corresponding `processing_function_parameters` block (in `spec` and `dynamic_spec`) is validated against the schema when loading the spec, just like `parameters` for `Computation`: an unknown field or incorrect type causes an error before the run. A block for which you didn’t declare a type (including for a parameterless `YT_FLOW_DEFINE_PROCESS_FUNCTION(function)`) is treated as empty — any passed field will be rejected.
 
@@ -172,7 +197,7 @@ In the spec:
 };
 ```
 
-In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParameters(...)`, and dynamic ones via `TTestRuntimeContextBuilder().SetDynamicParameters(...)`.
+In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParameters(...)` — the passed struct is served to `GetParameters<T>()` as is. Dynamic ones go through the production path: name the function via `TTestRuntimeContextBuilder().SetProcessingFunction<TMyFunction>()` (it must be registered in the test binary) and pass the struct to `SetDynamicParameters(...)`; the context reparses it into the registered dynamic type.
 
 ## Registration {#registration}
 

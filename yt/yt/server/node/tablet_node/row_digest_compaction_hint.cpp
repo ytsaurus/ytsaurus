@@ -36,9 +36,12 @@ private:
     {
         SubscribeWithErrorHandling(
             Store_->GetBackendReaders(EWorkloadCategory::SystemTabletCompaction).ChunkReader->GetMeta(
-                /*options*/ {},
+                IChunkReader::TGetMetaOptions{
+                    .ClientOptions = CreateChunkReadOptions(),
+                    .MetaSize = GetEstimatedChunkMetaSize(),
+                },
                 /*partitionTags*/ {},
-                /*extentionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
+                /*extensionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
             std::bind_front(&TRowDigestFetchPipeline::OnRowDigestMetaReceived, this));
     }
 
@@ -62,9 +65,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TRowDigestFetchPipeline>(store);
+    return New<TRowDigestFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

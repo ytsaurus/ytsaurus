@@ -7,6 +7,9 @@
 
 #include <util/generic/hash.h>
 
+#include <optional>
+#include <string>
+
 namespace NYT::NFlow::NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +30,12 @@ public:
         return *this;
     }
 
+    //! Registers an output stream by its payload schema, for a function that fills the columns
+    //! itself (via MakeOutputMessageBuilder) rather than emitting a YSON message.
+    TTestRuntimeContextBuilder& RegisterStream(
+        const TStreamId& streamId,
+        NTableClient::TTableSchemaPtr schema);
+
     //! Sets a stream's event watermark. The input watermark mins over the spec's input_stream_ids,
     //! so declare them via SetSpec to exercise it.
     TTestRuntimeContextBuilder& SetWatermark(const TStreamId& streamId, TSystemTimestamp value);
@@ -38,16 +47,19 @@ public:
     TTestRuntimeContextBuilder& SetKeySchema(NTableClient::TTableSchemaPtr schema);
     TTestRuntimeContextBuilder& SetSpec(TComputationSpecPtr spec);
 
-    //! Sets the dynamic ``function_parameters`` node returned by
-    //! IRuntimeContext::GetDynamicParameters<T>().
-    TTestRuntimeContextBuilder& SetDynamicParametersNode(NYTree::IMapNodePtr node);
+    //! Names the hosted process function (as registered via YT_FLOW_DEFINE_PROCESS_FUNCTION);
+    //! GetDynamicParameters<T>() parses the dynamic block into the type registered for it.
+    TTestRuntimeContextBuilder& SetProcessingFunction(std::string name);
 
-    //! Typed convenience over SetDynamicParametersNode: serializes |parameters| to a node.
-    template <class T>
-    TTestRuntimeContextBuilder& SetDynamicParameters(const TIntrusivePtr<T>& parameters)
+    template <class TFunction>
+    TTestRuntimeContextBuilder& SetProcessingFunction()
     {
-        return SetDynamicParametersNode(NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters));
+        return SetProcessingFunction(std::string(TypeName<TFunction>()));
     }
+
+    //! Sets the dynamic ``function_parameters`` the context serves; |parameters| travels the
+    //! production path — serialized and reparsed into the type SetProcessingFunction() names.
+    TTestRuntimeContextBuilder& SetDynamicParameters(const NYTree::TYsonStructPtr& parameters);
 
     IRuntimeContextPtr Build() const;
 
@@ -58,6 +70,7 @@ private:
     std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
     NTableClient::TTableSchemaPtr KeySchema_;
     TComputationSpecPtr Spec_;
+    std::optional<std::string> ProcessingFunction_;
     NYTree::IMapNodePtr DynamicParametersNode_;
 };
 

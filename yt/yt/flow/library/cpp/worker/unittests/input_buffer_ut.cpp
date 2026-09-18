@@ -374,15 +374,19 @@ TEST(TInputBufferEpochCycleTest, SamplesInterExtractionIntervals)
 TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
 {
     const TStreamId streamId("input");
+    const TStreamId otherStreamId("other");
     auto computationSpec = New<TComputationSpec>();
-    computationSpec->InputStreamIds.insert(streamId);
+    computationSpec->InputStreamIds = {streamId, otherStreamId};
     auto dynamicSpec = New<TDynamicComputationSpec>();
     dynamicSpec->BatchDuration = TDuration::Zero();
     auto now = std::make_shared<TInstant>(TInstant::Seconds(1000));
 
     auto buffer = New<TInputBuffer>(
         TJobId(TGuid::Create()),
-        NFlow::TStreamLimitUsageStateMap{{streamId, New<TStreamLimitUsageState>(/*inflationPerMessage*/ 0)}},
+        NFlow::TStreamLimitUsageStateMap{
+            {streamId, New<TStreamLimitUsageState>(/*inflationPerMessage*/ 0)},
+            {otherStreamId, New<TStreamLimitUsageState>(/*inflationPerMessage*/ 0)},
+        },
         /*epochCycleTracker*/ nullptr,
         THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr>{},
         computationSpec,
@@ -396,15 +400,17 @@ TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
     buffer->UpdateMessageTransferingInfo(New<TMessageTransferingInfo>());
 
     const auto connectionId = TGuid::Create();
-    buffer->AddConnectionOffer(connectionId, {{streamId, {
-                    {TSystemTimestamp(1020), 1'000},
-                    {TSystemTimestamp(1010), 1'000},
-                                                         }}});
+    for (const auto& inputStreamId : {streamId, otherStreamId}) {
+        buffer->AddConnectionOffer(connectionId, {{inputStreamId, {
+                        {TSystemTimestamp(1020), 1'000},
+                        {TSystemTimestamp(1010), 1'000},
+                                                                  }}});
+    }
 
     auto schema = New<NTableClient::TTableSchema>();
     auto acknowledged = std::make_shared<THashSet<TMessageId>>();
-    auto addMessage = [&] (int index) {
-        TMessageBuilder builder(streamId, schema);
+    auto addMessage = [&] (int index, TStreamId inputStreamId) {
+        TMessageBuilder builder(inputStreamId, schema);
         auto messageId = TMessageId(Format("msg-%v", index));
         builder.SetMessageId(messageId);
         builder.SetSystemTimestamp(TSystemTimestamp(100 + index));
@@ -419,7 +425,7 @@ TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
         return messageId;
     };
 
-    auto firstId = addMessage(1);
+    auto firstId = addMessage(1, streamId);
     auto metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
     EXPECT_EQ(metrics->Count, 1);
     ASSERT_TRUE(metrics->ByteSize);
@@ -442,18 +448,40 @@ TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
     EXPECT_FALSE(metrics->ProcessedCountPerSec);
     EXPECT_TRUE(acknowledged->contains(firstId));
 
-    auto secondId = addMessage(2);
-    NConcurrency::WaitFor(buffer->GetInputBatch({streamId})).ThrowOnError();
+    auto secondId = addMessage(2, streamId);
+    auto thirdId = addMessage(3, streamId);
+    auto otherId = addMessage(4, otherStreamId);
+    auto otherMetrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(otherStreamId);
+    ASSERT_TRUE(otherMetrics->ByteSize);
+    const auto otherPersistedBytes = *otherMetrics->ByteSize;
+    metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
+    ASSERT_TRUE(metrics->ByteSize);
+    const auto persistedBytes = *metrics->ByteSize;
+    NConcurrency::WaitFor(buffer->GetInputBatch({streamId, otherStreamId})).ThrowOnError();
     *now += TDuration::Minutes(5);
-    buffer->MarkPersisted({secondId});
+    buffer->MarkPersisted({secondId, otherId, thirdId});
 
     metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
     EXPECT_EQ(metrics->Count, 0);
     EXPECT_EQ(metrics->ByteSize, 0);
     ASSERT_EQ(metrics->ReadyCount, 0);
     ASSERT_TRUE(metrics->ProcessedCountPerSec);
-    EXPECT_GT(*metrics->ProcessedCountPerSec, 0);
+    EXPECT_NEAR(*metrics->ProcessedCountPerSec, 2.0 / 300, 1e-10);
+    ASSERT_TRUE(metrics->ProcessedBytesPerSec);
+    const auto expectedByteRate = persistedBytes / 300.0;
+    EXPECT_NEAR(*metrics->ProcessedBytesPerSec, expectedByteRate, expectedByteRate * 1e-8);
     EXPECT_TRUE(acknowledged->contains(secondId));
+    EXPECT_TRUE(acknowledged->contains(thirdId));
+    EXPECT_TRUE(acknowledged->contains(otherId));
+
+    otherMetrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(otherStreamId);
+    EXPECT_EQ(otherMetrics->Count, 0);
+    EXPECT_EQ(otherMetrics->ByteSize, 0);
+    ASSERT_TRUE(otherMetrics->ProcessedCountPerSec);
+    EXPECT_NEAR(*otherMetrics->ProcessedCountPerSec, 1.0 / 300, 1e-10);
+    ASSERT_TRUE(otherMetrics->ProcessedBytesPerSec);
+    const auto otherExpectedByteRate = otherPersistedBytes / 300.0;
+    EXPECT_NEAR(*otherMetrics->ProcessedBytesPerSec, otherExpectedByteRate, otherExpectedByteRate * 1e-8);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

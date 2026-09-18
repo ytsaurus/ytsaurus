@@ -14,7 +14,9 @@ struct TChaosCacheConfig
     : public TSlruCacheConfig
 {
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
+    NChaosClient::TChaosLeasesWatcherConfigPtr ChaosLeasesWatcher;
     TDuration UnwatchedCardExpirationDelay;
+    TDuration UnwatchedLeaseExpirationDelay;
     int WorkerThreadCount;
     NChaosClient::TChaosReplicationCardUpdatesBatcherConfigPtr ReplicationCardUpdateBatcher;
 

@@ -103,7 +103,7 @@ public:
             });
     }
 
-    TFuture<void> MakeTransactionReadyToCommit(
+    TFuture<void> RecordCommitTimestamp(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
         TClusterTag commitTimestampClusterTag,
@@ -114,11 +114,11 @@ public:
             return OKFuture;
         }
 
-        return SendRequest<TTransactionParticipantServiceProxy::TReqMakeTransactionReadyToCommit>(
+        return SendRequest<TTransactionParticipantServiceProxy::TReqRecordCommitTimestamp>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
-                auto req = proxy->MakeTransactionReadyToCommit();
+                auto req = proxy->RecordCommitTimestamp();
                 req->SetResponseHeavy(true);
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);

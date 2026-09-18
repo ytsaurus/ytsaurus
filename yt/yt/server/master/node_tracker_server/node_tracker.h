@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -15,8 +15,6 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/hydra/public.h>
-
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 

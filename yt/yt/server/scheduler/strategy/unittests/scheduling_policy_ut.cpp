@@ -1,3 +1,5 @@
+#include "mocks.h"
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/operation.h>
@@ -12,13 +14,13 @@
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
-#include <yt/yt/server/scheduler/strategy/unittests/mocks.h>
-
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
 #include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/client/scheduler/private.h>
+
+#include <yt/yt/core/actions/invoker_util.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -114,7 +116,8 @@ public:
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName), (override));
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
@@ -634,6 +637,7 @@ protected:
             /*nodeShardId*/ 0,
             SchedulerConfig_,
             execNode,
+            GetSyncInvoker(),
             /*runningAllocations*/ {},
             strategyHost->GetMediumDirectory(),
             DefaultMinSpareResources_);
@@ -858,9 +862,9 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
-        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1130,9 +1134,9 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1336,9 +1340,9 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
         auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+            ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/, auto /*allocationId*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
@@ -1515,9 +1519,9 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
             if (auto* pool = dynamic_cast<TPoolTreeCompositeElement*>(element)) {
-                YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
-                    expectedActiveElements.contains(pool),
-                    context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+                YT_TLOG_INFO("Testing pool's child set presence")
+                    .With("ExpectedPresent", expectedActiveElements.contains(pool))
+                    .With("ActualPresent", context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
 
                 ASSERT_EQ(
                     expectedActiveElements.contains(pool),

@@ -10,6 +10,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
+from yt_driver_bindings import Driver as NativeDriver
 from yt_driver_rpc_bindings import Driver
 from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
@@ -43,6 +44,33 @@ def _maybe_schema(use_push_based_shuffle, columns):
     }
 
 
+def _data_node_request_counters(queue, method=None):
+    # Blob chunk reads are served from a separate request queue per workload category, so the
+    # queue tag names the category the client asked for. Only read methods have such a queue.
+    tags = {"yt_service": "DataNodeService", "queue": queue}
+    if method is not None:
+        tags["method"] = method
+    return [
+        profiler_factory().at_node(node).counter("rpc/server/request_count", tags=tags)
+        for node in ls("//sys/cluster_nodes")
+    ]
+
+
+def _location_io_counters(category):
+    # Blob chunk IO is accounted per requester workload category, which is what lets these
+    # counters cover the write path. Journal chunks are not: the changelog hardcodes the
+    # category, so nothing here observes push-based shuffle.
+    return [
+        profiler_factory().at_node(node).counter(name, tags={"category": category})
+        for node in ls("//sys/cluster_nodes")
+        for name in ("location/read_bytes", "location/written_bytes")
+    ]
+
+
+def _get_counter_delta(counters):
+    return sum(counter.get_delta() for counter in counters)
+
+
 ##################################################################
 
 @pytest.mark.parametrize("use_push_based_shuffle", [False, True])
@@ -60,7 +88,6 @@ class TestShuffleService(YTEnvSetup):
     }
 
     DELTA_RPC_PROXY_CONFIG = {
-        "enable_shuffle_service": True,
         "signature_components": {
             "generation": {
                 "generator": {},
@@ -108,15 +135,38 @@ class TestShuffleService(YTEnvSetup):
             use_push_based_shuffle=use_push_based_shuffle,
             **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
 
+        # Shuffle must never reach data nodes in the idle workload category: it is the lowest
+        # priority class and is served only from capacity left over by other users.
+        idle_io_counters = _location_io_counters("idle")
+        user_batch_io_counters = _location_io_counters("user_batch")
+
         for i in range(10):
             rows = [{"key": i, "value": i * 10 + j} for j in range(10)]
             write_shuffle_data(shuffle_handle, "key", rows)
+
+        if not use_push_based_shuffle:
+            # Journal chunk IO is billed to a hardcoded category, so these counters say
+            # nothing about push-based shuffle.
+            wait(lambda: _get_counter_delta(user_batch_io_counters) > 0)
+            assert _get_counter_delta(idle_io_counters) == 0
+
+        idle_request_counters = _data_node_request_counters("idle")
+        # Pull-based shuffle reads blob chunks by block set, push-based reads journal chunks
+        # by range; gate on both so the assertions below cannot pass without a read.
+        user_batch_request_counters = (
+            _data_node_request_counters("user_batch", method="GetBlockSet") +
+            _data_node_request_counters("user_batch", method="GetBlockRange"))
 
         for i in range(10):
             rows = [{"key": i, "value": i * 10 + j} for j in range(10)]
             assert read_shuffle_data(shuffle_handle, i) == rows
 
         assert read_shuffle_data(shuffle_handle, 10) == []
+
+        wait(lambda: _get_counter_delta(user_batch_request_counters) > 0)
+        assert _get_counter_delta(idle_request_counters) == 0
+        if not use_push_based_shuffle:
+            assert _get_counter_delta(idle_io_counters) == 0
 
         # Check that active_shuffle_count_sensor actually works.
         wait(lambda: active_shuffle_count_sensor.get() == 1, iter=300, sleep_backoff=0.1)
@@ -130,6 +180,148 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error("Shuffle with id .* does not exist"):
             read_shuffle_data(shuffle_handle, 1)
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("workload_descriptor", [
+        {"category": "system_tablet_logging"},
+        {"category": "idle"},
+        {"category": "user_batch", "band": 1024},
+    ])
+    @pytest.mark.parametrize("section", ["reader", "writer"])
+    def test_reject_workload_descriptor(self, use_push_based_shuffle, section, workload_descriptor):
+        parent_transaction = start_transaction(timeout=60000)
+
+        if not use_push_based_shuffle:
+            config = {"pull": {section: {"workload_descriptor": workload_descriptor}}}
+        elif section == "reader":
+            config = {"push": {"reader": {"chunk_session_reader_config": {
+                "workload_descriptor": workload_descriptor,
+            }}}}
+        else:
+            config = {"push": {"journal_writer": {"workload_descriptor": workload_descriptor}}}
+
+        with raises_yt_error("must not override"):
+            start_shuffle(
+                "intermediate",
+                partition_count=1,
+                parent_transaction_id=parent_transaction,
+                use_push_based_shuffle=use_push_based_shuffle,
+                config=config,
+                **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_reject_oversized_config(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        with raises_yt_error("exceeds the limit"):
+            start_shuffle(
+                "intermediate",
+                partition_count=1,
+                parent_transaction_id=parent_transaction,
+                use_push_based_shuffle=use_push_based_shuffle,
+                config={"junk": "x" * (64 * 1024)},
+                **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_reject_disabled_workload_fifo_scheduling(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        with raises_yt_error("must not override"):
+            start_shuffle(
+                "intermediate",
+                partition_count=1,
+                parent_transaction_id=parent_transaction,
+                use_push_based_shuffle=use_push_based_shuffle,
+                config=(
+                    {"push": {"reader": {"chunk_session_reader_config": {
+                        "underlying_reader_config": {"enable_workload_fifo_scheduling": False},
+                    }}}}
+                    if use_push_based_shuffle
+                    else {"pull": {"reader": {"enable_workload_fifo_scheduling": False}}}),
+                **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_reject_config_section_of_other_mode(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        with raises_yt_error("does not accept a"):
+            start_shuffle(
+                "intermediate",
+                partition_count=1,
+                parent_transaction_id=parent_transaction,
+                use_push_based_shuffle=use_push_based_shuffle,
+                config={"pull": {}} if use_push_based_shuffle else {"push": {}},
+                **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_accept_unrecognized_config_options(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        mode = "push" if use_push_based_shuffle else "pull"
+        start_shuffle(
+            "intermediate",
+            partition_count=1,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            config={"no_such_section": {}, mode: {"no_such_option": 1}},
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_codec_compresses_and_round_trips(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        # get_chunks() is cluster-wide, and push-based shuffle creates its chunks at
+        # start_shuffle, so snapshot before that.
+        chunks_before = builtins.set(get_chunks())
+
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=2,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            codec="lz4",
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "string")]))
+
+        assert parser.loads(shuffle_handle["payload"].encode())["codec"] == "lz4"
+
+        row_size = 64 * 1024
+        rows = [{"key": key, "value": "a" * row_size} for key in range(2) for _ in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows)
+
+        # A reader left on another codec would decode compressed bytes as wire rows, not these.
+        for partition in range(2):
+            assert_items_equal(
+                read_shuffle_data(shuffle_handle, partition),
+                [row for row in rows if row["key"] == partition])
+
+        def get_new_chunks():
+            return [chunk for chunk in get_chunks() if chunk not in chunks_before]
+
+        if use_push_based_shuffle:
+            def get_written_bytes():
+                chunks = get_new_chunks()
+                if not chunks:
+                    return None
+                total = 0
+                for chunk in chunks:
+                    # Sizes reach the meta at seal, which the read above hints lazily.
+                    if not get(f"#{chunk}/@sealed"):
+                        return None
+                    total += get(f"#{chunk}/@compressed_data_size")
+                return total
+
+            wait(lambda: get_written_bytes() is not None)
+
+            # A journal stores what the writer handed it, so this is the size after compression.
+            assert get_written_bytes() < len(rows) * row_size // 10
+        else:
+            # Readers take the codec from the meta; what can go wrong is the writer never getting it.
+            chunks = get_new_chunks()
+            assert len(chunks) > 0
+            for chunk in chunks:
+                assert get(f"#{chunk}/@compression_codec") == "lz4"
+
+        commit_transaction(parent_transaction)
 
     @authors("apollo1321")
     def test_different_partition_columns(self, use_push_based_shuffle):
@@ -474,6 +666,40 @@ class TestShuffleService(YTEnvSetup):
         assert read_shuffle_data(shuffle_handle, 0) == rows
         with raises_yt_error("Signature validation failed"):
             read_shuffle_data(modified_handle, 0)
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("replication_factor", [2, 3])
+    def test_shuffle_read_with_fresh_native_driver(self, use_push_based_shuffle, replication_factor):
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=3,
+            parent_transaction_id=parent_transaction,
+            replication_factor=replication_factor,
+            use_push_based_shuffle=use_push_based_shuffle,
+            config=(
+                {"push": {}}
+                if use_push_based_shuffle
+                else {"pull": {"reader": {"fail_on_unresolved_node_id": True}}}),
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
+
+        rows = [{"key": partition, "value": value} for partition in range(2) for value in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows[:4])
+        write_shuffle_data(shuffle_handle, "key", rows[4:])
+
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 4
+        for partition in range(3):
+            native_driver = NativeDriver(native_config)
+            try:
+                assert_items_equal(
+                    read_shuffle_data(shuffle_handle, partition, driver=native_driver),
+                    [row for row in rows if row["key"] == partition])
+            finally:
+                native_driver.terminate()
+
+        commit_transaction(parent_transaction)
 
     @authors("apollo1321")
     def test_job_proxy_shuffle_service_without_api_service(self, use_push_based_shuffle):

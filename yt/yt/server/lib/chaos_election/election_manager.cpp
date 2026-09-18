@@ -1,6 +1,7 @@
 #include "election_manager.h"
 
 #include "private.h"
+#include "chaos_lease.h"
 #include "config.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -43,13 +44,16 @@ inline static constexpr TStringBuf LastPingTimeColumn = "last_ping_time";
 
 TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
-    return New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema(TString(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema(TString(LeaderLeaseIdColumn), EValueType::String),
-        TColumnSchema(TString(LeaderNameColumn), EValueType::String),
-        TColumnSchema(TString(LeaseTimeoutColumn), EValueType::Uint64),
-        TColumnSchema(TString(LastPingTimeColumn), EValueType::Uint64),
-    });
+    return New<TTableSchema>(
+        std::vector<TColumnSchema>{
+            TColumnSchema(std::string(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(std::string(LeaderLeaseIdColumn), EValueType::String),
+            TColumnSchema(std::string(LeaderNameColumn), EValueType::String),
+            TColumnSchema(std::string(LeaseTimeoutColumn), EValueType::Uint64),
+            TColumnSchema(std::string(LastPingTimeColumn), EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +80,7 @@ public:
         , Logger(ChaosElectionLogger()
             .WithTag("GroupName", Options_->GroupName)
             .WithTag("Path", Config_->LockTablePath))
+        , LeaseFactory_(New<TChaosLeaseFactory>(Client_, Config_->ChaosCellBundle))
         , LockAcquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TChaosElectionManager::TryAcquireLock, MakeWeak(this)),
@@ -150,6 +155,7 @@ private:
     const IInvokerPtr Invoker_;
     const TLogger Logger;
 
+    const TChaosLeaseFactoryPtr LeaseFactory_;
     const TPeriodicExecutorPtr LockAcquisitionExecutor_;
     const TPeriodicExecutorPtr LeasePingExecutor_;
 
@@ -241,7 +247,13 @@ private:
                 }
 
                 try {
-                    auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId))
+                    // NB: Probing must not prolong what it probes. Attaching pings by default, and
+                    // a ping here would refresh the dead leader's lease: contenders probe once per
+                    // lock acquisition period, so as long as that period stays below the lease
+                    // timeout the lease outlives its owner and the takeover below is never reached.
+                    TChaosLeaseAttachOptions probeOptions;
+                    probeOptions.Ping = false;
+                    auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId, probeOptions))
                         .ValueOrThrow();
 
                     YT_TLOG_DEBUG("Existing leader lease is alive")
@@ -253,7 +265,7 @@ private:
                     return;
                 } catch (const TErrorException& ex) {
                     if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        YT_TLOG_DEBUG("Existing leader lease is dead, attempting takeover")
+                        YT_TLOG_INFO("Existing leader lease is dead, attempting takeover")
                             .With("LeaseId", existingLeaseId);
                     } else {
                         throw;
@@ -262,7 +274,8 @@ private:
             }
         }
 
-        auto chaosLeaseId = CreateLeaseOnEnabledCell();
+        auto chaosLeaseId = WaitFor(LeaseFactory_->CreateLease(Config_->LeaseTimeout))
+            .ValueOrThrow();
 
         YT_TLOG_DEBUG("Created chaos lease")
             .With("LeaseId", chaosLeaseId);
@@ -292,12 +305,12 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            YT_TLOG_DEBUG("Lock acquisition commit failed, will retry")
+            YT_TLOG_INFO("Lock acquisition commit failed, will retry")
                 .With(commitResultOrError);
             return;
         }
 
-        YT_TLOG_DEBUG("Lock acquisition committed successfully")
+        YT_TLOG_INFO("Lock acquisition committed successfully")
             .With("LeaseId", lease->GetId());
 
         Lease_ = std::move(lease);
@@ -310,43 +323,6 @@ private:
         LeasePingExecutor_->Start();
 
         OnLeadingStarted();
-    }
-
-    std::vector<TCellId> FetchMetadataCellIds()
-    {
-        auto path = Format("//sys/chaos_cell_bundles/%v/@metadata_cell_ids",
-            Config_->ChaosCellBundle);
-        auto result = WaitFor(Client_->GetNode(path))
-            .ValueOrThrow();
-        return ConvertTo<std::vector<TCellId>>(result);
-    }
-
-    TChaosLeaseId CreateLeaseOnEnabledCell()
-    {
-        auto cellIds = FetchMetadataCellIds();
-
-        for (auto cellId : cellIds) {
-            try {
-                auto leaseAttributes = CreateEphemeralAttributes();
-                leaseAttributes->Set("chaos_cell_id", cellId);
-                leaseAttributes->Set("timeout", Config_->LeaseTimeout);
-
-                TCreateObjectOptions createLeaseOptions;
-                createLeaseOptions.Attributes = std::move(leaseAttributes);
-                return WaitFor(Client_->CreateObject(EObjectType::ChaosLease, createLeaseOptions))
-                    .ValueOrThrow();
-            } catch (const TErrorException& ex) {
-                if (ex.Error().FindMatching(NChaosClient::EErrorCode::ChaosCellIsNotEnabled)) {
-                    YT_TLOG_DEBUG("Chaos cell is not enabled, trying next")
-                        .With("CellId", cellId);
-                    continue;
-                }
-                throw;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("No enabled chaos cell found in bundle %Qv",
-            Config_->ChaosCellBundle);
     }
 
     void PingLease()

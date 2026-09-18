@@ -1,5 +1,6 @@
 #include "client_impl.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
@@ -10,9 +11,9 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/shuffle_client/config.h>
 #include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
 
-#include <yt/yt/ytlib/push_based_shuffle_client/config.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/partition_reader.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/session_provider.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/shuffle_writer.h>
@@ -299,6 +300,8 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
     auto rpcTimeout = connection->GetConfig()->DefaultShuffleServiceTimeout;
     auto channel = BuildShuffleServiceChannel(connection, handle->CoordinatorAddress);
 
+    auto writerConfig = GetShuffleConfig(handle)->Push->Writer;
+
     TShuffleServiceProxy proxy(channel);
     // COMPAT(apollo1321): Switch to RegisterWriter and remove RegisterMapper
     // after the 26.2 branch is created.
@@ -316,7 +319,8 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
             handle,
             partitionColumn,
             channel,
-            rpcTimeout
+            rpcTimeout,
+            writerConfig
         ] (const TShuffleServiceProxy::TRspRegisterMapperPtr& rsp) -> IRowBatchWriterPtr {
             i32 writerId = rsp->writer_id();
 
@@ -343,12 +347,9 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
 
             auto sessionProvider = New<TRemotePartitionWriteSessionProvider>(channel, handle, rpcTimeout);
 
-            auto pushConfig = handle->PushConfig
-                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->WriterConfig
-                : New<TShuffleWriterConfig>();
-
             auto pushBasedWriter = CreatePushBasedShuffleWriter(
-                pushConfig,
+                writerConfig,
+                handle->Codec,
                 sessionProvider,
                 partitioner,
                 client->GetNativeConnection(),
@@ -391,17 +392,17 @@ TFuture<IRowBatchWriterPtr> CreatePullBasedShuffleWriterImpl(
         handle->PartitionCount,
         nameTable->GetId(partitionColumn));
 
-    // TODO(apollo1321): Carry the writer/reader config on the shuffle handle (set once at
-    // start_shuffle, shared by all writers and readers) for both push and pull, and drop the
-    // per-call options.Config — push already ignores it; pull still consumes it per call.
+    auto writerConfig = GetShuffleConfig(handle)->Pull->Writer;
+
     auto tableWriterOptions = New<TTableWriterOptions>();
     tableWriterOptions->EvaluateComputedColumns = false;
     tableWriterOptions->Account = handle->Account;
     tableWriterOptions->ReplicationFactor = handle->ReplicationFactor;
     tableWriterOptions->MediumName = handle->Medium;
+    tableWriterOptions->CompressionCodec = handle->Codec;
 
     auto writer = CreatePartitionMultiChunkWriter(
-        options.Config,
+        writerConfig,
         std::move(tableWriterOptions),
         std::move(nameTable),
         std::move(schema),
@@ -535,6 +536,8 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
     auto rpcTimeout = connection->GetConfig()->DefaultShuffleServiceTimeout;
     auto channel = BuildShuffleServiceChannel(connection, handle->CoordinatorAddress);
 
+    auto readerConfig = GetShuffleConfig(handle)->Push->Reader;
+
     return FetchShuffleChunks(
         std::move(channel),
         handle,
@@ -543,18 +546,15 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
         rpcTimeout)
         .Apply(BIND_NO_PROPAGATE([
             client,
-            handle
+            handle,
+            readerConfig
         ] (const TShuffleServiceProxy::TRspFetchChunksPtr& rsp) -> IRowBatchReaderPtr {
-            auto chunkSpecs = FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
+            client->GetNativeConnection()->GetNodeDirectory()->MergeFrom(rsp->node_directory());
 
             auto validIds = THashSet<i32>(rsp->valid_writer_ids().begin(), rsp->valid_writer_ids().end());
             TRecordHeaderFilter filter = [validIds = std::move(validIds)] (const TRecordHeader& header) {
                 return validIds.contains(header.WriterId);
             };
-
-            auto readerConfig = handle->PushConfig
-                ? ConvertTo<TPushShuffleConfigPtr>(*handle->PushConfig)->ReaderConfig
-                : New<TPartitionReaderConfig>();
 
             // The reader must use the same read quorum the controller created the
             // journal chunks with; both derive it from the replication factor.
@@ -563,16 +563,17 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
 
             auto partitionReader = CreatePushBasedPartitionReader(
                 readerConfig,
+                handle->Codec,
                 client,
                 New<TChunkReaderHost>(client),
                 readQuorum,
                 client->GetConnection()->GetInvoker(),
                 std::move(filter));
 
-            for (const auto& chunkSpec : chunkSpecs) {
+            for (const auto& chunkSpec : rsp->chunk_specs()) {
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 auto replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
-                partitionReader->AddChunk(chunkId, replicas, /*startRecordIndex*/ 0, /*rangeEndRecordIndex*/ {});
+                partitionReader->AddChunk(chunkId, std::move(replicas), /*startRecordIndex*/ 0, /*rangeEndRecordIndex*/ {});
             }
             partitionReader->SetNoMoreChunks();
             // TODO(apollo1321): Wait for all writers to finish instead of taking a snapshot
@@ -594,9 +595,10 @@ TFuture<IRowBatchReaderPtr> CreatePullBasedShuffleReaderImpl(
     const TClientPtr& client,
     TShuffleHandlePtr handle,
     int partitionIndex,
-    std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange,
-    const TShuffleReaderOptions& options)
+    std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange)
 {
+    auto readerConfig = GetShuffleConfig(handle)->Pull->Reader;
+
     auto connection = client->GetNativeConnection();
     auto channel = connection->CreateChannelByAddress(handle->CoordinatorAddress);
     return FetchShuffleChunks(
@@ -607,9 +609,11 @@ TFuture<IRowBatchReaderPtr> CreatePullBasedShuffleReaderImpl(
         connection->GetConfig()->DefaultShuffleServiceTimeout)
         .Apply(BIND([
             client,
-            options,
+            readerConfig,
             partitionIndex
         ] (const TShuffleServiceProxy::TRspFetchChunksPtr& rsp) {
+            client->GetNativeConnection()->GetNodeDirectory()->MergeFrom(rsp->node_directory());
+
             auto chunkSpecs = FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
             auto dataSourceDirectory = New<TDataSourceDirectory>();
             dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
@@ -630,14 +634,18 @@ TFuture<IRowBatchReaderPtr> CreatePullBasedShuffleReaderImpl(
             }
 
             auto reader = CreateSchemalessSequentialMultiReader(
-                options.Config,
+                readerConfig,
                 New<TTableReaderOptions>(),
                 New<TMultiChunkReaderHost>(New<TChunkReaderHost>(client)),
                 dataSourceDirectory,
                 dataSlices,
                 /*hintKeyPrefixes*/ std::nullopt,
                 New<TNameTable>(),
-                TClientChunkReadOptions(),
+                MakeChunkReadOptions(
+                    TReadSessionId::Create(),
+                    /*memoryUsageTracker*/ nullptr,
+                    readerConfig,
+                    /*yPath*/ {}),
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 /*columnFilter*/ {},
                 TPartitionTags{partitionIndex});
@@ -678,22 +686,27 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
     if (options.Schema) {
         ToProto(req->mutable_schema(), options.Schema);
     }
-    if (options.PushConfig) {
-        req->set_push_config(ToProto(*options.PushConfig));
+    if (options.Config) {
+        req->set_config(ToProto(*options.Config));
+    }
+    if (options.Codec != NCompression::ECodec::None) {
+        req->set_codec(ToProto(options.Codec));
     }
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
     const auto& signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
-    return TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
+    auto signedHandle = TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
+    ValidateShuffleHandleCodec(signedHandle, options.Codec);
+    return signedHandle;
 }
 
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
     const TSignedShuffleHandlePtr& signedShuffleHandle,
     int partitionIndex,
     std::optional<TIndexRange> logicalWriterIndexRange,
-    const TShuffleReaderOptions& options)
+    const TShuffleReaderOptions& /*options*/)
 {
     // TODO(pavook): friendly YSON wrapper.
     auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
@@ -709,8 +722,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
         MakeStrong(this),
         std::move(shuffleHandle),
         partitionIndex,
-        logicalWriterIndexRange,
-        options);
+        logicalWriterIndexRange);
 }
 
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(

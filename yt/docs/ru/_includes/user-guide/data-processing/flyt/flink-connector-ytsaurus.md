@@ -161,11 +161,11 @@ Apache Flink Connector {{product-name}} — это коннектор для п�
 
 4. Следите за работой джобы по адресу [localhost:8083](http://localhost:8083)
 
-   ![](../../../../../images/flyt-connector-simple-sink-job-ui.png)
+   ![](../../../../../_images/flyt-connector-simple-sink-job-ui.png)
 
 5. Таблица `flink_simple_test_table` будет создана в директории `/tmp/flink_simple_test_table` и будет содержать результаты выполнения Flink джобы.
 
-   ![](../../../../../images/flyt-connector-simple-sink-result-ui.png)
+   ![](../../../../../_images/flyt-connector-simple-sink-result-ui.png)
 
 Поздравляем! Вы запустили свою первую джобу с {{product-name}} и Apache Flink.
 
@@ -403,7 +403,7 @@ FROM partitioned_data_source;
 
 Результат:
 
-![](../../../../../images/flyt-connector-partitioned-table-result-ui.png)
+![](../../../../../_images/flyt-connector-partitioned-table-result-ui.png)
 
 ## Решардирование таблиц {#table-resharding}
 
@@ -562,11 +562,11 @@ ON o.user_id = l.id;
 
 Проверьте интерфейс Apache Flink по адресу [localhost:8083](http://localhost:8083).
 
-![](../../../../../images/flyt-connector-lookup-join-job-ui.png)
+![](../../../../../_images/flyt-connector-lookup-join-job-ui.png)
 
 Flink SQL Client отобразит результаты операции Lookup Join в режиме реального времени.
 
-![](../../../../../images/flyt-connector-lookup-join-flink-sql-result.png)
+![](../../../../../_images/flyt-connector-lookup-join-flink-sql-result.png)
 
 
 ## Примеры {#examples}

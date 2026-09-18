@@ -10,6 +10,11 @@ bool TQueryPoolPermissionCache::CanCacheError(const TError& error) noexcept
         error.FindMatching(NYTree::EErrorCode::ResolveError).has_value();
 }
 
+bool TQueryPoolPermissionCache::CanRefreshError(const TError& error) noexcept
+{
+    return error.FindMatching(NYTree::EErrorCode::ResolveError).has_value();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityClient

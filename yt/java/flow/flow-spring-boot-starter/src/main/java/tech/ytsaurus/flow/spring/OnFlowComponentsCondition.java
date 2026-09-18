@@ -5,8 +5,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 
 /**
  * Condition that matches when the application context contains at least one Flow component:
- * a {@link ComputationProvider} bean, or a bean annotated with {@link FlowComputation} or
- * {@link FlowSourceComputation}.
+ * a {@link ComputationProvider} bean, a {@link ResourceProvider} bean, or a bean annotated with
+ * {@link FlowComputation} or {@link FlowSourceComputation}.
  * <p>
  * This is the activation trigger for the Flow companion autoconfiguration. It supersedes the
  * previous {@code @ConditionalOnBean(ComputationProvider.class)} gate so that purely
@@ -31,6 +31,10 @@ public class OnFlowComponentsCondition extends AnyNestedCondition {
 
     @ConditionalOnBean(ComputationProvider.class)
     static class HasComputationProvider {
+    }
+
+    @ConditionalOnBean(ResourceProvider.class)
+    static class HasResourceProvider {
     }
 
     @ConditionalOnBean(annotation = FlowComputation.class)

@@ -39,11 +39,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -1506,9 +1506,10 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
+        YT_TLOG_INFO("Failing operation after materialization failure")
+            .With(ex);
         auto wrappedError = TError(NControllerAgent::EErrorCode::MaterializationFailed, "Materialization failed")
             .With(ex);
-        YT_LOG_INFO(wrappedError);
         DoFailOperation(wrappedError);
         return result;
     }
@@ -2261,7 +2262,8 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& [chunkId, job] : ChunkOriginMap_) {
-        if (!job->Suspended || !job->Restartable) {
+        // The scraper only needs chunks whose recovery can still affect a destination task.
+        if ((!job->Suspended || !job->Restartable) && job->SourceTask->IsJobOutputNeeded(job)) {
             intermediateChunks.insert(chunkId);
         }
     }
@@ -2716,7 +2718,7 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
-    CancelableContext_->Cancel(TError("Operation committed"));
+    CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Operation committed"));
 
     YT_TLOG_INFO("Results committed");
 }
@@ -3887,27 +3889,27 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale allocation %v event, ignored (AllocationIdId: %v)", eventType, eventSummary.Id);
+        YT_TLOG_DEBUG("Stale allocation event ignored")
+            .With("EventType", eventType)
+            .With("AllocationId", eventSummary.Id);
         return;
     }
 
     auto allocationIt = AllocationMap_.find(eventSummary.Id);
 
     if (allocationIt == end(AllocationMap_)) {
-        YT_LOG_DEBUG(
-            "Allocation is not found, ignore %v allocation event (EventSummary: %v)",
-            eventType,
-            eventSummary);
+        YT_TLOG_DEBUG("Allocation is not found; ignoring allocation event")
+            .With("EventType", eventType)
+            .With("EventSummary", eventSummary);
         return;
     }
 
     auto& allocation = allocationIt->second;
 
-    YT_LOG_DEBUG(
-        "Processing %v allocation event (AllocationId: %v, HasActiveJob: %v)",
-        eventType,
-        eventSummary.Id,
-        static_cast<bool>(allocation.Joblet));
+    YT_TLOG_DEBUG("Processing allocation event")
+        .With("EventType", eventType)
+        .With("AllocationId", eventSummary.Id)
+        .With("HasActiveJob", static_cast<bool>(allocation.Joblet));
 
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
@@ -3969,7 +3971,8 @@ void TOperationControllerBase::OnJobRunning(
                 "User %Qv is not a superuser but tried to crash controller agent using testing options in spec; "
                 "this incident will be reported",
                 AuthenticatedUser_);
-            YT_LOG_ALERT(error);
+            YT_TLOG_ALERT("User is not a superuser but tried to crash controller agent using testing options in spec")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
     }
@@ -4292,6 +4295,14 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap_, chunkId);
+
+    if (!completedJob->SourceTask->IsJobOutputNeeded(completedJob)) {
+        YT_TLOG_DEBUG("Ignoring unavailable intermediate chunk whose output is no longer needed")
+            .With("ChunkId", chunkId)
+            .With("JobId", completedJob->JobId);
+        IntermediateChunkScraper_->UpdateChunkSet();
+        return false;
+    }
 
     YT_TLOG_DEBUG("Intermediate chunk is lost")
         .With("ChunkId", chunkId)
@@ -5431,7 +5442,7 @@ void TOperationControllerBase::Cancel()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    CancelableContext_->Cancel(TError("Operation controller canceled"));
+    CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Operation controller canceled"));
 
     YT_TLOG_INFO("Operation controller canceled");
 }
@@ -5941,10 +5952,10 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
                     .With("table_name", tableName)
                     .With("chunk_id", chunk->GetChunkId());
             }
-            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                Message,
-                tableName,
-                chunk);
+            YT_TLOG_WARNING(Message)
+                .With("TableName", tableName)
+                .With("ChunkId", chunk->GetChunkId())
+                .With(result);
         }
         chunkIds.push_back(chunk->GetChunkId());
         YT_TLOG_DEBUG("Releasing intermediate chunk")
@@ -5958,10 +5969,11 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
-    auto error = TError("Exception thrown in operation controller that led to operation failure")
+    YT_TLOG_ERROR("Failing operation after unhandled exception")
         .With(ex);
 
-    YT_LOG_ERROR(error);
+    auto error = TError("Exception thrown in operation controller that led to operation failure")
+        .With(ex);
 
     OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
@@ -5970,6 +5982,11 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 {
     TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType_);
 
+    YT_TLOG_ERROR("Operation controller crashed")
+        .With("FailedCondition", ex.GetExpression())
+        .With("StackTrace", ex.GetStackTrace())
+        .With("CorePath", ex.GetCorePath());
+
     auto error = TError(
         NScheduler::EErrorCode::OperationControllerCrashed,
         "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
@@ -5977,8 +5994,6 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
         .With("stack_trace", ex.GetStackTrace())
         .With("core_path", ex.GetCorePath())
         .With("operation_id", OperationId_);
-
-    YT_LOG_ERROR(error);
 
     OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
@@ -6731,7 +6746,7 @@ void TOperationControllerBase::ForEachLockableDynamicTable(const std::function<v
         }
     } else {
         if (Spec_->Atomicity == EAtomicity::None && !Config_->LockNonAtomicOutputDynamicTables) {
-            YT_LOG_DEBUG("Will not lock output tables with atomicity %Qlv", EAtomicity::None);
+            YT_TLOG_DEBUG("Will not lock output tables with atomicity \"none\"");
             return;
         }
     }
@@ -8452,7 +8467,7 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
+std::vector<TDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
     auto createScraperForFetcher = [&] (const TClusterName& clusterName) -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
@@ -8490,12 +8505,11 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                     continue;
                 }
 
-                auto chunkSlice = CreateInputChunkSlice(chunk);
-                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                auto chunkSlice = CreateInputChunkSlice(chunk, RowBuffer_, table->Comparator);
+                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, table->Comparator);
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
-                dataSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true, /*minManiacDataWeight*/ std::nullopt);
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
@@ -8513,11 +8527,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
     i64 totalDataSliceCount = 0;
     i64 totalDataWeightAfter = 0;
 
-    std::vector<TLegacyDataSlicePtr> result;
+    std::vector<TDataSlicePtr> result;
     for (const auto& [fetcher, comparator] : Zip(fetchers, comparators)) {
-        for (const auto& chunkSlice : fetcher->GetChunkSlices()) {
-            YT_VERIFY(!chunkSlice->IsLegacy);
-        }
         auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices(), comparator);
         for (auto& dataSlice : dataSlices) {
             YT_TLOG_TRACE("Added dynamic table slice")
@@ -8558,9 +8569,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
     return result;
 }
 
-std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
+std::vector<TDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
-    std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
+    std::vector<std::vector<TDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
 
     i64 unversionedSliceCount = 0;
     i64 versionedSliceCount = 0;
@@ -8568,11 +8579,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     for (const auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        const auto& inputTable = InputManager_->GetInputTables()[chunk->GetTableIndex()];
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, inputTable->Comparator));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-        const auto& inputTable = InputManager_->GetInputTables()[dataSlice->GetTableIndex()];
-        dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
         ++unversionedSliceCount;
@@ -8591,15 +8600,15 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         .With("UnversionedSliceCount", unversionedSliceCount)
         .With("VersionedSliceCount", versionedSliceCount);
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
     std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
 
     return dataSlices;
 }
 
-std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
+std::vector<std::deque<TDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
 {
-    std::vector<std::deque<TLegacyDataSlicePtr>> result;
+    std::vector<std::deque<TDataSlicePtr>> result;
     for (const auto& table : InputManager_->GetInputTables()) {
         if (table->IsForeign()) {
             result.emplace_back();
@@ -8609,12 +8618,9 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 chunkSlices.reserve(table->Chunks.size());
                 YT_VERIFY(table->Comparator);
                 for (const auto& chunkSpec : table->Chunks) {
-                    auto& chunkSlice = chunkSlices.emplace_back(CreateInputChunkSlice(
-                        chunkSpec,
-                        RowBuffer_->CaptureRow(chunkSpec->BoundaryKeys()->MinKey.Get()),
-                        GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer_)));
-
-                    chunkSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
+                    auto chunkSlice = CreateInputChunkSlice(chunkSpec, RowBuffer_, table->Comparator);
+                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, table->Comparator);
+                    chunkSlices.emplace_back(std::move(chunkSlice));
                 }
 
                 YT_VERIFY(table->Comparator);
@@ -8652,8 +8658,8 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                                 YT_ABORT();
                         }
                     }
-                    auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                    chunkSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
+                    YT_VERIFY(table->Comparator);
+                    auto chunkSlice = CreateInputChunkSlice(inputChunk, RowBuffer_, table->Comparator);
                     auto& dataSlice = result.back().emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
                         *chunkSlice,
                         table->Comparator,
@@ -8747,34 +8753,22 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             auto chunkSlice = New<TInputChunkSlice>(
                 InputManager_->GetInputChunk(chunkId, protoChunkSpec.chunk_index()),
                 RowBuffer_,
-                protoChunkSpec);
-            // NB: Dynamic tables use legacy slices for now, so we do not convert dynamic table
-            // slices into new.
-            if (!dynamic) {
-                if (comparator) {
-                    chunkSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, std::nullopt, comparator);
-                } else {
-                    chunkSlice->TransformToNewKeyless();
-                }
+                protoChunkSpec,
+                comparator);
+            if (!dynamic && comparator) {
+                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, comparator);
             }
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
-        TLegacyDataSlicePtr dataSlice;
+        TDataSlicePtr dataSlice;
         // XXX(coteeq): Should check for unversionedness rather than dynamicity.
         if (dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
-            if (comparator) {
-                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-            } else {
-                dataSlice->TransformToNewKeyless();
-            }
         } else {
             YT_VERIFY(chunkSliceList.size() == 1);
             dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
 
-        YT_VERIFY(!dataSlice->IsLegacy);
         if (comparator) {
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
         }
@@ -8956,10 +8950,10 @@ void TOperationControllerBase::AttachToLivePreview(
                     .With("table_name", tableName)
                     .With("chunk_id", chunk->GetChunkId());
             }
-            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                Message,
-                tableName,
-                chunk);
+            YT_TLOG_WARNING(Message)
+                .With("TableName", tableName)
+                .With("ChunkId", chunk->GetChunkId())
+                .With(result);
         }
     }
 }
@@ -10657,7 +10651,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
             BuildLocalDiskRequestSpec(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
-            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetType());
+            YT_TLOG_FATAL("Unknown volume type")
+                .With("VolumeType", volume->DiskRequest->GetType());
         }
     }
 
@@ -11470,7 +11465,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_DELETED_FIELD(51, std::optional<std::string>, AcoName_, ESnapshotVersion::AccessControlRule);
 
     PHOENIX_REGISTER_FIELD(80, AccessControlRule_,
-        .SinceVersion(ESnapshotVersion::AccessControlRule));
+        .SinceVersion(ESnapshotVersion::AccessControlRule)
+        .template Serializer<TAtomicObjectSerializer<>>());
 
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
@@ -11686,10 +11682,10 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
                 .With("table_name", tableName)
                 .With("chunk_id", chunk->GetChunkId());
         }
-        YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-            Message,
-            tableName,
-            chunk);
+        YT_TLOG_WARNING(Message)
+            .With("TableName", tableName)
+            .With("ChunkId", chunk->GetChunkId())
+            .With(result);
     }
 
     if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
@@ -11761,9 +11757,9 @@ void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
     if (RowCountLimitTableIndex_ && *RowCountLimitTableIndex_ == tableIndex && !IsFinished()) {
         CompletedRowCount_ += count;
         if (CompletedRowCount_ >= RowCountLimit_) {
-            YT_LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
-                CompletedRowCount_,
-                RowCountLimit_);
+            YT_TLOG_INFO("Row count limit is reached")
+                .With("CompletedRowCount", CompletedRowCount_)
+                .With("RowCountLimit", RowCountLimit_);
             OnOperationCompleted(/*interrupted*/ true);
         }
     }

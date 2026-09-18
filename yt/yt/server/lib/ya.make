@@ -34,6 +34,7 @@ RECURSE(
     cell_server
     cellar_agent
     chaos_cache
+    chaos_election
     chaos_node
     chunk_pools
     chunk_server

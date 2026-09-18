@@ -26,6 +26,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NTableClient;
@@ -597,6 +598,7 @@ ISortReaderPtr CreateSortReaderForTesting(
 ISortReaderPtr CreateSortReader(
     TSortReaderConfigPtr sortReaderConfig,
     TPartitionReaderConfigPtr partitionReaderConfig,
+    ECodec codec,
     NApi::NNative::IClientPtr client,
     TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
@@ -612,6 +614,7 @@ ISortReaderPtr CreateSortReader(
     {
         auto partitionReader = CreatePushBasedPartitionReader(
             std::move(partitionReaderConfig),
+            codec,
             std::move(client),
             std::move(chunkReaderHost),
             readQuorum,

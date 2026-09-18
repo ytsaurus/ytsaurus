@@ -14,10 +14,10 @@ Please note the following:
 - Only logs that are written to stderr are available, so you need to make the appropriate logging settings in the running Spark application.
 - Currently, the driver and executors are launched in different {{product-name}} operations, so logs need to be checked in both.
 
-![](../../../../../../images/spyt-direct-submit-job-logs.png){ .center }
+![](../../../../../../_images/spyt-direct-submit-job-logs.png){ .center }
 
 ### Reference Information {#info}
 
 After launching a Spark application, additional reference information about the Spark application becomes automatically available in the driver operation: the operation ID with executors for quick access to logs, as well as the SparkUI URL.
 
-![](../../../../../../images/spyt-direct-submit-info.png){ .center width="75%"}
+![](../../../../../../_images/spyt-direct-submit-info.png){ .center width="75%"}

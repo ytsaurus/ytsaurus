@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 
 namespace NYT::NObjectServer {
 

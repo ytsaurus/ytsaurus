@@ -43,6 +43,10 @@ func TestSchemaColumnTypes(t *testing.T) {
 		{"datetime", schema.Column{Type: schema.TypeDatetime}, wire.TypeUint64},
 		{"timestamp", schema.Column{Type: schema.TypeTimestamp}, wire.TypeUint64},
 		{"interval", schema.Column{Type: schema.TypeInterval}, wire.TypeInt64},
+		{"date32", schema.Column{Type: schema.TypeDate32}, wire.TypeInt64},
+		{"datetime64", schema.Column{Type: schema.TypeDatetime64}, wire.TypeInt64},
+		{"timestamp64", schema.Column{Type: schema.TypeTimestamp64}, wire.TypeInt64},
+		{"interval64", schema.Column{Type: schema.TypeInterval64}, wire.TypeInt64},
 
 		{
 			"optional_unwrapped",
@@ -78,7 +82,7 @@ func TestSchemaColumnTypes(t *testing.T) {
 func TestSchemaRejectsUnsupportedColumnType(t *testing.T) {
 	s := NewSchema(schema.Schema{Columns: []schema.Column{{
 		Name: "created_at",
-		Type: schema.Type("timestamp64"),
+		Type: schema.Type("duration"),
 	}}})
 
 	_, ok := s.ColumnType(0)

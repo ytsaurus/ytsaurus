@@ -59,7 +59,7 @@ namespace NLockFreeMap::NPrivate {
         }
 
     private:
-        std::size_t Size_;
+        std::size_t Size_ = 0;
         std::array<std::aligned_storage_t<sizeof(TValue), alignof(TValue)>, Capacity> Data_;
     };
 

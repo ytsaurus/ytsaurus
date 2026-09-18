@@ -2,6 +2,7 @@
 #include "private.h"
 #include "security_manager.h"
 #include "subject.h"
+#include "user.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 

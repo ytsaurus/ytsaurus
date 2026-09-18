@@ -47,7 +47,7 @@
 
 - редактирование файла в Кипарисе: откройте файл `speclet` по пути `//sys/strawberry/chyt/<alias>/speclet` и нажмите кнопку **Edit**;
 - консольную утилиту CLI: выполните команду `yt clickhouse ctl set-option` с нужной опцией из списка [доступных опций](#options);
-- веб-интерфейс: нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
+- веб-интерфейс: нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
 
 Пошаговые инструкции и наглядные примеры установки опций смотрите в разделах [Добавление вычислительных ресурсов](../../../../../user-guide/data-processing/chyt/how-to-guides/manage-resources.md) и [Настройка продвинутых параметров](../../../../../user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md).
 

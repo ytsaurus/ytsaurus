@@ -59,6 +59,8 @@ struct TChytSettings
 
     TDuration QueryTimeout;
 
+    bool AnnotateResultSchemaWithNativeTypes;
+
     THashMap<std::string, std::string> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
@@ -73,6 +75,8 @@ struct TChytSettings
             .Default();
         registrar.Parameter("query_timeout", &TThis::QueryTimeout)
             .Default(DefaultChytQueryTimeout);
+        registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+            .Default(false);
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
         registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -304,6 +308,9 @@ private:
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         req->set_row_count_limit(Config_->RowCountLimit);
+        if (Settings_->AnnotateResultSchemaWithNativeTypes) {
+            req->set_annotate_result_schema_with_native_types(true);
+        }
         ToProto(req->mutable_query_id(), QueryId_);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(Query_);
@@ -424,9 +431,13 @@ private:
 
         std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         wireRowsetOrErrors.reserve(rsp->Attachments().size());
-        for (const auto& ref : rsp->Attachments()) {
+        for (int index = 0; index < std::ssize(rsp->Attachments()); ++index) {
+            const auto& ref = rsp->Attachments()[index];
             if (!ref.Empty()) {
-                wireRowsetOrErrors.emplace_back(TWireRowset{.Rowset = ref});
+                wireRowsetOrErrors.emplace_back(TWireRowset{
+                    .Rowset = ref,
+                    .IsTruncated = index < rsp->is_truncated_size() && rsp->is_truncated(index),
+                });
             }
         }
         OnQueryCompletedWire(wireRowsetOrErrors);
@@ -445,6 +456,11 @@ public:
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(
             StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
+
+    bool IsSafeToRestartQuery() const override
+    {
+        return false;
+    }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {

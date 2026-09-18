@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_tree_traverser.h>
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 namespace NYT::NTabletServer {

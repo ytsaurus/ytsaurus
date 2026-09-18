@@ -11,12 +11,12 @@ Treat the source as finite: remember the number of messages in it on startup and
 || `tables` | **Type**: `std::optional<std::vector<NYT::NYPath::TRichYPath>>`
 List of tables to read with cluster specifications. This parameter is an alternative to `tables_path`. Each element must be a table: a symlink is not dereferenced to the target table, and any non-table node causes an error. ||
 || `tables_path` | **Type**: `std::optional<NYT::NYPath::TRichYPath>`
-Path to a directory with static tables, including the cluster. This parameter is an alternative to `tables`. ||
+Path to a directory with static tables, including either one cluster or an ordered list of replica clusters. This parameter is an alternative to `tables`. ||
 || `table_name_filter` | **Type**: `NYT::TIntrusivePtr<NYT::NRe2::TRe2>`
 Regular expression to filter tables by name: only tables whose name matches the expression are read. The expression syntax is [RE2](https://github.com/google/re2/wiki/Syntax). ||
 || `event_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Default value**: `{'attribute': 'key'}`
-By default, takes the timestamp from the table name. This time corresponds to the data creation time and is forwarded to the EventTimestamp of messages. All processed tables must have different timestamps. New tables must appear with a timestamp larger than all previous tables. ||
+By default, takes the timestamp from the table name. This time corresponds to the data creation time and is forwarded to the EventTimestamp of messages. Tables with the same timestamp are ordered persistently; new tables must not appear behind the already processed event-time frontier. ||
 || `system_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Default value**: `{'attribute': 'creation_time'}`
 By default, takes the timestamp from the table creation time. This time corresponds to when the data is written to the source. That is, the moment when the pipeline can see this data and start reading. This time is forwarded to the SystemTimestamp of messages. ||
@@ -25,10 +25,13 @@ By default, takes the timestamp from the table creation time. This time correspo
 A flag that allows ignoring symlinks inside the table folder. ||
 || `skip_non_table_nodes` | **Type**: `bool`
 **Default value**: `false`
- ||
+Skip non-table nodes in the input directory instead of failing. ||
 || `idle_watermark_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
 **Default value**: `3600000`
 The delay for advancing the watermark from the current time while the source is not reading a table. A table immediately advances the watermark to its event timestamp without subtracting this delay. Set this field to `#` to disable clock-based advancement; new tables still advance the watermark. ||
+|| `failover_delay` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+For replicated input, how long the active cluster must stay unavailable before the current table fails over. ||
 |#
 
 

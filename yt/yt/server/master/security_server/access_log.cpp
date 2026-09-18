@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/core/rpc/service.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {

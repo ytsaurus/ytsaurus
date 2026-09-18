@@ -6,8 +6,6 @@ import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.state.DefaultStateManager;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateBackend;
 import tech.ytsaurus.flow.state.StateDescriptor;
@@ -17,14 +15,14 @@ import tech.ytsaurus.flow.state.StatesHolder;
  * In-memory {@link StateBackend} backing the test harness's typed state reads and writes.
  */
 class SnapshotStateBackend implements StateBackend {
-    private final Map<String, StatesHolder<InternalState>> internalStates;
-    private final Map<String, StatesHolder<ExternalState>> externalStates;
+    private final Map<String, StatesHolder> internalStates;
+    private final Map<String, StatesHolder> externalStates;
     private final Map<String, TableSchema> externalStateSchemas;
     private final @Nullable TableSchema keySchema;
 
     SnapshotStateBackend(
-            Map<String, StatesHolder<InternalState>> internalStates,
-            Map<String, StatesHolder<ExternalState>> externalStates,
+            Map<String, StatesHolder> internalStates,
+            Map<String, StatesHolder> externalStates,
             Map<String, TableSchema> externalStateSchemas,
             @Nullable TableSchema keySchema
     ) {
@@ -48,17 +46,19 @@ class SnapshotStateBackend implements StateBackend {
      * {@inheritDoc}
      */
     @Override
-    public StatesHolder<InternalState> getOrCreateInternalStateHolder(String stateName) {
-        return internalStates.computeIfAbsent(stateName, name -> new StatesHolder<>(name, keySchema, null));
+    public StatesHolder getOrCreateInternalStateHolder(String stateName) {
+        return internalStates.computeIfAbsent(
+                stateName, name -> new StatesHolder(name, keySchema, null));
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public StatesHolder<ExternalState> getExternalStateHolder(String stateName) {
+    public StatesHolder getExternalStateHolder(String stateName) {
         return externalStates.computeIfAbsent(
-                stateName, name -> new StatesHolder<>(name, keySchema, externalStateSchemas.get(name)));
+                stateName,
+                name -> new StatesHolder(name, keySchema, externalStateSchemas.get(name)));
     }
 
     /**
@@ -67,7 +67,7 @@ class SnapshotStateBackend implements StateBackend {
      * <p>Joined state is served from the same external holders.
      */
     @Override
-    public StatesHolder<ExternalState> getJoinedExternalStateHolder(String stateName) {
+    public StatesHolder getJoinedExternalStateHolder(String stateName) {
         return getExternalStateHolder(stateName);
     }
 }

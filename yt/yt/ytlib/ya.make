@@ -13,7 +13,6 @@ SRCS(
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
-    api/native/chaos_lease.cpp
     api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
@@ -120,11 +119,14 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_leases_watcher.cpp
+    chaos_client/chaos_leases_watcher_client.cpp
     chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
+    chaos_client/object_watcher_client.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
@@ -163,6 +165,7 @@ SRCS(
     GLOBAL chunk_client/configure_dispatcher.cpp
     chunk_client/confirming_writer.cpp
     chunk_client/data_sink.cpp
+    chunk_client/data_slice.cpp
     chunk_client/data_slice_descriptor.cpp
     chunk_client/data_source.cpp
     chunk_client/deferred_chunk_meta.cpp
@@ -183,7 +186,6 @@ SRCS(
     chunk_client/input_chunk.cpp
     chunk_client/job_io_meter.cpp
     GLOBAL chunk_client/job_spec_extensions.cpp
-    chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
     chunk_client/medium_descriptor.cpp
@@ -262,6 +264,7 @@ SRCS(
     distributed_chunk_session_client/helpers.cpp
     distributed_chunk_session_client/seal_summary_fetcher.cpp
     distributed_chunk_session_client/seal_monitor.cpp
+    distributed_chunk_session_client/statistics.cpp
     distributed_chunk_session_client/session_pool.cpp
     distributed_chunk_session_client/session_writer.cpp
     distributed_chunk_session_client/session_controller.cpp
@@ -386,7 +389,9 @@ SRCS(
     push_based_shuffle_client/session_provider.cpp
     push_based_shuffle_client/partition_reader.cpp
     push_based_shuffle_client/shuffle_writer.cpp
+    push_based_shuffle_client/shuffle_writer_adapter.cpp
     push_based_shuffle_client/sort_reader.cpp
+    push_based_shuffle_client/sort_reader_adapter.cpp
     push_based_shuffle_client/sorted_merging_reader.cpp
 
     query_client/executor.cpp
@@ -449,6 +454,10 @@ SRCS(
     sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
+
+    shuffle_client/config.cpp
+
+    shuffle_client/proto/shuffle_service.proto
 
     table_chunk_format/boolean_column_reader.cpp
     table_chunk_format/boolean_column_writer.cpp
@@ -586,11 +595,10 @@ SRCS(
 
     yql_client/config.cpp
 
+    yql_client/proto/token_service.proto
     yql_client/proto/yql_service.proto
 
     yql_plugin/proto/yql_plugin.proto
-
-    shuffle_client/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(

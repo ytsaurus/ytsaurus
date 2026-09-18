@@ -58,7 +58,7 @@ class WordCountMapperTest {
         var response = testHarness.doProcess(request);
         assertNotNull(response);
         assertEquals(1, response.allStates().internalSize("word-state"));
-        var wordCountStateItem = response.allStates().get(WordCountMapper.WORD_STATE, key).get().orElseThrow();
+        var wordCountStateItem = response.allStates().get(WordCountMapper.WORD_STATE, key).get();
         assertEquals(1, wordCountStateItem.getCount());
         assertEquals("hello", wordCountStateItem.getWord());
     }

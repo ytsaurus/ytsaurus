@@ -13,6 +13,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/transform
     contrib/ydb/library/yql/providers/dq/helper
     contrib/ydb/library/yql/providers/dq/interface
+    contrib/ydb/library/yql/providers/dq/common
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
     contrib/ydb/library/yql/providers/yt/actors

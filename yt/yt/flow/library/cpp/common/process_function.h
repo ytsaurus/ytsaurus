@@ -11,7 +11,29 @@
 
 #include <yt/yt/flow/library/cpp/misc/public.h>
 
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/client/cache/public.h>
+
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProcessFunctionContext
+    : public TRefCounted
+{
+    IRuntimeInitContextPtr InitContext;
+
+    NClient::NCache::IClientsCachePtr ClientsCache;
+    IInvokerPtr Invoker;
+    IRetryableClientPtr RetryableClient;
+
+    NLogging::TLogger Logger;
+    IStatusProfilerPtr StatusProfiler;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProcessFunctionContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +48,11 @@ struct IProcessFunctionBase
 };
 
 DEFINE_REFCOUNTED_TYPE(IProcessFunctionBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFunction>
+IProcessFunctionBasePtr ConstructProcessFunction(const TProcessFunctionContextPtr& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +101,42 @@ DEFINE_REFCOUNTED_TYPE(IBatchProcessFunction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TMessageProcessor = TCallback<void(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)>;
+using TTimerProcessor = TCallback<void(
+    const TInputTimerConstPtr& timer,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)>;
+using TVisitProcessor = TCallback<void(
+    const TInputVisitConstPtr& visit,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)>;
+
+//! Per-entity dispatch for #IBatchProcessFunction::Process: runs |callback| for every entity of
+//! the kind in |input| with the collector's parents set to that entity and any error tagged with
+//! its key — what the worker does around #IProcessFunction hooks. |callback| is a ``BIND`` of a
+//! method (``BIND(&TMyFunction::ProcessMessage, MakeStrong(this))``) or of a lambda; it runs
+//! synchronously and is not retained.
+void ProcessMessages(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TMessageProcessor& callback);
+void ProcessTimers(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TTimerProcessor& callback);
+void ProcessVisits(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context,
+    const TVisitProcessor& callback);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Process function that handles one group-by key at a time.
 struct IKeyedBatchProcessFunction
     : public IProcessFunctionBase
@@ -111,3 +174,7 @@ IBatchProcessFunctionPtr WrapAsBatch(const IProcessFunctionBasePtr& function);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define PROCESS_FUNCTION_INL_H_
+#include "process_function-inl.h"
+#undef PROCESS_FUNCTION_INL_H_

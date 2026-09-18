@@ -27,6 +27,8 @@
 
 #include <util/string/split.h>
 
+#include <cmath>
+
 namespace NYT::NFlow {
 
 using namespace NLogging;
@@ -59,7 +61,7 @@ public:
         nodeInfo->RemoteShellCommand = GetRemoteShellCommand();
         nodeInfo->IncarnationId = GetIncarnationId();
         nodeInfo->VcpuFactor = TryGetVCpuFactor();
-        nodeInfo->VcpuLimit = TryGetVCpuLimit();
+        nodeInfo->VcpuLimit = TryGetVCpuLimit(nodeInfo->VcpuFactor);
         nodeInfo->BuildVersion = GetVersion();
         nodeInfo->FlowCoreVersion = ResolveFlowCoreVersion();
         nodeInfo->BuildType = CurrentBuildTypeDisplayName();
@@ -88,7 +90,7 @@ protected:
         return std::nullopt;
     }
 
-    virtual std::optional<double> TryGetVCpuLimit()
+    virtual std::optional<double> TryGetVCpuLimit(std::optional<double>)
     {
         return std::nullopt;
     }
@@ -281,7 +283,7 @@ protected:
         return std::nullopt;
     }
 
-    std::optional<double> TryGetVCpuLimit() override
+    std::optional<double> TryGetVCpuLimit(std::optional<double>) override
     {
         try {
             if (VcpuLimit_) {
@@ -376,13 +378,21 @@ protected:
         return TryFetchVCpuFactorFromExecNode();
     }
 
-    std::optional<double> TryGetVCpuLimit() override
+    std::optional<double> TryGetVCpuLimit(std::optional<double> vcpuFactor) override
     {
         try {
             if (VcpuLimit_) {
                 double value = FromString(VcpuLimit_);
                 YT_TLOG_DEBUG("Extracted vcpu limit from YT environment")
                     .With("VCpuLimit", value);
+                return value;
+            }
+            if (CpuLimit_) {
+                // The launcher knows physical CPU; node info reports milli-vCPU.
+                const double value = FromString<double>(CpuLimit_) * vcpuFactor.value_or(1.0) * 1'000;
+                THROW_ERROR_EXCEPTION_UNLESS(value > 0 && std::isfinite(value),
+                    "Invalid vanilla CPU limit %v",
+                    value);
                 return value;
             }
         } catch (const std::exception& ex) {
@@ -435,6 +445,7 @@ private:
     const char* JobId_ = std::getenv("YT_JOB_ID");
     const char* VcpuFactor_ = std::getenv("YT_CPU_TO_VCPU_FACTOR");
     const char* VcpuLimit_ = std::getenv("YT_VCPU_LIMIT");
+    const char* CpuLimit_ = std::getenv("YT_FLOW_CPU_LIMIT");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

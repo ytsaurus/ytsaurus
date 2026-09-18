@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
@@ -26,14 +26,13 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -223,7 +222,7 @@ private:
     std::vector<TChunkStripePtr> ResultStripes_;
 
     // Table index to input data slices.
-    std::vector<std::vector<TLegacyDataSlicePtr>> InputDataSlices_;
+    std::vector<std::vector<TDataSlicePtr>> InputDataSlices_;
 
     std::vector<TTableReadSpec> TableReadSpecs_;
 
@@ -292,7 +291,7 @@ private:
             auto& stripe = ResultStripes_[operandIndex];
             auto& dataSlices = stripe->DataSlices();
 
-            auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
+            auto removePred = [&] (const TDataSlicePtr& dataSlice) {
                 if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
                     return false;
                 }
@@ -303,7 +302,7 @@ private:
                     operandIndex).can_be_true;
             };
 
-            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
+            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TDataSlicePtr& dataSlice) {
                 bool needToRemove = removePred(dataSlice);
 
                 using namespace NStatisticPath;
@@ -490,7 +489,6 @@ private:
             }
 
             for (auto& dataSlice : InputDataSlices_[tableIndex]) {
-                YT_VERIFY(!dataSlice->IsLegacy);
                 dataSlice->SetInputStreamIndex(tableIndex);
 
                 if (!VirtualColumnNames_.empty()) {
@@ -570,11 +568,9 @@ private:
         std::vector<TInputChunkSlicePtr> chunkSlices;
         chunkSlices.reserve(dataSlices.size());
 
-        // Yes, that looks weird, but we extract chunk slices again
-        // from data slices so that we can form new data slices.
+        // Extract physical chunk slices to combine them into versioned data slices.
         for (auto& dataSlice : dataSlices) {
             for (auto& chunkSlice : dataSlice->ChunkSlices) {
-                YT_VERIFY(!chunkSlice->IsLegacy);
                 chunkSlices.emplace_back(std::move(chunkSlice));
             }
         }
@@ -812,7 +808,8 @@ private:
         auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
         auto tableIndex = chunkSpec.table_index();
-        int keyLength = InputTables_[tableIndex]->Comparator.GetLength();
+        const auto& comparator = InputTables_[tableIndex]->Comparator;
+        int keyLength = comparator.GetLength();
 
         auto inputChunk = New<TInputChunk>(chunkSpec, keyLength);
 
@@ -824,15 +821,13 @@ private:
             MiscExtMap_.emplace(inputChunk->GetChunkId(), nullptr);
         }
 
-        auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
+        auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk), RowBuffer_, comparator);
         if (OperandSchemas_[InputTables_[tableIndex]->OperandIndex]->IsSorted()) {
-            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, comparator);
         }
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
 
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
-
-        dataSlice->TransformToNew(RowBuffer_, keyLength, /*trimChunkSliceKeys*/ true);
 
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
@@ -1081,13 +1076,12 @@ std::vector<TSubquery> BuildThreadSubqueries(
             queryContext->RowBuffer,
             queryContext->Logger);
 
-        chunkPool = CreateNewSortedChunkPool(
+        chunkPool = CreateSortedChunkPool(
             TSortedChunkPoolOptions{
                 .SortedJobOptions = TSortedJobOptions{
                     .EnableKeyGuarantee = true,
                     .PrimaryComparator = comparator,
                     .PrimaryPrefixLength = *queryAnalysisResult.KeyColumnCount,
-                    .ShouldSlicePrimaryTableByKeys = true,
                     .ValidateOrder = false,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                     .JobSizeTrackerOptions = jobSizeSpec.JobSizeTrackerOptions,
@@ -1104,9 +1098,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         Y_UNREACHABLE();
     }
 
-    auto adjustDataSliceForPool = [&] (const TLegacyDataSlicePtr& dataSlice) {
-        YT_VERIFY(!dataSlice->IsLegacy);
-
+    auto adjustDataSliceForPool = [&] (const TDataSlicePtr& dataSlice) {
         if (queryAnalysisResult.PoolKind == EPoolKind::Unordered) {
             dataSlice->LowerLimit().KeyBound = TKeyBound();
             dataSlice->UpperLimit().KeyBound = TKeyBound();
@@ -1124,7 +1116,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, *queryAnalysisResult.KeyColumnCount, queryContext->RowBuffer);
 
             if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                // New sorted pool makes no use of chunk slice bounds.
+                // Keep physical chunk-slice bounds aligned with the logical data-slice bounds.
                 for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                     chunkSlice->LowerLimit().KeyBound = dataSlice->LowerLimit().KeyBound;
                     chunkSlice->UpperLimit().KeyBound = dataSlice->UpperLimit().KeyBound;
@@ -1137,7 +1129,6 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     for (const auto& chunkStripe : queryInput.StripeList->Stripes()) {
         for (const auto& dataSlice : chunkStripe->DataSlices()) {
-            YT_VERIFY(!dataSlice->IsLegacy);
             if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
                 (dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal()))
             {
@@ -1160,7 +1151,6 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
         for (const auto& chunkStripe : subquery.StripeList->Stripes()) {
             for (const auto& dataSlice : chunkStripe->DataSlices()) {
-                YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->ReadRangeIndex) {
                     auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()]->GetComparator();
                     inputReadRangeRegistry.ApplyReadRange(dataSlice, comparator);

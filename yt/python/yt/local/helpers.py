@@ -14,11 +14,12 @@ def _sync_mode_finalize_func(environment, process, process_call_args):
 
 
 class YTCheckingThread(Thread):
-    def __init__(self, environment, delay, timeout):
+    def __init__(self, environment, delay, timeout, components_to_not_watch=None):
         super(YTCheckingThread, self).__init__()
         self.environment = environment
         self.delay = delay
         self.timeout = timeout
+        self.components_to_not_watch = components_to_not_watch
         self.daemon = True
         self.is_running = True
         self._start_time = None
@@ -31,7 +32,10 @@ class YTCheckingThread(Thread):
             if not os.path.exists(self.environment.pids_filename) or timeout_occurred:
                 thread.interrupt_main()
                 break
-            self.environment.check_liveness(callback_func=_sync_mode_finalize_func)
+            self.environment.check_liveness(
+                callback_func=_sync_mode_finalize_func,
+                ignored_components=self.components_to_not_watch,
+            )
             time.sleep(self.delay)
 
     def stop(self):

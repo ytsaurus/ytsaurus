@@ -43,6 +43,8 @@ public:
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
+    //! Terminal for the batch: the key is unreadable afterwards and travels back as a reset item.
+    void EraseKeyState(const TKey& key) override;
     NTableClient::TTableSchemaPtr GetKeySchema() const override;
 
     //! |incoming| may be null: the batch carries no items of this state.
@@ -58,6 +60,7 @@ private:
 
     THashMap<TKey, IStateHolderPtr> Holders_;
     THashMap<TKey, std::string> Incoming_;
+    THashSet<TKey> Erased_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionInternalStateProvider);
@@ -76,6 +79,8 @@ public:
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
+    //! Terminal for the batch: the key is unreadable afterwards and travels back as a reset item.
+    void EraseKeyState(const TKey& key) override;
     NTableClient::TTableSchemaPtr GetKeySchema() const override;
 
     void Sync(IRetryableTransactionPtr transaction) override;
@@ -97,6 +102,7 @@ private:
     NTableClient::TTableSchemaPtr StateSchema_;
     THashMap<TKey, TIntrusivePtr<TStateHolder<TSimpleExternalState>>> Holders_;
     THashMap<TKey, TPayload> Incoming_;
+    THashSet<TKey> Erased_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionExternalStateManager);

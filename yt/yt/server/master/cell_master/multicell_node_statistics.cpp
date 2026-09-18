@@ -3,10 +3,13 @@
 #include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
+#include "multicell_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 namespace NYT::NCellMaster {
 
@@ -95,24 +98,24 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
         if (cellTag == multicellManager->GetPrimaryCellTag()) {
-            YT_LOG_INFO("Persisted primary cell statistics (%v)",
-                request->statistics());
+            YT_TLOG_INFO("Persisted primary cell statistics")
+                .With(NProto::MakeCellStatisticsTags(request->statistics()));
 
             LocalCellStatistics_ = request->statistics();
 
             RecomputeClusterCellStatistics();
         } else {
-            YT_LOG_INFO("Received cell statistics gossip message (CellTag: %v, %v)",
-                cellTag,
-                request->statistics());
+            YT_TLOG_INFO("Received cell statistics gossip message")
+                .With("CellTag", cellTag)
+                .With(NProto::MakeCellStatisticsTags(request->statistics()));
 
             if (multicellManager->IsRegisteredMasterCell(cellTag)) {
                 MasterCellStatistics_[cellTag] = request->statistics();
             }
         }
     } else {
-        YT_LOG_INFO("Received cell statistics gossip message (%v)",
-            request->statistics());
+        YT_TLOG_INFO("Received cell statistics gossip message")
+            .With(NProto::MakeCellStatisticsTags(request->statistics()));
         ClusterCellStatisics_ = request->statistics();
     }
 }
@@ -129,12 +132,12 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
     if (None(cellRoles & EMasterCellRoles::CypressNodeHost)) {
         // NB: alerting this cell is not having the 'Cypress node host' role would
         // probably be a bit too fragile.
-        YT_LOG_INFO(
-            "Received node multicell statistics but cell doesn't have %Qlv role", EMasterCellRoles::CypressNodeHost);
+        YT_TLOG_INFO("Received node multicell statistics but cell does not have the required role")
+            .With("Role", EMasterCellRoles::CypressNodeHost);
     }
 
-    YT_LOG_INFO("Received multicell statistics gossip message (%v)",
-        request->statistics());
+    YT_TLOG_INFO("Received multicell statistics gossip message")
+        .With("Statistics", request->statistics());
 
     for (const auto& cellStatistics : request->statistics()) {
         auto cellTag = FromProto<TCellTag>(cellStatistics.cell_tag());

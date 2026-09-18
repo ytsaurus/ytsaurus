@@ -67,6 +67,7 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -466,6 +467,46 @@ public:
 
     void Invoke(const IYPathServiceContextPtr& context) override
     {
+        try {
+            GuardedInvoke(context);
+        } catch (const std::exception& ex) {
+            if (context->IsReplied()) {
+                YT_TLOG_ALERT("Exception caught while forwarding remote request; request is already replied")
+                    .With("RequestId", context->GetRequestId())
+                    .With(ex);
+            } else {
+                context->Reply(ex);
+            }
+        }
+    }
+
+    void DoWriteAttributesFragment(
+        IAsyncYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*attributeFilter*/,
+        bool /*stable*/) override
+    {
+        YT_TLOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called")
+            .With("ObjectId", ObjectId_)
+            .With("ForwardedCellTag", ForwardedCellTag_);
+
+        THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
+            .With("object_id", ObjectId_)
+            .With("forwarded_cell_tag", ForwardedCellTag_);
+    }
+
+    bool ShouldHideAttributes() override
+    {
+        return false;
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+    const TObjectId ObjectId_;
+    const TCellTag ForwardedCellTag_;
+    const int ResolveDepth_;
+
+    void GuardedInvoke(const IYPathServiceContextPtr& context)
+    {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
             mutationContext->SetResponseKeeperSuppressed(true);
@@ -614,27 +655,17 @@ public:
         auto counters = requestProfilingManager->GetCounters(context->GetAuthenticationIdentity().UserTag, context->GetMethod());
         counters->AutomatonForwardingRequestCounter.Increment();
 
-        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
-            context->GetRequestId(),
-            forwardedRequestId,
-            context->GetService(),
-            context->GetMethod(),
-            targetPathRewrite,
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (!additionalPathRewrites.empty()) {
-                    builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
-                }
-            }),
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (!additionalPathRewrites.empty()) {
-                    builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
-                }
-            }),
-            context->GetAuthenticationIdentity(),
-            isMutating,
-            ForwardedCellTag_,
-            peerKind);
+        YT_TLOG_DEBUG("Forwarding object request")
+            .WithFormat("RequestId", "%v -> %v", context->GetRequestId(), forwardedRequestId)
+            .With("Service", context->GetService())
+            .With("Method", context->GetMethod())
+            .With("TargetPath", targetPathRewrite)
+            .WithIf(!additionalPathRewrites.empty(), "AdditionalPaths", additionalPathRewrites)
+            .WithIf(!prerequisiteRevisionPathRewrites.empty(), "PrerequisiteRevisionPaths", prerequisiteRevisionPathRewrites)
+            .With("AuthenticationIdentity", context->GetAuthenticationIdentity())
+            .With("Mutating", isMutating)
+            .With("CellTag", ForwardedCellTag_)
+            .With("PeerKind", peerKind);
 
         batchReq->Invoke().Subscribe(
             BIND([
@@ -674,31 +705,6 @@ public:
                 }
             }).Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
-
-    void DoWriteAttributesFragment(
-        IAsyncYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*attributeFilter*/,
-        bool /*stable*/) override
-    {
-        YT_TLOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called")
-            .With("ObjectId", ObjectId_)
-            .With("ForwardedCellTag", ForwardedCellTag_);
-
-        THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
-            .With("object_id", ObjectId_)
-            .With("forwarded_cell_tag", ForwardedCellTag_);
-    }
-
-    bool ShouldHideAttributes() override
-    {
-        return false;
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    const TObjectId ObjectId_;
-    const TCellTag ForwardedCellTag_;
-    const int ResolveDepth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2033,17 +2039,15 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     batchReq->AddRequestMessage(std::move(forwardedRequestMessage));
     SetAuthenticationIdentity(batchReq, identity);
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "
-        "CellTag: %v, ChannelKind: %v)",
-        requestId,
-        batchReq->GetRequestId(),
-        header.service(),
-        header.method(),
-        ypathExt.target_path(),
-        identity,
-        ypathExt.mutating(),
-        cellTag,
-        peerKind);
+    YT_TLOG_DEBUG("Forwarding object request")
+        .WithFormat("RequestId", "%v -> %v", requestId, batchReq->GetRequestId())
+        .With("Service", header.service())
+        .With("Method", header.method())
+        .With("Path", ypathExt.target_path())
+        .With("AuthenticationIdentity", identity)
+        .With("Mutating", ypathExt.mutating())
+        .With("CellTag", cellTag)
+        .With("ChannelKind", peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         if (!batchRspOrError.IsOK()) {

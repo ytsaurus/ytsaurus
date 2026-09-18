@@ -8,16 +8,24 @@
 #include <yt/yt/flow/library/cpp/client/authentication.h>
 #include <yt/yt/flow/library/cpp/client/public.h>
 
+#include <yt/yt/flow/library/cpp/native_client/public.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/signature/generator.h>
 #include <yt/yt/client/signature/signature.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <yt/yt_proto/yt/client/misc/proto/signature.pb.h>
 
 #include <yt/yt/core/rpc/channel_detail.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
@@ -29,6 +37,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSignature;
+using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
@@ -125,8 +134,20 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
                 IdAttribute,
             }),
     };
+    auto nodeFuture = GetNode(pipelinePath, options);
 
-    auto str = WaitFor(GetNode(pipelinePath, options))
+    auto key = MakeUnversionedOwningRow(LeaderControllerKey);
+    auto nameTable = TNameTable::FromKeyColumns({"key", "value"});
+    TLookupRowsOptions lookupOptions;
+    lookupOptions.ColumnFilter = TColumnFilter({nameTable->GetIdOrThrow("value")});
+    auto flowControlPath = YPathJoin(pipelinePath, FlowControlTableName);
+    auto lookupFuture = LookupRows(
+        flowControlPath,
+        std::move(nameTable),
+        MakeSharedRange(std::vector<TLegacyKey>{key}, key),
+        lookupOptions);
+
+    auto str = WaitFor(nodeFuture)
         .ValueOrThrow();
 
     auto node = ConvertToNode(str);
@@ -148,14 +169,37 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
             version);
     }
 
-    if (!attributes.Contains(LeaderControllerAddressAttribute)) {
-        THROW_ERROR_EXCEPTION(
-            "Cannot discover pipeline controller because attribute %Qv is not set on pipeline. "
-            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
-            LeaderControllerAddressAttribute);
-    }
-    auto address = attributes.Get<std::string>(LeaderControllerAddressAttribute);
     auto pipelineObjectId = attributes.Get<TObjectId>(IdAttribute);
+
+    std::string address;
+    auto lookupResultOrError = WaitFor(lookupFuture);
+    if (lookupResultOrError.IsOK() && !lookupResultOrError.Value().Rowset->GetRows().Empty()) {
+        auto [leaderInfo] = FromUnversionedRow<TYsonString>(lookupResultOrError.Value().Rowset->GetRows()[0]);
+        if (leaderInfo) {
+            address = TryGetString(leaderInfo.AsStringBuf(), Format("/%v", LeaderControllerRpcAddressField)).value_or("");
+        }
+    }
+
+    if (address.empty()) {
+        if (lookupResultOrError.IsOK()) {
+            YT_TLOG_DEBUG("Leader controller is not found in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath);
+        } else {
+            YT_TLOG_DEBUG("Error looking up leader controller in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath)
+                .With(lookupResultOrError);
+        }
+        address = attributes.Get<std::string>(LeaderControllerAddressAttribute, "");
+    }
+
+    if (address.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot discover pipeline controller because neither table %v nor attribute %Qv contains the leader address. "
+            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
+            flowControlPath,
+            LeaderControllerAddressAttribute)
+            .WithIf(!lookupResultOrError.IsOK(), lookupResultOrError);
+    }
 
     YT_TLOG_DEBUG("Finished discovering pipeline controller leader")
         .With("PipelinePath", pipelinePath)

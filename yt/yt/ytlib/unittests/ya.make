@@ -5,20 +5,25 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     absolute_limit_ut.cpp
     arrow_writer_ut.cpp
+    chaos_leases_watcher_client_ut.cpp
     chunk_client_fetcher_ut.cpp
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
     chunk_slice_ut.cpp
     client_block_cache_ut.cpp
+    distributed_chunk_session_controller_ut.cpp
     distributed_chunk_session_pool_ut.cpp
     distributed_chunk_session_seal_monitor_ut.cpp
     downed_cell_tracker_ut.cpp
     encoding_writer_ut.cpp
+    erasure_helpers_ut.cpp
     erasure_parts_reader_ut.cpp
+    input_chunk_ut.cpp
     job_resources_ut.cpp
     journal_chunk_writer_ut.cpp
     memory_usage_tracker_ut.cpp
     multi_reader_manager/multi_reader_manager_ut.cpp
+    native_authenticator_ut.cpp
     native_replication_card_cache_ut.cpp
     object_service_cache_ut.cpp
     parallel_reader_memory_manager_ut.cpp
@@ -26,6 +31,7 @@ SRCS(
     permission_cache_ut.cpp
     protobuf_helpers_ut.cpp
     push_based_partition_reader_ut.cpp
+    push_based_shuffle_adapters_ut.cpp
     push_based_shuffle_record_format_ut.cpp
     push_based_sorted_merging_reader_ut.cpp
     replication_reader_ut.cpp

@@ -37,10 +37,11 @@ DEFINE_REFCOUNTED_TYPE(TChaosElectionManagerOptions)
 //! Each participant periodically attempts the following within a
 //! single tablet transaction (providing snapshot isolation):
 //! 1. Read the current leader row for this group.
-//! 2. If a row exists, try to attach to the recorded chaos lease.
-//!    If the lease responds to a ping, the existing leader is
-//!    alive; abort the transaction and back off. If the lease is
-//!    dead (ResolveError), proceed to take over.
+//! 2. If a row exists, try to attach to the recorded chaos lease
+//!    without pinging it. If the attach succeeds, the lease is
+//!    still there and the existing leader is alive; abort the
+//!    transaction and back off. If the lease is gone
+//!    (ResolveError), proceed to take over.
 //! 3. Create a new chaos lease.
 //! 4. Overwrite the lock table row with our lease ID, member
 //!    name, and timeout.

@@ -1,8 +1,8 @@
 #include "chunk_stripe.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 namespace NYT::NChunkPools {
 
@@ -17,7 +17,7 @@ TChunkStripe::TChunkStripe(bool foreign)
     : Foreign_(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice)
+TChunkStripe::TChunkStripe(TDataSlicePtr dataSlice)
     : DataSlices_({std::move(dataSlice)})
 { }
 

@@ -517,10 +517,13 @@ void TJob::Start() noexcept
         try {
             slot->ValidateEnabled();
         } catch (const std::exception& ex) {
-            auto error = TError("Can not start job")
+            static constexpr auto Message = "Cannot start job"_sb;
+            YT_TLOG_WARNING(Message)
+                .With("AbortReason", EAbortReason::UserSlotDisabled)
+                .With(ex);
+            auto error = TError(Message)
                 .With("abort_reason", EAbortReason::UserSlotDisabled)
                 .With(ex);
-            YT_LOG_WARNING(error);
             Abort(std::move(error));
             return;
         }
@@ -674,7 +677,7 @@ void TJob::PrepareArtifact(
                         producer,
                         pipe)
                         .Apply(BIND([this, bypassCpuStartTime, this_ = MakeStrong(this)] {
-                            ArtifactStatistics_.FilesDownloadCpuDuration +=
+                            ArtifactStatistics_.FilesDownloadedAggrDuration +=
                                 GetCpuInstant() - bypassCpuStartTime;
                         }).Via(Invoker_)));
             } else if (artifact.CopyFile) {
@@ -697,7 +700,7 @@ void TJob::PrepareArtifact(
                         pipe,
                         preparedArtifact->GetLocation())
                         .Apply(BIND([this, copyCpuStartTime, compressedDataSize, this_ = MakeStrong(this)] {
-                            ArtifactStatistics_.FilesCopyCpuDuration +=
+                            ArtifactStatistics_.FilesCopiedAggrDuration +=
                                 GetCpuInstant() - copyCpuStartTime;
                             ArtifactStatistics_.FilesCopiedSize += compressedDataSize;
                         }).Via(Invoker_)));
@@ -1391,7 +1394,9 @@ void TJob::AddProfile(TJobProfile profile)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (profile.ProfilingBinary == EProfilingBinary::JobProxy && profile.ProfilerType == EProfilerType::PeakMemory) {
+    if (profile.GetProfilingBinary() == EProfilingBinary::JobProxy &&
+        profile.GetProfilerType() == EProfilerType::PeakMemory)
+    {
         // NB(coteeq): JobProxy's peak memory profile is a special case.
         // We want the most recent profile and since it's peak profile,
         // it's okay to overwrite previous one.
@@ -1924,7 +1929,9 @@ void TJob::DoInterrupt(
             InterruptionDeadline_ = now + timeout;
         }
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
+        YT_TLOG_INFO("Failed to interrupt job via job prober service; graceful job phase check scheduled")
+            .With("Timeout", timeout)
+            .With(ex);
 
         TError error(ex);
         TDelayedExecutor::Submit(
@@ -2427,6 +2434,7 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             ArtifactsDownloadStartTime_ = TInstant::Now();
+            FilesDownloadStartTime_ = GetCpuInstant();
 
             auto artifactsFuture = DownloadArtifacts();
 
@@ -2502,6 +2510,9 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& erro
             ArtifactsFuture_ = OKFuture;
 
             ArtifactsDownloadedTime_ = TInstant::Now();
+            FilesDownloadedTime_ = GetCpuInstant();
+            YT_VERIFY(FilesDownloadStartTime_);
+            ArtifactStatistics_.FilesDownloadedDuration = *FilesDownloadedTime_ - *FilesDownloadStartTime_;
             PrepareWorkspace();
         });
 }
@@ -2646,8 +2657,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-    YT_TLOG_FATAL_IF(!Error_ || Error_->IsOK(), "Job error is not set during running extra GPU check")
-        .With("Error", Error_);
+    YT_TLOG_FATAL_IF(!Error_ || Error_->IsOK(), "Job error is not set during running extra GPU check");
 
     auto initialError = std::move(*Error_);
 
@@ -2656,14 +2666,14 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         Error_ = {};
         JobResultExtension_.reset();
 
+        YT_TLOG_WARNING("Extra GPU check command executed after job failure is also failed")
+            .With(error);
+
         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             .With(error)
             .With(initialError)
             .With("job_id", GetId())
             .With("operation_id", GetOperationId());
-
-        YT_TLOG_WARNING("Extra GPU check command executed after job failure is also failed")
-            .With(checkError);
         Finalize(std::move(checkError));
     } else {
         YT_TLOG_DEBUG("Extra GPU check command finished");
@@ -3071,9 +3081,8 @@ void TJob::Cleanup()
                     .With(ex);
             }
         } else {
-            YT_LOG_WARNING(
-                "Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
-                DisableSandboxCleanupEnv);
+            YT_TLOG_WARNING("Sandbox cleanup is disabled by an environment variable; should be used for testing purposes only")
+                .With("Variable", DisableSandboxCleanupEnv);
         }
     }
 
@@ -3253,12 +3262,22 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetRootVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto rootVolumeParams = FSSecretary_->GetRootVolumeParams(); rootVolumeParams) {
+            for (const auto& artifactKey : rootVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetGpuCheckVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto gpuVolumeParams = FSSecretary_->GetGpuCheckVolumeParams(); gpuVolumeParams) {
+            for (const auto& artifactKey : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
+        }
+
+        for (const auto& nonRootVolumeParams : FSSecretary_->GetNonRootVolumeParams()) {
+            for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
         }
 
         if (!unresolvedNodeId) {
@@ -3545,6 +3564,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
             proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
         }
+        proxyInternalConfig->EnableJobIoStatistics = proxyDynamicConfig->EnableJobIoStatistics;
         proxyInternalConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
         proxyInternalConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
         proxyInternalConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
@@ -3677,8 +3697,11 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
-    options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
+
+    options.DiskSpaceLimit = FSSecretary_->GetSandboxDiskSpace();
+    options.InodeLimit = FSSecretary_->GetSandboxInodeLimit();
+
+    options.RootVolumeParams = FSSecretary_->GetRootVolumeParams();
 
     options.VirtualSandboxOptions = FSSecretary_->GetVirtualSandboxOptions();
 
@@ -3699,10 +3722,12 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
         .TrafficMeter = TrafficMeter_,
         .OnLayerDownloaded = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
             TCpuDuration downloadCpuDuration,
-            TCpuDuration importCpuDuration)
+            TCpuDuration importCpuDuration,
+            i64 importSize)
         {
-            ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
-            ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
+            ArtifactStatistics_.LayersDownloadedAggrDuration += downloadCpuDuration;
+            ArtifactStatistics_.LayersImportedAggrDuration += importCpuDuration;
+            ArtifactStatistics_.LayersImportedSize += importSize;
         }).Via(Invoker_),
     };
 
@@ -3760,7 +3785,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                         auto downloadCpuFinish = GetCpuInstant();
                         Invoker_->Invoke(BIND_NO_PROPAGATE(
                             [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish] {
-                                ArtifactStatistics_.FilesDownloadCpuDuration +=
+                                ArtifactStatistics_.FilesDownloadedAggrDuration +=
                                     downloadCpuFinish - downloadCpuStart;
                             }));
                     }
@@ -4190,24 +4215,34 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/layers_downloaded_size"_SP,
         ArtifactStatistics_.LayersDownloadedSize);
-
-    // Download durations; monotonic CPU clock is used to avoid NTP jumps.
-    // Files: sum of per-file download durations (cache miss + bypass).
+    // Layers: bytes imported into Porto (excludes SquashFS layers).
     statistics->AddSample(
-        "/exec_agent/artifacts/files_downloaded_total_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.FilesDownloadCpuDuration).MilliSeconds());
+        "/exec_agent/artifacts/layers_imported_size"_SP,
+        ArtifactStatistics_.LayersImportedSize);
+
+    // Files: wall time (monotonic clock) of caching file artifacts (excludes cache-bypassed and virtual-sandbox files).
+    if (FilesDownloadedTime_) {
+        statistics->AddSample(
+            "/exec_agent/artifacts/files_downloaded_duration"_SP,
+            CpuDurationToDuration(ArtifactStatistics_.FilesDownloadedDuration).MilliSeconds());
+    }
+
+    // Files: sum of per-file download durations (cache miss + bypass). Files may be downloaded in parallel.
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_downloaded_aggr_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesDownloadedAggrDuration).MilliSeconds());
     // Files: sum of per-file copy durations (copy_file=true, copying from cache to sandbox).
     statistics->AddSample(
-        "/exec_agent/artifacts/files_copied_total_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.FilesCopyCpuDuration).MilliSeconds());
-    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes porto import.
+        "/exec_agent/artifacts/files_copied_aggr_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesCopiedAggrDuration).MilliSeconds());
+    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes Porto import.
     statistics->AddSample(
-        "/exec_agent/artifacts/layers_downloaded_total_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.LayersDownloadCpuDuration).MilliSeconds());
-    // Layers: sum of per-layer porto import durations (ImportLayer).
+        "/exec_agent/artifacts/layers_downloaded_aggr_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersDownloadedAggrDuration).MilliSeconds());
+    // Layers: sum of per-layer Porto import durations (ImportLayer).
     statistics->AddSample(
-        "/exec_agent/artifacts/layers_import_total_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.LayersImportCpuDuration).MilliSeconds());
+        "/exec_agent/artifacts/layers_imported_aggr_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersImportedAggrDuration).MilliSeconds());
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
@@ -4460,11 +4495,10 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
     try {
         statisticsNode = ConvertTo<IMapNodePtr>(StatisticsYson_);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(
-            TError(ex),
-            "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
-            GetId(),
-            GetOperationId());
+        YT_TLOG_WARNING("Failed to convert statistics to map node")
+            .With("JobId", GetId())
+            .With("OperationId", GetOperationId())
+            .With(ex);
         return;
     }
 
@@ -4490,11 +4524,10 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 continue;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(
-                TError(ex),
-                "Error looking for statistics node (SensorName: %v, Path: %v)",
-                sensorName,
-                sensor->Path);
+            YT_TLOG_DEBUG("Error looking for statistics node")
+                .With("SensorName", sensorName)
+                .With("Path", sensor->Path)
+                .With(ex);
             continue;
         }
 

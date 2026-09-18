@@ -2,15 +2,15 @@
 
 #include "private.h"
 
-#include <yt/yt/library/discovery_client/public.h>
-
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NQueueAgent {
 

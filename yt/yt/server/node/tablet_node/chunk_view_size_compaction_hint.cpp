@@ -108,9 +108,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateChunkViewSizeFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateChunkViewSizeFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TChunkViewSizeFetchPipeline>(store);
+    return New<TChunkViewSizeFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

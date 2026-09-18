@@ -43,6 +43,23 @@ ui64 EntropyFromAllocationId(TAllocationId allocationId)
     return allocationId.Underlying().Parts64[1];
 }
 
+bool CheckAllocationId(TAllocationId allocationId, TNodeId nodeId)
+{
+    return TypeFromId(allocationId.Underlying()) == EObjectType::SchedulerJob &&
+        NodeIdFromAllocationId(allocationId) == nodeId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationIdGenerator::TAllocationIdGenerator(TCellTag cellTag)
+    : CellTag_(cellTag)
+{ }
+
+TAllocationId TAllocationIdGenerator::Generate(TNodeId nodeId) const
+{
+    return GenerateAllocationId(CellTag_, nodeId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSerializableAccessControlList MakeOperationArtifactAcl(const TSerializableAccessControlList& acl)

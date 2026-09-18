@@ -7,6 +7,7 @@
 #include "epoch_history_manager.h"
 #include "hive_profiling_manager.h"
 #include "hydra_facade.h"
+#include "master_cell_group_manager.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
 #include "multicell_statistics_collector.h"
@@ -172,6 +173,7 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -349,6 +351,11 @@ const IConfigManagerPtr& TBootstrap::GetConfigManager() const
 const TDynamicClusterConfigPtr& TBootstrap::GetDynamicConfig() const
 {
     return ConfigManager_->GetConfig();
+}
+
+const IMasterCellGroupManagerPtr& TBootstrap::GetMasterCellGroupManager() const
+{
+    return MasterCellGroupManager_;
 }
 
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
@@ -899,6 +906,8 @@ void TBootstrap::DoInitialize()
     // because its state depends on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
+    MasterCellGroupManager_ = CreateMasterCellGroupManager(this);
+
     WorldInitializer_ = CreateWorldInitializer(this);
 
     IncumbentManager_ = CreateIncumbentManager(this);
@@ -1029,6 +1038,7 @@ void TBootstrap::DoInitialize()
     // Recalculates roles for master cells.
     // If you need to know cell roles, initialize it below MulticellManager_.
     MulticellManager_->Initialize();
+    MasterCellGroupManager_->Initialize();
     IncumbentManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
@@ -1290,8 +1300,8 @@ void TBootstrap::DoLoadSnapshot(
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
         snapshotId = InvalidSegmentId;
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse snapshot name as id, using id %v as substitute",
-            snapshotId);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse snapshot name as id, using a substitute")
+            .With("SnapshotId", snapshotId);
     }
     auto snapshotReader = CreateLocalSnapshotReader(fileName, *snapshotId, GetSnapshotIOInvoker());
 
@@ -1337,8 +1347,8 @@ void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFil
         auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
         if (changelogId.Empty()) {
             changelogId = InvalidSegmentId;
-            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
-                changelogId);
+            YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse changelog name as id, using a substitute")
+                .With("ChangelogId", changelogId);
         }
 
         auto changelog = WaitFor(dispatcher->OpenChangelog(*changelogId, changelogFileName, changelogsConfig))

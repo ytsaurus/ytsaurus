@@ -66,16 +66,22 @@ public:
 
     void RegisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EmplaceOrCrash(Tablets_, tabletId);
     }
 
     void UnregisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EraseOrCrash(Tablets_, tabletId);
     }
 
     bool HasRegisteredTabletCommitSessions() const override
     {
+        auto guard = Guard(TabletsLock_);
+
         return !Tablets_.empty();
     }
 
@@ -121,7 +127,10 @@ private:
 
     const TLogger Logger;
 
+    // NB: All accesses are non-concurrent by construction; add a lock if that ever changes.
     std::vector<TTransactionActionData> Actions_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TabletsLock_);
     THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
@@ -158,12 +167,13 @@ private:
     void OnResponse(const TError& result)
     {
         if (!result.IsOK()) {
-            auto error = TError("Error sending transaction actions")
+            static constexpr auto Message = "Error sending transaction actions"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("CellId", CellId_)
+                .With(result);
+            THROW_ERROR_EXCEPTION(Message)
                 .With("cell_id", CellId_)
                 .With(result);
-            YT_TLOG_DEBUG("Error sending transaction actions")
-                .With(error);
-            THROW_ERROR(error);
         }
 
         YT_TLOG_DEBUG("Transaction actions sent successfully");

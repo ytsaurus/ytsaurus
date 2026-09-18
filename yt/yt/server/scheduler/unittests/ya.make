@@ -1,5 +1,7 @@
 GTEST(unittester-scheduler)
 
+EXPLICIT_DATA()
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 ALLOCATOR(TCMALLOC)

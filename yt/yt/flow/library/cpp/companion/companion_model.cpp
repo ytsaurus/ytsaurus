@@ -87,6 +87,42 @@ void FromProto(
         : std::nullopt;
 }
 
+void ToProto(
+    NProto::NCompanion::TMessageIdSuffix* protoSuffix,
+    const TOutputMessageIdSuffix& suffix)
+{
+    using TProtoSuffix = NProto::NCompanion::TMessageIdSuffix;
+
+    switch (suffix.GetMode()) {
+        case TOutputMessageIdSuffix::EMode::SequenceNumber:
+            protoSuffix->set_mode(TProtoSuffix::MIS_SEQUENCE_NUMBER);
+            break;
+        case TOutputMessageIdSuffix::EMode::PayloadHash:
+            protoSuffix->set_mode(TProtoSuffix::MIS_PAYLOAD_HASH);
+            break;
+        case TOutputMessageIdSuffix::EMode::UserDefined:
+            protoSuffix->set_mode(TProtoSuffix::MIS_USER_DEFINED);
+            protoSuffix->set_user_defined(suffix.GetValue());
+            break;
+    }
+}
+
+TOutputMessageIdSuffix FromProto(
+    const NProto::NCompanion::TMessageIdSuffix& protoSuffix)
+{
+    using TProtoSuffix = NProto::NCompanion::TMessageIdSuffix;
+
+    switch (protoSuffix.mode()) {
+        case TProtoSuffix::MIS_SEQUENCE_NUMBER:
+            return TOutputMessageIdSuffix::FromSequenceNumber();
+        case TProtoSuffix::MIS_PAYLOAD_HASH:
+            return TOutputMessageIdSuffix::FromPayloadHash();
+        case TProtoSuffix::MIS_USER_DEFINED:
+            return TOutputMessageIdSuffix::FromUserDefined(protoSuffix.user_defined());
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStreamSpecsPtr TCompanionProcessRequest::GetMessageStreamSpecs() const

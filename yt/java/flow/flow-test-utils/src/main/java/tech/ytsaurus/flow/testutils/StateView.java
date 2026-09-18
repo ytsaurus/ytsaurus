@@ -8,9 +8,6 @@ import java.util.Set;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
-import tech.ytsaurus.flow.state.State;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.state.StatesHolder;
@@ -21,23 +18,25 @@ import tech.ytsaurus.flow.state.StatesHolder;
  * computation modified ({@link TestDoProcessResponse#modifiedStates()}).
  */
 public final class StateView {
-    private final Map<String, StatesHolder<ExternalState>> externalHolders;
-    private final Map<String, StatesHolder<InternalState>> internalHolders;
+    private final Map<String, StatesHolder> externalHolders;
+    private final Map<String, StatesHolder> internalHolders;
     private final SnapshotStateBackend backend;
 
     StateView(
-            Map<String, StatesHolder<ExternalState>> externalHolders,
-            Map<String, StatesHolder<InternalState>> internalHolders,
-            Map<String, TableSchema> externalStateSchemas
+            Map<String, StatesHolder> externalHolders,
+            Map<String, StatesHolder> internalHolders,
+            Map<String, TableSchema> requestExternalSchemas
     ) {
         this.externalHolders = externalHolders;
         this.internalHolders = internalHolders;
         // Backend gets shallow copies so the empty holders it creates for unknown state names stay
-        // out of the metadata maps. Sharing the holder instances is safe because reads never mutate
-        // them (state readers are read-only).
+        // out of the metadata maps. Sharing the holder instances is safe because the accessors
+        // handed out are read-only views, which never add entries. Those fabricated holders take
+        // the schema the request declared, so a state missing from this view — one the computation
+        // never modified, say — still reads with a default value, as it does in the computation.
         this.backend = new SnapshotStateBackend(
                 new LinkedHashMap<>(internalHolders), new LinkedHashMap<>(externalHolders),
-                externalStateSchemas, null);
+                requestExternalSchemas, null);
     }
 
     /**
@@ -46,7 +45,7 @@ public final class StateView {
      * @param <T> state value type.
      */
     public <T> StateAccessor<T> get(StateDescriptor<T> descriptor, Payload key) {
-        return new ReadOnlyStateAccessor<>(backend.accessor(descriptor, key));
+        return backend.accessor(descriptor, key).readOnly();
     }
 
     /**
@@ -91,10 +90,8 @@ public final class StateView {
         return internalKeys(stateName).size();
     }
 
-    private static <T extends State<?>> Set<UnversionedRow> keysOf(
-            Map<String, StatesHolder<T>> holders, String stateName
-    ) {
-        StatesHolder<T> holder = holders.get(stateName);
+    private static Set<UnversionedRow> keysOf(Map<String, StatesHolder> holders, String stateName) {
+        StatesHolder holder = holders.get(stateName);
         return holder == null
                 ? Collections.emptySet()
                 : Collections.unmodifiableSet(holder.getStates().keySet());

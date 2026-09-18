@@ -16,6 +16,7 @@ YT_FLOW_DEFINE_YSON_MESSAGE(TKeyMessage);
 YT_FLOW_DEFINE_YSON_MESSAGE(TVisitMessage);
 
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TExternalVisitTesterFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TManualPreloadExternalVisitTesterFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 

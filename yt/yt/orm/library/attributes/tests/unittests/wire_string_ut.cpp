@@ -1,9 +1,12 @@
+#include <yt/yt/orm/library/attributes/helpers.h>
 #include <yt/yt/orm/library/attributes/wire_string.h>
 
+#include <yt/yt/orm/library/attributes/tests/proto/scalar_attribute.pb.h>
 #include <yt/yt/orm/library/attributes/tests/proto/wire_string.pb.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -240,6 +243,161 @@ TEST(TWriteWireStringTest, AddTag)
             "engine",
             serializedEngine),
         serializedCar);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWriteWireStringTest, SerializeYsonString)
+{
+    auto rootElement = NYson::ResolveProtobufElementByYPath(
+        NYson::ReflectProtobufMessageType<NProto::TMessage>(),
+        /*path*/ "").Element;
+    NYson::TProtobufElement element = std::make_unique<NYson::TProtobufAnyElement>();
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName("yson_string_field");
+    EXPECT_EQ(
+        fieldDescriptor,
+        FindYsonStringFieldDescriptor(rootElement, "/yson_string_field"));
+
+    auto mapValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    EXPECT_THROW(ConvertToWireString(mapValue, element), std::exception);
+
+    auto serializedMapValue = ConvertToWireString(mapValue, element, fieldDescriptor);
+    ASSERT_EQ(1, std::ssize(serializedMapValue));
+    EXPECT_EQ(
+        "value",
+        NYTree::ConvertToNode(NYson::TYsonString(serializedMapValue.front()))
+            ->AsMap()
+            ->GetChildValueOrThrow<std::string>("key"));
+
+    for (const auto& value : {"123", "#", "", "{key=value;}"}) {
+        auto node = NYTree::ConvertToNode(value);
+        auto wireString = ConvertToWireString(node, element, fieldDescriptor);
+        ASSERT_EQ(1, std::ssize(wireString));
+        EXPECT_EQ(NYson::ConvertToYsonString(node).AsStringBuf(), wireString.front());
+        EXPECT_EQ(
+            value,
+            NYTree::ConvertToNode(NYson::TYsonString(wireString.front()))->AsString()->GetValue());
+    }
+}
+
+TEST(TWriteWireStringTest, FindYsonStringFieldDescriptor)
+{
+    auto rootElement = NYson::ResolveProtobufElementByYPath(
+        NYson::ReflectProtobufMessageType<NProto::TMessage>(),
+        /*path*/ "").Element;
+    const auto* nestedFieldDescriptor =
+        NProto::TNestedMessage::descriptor()->FindFieldByName("yson_string_field");
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/nested_message/yson_string_field"));
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/nested_message_map/key/yson_string_field"));
+    EXPECT_EQ(
+        nestedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_nested_message/0/yson_string_field"));
+
+    const auto* repeatedFieldDescriptor =
+        NProto::TMessage::descriptor()->FindFieldByName("repeated_yson_string_field");
+    EXPECT_EQ(
+        repeatedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/end"));
+    EXPECT_EQ(
+        repeatedFieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/before:0"));
+
+    EXPECT_EQ(nullptr, FindYsonStringFieldDescriptor(rootElement, "/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/nested_message/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/nested_message_map/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(rootElement, "/repeated_nested_message/*"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/before:not-an-index"));
+}
+
+TEST(TWriteWireStringTest, SerializeRepeatedYsonString)
+{
+    auto rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    auto rootElement = NYson::ResolveProtobufElementByYPath(rootType, /*path*/ "").Element;
+    auto element = NYson::ResolveProtobufElementByYPath(rootType, "/repeated_yson_string_field");
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName(
+        "repeated_yson_string_field");
+    EXPECT_EQ(
+        fieldDescriptor,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/0"));
+    EXPECT_EQ(
+        nullptr,
+        FindYsonStringFieldDescriptor(
+            rootElement,
+            "/repeated_yson_string_field/0/key"));
+    auto listValue = NYTree::BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Value("123")
+            .Item().BeginMap()
+                .Item("key").Value("value")
+            .EndMap()
+        .EndList();
+
+    auto serializedValues = ConvertToWireString(listValue, element.Element, fieldDescriptor);
+
+    ASSERT_EQ(2, std::ssize(serializedValues));
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(listValue->AsList()->GetChildOrThrow(0)).AsStringBuf(),
+        serializedValues[0]);
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(listValue->AsList()->GetChildOrThrow(1)).AsStringBuf(),
+        serializedValues[1]);
+}
+
+TEST(TWriteWireStringTest, DeserializeYsonString)
+{
+    NYson::TProtobufElement element = std::make_unique<NYson::TProtobufAnyElement>();
+    auto wireString = TWireString::FromSerialized("{key=value;}"sv);
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName("yson_string_field");
+
+    EXPECT_THROW(ConvertProtobufElementToNode(element, wireString), std::exception);
+
+    auto value = ConvertProtobufElementToNode(element, wireString, fieldDescriptor);
+
+    EXPECT_EQ("value", value->AsMap()->GetChildValueOrThrow<std::string>("key"));
+}
+
+TEST(TWriteWireStringTest, DeserializeRepeatedYsonString)
+{
+    auto rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    auto element = NYson::ResolveProtobufElementByYPath(rootType, "/repeated_yson_string_field");
+    const auto* fieldDescriptor = NProto::TMessage::descriptor()->FindFieldByName(
+        "repeated_yson_string_field");
+    auto wireString = TWireString::FromSerialized({"{key=value;}"sv, ""sv});
+
+    auto value = ConvertProtobufElementToNode(element.Element, wireString, fieldDescriptor)->AsList();
+
+    ASSERT_EQ(2, value->GetChildCount());
+    EXPECT_EQ("value", value->GetChildOrThrow(0)->AsMap()->GetChildValueOrThrow<std::string>("key"));
+    EXPECT_EQ(NYTree::ENodeType::Entity, value->GetChildOrThrow(1)->GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

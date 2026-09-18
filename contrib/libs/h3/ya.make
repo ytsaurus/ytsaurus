@@ -9,9 +9,9 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(4.1.0)
+VERSION(4.5.0)
 
-ORIGINAL_SOURCE(https://github.com/uber/h3/archive/v4.1.0.tar.gz)
+ORIGINAL_SOURCE(https://github.com/uber/h3/archive/v4.5.0.tar.gz)
 
 ADDINCL(
     contrib/libs/h3/h3lib/include
@@ -29,9 +29,10 @@ CFLAGS(
 
 SRCS(
     h3lib/lib/algos.c
+    h3lib/lib/area.c
     h3lib/lib/baseCells.c
     h3lib/lib/bbox.c
-    h3lib/lib/coordijk.c
+    h3lib/lib/cellsToMultiPoly.c
     h3lib/lib/directedEdge.c
     h3lib/lib/faceijk.c
     h3lib/lib/h3Assert.c
@@ -41,11 +42,10 @@ SRCS(
     h3lib/lib/linkedGeo.c
     h3lib/lib/localij.c
     h3lib/lib/mathExtensions.c
+    h3lib/lib/polyfill.c
     h3lib/lib/polygon.c
     h3lib/lib/vec2d.c
-    h3lib/lib/vec3d.c
     h3lib/lib/vertex.c
-    h3lib/lib/vertexGraph.c
 )
 
 END()

@@ -692,7 +692,7 @@ The following aggregation functions are supported in the query language:
 
 ## Executing a query { #query_execution }
 
-![](../../../../images/query_execution.png)
+![](../../../../_images/query_execution.png)
 
 The query is executed on the cluster in a distributed way. The query execution process is conventionally divided into two phases: coordination and execution. During coordination, multiple cluster nodes are defined to execute the query, and during execution, the data is processed directly. A typical scenario involves a user-defined query being decomposed into multiple _execution fragments_ that are processed by cluster nodes. The final result is generated on the client by merging intermediate results received from cluster nodes.
 

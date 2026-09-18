@@ -5,6 +5,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <yql/essentials/public/langver/yql_langver.h>
+
 #include <contrib/libs/protobuf/src/google/protobuf/text_format.h>
 
 namespace NYT::NYqlPlugin {
@@ -14,18 +16,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-std::optional<TString> ExtractDefaultCluster(const NYql::TGatewaysConfig& config)
-{
-    if (config.HasYt()) {
-        for (const auto& mapping : config.GetYt().GetClusterMapping()) {
-            if (mapping.GetDefault()) {
-                return mapping.GetName();
-            }
-        }
-    }
-    return {};
-}
 
 TString SerializeCredentials(const NYson::TYsonString& credentials)
 {
@@ -65,11 +55,11 @@ public:
         data.SetUsername(context.User);
         data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
         data.SetAuthData(SerializeCredentials(context.Credentials));
+        data.MutableUserAuthData()->SetQueryIdentityToken(context.QueryIdentityToken);
         data.SetIsSystemRequest(false);
         data.SetFunctionRegistryData(context.FunctionRegistryData);
         data.SetPersistedId(true);
 
-        std::optional<TString> defaultTranslationCluster;
         if (context.GatewaysConfig) {
             TString fullTextProto;
             if (!::google::protobuf::TextFormat::PrintToString(*context.GatewaysConfig, &fullTextProto)) {
@@ -77,18 +67,18 @@ public:
             }
 
             data.SetGatewaysConfig(fullTextProto);
-            defaultTranslationCluster = ExtractDefaultCluster(*context.GatewaysConfig);
         }
 
         auto settingsMap = ConvertTo<IMapNodePtr>(context.Settings);
-        if (auto cluster = settingsMap->FindChildValue<TString>("cluster")) {
-            defaultTranslationCluster = *cluster;
-        }
         if (context.MaxYqlLangVersion) {
             data.SetMaxLangVer(*context.MaxYqlLangVersion);
         }
 
         if (auto version = settingsMap->FindChildValue<TString>("yql_version")) {
+            NYql::TLangVersion parsedVersion;
+            if (!NYql::ParseLangVersion(*version, parsedVersion) || !NYql::IsValidLangVersion(parsedVersion)) {
+                ythrow yexception() << "Invalid YQL language version (Version: " << *version << ")";
+            }
             data.SetLangVer(*version);
         } else if (context.DefaultYqlLangVersion) {
             data.SetLangVer(*context.DefaultYqlLangVersion);
@@ -97,9 +87,9 @@ public:
             data.SetParameters(*parameters);
         }
 
-        if (defaultTranslationCluster) {
-            data.SetDefaultTranslationCluster(*defaultTranslationCluster);
-            data.SetUrl(*defaultTranslationCluster);
+        if (context.DefaultCluster) {
+            data.SetDefaultTranslationCluster(*context.DefaultCluster);
+            data.SetUrl(*context.DefaultCluster);
         }
         data.SetRunner("yql-agent");
 

@@ -74,6 +74,17 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(omgronny): Do we really two separate vectors for finished and running jobs?
+struct TListJobsFromControllerAgentResult
+{
+    std::vector<TJob> FinishedJobs;
+    int TotalFinishedJobCount = 0;
+    std::vector<TJob> InProgressJobs;
+    int TotalInProgressJobCount = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMountAndReplicasInfo
 {
     NTabletClient::TTableMountInfoPtr MountInfo;
@@ -826,6 +837,10 @@ public: \
     IMPLEMENT_METHOD(IPrerequisitePtr, AttachChaosLease, (
         NChaosClient::TChaosLeaseId chaosLeaseId,
         const TChaosLeaseAttachOptions& options = {}),
+        (chaosLeaseId, options))
+    IMPLEMENT_METHOD(void, PingChaosLease, (
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TChaosLeasePingOptions& options = {}),
         (chaosLeaseId, options))
 
     IMPLEMENT_METHOD(void, SetUserBanned, (

@@ -2,6 +2,7 @@
 
 #include "tablet_manager.h"
 #include "hunk_tablet.h"
+#include "tablet.h"
 
 namespace NYT::NTabletServer {
 

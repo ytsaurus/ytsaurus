@@ -10,17 +10,17 @@ reports this condition as `/file_snapshot_activation` without forcibly revoking 
 
 A mutable file resource must not be read from Swift user logic: replay after a restart could use a
 different file revision and violate Swift's determinism requirement. Use a materialized transform,
-as this example does, or use a source whose object identity is immutable for the whole deployment.
+as this example does, or use a provider whose object identity is immutable for the whole deployment.
 
-The resource spec declares the source as `file_sources.file`, alongside the resource's ordinary
+The resource spec declares the provider as `file_providers.file`, alongside the resource's ordinary
 `parameters`. The controller discovers an exact revision for every declared name and delivers one
 target snapshot; workers materialize that target rather than discovering "latest" again. A
-multi-file resource can override `Initialize(TMaterializedFileSourceSnapshotPtr)` and read each
-named root with `GetFileSource(name)`. Initialization, validation, and publication cover the whole
+multi-file resource can override `Initialize(TMaterializedFileProviderSnapshotPtr)` and read each
+named root with `GetFileProvider(name)`. Initialization, validation, and publication cover the whole
 snapshot atomically.
 
 Named files are materialized only on workers. Every computation requirement that can reach this
-resource must set `controller = %false`; the pipeline controller rejects a file-source-backed
+resource must set `controller = %false`; the pipeline controller rejects a file-provider-backed
 resource in its own resource-loading graph.
 
 Build the binary:
@@ -51,29 +51,36 @@ persistent across allocation or host changes; persistence requires an externally
 worker-local volume. Operators should size the soft limit for the normal cache working set and
 leave headroom up to the hard limit for pinned objects and atomic fills.
 
-Create a YT file, put its rich path into `pipeline-yt-file.yson`, configure `cluster_url`, the
-pipeline `path`, queue source, and sink for an existing Flow deployment, and run the binary:
+Create a static BLOB table, put its rich path or a link to it into `pipeline-yt-file.yson`, configure
+`cluster_url`, the pipeline `path`, queue source, and sink for an existing Flow deployment, and run
+the binary. The exact table schema is documented in the Flow file-resource guide; its rows have the
+key `(filename, part_index)` and the payload column `data`:
 
 ```bash
-yt create file //path/to/config-file
-echo first | yt write-file //path/to/config-file
+# Create //path/to/config-files-revisions/001 with the strict, unique-key BLOB-table schema first.
+echo '{filename="config-file";part_index=0;data="first";}' | \
+    yt write-table --format yson //path/to/config-files-revisions/001
+yt link //path/to/config-files-revisions/001 //path/to/config-files
 ./file_resource --config pipeline-yt-file.yson
 ```
 
-`TYTFileSource` derives an immutable storage object id from the cluster, YT object id, node
-revision, and file name. An in-place overwrite publishes a new revision after
-`file_source_discover_period`;
-workers keep serving the prior snapshot until they have streamed and validated the new bytes:
+One BLOB table is one immutable revision of the complete file set. To publish another revision,
+create another table and atomically repoint the link. After `file_provider_discover_period`, workers
+materialize all files from the new table while keeping the prior snapshot available until the new
+one has been streamed and validated:
 
 ```bash
-echo second | yt write-file //path/to/config-file
+echo '{filename="config-file";part_index=0;data="second";}' | \
+    yt write-table --format yson //path/to/config-files-revisions/002
+yt link --force //path/to/config-files-revisions/002 //path/to/config-files
 ```
 
-File-source implementations can also expose typed dynamic parameters under
-`dynamic_spec.resources.<resource>.file_sources.<name>.parameters`. For example,
-`TYTDirectoryLastFileSource` accepts `pinned_file_name` to select one exact direct child instead
-of the lexicographically greatest file. Changing a pin triggers discovery immediately; workers
-still materialize the exact revision delivered in the resource target snapshot.
+File-provider implementations can also expose typed dynamic parameters under
+`dynamic_spec.resources.<resource>.file_providers.<name>.parameters`. For example,
+`TYTDirectoryLastFileProvider` treats each direct child BLOB table as a complete file-set revision and
+normally selects the lexicographically greatest child name. Its `pinned_file_name` parameter selects
+one exact child table instead. Changing a pin triggers discovery immediately; workers still
+materialize the exact revision delivered in the resource target snapshot.
 
-Configuration snippets for all built-in file sources and the persistent-cache policy are in the
+Configuration snippets for all built-in file providers and the persistent-cache policy are in the
 Flow file-resource documentation.

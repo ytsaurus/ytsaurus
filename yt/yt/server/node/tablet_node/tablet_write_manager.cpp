@@ -1292,15 +1292,16 @@ private:
                 auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
                 auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount * multiplier;
                 replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
-                YT_LOG_DEBUG(
-                    "Sync replicated rows %v (TransactionId: %v, ReplicaId: %v, CurrentReplicationRowIndex: %v -> %v, "
-                    "TotalRowCount: %v)",
-                    state == ETransactionState::Aborted ? "aborted" : "prepared",
-                    transaction->GetId(),
-                    replicaInfo->GetId(),
-                    oldCurrentReplicationRowIndex,
-                    newCurrentReplicationRowIndex,
-                    tablet->GetTotalRowCount());
+                YT_TLOG_DEBUG("Sync replicated rows processed")
+                    .With("State", state)
+                    .With("TransactionId", transaction->GetId())
+                    .With("ReplicaId", replicaInfo->GetId())
+                    .WithFormat(
+                        "CurrentReplicationRowIndex",
+                        "%v -> %v",
+                        oldCurrentReplicationRowIndex,
+                        newCurrentReplicationRowIndex)
+                    .With("TotalRowCount", tablet->GetTotalRowCount());
             }
         }
 
@@ -1309,12 +1310,14 @@ private:
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount + rowCount * multiplier;
             Tablet_->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
             Tablet_->RecomputeReplicaStatuses();
-            YT_LOG_DEBUG(
-                "Delayed lockless rows %v (TransactionId: %v, DelayedLocklessRowCount: %v -> %v)",
-                state == ETransactionState::Aborted ? "aborted" : "prepared",
-                transaction->GetId(),
-                oldDelayedLocklessRowCount,
-                newDelayedLocklessRowCount);
+            YT_TLOG_DEBUG("Delayed lockless rows processed")
+                .With("State", state)
+                .With("TransactionId", transaction->GetId())
+                .WithFormat(
+                    "DelayedLocklessRowCount",
+                    "%v -> %v",
+                    oldDelayedLocklessRowCount,
+                    newDelayedLocklessRowCount);
         }
     }
 

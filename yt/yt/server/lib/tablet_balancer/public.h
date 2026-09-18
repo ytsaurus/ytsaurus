@@ -8,6 +8,10 @@
 
 namespace NYT::NTabletBalancer {
 
+constexpr int MaxMetricCount = 8;
+
+constexpr int MaxVerboseLogMessagesPerIteration = 2000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NTableClient::TTableId;
@@ -62,9 +66,13 @@ using TClusterName = std::string;
 
 struct TParameterizedReassignSolverConfig;
 
+DECLARE_REFCOUNTED_CLASS(TParameterizedMetricsCalculator)
 DECLARE_REFCOUNTED_STRUCT(TTableParameterizedMetricTracker)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
 DECLARE_REFCOUNTED_STRUCT(IParameterizedResharder)
+
+template <int Size>
+class TGenericMetric;
 
 ////////////////////////////////////////////////////////////////////////////////
 

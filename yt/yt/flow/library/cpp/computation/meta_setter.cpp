@@ -39,7 +39,10 @@ public:
         , EventTimestampAssigner_(std::move(eventTimestampAssigner))
     { }
 
-    TFillResult Fill(TMessage& message, const TMessageParentsConstPtr& parents) override
+    TFillResult Fill(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) override
     {
         if (message.StreamId.Underlying().empty()) {
             if (Spec_->OutputStreamIds.size() == 1) {
@@ -49,7 +52,7 @@ public:
             }
         }
         auto actualParents = CheckParents(message, parents);
-        FillMetaImpl(message, actualParents);
+        FillMetaImpl(message, actualParents, messageIdSuffix);
         EventTimestampAssigner_->Assign(message);
         return {.ActualParentMessageIds = std::move(actualParents)};
     }
@@ -102,7 +105,13 @@ public:
         return {.ActualParentMessageIds = std::move(actualParents)};
     }
 
-    virtual void FillMetaImpl(TMessageMeta& meta, const TMessageParentsConstPtr& parents) = 0;
+    virtual void FillMetaImpl(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) = 0;
+    virtual void FillMetaImpl(
+        TTimer& timer,
+        const TMessageParentsConstPtr& parents) = 0;
 
 protected:
     struct TParentsInfo
@@ -210,9 +219,28 @@ public:
         , CurrentTimestamp_(now)
     { }
 
-    void FillMetaImpl(TMessageMeta& meta, const TMessageParentsConstPtr& parents) override
+    void FillMetaImpl(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) override
     {
-        meta.MessageId = GenerateOrderedMessageId(UniqueSeqNo_, meta.StreamId, LexicographicallySerialize(Index_));
+        THROW_ERROR_EXCEPTION_UNLESS(
+            messageIdSuffix.GetMode() == TOutputMessageIdSuffix::EMode::SequenceNumber,
+            "Output message ID suffixes are supported only by Swift computations");
+        DoFillMeta(message, parents, messageIdSuffix.Resolve(message, Index_));
+    }
+
+    void FillMetaImpl(TTimer& timer, const TMessageParentsConstPtr& parents) override
+    {
+        DoFillMeta(timer, parents, LexicographicallySerialize(Index_));
+    }
+
+    void DoFillMeta(
+        TMessageMeta& meta,
+        const TMessageParentsConstPtr& parents,
+        TStringBuf messageIdSuffix)
+    {
+        meta.MessageId = GenerateOrderedMessageId(UniqueSeqNo_, meta.StreamId, messageIdSuffix);
         TSystemTimestamp sourceEventTimestamp = GetEventTimestamp(parents);
         if (meta.EventTimestamp == ZeroSystemTimestamp) {
             meta.EventTimestamp = sourceEventTimestamp;
@@ -281,7 +309,34 @@ public:
         : TMetaSetterBase(std::move(spec), eventTimestampAssigner)
     { }
 
-    void FillMetaImpl(TMessageMeta& meta, const TMessageParentsConstPtr& parents) override
+    void FillMetaImpl(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) override
+    {
+        DoFillMeta(
+            message,
+            parents,
+            [&] (i64 sequenceNumber) {
+                return messageIdSuffix.Resolve(message, sequenceNumber);
+            });
+    }
+
+    void FillMetaImpl(TTimer& timer, const TMessageParentsConstPtr& parents) override
+    {
+        DoFillMeta(
+            timer,
+            parents,
+            [] (i64 sequenceNumber) {
+                return LexicographicallySerialize(sequenceNumber);
+            });
+    }
+
+    template <class TResolveSuffix>
+    void DoFillMeta(
+        TMessageMeta& meta,
+        const TMessageParentsConstPtr& parents,
+        TResolveSuffix&& resolveSuffix)
     {
         if (parents->ParentMessages.size() != 1 || parents->ParentTimers.size() != 0) {
             THROW_ERROR_EXCEPTION("Message should have exactly one parent message (not timer)")
@@ -290,7 +345,7 @@ public:
 
         const auto& parent = parents->ParentMessages[0];
         auto& index = Indices_[std::pair(parent, meta.StreamId)];
-        meta.MessageId = GenerateInheritedMessageId(parent->MessageId, meta.StreamId, LexicographicallySerialize(index));
+        meta.MessageId = GenerateInheritedMessageId(parent->MessageId, meta.StreamId, resolveSuffix(index));
         if (meta.EventTimestamp == ZeroSystemTimestamp) {
             meta.EventTimestamp = parent->EventTimestamp;
         }
@@ -327,7 +382,34 @@ public:
         : TMetaSetterBase(std::move(spec), std::move(eventTimestampAssigner))
     { }
 
-    void FillMetaImpl(TMessageMeta& meta, const TMessageParentsConstPtr& parents) override
+    void FillMetaImpl(
+        TMessage& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix) override
+    {
+        DoFillMeta(
+            message,
+            parents,
+            [&] (i64 sequenceNumber) {
+                return messageIdSuffix.Resolve(message, sequenceNumber);
+            });
+    }
+
+    void FillMetaImpl(TTimer& timer, const TMessageParentsConstPtr& parents) override
+    {
+        DoFillMeta(
+            timer,
+            parents,
+            [] (i64 sequenceNumber) {
+                return LexicographicallySerialize(sequenceNumber);
+            });
+    }
+
+    template <class TResolveSuffix>
+    void DoFillMeta(
+        TMessageMeta& meta,
+        const TMessageParentsConstPtr& parents,
+        TResolveSuffix&& resolveSuffix)
     {
         if (!parents->ParentTimers.empty()) {
             THROW_ERROR_EXCEPTION("Swift map does not support timers as parents")
@@ -342,7 +424,7 @@ public:
             // Single-parent fast path: inherit MessageId and timestamps from the parent — same as the deterministic setter.
             const auto& parent = parents->ParentMessages[0];
             auto& index = InheritedIndices_[std::pair(parent, meta.StreamId)];
-            meta.MessageId = GenerateInheritedMessageId(parent->MessageId, meta.StreamId, LexicographicallySerialize(index));
+            meta.MessageId = GenerateInheritedMessageId(parent->MessageId, meta.StreamId, resolveSuffix(index));
             if (meta.EventTimestamp == ZeroSystemTimestamp) {
                 meta.EventTimestamp = parent->EventTimestamp;
             }
@@ -363,7 +445,7 @@ public:
         // AllowBatchingWithRelaxedGuarantees parameter of TSwiftMapComputation).
         const auto& merged = GetMergedInfo(parents);
         auto& index = MergedIndices_[std::pair(parents.Get(), meta.StreamId)];
-        meta.MessageId = GenerateInheritedMessageId(merged.Digest, meta.StreamId, LexicographicallySerialize(index));
+        meta.MessageId = GenerateInheritedMessageId(merged.Digest, meta.StreamId, resolveSuffix(index));
         if (meta.EventTimestamp == ZeroSystemTimestamp) {
             meta.EventTimestamp = merged.EventTimestamp;
         }

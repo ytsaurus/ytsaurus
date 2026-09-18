@@ -34,6 +34,7 @@ struct TYqlNativePluginOptions
     NYson::TYsonString FileStorageConfig;
     NYson::TYsonString TvmConfig;
     NYson::TYsonString YtAccessProviderConfig;
+    NYson::TYsonString YtTokenResolverConfig;
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
 
@@ -53,6 +54,7 @@ struct TYqlQTWorkerPluginOptions
     THolder<TLogBackend> QtWorkerLogBackend;
     int QtWorkerInspectorPort = 32391;
     TString GatewaysConfigPath;
+    bool EnableGetUsedClusters = true;
 };
 
 struct TQueryResult
@@ -71,6 +73,7 @@ struct TQueryResult
 struct TClustersResult
 {
     std::vector<std::pair<TString, TString>> Clusters;
+    std::optional<TString> DefaultCluster;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
@@ -115,9 +118,13 @@ struct IYqlPlugin
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) = 0;
 
+    //! Returns all clusters configured for the query, and the query's default cluster.
+    virtual TClustersResult GetClustersInfo(TQueryId queryId) = 0;
+
     virtual TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
@@ -136,13 +143,18 @@ struct IYqlPlugin
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) = 0;
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
-    virtual void RegisterQuery(TQueryId queryId) = 0;
+    //! Returns false if the plugin cannot execute queries right now,
+    //! e.g. there are no healthy workers to offload queries to.
+    virtual bool IsReady() const;
+
+    virtual void RegisterQuery(TQueryId queryId, NYson::TYsonString settings) = 0;
     virtual void UnregisterQuery(TQueryId queryId) = 0;
 
     virtual ~IYqlPlugin() = default;
@@ -155,13 +167,16 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginDynamicConfigPtr initialDynamicConfig,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    bool startDqManager = false);
+    bool startDqManager = false,
+    bool useTokenResolver = false,
+    const std::string& tokenServiceSocketPath = {});
 
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
     TYqlNativePluginOptions nativeOptions,
     THolder<TLogBackend> qtWorkerLogBackend,
     int qtWorkerInspectorPort,
-    TString gatewaysConfigPath);
+    TString gatewaysConfigPath,
+    bool enableGetUsedClusters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

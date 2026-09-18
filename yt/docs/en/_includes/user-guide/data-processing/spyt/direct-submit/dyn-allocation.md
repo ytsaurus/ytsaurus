@@ -29,4 +29,4 @@ Currently, dynamic allocation does not support multiple executor resource profil
 
 If everything is set up correctly and the nature of the application implies uneven use of computing resources, you will see the CPU count changing over time on the operation monitoring page.
 
-![](../../../../../../images/spyt-direct-submit-dyn-allocation.png){ .center width="40%" }
+![](../../../../../../_images/spyt-direct-submit-dyn-allocation.png){ .center width="40%" }

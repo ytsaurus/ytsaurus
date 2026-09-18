@@ -59,6 +59,7 @@ PY_SRCS(
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_operation.py
     yt_dashboards/scheduler_pool.py
+    yt_dashboards/sequoia_replicas.py
     yt_dashboards/table_dispersion.py
     yt_dashboards/table_replication.py
     yt_dashboards/user_load.py

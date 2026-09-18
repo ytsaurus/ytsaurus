@@ -15,7 +15,14 @@ public:
 
     void Inc(double count = 1, TInstant now = TInstant::Now());
 
-    std::optional<double> GetRate(TInstant now = TInstant::Now()) const;
+    // Restarts rate observation at |now|, preserving the total and smoothing window.
+    void ResetRate(TInstant now = TInstant::Now());
+
+    // Returns the smoothed rate at the last observation timestamp, without read-time decay.
+    std::optional<double> GetLastRate() const;
+
+    // Returns the smoothed rate decayed to |now|, assuming no increments since the last update.
+    std::optional<double> GetDecayedRate(TInstant now = TInstant::Now()) const;
 
     double GetTotal() const;
 

@@ -86,6 +86,8 @@
 #include <yt/yt/library/containers/container_devices_checker.h>
 #endif
 
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
+
 #include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -1486,6 +1488,10 @@ private:
         }
         TSingletonManager::Reconfigure(newConfig);
 
+        if (auto hotswapManager = TryGetHotswapManager()) {
+            hotswapManager->Reconfigure(newConfig->HotswapManager);
+        }
+
         NodeMemoryUsageTracker_->Reconfigure(newConfig->NodeMemoryTracker);
 
         StorageHeavyThreadPool_->SetThreadCount(
@@ -1496,6 +1502,7 @@ private:
         auto netTxLimit = NodeResourceManager_->GetNetTxLimit();
         auto netRxLimit = NodeResourceManager_->GetNetRxLimit();
         ReconfigureThrottlers(newConfig, netTxLimit, netRxLimit);
+        NetworkStatistics_->Reconfigure(newConfig->DataNode);
 
         RawReadRpsOutThrottler_->Reconfigure(newConfig->DataNode->ReadRpsOutThrottler
             ? newConfig->DataNode->ReadRpsOutThrottler

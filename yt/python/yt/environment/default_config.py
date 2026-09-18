@@ -302,6 +302,7 @@ def get_clock_config():
 
 def get_timestamp_provider_config():
     return {
+        "cluster_connection": {},
         "timestamp_provider": {
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
@@ -752,6 +753,9 @@ def get_dynamic_node_config():
                     "heartbeat_executor": {
                         "period": 100,
                         "splay": 100,
+                        "min_backoff": 200,
+                        "max_backoff": 200,
+                        "backoff_multiplier": 1.0,
                     },
                     "enable_tracing": True,
                     "resend_full_job_info": False,

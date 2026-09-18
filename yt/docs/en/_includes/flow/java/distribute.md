@@ -24,7 +24,7 @@ If you don’t set the flag, it defaults to `true`, and the message is published
 
 ## Usage {#usage}
 
-Move the filtering logic to the processing function: instead of a separate filtering step, you emit the message with the required flag via the `OutputCollector.addMessage(Message, boolean)` overload.
+Move the filtering logic to the processing function: instead of a separate filtering step, emit the message with the required `AddMessageOptions`.
 
 {% list tabs %}
 
@@ -42,7 +42,7 @@ Move the filtering logic to the processing function: instead of a separate filte
                           .set("hit_id", hit.getHitId())
                           .set("hit_payload", hit.getHitPayload())
                           .finish(),
-                  distribute
+                  AddMessageOptions.builder().setDistribute(distribute).build()
           );
       }
   }
@@ -61,7 +61,7 @@ Move the filtering logic to the processing function: instead of a separate filte
                   .set("hit_id", hit.hitId)
                   .set("hit_payload", hit.hitPayload)
                   .finish(),
-              distribute
+              AddMessageOptions.builder().setDistribute(distribute).build()
           )
       }
   }

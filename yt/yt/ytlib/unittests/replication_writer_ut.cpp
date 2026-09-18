@@ -30,6 +30,9 @@
 
 #include <yt/yt/client/api/config.h>
 
+#include <atomic>
+#include <limits>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -135,7 +138,8 @@ public:
                 response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(0);
                 response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(0);
             } else {
-                response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(MaxCumulativeBlockSize_);
+                response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(
+                    GetReportedApprovedCumulativeBlockSize());
                 response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(MaxCumulativeBlockSize_);
             }
         }
@@ -199,6 +203,8 @@ public:
         YT_VERIFY(SessionId_.has_value());
         YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
 
+        ++ProbePutBlocksCounter_;
+
         ProbeHasIOConsumed_.store(request->has_io_consumed());
         LastProbeIOFairShareWeight_.store(
             request->has_io_fair_share_weight()
@@ -209,7 +215,8 @@ public:
             response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(0);
         } else {
             MaxCumulativeBlockSize_ = std::max(MaxCumulativeBlockSize_, request->cumulative_block_size());
-            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(request->cumulative_block_size());
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(
+                GetReportedApprovedCumulativeBlockSize());
         }
         response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(request->cumulative_block_size());
 
@@ -245,13 +252,13 @@ public:
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, CumulativeBlockSize: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             cumulativeBlockSize);
 
-        ++PutBlocksCounter_;
-        if (AlwaysFail_ || PutBlocksCounter_ % ThrottledBlockCount_ != 0) {
+        auto putBlocksCount = ++PutBlocksCounter_;
+        if (AlwaysFail_ || putBlocksCount % ThrottledBlockCount_ != 0) {
             context->Reply(TError(
                 NChunkClient::EErrorCode::WriteThrottlingActive,
                 "Write throttling active"));
@@ -286,7 +293,7 @@ public:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor);
 
@@ -402,6 +409,21 @@ public:
         return SendBlocksCounter_;
     }
 
+    int GetProbePutBlocksCount() const
+    {
+        return ProbePutBlocksCounter_.load();
+    }
+
+    int GetPutBlocksCount() const
+    {
+        return PutBlocksCounter_.load();
+    }
+
+    void SetProbePutBlocksApprovalThreshold(std::optional<i64> threshold)
+    {
+        ProbePutBlocksApprovalThreshold_ = threshold.value_or(std::numeric_limits<i64>::max());
+    }
+
     void SetReportChunkWriterStatistics(i64 dataBytesPerFlush, i64 metaBytesPerFinish)
     {
         ReportChunkWriterStatistics_ = true;
@@ -444,7 +466,8 @@ private:
     const bool AlwaysFail_;
     const bool NetThrottling_;
 
-    int PutBlocksCounter_ = 0;
+    std::atomic<int> ProbePutBlocksCounter_ = 0;
+    std::atomic<int> PutBlocksCounter_ = 0;
     int SendBlocksCounter_ = 0;
     bool UseSendBlocks_ = true;
 
@@ -454,6 +477,7 @@ private:
     bool UseProbePutBlocks_ = false;
     bool UseErrorOnNetThrottling_ = true;
     i64 MaxCumulativeBlockSize_ = 0;
+    std::atomic<i64> ProbePutBlocksApprovalThreshold_ = std::numeric_limits<i64>::max();
 
     bool ReportChunkWriterStatistics_ = false;
     i64 DataBytesPerFlush_ = 0;
@@ -469,6 +493,13 @@ private:
     TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
     THashMap<int, TBlock> LocalBlocks_;
     THashMap<int, bool> IsBlockFlushed_;
+
+    i64 GetReportedApprovedCumulativeBlockSize() const
+    {
+        return MaxCumulativeBlockSize_ > ProbePutBlocksApprovalThreshold_.load()
+            ? 0
+            : MaxCumulativeBlockSize_;
+    }
 
     void FillChunkWriterStatistics(NProto::TChunkWriterStatistics* statistics, i64 dataBytes, i64 metaBytes)
     {
@@ -495,6 +526,9 @@ struct TWriterTestCase
     std::set<int> ThrottlingNodes;
     std::set<int> FailedNodes;
     std::optional<double> IoFairShareWeight;
+    std::optional<double> JobIoFairShareWeight;
+    bool AttachJobIoMeter = false;
+    bool EnableJobIoStatistics = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -700,7 +734,6 @@ TEST_P(TReplicationWriterTest, CancelTest)
     EXPECT_TRUE(std::all_of(Services.begin(), Services.end(), [] (auto service) { return service->GetSessionCanceled(); }));
 }
 
-
 INSTANTIATE_TEST_SUITE_P(
     TReplicationWriterTest,
     TReplicationWriterTest,
@@ -793,6 +826,61 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationWriterApprovalDecreaseTest
+    : public TReplicationWriterTest
+{ };
+
+TEST_P(TReplicationWriterApprovalDecreaseTest, ProbePutBlocksAllowsLowerApproval)
+{
+    const auto groupSize = New<TReplicationWriterConfig>()->GroupSize;
+
+    auto firstBlock = TBlock(TSharedRef::FromString(std::string(groupSize, 'a')));
+    auto secondBlock = TBlock(TSharedRef::FromString(std::string(groupSize, 'b')));
+    Services[0]->SetProbePutBlocksApprovalThreshold(firstBlock.Size());
+
+    IChunkWriter::TWriteBlocksOptions writeOptions;
+    TWorkloadDescriptor workloadDescriptor;
+
+    WaitFor(Writer->Open())
+        .ThrowOnError();
+
+    EXPECT_TRUE(Writer->WriteBlock(writeOptions, workloadDescriptor, firstBlock));
+    WaitForPredicate([&] {
+        return Services[0]->GetPutBlocksCount() == 1;
+    });
+
+    EXPECT_TRUE(Writer->WriteBlock(writeOptions, workloadDescriptor, secondBlock));
+    WaitForPredicate([&] {
+        return Services[0]->GetProbePutBlocksCount() >= 2;
+    });
+
+    // The second probe reports the new requested size but lowers the approval to zero.
+    // The writer must wait for some time before probing again.
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+    EXPECT_EQ(Services[0]->GetProbePutBlocksCount(), 2);
+
+    // After some time, we can process requests again.
+    Services[0]->SetProbePutBlocksApprovalThreshold(std::nullopt);
+    WaitForPredicate([&] {
+        return Services[0]->GetPutBlocksCount() >= 2;
+    });
+
+    WaitFor(Writer->Cancel())
+        .ThrowOnError();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TReplicationWriterApprovalDecreaseTest,
+    TReplicationWriterApprovalDecreaseTest,
+    ::testing::Values(TWriterTestCase{
+        .UseProbePutBlocks = true,
+        .ReplicationFactor = 1,
+        .NodeCount = 1,
+        .BlockCount = 2,
+    }));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUseSendBlocksWriterTest
     : public TReplicationWriterTest
 { };
@@ -861,7 +949,7 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
         service->SetReportChunkWriterStatistics(DataBytesPerFlush, MetaBytesPerFinish);
     }
 
-    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1));
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
 
     IChunkWriter::TWriteBlocksOptions writeOptions;
     writeOptions.ClientOptions.JobIoMeter = jobIoMeter;
@@ -928,7 +1016,16 @@ class TIoFairShareWeightWriterTest
 
 TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
 {
+    auto testCase = GetParam();
+
     IChunkWriter::TWriteBlocksOptions writeOptions;
+    if (testCase.AttachJobIoMeter) {
+        auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics);
+        if (testCase.JobIoFairShareWeight) {
+            jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
+        }
+        writeOptions.ClientOptions.JobIoMeter = std::move(jobIoMeter);
+    }
     TWorkloadDescriptor workloadDescriptor;
 
     Writer->Open()
@@ -945,11 +1042,25 @@ TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
         }))
         .BlockingWait(TDuration::Seconds(120));
 
+    std::optional<double> expectedIoFairShareWeight;
+    if (!testCase.AttachJobIoMeter || testCase.EnableJobIoStatistics) {
+        if (testCase.IoFairShareWeight) {
+            expectedIoFairShareWeight = testCase.IoFairShareWeight;
+        } else if (testCase.AttachJobIoMeter) {
+            expectedIoFairShareWeight = testCase.JobIoFairShareWeight;
+        }
+    }
+    const bool expectedHasIoConsumed = testCase.AttachJobIoMeter && testCase.EnableJobIoStatistics;
+    const double expectedWeight = expectedIoFairShareWeight.value_or(-1);
     for (const auto& service : Services) {
-        EXPECT_EQ(service->GetLastIoFairShareWeight(), GetParam().IoFairShareWeight.value());
-        EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), GetParam().IoFairShareWeight.value());
-        if (GetParam().UseProbePutBlocks) {
-            EXPECT_EQ(service->GetLastProbeIOFairShareWeight(), GetParam().IoFairShareWeight.value());
+        EXPECT_EQ(service->GetFinishHasIoConsumed(), expectedHasIoConsumed);
+        if (testCase.UseProbePutBlocks) {
+            EXPECT_EQ(service->GetProbeHasIOConsumed(), expectedHasIoConsumed);
+        }
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedWeight);
+        EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), expectedWeight);
+        if (testCase.UseProbePutBlocks) {
+            EXPECT_EQ(service->GetLastProbeIOFairShareWeight(), expectedWeight);
         }
     }
 }
@@ -963,6 +1074,18 @@ INSTANTIATE_TEST_SUITE_P(
             .NodeCount = 1,
             .BlockCount = 16,
             .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 3.5,
+            .AttachJobIoMeter = true,
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
+            .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 3.5,
+            .AttachJobIoMeter = true,
+            .EnableJobIoStatistics = false,
         },
         TWriterTestCase{
             .ReplicationFactor = 3,
@@ -975,7 +1098,13 @@ INSTANTIATE_TEST_SUITE_P(
             .ReplicationFactor = 1,
             .NodeCount = 1,
             .BlockCount = 16,
-            .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 0.0,
+            .AttachJobIoMeter = true,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////

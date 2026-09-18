@@ -87,14 +87,17 @@ void MarkTablesAsProcessed(const IClientPtr& client, const std::vector<TString>&
     for (const auto& table : tables) {
         auto batchResult = batchRequest->Set(Format("%v/@%v", table, IdToPathProcessingTimeAttribute), TInstant::Now().ToString());
         batchResults.push_back(std::move(batchResult));
-        YT_LOG_DEBUG("Adding table to batch for marking as processed (Path: %v)", table);
+        YT_TLOG_DEBUG("Adding table to batch for marking as processed")
+            .With("Path", table);
     }
     batchRequest->ExecuteBatch();
     for (size_t tableIndex = 0; tableIndex < tables.size(); ++tableIndex) {
         try {
             batchResults[tableIndex].GetValue();
         } catch (const TErrorResponse& ex) {
-            YT_LOG_ERROR(ex, "Failed to mark table as processed (Path: %v)", tables[tableIndex]);
+            YT_TLOG_ERROR("Failed to mark table as processed")
+                .With("Path", tables[tableIndex])
+                .With(ex);
         }
     }
 }
@@ -110,7 +113,8 @@ void Process(TString cluster, TString tmpPath, std::vector<TString> inputTables,
     auto staticOutputTable = TTempTable(client, TString(TmpTablePrefix), tmpPath, TCreateOptions().Recursive(true));
 
     if (!client->Exists(outputTable)) {
-        YT_LOG_ERROR("Output table does not exist (OutputTablePath: %v)", outputTable);
+        YT_TLOG_ERROR("Output table does not exist")
+            .With("OutputTablePath", outputTable);
         throw yexception() << "Output table does not exist: " << outputTable;
     }
 
@@ -128,19 +132,24 @@ std::vector<TString> GetTablesToProcess(const TString& cluster, const TString& i
         .AttributeFilter(TAttributeFilter()
             .AddAttribute(TString(IdToPathProcessingTimeAttribute)));
     auto allTables = client->List(inputDirectory, listOptions);
-    YT_LOG_INFO("Found tables (TableCount: %v, InputDirectory: %v)", allTables.size(), inputDirectory);
+    YT_TLOG_INFO("Found tables")
+        .With("TableCount", allTables.size())
+        .With("InputDirectory", inputDirectory);
 
     std::vector<TString> result;
     for (const auto& table : allTables) {
         if (!table.GetAttributes().HasKey(IdToPathProcessingTimeAttribute)) {
             auto tableName = table.AsString();
-            YT_LOG_DEBUG("Found table to process (TableName: %v)", tableName);
+            YT_TLOG_DEBUG("Found table to process")
+                .With("TableName", tableName);
             result.push_back(Format("%v/%v", inputDirectory, tableName));
         }
     }
     std::sort(result.rbegin(), result.rend());
     if (std::ssize(result) > maxInputTableCount) {
-        YT_LOG_INFO("Limiting tables to process (UnprocessedTableCount: %v, Limit: %v)", result.size(), maxInputTableCount);
+        YT_TLOG_INFO("Limiting tables to process")
+            .With("UnprocessedTableCount", result.size())
+            .With("Limit", maxInputTableCount);
         result.resize(maxInputTableCount);
     }
     return result;
@@ -190,15 +199,17 @@ int main(int argc, const char** argv)
 
     auto inputTables = GetTablesToProcess(cluster, inputDirectory, maxInputTableCount);
     if (inputTables.empty()) {
-        YT_LOG_INFO("No tables to process");
+        YT_TLOG_INFO("No tables to process");
         return EXIT_SUCCESS;
     }
-    YT_LOG_INFO("Processing input tables (InputTableCount: %v)", inputTables.size());
+    YT_TLOG_INFO("Processing input tables")
+        .With("InputTableCount", inputTables.size());
 
     try {
         Process(std::move(cluster), std::move(tmpPath), std::move(inputTables), std::move(outputTable), std::move(forceCluster), std::move(allowClusters));
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to process tables");
+        YT_TLOG_ERROR("Failed to process tables")
+            .With(ex);
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

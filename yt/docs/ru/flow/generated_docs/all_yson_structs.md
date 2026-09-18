@@ -50,6 +50,8 @@
 
 {% include [_](./NYT_NFlow_EBacktraceEnricherLevel.md) %}
 
+{% include [_](./NYT_NFlow_EBalanceResource.md) %}
+
 {% include [_](./NYT_NFlow_EDistributionOrdering.md) %}
 
 {% include [_](./NYT_NFlow_EFetchType.md) %}
@@ -118,7 +120,7 @@
 
 {% include [_](./NYT_NFlow_TDynamicExternalStateManagerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TDynamicFileSourceSpec.md) %}
+{% include [_](./NYT_NFlow_TDynamicFileProviderSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicInputStoreSpec.md) %}
 
@@ -176,11 +178,17 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NCompanion_TTransformOrderedSourceCompanionComputation.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NSortedDynamicTable_TAsyncSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NSortedDynamicTable_TSyncSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnectorV2_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncHttpSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncMultiClusterQueueSink.md) %}
 
@@ -200,6 +208,8 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TEvenLoadThresholds.md) %}
+
 {% include [_](./NYT_NFlow_TEventTimestampAssignerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TExternalStateJoinerSpec.md) %}
@@ -208,7 +218,7 @@
 
 {% include [_](./NYT_NFlow_TFetcherInJoinerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TFileSourceSpec.md) %}
+{% include [_](./NYT_NFlow_TFileProviderSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFlowNodeConfig.md) %}
 
@@ -282,11 +292,17 @@
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NCompanion_TTransformOrderedSourceCompanionComputation.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NSortedDynamicTable_TAsyncSink.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NSortedDynamicTable_TSyncSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnectorV2_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncHttpSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncMultiClusterQueueSink.md) %}
 

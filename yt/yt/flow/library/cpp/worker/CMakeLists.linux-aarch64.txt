@@ -65,6 +65,7 @@ target_sources(library-cpp-worker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/job_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/job_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/lineage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/message_distributor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/message_distributor_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/message_service.cpp

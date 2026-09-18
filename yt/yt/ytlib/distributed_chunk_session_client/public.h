@@ -2,11 +2,27 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/phoenix/context.h>
+
 #include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NDistributedChunkSessionClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NPhoenix::TLoadContext;
+using NPhoenix::TSaveContext;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TSessionProgress;
+class TWriteRecordStatistics;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

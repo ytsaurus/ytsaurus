@@ -151,7 +151,10 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             auto inputsFuture = context->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams);
             inputTimers = TimerStore_->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams, dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
-            inputs = WaitFor(inputsFuture).ValueOrThrow();
+            {
+                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::Waiting));
+                inputs = WaitFor(inputsFuture).ValueOrThrow();
+            }
 
             std::vector<TKeyVisitorPtr> allowedVisitors;
             for (const auto& [streamId, visitor] : KeyVisitors_) {
@@ -174,9 +177,12 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
+        auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs));
+
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, /*checkState*/ false);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs.Messages, /*checkState*/ false);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
@@ -188,6 +194,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         // For batching we need uniqueSeqNo before Process to seed the merge meta setter; wait outside the
         // Process trace guard so the wait isn't billed to "Process". Non-batching keeps the original overlap.
         if (allowBatchingWithRelaxedGuarantees) {
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Timestamp"));
             WaitUntilSet(generateReportTimeFuture.AsVoid());
         }
 
@@ -207,6 +214,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             auto result = outputCollector->CollectResult();
+            RegisterResults(inputContext, std::move(result.LineageDelta), std::move(filteredInputs.SkippedStatistics));
             TimerStore_->Unregister(inputTimers);
             TimerStore_->Register(std::move(result.OutputTimers));
             const auto& streamSpecStorage = GetContext()->StreamSpecStorage;
@@ -299,7 +307,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             // Register all output messages in one batch.
             std::vector<TOutputMessageConstPtr> outputMessagesBase(outputMessages.begin(), outputMessages.end());
             OutputStore_->TryRegisterBatch(outputMessagesBase, /*persist=*/false);
-            RegisterOutputMessages(context, outputMessagesBase, std::nullopt, dynamicSpec);
+            RegisterOutputMessages(context, outputMessagesBase, std::nullopt);
 
             YT_TLOG_INFO("Process completed")
                 .With("OutputMessages", outputMessages.size());
@@ -315,14 +323,13 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
         FinishRunIteration();
 
-        WaitForBackoff(dynamicSpec, outputLimitsCheckResult,
-            /*emptyInput*/ inputs.empty() && inputTimers.empty() && inputVisits.empty());
+        WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);
 
         ClearAsynchronously(
-            std::move(inputs),
             std::move(inputTimers),
             std::move(inputVisits),
             std::move(unprocessedInputs),
+            std::move(filteredInputs),
             std::move(outputMessages),
             std::move(outputParents));
     }

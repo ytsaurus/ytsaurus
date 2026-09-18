@@ -4,10 +4,10 @@
 #include "key_set.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -76,7 +76,7 @@ public:
     }
 
     void AddDataSliceForSlicing(
-        TLegacyDataSlicePtr dataSlice,
+        TDataSlicePtr dataSlice,
         TComparator comparator,
         i64 sliceDataWeight,
         bool sliceByKeys,
@@ -101,8 +101,6 @@ public:
         // This logic fixes test_scheduler_reduce.py::TestSchedulerReduceCommands::test_column_filter.
 
         auto chunkSliceCopy = CreateInputChunkSlice(*dataSlice->ChunkSlices[0]);
-        chunkSliceCopy->LegacyLowerLimit() = dataSlice->LegacyLowerLimit();
-        chunkSliceCopy->LegacyUpperLimit() = dataSlice->LegacyUpperLimit();
         chunkSliceCopy->LowerLimit() = dataSlice->LowerLimit();
         chunkSliceCopy->UpperLimit() = dataSlice->UpperLimit();
 
@@ -155,7 +153,7 @@ private:
         TComparator Comparator;
         i64 ChunkSliceDataWeight;
         bool SliceByKeys;
-        TLegacyDataSlicePtr DataSlice;
+        TDataSlicePtr DataSlice;
         std::optional<i64> MinManiacDataWeight;
     };
     THashMap<TInputChunkPtr, TChunkSliceRequest> ChunkToChunkSliceRequest_;
@@ -241,13 +239,8 @@ private:
                 auto* protoSliceRequest = req->add_slice_requests();
                 ToProto(protoSliceRequest->mutable_chunk_id(), chunkId);
 
-                if (sliceRequest.DataSlice->IsLegacy) {
-                    ToProto(protoSliceRequest->mutable_lower_limit(), sliceRequest.DataSlice->LegacyLowerLimit());
-                    ToProto(protoSliceRequest->mutable_upper_limit(), sliceRequest.DataSlice->LegacyUpperLimit());
-                } else {
-                    ToProto(protoSliceRequest->mutable_lower_limit(), sliceRequest.DataSlice->LowerLimit());
-                    ToProto(protoSliceRequest->mutable_upper_limit(), sliceRequest.DataSlice->UpperLimit());
-                }
+                ToProto(protoSliceRequest->mutable_lower_limit(), sliceRequest.DataSlice->LowerLimit());
+                ToProto(protoSliceRequest->mutable_upper_limit(), sliceRequest.DataSlice->UpperLimit());
 
                 // TODO(max42, gritukan): this field seems useless. Consider dropping it here and in proto message.
                 protoSliceRequest->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
@@ -331,13 +324,14 @@ private:
             int chunkSliceIndex = 0;
 
             for (const auto& protoChunkSlice : sliceResponse.chunk_slices()) {
-                TInputChunkSlicePtr chunkSlice;
-                if (sliceRequest.DataSlice->IsLegacy) {
-                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, RowBuffer_, protoChunkSlice, keys);
-                } else {
-                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, sliceRequest.Comparator, RowBuffer_, protoChunkSlice, keys, keyBoundPrefixes);
-                    InferLimitsFromBoundaryKeys(chunkSlice);
-                }
+                auto chunkSlice = New<TInputChunkSlice>(
+                    *originalChunkSlice,
+                    sliceRequest.Comparator,
+                    RowBuffer_,
+                    protoChunkSlice,
+                    keys,
+                    keyBoundPrefixes);
+                InferLimitsFromBoundaryKeys(chunkSlice);
                 chunkSlice->SetSliceIndex(chunkSliceIndex++);
                 SlicesByChunkIndex_[index].push_back(std::move(chunkSlice));
                 SliceCount_++;
@@ -347,9 +341,9 @@ private:
 
     void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice) const
     {
-        // New data slices infer their limits from chunk slice limits, so it is
-        // more convenient (though it is not necessary) to have chunk slices that
-        // always impose some non-trivial lower or upper key bound limit.
+        // Data slices infer their limits from chunk slice limits, so it is convenient
+        // to have chunk slices that always impose some non-trivial lower or upper
+        // key bound limit.
         if (!chunkSlice->LowerLimit().KeyBound || chunkSlice->LowerLimit().KeyBound.IsUniversal()) {
             chunkSlice->LowerLimit().KeyBound = TKeyBound::FromRowUnchecked(
                 chunkSlice->GetInputChunk()->BoundaryKeys()->MinKey,
@@ -450,7 +444,7 @@ public:
     }
 
     void AddDataSliceForSlicing(
-        NChunkClient::TLegacyDataSlicePtr dataSlice,
+        NChunkClient::TDataSlicePtr dataSlice,
         TComparator comparator,
         i64 sliceDataWeight,
         bool sliceByKeys,

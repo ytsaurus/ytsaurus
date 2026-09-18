@@ -31,6 +31,7 @@ type testResponseRow struct {
 	Datetime  schema.Datetime  `yson:"datetime"`
 	Timestamp schema.Timestamp `yson:"timestamp"`
 	Interval  schema.Interval  `yson:"interval"`
+	Date32    schema.Date32    `yson:"date32"`
 
 	MyString MyString `yson:"my_string"`
 	MyInt    MyInt    `yson:"my_int"`
@@ -82,6 +83,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				{Name: "datetime"},
 				{Name: "timestamp"},
 				{Name: "interval"},
+				{Name: "date32"},
 				{Name: "my_string"},
 				{Name: "my_int"},
 				{Name: "struct"},
@@ -112,15 +114,16 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				NewUint64(16, 2),
 				NewUint64(17, 3),
 				NewInt64(18, 4),
-				NewBytes(19, []byte("my-string")),
-				NewInt64(20, 1337),
-				NewAny(21, []byte(`{id=88;name=foo;}`)),
-				NewAny(22, []byte(`{id=89;name=bar;}`)),
-				NewInt64(23, 90),
-				NewBytes(24, []byte("baz")),
-				NewInt64(25, 91),
-				NewAny(26, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
-				NewAny(27, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
+				NewInt64(19, -5),
+				NewBytes(20, []byte("my-string")),
+				NewInt64(21, 1337),
+				NewAny(22, []byte(`{id=88;name=foo;}`)),
+				NewAny(23, []byte(`{id=89;name=bar;}`)),
+				NewInt64(24, 90),
+				NewBytes(25, []byte("baz")),
+				NewInt64(26, 91),
+				NewAny(27, []byte(`{"exported_field_of_tagged_embedded"=93u;}`)),
+				NewAny(28, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
 			},
 			expected: &testResponseRow{
 				I:         -1,
@@ -142,6 +145,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				Datetime:  schema.Datetime(2),
 				Timestamp: schema.Timestamp(3),
 				Interval:  schema.Interval(4),
+				Date32:    schema.Date32(-5),
 				MyString:  MyString("my-string"),
 				MyInt:     MyInt(1337),
 				Struct: innterStruct{
@@ -894,18 +898,26 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 								{Name: "date", Type: schema.TypeDate},
 								{Name: "datetime", Type: schema.TypeDatetime},
 								{Name: "timestamp", Type: schema.TypeTimestamp},
+								{Name: "date32", Type: schema.TypeDate32},
+								{Name: "datetime64", Type: schema.TypeDatetime64},
+								{Name: "timestamp64", Type: schema.TypeTimestamp64},
+								{Name: "interval64", Type: schema.TypeInterval64},
 							},
 						},
 					},
 				},
 			},
 			nameTable: NameTable{{Name: "event"}},
-			testData:  []byte(`[12345u;1234567890u;1234567890123u]`),
+			testData:  []byte(`[12345u;1234567890u;1234567890123u;-12345;-1234567890;-1234567890123;-42]`),
 			expected: map[string]any{
 				"event": map[string]any{
-					"date":      uint64(12345),
-					"datetime":  uint64(1234567890),
-					"timestamp": uint64(1234567890123),
+					"date":        uint64(12345),
+					"datetime":    uint64(1234567890),
+					"timestamp":   uint64(1234567890123),
+					"date32":      int64(-12345),
+					"datetime64":  int64(-1234567890),
+					"timestamp64": int64(-1234567890123),
+					"interval64":  int64(-42),
 				},
 			},
 		},

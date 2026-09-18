@@ -73,26 +73,32 @@ public:
     }
 
     void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
         TNodeId /*nodeId*/,
         TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
     { }
 
-    void BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const override
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TNodeId /*nodeId*/,
+        TFluentMap /*fluent*/) const override
     { }
 
-    void BuildSchedulingAttributesStringForOngoingAllocations(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const std::vector<TAllocationPtr>& /*allocations*/,
-        TInstant /*now*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    { }
+        TInstant /*now*/) const override
+    {
+        return {};
+    }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    { }
+        const TPoolTreeElement* /*element*/) const override
+    {
+        return {};
+    }
 
     void PopulateOrchidService(const ICompositeMapServicePtr& /*orchidService*/) const override
     { }

@@ -1,5 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message_batcher.h>
 
 namespace NYT::NFlow {
@@ -33,6 +34,43 @@ std::vector<std::pair<TQueue*, std::function<TQueuePriority()>>> MakeQueuePairs(
         });
     }
     return result;
+}
+
+TInputMessageConstPtr MakeInputMessage(const std::string& messageId, const std::string& key)
+{
+    auto schema = New<NTableClient::TTableSchema>();
+    TMessageBuilder builder(TStreamId("input"), schema);
+    builder.SetMessageId(TMessageId(messageId));
+    builder.SetSystemTimestamp(TSystemTimestamp(100));
+    builder.SetAlignmentTimestamp(TSystemTimestamp(100));
+    builder.SetEventTimestamp(TSystemTimestamp(100));
+    return New<TInputMessage>(builder.Finish(), MakeKey(key));
+}
+
+TEST(TMessageBatchLimiterTest, DistinctKeyLimitDoesNotCountDuplicates)
+{
+    TMessageBatchLimiter limiter(10, 1e5, 2);
+
+    limiter.Add(MakeInputMessage("1", "a"));
+    EXPECT_FALSE(limiter.IsFull());
+
+    limiter.Add(MakeInputMessage("2", "a"));
+    EXPECT_FALSE(limiter.IsFull());
+
+    limiter.Add(MakeInputMessage("3", "b"));
+    EXPECT_TRUE(limiter.IsFull());
+}
+
+TEST(TMessageBatchLimiterTest, UnsetKeyLimitDoesNotTrackKeys)
+{
+    TMessageBatchLimiter limiter(3, 1e5);
+
+    limiter.Add(MakeInputMessage("1", "a"));
+    limiter.Add(MakeInputMessage("2", "b"));
+    EXPECT_FALSE(limiter.IsFull());
+
+    limiter.Add(MakeInputMessage("3", "c"));
+    EXPECT_TRUE(limiter.IsFull());
 }
 
 TEST(TMessageBatcherTest, MergingExtractBatch)

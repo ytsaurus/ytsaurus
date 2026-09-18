@@ -151,6 +151,57 @@ TEST(TMessageFilterTest, PartitionDisabledKeepsAll)
     auto result = filter->Partition(messages);
     EXPECT_EQ(2u, result.Kept.size());
     EXPECT_TRUE(result.Skipped.empty());
+    EXPECT_TRUE(result.SkippedStatistics.empty());
+}
+
+TEST(TMessageFilterTest, PartitionStatisticsAcrossStreamsAndBatches)
+{
+    auto schema = MakeSchema();
+    auto filter = CreateMessageFilter("value > 0");
+    auto skipped1 = MakeInputMessage(schema, {.StreamId = "s1", .UserId = "short", .Value = 1});
+    auto skipped2 = MakeInputMessage(schema, {.StreamId = "s2", .UserId = "longer-payload", .Value = 2});
+    auto skipped3 = MakeInputMessage(schema, {.StreamId = "s1", .UserId = "another-payload", .Value = 3});
+    auto kept = MakeInputMessage(schema, {.StreamId = "kept", .Value = 0});
+
+    auto first = filter->Partition({skipped1, kept, skipped2});
+    ASSERT_EQ(first.Kept.size(), 1u);
+    EXPECT_EQ(first.Kept.front(), kept);
+    ASSERT_EQ(first.Skipped.size(), 2u);
+    ASSERT_EQ(first.SkippedStatistics.size(), 2u);
+    EXPECT_FALSE(first.SkippedStatistics.contains(TStreamId("kept")));
+    const auto& firstStream = first.SkippedStatistics.at(TStreamId("s1"));
+    EXPECT_EQ(firstStream.Count, 1);
+    EXPECT_EQ(firstStream.ByteSize, skipped1->ByteSize);
+    const auto& secondStream = first.SkippedStatistics.at(TStreamId("s2"));
+    EXPECT_EQ(secondStream.Count, 1);
+    EXPECT_EQ(secondStream.ByteSize, skipped2->ByteSize);
+
+    auto second = filter->Partition({skipped3, skipped1});
+    EXPECT_TRUE(second.Kept.empty());
+    ASSERT_EQ(second.SkippedStatistics.size(), 1u);
+    EXPECT_EQ(second.SkippedStatistics.at(TStreamId("s1")).Count, 2);
+    for (const auto& [streamId, statistics] : second.SkippedStatistics) {
+        first.SkippedStatistics[streamId] += statistics;
+    }
+    EXPECT_EQ(firstStream.Count, 3);
+    EXPECT_EQ(firstStream.ByteSize, 2 * skipped1->ByteSize + skipped3->ByteSize);
+    EXPECT_EQ(secondStream.Count, 1);
+    EXPECT_EQ(secondStream.ByteSize, skipped2->ByteSize);
+}
+
+TEST(TMessageFilterTest, EmptyAndUnfilteredBatchesHaveNoSkippedStatistics)
+{
+    auto schema = MakeSchema();
+    auto filter = CreateMessageFilter("value > 0");
+    auto empty = filter->Partition({});
+    EXPECT_TRUE(empty.Kept.empty());
+    EXPECT_TRUE(empty.Skipped.empty());
+    EXPECT_TRUE(empty.SkippedStatistics.empty());
+
+    auto result = filter->Partition({MakeInputMessage(schema, {.Value = 0})});
+    EXPECT_EQ(result.Kept.size(), 1u);
+    EXPECT_TRUE(result.Skipped.empty());
+    EXPECT_TRUE(result.SkippedStatistics.empty());
 }
 
 TEST(TMessageFilterTest, SchemaCacheReuse)

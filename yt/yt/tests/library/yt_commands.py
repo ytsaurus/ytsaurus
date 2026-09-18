@@ -2169,6 +2169,25 @@ def create_account_resource_usage_lease(account, transaction_id, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
+def _is_pool_tree_orchid_ready(name):
+    if not exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name)):
+        return False
+
+    new_orchid_path = yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name)
+    if not exists(new_orchid_path):
+        return False
+
+    # The tree orchid nodes exist as soon as the tree is registered, but every snapshot-backed
+    # child throws "Pool tree orchid is not ready yet" until the first fair share update
+    # publishes a tree snapshot.
+    try:
+        get(new_orchid_path + "/node_count")
+    except YtResponseError:
+        return False
+
+    return True
+
+
 def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:
@@ -2193,11 +2212,7 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
 
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
-        wait(
-            lambda:
-                exists(yt_scheduler_helpers.scheduler_orchid_pool_tree_path(name))
-                and exists(yt_scheduler_helpers.scheduler_new_orchid_pool_tree_path(name))
-        )
+        wait(lambda: _is_pool_tree_orchid_ready(name))
 
 
 def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
@@ -2313,6 +2328,15 @@ def create_network_project(name, **kwargs):
 
 def remove_network_project(name, **kwargs):
     remove("//sys/network_projects/" + name, **kwargs)
+
+
+def create_master_cell_group(name, cell_tags, **kwargs):
+    kwargs["type"] = "master_cell_group"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["cell_tags"] = cell_tags
+    return execute_command("create", kwargs, parse_yson=True)
 
 
 def create_proxy_role(name, proxy_kind, **kwargs):
@@ -3751,11 +3775,12 @@ def make_externalized_tx_id(tx_id, externalizing_cell_tag):
     # externalized_nested_tx: 6
     externalized_type = 5 if original_type == 1 else 6
 
+    # Must match MakeExternalizedTransactionId.
     return "-".join([
         f"{parts[0]:x}",
         f"{parts[1]:x}",
-        f"{shifted_native_cell_tag | externalized_type:x}",
-        f"{parts[3] | (int(externalizing_cell_tag) << 16):x}"])
+        f"{(int(externalizing_cell_tag) << 16) | externalized_type:x}",
+        f"{(parts[3] & 0xffff) | shifted_native_cell_tag:x}"])
 
 
 def start_distributed_write_session(path: str, cookie_count: int, **kwargs):

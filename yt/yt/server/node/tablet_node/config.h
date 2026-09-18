@@ -30,6 +30,8 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
@@ -205,8 +207,11 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 struct TCompactionHintFetcherConfig
     : public NYTree::TYsonStruct
 {
+    static const TExponentialBackoffOptions DefaultRetryBackoff;
+
     NConcurrency::TPeriodicExecutorOptions PeriodicExecutor;
     NConcurrency::TThroughputThrottlerConfigPtr RequestThrottler;
+    TExponentialBackoffOptions RetryBackoff;
 
     REGISTER_YSON_STRUCT(TCompactionHintFetcherConfig);
 
@@ -294,8 +299,6 @@ struct TStoreCompactorDynamicConfig
 
     bool ReuseCompactionInvokerForWriterCompression;
 
-    bool ScheduleNewTasksAfterTaskCompletion;
-
     double StarvingTablesTasksRatio;
     TDuration BackgroundTaskHistoryWindow;
 
@@ -305,6 +308,24 @@ struct TStoreCompactorDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGlobalStoresUpdateThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    TDuration RpcTimeout;
+
+    // COMPAT(alexelexa)
+    TDuration NoSuchMethodBackoffTime;
+
+    REGISTER_YSON_STRUCT(TGlobalStoresUpdateThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGlobalStoresUpdateThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -727,6 +748,7 @@ struct TTabletNodeDynamicConfig
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
     TInMemoryManagerDynamicConfigPtr InMemoryManager;
     TCompressionDictionaryBuilderDynamicConfigPtr CompressionDictionaryBuilder;
+    TGlobalStoresUpdateThrottlerConfigPtr GlobalStoresUpdateThrottler;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 

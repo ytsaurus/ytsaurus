@@ -389,6 +389,7 @@ struct TJobProxyPeakMemoryProfilerConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
+
     //! NB(coteeq): This is probably what you want to get symbolized profiles,
     //! but external symbolizer is very slow and consumes large amounts
     //! of memory (this is a process, so think of 30M+ of additional memory).
@@ -455,6 +456,11 @@ struct TJobProxyInternalConfig
 
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
+
+    //! Enables reporting per-job I/O statistics to data nodes.
+    //! When disabled, neither io_consumed nor io_fair_share_weight is sent,
+    //! including an explicitly configured reader or writer weight.
+    bool EnableJobIoStatistics;
 
     //! Time span over which the job I/O meter retains accounted I/O history.
     TDuration JobIoMeterMaxHistoryDuration;
@@ -601,6 +607,8 @@ struct TJobProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+
+    bool EnableJobIoStatistics;
 
     bool EnableJobShellSeccopm;
 

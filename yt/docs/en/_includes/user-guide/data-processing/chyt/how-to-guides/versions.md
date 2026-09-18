@@ -19,7 +19,7 @@ You can get the versions via:
 
 - Query to the clique
 
-    1. Go to the Query Tracker web interface: click ![sql](../../../../../../images/sql-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
+    1. Go to the Query Tracker web interface: click ![sql](../../../../../../_images/sql-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
     1. Make sure that the CHYT engine is selected in the panel at the top.
     1. In the opened window, enter and run the SQL query:
 

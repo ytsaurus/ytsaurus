@@ -255,6 +255,11 @@ ELogLevel TSimpleHydraManagerMock::GetMutationHandlerFailureLogLevel(TStringBuf 
     return ELogLevel::Warning;
 }
 
+ELogLevel TSimpleHydraManagerMock::GetUnknownAutomatonPartsLogLevel() const
+{
+    return ELogLevel::Fatal;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra

@@ -1,7 +1,7 @@
 #include "profile_manager.h"
 
-#include "snapshot.h"
 #include "helpers.h"
+#include "snapshot.h"
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/simple_sensor_impl.h>

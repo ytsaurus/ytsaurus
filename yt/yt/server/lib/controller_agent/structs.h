@@ -97,8 +97,8 @@ struct TCompletedJobSummary
     bool Abandoned = false;
 
     // These fields are for controller's use only.
-    std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TLegacyDataSlicePtr> ReadInputDataSlices;
+    std::vector<NChunkClient::TDataSlicePtr> UnreadInputDataSlices;
+    std::vector<NChunkClient::TDataSlicePtr> ReadInputDataSlices;
     int SplitJobCount = 1;
 
     inline static constexpr EJobState ExpectedState = EJobState::Completed;

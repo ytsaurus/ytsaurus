@@ -67,10 +67,17 @@ public:
         TSingletonsConfigPtr singletonsConfig,
         TYqlPluginDynamicConfigPtr initialDynamicConfig,
         TConnectionCompoundConfigPtr clusterConnectionConfig,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
         : Config_(std::move(config))
         , DynamicConfig_(std::move(initialDynamicConfig))
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, singletonsConfig, clusterConnectionConfig))
+        , ConfigTemplate_(BuildPluginConfigTemplate(
+            Config_,
+            singletonsConfig,
+            clusterConnectionConfig,
+            useTokenResolver,
+            std::move(tokenServiceSocketPath)))
         , DynamicConfigVersion_(0)
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
@@ -114,11 +121,23 @@ public:
         return pluginProcess->GetUsedClusters(queryId, queryText, settings, files);
     }
 
+    TClustersResult GetClustersInfo(TQueryId queryId) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            return TClustersResult{
+                .YsonError = ConvertToYsonString<TError>(pluginProcessOrError).ToString(),
+            };
+        }
+        return pluginProcessOrError.Value()->GetClustersInfo(queryId);
+    }
+
     // Gets an acquired in RegisterQuery subprocess and routes Run call to it.
     // Marks subprocess as active so it would not reinitialize. Long blocking call
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
         TYsonString settings,
@@ -143,6 +162,7 @@ public:
         auto result = pluginProcess->Run(
             queryId,
             user,
+            queryIdentityToken,
             credentials,
             queryText,
             settings,
@@ -185,6 +205,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
         TYsonString credentials) override
@@ -208,6 +229,7 @@ public:
             result = pluginProcess->GetDeclaredParametersInfo(
                 queryId,
                 user,
+                queryIdentityToken,
                 queryText,
                 settings,
                 credentials);
@@ -267,12 +289,14 @@ public:
     }
 
     // Acquires subprocess for query and routes call to it.
-    // Acquired process will also be used in subsequent GetUsedClusters and Run calls.
+    // Acquired process will also be used in subsequent GetClustersInfo,
+    // GetUsedClusters and Run calls.
     // If Run call did not happen in one minute, the process will be reinitialized.
-    void RegisterQuery(TQueryId queryId) override
+    void RegisterQuery(TQueryId queryId, TYsonString settings) override
     {
         // Yql agent calls this method first when staring query, so we acquire
-        // process in this call and then use it in GetUsedClusters() and Run() as well.
+        // process in this call and then use it in GetClustersInfo(),
+        // GetUsedClusters() and Run() as well.
         TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
 
         if (!acquiredProcess) {
@@ -283,7 +307,12 @@ public:
             .With("SlotIndex", acquiredProcess->SlotIndex())
             .With("QueryId", queryId);
 
-        return acquiredProcess->RegisterQuery(queryId);
+        try {
+            acquiredProcess->RegisterQuery(queryId, std::move(settings));
+        } catch (...) {
+            OnQueryFinish(queryId, acquiredProcess);
+            throw;
+        }
     }
 
     void UnregisterQuery(TQueryId queryId) override
@@ -631,7 +660,9 @@ private:
     static TProcessYqlPluginInternalConfigPtr BuildPluginConfigTemplate(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
-        TConnectionCompoundConfigPtr clusterConnectionConfig)
+        TConnectionCompoundConfigPtr clusterConnectionConfig,
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
     {
         auto result = New<TProcessYqlPluginInternalConfig>();
 
@@ -643,6 +674,9 @@ private:
         result->ClusterConnection = clusterConnectionConfig;
 
         result->PluginConfig = config;
+
+        result->UseTokenResolver = useTokenResolver;
+        result->TokenServiceSocketPath = std::move(tokenServiceSocketPath);
         return result;
     }
 
@@ -653,7 +687,9 @@ private:
             DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            true);
+            true,
+            ConfigTemplate_->UseTokenResolver,
+            ConfigTemplate_->TokenServiceSocketPath);
         DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));
     }
 };
@@ -669,14 +705,18 @@ std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TSingletonsConfigPtr singletonsConfig,
     TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     TConnectionCompoundConfigPtr clusterConnectionConfig,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    bool useTokenResolver,
+    std::string tokenServiceSocketPath)
 {
     return std::make_unique<TProcessYqlPlugin>(
         std::move(pluginConfig),
         std::move(singletonsConfig),
         std::move(pluginInitialDynamicConfig),
         std::move(clusterConnectionConfig),
-        profiler);
+        profiler,
+        useTokenResolver,
+        std::move(tokenServiceSocketPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,36 +4,29 @@
 #include "chunk_manager.h"
 #include "medium_base.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
+#include <yt/yt/server/master/file_server/file_node.h>
 
-#include <yt/yt/server/master/cypress_server/node.h>
-#include <yt/yt/server/master/cypress_server/cypress_manager.h>
-
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/journal_server/journal_node.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/security_tags.h>
 
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
-
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
-#include <yt/yt/server/master/cell_master/config.h>
-// COMPAT(kvk1920)
-#include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/serialize.h>
-
-#include <yt/yt/server/master/file_server/file_node.h>
-
-#include <yt/yt/server/master/table_server/table_node.h>
-#include <yt/yt/server/master/table_server/replicated_table_node.h>
-
-#include <yt/yt/server/master/journal_server/journal_node.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

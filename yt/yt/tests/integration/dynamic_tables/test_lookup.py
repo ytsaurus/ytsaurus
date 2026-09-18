@@ -6,7 +6,7 @@ from yt_env_setup import is_sanitizer_build, Restarter, NODES_SERVICE
 
 from yt_helpers import profiler_factory
 
-from yt_sequoia_helpers import not_implemented_in_sequoia, select_rows_from_ground
+from yt_sequoia_helpers import select_rows_from_ground
 
 from yt_commands import (
     authors, print_debug, select_rows, wait, create, ls, get, set, remove, exists, copy, insert_rows,
@@ -944,7 +944,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         key_filter_checker.check([{"key": 0}, {"key": 1}], [{"key": 1, "value": "1"}],)
         key_filter_checker.check(keys, rows)
 
-    @not_implemented_in_sequoia
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for, chunk_format", [
         ("lookup", "table_versioned_slim"),
@@ -1217,7 +1216,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(_wait_metrics)
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_rls(self):
         sync_create_cells(1)
         create_user("u")
@@ -1326,6 +1324,9 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("tem-shett")
     @pytest.mark.parametrize("is_versioned", [False, True])
     def test_heavy_hitters_changeable_parameters(self, is_versioned):
+        if self.USE_SEQUOIA:
+            pytest.skip("Test is too long and has no sequoia specifics")
+
         def _check(keys_expected, is_weighted: bool):
             heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters/{"data_weight" if is_weighted else "row_count"}")
             if len(keys_expected) != len(heavy_hitters):
@@ -1881,6 +1882,53 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         set("//tmp/t/@mount_config/partition_reader_prefetch_key_limit", 50)
         remount_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(0, 100)]) == rows
+
+    @authors("sagishev")
+    def test_data_node_lookup_waits_for_prefetched_partition_store_sessions(self):
+        sync_create_cells(1)
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "versioned_chunk_meta_cache": {"capacity": 1},
+            },
+            "out_throttlers": {
+                "default": {"relative_limit": 0.000008},
+            },
+        })
+
+        self._create_simple_table("//tmp/t", erasure_codec="reed_solomon_3_3")
+        self._enable_data_node_lookup("//tmp/t")
+        set("//tmp/t/@mount_config/enable_key_filter_for_lookup", True)
+        set("//tmp/t/@compression_codec", "none")
+        set("//tmp/t/@max_partition_data_size", 640)
+        set("//tmp/t/@desired_partition_data_size", 512)
+        set("//tmp/t/@min_partition_data_size", 256)
+        set("//tmp/t/@min_partitioning_data_size", 1)
+        set("//tmp/t/@chunk_writer", {
+            "block_size": 64,
+            "key_filter": {"enable": True},
+        })
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        assert len(self._find_tablet_orchid(address, tablet_id)["partitions"]) == 1
+
+        rows = [{"key": i, "value": str(i) * 32} for i in range(100)]
+        for chunk_index in range(2):
+            insert_rows("//tmp/t", rows[chunk_index * 50:(chunk_index + 1) * 50])
+            sync_flush_table("//tmp/t")
+
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 10)
+        wait(lambda: any(
+            partition["stores"]
+            for partition in self._find_tablet_orchid(address, tablet_id)["partitions"]
+        ))
+
+        set("//tmp/t/@mount_config/partition_reader_prefetch_key_limit", 50)
+        remount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == rows[:1]
+        keys = [{"key": 0}, {"key": 50}]
+        assert lookup_rows("//tmp/t", keys) == [rows[0], rows[50]]
 
     @authors("akozhikhov")
     def test_indexed_format_and_hunk_erasure_incompatibility(self):

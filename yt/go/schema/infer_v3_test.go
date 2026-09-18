@@ -232,6 +232,10 @@ func TestInferV3Time(t *testing.T) {
 			{Name: "D1", ComplexType: TypeDatetime},
 			{Name: "D2", ComplexType: TypeTimestamp},
 			{Name: "D3", ComplexType: TypeInterval},
+			{Name: "D4", ComplexType: TypeDate32},
+			{Name: "D5", ComplexType: TypeDatetime64},
+			{Name: "D6", ComplexType: TypeTimestamp64},
+			{Name: "D7", ComplexType: TypeInterval64},
 		},
 	}, s)
 }

@@ -33,7 +33,7 @@ template <class TTimestampComparator>
 using TMinHashItems = std::vector<TTimestampedHash<TTimestampComparator>>;
 
 template <class TTimestampComparator>
-struct TMinHash
+class TMinHash
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(int, Capacity);
@@ -43,7 +43,7 @@ public:
     TMinHash() = default;
     TMinHash(int capacity, TMinHashItems<TTimestampComparator> items);
 
-    i64 GetWeight() const;
+    i64 ComputeWeight() const;
     i64 GetSerializedSize() const;
 
     void Write(char*& ptr) const;
@@ -106,7 +106,7 @@ public:
 
     TSharedRef BuildSerialized() const;
 
-    i64 GetWeight() const;
+    i64 ComputeWeight() const;
 
     ui32 CalculateWriteDeleteSimilarityTimestamp(const TMinHashSimilarityConfigPtr& similarityConfig) const;
 

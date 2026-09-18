@@ -42,6 +42,8 @@
 
 #include <yt/yt/ytlib/election/config.h>
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/core/rpc/message.h>

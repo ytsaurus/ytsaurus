@@ -1,4 +1,5 @@
 RECURSE(
+    bundle_mutes
     check_runner
     map_result
     master_chunk_management

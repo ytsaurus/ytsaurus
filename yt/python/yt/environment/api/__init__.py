@@ -122,6 +122,11 @@ class LocalYtConfig(object):
     enable_auth = attr.ib(False)
     create_admin_user = attr.ib(False)
 
+    """tcmalloc heap profiling"""
+    # Heap-profile sampling interval (bytes). None leaves the server default; 0 disables
+    # it, avoiding a per-sample backtrace that may be slow on debug builds.
+    tcmalloc_profile_sampling_rate = attr.ib(None)
+
     """TLS settings"""
     enable_tls = attr.ib(False)
     internal_ca_cert = attr.ib(None)

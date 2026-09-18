@@ -433,6 +433,9 @@ struct TClusterNodeDynamicConfig
     //! Node resource limits.
     TResourceLimitsDynamicConfigPtr ResourceLimits;
 
+    //! Hot swap manager configuration.
+    NDiskManager::THotswapManagerDynamicConfigPtr HotswapManager;
+
     //! Data node configuration part.
     NDataNode::TDataNodeDynamicConfigPtr DataNode;
 

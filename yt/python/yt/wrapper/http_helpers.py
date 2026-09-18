@@ -5,7 +5,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestQueueSizeLimitExceeded, YtRpcUnavailable, YtConcurrentOperationsLimitExceeded,
                      YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, YtProxyBanned,
-                     create_http_response_error)
+                     YtFlowViewKeeperNotInitialized, create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -111,7 +111,8 @@ def get_retriable_errors():
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable, YtProxyBanned,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-            YtRequestTimedOut, YtRetriableError, YtTransportError)
+            YtRequestTimedOut, YtRetriableError, YtTransportError,
+            YtFlowViewKeeperNotInitialized)
 
 
 class ProxyProvider(object):

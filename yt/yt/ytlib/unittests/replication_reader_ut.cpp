@@ -122,6 +122,9 @@ struct TTestCase
     bool MarkSomeNodesSuspicious = false;
     std::optional<std::vector<TProbeStatistics>> ProbeResults;
     std::optional<THashSet<int>> SelectedPeers;
+    std::optional<double> IoFairShareWeight = 2.5;
+    std::optional<double> JobIoFairShareWeight = 3.5;
+    bool EnableJobIoStatistics = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,9 +196,13 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         SetCalled();
+        DataRequestCalled_.store(true);
+        LastHasIoConsumed_.store(request->has_io_consumed());
 
         if (request->has_io_fair_share_weight()) {
             LastIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastIoFairShareWeight_.store(-1);
         }
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -217,9 +224,13 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         SetCalled();
+        DataRequestCalled_.store(true);
+        LastHasIoConsumed_.store(request->has_io_consumed());
 
         if (request->has_io_fair_share_weight()) {
             LastIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastIoFairShareWeight_.store(-1);
         }
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -325,6 +336,16 @@ public:
         return LastIoFairShareWeight_.load();
     }
 
+    bool GetLastHasIoConsumed() const
+    {
+        return LastHasIoConsumed_.load();
+    }
+
+    bool IsDataRequestCalled() const
+    {
+        return DataRequestCalled_.load();
+    }
+
 private:
     THashMap<TChunkId, THashMap<int, TSharedRef>> ChunkBlocks_;
     THashMap<TChunkId, NProto::TChunkMeta> ChunkMetas_;
@@ -336,6 +357,8 @@ private:
     std::optional<TProbeStatistics> ProbeStatistics_;
     bool PeerCalled_ = false;
     std::atomic<double> LastIoFairShareWeight_ = -1;
+    std::atomic<bool> LastHasIoConsumed_ = false;
+    std::atomic<bool> DataRequestCalled_ = false;
 
     TRandomGenerator Generator_{42};
 
@@ -545,7 +568,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     config->MaxBackoffTime = TDuration::MilliSeconds(1);
     config->BlockSetSubrequestThreshold = testCase.BlockSetSubrequestThreshold;
     config->PartialPeerProbingTimeouts = testCase.PartialPeerProbingTimeouts;
-    config->IoFairShareWeight = 2.5;
+    config->IoFairShareWeight = testCase.IoFairShareWeight;
     config->Postprocess();
 
     auto reader = CreateReplicationReader(
@@ -560,7 +583,10 @@ TEST_P(TReplicationReaderTest, ReadTest)
     std::vector<bool> requestedBlockMask(blockCount);
 
     IChunkReader::TReadBlocksOptions readBlockOptions;
-    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1));
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics);
+    if (testCase.JobIoFairShareWeight) {
+        jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
+    }
     readBlockOptions.ClientOptions.JobIoMeter = jobIoMeter;
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
         std::vector<TFuture<std::vector<TBlock>>> futures;
@@ -630,20 +656,31 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
     // The job I/O meter accounts disk-read bytes in the same place chunk reader
     // statistics are handled; since the mock reports only data_bytes_read_from_disk,
-    // the meter must match DataBytesReadFromDisk exactly.
-    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), statistics->DataBytesReadFromDisk.load());
+    // the enabled meter must match DataBytesReadFromDisk exactly.
+    auto expectedIoConsumed = testCase.EnableJobIoStatistics
+        ? statistics->DataBytesReadFromDisk.load()
+        : 0;
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedIoConsumed);
 
-    // Every node that served a read request must have observed the configured
-    // io_fair_share_weight, forwarded via the request field.
-    bool anyIoFairShareWeightObserved = false;
-    for (const auto& service : services) {
-        auto weight = service->GetLastIoFairShareWeight();
-        if (weight != -1) {
-            EXPECT_EQ(weight, 2.5);
-            anyIoFairShareWeightObserved = true;
-        }
+    // Every node that served a read request must have observed the expected
+    // io_fair_share_weight, or none when job I/O statistics are disabled.
+    std::optional<double> expectedIoFairShareWeight;
+    if (testCase.EnableJobIoStatistics) {
+        expectedIoFairShareWeight = testCase.IoFairShareWeight
+            ? testCase.IoFairShareWeight
+            : testCase.JobIoFairShareWeight;
     }
-    EXPECT_TRUE(anyIoFairShareWeightObserved);
+    bool dataRequestObserved = false;
+    for (const auto& service : services) {
+        if (!service->IsDataRequestCalled()) {
+            continue;
+        }
+
+        dataRequestObserved = true;
+        EXPECT_EQ(service->GetLastHasIoConsumed(), testCase.EnableJobIoStatistics);
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedIoFairShareWeight.value_or(-1));
+    }
+    EXPECT_TRUE(dataRequestObserved);
 
     pool->Shutdown();
     memoryTracker->ClearTrackers();
@@ -654,6 +691,12 @@ INSTANTIATE_TEST_SUITE_P(
     TReplicationReaderTest,
     ::testing::Values(
         TTestCase{},
+        TTestCase{
+            .IoFairShareWeight = std::nullopt,
+        },
+        TTestCase{
+            .EnableJobIoStatistics = false,
+        },
         TTestCase{
             .BatchCount = 16,
             .NodeCount = 3,

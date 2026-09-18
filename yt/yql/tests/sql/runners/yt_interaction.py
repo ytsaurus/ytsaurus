@@ -108,9 +108,22 @@ def run_test(provider, prepare, suite, case, cfg, tmpdir, tmpdir_module, mongo, 
         pretty_plan=False,
         parameters=parameters)
 
+    for item in config:
+        if item[0] == 'yt_out_table_attr':
+            _, table, attribute, expected = item
+            path = '//{}/{}/@{}'.format(get_test_prefix(), table, attribute)
+            actual = yt.yt_client.get(path)
+            assert str(actual) == expected, \
+                'OUT_TABLE_ATTR_DIFFER: %(path)s\n' \
+                'Expected: %(expected)s\n' \
+                'Actual: %(actual)s\n' % locals()
+
     if xfail:
         log('XFail errors: ' + yt_res.std_err)
         do_custom_error_check(yt_res, sql_query)
+        return None
+
+    if 'ytfile can not' in sql_query and any(item[0] == 'yt_out_table_attr' for item in config):
         return None
 
     yt_res_yson = yt_res.results.get('data', [])

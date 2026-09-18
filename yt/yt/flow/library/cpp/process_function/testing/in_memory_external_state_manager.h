@@ -33,6 +33,8 @@ public:
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
+    //! Drops the key; unreadable until the next Sync.
+    void EraseKeyState(const TKey& key) override;
     NTableClient::TTableSchemaPtr GetKeySchema() const override;
 
     void Sync(IRetryableTransactionPtr transaction) override;
@@ -47,6 +49,7 @@ private:
     const NTableClient::TTableSchemaPtr StateSchema_;
     const NTableClient::TTableSchemaPtr KeySchema_;
     THashMap<TKey, TIntrusivePtr<TStateHolder<TSimpleExternalState>>> States_;
+    THashSet<TKey> Erased_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemorySimpleExternalStateManager)

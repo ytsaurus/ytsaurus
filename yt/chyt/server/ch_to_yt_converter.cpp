@@ -73,9 +73,14 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Node in the conversion tree-like structure. Child nodes are saved by
-//! std::unique_ptr<IConverter> in member fields of particular implementations.
-struct IConverter
+//! std::unique_ptr<TConverterBase> in member fields of particular implementations.
+class TConverterBase
 {
+public:
+    explicit TConverterBase(const DB::DataTypePtr& dataType)
+        : NativeTypeName_(GetNativeTypeName(dataType))
+    { }
+
     //! Setup converter to work with given column.
     virtual void InitColumn(const DB::IColumn* column) = 0;
 
@@ -88,11 +93,42 @@ struct IConverter
     //! when this converter is enclosed in Nullable converter).
     virtual void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) = 0;
 
-    virtual TLogicalTypePtr GetLogicalType() const = 0;
-    virtual ~IConverter() = default;
+    TLogicalTypePtr GetLogicalType(bool annotateWithNativeType) const
+    {
+        auto logicalType = BuildLogicalType(annotateWithNativeType);
+        if (!annotateWithNativeType) {
+            return logicalType;
+        }
+        return TaggedLogicalType(NativeTypeName_, std::move(logicalType));
+    }
+
+    virtual ~TConverterBase() = default;
+
+private:
+    const std::string NativeTypeName_;
+
+    virtual TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const = 0;
+
+    static std::string GetNativeTypeName(const DB::DataTypePtr& dataType)
+    {
+        if (const auto* customName = dataType->getCustomName()) {
+            return customName->getName();
+        }
+
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::Nullable:
+            case DB::TypeIndex::Array:
+            case DB::TypeIndex::Tuple:
+            case DB::TypeIndex::LowCardinality:
+            case DB::TypeIndex::Map:
+                return dataType->getFamilyName();
+            default:
+                return dataType->getName();
+        }
+    }
 };
 
-using IConverterPtr = std::unique_ptr<IConverter>;
+using TConverterPtr = std::unique_ptr<TConverterBase>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,11 +145,12 @@ static i64 GetTimezoneOffsetAtEpoch(const std::string& timezoneName)
 //! Value TypeId == Nothing is a special value that corresponds to Bool.
 template <DB::TypeIndex TypeId, ESimpleLogicalValueType LogicalType>
 class TSimpleValueConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     explicit TSimpleValueConverter(DB::DataTypePtr dataType, bool adjustTimezoneForDateTypes = false)
-        : DataType_(std::move(dataType))
+        : TConverterBase(dataType)
+        , DataType_(std::move(dataType))
         , TimezoneAdjustmentSeconds_(ComputeTimezoneAdjustment(DataType_, adjustTimezoneForDateTypes))
     { }
 
@@ -294,7 +331,7 @@ public:
         #undef TZ_XX
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(LogicalType);
     }
@@ -353,11 +390,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNullableConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TNullableConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TNullableConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -402,26 +440,27 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return OptionalLogicalType(UnderlyingConverter_->GetLogicalType());
+        return OptionalLogicalType(UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
     const DB::ColumnUInt8* NullColumn_ = nullptr;
     const DB::ColumnUInt8::Container* NullData_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TArrayConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TArrayConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TArrayConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -465,25 +504,30 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return ListLogicalType(UnderlyingConverter_->GetLogicalType());
+        return ListLogicalType(UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
     const DB::ColumnArray::Offsets* Offsets_ = nullptr;
     i64 CurrentValueIndex_ = 0;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    TMapConverter(IConverterPtr keyConverter, IConverterPtr valueConverter, IConverterPtr nestedConverter)
-        : KeyConverter_(std::move(keyConverter))
+    TMapConverter(
+        DB::DataTypePtr dataType,
+        TConverterPtr keyConverter,
+        TConverterPtr valueConverter,
+        TConverterPtr nestedConverter)
+        : TConverterBase(dataType)
+        , KeyConverter_(std::move(keyConverter))
         , ValueConverter_(std::move(valueConverter))
         , NestedConverter_(std::move(nestedConverter))
     {
@@ -508,27 +552,31 @@ public:
         NestedConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return DictLogicalType(KeyConverter_->GetLogicalType(), ValueConverter_->GetLogicalType());
+        return DictLogicalType(
+            KeyConverter_->GetLogicalType(annotateUnderlyingWithNativeType),
+            ValueConverter_->GetLogicalType(annotateUnderlyingWithNativeType));
     }
 
 private:
-    const IConverterPtr KeyConverter_;
-    const IConverterPtr ValueConverter_;
-    const IConverterPtr NestedConverter_;
+    const TConverterPtr KeyConverter_;
+    const TConverterPtr ValueConverter_;
+    const TConverterPtr NestedConverter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTupleConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     TTupleConverter(
-        std::vector<IConverterPtr> underlyingConverters,
+        DB::DataTypePtr dataType,
+        std::vector<TConverterPtr> underlyingConverters,
         std::optional<std::vector<std::string>> elementNames)
-        : UnderlyingConverters_(std::move(underlyingConverters))
+        : TConverterBase(dataType)
+        , UnderlyingConverters_(std::move(underlyingConverters))
         , ElementNames_(std::move(elementNames))
     {
         YT_VERIFY(!ElementNames_ || ElementNames_->size() == UnderlyingConverters_.size());
@@ -567,13 +615,13 @@ public:
         writer->WriteEndList();
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
         if (!ElementNames_) {
             std::vector<TLogicalTypePtr> underlyingLogicalTypes;
             underlyingLogicalTypes.reserve(UnderlyingConverters_.size());
             for (const auto& underlyingConverter : UnderlyingConverters_) {
-                underlyingLogicalTypes.emplace_back(underlyingConverter->GetLogicalType());
+                underlyingLogicalTypes.emplace_back(underlyingConverter->GetLogicalType(annotateUnderlyingWithNativeType));
             }
             return TupleLogicalType(std::move(underlyingLogicalTypes));
         } else {
@@ -583,7 +631,7 @@ public:
                 structFields.push_back({
                     .Name = elementName,
                     .StableName = elementName,
-                    .Type = underlyingConverter->GetLogicalType(),
+                    .Type = underlyingConverter->GetLogicalType(annotateUnderlyingWithNativeType),
                 });
             }
             return StructLogicalType(std::move(structFields), /*removedFieldStableNames*/ {});
@@ -591,7 +639,7 @@ public:
     }
 
 private:
-    const std::vector<IConverterPtr> UnderlyingConverters_;
+    const std::vector<TConverterPtr> UnderlyingConverters_;
     const std::optional<std::vector<std::string>> ElementNames_;
 };
 
@@ -599,7 +647,7 @@ private:
 
 template <class TUnderlyingIntegerType>
 class TDecimalConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int32>
@@ -611,8 +659,9 @@ public:
     using TDecimalColumn = DB::ColumnDecimal<TClickHouseDecimal>;
     static constexpr i64 DecimalSize = sizeof(TUnderlyingIntegerType);
 
-    TDecimalConverter(int precision, int scale)
-        : Precision_(precision)
+    TDecimalConverter(DB::DataTypePtr dataType, int precision, int scale)
+        : TConverterBase(dataType)
+        , Precision_(precision)
         , Scale_(scale)
     { }
 
@@ -658,7 +707,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return DecimalLogicalType(Precision_, Scale_);
     }
@@ -700,7 +749,7 @@ private:
 
 template <class TUnderlyingIntegerType>
 class TEnumConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int8>
@@ -709,7 +758,8 @@ public:
     using TDataTypeEnum = DB::DataTypeEnum<TUnderlyingIntegerType>;
 
     explicit TEnumConverter(const DB::DataTypePtr& dataType)
-        : EnumType_(dynamic_pointer_cast<const TDataTypeEnum>(dataType))
+        : TConverterBase(dataType)
+        , EnumType_(dynamic_pointer_cast<const TDataTypeEnum>(dataType))
     {
         YT_VERIFY(EnumType_);
     }
@@ -747,7 +797,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(ESimpleLogicalValueType::String);
     }
@@ -763,7 +813,7 @@ private:
 
 template <class TIPAddressType>
 class TIPAddressConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     static_assert(std::is_same_v<TIPAddressType, DB::IPv4>
@@ -774,7 +824,9 @@ public:
         ? (IPV4_MAX_TEXT_LENGTH + 1)
         : (IPV6_MAX_TEXT_LENGTH + 1);
 
-    TIPAddressConverter() = default;
+    explicit TIPAddressConverter(const DB::DataTypePtr& dataType)
+        : TConverterBase(dataType)
+    { }
 
     void InitColumn(const DB::IColumn* column) override
     {
@@ -814,7 +866,7 @@ public:
         ++CurrentValueIndex_;
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
         return SimpleLogicalType(ESimpleLogicalValueType::String);
     }
@@ -841,11 +893,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLowCardinalityConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
-    explicit TLowCardinalityConverter(IConverterPtr underlyingConverter)
-        : UnderlyingConverter_(std::move(underlyingConverter))
+    TLowCardinalityConverter(DB::DataTypePtr dataType, TConverterPtr underlyingConverter)
+        : TConverterBase(dataType)
+        , UnderlyingConverter_(std::move(underlyingConverter))
     { }
 
     void InitColumn(const DB::IColumn* column) override
@@ -884,14 +937,14 @@ public:
         UnderlyingConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool annotateUnderlyingWithNativeType) const override
     {
-        return UnderlyingConverter_->GetLogicalType();
+        return UnderlyingConverter_->GetLogicalType(annotateUnderlyingWithNativeType);
     }
 
 private:
     const DB::ColumnLowCardinality* LowCardinalityColumn_;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 
     DB::ColumnPtr FullColumn_;
 };
@@ -899,11 +952,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnsupportedTypesToStringConverter
-    : public IConverter
+    : public TConverterBase
 {
 public:
     explicit TUnsupportedTypesToStringConverter(DB::DataTypePtr dataType)
-        : DataType_(std::move(dataType))
+        : TConverterBase(dataType)
+        , DataType_(std::move(dataType))
         , UnderlyingConverter_(
             std::make_unique<TSimpleValueConverter<DB::TypeIndex::String, ESimpleLogicalValueType::String>>(
                 std::make_shared<DB::DataTypeString>()))
@@ -937,14 +991,14 @@ public:
         UnderlyingConverter_->ExtractNextValueYson(writer);
     }
 
-    TLogicalTypePtr GetLogicalType() const override
+    TLogicalTypePtr BuildLogicalType(bool /*annotateUnderlyingWithNativeType*/) const override
     {
-        return UnderlyingConverter_->GetLogicalType();
+        return UnderlyingConverter_->GetLogicalType(/*annotateWithNativeType*/ false);
     }
 
 private:
     const DB::DataTypePtr DataType_;
-    const IConverterPtr UnderlyingConverter_;
+    const TConverterPtr UnderlyingConverter_;
 
     DB::ColumnString::MutablePtr StringColumn_;
 };
@@ -966,7 +1020,7 @@ public:
 
     TLogicalTypePtr GetLogicalType() const
     {
-        return RootConverter_->GetLogicalType();
+        return RootConverter_->GetLogicalType(Settings_->Composite->AnnotateResultSchemaWithNativeTypes);
     }
 
     TUnversionedValueRange ConvertColumnToUnversionedValues(const DB::ColumnPtr& column)
@@ -982,7 +1036,7 @@ public:
 
         RootConverter_->InitColumn(CurrentColumn_.get());
 
-        auto logicalType = RootConverter_->GetLogicalType();
+        auto logicalType = RootConverter_->GetLogicalType(/*annotateWithNativeType*/ false);
         bool isDecimal = (logicalType->GetMetatype() == ELogicalMetatype::Decimal ||
             (logicalType->GetMetatype() == ELogicalMetatype::Optional && logicalType->GetElement()->GetMetatype() == ELogicalMetatype::Decimal));
 
@@ -1038,13 +1092,13 @@ private:
     const DB::DataTypePtr DataType_;
     TConversionSettingsPtr Settings_;
 
-    const IConverterPtr RootConverter_;
+    const TConverterPtr RootConverter_;
 
     DB::ColumnPtr CurrentColumn_;
     std::vector<TUnversionedValue> CurrentValues_;
     TBuffer Buffer_;
 
-    IConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateSimpleValueConverter(const DB::DataTypePtr& dataType) const
     {
         bool adjustTz = Settings_->AdjustTimezoneForDateTypes;
 
@@ -1122,38 +1176,39 @@ private:
         }
     }
 
-    IConverterPtr CreateNullableConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateNullableConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeNullable = dynamic_pointer_cast<const DB::DataTypeNullable>(dataType);
         YT_VERIFY(dataTypeNullable);
         auto underlyingConverter = CreateConverter(dataTypeNullable->getNestedType());
-        return std::make_unique<TNullableConverter>(std::move(underlyingConverter));
+        return std::make_unique<TNullableConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateArrayConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateArrayConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeArray = dynamic_pointer_cast<const DB::DataTypeArray>(dataType);
         YT_VERIFY(dataTypeArray);
         auto underlyingConverter = CreateConverter(dataTypeArray->getNestedType());
-        return std::make_unique<TArrayConverter>(std::move(underlyingConverter));
+        return std::make_unique<TArrayConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateTupleConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateTupleConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeTuple = dynamic_pointer_cast<const DB::DataTypeTuple>(dataType);
         YT_VERIFY(dataTypeTuple);
-        std::vector<IConverterPtr> underlyingConverters;
+        std::vector<TConverterPtr> underlyingConverters;
         auto elementNames = dataTypeTuple->getElementNames();
         underlyingConverters.reserve(dataTypeTuple->getElements().size());
         for (const auto& elementDataType : dataTypeTuple->getElements()) {
             underlyingConverters.emplace_back(CreateConverter(elementDataType));
         }
         return std::make_unique<TTupleConverter>(
+            dataType,
             std::move(underlyingConverters),
             dataTypeTuple->haveExplicitNames() ? std::make_optional(elementNames) : std::nullopt);
     }
 
-    IConverterPtr CreateDecimalConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateDecimalConverter(const DB::DataTypePtr& dataType) const
     {
         int precision = DB::getDecimalPrecision(*dataType);
         int scale = DB::getDecimalScale(*dataType);
@@ -1171,19 +1226,19 @@ private:
 
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Decimal32:
-                return std::make_unique<TDecimalConverter<DB::Int32>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int32>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal64:
-                return std::make_unique<TDecimalConverter<DB::Int64>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int64>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal128:
-                return std::make_unique<TDecimalConverter<DB::Int128>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int128>>(dataType, precision, scale);
             case DB::TypeIndex::Decimal256:
-                return std::make_unique<TDecimalConverter<DB::Int256>>(precision, scale);
+                return std::make_unique<TDecimalConverter<DB::Int256>>(dataType, precision, scale);
             default:
                 YT_ABORT();
         }
     }
 
-    IConverterPtr CreateEnumConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateEnumConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Enum8:
@@ -1195,42 +1250,46 @@ private:
         }
     }
 
-    IConverterPtr CreateIPAddressConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateIPAddressConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::IPv4:
-                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv4::FieldType>>();
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv4::FieldType>>(dataType);
             case DB::TypeIndex::IPv6:
-                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv6::FieldType>>();
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv6::FieldType>>(dataType);
             default:
                 YT_ABORT();
         }
     }
 
-    IConverterPtr CreateLowCardinalityConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateLowCardinalityConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeLowCardinality = dynamic_pointer_cast<const DB::DataTypeLowCardinality>(dataType);
         YT_VERIFY(dataTypeLowCardinality);
         auto underlyingConverter = CreateConverter(dataTypeLowCardinality->getDictionaryType());
-        return std::make_unique<TLowCardinalityConverter>(std::move(underlyingConverter));
+        return std::make_unique<TLowCardinalityConverter>(dataType, std::move(underlyingConverter));
     }
 
-    IConverterPtr CreateMapConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateMapConverter(const DB::DataTypePtr& dataType) const
     {
         auto dataTypeMap = dynamic_pointer_cast<const DB::DataTypeMap>(dataType);
         YT_VERIFY(dataTypeMap);
         auto keyConverter = CreateConverter(dataTypeMap->getKeyType());
         auto valueConverter = CreateConverter(dataTypeMap->getValueType());
         auto nestedConverter = CreateArrayConverter(dataTypeMap->getNestedType());
-        return std::make_unique<TMapConverter>(std::move(keyConverter), std::move(valueConverter), std::move(nestedConverter));
+        return std::make_unique<TMapConverter>(
+            dataType,
+            std::move(keyConverter),
+            std::move(valueConverter),
+            std::move(nestedConverter));
     }
 
-    IConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType) const
     {
         return std::make_unique<TUnsupportedTypesToStringConverter>(dataType);
     }
 
-    IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
+    TConverterPtr CreateConverter(const DB::DataTypePtr& dataType) const
     {
         switch (dataType->getTypeId()) {
             case DB::TypeIndex::Int8:

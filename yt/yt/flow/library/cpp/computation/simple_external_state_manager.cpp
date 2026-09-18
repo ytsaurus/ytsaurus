@@ -1,5 +1,6 @@
 #include "simple_external_state_manager.h"
 
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
@@ -20,6 +21,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/join.h>
@@ -28,6 +31,9 @@ namespace NYT::NFlow {
 
 using namespace NTableClient;
 using namespace NApi;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,24 +268,21 @@ void TOperator::Write(
     const IRetryableTransactionPtr& tx,
     const TTableSchemaPtr& stateSchema,
     const THashMap<TKey, TPayload>& oldPayloads,
-    const THashMap<TKey, TPayload>& newPayloads) const
+    const THashMap<TKey, TPayload>& newPayloads,
+    const THashSet<TKey>& erasedKeys) const
 {
-    YT_VERIFY(stateSchema);
+    YT_VERIFY(stateSchema || oldPayloads.empty());
     YT_VERIFY(oldPayloads.size() == newPayloads.size());
 
     auto lookupKeySchema = KeySchema_->ToSorted(KeySchema_->GetColumnNames())->ToLookup();
-    auto fullSchema = New<TTableSchema>(
-        ConcatVectors(lookupKeySchema->Columns(), stateSchema->Columns()));
+    auto fullSchema = New<TTableSchema>(ConcatVectors(
+        lookupKeySchema->Columns(),
+        stateSchema ? stateSchema->Columns() : std::vector<TColumnSchema>{}));
     auto rowBuffer = New<TRowBuffer>();
     std::vector<TRowModification> rows;
 
-    for (const auto& [key, oldPayload] : oldPayloads) {
-        const auto& newPayload = GetOrCrash(newPayloads, key);
-        if (TBitwiseUnversionedRowEqual()(oldPayload.Underlying(), newPayload.Underlying())) {
-            continue;
-        }
-
-        TUnversionedRowBuilder builder;
+    // Adds the non-expression key columns of |key|; returns the next value id.
+    auto addKeyColumns = [&] (TUnversionedRowBuilder& builder, const TKey& key) {
         int nextId = 0;
         for (int i = 0; i < KeySchema_->GetColumnCount(); ++i) {
             const auto& column = KeySchema_->Columns()[i];
@@ -290,6 +293,23 @@ void TOperator::Write(
                 builder.AddValue(value);
             }
         }
+        return nextId;
+    };
+
+    for (const auto& key : erasedKeys) {
+        TUnversionedRowBuilder builder;
+        addKeyColumns(builder, key);
+        rows.push_back(NRowModifications::TDeleteRow(rowBuffer->CaptureRow(builder.GetRow())));
+    }
+
+    for (const auto& [key, oldPayload] : oldPayloads) {
+        const auto& newPayload = GetOrCrash(newPayloads, key);
+        if (TBitwiseUnversionedRowEqual()(oldPayload.Underlying(), newPayload.Underlying())) {
+            continue;
+        }
+
+        TUnversionedRowBuilder builder;
+        int nextId = addKeyColumns(builder, key);
 
         if (IsEmpty(newPayload)) {
             auto row = rowBuffer->CaptureRow(builder.GetRow());
@@ -443,13 +463,22 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
         .With("Count", keys.size());
 
     auto guard = Guard(Lock_);
-    YT_VERIFY(!EpochState_);
-    EpochState_ = TEpochState{};
+    if (!EpochState_) {
+        EpochState_.emplace();
+    }
 
     std::vector<TKey> keysToLoad;
     keysToLoad.reserve(keys.size());
+    i64 residentCount = 0;
+    i64 cachedCount = 0;
     for (const auto& key : keys) {
+        // Incremental: keys loaded or erased earlier in this epoch stay as they are.
+        if (EpochState_->States.contains(key) || EpochState_->Erased.contains(key)) {
+            ++residentCount;
+            continue;
+        }
         if (auto cached = ExtractCachedState(key)) {
+            ++cachedCount;
             NSimpleExternalState::EnsureSchema(EpochState_->StateSchema, cached->Schema, key);
             EmplaceOrCrash(EpochState_->OldStates, key, cached->Payload);
             auto state = New<TStateHolder>();
@@ -462,13 +491,15 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
     }
 
     if (keysToLoad.empty()) {
-        YT_TLOG_DEBUG("All keys served from cache")
-            .With("CachedCount", keys.size());
+        YT_TLOG_DEBUG("No keys to load")
+            .With("ResidentCount", residentCount)
+            .With("CachedCount", cachedCount);
         return OKFuture;
     }
 
     YT_TLOG_DEBUG("Loading keys from YT")
-        .With("CachedCount", keys.size() - keysToLoad.size())
+        .With("ResidentCount", residentCount)
+        .With("CachedCount", cachedCount)
         .With("LoadCount", keysToLoad.size());
 
     return Operator_.Lookup(keysToLoad, EpochState_->StateSchema)
@@ -481,6 +512,10 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
             YT_VERIFY(std::ssize(keys) == std::ssize(loaded.Payloads));
             NSimpleExternalState::EnsureSchema(EpochState_->StateSchema, loaded.StateSchema, keys.front());
             for (int i = 0; i < std::ssize(keys); ++i) {
+                // A concurrent preload may have landed first; never replace an epoch-resident state.
+                if (EpochState_->States.contains(keys[i])) {
+                    continue;
+                }
                 EmplaceOrCrash(EpochState_->OldStates, keys[i], loaded.Payloads[i]);
                 auto newState = New<TStateHolder>();
                 newState->Get().Payload = std::move(loaded.Payloads[i]);
@@ -491,17 +526,31 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
                 .AsyncVia(GetCurrentInvoker()));
 }
 
+void TSimpleExternalStateManager::EraseKeyState(const TKey& key)
+{
+    auto guard = Guard(Lock_);
+    if (!EpochState_) {
+        EpochState_.emplace();
+    }
+    // Dropped, not cleared, so a later GetState cannot turn the deletion back into a write.
+    EpochState_->States.erase(key);
+    EpochState_->OldStates.erase(key);
+    EpochState_->Erased.insert(key);
+}
+
 void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
 {
     auto guard = Guard(Lock_);
-    if (!EpochState_ || EpochState_->OldStates.empty()) {
+    if (!EpochState_ || (EpochState_->OldStates.empty() && EpochState_->Erased.empty())) {
         YT_TLOG_DEBUG("Nothing to sync");
         EpochState_ = std::nullopt;
         return;
     }
     YT_TLOG_DEBUG("Syncing")
-        .With("Count", EpochState_->OldStates.size());
-    YT_VERIFY(EpochState_->StateSchema);
+        .With("Count", EpochState_->OldStates.size())
+        .With("ErasedCount", EpochState_->Erased.size());
+    // An erase-only epoch has no schema and needs none: deletes carry key columns only.
+    YT_VERIFY(EpochState_->StateSchema || EpochState_->OldStates.empty());
 
     THashMap<TKey, TPayload> newPayloads;
     newPayloads.reserve(EpochState_->States.size());
@@ -509,10 +558,14 @@ void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
         EmplaceOrCrash(newPayloads, key, state->Get().Payload);
     }
 
-    Operator_.Write(transaction, EpochState_->StateSchema, EpochState_->OldStates, newPayloads);
+    Operator_.Write(transaction, EpochState_->StateSchema, EpochState_->OldStates, newPayloads, EpochState_->Erased);
 
     for (const auto& [key, payload] : newPayloads) {
         UpdateCache(key, payload, EpochState_->StateSchema);
+    }
+    for (const auto& key : EpochState_->Erased) {
+        // Evict the cached row: it would outlive the deletion.
+        StateCache_->Extract(key);
     }
 
     EpochState_ = std::nullopt;
@@ -523,7 +576,13 @@ IStateHolderPtr TSimpleExternalStateManager::GetState(const TKey& key)
     auto guard = Guard(Lock_);
     YT_TLOG_DEBUG("GetState")
         .With("Key", key);
-    YT_VERIFY(EpochState_);
+    // Not preloaded: failing the job beats aborting the whole worker.
+    THROW_ERROR_EXCEPTION_IF(EpochState_ && EpochState_->Erased.contains(key),
+        "External state for key %v was erased in this epoch",
+        key);
+    THROW_ERROR_EXCEPTION_IF(!EpochState_ || !EpochState_->States.contains(key),
+        "External state manager has no preloaded state for key %v; preload it via PreloadKeyStates",
+        key);
     return GetOrCrash(EpochState_->States, key);
 }
 
@@ -729,6 +788,126 @@ void TSimpleExternalStateJoiner::UpdateCache(
     cached->Payload = payload;
     cached->Schema = schema;
     StateCache_->Insert(key, std::move(cached), cookie);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Companion bridge over the manager's states. Encode reproduces the wire-row
+//! serialization companions have always received for simple external states.
+class TSimpleExternalStateManager::TCompanionAdapter
+    : public ICompanionStateAdapter
+{
+public:
+    TCompanionAdapter(TIntrusivePtr<TSimpleExternalStateManager> manager, std::string stateName)
+        : Manager_(std::move(manager))
+        , StateName_(std::move(stateName))
+    { }
+
+    TCompanionStateDescriptor Describe() const final
+    {
+        auto guard = Guard(Manager_->Lock_);
+        return TCompanionStateDescriptor{
+            .StateName = StateName_,
+            .Format = EStateFormat::SimpleRow,
+            .Schema = Manager_->EpochState_ ? Manager_->EpochState_->StateSchema : nullptr,
+        };
+    }
+
+    TSharedRef EncodeState(const TKey& key) final
+    {
+        const auto& state = GetTypedState(key)->Get();
+        return TSharedRef::FromString(ToProto<TProtobufString>(state.Payload));
+    }
+
+    void ApplyState(const TKey& key, TSharedRef payload) final
+    {
+        auto state = GetTypedState(key);
+        // Parses straight from the wire bytes; copying them into a protobuf
+        // string first would double every returned payload.
+        TCompactUnversionedOwningRow row;
+        DeserializeFromBuffer(payload.Begin(), payload.End(), &row);
+        state->Get().Payload = TPayload(std::move(row));
+    }
+
+    void ResetState(const TKey& key) final
+    {
+        GetTypedState(key)->Clear();
+    }
+
+private:
+    const TIntrusivePtr<TSimpleExternalStateManager> Manager_;
+    const std::string StateName_;
+
+    TIntrusivePtr<TStateHolder> GetTypedState(const TKey& key) const
+    {
+        auto state = DynamicPointerCast<TStateHolder>(Manager_->GetState(key));
+        YT_VERIFY(state);
+        return state;
+    }
+};
+
+ICompanionStateAdapterPtr TSimpleExternalStateManager::CreateCompanionAdapter(std::string stateName)
+{
+    return New<TCompanionAdapter>(MakeStrong(this), std::move(stateName));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleExternalStateJoiner::TCompanionAdapter
+    : public ICompanionStateAdapter
+{
+public:
+    TCompanionAdapter(TIntrusivePtr<TSimpleExternalStateJoiner> joiner, std::string stateName)
+        : Joiner_(std::move(joiner))
+        , StateName_(std::move(stateName))
+    { }
+
+    TCompanionStateDescriptor Describe() const final
+    {
+        auto guard = Guard(Joiner_->Lock_);
+        return TCompanionStateDescriptor{
+            .StateName = StateName_,
+            .Format = EStateFormat::SimpleRow,
+            .Schema = Joiner_->StateSchema_,
+        };
+    }
+
+    TSharedRef EncodeState(const TKey& key) final
+    {
+        auto state = DynamicPointerCast<TStateHolder>(Joiner_->GetState(key));
+        YT_VERIFY(state);
+        return TSharedRef::FromString(ToProto<TProtobufString>(state->Get().Payload));
+    }
+
+    void ApplyState(const TKey& key, TSharedRef /*payload*/) final
+    {
+        ThrowReadOnly(key);
+    }
+
+    void ResetState(const TKey& key) final
+    {
+        ThrowReadOnly(key);
+    }
+
+    THashSet<TKey> ExtractKeys(const IInputContextPtr& input) const final
+    {
+        return ExtractJoinedStateKeys(*Joiner_, input);
+    }
+
+private:
+    const TIntrusivePtr<TSimpleExternalStateJoiner> Joiner_;
+    const std::string StateName_;
+
+    [[noreturn]] void ThrowReadOnly(const TKey& key) const
+    {
+        THROW_ERROR_EXCEPTION("Cannot modify read-only joined state %Qv", StateName_)
+            .With("key", ToString(key));
+    }
+};
+
+ICompanionStateAdapterPtr TSimpleExternalStateJoiner::CreateCompanionAdapter(std::string stateName)
+{
+    return New<TCompanionAdapter>(MakeStrong(this), std::move(stateName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

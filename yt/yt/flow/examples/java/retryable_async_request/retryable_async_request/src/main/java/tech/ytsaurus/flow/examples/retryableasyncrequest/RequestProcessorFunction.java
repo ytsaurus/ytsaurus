@@ -63,8 +63,10 @@ public class RequestProcessorFunction implements RowFunction {
         StateAccessor<RequestState> accessor =
                 ctx.getState(REQUEST_STATE, timer);
 
-        RequestState state = accessor.get()
-                .orElseThrow(() -> new IllegalStateException("No request state found on timer fire"));
+        RequestState state = accessor.get();
+        if (state == null) {
+            throw new IllegalStateException("No request state found on timer fire");
+        }
 
         tryRequest(state, accessor, output, ctx);
     }
@@ -85,7 +87,6 @@ public class RequestProcessorFunction implements RowFunction {
 
         if (!isSucceed(requestId, failedAttempts)) {
             state.setFailedAttempts(failedAttempts + 1);
-            accessor.set(state);
             long nextAttemptTime = System.currentTimeMillis() / 1000L + RETRY_DELAY_SECONDS;
             output.addTimer(nextAttemptTime, 0L);
             log.debug("Request failed, scheduling retry (requestId={}, failedAttempts={})",

@@ -6,4 +6,4 @@ To run your first YQL query, open the web interface of the {{product-name}} clus
 SELECT "Hello, World!"
 ```
 
-![](../../images/yql-how-to-try){ .center }
+![](../../_images/yql-how-to-try){ .center }

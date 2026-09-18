@@ -364,7 +364,7 @@ To add a new open-source Python library, go through the standard [procedure of a
 To use project-specific Python libraries, create your own Python3/Python2 UDF copy with any other PEERDIR set similar to the general one:
 
 1. In ya.make, the [YQL_PYTHON3_UDF]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L1)/[YQL_PYTHON_UDF]({{source-root}}/yql/udfs/common/python/python_arc/ya.make?rev=4358725#L3) macro is used.
-2. Replace the [NAME and RESOURCE_NAME parameters]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L6-7) with `CustomPython3`/`CustomPython2`, respectively.
+2. Replace the [NAME and RESOURCE_NAME parameters]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L6-7) with `CustomPython3`/`CustomPython2`, respectively; an arbitrary prefix may be added.
 3. Add PEERDIR to the Python libraries.
 4. Further use is similar to C++ UDFs<!--[C++ UDF](cpp.md#use-udf-via-attach)-->.
 5. When accessing a UDF in a query, use the `CustomPython3::`/`CustomPython2::` prefix instead of `Python3::`/`ArcPython::`.

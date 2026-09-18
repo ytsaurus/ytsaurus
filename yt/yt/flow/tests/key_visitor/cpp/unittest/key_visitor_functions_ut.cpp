@@ -8,6 +8,7 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -134,6 +135,68 @@ TEST(TKeyVisitorFunctionTest, ExternalVisitOnEmptyStateIsNoOp)
         .RegisterStream<TVisitMessage>("visits")
         .Build();
     TProcessFunctionTestHarness harness(stateEnv, New<TExternalVisitTesterFunction>(), context);
+
+    // A visit for a key that received no message reads a lazily-created empty state — no output.
+    harness.RunEpoch({}, {}, {MakeTestVisit(MakeKey(TString("ghost")), "visit_iter")});
+
+    EXPECT_TRUE(harness.GetMessages().empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A spec declaring the external manager with the given auto_preload setting.
+TComputationSpecPtr MakeExternalManagerSpec(bool autoPreload)
+{
+    auto managerSpec = New<TExternalStateManagerSpec>();
+    managerSpec->ExternalStateManagerClassName = "NYT::NFlow::TSimpleExternalStateManager";
+    managerSpec->AutoPreload = autoPreload;
+    auto spec = New<TComputationSpec>();
+    spec->ExternalStateManagers["/user-state-external"] = std::move(managerSpec);
+    return spec;
+}
+
+TEST(TKeyVisitorFunctionTest, ManualPreloadExternalVisitEmitsStoredPayload)
+{
+    auto keySchema = StringKeySchema();
+    TTestStateEnvironment stateEnv(keySchema);
+    auto stateSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
+        R"([{name=payload;type=string};{name=visit_index;type=int64}])")));
+    stateEnv.RegisterExternalState("/user-state-external", stateSchema);
+
+    auto context = TTestRuntimeContextBuilder()
+        .SetKeySchema(keySchema)
+        .RegisterStream<TVisitMessage>("visits")
+        .SetSpec(MakeExternalManagerSpec(/*autoPreload*/ false))
+        .Build();
+    TProcessFunctionTestHarness harness(stateEnv, New<TManualPreloadExternalVisitTesterFunction>(), context);
+
+    auto key = MakeKey(TString("user-2"));
+    harness.RunEpoch(
+        {MakeKeyMessage(key, "user-2", "world")},
+        {},
+        {MakeTestVisit(key, "visit_iter"), MakeTestVisit(key, "visit_iter")});
+
+    ASSERT_EQ(std::ssize(harness.GetMessages()), 2);
+    EXPECT_EQ(GetColumnValue<TString>(harness.GetMessages()[0].Message, "key"), "user-2");
+    EXPECT_EQ(GetColumnValue<TString>(harness.GetMessages()[0].Message, "payload"), "world");
+    EXPECT_EQ(GetColumnValue<i64>(harness.GetMessages()[0].Message, "visit_index"), 1);
+    EXPECT_EQ(GetColumnValue<i64>(harness.GetMessages()[1].Message, "visit_index"), 2);
+}
+
+TEST(TKeyVisitorFunctionTest, ManualPreloadExternalVisitOnEmptyStateIsNoOp)
+{
+    auto keySchema = StringKeySchema();
+    TTestStateEnvironment stateEnv(keySchema);
+    auto stateSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
+        R"([{name=payload;type=string};{name=visit_index;type=int64}])")));
+    stateEnv.RegisterExternalState("/user-state-external", stateSchema);
+
+    auto context = TTestRuntimeContextBuilder()
+        .SetKeySchema(keySchema)
+        .RegisterStream<TVisitMessage>("visits")
+        .SetSpec(MakeExternalManagerSpec(/*autoPreload*/ false))
+        .Build();
+    TProcessFunctionTestHarness harness(stateEnv, New<TManualPreloadExternalVisitTesterFunction>(), context);
 
     // A visit for a key that received no message reads a lazily-created empty state — no output.
     harness.RunEpoch({}, {}, {MakeTestVisit(MakeKey(TString("ghost")), "visit_iter")});

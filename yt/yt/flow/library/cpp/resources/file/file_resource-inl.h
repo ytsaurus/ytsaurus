@@ -91,27 +91,27 @@ const TData* TFileResourceAccessor<TData>::operator->() const
 }
 
 template <class TData>
-const TFileSourceRevisionPtr& TFileResourceAccessor<TData>::GetSourceRevision(const TFileSourceId& id) const
+const TFileProviderRevisionPtr& TFileResourceAccessor<TData>::GetProviderRevision(const TFileProviderId& id) const
 {
-    return Snapshot_->FileSources->GetFileSource(id)->GetRevision();
+    return Snapshot_->FileProviders->GetFileProvider(id)->GetRevision();
 }
 
 template <class TData>
-const std::string& TFileResourceAccessor<TData>::GetRootPath(const TFileSourceId& id) const
+const std::string& TFileResourceAccessor<TData>::GetRootPath(const TFileProviderId& id) const
 {
-    return Snapshot_->FileSources->GetFileSource(id)->GetRootPath();
+    return Snapshot_->FileProviders->GetFileProvider(id)->GetRootPath();
 }
 
 template <class TData>
-const TMaterializedFileSourceSnapshotPtr& TFileResourceAccessor<TData>::GetFileSources() const
+const TMaterializedFileProviderSnapshotPtr& TFileResourceAccessor<TData>::GetFileProviders() const
 {
-    return Snapshot_->FileSources;
+    return Snapshot_->FileProviders;
 }
 
 template <class TData>
 TFileSnapshotId TFileResourceAccessor<TData>::GetFileSnapshotId() const
 {
-    return Snapshot_->FileSources->GetFileSnapshot()->Id;
+    return Snapshot_->FileProviders->GetFileSnapshot()->Id;
 }
 
 template <class TData>
@@ -137,7 +137,7 @@ TFileResourceBase<TData>::TFileResourceBase(
         GetContext()->Invoker,
         "FileResourceInitialization"))
     , WeakThis_(MakeWeak(this))
-    , UpdateRetryPeriod_(dynamicContext->DynamicResourceSpec->FileSourceUpdateRetryPeriod)
+    , UpdateRetryPeriod_(dynamicContext->DynamicResourceSpec->FileProviderUpdateRetryPeriod)
     , ActivationStallWarningPeriod_(dynamicContext->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod)
 {
     SubscribeReconfigured(BIND(&TFileResourceBase::OnReconfigured, Unretained(this)));
@@ -168,7 +168,7 @@ TResourceRevisionState TFileResourceBase<TData>::GetRevisionState() const
     };
     if (auto activeSnapshot = ActiveSnapshot_.Acquire()) {
         collectAccessorCount(
-            activeSnapshot->FileSources->GetFileSnapshot()->Id,
+            activeSnapshot->FileProviders->GetFileSnapshot()->Id,
             activeSnapshot->AccessorState);
     }
     if (ActivationState_ &&
@@ -223,8 +223,8 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
         auto guard = Guard(Lock_);
 
         bool retryPeriodChanged =
-            UpdateRetryPeriod_ != dynamicContext->DynamicResourceSpec->FileSourceUpdateRetryPeriod;
-        UpdateRetryPeriod_ = dynamicContext->DynamicResourceSpec->FileSourceUpdateRetryPeriod;
+            UpdateRetryPeriod_ != dynamicContext->DynamicResourceSpec->FileProviderUpdateRetryPeriod;
+        UpdateRetryPeriod_ = dynamicContext->DynamicResourceSpec->FileProviderUpdateRetryPeriod;
         ActivationStallWarningPeriod_ =
             dynamicContext->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod;
         Target_ = dynamicContext->TargetRevision;
@@ -245,7 +245,7 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
                 YT_VERIFY(appliedSnapshot);
                 discardedAppliedSnapshot = ActiveSnapshot_.Exchange(New<TSnapshot>(
                     appliedSnapshot->Data,
-                    appliedSnapshot->FileSources,
+                    appliedSnapshot->FileProviders,
                     Target_,
                     appliedSnapshot->AccessorState,
                     appliedSnapshot->LifetimeAnchor));
@@ -272,7 +272,7 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
         bool appliedSnapshotMatches = desiredActive &&
             appliedSnapshot &&
             ActiveFileSnapshotId_ == desiredActive->Id &&
-            appliedSnapshot->FileSources->GetFileSnapshot()->Id == desiredActive->Id;
+            appliedSnapshot->FileProviders->GetFileSnapshot()->Id == desiredActive->Id;
         bool reuseActiveSlot = desiredActive &&
             !appliedSnapshotMatches &&
             matches(previousActiveSlot, desiredActive);
@@ -298,7 +298,7 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
                 AppliedRevision_ = Target_;
                 discardedAppliedSnapshot = ActiveSnapshot_.Exchange(New<TSnapshot>(
                     appliedSnapshot->Data,
-                    appliedSnapshot->FileSources,
+                    appliedSnapshot->FileProviders,
                     Target_,
                     appliedSnapshot->AccessorState,
                     appliedSnapshot->LifetimeAnchor));
@@ -437,7 +437,7 @@ void TFileResourceBase<TData>::BeginPreparation(
     try {
         ValidateSnapshot(fileSnapshot);
 
-        MaterializeFileSources(fileSnapshot).Subscribe(BIND([weakThis = MakeWeak(this), role, target = std::move(target), fileSnapshot = std::move(fileSnapshot), attemptGeneration] (const TErrorOr<TMaterializedFileSourceSnapshotPtr>& result) {
+        MaterializeFileProviders(fileSnapshot).Subscribe(BIND([weakThis = MakeWeak(this), role, target = std::move(target), fileSnapshot = std::move(fileSnapshot), attemptGeneration] (const TErrorOr<TMaterializedFileProviderSnapshotPtr>& result) {
             if (auto strongThis = weakThis.Lock()) {
                 strongThis->OnMaterialized(
                     role,
@@ -463,10 +463,10 @@ void TFileResourceBase<TData>::OnMaterialized(
     const TResourceRevisionPtr& target,
     const TFileSnapshotPtr& fileSnapshot,
     ui64 attemptGeneration,
-    const TErrorOr<TMaterializedFileSourceSnapshotPtr>& result)
+    const TErrorOr<TMaterializedFileProviderSnapshotPtr>& result)
 {
     try {
-        auto fileSources = result.ValueOrThrow();
+        auto fileProviders = result.ValueOrThrow();
         if (!SetSnapshotPreparationStage(
             role,
             target,
@@ -477,7 +477,7 @@ void TFileResourceBase<TData>::OnMaterialized(
             return;
         }
 
-        auto data = Initialize(fileSources);
+        auto data = Initialize(fileProviders);
         THROW_ERROR_EXCEPTION_UNLESS(data, "File resource initializer returned null data");
         if (!SetSnapshotPreparationStage(
             role,
@@ -495,7 +495,7 @@ void TFileResourceBase<TData>::OnMaterialized(
             target,
             fileSnapshot,
             attemptGeneration,
-            New<TSnapshot>(std::move(data), std::move(fileSources), target));
+            New<TSnapshot>(std::move(data), std::move(fileProviders), target));
     } catch (const std::exception& ex) {
         HandlePreparationError(
             role,
@@ -511,30 +511,30 @@ void TFileResourceBase<TData>::ValidateSnapshot(
     const TFileSnapshotPtr& fileSnapshot) const
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-        fileSnapshot->FileSources.size() == GetSpec()->FileSources.size(),
-        "File snapshot %v has %v file sources while the spec configures %v",
+        fileSnapshot->FileProviders.size() == GetSpec()->FileProviders.size(),
+        "File snapshot %v has %v file providers while the spec configures %v",
         fileSnapshot->Id,
-        fileSnapshot->FileSources.size(),
-        GetSpec()->FileSources.size());
+        fileSnapshot->FileProviders.size(),
+        GetSpec()->FileProviders.size());
 
-    for (const auto& [name, sourceSpec] : GetSpec()->FileSources) {
-        auto revisionIt = fileSnapshot->FileSources.find(name);
+    for (const auto& [name, providerSpec] : GetSpec()->FileProviders) {
+        auto revisionIt = fileSnapshot->FileProviders.find(name);
         THROW_ERROR_EXCEPTION_UNLESS(
-            revisionIt != fileSnapshot->FileSources.end(),
-            "File snapshot %v has no file source %Qv",
+            revisionIt != fileSnapshot->FileProviders.end(),
+            "File snapshot %v has no file provider %Qv",
             fileSnapshot->Id,
             name);
         THROW_ERROR_EXCEPTION_UNLESS(
             revisionIt->second,
-            "File snapshot %v has null file source %Qv",
+            "File snapshot %v has null file provider %Qv",
             fileSnapshot->Id,
             name);
         THROW_ERROR_EXCEPTION_UNLESS(
-            revisionIt->second->FileSourceClassName == sourceSpec->FileSourceClassName,
-            "File snapshot source %Qv class %Qv differs from configured class %Qv",
+            revisionIt->second->FileProviderClassName == providerSpec->FileProviderClassName,
+            "File snapshot provider %Qv class %Qv differs from configured class %Qv",
             name,
-            revisionIt->second->FileSourceClassName,
-            sourceSpec->FileSourceClassName);
+            revisionIt->second->FileProviderClassName,
+            providerSpec->FileProviderClassName);
     }
 }
 
@@ -600,7 +600,7 @@ void TFileResourceBase<TData>::ActivateCandidate(
 
         std::optional<TFileSnapshotId> previousSnapshotId;
         if (previousSnapshot) {
-            previousSnapshotId = previousSnapshot->FileSources->GetFileSnapshot()->Id;
+            previousSnapshotId = previousSnapshot->FileProviders->GetFileSnapshot()->Id;
         }
         ActivationState_ = TActivationState{
             .PreviousSnapshotId = previousSnapshotId,
@@ -815,9 +815,9 @@ void TFileResourceBase<TData>::HandlePreparationError(
             wrappedError.Add(TErrorAttribute("preparation_stage", *slot.PreparationStage));
         }
 
-        THashMap<TFileSourceId, std::string> objectIds;
-        THashMap<TFileSourceId, std::string> displayVersions;
-        for (const auto& [name, revision] : fileSnapshot->FileSources) {
+        THashMap<TFileProviderId, std::string> objectIds;
+        THashMap<TFileProviderId, std::string> displayVersions;
+        for (const auto& [name, revision] : fileSnapshot->FileProviders) {
             if (revision) {
                 objectIds[name] = revision->ObjectId.Underlying();
                 displayVersions[name] = revision->DisplayVersion;
@@ -825,8 +825,8 @@ void TFileResourceBase<TData>::HandlePreparationError(
         }
         if (!objectIds.empty()) {
             wrappedError
-                .Add(TErrorAttribute("file_source_object_ids", objectIds))
-                .Add(TErrorAttribute("file_source_display_versions", displayVersions));
+                .Add(TErrorAttribute("file_provider_object_ids", objectIds))
+                .Add(TErrorAttribute("file_provider_display_versions", displayVersions));
         }
 
         retryPeriod = GetUpdateRetryPeriod();

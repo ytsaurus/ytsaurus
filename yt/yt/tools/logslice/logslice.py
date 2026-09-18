@@ -11,11 +11,12 @@ ones that overlap the requested [start_time, end_time] window (using the file
 rotation hints plus a binary search driven by `logslice --info`), and finally
 runs `logslice` on each selected file, forwarding the grep arguments.
 
-Besides the live ``logs`` directory the script also looks into the master log
-archive (``/yt/master-logs-archive/<YYYY-MM-DD>/...``, see ``--archive-dir``),
-where old rotated files are moved under per-day subdirectories. The archive is
-only consulted when a time window is given, and only for the day subdirectories
-overlapping that window.
+Besides the live ``logs`` directory the script also looks into the archive for
+the inferred service role: ``/yt/master-logs-archive`` for masters and
+``/yt/scheduler-logs-archive`` for schedulers. ``--archive-dir`` can override
+that root explicitly. Old rotated files are stored below each root in per-day
+subdirectories; an archive is consulted only when a time window is given, and
+only the day subdirectories overlapping that window are searched.
 
 All times are interpreted exactly as `logslice` interprets them (server local
 time); the precise filtering is always delegated to `logslice` itself, so the
@@ -24,6 +25,8 @@ in-script time handling only needs to be good enough to pick the right files.
 
 import argparse
 import hashlib
+import heapq
+import json
 import os
 import re
 import shlex
@@ -31,16 +34,22 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 
 REMOTE_DIR = "/tmp"
 REMOTE_BIN = REMOTE_DIR + "/logslice"
 REMOTE_LOGS_DIR = "logs"
 
-# Old rotated master logs are moved here, under per-day subdirectories named
-# "YYYY-MM-DD", e.g. /yt/master-logs-archive/2026-06-19/master-klg0-0941.debug.log.2026-06-19_07-15.zst
-ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
+# Old rotated logs are moved to a per-service archive root, under per-day
+# subdirectories named "YYYY-MM-DD", e.g.
+# /yt/master-logs-archive/2026-06-19/master-klg0-0941.debug.log.2026-06-19_07-15.zst
+# The layout is identical under every root; only the root depends on the service
+# (see ytcfgen's logs_archive.py for the authoritative service -> root map).
+ARCHIVE_DIR_BY_ROLE = {
+    "master": "/yt/master-logs-archive",
+    "scheduler": "/yt/scheduler-logs-archive",
+}
 
 # A debug logslice is hundreds of MiB; a release one is well under this. Anything
 # below the limit is assumed to be a usable release build.
@@ -51,7 +60,11 @@ CONTROL_PATH_ENV = "LOGSLICE_SSH_CONTROL_PATH"
 CONTROL_PERSIST_ENV = "LOGSLICE_SSH_CONTROL_PERSIST"
 GLOBAL_NO_MATCH_EXIT = 3
 OPERATIONAL_FAILURE_EXIT = 2
-LOG_TYPES = ("debug", "info", "error")
+COVERAGE_INCOMPLETE_EXIT = 4
+LOG_ROTATION_GAP_TOLERANCE = timedelta(minutes=1)
+STANDARD_LOG_TYPES = ("debug", "info", "error")
+LOG_TYPES = STANDARD_LOG_TYPES + ("access",)
+LOG_TYPE_ALIASES = {"access.json": "access"}
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
@@ -61,6 +74,44 @@ BUILD_TARGET = "yt/yt/tools/logslice/bin"
 
 def eprint(*args):
     print(*args, file=sys.stderr)
+
+
+def resolve_control_path(control_socket=None, environ=None):
+    """Resolve ControlPath exactly as the SSH runner does."""
+    environ = os.environ if environ is None else environ
+    return control_socket \
+        or environ.get(CONTROL_PATH_ENV) \
+        or os.path.join(tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
+
+
+def make_execution_result(component=None):
+    """Create the machine-readable result before remote access."""
+    return {
+        "outcome": "failed",
+        "result": "not_started",
+        "requested_component": component,
+        "selected_component": None,
+        "selected_base": None,
+        "selected_files": [],
+        "gaps": None,
+        "log_read": False,
+    }
+
+
+def emit_execution_result(result):
+    eprint(json.dumps(result, sort_keys=True))
+
+
+def mark_access_unavailable(result, failure_class):
+    result["outcome"] = "failed"
+    result["result"] = "access_unavailable"
+    result["failure_class"] = failure_class
+    return result
+
+
+def ssh_access_preflight(ssh, run=subprocess.run):
+    """Verify real non-interactive SSH access before local binary work."""
+    return ssh.check_access(run=run)
 
 
 def describe_exit_code(returncode):
@@ -75,13 +126,15 @@ def describe_exit_code(returncode):
 
 def parse_log_types(value):
     """Parse one severity, a comma-separated set, or ``all``."""
-    raw = list(LOG_TYPES) if value == "all" else value.split(",")
+    raw = list(STANDARD_LOG_TYPES) if value == "all" else value.split(",")
     result = []
     for item in raw:
         item = item.strip()
+        item = LOG_TYPE_ALIASES.get(item, item)
         if item not in LOG_TYPES:
             raise ValueError(
-                "unknown log type {!r}; expected debug, info, error, a "
+                "unknown log type {!r}; expected debug, info, error, access, "
+                "access.json, a "
                 "comma-separated combination, or all".format(item))
         if item not in result:
             result.append(item)
@@ -93,18 +146,27 @@ def parse_log_types(value):
 LOG_RECORD_TIME_RE = re.compile(
     r"^(?P<stamp>\d{4}-\d{2}-\d{2}[ T]"
     r"\d{2}:\d{2}:\d{2}[,.]\d+)")
+LOG_RECORD_JSON_TIME_RE = re.compile(
+    r'(?<!\\)"instant"\s*:\s*"(?P<stamp>\d{4}-\d{2}-\d{2}[ T]'
+    r'\d{2}:\d{2}:\d{2}[,.]\d+)"')
 
 
-def _timestamped_records(text, source_index):
-    records = []
+def _timestamped_record_iter(lines, source_index, line_records=False):
     current = None
     ordinal = 0
-    for line in text.splitlines(True):
+    for line in lines:
         match = LOG_RECORD_TIME_RE.match(line)
-        if match:
+        if match is None:
+            json_matches = list(LOG_RECORD_JSON_TIME_RE.finditer(line))
+            match = json_matches[-1] if json_matches else None
+        if match or line_records:
             if current is not None:
-                records.append(current)
-            stamp = match.group("stamp").replace(",", ".").replace(" ", "T")
+                yield current
+            if match is None:
+                stamp = current[0] if current is not None else ""
+            else:
+                stamp = match.group("stamp").replace(",", ".").replace(
+                    " ", "T")
             current = [stamp, source_index, ordinal, line]
             ordinal += 1
         elif current is None:
@@ -113,8 +175,11 @@ def _timestamped_records(text, source_index):
         else:
             current[3] += line
     if current is not None:
-        records.append(current)
-    return records
+        yield current
+
+
+def _timestamped_records(text, source_index):
+    return list(_timestamped_record_iter(text.splitlines(True), source_index))
 
 
 def merge_timestamped_outputs(outputs):
@@ -124,6 +189,34 @@ def merge_timestamped_outputs(outputs):
         records.extend(_timestamped_records(text, source_index))
     records.sort(key=lambda record: (record[0], record[1], record[2]))
     return "".join(record[3] for record in records)
+
+
+def write_merged_pipeline_outputs(outputs, destination):
+    """Merge ordered pipeline streams without loading them into memory."""
+    record_streams = [
+        _timestamped_record_iter(
+            completed.iter_stdout_lines(),
+            source_index,
+            line_records=completed.line_records)
+        for source_index, completed in enumerate(outputs)
+    ]
+    for record in heapq.merge(
+            *record_streams,
+            key=lambda item: (item[0], item[1], item[2])):
+        destination.write(record[3])
+
+
+def access_output_timestamp_error(completed):
+    """Return an error when an emitted access record lost its merge key."""
+    if completed.operational_returncode != 0 or not completed.has_output:
+        return None
+    for line_number, line in enumerate(completed.iter_stdout_lines(), 1):
+        if LOG_RECORD_JSON_TIME_RE.search(line) is None:
+            return (
+                "access pipeline output line {} has no valid instant; "
+                "retain the JSON instant field for timestamp merging"
+            ).format(line_number)
+    return None
 
 
 def classify_slice_result(returncode, stdout, stderr):
@@ -161,32 +254,24 @@ def slice_failure_class(returncode, stderr):
     return "command"
 
 
-def preflight_failure_class(error):
-    """Classify failures that happen before remote log discovery starts.
-
-    Keep this deliberately narrow: only authentication failures receive the
-    structured ``authentication_unavailable`` outcome. Transport and other SSH
-    failures retain the existing diagnostic instead of being relabelled as an
-    authentication problem.
-    """
-    text = str(error).lower()
-    authentication_markers = (
-        "ssh_auth_sock does not exist",
-        "permission denied (publickey",
-        "agent refused operation",
-        "no identities available",
-    )
-    if any(marker in text for marker in authentication_markers):
-        return "authentication_unavailable"
-    return None
-
-
 def requested_component(host, override):
     """Return the component intended by the caller before remote discovery."""
     if override:
         return override
     _, component = infer_host_component(host)
     return component or "unresolved"
+
+
+def _is_master_route(host, override):
+    """Return whether a request targets an actual master process."""
+    if override:
+        return (
+            override == "master"
+            or (override.startswith("master-")
+                and not override.startswith("master-cache"))
+        )
+    role, _ = infer_host_component(host)
+    return role == "master"
 
 
 def report_authentication_preflight(host, component, start, end):
@@ -199,8 +284,9 @@ def report_authentication_preflight(host, component, start, end):
     details.
     """
     eprint(
-        "preflight_result status=authentication_unavailable host={} "
-        "component={} window_start={} window_end={} rotations_inspected=0"
+        "preflight_result status=authentication_unavailable "
+        "subsystem=logslice host={} component={} window_start={} "
+        "window_end={} rotations_inspected=0"
         .format(host, component, start or "open", end or "open"))
     eprint(
         "summary timezone=unknown window_start={} window_end={} files=0 "
@@ -298,11 +384,38 @@ def resolve_logslice(explicit_path):
 ########################################################################
 
 class PipelineResult:
-    def __init__(self, returncode, operational_returncode, stdout, stderr):
+    def __init__(
+            self,
+            returncode,
+            operational_returncode,
+            stdout,
+            stderr,
+            stdout_stream=None,
+            match_count=None,
+            line_records=False):
         self.returncode = returncode
         self.operational_returncode = operational_returncode
         self.stdout = stdout
         self.stderr = stderr
+        self.stdout_stream = stdout_stream
+        self.match_count = len(stdout.splitlines()) \
+            if match_count is None else match_count
+        self.line_records = line_records
+
+    @property
+    def has_output(self):
+        return self.match_count > 0
+
+    def iter_stdout_lines(self):
+        if self.stdout_stream is None:
+            return iter(self.stdout.splitlines(True))
+        self.stdout_stream.seek(0)
+        return iter(self.stdout_stream)
+
+    def close(self):
+        if self.stdout_stream is not None:
+            self.stdout_stream.close()
+            self.stdout_stream = None
 
 
 class Ssh:
@@ -311,6 +424,17 @@ class Ssh:
     # shell without passing the whitelist; stage arguments are always shlex-quoted.
     # Do NOT add "awk" in this list (because of `system()` call).
     PIPELINE_WHITELIST = frozenset(["grep", "wc", "cut", "sed", "head", "tail"])
+    ACCESS_PIPELINE_WHITELIST = PIPELINE_WHITELIST | frozenset(["jq"])
+    JQ_SAFE_OPTIONS = frozenset([
+        "-a", "--ascii-output",
+        "-c", "--compact-output",
+        "-M", "--monochrome-output",
+        "-S", "--sort-keys",
+        "--unbuffered",
+    ])
+    JQ_UNSAFE_FILTER_RE = re.compile(
+        r"(?:\$ENV\b|\b(?:env|include|import|module|modulemeta)\b)")
+    LINE_COUNT_RE = re.compile(r"^[+-]?\d+$")
 
     def __init__(
             self,
@@ -325,9 +449,8 @@ class Ssh:
             control_persist = int(os.environ.get(
                 CONTROL_PERSIST_ENV, CONTROL_PERSIST_DEFAULT))
         self._control_persist = control_persist
-        self._control_path = control_socket \
-            or os.environ.get(CONTROL_PATH_ENV) \
-            or os.path.join(tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
+        self._connect_timeout = connect_timeout
+        self._control_path = resolve_control_path(control_socket)
         self._base_opts = [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=" + self._control_path,
@@ -335,6 +458,23 @@ class Ssh:
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout={}".format(connect_timeout),
         ]
+
+    def check_access(self, run=subprocess.run):
+        """Run a real BatchMode connection check with the configured options."""
+        cmd = ["ssh"] + self._base_opts + [
+            "-o", "BatchMode=yes", self.host, "true"]
+        try:
+            result = run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=self._connect_timeout + 5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "ssh_noninteractive_check_failed"
+        if result.returncode != 0:
+            return "ssh_noninteractive_check_failed"
+        return None
 
     def connect(self):
         """Establishes the master connection (this is where the key touch
@@ -416,16 +556,65 @@ class Ssh:
         return result.stdout
 
     @classmethod
-    def validate_pipeline(cls, stages):
+    def validate_pipeline(cls, stages, access_log=False):
         """Raises ValueError unless every stage is non-empty and starts with a
         whitelisted command."""
+        whitelist = cls.ACCESS_PIPELINE_WHITELIST if access_log \
+            else cls.PIPELINE_WHITELIST
         for stage in stages:
             if not stage:
                 raise ValueError("Empty pipeline stage.")
-            if stage[0] not in cls.PIPELINE_WHITELIST:
+            if stage[0] not in whitelist:
                 raise ValueError("Command {!r} is not whitelisted; allowed: {}"
                                  .format(stage[0],
-                                         ", ".join(sorted(cls.PIPELINE_WHITELIST))))
+                                         ", ".join(sorted(whitelist))))
+            if stage[0] == "jq":
+                cls.validate_jq_stage(stage)
+            elif stage[0] in ("head", "tail"):
+                cls.validate_line_limit_stage(stage)
+
+    @classmethod
+    def validate_line_limit_stage(cls, stage):
+        """Allow head/tail to limit stdin by line count, never to open files."""
+        if len(stage) == 1:
+            return
+        if len(stage) == 3 and stage[1] in ("-n", "--lines") \
+                and cls.LINE_COUNT_RE.fullmatch(stage[2]):
+            return
+        if len(stage) == 2:
+            argument = stage[1]
+            if re.fullmatch(r"-\d+", argument):
+                return
+            for prefix in ("-n", "--lines="):
+                if argument.startswith(prefix) and cls.LINE_COUNT_RE.fullmatch(
+                        argument[len(prefix):]):
+                    return
+        raise ValueError(
+            "{} accepts only a stdin line count and no file operands"
+            .format(stage[0]))
+
+    @classmethod
+    def validate_jq_stage(cls, stage):
+        """Accept jq only with safe flags and one compact inline filter."""
+        index = 1
+        options = set()
+        while index < len(stage) and stage[index].startswith("-"):
+            if stage[index] == "--":
+                index += 1
+                break
+            if stage[index] not in cls.JQ_SAFE_OPTIONS:
+                raise ValueError(
+                    "jq option {!r} is not allowed; use an inline filter"
+                    .format(stage[index]))
+            options.add(stage[index])
+            index += 1
+        if len(stage) - index != 1:
+            raise ValueError("jq requires exactly one inline filter and no files")
+        if not ({"-c", "--compact-output"} & options):
+            raise ValueError(
+                "jq requires -c/--compact-output so each value stays on one line")
+        if cls.JQ_UNSAFE_FILTER_RE.search(stage[index]):
+            raise ValueError("jq environment and module access is not allowed")
 
     def run_pipeline(self, head_argv, stages, capture=False):
         """Runs head_argv piped through stages on the remote host. Re-validates the
@@ -443,14 +632,15 @@ class Ssh:
             return result.stdout
         return result.operational_returncode
 
-    def run_pipeline_result(self, head_argv, stages, capture=True):
+    def run_pipeline_result(
+            self, head_argv, stages, capture=True, access_log=False):
         """Run a validated pipeline and retain its output classification.
 
         ``returncode`` is 1 when any grep stage has no matches, even if a later
         presentation stage such as ``wc`` succeeds. ``operational_returncode``
         preserves the legacy behavior where grep no-match is not a tool failure.
         """
-        self.validate_pipeline(stages)
+        self.validate_pipeline(stages, access_log=access_log)
         pipeline = self._remote_command(head_argv)
         for stage in stages:
             pipeline += " | " + self._remote_command(stage)
@@ -464,16 +654,34 @@ class Ssh:
         cmd = ["ssh"] + self._base_opts + [self.host, remote_command]
         if self.verbose:
             eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        stdout_stream = None
+        if capture and access_log:
+            stdout_stream = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=stdout_stream if stdout_stream is not None else (
+                    subprocess.PIPE if capture else None),
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except BaseException:
+            if stdout_stream is not None:
+                stdout_stream.close()
+            raise
+        returncode = result.returncode
+        stdout = result.stdout or ""
+        match_count = None
+        if stdout_stream is not None:
+            stdout_stream.flush()
+            stdout_stream.seek(0)
+            match_count = sum(1 for _ in stdout_stream)
+            stdout_stream.seek(0)
+        raw_stderr = result.stderr
         statuses = []
         stderr = []
         marker = "__LOGSLICE_PIPESTATUS__:"
-        for line in result.stderr.splitlines():
+        for line in raw_stderr.splitlines():
             if line.startswith(marker):
                 try:
                     statuses = [int(value) for value in line[len(marker):].split()]
@@ -484,11 +692,18 @@ class Ssh:
         if stderr:
             eprint("\n".join(stderr))
 
-        operational_returncode = result.returncode
+        operational_returncode = returncode
         grep_no_match = False
         if statuses:
-            operational_returncode = statuses[0]
-            for stage, status in zip(stages, statuses[1:]):
+            effective_statuses = list(statuses)
+            for stage_index, (stage, status) in enumerate(
+                    zip(stages, statuses[1:]), 1):
+                if stage[0] == "head" and status == 0:
+                    for upstream_index in range(stage_index):
+                        if effective_statuses[upstream_index] == 141:
+                            effective_statuses[upstream_index] = 0
+            operational_returncode = effective_statuses[0]
+            for stage, status in zip(stages, effective_statuses[1:]):
                 if stage[0] == "grep" and status == 1:
                     grep_no_match = True
                 elif status != 0:
@@ -501,8 +716,11 @@ class Ssh:
         return PipelineResult(
             returncode=returncode,
             operational_returncode=operational_returncode,
-            stdout=result.stdout or "",
+            stdout=stdout,
             stderr="\n".join(stderr),
+            stdout_stream=stdout_stream,
+            match_count=match_count,
+            line_records=access_log,
         )
 
     def remote_md5(self, remote_path):
@@ -606,7 +824,12 @@ def _file_md5(path):
 TIMESTAMP_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})$")
 SEQUENCE_RE = re.compile(r"^\d+$")
 
-CHANNEL_BY_TYPE = {"debug": "debug", "error": "error", "info": ""}
+CHANNEL_BY_TYPE = {
+    "debug": "debug",
+    "error": "error",
+    "info": "",
+    "access": "access.json",
+}
 
 # Sidecar agents (e.g. timbertruck) can outnumber the server's own log files and
 # so win the "most files" heuristic, yet are never the component wanted.
@@ -738,27 +961,44 @@ def discover_live(ssh, log_type, component=None):
 def archive_day_dirs(names, start_time, end_time):
     """From the archive root listing, the day subdirectories overlapping the
     window. A one-day margin on each side covers files whose content spills past
-    the day boundary named in their path."""
+    the day boundary named in their path. Also retain the nearest existing day
+    outside each finite margin for coverage-boundary diagnostics."""
     from datetime import timedelta
     lo = (start_time.date() - timedelta(days=1)) if start_time else None
     hi = (end_time.date() + timedelta(days=1)) if end_time else None
-    days = []
+    dated_names = []
     for name in names:
         m = ARCHIVE_DAY_RE.match(name)
         if not m:
             continue
         day = datetime(*(int(g) for g in m.groups())).date()
-        if (lo is None or day >= lo) and (hi is None or day <= hi):
-            days.append(name)
-    return sorted(days)
+        dated_names.append((day, name))
+    dated_names.sort()
+
+    selected = [
+        (day, name) for day, name in dated_names
+        if (lo is None or day >= lo) and (hi is None or day <= hi)
+    ]
+    if lo is not None:
+        before = [(day, name) for day, name in dated_names if day < lo]
+        if before:
+            selected.append(before[-1])
+    if hi is not None:
+        after = [(day, name) for day, name in dated_names if day > hi]
+        if after:
+            selected.append(after[0])
+    return [name for _, name in sorted(set(selected))]
 
 
 def discover_archive(ssh, log_type, start_time, end_time, archive_dir,
                      component=None):
-    """The master log archive: returns (base, ordered_files). Only the day
-    subdirectories overlapping the window are scanned. Consulted only when a
-    window bound is given (an unbounded scan of the whole archive is never what
-    is wanted); returns (None, []) when the archive is absent or out of range."""
+    """A role-specific master or scheduler log archive.
+
+    Returns ``(base, ordered_files)`` after scanning only day subdirectories
+    overlapping the window. Consulted only when a window bound is given (an
+    unbounded scan of the whole archive is never wanted); returns ``(None, [])``
+    when the selected archive is absent or out of range.
+    """
     if archive_dir is None or (start_time is None and end_time is None):
         return None, []
     days = archive_day_dirs(list_remote_dir(ssh, archive_dir), start_time, end_time)
@@ -778,8 +1018,25 @@ MONTH_BY_NAME = {name.lower(): i + 1 for i, name in enumerate(
     ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
 
+ISO_UTC_RE = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})"
+    r"(?:\.(\d+))?Z$")
+TIME_OF_DAY_RE = re.compile(r"^(\d{2}):(\d{2})(?::(\d{2}))?$")
 
-def parse_user_time(text):
+
+def parse_utc_offset(text):
+    """Parse ``date +%z`` output into a timedelta, or return None."""
+    match = re.match(r"^([+-])(\d{2})(\d{2})$", text or "")
+    if not match:
+        return None
+    hours, minutes = int(match.group(2)), int(match.group(3))
+    if hours > 23 or minutes > 59:
+        return None
+    offset = timedelta(hours=hours, minutes=minutes)
+    return offset if match.group(1) == "+" else -offset
+
+
+def parse_user_time(text, utc_offset=None):
     """Parses a -t/-e value into a naive local datetime for file selection.
 
     Mirrors the common formats understood by logslice. Returns None if the
@@ -788,17 +1045,19 @@ def parse_user_time(text):
     if not text:
         return None
     if text.lower() == "now":
-        return datetime.now()
+        if utc_offset is None:
+            return datetime.now()
+        return datetime.now(timezone.utc).astimezone(
+            timezone(utc_offset)).replace(tzinfo=None)
 
     # ISO UTC "2019-09-19T11:46:04.848360Z" -> compare against local times.
-    iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})"
-                   r"(?:\.(\d+))?Z$", text)
+    iso = ISO_UTC_RE.match(text)
     if iso:
-        from datetime import timezone
         y, mo, d, h, mi, s = (int(iso.group(i)) for i in range(1, 7))
         micro = int((iso.group(7) or "0").ljust(6, "0")[:6])
         utc = datetime(y, mo, d, h, mi, s, micro, tzinfo=timezone.utc)
-        return utc.astimezone().replace(tzinfo=None)
+        target_timezone = timezone(utc_offset) if utc_offset is not None else None
+        return utc.astimezone(target_timezone).replace(tzinfo=None)
 
     # Local timestamp at a flexible level of detail: a bare date "YYYY-MM-DD",
     # or with a progressively finer time-of-day suffix " HH", " HH:MM",
@@ -823,9 +1082,13 @@ def parse_user_time(text):
             return None
 
     # "HH:MM" or "HH:MM:SS" -> today's date.
-    tod = re.match(r"^(\d{2}):(\d{2})(?::(\d{2}))?$", text)
+    tod = TIME_OF_DAY_RE.match(text)
     if tod:
-        now = datetime.now()
+        if utc_offset is None:
+            now = datetime.now()
+        else:
+            now = datetime.now(timezone.utc).astimezone(
+                timezone(utc_offset)).replace(tzinfo=None)
         return now.replace(hour=int(tod.group(1)), minute=int(tod.group(2)),
                            second=int(tod.group(3) or 0), microsecond=0)
 
@@ -841,6 +1104,23 @@ def parse_user_time(text):
                             int(web.group(6)))
 
     return None
+
+
+def parse_server_time(text, server_timezone):
+    """Parse a request bound in the timezone used by remote ``--info``.
+
+    UTC, ``now``, and time-only forms need a verified remote UTC offset. Full
+    local timestamps already name server-local wall time and remain usable when
+    the offset probe is unavailable.
+    """
+    utc_offset = parse_utc_offset(server_timezone)
+    stripped = text.strip()
+    needs_offset = stripped.lower() == "now" \
+        or ISO_UTC_RE.match(stripped) is not None \
+        or TIME_OF_DAY_RE.match(stripped) is not None
+    if needs_offset and utc_offset is None:
+        return None
+    return parse_user_time(text, utc_offset=utc_offset)
 
 
 def split_time_range(text):
@@ -1022,6 +1302,42 @@ class FileSelector:
             return []
         return self.files[start_index:end_index + 1]
 
+    def nearest_before(self, start_time):
+        """Return the last retained file ending before ``start_time``."""
+        if start_time is None:
+            return None
+        result = None
+        lo, hi = 0, len(self.files) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            first, last = self.info(mid)
+            if first is None or last is None:
+                return None
+            if last < start_time:
+                result = (self.files[mid], first, last)
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return result
+
+    def nearest_after(self, end_time):
+        """Return the first retained file starting after ``end_time``."""
+        if end_time is None:
+            return None
+        result = None
+        lo, hi = 0, len(self.files) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            first, last = self.info(mid)
+            if first is None or last is None:
+                return None
+            if first > end_time:
+                result = (self.files[mid], first, last)
+                hi = mid - 1
+            else:
+                lo = mid + 1
+        return result
+
 
 def _candidate_bases(names, log_type, directory=REMOTE_LOGS_DIR):
     wanted_channel = CHANNEL_BY_TYPE[log_type]
@@ -1072,6 +1388,8 @@ def infer_host_component(host):
             "exec": "exec-node",
         }[node.group("role")]
         return role, "node"
+    if re.search(r"(?:^|-)tab(?:-|$)", short):
+        return "tablet-node", "node"
     if re.search(r"(?:^|-)master-cache(?:-|$)", short):
         return "master-cache", "master-cache"
     if re.search(r"(?:^|-)rpc(?:-proxy)?(?:-|$)", short):
@@ -1087,6 +1405,12 @@ def infer_host_component(host):
         )
     if re.search(r"(?:^|-)clock\d*(?:-|$)", short):
         return "clock", "clock"
+    # YP services carry "scheduler" in their pod names too (yp-scheduler,
+    # yp-heavy-scheduler). They are matched here as well, but their log base is
+    # absent from a YT host's logs, so the route fails loudly in
+    # resolve_component_route instead of silently reading another service.
+    if re.search(r"(?:^|-)scheduler(?:-|$)", short):
+        return "scheduler", "scheduler"
     if re.search(r"(?:^|-)master(?:-|$)", short) or \
             re.match(r"^m(?:c)?\d+(?:-|$)", short):
         return "master", "master"
@@ -1169,15 +1493,46 @@ def routing_metadata(route, roots):
     ]
 
 
-def should_use_master_archive(host, override):
+def _role_for_base(base):
+    """The archive-bearing role of an explicit ``--component`` log base.
+
+    Bases carry a location suffix on some services (``master-vla2-1217``), so a
+    prefix match is needed; ``master-cache`` is a different service that only
+    looks like a master base.
+    """
+    if base == "master-cache" or base.startswith("master-cache-"):
+        return "master-cache"
+    for role in ARCHIVE_DIR_BY_ROLE:
+        if base == role or base.startswith(role + "-"):
+            return role
+    return None
+
+
+def archive_dir_for_route(host, override):
+    """The archive root of the route implied by ``host``/``--component``, or
+    None when the service keeps no archive (or the route is unknown).
+
+    Resolved before the exact component is known, because candidate discovery
+    already has to inspect the archive; the role is enough to pick the root.
+    """
     if override:
-        return (
-            override == "master"
-            or (override.startswith("master-")
-                and not override.startswith("master-cache"))
-        )
-    role, _ = infer_host_component(host)
-    return role == "master"
+        role = _role_for_base(override)
+    else:
+        role, _ = infer_host_component(host)
+    return ARCHIVE_DIR_BY_ROLE.get(role)
+
+
+def should_use_master_archive(host, override):
+    """Compatibility wrapper for callers using the former public helper."""
+    return _is_master_route(host, override)
+
+
+def normalize_selection_result(result):
+    """Add an empty boundary list to legacy three-field selector results."""
+    if len(result) == 3:
+        selected, summary, coverage = result
+        return selected, summary, coverage, []
+    return result
 
 
 def discover_series(ssh, log_type, start_time, end_time, archive_dir,
@@ -1200,7 +1555,8 @@ def discover_series(ssh, log_type, start_time, end_time, archive_dir,
 def select_log_files(ssh, remote_bin, series, start_time, end_time):
     """Selects the overlapping files from every series independently and returns
     the flat oldest -> newest list, plus a per-series ``(origin, base, total,
-    selected)`` summary for logging.
+    selected)`` summary for logging and authoritative per-file timestamp
+    intervals when every selected file yielded ``logslice --info`` metadata.
 
     Selecting each series on its own is what makes a window that straddles the
     archive/live boundary work: each binary search runs over a single monotonic
@@ -1210,11 +1566,91 @@ def select_log_files(ssh, remote_bin, series, start_time, end_time):
     timestamped."""
     selected = []
     summary = []
+    intervals = []
+    boundaries = []
+    bounds_authoritative = True
     for origin, base, files in series:
-        sel = FileSelector(ssh, remote_bin, files).select(start_time, end_time)
+        selector = FileSelector(ssh, remote_bin, files)
+        sel = selector.select(start_time, end_time)
         summary.append((origin, base, len(files), sel))
         selected.extend(sel)
-    return selected, summary
+        for log_file in sel:
+            first_record, last_record = selector.info(files.index(log_file))
+            if first_record is None or last_record is None:
+                bounds_authoritative = False
+            else:
+                intervals.append((first_record, last_record))
+        for relation, boundary in (
+                ("before", selector.nearest_before(start_time)),
+                ("after", selector.nearest_after(end_time))):
+            if boundary is None:
+                continue
+            log_file, first_record, last_record = boundary
+            boundaries.append({
+                "relation": relation,
+                "root_kind": origin,
+                "file": log_file.path,
+                "first": first_record.isoformat(sep=" "),
+                "last": last_record.isoformat(sep=" "),
+            })
+    coverage = None
+    if selected and bounds_authoritative and intervals:
+        coverage = sorted(intervals)
+    return selected, summary, coverage, boundaries
+
+
+def nearest_retained_boundaries(boundaries):
+    """Choose the closest retained file on each side of the requested window."""
+    result = []
+    before = [item for item in boundaries if item["relation"] == "before"]
+    after = [item for item in boundaries if item["relation"] == "after"]
+    if before:
+        result.append(max(before, key=lambda item: item["last"]))
+    if after:
+        result.append(min(after, key=lambda item: item["first"]))
+    return result
+
+
+def find_coverage_gaps(start_time, end_time, type_coverages,
+                       rotation_gap_tolerance=LOG_ROTATION_GAP_TOLERANCE):
+    """Return uncovered ranges from authoritative per-file timestamp bounds.
+
+    Small gaps between adjacent rotations are normal while one file is closed
+    and the next is opened.  They are ignored when they are shorter than
+    ``rotation_gap_tolerance``.  Gaps at the requested window boundaries are
+    always reported because they cannot be attributed to log rotation.
+    """
+    if start_time is None or end_time is None or not type_coverages:
+        return None
+
+    gaps = []
+    for log_type, intervals in sorted(type_coverages.items()):
+        if not intervals:
+            return None
+        covered_until = start_time
+        has_coverage = False
+        for first_record, last_record in sorted(intervals):
+            if last_record < covered_until:
+                continue
+            if first_record > covered_until:
+                gap = first_record - covered_until
+                if not has_coverage or gap >= rotation_gap_tolerance:
+                    gaps.append({
+                        "log_type": log_type,
+                        "start": covered_until.isoformat(sep=" "),
+                        "end": min(first_record, end_time).isoformat(sep=" "),
+                    })
+            covered_until = max(covered_until, last_record)
+            has_coverage = True
+            if covered_until >= end_time:
+                break
+        if covered_until < end_time:
+            gaps.append({
+                "log_type": log_type,
+                "start": covered_until.isoformat(sep=" "),
+                "end": end_time.isoformat(sep=" "),
+            })
+    return gaps
 
 
 ########################################################################
@@ -1254,17 +1690,18 @@ def split_argv(argv):
     return argv, []
 
 
-def main():
+def _run_main(context):
     left, grep_args = split_argv(sys.argv[1:])
 
     parser = argparse.ArgumentParser(
         prog="logslice.py",
         description="Remote log grepping via logslice.",
         usage="%(prog)s remote_machine_name [--type type] [-l logslice] "
-              "[-t start_time] [-e end_time] [-x pipeline] -- grep_args...")
+              "[-t start_time] [-e end_time] [-x pipeline] "
+              "[--access-log-pipeline pipeline] -- grep_args...")
     parser.add_argument("host", help="remote machine name")
     parser.add_argument("--type", default="debug",
-                        help="log type: debug, error, info, comma-separated "
+                        help="log type: debug, error, info, access/access.json, comma-separated "
                              "types, or all (default: debug)")
     parser.add_argument(
         "--component",
@@ -1280,15 +1717,26 @@ def main():
     parser.add_argument("-e", dest="end", default=None,
                         help="time window end (passed to logslice)")
     parser.add_argument("--archive-dir", dest="archive_dir",
-                        default=ARCHIVE_DIR_DEFAULT,
-                        help="root of the per-day master log archive to also "
-                             "search (default: {}); pass '' to disable."
-                             .format(ARCHIVE_DIR_DEFAULT))
+                        default=None,
+                        help="root of the per-day log archive to also search; "
+                             "by default it is derived from the route ({}), "
+                             "and an explicit value overrides that. Pass '' to "
+                             "disable the archive."
+                             .format(", ".join(
+                                 "{}: {}".format(role, directory)
+                                 for role, directory
+                                 in sorted(ARCHIVE_DIR_BY_ROLE.items()))))
     parser.add_argument("-x", dest="execute", default=None,
                         help="pipe-separated post-processing commands run after "
                              "logslice, e.g. \"grep Error | wc -l\". "
                              "Only whitelisted tools are allowed: "
                              + ", ".join(sorted(Ssh.PIPELINE_WHITELIST)))
+    parser.add_argument(
+        "--access-log-pipeline",
+        default=None,
+        help="post-processing pipeline used instead of -- grep_args/-x for "
+             "access logs; jq with one safe inline filter is additionally "
+             "allowed")
     parser.add_argument("--control-socket", dest="control_socket", default=None,
                         help="path to an existing ssh ControlMaster socket for "
                              "this host to reuse (no new connection or key touch "
@@ -1325,14 +1773,23 @@ def main():
         log_types = parse_log_types(args.type)
     except ValueError as ex:
         parser.error(str(ex))
+    if "access" in log_types and not _is_master_route(
+            args.host, args.component):
+        parser.error("access logs are available only for actual master routes")
 
     stages = []
     if grep_args:
         stages.append(["grep"] + grep_args)
     if args.execute:
         stages += split_pipeline(args.execute)
+    access_stages = stages
+    if args.access_log_pipeline is not None:
+        if "access" not in log_types:
+            parser.error("--access-log-pipeline requires access in --type")
+        access_stages = split_pipeline(args.access_log_pipeline)
     try:
         Ssh.validate_pipeline(stages)
+        Ssh.validate_pipeline(access_stages, access_log=True)
     except ValueError as ex:
         sys.exit(str(ex))
 
@@ -1357,37 +1814,47 @@ def main():
     except ValueError as ex:
         parser.error(str(ex))
 
+    execution_result = make_execution_result(args.component)
+    context["result"] = execution_result
     ssh = Ssh(
         args.host,
         args.verbose,
         control_socket=args.control_socket,
         control_persist=args.control_persist,
         connect_timeout=args.connect_timeout)
-    try:
-        ssh.connect()
-    except SystemExit as error:
-        if preflight_failure_class(error) == "authentication_unavailable":
-            report_authentication_preflight(
-                args.host,
-                requested_component(args.host, args.component),
-                args.start,
-                args.end)
-            return OPERATIONAL_FAILURE_EXIT
-        raise
+    access_failure = ssh_access_preflight(ssh)
+    if access_failure is not None:
+        emit_execution_result(mark_access_unavailable(
+            execution_result, access_failure))
+        return OPERATIONAL_FAILURE_EXIT
 
     local_bin = resolve_logslice(args.logslice)
     ssh.copy_binary(local_bin, REMOTE_BIN)
     server_timezone = ssh.run(
         ["date", "+%z"], check=False, warn_on_error=True).strip() or "unknown"
+    start_time = parse_server_time(args.start, server_timezone) \
+        if args.start else None
+    end_time = parse_server_time(args.end, server_timezone) \
+        if args.end else None
+    if args.start and start_time is None:
+        eprint("Warning: could not normalize start time {!r} to remote "
+               "timezone {}; log coverage remains unresolved."
+               .format(args.start, server_timezone))
+    if args.end and end_time is None:
+        eprint("Warning: could not normalize end time {!r} to remote "
+               "timezone {}; log coverage remains unresolved."
+               .format(args.end, server_timezone))
 
     # The archive (older, time-named files) is searched alongside the live logs;
     # discover_series returns them oldest -> newest and select_log_files selects
     # each independently, so a window straddling the archive/live boundary picks
     # up files from both.
-    archive_dir = args.archive_dir or None
-    if archive_dir is not None and not should_use_master_archive(
-            args.host, args.component):
-        archive_dir = None
+    # An explicit --archive-dir wins over the route-derived root; the empty
+    # string disables the archive outright.
+    if args.archive_dir is None:
+        archive_dir = archive_dir_for_route(args.host, args.component)
+    else:
+        archive_dir = args.archive_dir or None
     candidates = set()
     roots = []
     for log_type in log_types:
@@ -1401,20 +1868,30 @@ def main():
         route = resolve_component_route(args.host, args.component, candidates)
     except ValueError as error:
         sys.exit(str(error))
+    execution_result["selected_component"] = route["component"]
+    execution_result["selected_base"] = route["base"]
     for line in routing_metadata(route, roots):
         eprint(line)
 
     selected = []
     selected_paths = []
+    type_coverages = {}
+    retained_boundaries = []
     for log_type in log_types:
         series = discover_series(
             ssh, log_type, start_time, end_time, archive_dir,
             component=route["base"])
         if not series:
             eprint("Found 0 {} log files on {}.".format(log_type, args.host))
+            type_coverages[log_type] = None
             continue
-        type_selected, summary = select_log_files(
-            ssh, REMOTE_BIN, series, start_time, end_time)
+        type_selected, summary, coverage, boundaries = \
+            normalize_selection_result(select_log_files(
+                ssh, REMOTE_BIN, series, start_time, end_time))
+        for boundary in boundaries:
+            boundary["log_type"] = log_type
+        retained_boundaries.extend(boundaries)
+        type_coverages[log_type] = coverage
         for origin, base, total, sel in summary:
             eprint("Found {} {} log file(s) for component '{}' ({})."
                    .format(total, log_type, base, origin))
@@ -1424,6 +1901,10 @@ def main():
         for log_file in type_selected:
             selected.append((log_type, log_file))
             selected_paths.append(log_file.path)
+
+    execution_result["selected_files"] = selected_paths
+    gaps = find_coverage_gaps(start_time, end_time, type_coverages)
+    execution_result["gaps"] = gaps
 
     results = []
     outputs = []
@@ -1439,15 +1920,32 @@ def main():
         if args.end:
             head += ["-e", args.end]
         head.append(path)
-        completed = ssh.run_pipeline_result(head, stages, capture=True)
+        file_stages = access_stages if log_type == "access" else stages
+        completed = ssh.run_pipeline_result(
+            head,
+            file_stages,
+            capture=True,
+            access_log=log_type == "access")
+        if log_type == "access":
+            timestamp_error = access_output_timestamp_error(completed)
+            if timestamp_error is not None:
+                completed.returncode = OPERATIONAL_FAILURE_EXIT
+                completed.operational_returncode = OPERATIONAL_FAILURE_EXIT
+                completed.stderr = "\n".join(filter(None, [
+                    completed.stderr, timestamp_error]))
+                eprint(timestamp_error)
         status = classify_slice_result(
-            completed.returncode, completed.stdout, completed.stderr)
+            completed.returncode,
+            "output" if completed.has_output else "",
+            completed.stderr)
+        if status != "failed":
+            execution_result["log_read"] = True
         result = {
             "type": log_type,
             "file": path,
             "status": status,
             "returncode": completed.returncode,
-            "match_count": len(completed.stdout.splitlines()),
+            "match_count": completed.match_count,
         }
         if status == "failed":
             result["failure_class"] = slice_failure_class(
@@ -1456,7 +1954,9 @@ def main():
                 completed.returncode)
         results.append(result)
         if status == "matched":
-            outputs.append(completed.stdout)
+            outputs.append(completed)
+        elif completed.stdout_stream is not None:
+            completed.close()
         detail = ""
         if status == "failed":
             detail = " failure_class={}".format(result["failure_class"])
@@ -1464,9 +1964,18 @@ def main():
             log_type, status, result["match_count"], path, detail))
 
     if outputs:
-        sys.stdout.write(merge_timestamped_outputs(outputs))
+        try:
+            write_merged_pipeline_outputs(outputs, sys.stdout)
+        finally:
+            for completed in outputs:
+                completed.close()
 
     exit_code = slice_exit_code(results)
+    definitive_no_match = exit_code == GLOBAL_NO_MATCH_EXIT \
+        and execution_result["log_read"] \
+        and gaps == []
+    if exit_code == GLOBAL_NO_MATCH_EXIT and not definitive_no_match:
+        exit_code = COVERAGE_INCOMPLETE_EXIT
     matched = sum(item["match_count"] for item in results
                   if item["status"] == "matched")
     failure_class = "none"
@@ -1478,12 +1987,52 @@ def main():
         failure_class = ",".join(failed_classes)
     elif exit_code == GLOBAL_NO_MATCH_EXIT:
         failure_class = "global_no_match"
+    elif exit_code == COVERAGE_INCOMPLETE_EXIT:
+        failure_class = "coverage_incomplete"
+    if exit_code == 0:
+        execution_result["outcome"] = "success"
+        execution_result["result"] = "matched"
+    elif exit_code == GLOBAL_NO_MATCH_EXIT:
+        execution_result["outcome"] = "success"
+        execution_result["result"] = "no_matches"
+    elif exit_code == COVERAGE_INCOMPLETE_EXIT:
+        execution_result["outcome"] = "partial"
+        execution_result["result"] = "coverage_incomplete"
+        retained_boundaries = nearest_retained_boundaries(retained_boundaries)
+        execution_result["retained_boundaries"] = retained_boundaries
+        for boundary in retained_boundaries:
+            eprint(
+                "Retained boundary type={log_type} relation={relation} "
+                "root_kind={root_kind} first={first} last={last} file={file}"
+                .format(**boundary))
+    else:
+        execution_result["outcome"] = "failed"
+        execution_result["result"] = "operational_failure"
+        execution_result["failure_class"] = failure_class
     eprint(
         "summary timezone={} window_start={} window_end={} files={} "
         "matches={} failure_class={} exit_code={}".format(
             server_timezone, args.start or "open", args.end or "open",
             len(selected_paths), matched, failure_class, exit_code))
+    emit_execution_result(execution_result)
     return exit_code
+
+
+def main():
+    context = {}
+    try:
+        return _run_main(context)
+    except (SystemExit, OSError, subprocess.SubprocessError) as error:
+        result = context.get("result")
+        if result is None:
+            raise
+        message = str(error)
+        if message:
+            eprint(message)
+        result["outcome"] = "failed"
+        result["result"] = "operational_failure"
+        emit_execution_result(result)
+        return OPERATIONAL_FAILURE_EXIT
 
 
 if __name__ == "__main__":

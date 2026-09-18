@@ -278,8 +278,20 @@ stream_wm = ctx.watermark("stream_id")
 | Метод | Описание |
 | --- | --- |
 | `output.add_message(message)` | Добавить выходное сообщение (объект `Message`, полученный через `builder.finish()`) |
+| `output.add_message(message, options)` | Добавить сообщение с `AddMessageOptions`, задающим публикацию и суффикс message id для Swift |
 | `output.add_timer(trigger_timestamp, event_timestamp, stream_id)` | Добавить [таймер](../../../flow/concepts/glossary.md#timer) с указанным временем срабатывания |
 | `output.set_parent_ids(parent_ids)` | Задать parent ID для отслеживания [lineage](../../../flow/concepts/lineage.md) сообщений. Возвращает новый `OutputCollector` |
+
+В Swift-компьютейшене `MessageIdSuffix.payload_hash()` или `MessageIdSuffix.user_defined(value)` позволяет отвязать идентичность сообщения от порядка эмита:
+
+```python
+output.add_message(
+    message,
+    AddMessageOptions(message_id_suffix=MessageIdSuffix.payload_hash()),
+)
+```
+
+Options по умолчанию используют порядковый номер сообщения. Хеш payload и пользовательский суффикс поддерживаются только Swift-компьютейшенами.
 
 Пример создания выходного сообщения и таймера:
 

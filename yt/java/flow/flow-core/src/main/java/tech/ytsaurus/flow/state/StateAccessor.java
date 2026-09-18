@@ -1,6 +1,6 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Typed accessor for a single keyed value in a {@link StatesHolder}.
@@ -19,9 +19,10 @@ public interface StateAccessor<T> {
     /**
      * Get state value.
      *
-     * @return Optional state value. Optional.empty() means that there is no corresponding value for the key.
+     * @return State value, or {@code null} if there is no corresponding value for the key.
      */
-    Optional<T> get();
+    @Nullable
+    T get();
 
     /**
      * Get state value or user-provided default value if none is present.
@@ -30,7 +31,8 @@ public interface StateAccessor<T> {
      * @return State value or default value.
      */
     default T getOrDefault(T defaultValue) {
-        return get().orElse(defaultValue);
+        T value = get();
+        return value != null ? value : defaultValue;
     }
 
     /**
@@ -60,4 +62,19 @@ public interface StateAccessor<T> {
      * @return State class.
      */
     Class<T> getStateClass();
+
+    /**
+     * Returns a read-only view of this accessor: reads behave as on this accessor, {@link #set}
+     * and {@link #clear} throw {@link UnsupportedOperationException}.
+     *
+     * <p>Use it wherever a computation only inspects a state. The value of an internal state
+     * read through {@link #get} is re-encoded at the end of the batch, to find out whether it
+     * was changed in place; a value read through this view is not tracked, so that encoding
+     * does not happen and nothing is written back.
+     *
+     * @return Read-only view of this accessor.
+     */
+    default StateAccessor<T> readOnly() {
+        return new ReadOnlyStateAccessor<>(this);
+    }
 }

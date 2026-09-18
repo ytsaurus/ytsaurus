@@ -9,6 +9,7 @@ import mergedeep
 
 from enum import Enum
 from pathlib import Path
+from typing import Callable
 
 import yatest.common
 
@@ -168,6 +169,7 @@ class FlowSimpleProcessFederation:
         use_vanilla_jobs: bool = False,
         worker_node_config_overrides: list[dict] | None = None,
         client=None,
+        dump_pipeline_state: Callable[[], None] | None = None,
     ):
         self._binary_path = binary_path
         self._runner_binary_path = runner_binary_path
@@ -178,6 +180,8 @@ class FlowSimpleProcessFederation:
         self._use_vanilla_jobs = use_vanilla_jobs
         self._worker_node_config_overrides = worker_node_config_overrides
         self._client = client
+        self._dump_pipeline_state = dump_pipeline_state
+        self._final_state_dumped = False
 
         if self._worker_node_config_overrides is not None and len(self._worker_node_config_overrides) != workers_count:
             raise ValueError("worker_node_config_overrides must contain exactly one entry per worker")
@@ -322,6 +326,13 @@ class FlowSimpleProcessFederation:
                     except Exception as ex:
                         log.warning("Failed to abort vanilla operation %s: %s", operation["id"], ex)
 
-    def try_dump_processes_state(self, debug_hang):
+    def try_dump_final_state(self, debug_hang=False):
+        """Dump final diagnostics once, before intentionally stopping the controller."""
+        if self._final_state_dumped:
+            return
+        self._final_state_dumped = True
+
+        if self._dump_pipeline_state is not None:
+            self._dump_pipeline_state()
         for process in self.controllers + self.workers:
             process.try_dump_process_state(debug_hang=debug_hang)

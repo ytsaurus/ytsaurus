@@ -132,6 +132,15 @@ std::vector<std::string> ConvertToWireString(
     const NYTree::INodePtr& value,
     const NYson::TProtobufElement& element,
     const NYson::TProtobufWriterOptions& options = {});
+std::vector<std::string> ConvertToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NYson::TProtobufWriterOptions& options = {});
+std::vector<std::string> ConvertYsonStringToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NYson::TProtobufWriterOptions& options = {});
 
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,

@@ -237,7 +237,7 @@ private:
         auto totalSize = GetByteSize(blocks);
 
         YT_TLOG_DEBUG("Started writing blocks")
-            .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
             .With("TotalSize", totalSize);
 
         TWallTimer timer;
@@ -255,7 +255,7 @@ private:
                 auto time = timer.GetElapsedTime();
 
                 YT_TLOG_DEBUG("Finished writing blocks")
-                    .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+                    .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
                     .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
@@ -630,15 +630,18 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     auto allPrecedingBlocksReceivedFuture = AllSucceeded(std::move(precedingBlockReceivedFutures));
 
-    if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived) {
+    const auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode;
+    if (dynamicConfig->WaitPrecedingBlocksReceived) {
+        auto sessionBlockReorderTimeout = dynamicConfig->SessionBlockReorderTimeout.value_or(
+            Config_->SessionBlockReorderTimeout);
         auto allPrecedingBlocksReceivedFutureWithTimeout = allPrecedingBlocksReceivedFuture
-            .WithTimeout(Config_->SessionBlockReorderTimeout)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            .WithTimeout(sessionBlockReorderTimeout)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.GetCode() == NYT::EErrorCode::Timeout) {
                     THROW_ERROR_EXCEPTION(
                         NChunkClient::EErrorCode::WriteThrottlingActive,
                         "Block reordering timeout")
-                        .With("timeout", Config_->SessionBlockReorderTimeout);
+                        .With("timeout", sessionBlockReorderTimeout);
                 }
 
                 if (!error.IsOK()) {

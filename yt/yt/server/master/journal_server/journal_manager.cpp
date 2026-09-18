@@ -194,6 +194,13 @@ private:
                 newRowCount = desiredRowCount;
             }
 
+            const auto updateResourceUsage = chunk->IsNative() && chunk->IsDiskSizeFinal();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& requisition = chunk->GetAggregatedRequisition(chunkManager->GetChunkRequisitionRegistry());
+            if (updateResourceUsage) {
+                securityManager->UpdateResourceUsage(chunk, requisition, -1);
+            }
+
             // Temporarily set row count to logical row count
             // for AttachToChunkList to compute statistics correctly
             // (it is not the sum of row counts for overlayed chunks).
@@ -201,6 +208,10 @@ private:
             chunkManager->AttachToChunkList(newChunkList, {child});
             // Then set it back.
             chunk->SetRowCount(chunkRowCount);
+
+            if (updateResourceUsage) {
+                securityManager->UpdateResourceUsage(chunk, requisition, +1);
+            }
 
             YT_VERIFY(newChunkList->Statistics().RowCount == newRowCount);
             appendedRowCount = newRowCount;

@@ -7,10 +7,11 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/examples/cpp/proto_parser/proto
+    yt/yt/flow/examples/cpp/proto_parser/lib
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/connectors/queue
-    yt/yt/flow/library/cpp/parsers
+    yt/yt/flow/library/cpp/process_function
+    yt/yt/flow/library/cpp/process_function/host
     yt/yt/flow/library/cpp/runner
 )
 
@@ -18,4 +19,5 @@ END()
 
 RECURSE_FOR_TESTS(
     test
+    unittest
 )

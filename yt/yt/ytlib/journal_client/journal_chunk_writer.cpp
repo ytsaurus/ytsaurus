@@ -98,7 +98,7 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<i64> WriteRecord(TSharedRef record) override
+    TFuture<i64> WriteRecord(TSharedRef record) noexcept override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -111,7 +111,7 @@ public:
             .Run();
     }
 
-    TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) override
+    TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) noexcept override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -421,7 +421,8 @@ private:
                 node->Descriptor.GetDefaultAddress())
                 .With(rspOrError);
             YT_TLOG_DEBUG("Failed to start chunk session at node")
-                .With(error);
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .With(rspOrError);
             THROW_ERROR_EXCEPTION(error);
         }
     }

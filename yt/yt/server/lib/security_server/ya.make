@@ -13,6 +13,7 @@ SRCS(
 
     user_access_validator.cpp
     config.cpp
+    detailed_master_memory.cpp
 )
 
 PEERDIR(

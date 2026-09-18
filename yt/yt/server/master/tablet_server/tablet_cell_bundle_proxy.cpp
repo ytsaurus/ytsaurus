@@ -1,5 +1,6 @@
 #include "config.h"
 #include "private.h"
+#include "tablet_base.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell_bundle_proxy.h"
@@ -19,13 +20,14 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_bundle_proxy.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/yt/server/master/table_server/public.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
 
@@ -415,4 +417,3 @@ IObjectProxyPtr CreateTabletCellBundleProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

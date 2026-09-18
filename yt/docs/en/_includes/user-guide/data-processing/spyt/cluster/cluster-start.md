@@ -113,10 +113,10 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--driver-cores-overhead` | no | `--worker-cores-overhead` | Extra cores allocated to workers for drivers (see `--worker-cores-overhead`). | - |
 | `--driver-timeout` | no | `--worker-timeout` | The maximum time a worker will await registration on the Spark master. After this time, the worker process will terminate with an error. | - |
 | `--autoscaler-period`, `--autoscaler-metrics-port`, `--autoscaler-sliding-window`, `--autoscaler-max-free-workers`, `--autoscaler-slot-increment-step` | no | - | Parameters used for working with an [auto-scaler](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md#auto-scale). | - |
-| `--enable-livy` | no | false | Run the Livy server as part of the cluster. You can learn more about the Livy server [here](../../../../../user-guide/data-processing/spyt/cluster/livy.md). | 1.74.0 |
-| `--livy-driver-cores` | no | 1 | Number of CPU cores allocated to a driver started via Livy. | 1.74.0 |
-| `--livy-driver-memory` | no | 1G | Amount of CPU memory allocated to a driver started via Livy. | 1.74.0 |
-| `--livy-max-sessions` | no | 3 | Maximum number of sessions that can run on the Livy server simultaneously. | 1.74.0 |
+| `--enable-livy` | no | false | **Deprecated and unavailable starting with SPYT 2.10.0.** Run the Livy server as part of the cluster. You can learn more about the Livy server [here](../../../../../user-guide/data-processing/spyt/cluster/livy.md). | 1.74.0 |
+| `--livy-driver-cores` | no | 1 | **Deprecated and unavailable starting with SPYT 2.10.0.** Number of CPU cores allocated to a driver started via Livy. | 1.74.0 |
+| `--livy-driver-memory` | no | 1G | **Deprecated and unavailable starting with SPYT 2.10.0.** Amount of CPU memory allocated to a driver started via Livy. | 1.74.0 |
+| `--livy-max-sessions` | no | 3 | **Deprecated and unavailable starting with SPYT 2.10.0.** Maximum number of sessions that can run on the Livy server simultaneously. | 1.74.0 |
 | `--id` | no | - | Deprecated. Left for backward compatibility. | - |
 | `--discovery-dir` | no | - | Deprecated. Left for backward compatibility. | - |
 | `-h`, `--help` | no | - | Command parameter reference | - |

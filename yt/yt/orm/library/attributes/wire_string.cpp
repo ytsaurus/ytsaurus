@@ -976,11 +976,21 @@ std::string ConvertScalarToWireString(
         .With("node_type", expectedType);
 }
 
-std::vector<std::string> ConvertToWireString(
+namespace {
+
+std::vector<std::string> DoConvertToWireString(
     const NYTree::INodePtr& value,
     const NYson::TProtobufElement& element,
+    bool ysonString,
     const NYson::TProtobufWriterOptions& options)
 {
+    if (std::holds_alternative<std::unique_ptr<NYson::TProtobufAnyElement>>(element)) {
+        // The caller identifies yson_string by the typed attribute or protobuf field descriptor.
+        THROW_ERROR_EXCEPTION_UNLESS(ysonString,
+            "Cannot convert arbitrary protobuf element to wire string");
+        return {NYson::ConvertToYsonString(value).ToString()};
+    }
+
     switch (value->GetType()) {
         case NYTree::ENodeType::Map: {
             return VisitProtobufElement(element,
@@ -997,7 +1007,11 @@ std::vector<std::string> ConvertToWireString(
                         serializedMap.push_back(SerializeKeyValuePair(
                             TWireStringPart::FromStringView(ConvertMapKeyToWireString(key, element.KeyElement)),
                             element.KeyElement.Type,
-                            TWireString::FromSerialized(ConvertToWireString(child, element.Element, options)),
+                            TWireString::FromSerialized(DoConvertToWireString(
+                                child,
+                                element.Element,
+                                ysonString,
+                                options)),
                             GetProtobufElementType(element.Element)));
                     }
                     return serializedMap;
@@ -1015,9 +1029,10 @@ std::vector<std::string> ConvertToWireString(
             std::vector<std::string> serializedRepeated;
             serializedRepeated.reserve(value->AsList()->GetChildCount());
             for (const auto& [index, child] : SEnumerate(value->AsList()->GetChildren())) {
-                auto serializedScalar = ConvertToWireString(
+                auto serializedScalar = DoConvertToWireString(
                     child,
                     repeatedElement.Element,
+                    ysonString,
                     options.CreateChildOptions(ToString(index)));
                 serializedRepeated.insert(
                     serializedRepeated.end(),
@@ -1042,6 +1057,33 @@ std::vector<std::string> ConvertToWireString(
                 "Cannot convert node of type %Qv to wire string",
                 NYTree::ENodeType::Composite);
     }
+}
+
+} // namespace
+
+std::vector<std::string> ConvertToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NYson::TProtobufWriterOptions& options)
+{
+    return DoConvertToWireString(value, element, /*ysonString*/ false, options);
+}
+
+std::vector<std::string> ConvertToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NYson::TProtobufWriterOptions& options)
+{
+    return DoConvertToWireString(value, element, IsYsonStringField(fieldDescriptor), options);
+}
+
+std::vector<std::string> ConvertYsonStringToWireString(
+    const NYTree::INodePtr& value,
+    const NYson::TProtobufElement& element,
+    const NYson::TProtobufWriterOptions& options)
+{
+    return DoConvertToWireString(value, element, /*ysonString*/ true, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

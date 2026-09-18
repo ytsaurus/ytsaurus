@@ -4,10 +4,6 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
 
-#include <yt/yt/client/api/public.h>
-
-#include <yt/yt/core/compression/public.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NPushBasedShuffleClient {
@@ -27,9 +23,6 @@ struct TShuffleWriterConfig
     //! per partition; this send pipelining depth must stay well above one to
     //! keep the per-partition journal flush loop busy.
     double BuildersBudgetFraction;
-
-    //! Codec used to compress each shuffle record before it leaves the writer.
-    NCompression::ECodec Codec;
 
     //! Maximum number of physical send attempts per record before the
     //! writer enters a terminal failed state.
@@ -52,10 +45,6 @@ struct TPartitionReaderConfig
 {
     //! Forwarded to each L1 reader.
     NDistributedChunkSessionClient::TDistributedChunkSessionReaderConfigPtr ChunkSessionReaderConfig;
-
-    //! Codec all chunks in this reader instance were written with; must match the
-    //! writer's codec.
-    NCompression::ECodec Codec;
 
     //! Initial chunk size for each batch's TRowBuffer.
     i64 RowBufferStartChunkSize;
@@ -97,27 +86,6 @@ struct TSortReaderConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPushShuffleConfig
-    : public NYTree::TYsonStruct
-{
-    //! Map-side L2 writer config (client).
-    TShuffleWriterConfigPtr WriterConfig;
-    //! Reducer-side L2 reader config (client).
-    TPartitionReaderConfigPtr ReaderConfig;
-    //! Sequencer journal writer config: batch/flush knobs (server).
-    NApi::TJournalChunkWriterConfigPtr JournalWriterConfig;
-    //! Distributed chunk session pool config, e.g. max_active_sessions_per_slot (server).
-    NDistributedChunkSessionClient::TDistributedChunkSessionPoolConfigPtr SessionPoolConfig;
-
-    REGISTER_YSON_STRUCT(TPushShuffleConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TPushShuffleConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

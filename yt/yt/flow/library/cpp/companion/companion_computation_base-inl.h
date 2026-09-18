@@ -212,6 +212,28 @@ void TCompanionComputationBaseAdapter<TBase>::OnRequiredCompanionResourceStateCh
 }
 
 template <class TBase>
+void TCompanionComputationBaseAdapter<TBase>::ValidateCompanionStateFormat(const TCompanionStateDescriptor& descriptor)
+{
+    YT_VERIFY(CompanionInfo_);
+    const auto& computationInfo = GetOrCrash(CompanionInfo_->Computations, this->GetComputationId());
+    auto formatName = FormatEnum(descriptor.Format);
+    const auto& supportedFormats = computationInfo->SupportedStateFormats;
+    auto isSupported = std::any_of(
+        supportedFormats.begin(),
+        supportedFormats.end(),
+        [&] (const auto& supportedFormat) {
+            return TStringBuf(supportedFormat) == TStringBuf(formatName);
+        });
+    THROW_ERROR_EXCEPTION_UNLESS(
+        isSupported,
+        "Companion does not support the wire format of state %Qv; update the companion SDK",
+        descriptor.StateName)
+        .With("computation_id", this->GetComputationId())
+        .With("state_format", formatName)
+        .With("supported_state_formats", supportedFormats);
+}
+
+template <class TBase>
 void TCompanionComputationBaseAdapter<TBase>::PutJobInfoToCompanion()
 {
     RefreshRequiredCompanionResourceSubscriptions();

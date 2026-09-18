@@ -94,7 +94,8 @@ def _build_gpu_scheduling_statistics(d):
             .cell("Planning stages",
                 MultiSensor(
                     Scheduler("yt.scheduler.gpu_policy.operation_resources_update_time.avg").legend_format("operation_resources_update"),
-                    Scheduler("yt.scheduler.gpu_policy.full_host_planning_time.avg").legend_format("full_host"),
+                    Scheduler("yt.scheduler.gpu_policy.full_host_module_bound_planning_time.avg").legend_format("full_host_module_bound"),
+                    Scheduler("yt.scheduler.gpu_policy.full_host_non_gang_planning_time.avg").legend_format("full_host_non_gang"),
                     Scheduler("yt.scheduler.gpu_policy.regular_planning_time.avg").legend_format("regular"),
                     Scheduler("yt.scheduler.gpu_policy.extra_planning_time.avg").legend_format("extra"),
                 )
@@ -105,6 +106,7 @@ def _build_gpu_scheduling_statistics(d):
             .cell("Unreserved nodes per module", _gpu_module("yt.scheduler.gpu_policy.module.unreserved_nodes_count"))
         .row()
             .cell("Full-host module-bound ops per module", _gpu_module("yt.scheduler.gpu_policy.module.full_host_module_bound_operations_count"))
+            .cell("Full-host non-gang assignments per module", _gpu_module("yt.scheduler.gpu_policy.module.full_host_non_gang_assignments_count"))
     )
 
 

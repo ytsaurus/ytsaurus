@@ -1,6 +1,8 @@
 items:
   - name: Первичный деплой
     href: initial-deploy.md
+  - name: Запуск в docker-окружении
+    href: docker-environment.md
   - name: Базовые операции с пайплайном
     href: pipeline-operations.md
   - name: Диагностика

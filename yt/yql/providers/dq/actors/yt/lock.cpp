@@ -386,6 +386,7 @@ private:
         FollowingMode = true;
         YQL_CLOG(DEBUG, ProviderDq) << "Unlock and follow " << LockName;
         Send(LockRequestActorId, new TEvents::TEvPoison());
+        TryLock();
     }
 
     void SendBecomeFollower(TEvGetNodeResponse::TPtr& ev, const TActorContext& ctx) {
@@ -403,6 +404,9 @@ private:
     void OnCreateNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
         Y_UNUSED(ctx);
         auto result = std::get<0>(*ev->Get());
+        if (FollowingMode) {
+            return;
+        }
         if (result.IsOK()) {
             YQL_CLOG(INFO, ProviderDq) << "Lock: prefix ready, starting transaction"
                 << " lock=" << LockName
@@ -422,6 +426,27 @@ private:
         auto result = std::get<0>(*ev->Get());
 
         if (result.IsOK()) {
+            if (FollowingMode) {
+                auto transaction = result.Value();
+                auto txnId = ToString(transaction->GetId());
+                auto lockName = LockName;
+                YQL_CLOG(INFO, ProviderDq) << "Lock: aborting transaction started after switching to follower mode"
+                    << " lock=" << lockName
+                    << " tx=" << txnId;
+                transaction->Abort().Subscribe(BIND([txnId, lockName](const NYT::TError& error) {
+                    if (!error.IsOK()) {
+                        YQL_CLOG(WARN, ProviderDq) << "Failed to abort transaction started after switching to follower mode"
+                            << " lock=" << lockName
+                            << " tx=" << txnId
+                            << " error=" << ToString(error);
+                    } else {
+                        YQL_CLOG(DEBUG, ProviderDq) << "Transaction started after switching to follower mode aborted"
+                            << " lock=" << lockName
+                            << " tx=" << txnId;
+                    }
+                }));
+                return;
+            }
             YQL_CLOG(INFO, ProviderDq) << "Lock: transaction started"
                 << " lock=" << LockName
                 << " tx=" << ToString(result.Value()->GetId());

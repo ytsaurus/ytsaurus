@@ -13,6 +13,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
+#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
@@ -260,19 +261,18 @@ private:
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
                 if (!replicasOrError.IsOK()) {
                     location->SetBeingDisposed(false);
-                    YT_LOG_ERROR(
-                        replicasOrError,
-                        "Error getting Sequoia location replicas during location disposal (locationIndex: %v)",
-                        locationIndex);
+                    YT_TLOG_ERROR("Error getting Sequoia location replicas during location disposal")
+                        .With("LocationIndex", locationIndex)
+                        .With(replicasOrError);
                     return;
                 }
 
                 auto nodeId = node->GetId();
-                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v LocationUuid: %v, LocationIndex: %v)",
-                    nodeId,
-                    node->GetDefaultAddress(),
-                    location->GetUuid(),
-                    locationIndex);
+                YT_TLOG_INFO("Disposing location")
+                    .With("NodeId", nodeId)
+                    .With("Address", node->GetDefaultAddress())
+                    .With("LocationUuid", location->GetUuid())
+                    .With("LocationIndex", locationIndex);
 
                 TReqDisposeLocation request;
                 request.set_node_id(ToProto(nodeId));

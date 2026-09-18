@@ -72,21 +72,21 @@ TEST(TStateManagerTest, SeparatesResourceControllerStatePrefixes)
         ->InitClient(resourceState, "v0");
     *resourceState = "resource-controller";
 
-    TMutableStateClient<std::string> fileSourceState;
+    TMutableStateClient<std::string> fileProviderState;
     manager->CreateResourceContext(resourceId)
-        ->WithPrefix("file_sources")
-        ->InitClient(fileSourceState, "v0");
-    *fileSourceState = "file-source-controller";
+        ->WithPrefix("file_providers")
+        ->InitClient(fileProviderState, "v0");
+    *fileProviderState = "file-provider-controller";
 
     manager->Sync();
 
     const auto& resourceDomain = remoteState->Computations.at(TComputationId("resource:resource"));
     EXPECT_TRUE(resourceDomain.contains("/controller/v0"));
-    EXPECT_TRUE(resourceDomain.contains("/file_sources/v0"));
+    EXPECT_TRUE(resourceDomain.contains("/file_providers/v0"));
     EXPECT_EQ(NYTree::ConvertTo<std::string>(resourceDomain.at("/controller/v0")), "resource-controller");
     EXPECT_EQ(
-        NYTree::ConvertTo<std::string>(resourceDomain.at("/file_sources/v0")),
-        "file-source-controller");
+        NYTree::ConvertTo<std::string>(resourceDomain.at("/file_providers/v0")),
+        "file-provider-controller");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

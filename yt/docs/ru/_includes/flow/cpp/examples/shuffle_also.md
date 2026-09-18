@@ -5,11 +5,11 @@
 
 - Для группировки по `value` обязательно необходимо указать эту колонку (и хэш от неё) в `group_by_schema`.
 - В `input_stream_ids` перечисляются все потоки: `event_a`, `event_b`, `event_c`, `event_d` &mdash; чтобы читать все получившиеся потоки. С точки зрения "бизнес логики" это не самое осмысленное действие, однако исходной целью данного пайплайна было протестировать гарантии `exactly-once` даже в случае `Swift` цепочки.
-- Так как `TReducer` является наследником `TTransformComputation` &mdash; то `input_message_ids` и `output_messages` в обязательном порядке сохраняются в {{product-name}}. Но `output_messages` у нас пустые. По сути, данный пайплайн сохраняет в {{product-name}} только метаинформацию в рамках `reader`, метаинформацию (`message_id` и `key`) на каждое входное сообщение и таблицу `value => count` в рамках `reducer`. Промежуточные `computation` вообще не взаимодействуют с {{product-name}}.
+- `TReducer` реализует `IProcessFunction` и запускается через `TProcessFunctionComputation`. Адаптер сохраняет `input_message_ids` и `output_messages` в {{product-name}}, но в этом примере выходных сообщений нет. По сути, пайплайн сохраняет метаинформацию `reader`, метаинформацию (`message_id` и `key`) каждого входного сообщения `reducer` и таблицу `value => count`. Промежуточные passthrough-компьютейшены с {{product-name}} не взаимодействуют.
 
 ### DynamicSpec
 
-- Поле `dynamic_spec/computations/<computation_id>/desired_partition_count` заполняется для каждого `computation`, кроме `reader`. В рамках теста `test_shuffle.py` происходит изменение числа партиций.
+- Поле `dynamic_spec/computations/<computation_id>/parameters/desired_partition_count` заполняется для каждого `computation`, кроме `reader`. В рамках теста `test_shuffle.py` происходит изменение числа партиций.
 - В `dynamic_spec/job_tracker/job_threads` указывается необходимое число тредов для выполнения всех джобов.
 
 ### Config для запуска
@@ -63,4 +63,3 @@
     }
 }
 ```
-

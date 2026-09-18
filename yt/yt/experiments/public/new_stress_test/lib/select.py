@@ -9,17 +9,17 @@ from yt.wrapper.common import generate_uuid
 from yt.wrapper.http_helpers import get_proxy_url
 import yt.yson as yson
 
-import sys
 
-MAX_ROWS_PER_REQUEST = 10000
+MAX_ROWS_PER_SELECT = 300
 
 @yt.reduce_aggregator
 class SelectReducer(JobBase):
-    def __init__(self, table, spec, key_columns, data_key_columns=None):
+    def __init__(self, table, spec, key_columns, data_key_columns, max_rows_per_select):
         super(SelectReducer, self).__init__(spec)
         self.key_columns = key_columns
         self.data_key_columns = data_key_columns or key_columns
         self.table = table
+        self.max_rows_per_select = max_rows_per_select
 
     def __call__(self, row_groups):
         client = self.create_client()
@@ -51,8 +51,8 @@ class SelectReducer(JobBase):
 
             del keys[:]
 
-        for key, rows in row_groups:
-            if len(keys) >= MAX_ROWS_PER_REQUEST:
+        for key, _ in row_groups:
+            if len(keys) >= self.max_rows_per_select:
                 for x in flush():
                     yield x
             keylist = ["null" if key.get(k, None) is None else yson.dumps(key[k]).decode() for k in self.data_key_columns]
@@ -101,7 +101,7 @@ def verify_select(schema, keys_table, data_table, table, dump_table, result_tabl
             "physical": {"resource_limits": {"user_slots": spec.get_read_user_slot_count()}}}
 
     op = client.run_reduce(
-        SelectReducer(table, spec, key_columns, data_key_columns),
+        SelectReducer(table, spec, key_columns, data_key_columns, spec.get("max_rows_per_select") or MAX_ROWS_PER_SELECT),
         keys_table,
         dump_table,
         reduce_by=keys_key_columns,

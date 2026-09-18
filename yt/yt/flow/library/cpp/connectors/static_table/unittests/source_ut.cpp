@@ -28,6 +28,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/yson/string.h>
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NFlow::NStaticTableConnector {
@@ -41,8 +42,10 @@ using namespace NYTree;
 using namespace NYson;
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::NiceMock;
 using ::testing::Return;
+using ::testing::UnorderedElementsAre;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +272,250 @@ std::function<TRangeId()> MakeRangeIdGenerator(i64 startCounter)
     return [counter = startCounter] () mutable {
         return TRangeId(counter++);
     };
+}
+
+TSourceControllerTablePtr MakeTable(
+    const char* cluster,
+    const char* name,
+    const char* objectId,
+    ui64 eventTimestamp,
+    i64 rowCount = 10,
+    i64 era = 1)
+{
+    auto table = New<TSourceControllerTable>();
+    table->Path = TRichYPath(objectId);
+    table->Path.SetCluster(cluster);
+    table->Path.Attributes().Set("original_path", TString("//dir/") + name);
+    table->EventTimestamp = TSystemTimestamp(eventTimestamp);
+    table->SystemTimestamp = TSystemTimestamp(eventTimestamp);
+    table->RowCount = rowCount;
+    table->Era = era;
+    return table;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TStaticTableMigrationTest, DetectsStateOrigin)
+{
+    auto freshNativeV2 = New<TSourceControllerState>();
+    TSourceController::InitializeMigrationState(freshNativeV2.Get(), true);
+    EXPECT_EQ(freshNativeV2->Mode, EMigrationMode::V2);
+
+    auto freshLegacy = New<TSourceControllerState>();
+    TSourceController::InitializeMigrationState(freshLegacy.Get(), false);
+    EXPECT_EQ(freshLegacy->Mode, EMigrationMode::V1);
+
+    auto progressedV1 = New<TSourceControllerState>();
+    progressedV1->Inited = true;
+    progressedV1->DistributingTable = MakeTable("cluster", "v1", "#v1", 100);
+    TSourceController::InitializeMigrationState(progressedV1.Get(), true);
+    EXPECT_EQ(progressedV1->Mode, EMigrationMode::V1);
+
+    auto existingV2 = New<TSourceControllerState>();
+    existingV2->EventNameOrder = New<TEventNameOrder>();
+    existingV2->ClusterProgress = New<TClusterProgress>();
+    TSourceController::InitializeMigrationState(existingV2.Get(), false);
+    EXPECT_EQ(existingV2->Mode, EMigrationMode::V2);
+
+    auto persisted = New<TSourceControllerState>();
+    persisted->Mode = EMigrationMode::Draining;
+    persisted->CutoverEra = 7;
+    persisted->CutoverEventTimestamp = TSystemTimestamp(100);
+    TSourceController::InitializeMigrationState(persisted.Get(), false);
+    EXPECT_EQ(persisted->Mode, EMigrationMode::Draining);
+    EXPECT_EQ(persisted->CutoverEra, 7);
+    EXPECT_EQ(persisted->CutoverEventTimestamp, TSystemTimestamp(100));
+
+    auto persistedV2 = New<TSourceControllerState>();
+    persistedV2->Mode = EMigrationMode::V2;
+    TSourceController::InitializeMigrationState(persistedV2.Get(), false);
+    EXPECT_EQ(persistedV2->Mode, EMigrationMode::V2);
+}
+
+TEST(TStaticTableMigrationTest, LatchesAndFinishesDraining)
+{
+    auto state = New<TSourceControllerState>();
+    state->Mode = EMigrationMode::V1;
+    state->Inited = true;
+    state->Era = 3;
+    state->DistributingTable = MakeTable("cluster", "current", "#20", 100, 10, 3);
+    state->DistributingTable->SystemTimestamp = TSystemTimestamp(20);
+
+    auto later = MakeTable("cluster", "later", "#30", 100, 10, 3);
+    later->SystemTimestamp = TSystemTimestamp(30);
+    auto earlier = MakeTable("cluster", "earlier", "#10", 100, 10, 3);
+    earlier->SystemTimestamp = TSystemTimestamp(10);
+    auto greater = MakeTable("cluster", "greater", "#01", 200, 10, 3);
+
+    TSourceController::UpdateMigrationState(
+        state.Get(),
+        false,
+        {earlier, state->DistributingTable, later, greater},
+        NLogging::TLogger());
+    EXPECT_EQ(state->Mode, EMigrationMode::V1);
+
+    TSourceController::UpdateMigrationState(
+        state.Get(),
+        true,
+        {earlier, state->DistributingTable, later, greater},
+        NLogging::TLogger());
+    EXPECT_EQ(state->Mode, EMigrationMode::Draining);
+    EXPECT_EQ(state->CutoverEra, 3);
+    EXPECT_EQ(state->CutoverEventTimestamp, TSystemTimestamp(100));
+    EXPECT_THAT(state->CutoverProcessedTableNames, UnorderedElementsAre("earlier", "current"));
+
+    TSourceController::UpdateMigrationState(
+        state.Get(),
+        false,
+        {earlier, state->DistributingTable, later, greater},
+        NLogging::TLogger());
+    EXPECT_EQ(state->Mode, EMigrationMode::Draining);
+
+    state->DistributionFinished = true;
+    TSourceController::UpdateMigrationState(
+        state.Get(),
+        false,
+        {earlier, state->DistributingTable, later, greater},
+        NLogging::TLogger());
+    EXPECT_EQ(state->Mode, EMigrationMode::Draining);
+
+    state->DistributingTable = later;
+    TSourceController::UpdateMigrationState(
+        state.Get(),
+        false,
+        {earlier, state->DistributingTable, greater},
+        NLogging::TLogger());
+    EXPECT_EQ(state->Mode, EMigrationMode::V2);
+    EXPECT_EQ(state->CutoverEra, 3);
+    EXPECT_EQ(state->CutoverEventTimestamp, TSystemTimestamp(100));
+    EXPECT_THAT(state->CutoverProcessedTableNames, UnorderedElementsAre("earlier", "current", "later"));
+
+    auto late = MakeTable("cluster", "late", "#40", 100, 10, 3);
+    late->SystemTimestamp = TSystemTimestamp(40);
+    auto listed = std::vector<TSourceControllerTablePtr>{earlier, state->DistributingTable, late, greater};
+    TSourceController::FilterTables(
+        listed,
+        New<TDynamicTableSourceParameters>(),
+        state->DistributingTable,
+        state->EventNameOrder,
+        EMigrationMode::V2,
+        state->CutoverEra,
+        state->CutoverEventTimestamp,
+        state->CutoverProcessedTableNames);
+    TSourceController::AssignEventOrdinals(listed, state.Get());
+    TSourceController::SortTables(listed, EMigrationMode::V2);
+    ASSERT_THAT(listed, ElementsAre(late, greater));
+    EXPECT_GT(late->EventOrdinal, state->DistributingTable->EventOrdinal);
+}
+
+TEST(TStaticTableMigrationTest, EnablesV2DirectlyBeforeFirstTable)
+{
+    auto state = New<TSourceControllerState>();
+    state->Mode = EMigrationMode::V1;
+
+    TSourceController::UpdateMigrationState(state.Get(), true, {}, NLogging::TLogger());
+
+    EXPECT_EQ(state->Mode, EMigrationMode::V2);
+    EXPECT_FALSE(state->CutoverEra.has_value());
+    EXPECT_FALSE(state->CutoverEventTimestamp.has_value());
+}
+
+TEST(TStaticTableMigrationTest, V1OrderingMatchesSourceV1)
+{
+    auto current = MakeTable("cluster", "current", "#20", 100);
+    current->SystemTimestamp = TSystemTimestamp(20);
+    auto behind = MakeTable("cluster", "z-behind", "#10", 100);
+    behind->SystemTimestamp = TSystemTimestamp(10);
+    auto later = MakeTable("cluster", "a-later", "#30", 100);
+    later->SystemTimestamp = TSystemTimestamp(30);
+    auto greater = MakeTable("cluster", "greater", "#01", 200);
+
+    std::vector<TSourceControllerTablePtr> tables{greater, later, behind, current};
+    TSourceController::FilterTables(
+        tables,
+        New<TDynamicTableSourceParameters>(),
+        current,
+        {},
+        EMigrationMode::Draining);
+    TSourceController::SortTables(tables, EMigrationMode::Draining);
+
+    ASSERT_EQ(std::ssize(tables), 4);
+    EXPECT_EQ(tables[0]->Path.GetPath(), "#10");
+    EXPECT_EQ(tables[1]->Path.GetPath(), "#20");
+    EXPECT_EQ(tables[2]->Path.GetPath(), "#30");
+    EXPECT_EQ(tables[3]->EventTimestamp, TSystemTimestamp(200));
+}
+
+TEST(TStaticTableMigrationTest, V1ObjectIdOrderCanOpposeV2NameOrder)
+{
+    auto firstById = MakeTable("cluster", "z-name", "#10", 100);
+    auto firstByName = MakeTable("cluster", "a-name", "#20", 100);
+    std::vector<TSourceControllerTablePtr> v1{firstByName, firstById};
+    TSourceController::SortTables(v1, EMigrationMode::V1);
+    EXPECT_EQ(v1[0]->GetName(), "z-name");
+
+    auto state = New<TSourceControllerState>();
+    std::vector<TSourceControllerTablePtr> v2{firstById, firstByName};
+    TSourceController::AssignEventOrdinals(v2, state.Get());
+    TSourceController::SortTables(v2, EMigrationMode::V2);
+    EXPECT_EQ(v2[0]->GetName(), "a-name");
+}
+
+TEST(TStaticTableMigrationTest, CutoverExclusionIsEraScoped)
+{
+    auto current = New<TSourceControllerTable>();
+    current->Era = 1;
+    auto cutoverEraTable = MakeTable("cluster", "old", "#10", 100, 10, 1);
+    auto older = MakeTable("cluster", "older", "#05", 90, 10, 1);
+    auto late = MakeTable("cluster", "late", "#15", 100, 10, 1);
+    auto greater = MakeTable("cluster", "greater", "#20", 200, 10, 1);
+    auto replay = MakeTable("cluster", "replay", "#30", 100, 10, 2);
+    std::vector<TSourceControllerTablePtr> tables{older, cutoverEraTable, late, greater, replay};
+
+    TSourceController::FilterTables(
+        tables,
+        New<TDynamicTableSourceParameters>(),
+        current,
+        {},
+        EMigrationMode::V2,
+        1,
+        TSystemTimestamp(100),
+        {"old"});
+
+    ASSERT_THAT(tables, ElementsAre(late, greater, replay));
+}
+
+TEST(TStaticTableMigrationTest, RestartAdvancesEraOnce)
+{
+    auto state = New<TSourceControllerState>();
+    state->Era = 4;
+    state->EraStartInstant = TInstant::Seconds(10);
+    state->DistributingTable = MakeTable("cluster", "current", "#10", 100);
+
+    EXPECT_TRUE(TSourceController::ApplyRestartInstantLogic(
+        state.Get(),
+        TInstant::Seconds(20),
+        NLogging::TLogger()));
+    EXPECT_EQ(state->Era, 5);
+    EXPECT_FALSE(TSourceController::ApplyRestartInstantLogic(
+        state.Get(),
+        TInstant::Seconds(20),
+        NLogging::TLogger()));
+}
+
+TEST(TStaticTableMigrationTest, FutureRestartDoesNotAdvanceEra)
+{
+    auto state = New<TSourceControllerState>();
+    state->Era = 4;
+    state->EraStartInstant = TInstant::Seconds(10);
+    state->DistributingTable = MakeTable("cluster", "current", "#10", 100);
+
+    EXPECT_FALSE(TSourceController::ApplyRestartInstantLogic(
+        state.Get(),
+        TInstant::Now() + TDuration::Hours(1),
+        NLogging::TLogger()));
+    EXPECT_EQ(state->Era, 4);
+    EXPECT_EQ(state->EraStartInstant, TInstant::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1079,6 +1326,96 @@ TEST(TStaticTableSourceTest, ExtractTimestamp)
         // clang-format off
         auto node = NYT::NYTree::BuildYsonNodeFluently()
             .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609459200u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609448400u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609448400u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("1970-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        EXPECT_THROW(
+            TSourceController::ExtractTimestamp(node, locator),
+            NYT::TErrorException);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00+02:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609452000u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
                 .Item("test_timestamp").Value(42)
             .EndAttributes()
             .Entity();
@@ -1162,6 +1499,22 @@ TEST(TStaticTableSourceTest, ExtractTimestamp)
             TSourceController::ExtractTimestamp(node, locator),
             NYT::TErrorException);
     }
+}
+
+TEST(TStaticTableSourceTest, TimestampLocatorTimezoneValidation)
+{
+    EXPECT_NO_THROW(ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+        "{attribute=test_timestamp;timezone=\"Europe/Moscow\";}"))));
+
+    EXPECT_THROW(
+        ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+            "{attribute=test_timestamp;timezone=\"Invalid/Timezone\";}"))),
+        NYT::TErrorException);
+
+    EXPECT_THROW(
+        ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+            "{attribute=test_timestamp;format=seconds;timezone=\"Europe/Moscow\";}"))),
+        NYT::TErrorException);
 }
 
 TEST(TStaticTableSourceTest, CreateThrottlerConfig)
@@ -1452,6 +1805,438 @@ TEST(TStaticTableSourceTest, ConvertCellToAny)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMultiClusterMergeTest, KeepsDistinctNames)
+{
+    auto result = TSourceController::MergeByName({
+        {MakeTable("cluster-a", "t1", "#id-a-t1", 100)},
+        {MakeTable("cluster-b", "t2", "#id-b-t2", 200)},
+    });
+
+    ASSERT_EQ(std::ssize(result), 2);
+}
+
+TEST(TMultiClusterMergeTest, SameNameDeduplicatesActiveFirstWins)
+{
+    // Sticky failover passes the active cluster's list first, so its replica wins ties on the name.
+    auto result = TSourceController::MergeByName({
+        {MakeTable("cluster-b", "t", "#id-b", 100)},
+        {MakeTable("cluster-a", "t", "#id-a", 100)},
+    });
+
+    ASSERT_EQ(std::ssize(result), 1);
+    EXPECT_EQ(*result[0]->Path.GetCluster(), "cluster-b");
+}
+
+TEST(TMultiClusterMergeTest, DistinctNamesSameEventTimestampNotCollapsed)
+{
+    // Two different tables that happen to share an EventTimestamp must both survive (distinct names);
+    // dedup is by name, not by EventTimestamp.
+    auto result = TSourceController::MergeByName({
+        {MakeTable("cluster-a", "t-x", "#id-x", 100), MakeTable("cluster-a", "t-y", "#id-y", 100)},
+    });
+
+    ASSERT_EQ(std::ssize(result), 2);
+}
+
+TEST(TMultiClusterMergeTest, EmptyLists)
+{
+    EXPECT_TRUE(TSourceController::MergeByName({}).empty());
+    EXPECT_TRUE(TSourceController::MergeByName({{}, {}}).empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMultiClusterOrdinalTest, ZeroWhenNoCollision)
+{
+    auto state = New<TSourceControllerState>();
+    std::vector<TSourceControllerTablePtr> tables{
+        MakeTable("cluster-a", "t1", "#id1", 100),
+        MakeTable("cluster-a", "t2", "#id2", 200),
+    };
+
+    TSourceController::AssignEventOrdinals(tables, state.Get());
+
+    EXPECT_EQ(tables[0]->EventOrdinal, 0);
+    EXPECT_EQ(tables[1]->EventOrdinal, 0);
+}
+
+TEST(TMultiClusterOrdinalTest, DistinguishesCollisionByCreationTime)
+{
+    auto state = New<TSourceControllerState>();
+    auto later = MakeTable("cluster-a", "t-later", "#id-later", 100);
+    later->SystemTimestamp = TSystemTimestamp(90);
+    auto earlier = MakeTable("cluster-a", "t-earlier", "#id-earlier", 100);
+    earlier->SystemTimestamp = TSystemTimestamp(50);
+    std::vector<TSourceControllerTablePtr> tables{later, earlier};
+
+    TSourceController::AssignEventOrdinals(tables, state.Get());
+
+    // Ordinals are assigned in creation_time order: earlier (50) -> 0, later (90) -> 1.
+    EXPECT_EQ(earlier->EventOrdinal, 0);
+    EXPECT_EQ(later->EventOrdinal, 1);
+}
+
+TEST(TMultiClusterOrdinalTest, LateNameAppendsAtEnd)
+{
+    auto state = New<TSourceControllerState>();
+    state->Inited = true;
+    state->DistributingTable = MakeTable("cluster-a", "t-first", "#id-first", 100);
+
+    auto first = MakeTable("cluster-a", "t-first", "#id-first", 100);
+    first->SystemTimestamp = TSystemTimestamp(50);
+    std::vector<TSourceControllerTablePtr> firstRound{first};
+    TSourceController::AssignEventOrdinals(firstRound, state.Get());
+    ASSERT_EQ(first->EventOrdinal, 0);
+
+    // A new table with the same EventTimestamp but an earlier creation_time must still land after the
+    // already-numbered one — its ordinal grows, so it is never mistaken for already-processed.
+    auto late = MakeTable("cluster-a", "t-late", "#id-late", 100);
+    late->SystemTimestamp = TSystemTimestamp(10);
+    auto firstAgain = MakeTable("cluster-a", "t-first", "#id-first", 100);
+    std::vector<TSourceControllerTablePtr> secondRound{late, firstAgain};
+    TSourceController::AssignEventOrdinals(secondRound, state.Get());
+
+    EXPECT_EQ(firstAgain->EventOrdinal, 0);
+    EXPECT_EQ(late->EventOrdinal, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMultiClusterFindReplicaTest, ReturnsReplicaWithMatchingName)
+{
+    std::vector<TSourceControllerTablePtr> tables{
+        MakeTable("cluster-a", "t-a", "#id-a", 100),
+        MakeTable("cluster-b", "t-b", "#id-b", 200),
+    };
+
+    auto serving = TSourceController::FindReplicaServingCurrentTable(tables, "t-b");
+    ASSERT_NE(serving, nullptr);
+    EXPECT_EQ(*serving->Path.GetCluster(), "cluster-b");
+}
+
+TEST(TMultiClusterFindReplicaTest, ReturnsNullWhenAbsent)
+{
+    std::vector<TSourceControllerTablePtr> tables{MakeTable("cluster-a", "t-a", "#id-a", 100)};
+    EXPECT_EQ(TSourceController::FindReplicaServingCurrentTable(tables, "t-missing"), nullptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMultiClusterFailoverTableTest, FreshStartOnServingCluster)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100, /*era*/ 3);
+    current->EventOrdinal = 2;
+    current->DistributedRows = 40;
+    current->DistributingRanges[TRangeId(7)] = {30, 40};
+
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100, /*era*/ 9);
+
+    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr);
+
+    EXPECT_EQ(result->DistributedRows, 0);
+    EXPECT_TRUE(result->DistributingRanges.empty());
+    EXPECT_EQ(*result->Path.GetCluster(), "cluster-b");
+    EXPECT_EQ(result->Path.GetPath(), "#id-b");
+    EXPECT_EQ(result->RowCount, 100);
+    EXPECT_EQ(result->Era, 3);
+    EXPECT_EQ(result->EventTimestamp, TSystemTimestamp(200));
+    // Unified key carried from the current table so the replica is recognized as the continuation.
+    EXPECT_EQ(result->EventOrdinal, 2);
+}
+
+TEST(TMultiClusterFailoverTableTest, ResumesStashedProgress)
+{
+    auto resumeFrom = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100, /*era*/ 2);
+    resumeFrom->DistributedRows = 60;
+    resumeFrom->DistributingRanges[TRangeId(9)] = {55, 60};
+
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100, /*era*/ 3);
+    current->EventOrdinal = 1;
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100, /*era*/ 9);
+
+    auto result = TSourceController::MakeFailoverTable(current, serving, resumeFrom);
+
+    EXPECT_EQ(result->DistributedRows, 60);
+    ASSERT_TRUE(result->DistributingRanges.contains(TRangeId(9)));
+    EXPECT_EQ(result->DistributingRanges.at(TRangeId(9)), (std::pair<i64, i64>(55, 60)));
+    EXPECT_EQ(*result->Path.GetCluster(), "cluster-b");
+    EXPECT_EQ(result->Path.GetPath(), "#id-b");
+    EXPECT_EQ(result->RowCount, 100);
+    EXPECT_EQ(result->Era, 3);
+    EXPECT_EQ(result->EventOrdinal, 1);
+}
+
+TEST(TMultiClusterFailoverTableTest, SystemTimestampDoesNotRegress)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100);
+    current->SystemTimestamp = TSystemTimestamp(500);
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
+    serving->SystemTimestamp = TSystemTimestamp(100);
+
+    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr);
+
+    EXPECT_EQ(result->SystemTimestamp, TSystemTimestamp(500));
+    EXPECT_EQ(*result->Path.GetCluster(), "cluster-b");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TStash = THashMap<std::string, TSourceControllerTablePtr>;
+
+TEST(TMultiClusterDecideFailoverTest, NoSwapWhenNothingServesTheTable)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200);
+    EXPECT_FALSE(TSourceController::DecideFailover(
+        current,
+        /*servingReplica*/ nullptr,
+        TStash{},
+        NLogging::TLogger())
+            .has_value());
+}
+
+TEST(TMultiClusterDecideFailoverTest, NoSwapWhenActiveClusterStillServes)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200);
+    auto serving = MakeTable("cluster-a", "t", "#id-a", 200);
+    EXPECT_FALSE(TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger()).has_value());
+}
+
+TEST(TMultiClusterDecideFailoverTest, FreshFailoverWhenNoStashForTargetCluster)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100, /*era*/ 3);
+    current->DistributedRows = 40;
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
+
+    auto decision = TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger());
+
+    // No stash for the target cluster → start from scratch; logical identity (Era) preserved.
+    ASSERT_TRUE(decision.has_value());
+    EXPECT_EQ(decision->StashedCluster, "cluster-a");
+    EXPECT_EQ(*decision->NewTable->Path.GetCluster(), "cluster-b");
+    EXPECT_EQ(decision->NewTable->DistributedRows, 0);
+    EXPECT_EQ(decision->NewTable->Era, 3);
+}
+
+TEST(TMultiClusterDecideFailoverTest, ResumesFromStashForTargetCluster)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100);
+
+    // Stash id matches the live replica id → safe to resume.
+    auto stashedB = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
+    stashedB->DistributedRows = 60;
+    stashedB->DistributingRanges[TRangeId(9)] = {55, 60};
+    TStash stash{{"cluster-b", stashedB}};
+
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
+
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+
+    ASSERT_TRUE(decision.has_value());
+    EXPECT_EQ(decision->StashedCluster, "cluster-a");
+    EXPECT_EQ(*decision->NewTable->Path.GetCluster(), "cluster-b");
+    EXPECT_EQ(decision->NewTable->DistributedRows, 60);
+    ASSERT_TRUE(decision->NewTable->DistributingRanges.contains(TRangeId(9)));
+    // DecideFailover must not mutate the stash it was given.
+    EXPECT_TRUE(stash.contains("cluster-b"));
+}
+
+TEST(TMultiClusterDecideFailoverTest, RereadsWhenStashIdDiffers)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100);
+
+    // Stash id differs from the live replica id → table was recreated → start fresh, don't resume.
+    auto stashedB = MakeTable("cluster-b", "t", "#id-b-old", 200, /*rowCount*/ 100);
+    stashedB->DistributedRows = 60;
+    TStash stash{{"cluster-b", stashedB}};
+
+    auto serving = MakeTable("cluster-b", "t", "#id-b-new", 200, /*rowCount*/ 100);
+
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+
+    ASSERT_TRUE(decision.has_value());
+    EXPECT_EQ(decision->NewTable->DistributedRows, 0);
+}
+
+TEST(TMultiClusterDecideFailoverTest, IgnoresStashOfUnrelatedCluster)
+{
+    auto current = MakeTable("cluster-a", "t", "#id-a", 200, /*rowCount*/ 100);
+    auto stashedC = MakeTable("cluster-c", "t", "#id-c", 200, /*rowCount*/ 100);
+    stashedC->DistributedRows = 77;
+    TStash stash{{"cluster-c", stashedC}};
+
+    auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
+
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+
+    // The cluster-c stash is irrelevant when failing over to cluster-b.
+    ASSERT_TRUE(decision.has_value());
+    EXPECT_EQ(*decision->NewTable->Path.GetCluster(), "cluster-b");
+    EXPECT_EQ(decision->NewTable->DistributedRows, 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TStashRangesForCleanupTest, IgnoresTableWithoutRanges)
+{
+    auto state = New<TSourceControllerState>();
+    auto table = MakeTable("cluster-a", "t", "#id", 100);
+
+    TSourceController::StashRangesForCleanup(state.Get(), table);
+
+    EXPECT_TRUE(state->PendingCleanupTables.empty());
+}
+
+TEST(TStashRangesForCleanupTest, SnapshotsAndTrims)
+{
+    auto state = New<TSourceControllerState>();
+    auto table = MakeTable("cluster-a", "t", "#id", 100, /*rowCount*/ 100);
+    table->DistributedRows = 40;
+    table->DistributingRanges[TRangeId(7)] = {30, 40};
+
+    TSourceController::StashRangesForCleanup(state.Get(), table);
+
+    ASSERT_EQ(std::ssize(state->PendingCleanupTables), 1);
+    const auto& snapshot = state->PendingCleanupTables[0];
+    EXPECT_EQ(snapshot->Path.GetPath(), "#id");
+    ASSERT_TRUE(snapshot->DistributingRanges.contains(TRangeId(7)));
+    auto range = snapshot->DistributingRanges.at(TRangeId(7));
+    EXPECT_EQ(range.first, range.second);
+    EXPECT_EQ(snapshot->DistributedRows, snapshot->RowCount);
+    // The clone must leave the original table untouched.
+    EXPECT_EQ(table->DistributingRanges.at(TRangeId(7)), (std::pair<i64, i64>(30, 40)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TResetStashIfTableChangedTest, KeepsStashWhenIdentityMatches)
+{
+    auto state = New<TSourceControllerState>();
+    state->ClusterProgress = New<TClusterProgress>();
+    auto current = MakeTable("cluster-a", "t", "#id", 100, /*rowCount*/ 100, /*era*/ 3);
+    current->EventOrdinal = 2;
+
+    state->ClusterProgress->Era = 3;
+    state->ClusterProgress->EventTimestamp = TSystemTimestamp(100);
+    state->ClusterProgress->EventOrdinal = 2;
+    auto stashed = MakeTable("cluster-b", "t", "#id-b", 100, /*rowCount*/ 100);
+    stashed->DistributingRanges[TRangeId(9)] = {50, 60};
+    state->ClusterProgress->ByCluster["cluster-b"] = stashed;
+
+    TSourceController::ResetStashIfTableChanged(state.Get(), current);
+
+    EXPECT_TRUE(state->ClusterProgress->ByCluster.contains("cluster-b"));
+    EXPECT_TRUE(state->PendingCleanupTables.empty());
+}
+
+TEST(TResetStashIfTableChangedTest, MovesStaleStashToCleanupAndRebinds)
+{
+    auto state = New<TSourceControllerState>();
+    state->ClusterProgress = New<TClusterProgress>();
+    auto current = MakeTable("cluster-a", "t", "#id", 200, /*rowCount*/ 100, /*era*/ 3);
+    current->EventOrdinal = 1;
+
+    // Stash belongs to a different (previous) table.
+    state->ClusterProgress->Era = 3;
+    state->ClusterProgress->EventTimestamp = TSystemTimestamp(100);
+    state->ClusterProgress->EventOrdinal = 0;
+    auto stashed = MakeTable("cluster-b", "t-old", "#id-b", 100, /*rowCount*/ 100);
+    stashed->DistributingRanges[TRangeId(9)] = {50, 60};
+    state->ClusterProgress->ByCluster["cluster-b"] = stashed;
+
+    TSourceController::ResetStashIfTableChanged(state.Get(), current);
+
+    EXPECT_TRUE(state->ClusterProgress->ByCluster.empty());
+    EXPECT_EQ(std::ssize(state->PendingCleanupTables), 1);
+    EXPECT_EQ(state->ClusterProgress->Era, current->Era);
+    EXPECT_EQ(state->ClusterProgress->EventTimestamp, current->EventTimestamp);
+    EXPECT_EQ(state->ClusterProgress->EventOrdinal, current->EventOrdinal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TEnsureCurrentPresentTest, AddsCurrentWhenAbsent)
+{
+    auto current = MakeTable("cluster-a", "t", "#id", 200, /*rowCount*/ 100);
+    std::vector<TSourceControllerTablePtr> tables{
+        MakeTable("cluster-a", "t-later", "#id-later", 300),
+    };
+
+    TSourceController::EnsureCurrentPresent(tables, current);
+
+    ASSERT_EQ(std::ssize(tables), 2);
+    // Re-sorted by ordering key: current (EventTimestamp 200) lands before the 300 one.
+    EXPECT_EQ(tables[0]->Path.GetPath(), "#id");
+}
+
+TEST(TEnsureCurrentPresentTest, NoOpWhenReplicaSharesOrderingKey)
+{
+    auto current = MakeTable("cluster-a", "t", "#id", 200, /*rowCount*/ 100);
+    std::vector<TSourceControllerTablePtr> tables{
+        MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100),
+    };
+
+    TSourceController::EnsureCurrentPresent(tables, current);
+
+    EXPECT_EQ(std::ssize(tables), 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMultiClusterSpecTest, ParsesClustersList)
+{
+    auto spec = ConvertTo<TTableSourceParametersPtr>(TYsonStringBuf(R"""({
+        tables_path = "<clusters=[primary;remote]>//home/data";
+    })"""));
+
+    ASSERT_TRUE(spec->TablesPath.has_value());
+    auto clusters = spec->TablesPath->GetClusters();
+    ASSERT_TRUE(clusters.has_value());
+    EXPECT_EQ(std::ssize(*clusters), 2);
+    EXPECT_EQ((*clusters)[0], "primary");
+    EXPECT_EQ((*clusters)[1], "remote");
+}
+
+TEST(TMultiClusterSpecTest, SingleClusterStillValid)
+{
+    auto spec = ConvertTo<TTableSourceParametersPtr>(TYsonStringBuf(R"""({
+        tables_path = "<cluster=primary>//home/data";
+    })"""));
+
+    ASSERT_TRUE(spec->TablesPath->GetCluster().has_value());
+    EXPECT_EQ(*spec->TablesPath->GetCluster(), "primary");
+    EXPECT_FALSE(spec->TablesPath->GetClusters().has_value());
+}
+
+TEST(TMultiClusterSpecTest, RejectsBothClusterAndClusters)
+{
+    EXPECT_THROW(
+        ConvertTo<TTableSourceParametersPtr>(TYsonStringBuf(R"""({
+            tables_path = "<cluster=primary;clusters=[primary;remote]>//home/data";
+        })""")),
+        NYT::TErrorException);
+}
+
+TEST(TMultiClusterSpecTest, RejectsEmptyClusters)
+{
+    EXPECT_THROW(
+        ConvertTo<TTableSourceParametersPtr>(TYsonStringBuf(R"""({
+            tables_path = "<clusters=[]>//home/data";
+        })""")),
+        NYT::TErrorException);
+}
+
+TEST(TMultiClusterSpecTest, RejectsDuplicateClusters)
+{
+    EXPECT_THROW(
+        ConvertTo<TTableSourceParametersPtr>(TYsonStringBuf(R"""({
+            tables_path = "<clusters=[primary;primary]>//home/data";
+        })""")),
+        NYT::TErrorException);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace
 } // namespace NYT::NFlow::NStaticTableConnector

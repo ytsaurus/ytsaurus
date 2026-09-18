@@ -88,6 +88,22 @@ void TInflightMetrics::Register(TRegistrar registrar)
         .Default();
 }
 
+void TWeightedRatio::Register(TRegistrar registrar)
+{
+    registrar.Parameter("ratio", &TThis::Ratio)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("weight", &TThis::Weight)
+        .GreaterThanOrEqual(0);
+}
+
+void TLineageRatio::Register(TRegistrar registrar)
+{
+    registrar.Parameter("count", &TThis::Count)
+        .Default();
+    registrar.Parameter("byte_size", &TThis::ByteSize)
+        .Default();
+}
+
 void InPlaceMergeInflightMetrics(
     const TInflightMetricsPtr& current,
     const TInflightMetricsPtr& other,
@@ -312,6 +328,8 @@ TInflightStreamTraverseDataPtr MergeInflightTraverseData(
 
     for (i64 i = 1; i < std::ssize(inflights); ++i) {
         const auto& part = inflights[i];
+        merged->Empty = merged->Empty && part->Empty;
+        merged->Suspended = merged->Suspended && part->Suspended;
         if (part->MinSystemTimestamp) {
             if (merged->MinSystemTimestamp) {
                 merged->MinSystemTimestamp = std::min(*merged->MinSystemTimestamp, *part->MinSystemTimestamp);
@@ -341,6 +359,8 @@ void TNodeTraverseData::Register(TRegistrar registrar)
     registrar.Parameter("report_time", &TThis::ReportTime)
         .Default(ZeroSystemTimestamp);
     registrar.Parameter("iteration_cycle", &TThis::IterationCycle)
+        .Default();
+    registrar.Parameter("processing_rates", &TThis::ProcessingRates)
         .Default();
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
@@ -377,6 +397,34 @@ TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPt
             streamsTraverse,
             EInflightMerge::Sum,
             /*allowPartial*/ true);
+    }
+    if (std::all_of(nodes.begin(), nodes.end(), [] (const auto& node) {
+            return node->ProcessingRates != nullptr;
+        })) {
+        result->ProcessingRates = New<TComputationProcessingRates>();
+        for (const auto window : {&TComputationProcessingRates::Rate1m, &TComputationProcessingRates::Rate10m}) {
+            TPartitionProcessingRates sum;
+            sum.Capacity.emplace();
+            bool complete = true;
+            for (const auto& node : nodes) {
+                const auto& rate = node->ProcessingRates.Get()->*window;
+                if (!rate) {
+                    complete = false;
+                    break;
+                }
+                sum.Processed.ProcessedMessagesPerSecond += rate->Processed.ProcessedMessagesPerSecond;
+                sum.Processed.ProcessedBytesPerSecond += rate->Processed.ProcessedBytesPerSecond;
+                if (sum.Capacity && rate->Capacity) {
+                    sum.Capacity->ProcessedMessagesPerSecond += rate->Capacity->ProcessedMessagesPerSecond;
+                    sum.Capacity->ProcessedBytesPerSecond += rate->Capacity->ProcessedBytesPerSecond;
+                } else {
+                    sum.Capacity.reset();
+                }
+            }
+            if (complete) {
+                result->ProcessingRates.Get()->*window = std::move(sum);
+            }
+        }
     }
     // IterationCycle is partition-local and has no meaningful cross-job aggregate.
     return result;
@@ -419,6 +467,11 @@ TFromPartitionTraverseDataPtr MakeCompletedPartitionTraverseData(
     auto traverseData = New<TFromPartitionTraverseData>();
     traverseData->Node = New<TNodeTraverseData>();
     traverseData->Node->ReportTime = timestamp;
+    // Completed partitions no longer execute jobs and contribute known zeros to the aggregate.
+    auto rates = New<TComputationProcessingRates>();
+    rates->Rate1m.emplace().Capacity.emplace();
+    rates->Rate10m.emplace().Capacity.emplace();
+    traverseData->Node->ProcessingRates = std::move(rates);
 
     for (const auto& streamId : spec->AllStreamIds) {
         traverseData->Node->Streams[streamId] = MakeCompletedStreamTraverseData(epoch, timestamp);

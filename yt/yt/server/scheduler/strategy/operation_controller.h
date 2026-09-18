@@ -25,6 +25,8 @@ struct ISchedulingOperationController
     virtual TControllerEpoch GetEpoch() const = 0;
 
     //! Called during heartbeat processing to send a schedule allocation request to the controller.
+    //! If |allocationId| is non-null, it is used for the new allocation instead of generating a fresh id;
+    //! it must be in the standard allocation id format with the context's node id encoded.
     virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
         const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
@@ -32,7 +34,8 @@ struct ISchedulingOperationController
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName) = 0;
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
     virtual void OnNonscheduledAllocationAborted(
@@ -101,7 +104,8 @@ public:
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName);
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId);
 
     // TODO(eshcherbin): Move to private.
     void AbortAllocation(

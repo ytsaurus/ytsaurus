@@ -3265,8 +3265,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingChaosLease)
     auto client = GetAuthenticatedClientOrThrow(context, request);
     auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
 
-    auto options = TChaosLeaseAttachOptions{};
-    options.Ping = true;
+    TChaosLeasePingOptions options;
+    SetTimeoutOptions(&options, context.Get());
     options.PingAncestors = request->ping_ancestors();
 
     context->SetRequestInfo("ChaosLeaseId: %v",
@@ -3275,7 +3275,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingChaosLease)
     ExecuteCall(
         context,
         [=] {
-            return client->AttachChaosLease(chaosLeaseId, options).AsVoid();
+            return client->PingChaosLease(chaosLeaseId, options);
         });
 }
 
@@ -4796,7 +4796,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
-    i64 queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
+    int queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
 
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
@@ -7967,9 +7967,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             if (request->has_schema()) {
                 FromProto(&options.Schema, request->schema());
             }
-            if (request->has_push_config()) {
-                options.PushConfig = TYsonString(request->push_config());
+            if (request->has_config()) {
+                options.Config = TYsonString(request->config());
             }
+            options.Codec = FromProto<ECodec>(request->codec());
             return client->StartShuffle(
                 request->account(),
                 request->partition_count(),
@@ -8036,16 +8037,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadShuffleData)
         request->partition_index(),
         writerIndexRange);
 
-    TShuffleReaderOptions options;
-    options.Config = request->has_reader_config()
-        ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
-        : New<TTableReaderConfig>();
-
     auto reader = WaitFor(client->CreateShuffleReader(
         std::move(signedShuffleHandle),
         request->partition_index(),
         writerIndexRange,
-        options))
+        /*options*/ {}))
         .ValueOrThrow();
 
     auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -8109,10 +8105,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteShuffleData)
     }
 
     TShuffleWriterOptions options;
-    options.Config = request->has_writer_config()
-        ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
-        : New<TTableWriterConfig>();
-
     options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
     if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
         THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");

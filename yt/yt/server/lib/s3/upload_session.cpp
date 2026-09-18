@@ -288,7 +288,8 @@ TUploadPartResponse TS3MultiPartUploadSession::OnPartUploadCompleted(const TErro
 
     auto error = TError("Error uploading part %v", partIndex).With(response);
     YT_TLOG_ERROR("Error uploading part")
-        .With(error);
+        .With("PartIndex", partIndex)
+        .With(response);
 
     // This should lead to cancellation of all other pending uploads.
     // It is intended to be best-effort, some requests may still complete.

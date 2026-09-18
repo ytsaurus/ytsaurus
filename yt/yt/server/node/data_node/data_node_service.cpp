@@ -549,7 +549,7 @@ private:
             "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             location->GetMediumName(),
@@ -646,7 +646,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor,
             ioConsumed,
@@ -922,15 +922,16 @@ private:
 
             auto diskThrottling = chunk
                 ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
-                : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-            subresponse->set_disk_throttling(diskThrottling.Enabled);
+                : TChunkLocation::TReadThrottlingResult{};
+            subresponse->set_disk_throttling(diskThrottling.IsEnabled());
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
             if (chunk) {
                 subresponse->set_medium_index(chunk->GetLocation()->GetMediumIndex());
             }
 
-            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+            YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+                .With(diskThrottling.Error);
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
@@ -997,15 +998,16 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         if (chunk) {
             response->set_medium_index(chunk->GetLocation()->GetMediumIndex());
         }
 
-        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(
             context,
@@ -1062,7 +1064,7 @@ private:
             hasCompleteChunk,
             netThrottling.Enabled,
             netThrottling.QueueSize,
-            diskThrottling.Enabled,
+            diskThrottling.IsEnabled(),
             diskThrottling.QueueSize,
             response->peer_descriptors_size(),
             response->cached_blocks_size(),
@@ -1324,11 +1326,12 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
@@ -1358,7 +1361,7 @@ private:
                     request,
                     chunk,
                     fetchFromCache && !netThrottling.Enabled,
-                    fetchFromDisk && !netThrottling.Enabled && !diskThrottling.Enabled,
+                    fetchFromDisk && !netThrottling.Enabled && !diskThrottling.IsEnabled(),
                     chunkReaderStatistics);
 
                 if (!chunk && options.FetchFromCache && enableP2P) {
@@ -1429,7 +1432,7 @@ private:
                     .HasCompleteChunk = hasCompleteChunk,
                     .NetThrottling = netThrottling.Enabled,
                     .NetQueueSize = netThrottling.QueueSize,
-                    .DiskThrottling = diskThrottling.Enabled,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
                     .DiskQueueSize = diskThrottling.QueueSize,
                     .ThrottledLargeBlock = throttledLargeBlock,
                     .ChunkReaderStatistics = chunkReaderStatistics,
@@ -1451,7 +1454,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
+            FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
             workloadDescriptor,
             YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
@@ -1467,11 +1470,12 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -1483,7 +1487,7 @@ private:
             request,
             chunk,
             !netThrottling.Enabled,
-            !netThrottling.Enabled && !diskThrottling.Enabled,
+            !netThrottling.Enabled && !diskThrottling.IsEnabled(),
             chunkReaderStatistics);
 
         auto blocksFuture = chunk
@@ -1510,7 +1514,7 @@ private:
                     .HasCompleteChunk = hasCompleteChunk,
                     .NetThrottling = netThrottling.Enabled,
                     .NetQueueSize = netThrottling.QueueSize,
-                    .DiskThrottling = diskThrottling.Enabled,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
                     .DiskQueueSize = diskThrottling.QueueSize,
                     .ThrottledLargeBlock = false,
                     .ChunkReaderStatistics = chunkReaderStatistics,
@@ -1791,11 +1795,11 @@ private:
 
             auto diskThrottling = chunk
                 ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-                : TChunkLocation::TDiskThrottlingResult{ .Enabled = false };
-            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(),
-                diskThrottling.Error);
+                : TChunkLocation::TReadThrottlingResult{};
+            YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+                .With(diskThrottling.Error);
 
-            auto diskThrottlingActive = enableThrottling && diskThrottling.Enabled;
+            auto diskThrottlingActive = enableThrottling && diskThrottling.IsEnabled();
 
             bool chunkAvailable = false;
             if (chunk) {
@@ -2071,15 +2075,16 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
+            : TChunkLocation::TReadThrottlingResult{};
         // COMPAT(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
-        if (diskThrottling.Enabled) {
+        if (diskThrottling.IsEnabled()) {
             ++diskThrottling.QueueSize;
         }
-        response->set_disk_throttling(diskThrottling.Enabled);
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
-        YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling.Enabled);
@@ -2113,7 +2118,7 @@ private:
             chunkId,
             readSessionId,
             workloadDescriptor,
-            diskThrottling.Enabled,
+            diskThrottling.IsEnabled(),
             diskThrottling.QueueSize,
             netThrottling.Enabled,
             netThrottling.QueueSize);
@@ -2601,7 +2606,8 @@ private:
                 chunkId,
                 keyColumns,
                 chunkKeyColumns);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Failed to process partitioning samples")
+                .With(error);
             ToProto(chunkSamples->mutable_error(), error);
             return;
         }
@@ -2758,7 +2764,8 @@ private:
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
                     chunkId);
-                YT_LOG_WARNING(error);
+                YT_TLOG_WARNING("No such chunk")
+                    .With("ChunkId", chunkId);
                 ToProto(response->mutable_subresponses(index)->mutable_error(), error);
                 continue;
             }
@@ -2973,8 +2980,11 @@ private:
             YT_TLOG_DEBUG("Columnar statistics extracted from chunk meta")
                 .With("ChunkId", chunkId);
         } catch (const std::exception& ex) {
-            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId).With(ex);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error fetching columnar statistics")
+                .With("ChunkId", chunkId)
+                .With(ex);
+            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId)
+                .With(ex);
             ToProto(subresponse->mutable_error(), error);
         }
 

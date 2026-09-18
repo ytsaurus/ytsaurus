@@ -8,6 +8,7 @@
 
 #include <yt/yt/library/auth/auth.h>
 
+#include <util/string/cast.h>
 #include <util/system/env.h>
 
 namespace NYT::NFlow {
@@ -51,6 +52,9 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     .Item("command").Value(task.Command)
                     .Item("memory_limit").Value(task.MemoryLimit)
                     .Item("cpu_limit").Value(task.CpuLimit)
+                    .DoIf(task.SetContainerCpuLimit, [&] (auto fluent) {
+                        fluent.Item("set_container_cpu_limit").Value(true);
+                    })
                     .DoIf(task.PortCount > 0, [&] (auto fluent) {
                         fluent.Item("port_count").Value(task.PortCount);
                     })
@@ -66,6 +70,7 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     })
                     .Item("environment").BeginMap()
                         .Item("YT_FLOW_MODE").Value(task.FlowMode)
+                        .Item("YT_FLOW_CPU_LIMIT").Value(ToString(task.CpuLimit))
                         .DoFor(task.Environment, [&] (auto fluent, const auto& pair) {
                             fluent.Item(pair.first).Value(pair.second);
                         })

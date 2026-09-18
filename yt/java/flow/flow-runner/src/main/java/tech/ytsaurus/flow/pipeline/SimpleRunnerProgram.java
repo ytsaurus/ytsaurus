@@ -1,11 +1,14 @@
 package tech.ytsaurus.flow.pipeline;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import com.beust.jcommander.JCommander;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 
 /** Default pipeline runner implementation. */
@@ -17,8 +20,8 @@ public class SimpleRunnerProgram {
      * <p>
      * Prefer {@link FlowApplication#run(String[], tech.ytsaurus.flow.context.PipelineContext)}: it
      * selects the runner or the companion by {@code YT_FLOW_MODE} and derives the stream schemas
-     * from the registered pipeline. This method always launches the runner and leaves the spec as
-     * written.
+     * and the profile state descriptors from the registered pipeline. This method always launches
+     * the runner and leaves the spec as written.
      * <p>
      * Usage code example:
      * <pre>
@@ -50,7 +53,8 @@ public class SimpleRunnerProgram {
 
     /**
      * Runs a Flow pipeline, writing the schemas of the registered streams into the spec before the
-     * launch.
+     * launch. Declares no states: a profile state must then carry its own descriptor source in the
+     * spec.
      * <p>
      * Parsing is strict — an unknown flag such as {@code --conifg} fails the launch — with one
      * exemption: property-style options with a dotted key ({@code --spring.profiles.active=p},
@@ -64,6 +68,27 @@ public class SimpleRunnerProgram {
      * @throws Exception if an error occurs during pipeline execution or initialization.
      */
     public static int runPipeline(String[] args, Map<String, FlowStream<?>> streams) throws Exception {
+        return runPipeline(args, streams, List.of());
+    }
+
+    /**
+     * Runs a Flow pipeline, writing the schemas of the registered streams and the descriptors of the
+     * registered states into the spec before the launch.
+     *
+     * @param args    command-line arguments from the main method.
+     * @param streams streams registered by the pipeline, keyed by stream id.
+     * @param states  states declared by the pipeline; a profile state whose spec names no
+     *                descriptor source is described from the declared message.
+     * @return the exit code of {@code flow_server}, or {@code 0} when only the usage was printed.
+     * @throws IllegalArgumentException if a profile state of the spec cannot be described from the
+     *                                  declared states.
+     * @throws Exception                if an error occurs during pipeline execution or initialization.
+     */
+    public static int runPipeline(
+            String[] args,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states
+    ) throws Exception {
         log.info("Starting runner execution");
         var arguments = new FlowCliArguments();
         var commander = JCommander.newBuilder()
@@ -85,6 +110,7 @@ public class SimpleRunnerProgram {
                 arguments.getConfigPath(),
                 arguments.getFlowBin(),
                 streams,
+                states,
                 arguments.getFlowServerFlags());
     }
 

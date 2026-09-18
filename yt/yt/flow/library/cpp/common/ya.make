@@ -8,13 +8,16 @@ SRCS(
     buffer_warmup.cpp
     partition_buffer_state.cpp
     checksum.cpp
+    companion_state_adapter.cpp
     computation_controller.cpp
     computation.cpp
+    computation_statistics.cpp
+    stream_statistics.cpp
     describe_traits.cpp
     distributing_tracker.cpp
     dyntable_lease.cpp
     external_state_manager.cpp
-    file_source.cpp
+    file_provider.cpp
     flow_core_build_info.cpp
     flow_core_version.cpp
     flow_view.cpp
@@ -27,6 +30,7 @@ SRCS(
     message_batcher.cpp
     message_migration.cpp
     message.cpp
+    output_collector.cpp
     payload_converter.cpp
     payload_validation.cpp
     payload.cpp
@@ -45,6 +49,7 @@ SRCS(
     spec.cpp
     state_cache.cpp
     state.cpp
+    state_provider.cpp
     stream_inflight_limits.cpp
     stream_spec_storage_state.cpp
     stream_spec_storage.cpp
@@ -79,6 +84,7 @@ PEERDIR(
     library/cpp/yt/memory
     library/cpp/yt/misc
     library/cpp/iterator
+    library/cpp/containers/absl
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/string_utils/levenshtein_diff
 )

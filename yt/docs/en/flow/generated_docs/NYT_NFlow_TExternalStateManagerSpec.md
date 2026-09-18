@@ -8,6 +8,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `external_state_manager_class_name` | **Type**: `std::string`
 **Default value**: `NYT::NFlow::TSimpleExternalStateManager`
 Full class name of the external state manager. Must be registered with the `YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER` macro (or be a library implementation such as `NYT::NFlow::TSimpleExternalStateManager`). ||
+|| `auto_preload` | **Type**: `bool`
+**Default value**: `true`
+If `true` (default), the framework automatically calls `PreloadKeyStates` on this manager before each `DoProcess` with every message, timer and visit key of the epoch. If `false`, the computation is responsible for calling `Client.PreloadKeyStates(IInputContextPtr)`, `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)` or `PreloadKeyStates(THashSet<TKey>)` before `GetState`; `GetState` on a key that was not preloaded throws. Not allowed for companion computations. ||
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 Parameters of the selected external state manager implementation. The expected schema is determined by `class_name`. ||
 |#

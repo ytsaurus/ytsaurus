@@ -31,6 +31,8 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/tablet_server/config.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -39,6 +41,8 @@
 #include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
@@ -53,6 +57,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/random_access_queue.h>
@@ -774,17 +779,14 @@ public:
 
                 if (!schemaById) {
                     // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-                    YT_LOG_ALERT_IF(
+                    YT_TLOG_ALERT_IF(
                         !schema && !schemaFromConstrainedSchema,
-                        "Request to create a foreign node has %v id of an unimported schema on external cell "
-                        "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
-                        MakeFormatterWrapper([&] (auto* builder) {
-                            builder->AppendString(isChunkSchema ? "chunk schema" : "schema");
-                        }),
-                        nodeId,
-                        nativeCellTag,
-                        multicellManager->GetCellTag(),
-                        schemaId);
+                        "Request to create a foreign node carries an id of an unimported schema on external cell")
+                        .With("ChunkSchema", isChunkSchema)
+                        .With("NodeId", nodeId)
+                        .With("NativeCellTag", nativeCellTag)
+                        .With("CellTag", multicellManager->GetCellTag())
+                        .With("SchemaId", schemaId);
                 }
             }
         }
@@ -1228,9 +1230,9 @@ public:
         }
 
         if (!collocation->Tables().insert(table).second) {
-            YT_LOG_ALERT("Table %v is already present in collocation %v",
-                table->GetId(),
-                collocation->GetId());
+            YT_TLOG_ALERT("Table is already present in collocation")
+                .With("TableId", table->GetId())
+                .With("CollocationId", collocation->GetId());
         }
 
         switch (collocationType) {
@@ -1268,9 +1270,9 @@ public:
         }
 
         if (collocation->Tables().erase(table) != 1) {
-            YT_LOG_ALERT("Table %v is already missing from collocation %v",
-                table->GetId(),
-                collocation->GetId());
+            YT_TLOG_ALERT("Table is already missing from collocation")
+                .With("TableId", table->GetId())
+                .With("CollocationId", collocation->GetId());
             return;
         }
 
@@ -1929,6 +1931,9 @@ private:
             }
 
             for (const auto& entry : chunk->GetAggregatedRequisition(requisitionRegistry).AllEntries()) {
+                if (!IsObjectAlive(entry.Account)) {
+                    continue;
+                }
                 referenceAccount(chunkSchema.Get(), entry.Account);
             }
         }

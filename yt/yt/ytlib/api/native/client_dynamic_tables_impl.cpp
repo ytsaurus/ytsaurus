@@ -1,6 +1,5 @@
 #include "backup_session.h"
 #include "chaos_helpers.h"
-#include "chaos_lease.h"
 #include "client_impl.h"
 #include "config.h"
 #include "connection.h"
@@ -26,9 +25,9 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -71,6 +70,8 @@
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/client/api/chaos_lease.h>
+
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
@@ -106,8 +107,8 @@
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/library/query/base/functions.h>
-#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
@@ -1171,12 +1172,15 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                     /*allKeys*/ false,
                     connectionConfig->EnableReadFromInSyncAsyncReplicas
                         ? options.Timestamp
-                        : SyncLastCommittedTimestamp);
+                        : SyncLastCommittedTimestamp,
+                    Logger);
 
                 YT_TLOG_DEBUG("Picked in-sync replicas for lookup")
+                    .With("TablePath", tableInfo->Path)
                     .With("ReplicaIds", replicaIds)
                     .With("Timestamp", options.Timestamp)
-                    .With("ReplicationCard", *replicationCard)
+                    .With("ReplicationCardEra", replicationCard->Era)
+                    .With("ReplicationCardCurrentTimestamp", replicationCard->CurrentTimestamp)
                     .With("EnableReadFromInSyncAsyncReplicas", connectionConfig->EnableReadFromInSyncAsyncReplicas);
 
                 TTableReplicaInfoPtrList inSyncReplicas;
@@ -1505,25 +1509,37 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 options.DetailedProfilingInfo->WastedSubrequestCount += std::ssize(results) - failedSubrequestCount;
             }
 
-            // If any subrequest failed with TabletServantIsNotActive and partial result is not
-            // requested, collect all such errors and throw them as a single combined error so
-            // that the mount cache can patch all affected tablets in one shot.
-            std::vector<TError> servantNotActiveErrors;
+            // If all failed subrequests contain redirection errors and partial result is not
+            // requested, throw them as a single combined error so that the mount cache can patch
+            // all affected tablets in one shot. Otherwise, prioritize a non-redirection error so
+            // that regular mount cache invalidation is performed.
+            std::vector<TError> redirectionErrors;
+            std::optional<TError> nonRedirectionError;
             for (const auto& result : results) {
-                if (!result.IsOK()) {
-                    if (result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
-                        servantNotActiveErrors.push_back(result);
-                    }
+                if (result.IsOK()) {
+                    continue;
+                }
+
+                if (result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive) ||
+                    result.FindMatching(NTabletClient::EErrorCode::TabletResharded))
+                {
+                    redirectionErrors.push_back(result);
+                } else if (!nonRedirectionError) {
+                    nonRedirectionError = result;
                 }
             }
 
-            if (!servantNotActiveErrors.empty()) {
-                if (servantNotActiveErrors.size() == 1) {
-                    servantNotActiveErrors[0].ThrowOnError();
+            if (!redirectionErrors.empty() && !nonRedirectionError) {
+                if (redirectionErrors.size() == 1) {
+                    redirectionErrors[0].ThrowOnError();
                 } else {
-                    THROW_ERROR_EXCEPTION("Some lookup subrequests failed because tablet servants are not active")
-                        .With(servantNotActiveErrors);
+                    THROW_ERROR_EXCEPTION("Some lookup subrequests failed because tablet metadata changed")
+                        .With(redirectionErrors);
                 }
+            }
+
+            if (nonRedirectionError) {
+                nonRedirectionError->ThrowOnError();
             }
         }
     }
@@ -1692,7 +1708,9 @@ TDuration TClient::CheckPermissionsForQuery(
 
         auto permissionOrError = WaitFor(Connection_->GetQueryPoolPermissionCache()->Get(key));
         if (!permissionOrError.IsOK() && !permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            permissionOrError.ThrowOnError();
+            THROW_ERROR_EXCEPTION("Cannot use query pool %Qv",
+                *options.ExecutionPool)
+                .With(std::move(permissionOrError));
         }
     }
 
@@ -1873,8 +1891,8 @@ bool HeavyRangeInferenceImprovesJoinSubquery(
             .ObjectId = joinClause->ForeignObjectId,
             .Ranges = MakeSharedRange(
                 TRowRanges{{
-                    buffer->CaptureRow(NTableClient::MinKey().Get()),
-                    buffer->CaptureRow(NTableClient::MaxKey().Get())
+                    buffer->CaptureRow(MinKey().Get()),
+                    buffer->CaptureRow(MaxKey().Get()),
                 }},
                 buffer),
         },
@@ -1885,8 +1903,8 @@ bool HeavyRangeInferenceImprovesJoinSubquery(
 
     for (const auto& range : inferredResult.first.Ranges) {
         bool isFullScan =
-            CompareRows(range.first, NTableClient::MinKey().Get()) <= 0 &&
-            CompareRows(range.second, NTableClient::MaxKey().Get()) == 0;
+            CompareRows(range.first, MinKey().Get()) <= 0 &&
+            CompareRows(range.second, MaxKey().Get()) == 0;
 
         if (isFullScan) {
             return false;
@@ -1995,6 +2013,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .AllowReverseScanForOrderBy = queryEngineConfig
                 ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
                 : false,
+            .MaxProjectionCount = queryEngineConfig
+                ? queryEngineConfig->MaxProjectionCount
+                : DefaultMaxProjectionCount,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2191,6 +2212,9 @@ NYson::TYsonString TClient::DoExplainQuery(
             .AllowReverseScanForOrderBy = queryEngineConfig
                 ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
                 : false,
+            .MaxProjectionCount = queryEngineConfig
+                ? queryEngineConfig->MaxProjectionCount
+                : DefaultMaxProjectionCount,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -4277,7 +4301,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     TChaosLeaseId chaosLeaseId,
     const TChaosLeaseAttachOptions& options)
 {
-    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
     auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();
@@ -4285,7 +4308,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
 
     auto chaosLease = CreateChaosLease(
         this,
-        std::move(channel),
         chaosLeaseId,
         timeout,
         options.PingAncestors,
@@ -4303,6 +4325,22 @@ IPrerequisitePtr TClient::DoStartChaosLease(
     const TChaosLeaseStartOptions& /*options*/)
 {
     THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases");
+}
+
+void TClient::DoPingChaosLease(
+    TChaosLeaseId chaosLeaseId,
+    const TChaosLeasePingOptions& options)
+{
+    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+    auto req = proxy.PingChaosLease();
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
+    req->set_ping_ancestors(options.PingAncestors);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

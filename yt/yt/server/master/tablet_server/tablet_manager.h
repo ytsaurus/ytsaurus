@@ -4,24 +4,27 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/chunk_server/chunk_tree_statistics.h>
+#include <yt/yt/server/master/cell_server/public.h>
+
+#include <yt/yt/server/master/chunk_server/public.h>
+
+#include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
-#include <yt/yt/server/lib/hydra/mutation.h>
+
+#include <yt/yt/server/lib/tablet_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/master/security_server/public.h>
+
 #include <yt/yt/server/master/table_server/public.h>
-#include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/lib/tablet_node/public.h>
-
 #include <yt/yt/ytlib/table_client/public.h>
-#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
 namespace NYT::NTabletServer {
 
@@ -44,6 +47,7 @@ struct ITabletManager
 
     virtual const ITabletChunkManagerPtr& GetTabletChunkManager() const = 0;
     virtual const ITabletActionManagerPtr& GetTabletActionManager() const = 0;
+    virtual const IInvokerPtr& GetStoresUpdateThrottlerInvoker() const = 0;
 
     virtual void PrepareMount(
         TTabletOwnerBase* table,

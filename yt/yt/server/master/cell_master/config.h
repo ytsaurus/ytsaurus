@@ -224,6 +224,8 @@ struct TDynamicMulticellManagerConfig
 
     TDuration SyncHiveClocksPeriod;
 
+    int MaxMasterCellGroupCount;
+
     // NB: Section for testing purposes.
     TTestConfigPtr Testing;
 

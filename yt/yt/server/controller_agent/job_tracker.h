@@ -217,7 +217,7 @@ private:
         }
 
         template <NMpl::CInvocable<void(const TError&)> TCallback>
-        void Wait(TCallback&& onCanceled) const;
+        void Wait(TCallback&& onCanceled, const NLogging::TLogger& Logger) const;
 
         void Cancel(const TError& error) const;
 

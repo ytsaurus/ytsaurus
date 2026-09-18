@@ -103,6 +103,7 @@ private:
 
         std::vector<NLsm::TTabletPtr> lsmTablets;
         lsmTablets.reserve(tabletManager->Tablets().size());
+
         {
             TForbidContextSwitchGuard guard;
 

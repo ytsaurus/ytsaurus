@@ -9,7 +9,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_node_proxy.h>
-
+#include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -187,7 +188,8 @@ private:
             chunkDescriptor.ReplicaLagLimit,
             chunkDescriptor.ReplicaDescriptors,
             JournalRpcTimeout_,
-            Bootstrap_->GetNodeChannelFactory()))
+            Bootstrap_->GetNodeChannelFactory(),
+            TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery)))
                 .ValueOrThrow();
         if (info.FirstOverlayedRowIndex) {
             return std::make_optional(*info.FirstOverlayedRowIndex + info.RowCount);

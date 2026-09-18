@@ -4,7 +4,7 @@
 #include "object_attribute_cache.h"
 #endif
 
-#include "public.h"
+#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/cypress_client/batch_attribute_fetcher.h>

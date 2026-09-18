@@ -207,9 +207,9 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
             NAst::TReferenceHarvester(&referencedColumns).Visit(
                 std::get<NAst::TExpressionPtr>(parsedExpression->AstHead.Ast));
 
-            for (int index = 0; index < std::ssize(columns); ++index) {
-                if (referencedColumns.contains(columns[index].Name())) {
-                    Fold(index);
+            for (int referencedIndex = 0; referencedIndex < std::ssize(columns); ++referencedIndex) {
+                if (referencedColumns.contains(columns[referencedIndex].Name())) {
+                    Fold(referencedIndex);
                 }
             }
         }
@@ -2941,7 +2941,7 @@ TCGQueryGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TJoinProfilerRegistry& joinProfilerRegistry,
-    TQueryFoldingProfilerOptions options,
+    const TQueryFoldingProfilerOptions& options,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
     const NWebAssembly::TModuleBytecode& sdk)

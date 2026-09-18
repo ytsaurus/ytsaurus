@@ -1,4 +1,5 @@
 #include "lock.h"
+#include "node.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 

@@ -133,7 +133,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TCounter, FailedTabletCount);
 
     DEFINE_BYREF_RO_PROPERTY(std::string, TracingSpan);
-    DEFINE_BYREF_RO_PROPERTY(std::string, LoggingTag);
+    DEFINE_BYREF_RO_PROPERTY(TLoggingTagList, LoggingTags);
 
     TStatisticsReporterContext(TStringBuf profilingPrefix, std::string loggingTag)
         : Profiler_(TabletNodeProfiler().WithPrefix(profilingPrefix))
@@ -143,7 +143,7 @@ public:
         , ProcessedTabletCount_(Profiler_.Counter("/processed_tablet_count"))
         , FailedTabletCount_(Profiler_.Counter("/failed_tablet_count"))
         , TracingSpan_(StatisticsReporterTag + "::" + loggingTag)
-        , LoggingTag_(std::move(loggingTag))
+        , LoggingTags_(TLoggingTagList().With("Stage", loggingTag))
     { }
 };
 
@@ -289,17 +289,16 @@ private:
             context.ProcessedTabletCount().Increment(processedTabletCount);
             context.FailedIterationCount().Increment(failedTabletCount);
 
-            YT_LOG_DEBUG("Finished tablet statistics processing iteration "
-                "(%v, ElapsedTime: %v, ProcessedTabletCount: %v, FailedTabletCount: %v)",
-                context.LoggingTag(),
-                elapsedTime,
-                processedTabletCount,
-                failedTabletCount);
+            YT_TLOG_DEBUG("Finished tablet statistics processing iteration")
+                .With(context.LoggingTags())
+                .With("ElapsedTime", elapsedTime)
+                .With("ProcessedTabletCount", processedTabletCount)
+                .With("FailedTabletCount", failedTabletCount);
         });
 
         try {
-            YT_LOG_DEBUG("Starting tablet statistics processing iteration (%v)",
-                context.LoggingTag());
+            YT_TLOG_DEBUG("Starting tablet statistics processing iteration")
+                .With(context.LoggingTags());
 
             for (int batchStartIndex = 0; batchStartIndex < ssize(tablets); batchStartIndex += config->MaxTabletsPerTransaction) {
                 int batchSize = std::min<int>(config->MaxTabletsPerTransaction, ssize(tablets) - batchStartIndex);
@@ -312,8 +311,9 @@ private:
 
             return true;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Tablet statistics processing iteration failed (%v)",
-                context.LoggingTag());
+            YT_TLOG_ERROR("Tablet statistics processing iteration failed")
+                .With(context.LoggingTags())
+                .With(ex);
             return false;
         }
     }
@@ -403,9 +403,9 @@ private:
         if (valueNode->GetType() != ENodeType::List) {
             // It is expected behaviour after performance counters table reshard.
             if (valueNode->GetType() == ENodeType::Entity) {
-                YT_LOG_DEBUG("Table %Qv column %Qv is empty",
-                    config->TablePath,
-                    name);
+                YT_TLOG_DEBUG("Table column is empty")
+                    .With("TablePath", config->TablePath)
+                    .With("ColumnName", name);
 
                 return TEmaCounter<i64>(windowDurations);
             }

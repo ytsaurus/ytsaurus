@@ -13,7 +13,7 @@ The Spark app consists of a *driver* and *executors*.
 3. The scheduler identifies containers of the needed size on the cluster nodes, and sends the executors to them.
 4. Executors are created in the cluster and exchange messages with the driver over the network.
 
-![](../../../../../../images/cluster_structure.png){ .center }
+![](../../../../../../_images/cluster_structure.png){ .center }
 
 When the app is launched, the executors' characteristics (cores and memory) must be specified, as well as the maximum number of executors.
 
@@ -50,13 +50,13 @@ There are two methods for launching Spark applications in the current implementa
 
 Spark Standalone consists of a *master* and *workers*. Each worker knows how many resources can be borrowed on the cluster node where the worker is launched, and how to provide resources on request. The master coordinates the work: it receives requests from the driver and decides what workers to create executors for.
 
-![](../../../../../../images/cluster_scheme.png){ .center }
+![](../../../../../../_images/cluster_scheme.png){ .center }
 
 
 To request a resource from the master, the driver must know the master host and port.  When the Vanilla operation is launched, the Spark master goes to a random {{product-name}} cluster node, and opens a port ranging from 27000 to 27200 there.  Then, the Spark master specifies its host and port in Cypress, in a special `discovery-path` directory. There is code in the driver that talks to Cypress, finds out the host and port of the Spark master, and then talks to it.
 
 
-![](../../../../../../images/cluster_scheme_cyp.png){ .center }
+![](../../../../../../_images/cluster_scheme_cyp.png){ .center }
 
 
 The scheduler's cluster is started with the `spark-launch-yt` command.  The command argument must include:
@@ -80,4 +80,4 @@ There is also another start option, called *cluster mode*. In this option, the d
 
 By default, workers can download driver code in HTTP, FTP, and other APIs. With SPYT, workers can upload the driver code from {{product-name}}.
 
-![](../../../../../../images/cluster_mode.png){ .center }
+![](../../../../../../_images/cluster_mode.png){ .center }

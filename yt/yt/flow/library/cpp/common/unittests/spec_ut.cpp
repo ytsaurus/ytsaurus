@@ -54,11 +54,6 @@ struct TNullComputation
     void SetInputTraverse(THashMap<TStreamId, TStreamTraverseDataPtr> /*inputStreams*/) override
     { }
 
-    TComputationOrchidStatePtr GetOrchidState() override
-    {
-        return New<TComputationOrchidState>();
-    }
-
     TComputationStatusPtr GetStatus() override
     {
         auto status = New<TComputationStatus>();
@@ -92,18 +87,6 @@ struct TNullComputationController
         TDynamicComputationControllerContextPtr /*dynamicContext*/)
     { }
 
-    bool IsFullCoverage(
-        const std::vector<TPartitionId>& /*computationPartitions*/,
-        const TFlowViewPtr& /*flowView*/) override
-    {
-        return {};
-    }
-
-    void DoPartitioning(
-        const std::vector<TPartitionId>& /*computationPartitions*/,
-        const TFlowViewPtr& /*flowView*/) override
-    { }
-
     double ComputePartitionWeight(const TPartitionId& /*partitionId*/, const TFlowViewPtr& /*flowView*/) override
     {
         return 1.0;
@@ -111,9 +94,25 @@ struct TNullComputationController
 
     TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TNodeTraverseDataPtr& /*currentTraverseData*/,
         const TFlowViewPtr& /*flowView*/) override
     {
         return New<TProcessPartitionTraverseDataResult>();
+    }
+
+    TPartitioningTopology DescribePartitioningTopology() override
+    {
+        return {.Value = TPartitioningTopology::TRange{}};
+    }
+
+    TPartitioningDescription DescribePartitioning(
+        const TPartitioningStatus& /*status*/) override
+    {
+        return {
+            .Value = TPartitioningDescription::TRange{
+                .SinkTopologyVersion = TVersion(0),
+            },
+        };
     }
 
     void Init(IInitContextPtr /*initContext*/) override
@@ -615,6 +614,29 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSpecTest, WatermarkGeneratorRequiresSourceStream)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    watermark_strategy = {
+                        watermark_generator = {};
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "\"watermark_generator\" requires at least one source stream");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TSpecTest, DuplicateOutputStreamIds)
 {
     TStringBuf specYson(R""""(
@@ -1093,6 +1115,80 @@ TEST(TSpecTest, ComputeAllowedInputStreams)
         ::testing::ElementsAre(TStreamId("response_1"), TStreamId("response_2"), TStreamId("timer_1"), TStreamId("timer_2")));
     EXPECT_THAT(sort(ComputeAllowedInputStreams({"request_1", "request_2"}, spec)),
         ::testing::ElementsAre(TStreamId("event"), TStreamId("response_1"), TStreamId("response_2"), TStreamId("timer_1"), TStreamId("timer_2")));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSpecTest, BalanceWeightsDefaults)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 0.0);
+}
+
+TEST(TSpecTest, BalanceWeightsParsing)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {cpu = 3.0; memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 3.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+
+    // The provided entries merge into the default map per key: unmentioned resources keep their
+    // default weights.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+}
+
+TEST(TSpecTest, BalanceWeightsValidation)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = -1.0; memory = 1.0}}"))),
+        "must be non-negative");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = 0.0; memory = 0.0}}"))),
+        "positive sum");
+
+    // An empty map merges nothing and keeps the defaults.
+    EXPECT_NO_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {}}"))));
+
+    EXPECT_ANY_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {disk = 1.0}}"))));
+}
+
+TEST(TSpecTest, EvenLoadThresholdsLegacyAliases)
+{
+    // The flat CPU thresholds of older specs feed the CPU entry of the per-resource map.
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5}")));
+    const auto& cpu = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(cpu->Spread, 1000.0);
+    EXPECT_EQ(cpu->Ratio, 1.5);
+    EXPECT_FALSE(spec->RebalanceEvenLoadThresholds.contains(EBalanceResource::Memory));
+
+    // An explicit per-resource field wins over the alias; the other field still comes from the alias.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5;"
+        " rebalance_even_load_thresholds = {cpu = {spread = 7.0}}}")));
+    const auto& mixed = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(mixed->Spread, 7.0);
+    EXPECT_EQ(mixed->Ratio, 1.5);
+
+    // Without the aliases the map stays untouched.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_TRUE(spec->RebalanceEvenLoadThresholds.empty());
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{rebalance_min_cpu_ratio = 0.5}"))),
+        "at least 1");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2022,6 +2118,90 @@ TEST(TDynamicSpecTest, ClientConfigEqualityIgnoresServerOnlyFields)
     });
 }
 
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSumsDeclaredWeights)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(
+        {
+            use_class_weights_as_limit = %true;
+            request_period = 1000;
+            classes = {
+                vip = {weight = 5.0;};
+                regular = {weight = 3.0;};
+                bulk = {weight = 1.0;};
+            };
+        }
+    )""""));
+
+    // The reserved default class is not part of the sum: a weight is the rate
+    // its class is served at, and classless traffic is not declared here.
+    EXPECT_EQ(spec->GetEffectiveLimit(), 9.0);
+    EXPECT_EQ(spec->BuildThroughputConfig()->Limit, 9.0);
+    EXPECT_EQ(spec->BuildPrefetchingConfig()->MaxPrefetchAmount, 9);
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitTracksWeightChanges)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=1000; classes={vip={weight=5.0;};};}"));
+    EXPECT_EQ(spec->GetEffectiveLimit(), 5.0);
+
+    // The limit is derived on demand rather than resolved once, so a hot
+    // reconfiguration of the weights moves it.
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 2.0;
+    EXPECT_EQ(changed->GetEffectiveLimit(), 2.0);
+    // With the flag on a weight is a rate, so a change this large resizes the
+    // client's prefetch window and the client has to be rebuilt.
+    EXPECT_FALSE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitKeepsClientWhenPrefetchWindowHolds)
+{
+    // A client sizes only its prefetch window from the limit; the rate itself is
+    // enforced on the server. A weight change too small to move that window must
+    // therefore keep the client and the quota it has already prefetched.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=100; classes={vip={weight=5.0;};};}"));
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 4.9;
+
+    EXPECT_NE(spec->GetEffectiveLimit(), changed->GetEffectiveLimit());
+    EXPECT_EQ(
+        spec->BuildPrefetchingConfig()->MaxPrefetchAmount,
+        changed->BuildPrefetchingConfig()->MaxPrefetchAmount);
+    EXPECT_TRUE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSurvivesSerializationRoundTrip)
+{
+    // The dynamic spec is stored as a parsed struct and served back
+    // re-serialized, so the derived limit must not leak into |limit| — it would
+    // come back as an explicitly set field and be rejected on the next update.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; classes={vip={weight=5.0;};};}"));
+    auto roundTripped = ConvertTo<TDynamicThrottlerSpecPtr>(ConvertToNode(spec));
+
+    EXPECT_FALSE(roundTripped->Limit.has_value());
+    EXPECT_TRUE(roundTripped->UseClassWeightsAsLimit);
+    EXPECT_EQ(roundTripped->GetEffectiveLimit(), 5.0);
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithExplicitLimit)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{limit=100.0; use_class_weights_as_limit=%true; classes={vip={};};}")),
+        "mutually exclusive");
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithoutClasses)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{use_class_weights_as_limit=%true;}")),
+        "requires at least one class");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TResolveUseCompactInputMessagesTest, DefaultUintKeyEnablesCompact)
@@ -2808,14 +2988,255 @@ TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPipelineSpecTest, ComputationIdMustNotContainColon)
+struct TDeclarationSpecCase
 {
-    // The colon is reserved for the "resource:<id>" keys of resource-controller states.
-    auto badYson = TYsonStringBuf(R"({computations = {"resource:x" = {computation_class_name = "Foo"}}})");
-    EXPECT_THROW(ConvertTo<TPipelineSpecPtr>(badYson), NYT::TErrorException);
+    TStringBuf EntityKind;
+    TStringBuf SpecTemplate;
+    bool Dynamic;
+};
 
-    auto okYson = TYsonStringBuf(R"({computations = {x = {computation_class_name = "Foo"}}})");
-    EXPECT_NO_THROW(ConvertTo<TPipelineSpecPtr>(okYson));
+void DeserializeDeclarationSpec(const TDeclarationSpecCase& testCase, TStringBuf id)
+{
+    static constexpr TStringBuf IdPlaceholder = R"("%v")";
+
+    auto specYson = std::string(testCase.SpecTemplate);
+    specYson.replace(specYson.find(IdPlaceholder), IdPlaceholder.size(), Format("%Qv", id));
+    if (testCase.Dynamic) {
+        ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
+    } else {
+        ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    }
+}
+
+TEST(TPipelineSpecTest, DeclarationIdsMustMatchAllowedPattern)
+{
+    const std::vector<TDeclarationSpecCase> testCases = {
+        {"computation", R"({computations = {"%v" = {computation_class_name = "Foo"}}})", false},
+        {"stream", R"({streams = {"%v" = {schema = []}}})", false},
+        {"resource", R"({resources = {"%v" = {resource_class_name = "Foo"}}})", false},
+        {"timer stream", R"({computations = {c = {computation_class_name = "Foo"; timer_streams = {"%v" = {}}}}})", false},
+        {"key visitor stream", R"({computations = {c = {computation_class_name = "Foo"; key_visitor_streams = {"%v" = {}}}}})", false},
+        {"sink", R"({computations = {c = {computation_class_name = "Foo"; sinks = {"%v" = {}}}}})", false},
+        {"file provider", R"({resources = {r = {resource_class_name = "Foo"; file_providers = {"%v" = {file_provider_class_name = "Foo"}}}}})", false},
+        {"throttler", R"({throttlers = {"%v" = {}}})", true},
+        {"quota class", R"({throttlers = {t = {classes = {"%v" = {}}}}})", true},
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.EntityKind);
+        for (auto validId : {
+                TStringBuf("0"),
+                TStringBuf("A"),
+                TStringBuf("_"),
+                TStringBuf("-"),
+                TStringBuf("_a"),
+                TStringBuf("a_"),
+                TStringBuf("-a"),
+                TStringBuf("a-"),
+                TStringBuf("valid-ID_09")})
+        {
+            EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, validId));
+        }
+
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                Format("Invalid %v ID %Qv", testCase.EntityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
+        }
+    }
+}
+
+enum class EDeclarationLocation
+{
+    Computation,
+    Stream,
+    Resource,
+    TimerStream,
+    KeyVisitorStream,
+    Sink,
+    FileProvider,
+    Throttler,
+    QuotaClass,
+};
+
+void ValidateProgrammaticDeclaration(EDeclarationLocation location, TStringBuf id)
+{
+    auto pipelineSpec = New<TPipelineSpec>();
+    auto dynamicPipelineSpec = New<TDynamicPipelineSpec>();
+
+    switch (location) {
+        case EDeclarationLocation::Computation:
+            pipelineSpec->Computations[TComputationId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Stream:
+            pipelineSpec->Streams[TStreamId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Resource:
+            pipelineSpec->Resources[TResourceId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::TimerStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->TimerStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::KeyVisitorStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->KeyVisitorStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::Sink: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->Sinks[TSinkId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::FileProvider: {
+            auto resourceSpec = New<TResourceSpec>();
+            resourceSpec->FileProviders[TFileProviderId(std::string(id))] = nullptr;
+            pipelineSpec->Resources[TResourceId("r")] = std::move(resourceSpec);
+            break;
+        }
+        case EDeclarationLocation::Throttler:
+            dynamicPipelineSpec->Throttlers[TThrottlerId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::QuotaClass: {
+            auto throttlerSpec = New<TDynamicThrottlerSpec>();
+            throttlerSpec->Classes[TQuotaClassId(std::string(id))] = nullptr;
+            dynamicPipelineSpec->Throttlers[TThrottlerId("t")] = std::move(throttlerSpec);
+            break;
+        }
+    }
+
+    if (location == EDeclarationLocation::Throttler || location == EDeclarationLocation::QuotaClass) {
+        ValidateDynamicPipelineSpec(dynamicPipelineSpec);
+    } else {
+        ValidatePipelineSpec(pipelineSpec);
+    }
+}
+
+TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsMustMatchAllowedPattern)
+{
+    const std::vector<std::pair<EDeclarationLocation, TStringBuf>> testCases = {
+        {EDeclarationLocation::Computation, "computation"},
+        {EDeclarationLocation::Stream, "stream"},
+        {EDeclarationLocation::Resource, "resource"},
+        {EDeclarationLocation::TimerStream, "timer stream"},
+        {EDeclarationLocation::KeyVisitorStream, "key visitor stream"},
+        {EDeclarationLocation::Sink, "sink"},
+        {EDeclarationLocation::FileProvider, "file provider"},
+        {EDeclarationLocation::Throttler, "throttler"},
+        {EDeclarationLocation::QuotaClass, "quota class"},
+    };
+
+    for (const auto& [location, entityKind] : testCases) {
+        SCOPED_TRACE(entityKind);
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                Format("Invalid %v ID %Qv", entityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
+        }
+    }
+}
+
+TEST(TPipelineSpecTest, StaticSourceStreamIdIsNotValidated)
+{
+    const TDeclarationSpecCase testCase{
+        "source stream",
+        R"({computations = {reader = {computation_class_name = "Foo"; source_streams = {"%v" = {source_class_name = "Foo"}}}}})",
+        false,
+    };
+    EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, "invalid/source"));
+}
+
+TEST(TPipelineSpecTest, DynamicSourceStreamIdIsNotValidated)
+{
+    auto invalidDynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    source_streams = {"invalid/source" = {}};
+                };
+            };
+        }
+    )"));
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(invalidDynamicSpec));
+
+    auto pipelineSpec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    output_stream_ids = [out];
+                    streams_dependency = {out = ["yabs-rt__topic"]};
+                    source_streams = {
+                        "yabs-rt__topic" = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+            };
+            streams = {out = {schema = []}};
+        }
+    )"));
+    EXPECT_NO_THROW(ValidatePipelineSpec(pipelineSpec));
+
+    auto dynamicSpecNode = ConvertTo<IMapNodePtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    source_streams = {"yabs-rt__topic" = {}};
+                };
+            };
+        }
+    )"));
+    auto dynamicPipelineSpec = ConvertTo<TDynamicPipelineSpecPtr>(dynamicSpecNode);
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicPipelineSpec));
+    EXPECT_TRUE(TRegistry::Get()->ValidateDynamicPipelineSpecParseability(pipelineSpec, dynamicSpecNode).empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TExternalStateManagerSpecTest, AutoPreloadDefaultsToTrue)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; parameters = {}})"));
+    EXPECT_TRUE(spec->AutoPreload);
+}
+
+TEST(TExternalStateManagerSpecTest, AutoPreloadParsesFalse)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; auto_preload = %false; parameters = {}})"));
+    EXPECT_FALSE(spec->AutoPreload);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

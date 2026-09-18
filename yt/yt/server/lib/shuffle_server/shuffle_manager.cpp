@@ -18,7 +18,7 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
-using namespace NPushBasedShuffleClient;
+using namespace NShuffleClient;
 using namespace NTransactionClient;
 
 using NApi::NNative::IClientPtr;

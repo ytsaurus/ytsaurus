@@ -197,6 +197,7 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
     const NYPath::TRichYPath& pipelinePath,
     const IPipelineAuthenticatorPtr& authenticator,
     const IStatusProfilerPtr& statusProfiler,
+    const NProfiling::TProfiler& profiler,
     const IPayloadConverterCachePtr& converterCache,
     const NLogging::TLogger& logger);
 

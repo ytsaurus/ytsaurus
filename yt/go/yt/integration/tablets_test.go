@@ -20,10 +20,11 @@ import (
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/migrate"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
-	"go.ytsaurus.tech/yt/go/yttest"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 func TestGenerateTimestamp(t *testing.T) {
@@ -54,6 +55,7 @@ func TestTabletClient(t *testing.T) {
 		{Name: "InsertRows_empty", Test: suite.TestInsertRows_empty},
 		{Name: "DeleteRows_empty", Test: suite.TestDeleteRows_empty},
 		{Name: "InsertRowsBatch", Test: suite.TestInsertRowsBatch},
+		{Name: "LockRows", Test: suite.TestLockRows},
 		{Name: "LookupRows_map", Test: suite.TestLookupRows_map, SkipRPC: true}, // todo https://st.yandex-team.ru/YT-15505
 		{Name: "MultiLookupRows_Basic", Test: suite.TestMultiLookupRows_Basic, SkipHTTP: true},
 		{Name: "MultiLookupRows_WithKeepMissingRows", Test: suite.TestMultiLookupRows_WithKeepMissingRows, SkipHTTP: true},
@@ -639,34 +641,87 @@ func TestAbortCommittedTabletTx(t *testing.T) {
 	}
 }
 
-func TestLockRows(t *testing.T) { // todo rewrite as suite test after LockRows is implemented in rpc client
+type lockRowsIntegrationRow struct {
+	Key    string `yson:"key,key"`
+	ValueA string `yson:"value_a,omitempty"`
+	ValueB string `yson:"value_b,omitempty"`
+}
+
+type lockRowsIntegrationKey struct {
+	Key string `yson:"key"`
+}
+
+func (s *Suite) TestLockRows(ctx context.Context, t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	env := yttest.New(t)
+	atomicity := yt.AtomicityFull
+	beginTx := func(t *testing.T) yt.TabletTx {
+		tx, err := yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{Atomicity: &atomicity})
+		require.NoError(t, err)
+		return tx
+	}
+	createTable := func(t *testing.T, sc schema.Schema) ypath.Path {
+		table := tmpPath().Child("table")
+		require.NoError(t, migrate.Create(ctx, yc, table, sc))
+		require.NoError(t, migrate.MountAndWait(ctx, yc, table))
+		return table
+	}
+	defaultSchema := func() schema.Schema {
+		sc := schema.MustInfer(&lockRowsIntegrationRow{})
+		sc.Columns[1].Lock = "group_a"
+		sc.Columns[2].Lock = "group_b"
+		return sc
+	}
+	updateOptions := &yt.InsertRowsOptions{Update: ptr.Bool(true)}
+	commitWithConflict := func(t *testing.T, tx yt.TabletTx) {
+		err := tx.Commit()
+		require.Error(t, err)
+		require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeTransactionLockConflict))
+	}
 
-	testTable := env.TmpPath().Child("table")
+	t.Run("SameRowAndGroupConflict", func(t *testing.T) {
+		table := createTable(t, defaultSchema())
+		key := []any{&lockRowsIntegrationKey{"foo"}}
+		require.NoError(t, yc.InsertRows(ctx, table, []any{&lockRowsIntegrationRow{"foo", "before", ""}}, nil))
 
-	sc := schema.MustInfer(&testRow{})
-	sc.Columns[1].Lock = "lock"
-	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, sc))
-	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+		lockTx := beginTx(t)
+		writeTx := beginTx(t)
+		require.NoError(t, lockTx.LockRows(ctx, table, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
+		require.NoError(t, writeTx.InsertRows(ctx, table, []any{map[string]any{"key": "foo", "value_a": "after"}}, nil))
+		require.NoError(t, lockTx.Commit())
+		commitWithConflict(t, writeTx)
 
-	row := []any{&testRow{"foo", "1"}}
-	key := []any{&testKey{"foo"}}
+		r, err := yc.LookupRows(ctx, table, key, nil)
+		require.NoError(t, err)
+		defer r.Close()
+		require.True(t, r.Next())
+		var row lockRowsIntegrationRow
+		require.NoError(t, r.Scan(&row))
+		require.Equal(t, "before", row.ValueA)
+	})
 
-	require.NoError(t, env.YT.InsertRows(env.Ctx, testTable, row, nil))
+	t.Run("GroupsAreResolvedPerTable", func(t *testing.T) {
+		firstSchema := defaultSchema()
+		secondSchema := defaultSchema()
+		secondSchema.Columns[1].Lock = "group_b"
+		secondSchema.Columns[2].Lock = "group_a"
+		firstTable := createTable(t, firstSchema)
+		secondTable := createTable(t, secondSchema)
+		key := []any{&lockRowsIntegrationKey{"foo"}}
 
-	tx0, err := env.YT.BeginTabletTx(env.Ctx, nil)
-	require.NoError(t, err)
+		lockTx := beginTx(t)
+		require.NoError(t, lockTx.LockRows(ctx, firstTable, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
+		require.NoError(t, lockTx.LockRows(ctx, secondTable, []string{"group_a"}, yt.LockTypeSharedStrong, key, nil))
 
-	tx1, err := env.YT.BeginTabletTx(env.Ctx, nil)
-	require.NoError(t, err)
+		firstWriteTx := beginTx(t)
+		require.NoError(t, firstWriteTx.InsertRows(ctx, firstTable, []any{map[string]any{"key": "foo", "value_a": "after"}}, updateOptions))
+		secondWriteTx := beginTx(t)
+		require.NoError(t, secondWriteTx.InsertRows(ctx, secondTable, []any{map[string]any{"key": "foo", "value_b": "after"}}, updateOptions))
 
-	require.NoError(t, tx1.InsertRows(env.Ctx, testTable, row, nil))
-	require.NoError(t, tx1.Commit())
-
-	require.NoError(t, tx0.LockRows(env.Ctx, testTable, []string{"lock"}, yt.LockTypeSharedStrong, key, nil))
-	require.Error(t, tx0.Commit())
+		require.NoError(t, lockTx.Commit())
+		commitWithConflict(t, firstWriteTx)
+		commitWithConflict(t, secondWriteTx)
+	})
 }
 
 func (s *Suite) TestMultiLookupRows_Basic(ctx context.Context, t *testing.T, yc yt.Client) {

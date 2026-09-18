@@ -14,7 +14,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTDigestConfigPtr GetNonCompressableDigestConfig()
+TTDigestConfigPtr CreateNonCompressibleDigestConfig()
 {
     auto digestConfig = New<TTDigestConfig>();
     digestConfig->Delta = 0.;
@@ -25,7 +25,7 @@ TTDigestConfigPtr GetNonCompressableDigestConfig()
 double GetAbsoluteRank(const IQuantileDigestPtr& digest, TInstant timestamp)
 {
     return digest->GetRank(timestamp.Seconds()) * digest->GetCount();
-};
+}
 
 const TVersionedRowDigestPtr& GetDigest(TStore* store)
 {
@@ -141,6 +141,10 @@ void DoRecalculateStoreCompactionHint<EStoreCompactionHintKind::VersionedRowDige
 
     auto mountConfig = store->GetTablet()->GetMountConfig();
 
+    if (store->GetCompressedDataSize() < mountConfig->CompactionHints->MinCompactionDataSize) {
+        return;
+    }
+
     const auto& digest = GetDigest(store);
 
     auto minStoreTimestamp = TimestampToInstant(store->GetMinTimestamp()).first;
@@ -165,9 +169,13 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
         .BuildRecalculationFinalizer(partition);
 
     auto mountConfig = partition->GetTablet()->GetMountConfig();
+    i64 minCompactionDataSize = mountConfig->CompactionHints->MinCompactionDataSize;
 
     const auto& stores = recalculationFinalizer.Stores();
-    if (stores.empty() || ssize(stores) > mountConfig->CompactionHints->RowDigest->MaxStoreCount) {
+    if (stores.empty() ||
+        ssize(stores) > mountConfig->CompactionHints->RowDigest->MaxStoreCount ||
+        partition->GetCompressedDataSize() < minCompactionDataSize)
+    {
         return;
     }
 
@@ -176,18 +184,24 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
     auto minStoresTimestamp = TimestampToInstant(stores.front()->GetMinTimestamp()).first;
     auto maxStoresTimestamp = TInstant::Zero();
 
-    static auto NonCompressableDigestConfig = GetNonCompressableDigestConfig();
-    auto cumulativeDigest = New<TVersionedRowDigest>(NonCompressableDigestConfig);
+    static const auto NonCompressibleDigestConfig = CreateNonCompressibleDigestConfig();
+    auto cumulativeDigest = New<TVersionedRowDigest>(NonCompressibleDigestConfig);
+    i64 cumulativeDataSize = 0;
 
     for (int prefixLength = 1; prefixLength <= ssize(stores); ++prefixLength) {
         auto* store = stores[prefixLength - 1];
         maxStoresTimestamp = std::max(maxStoresTimestamp, TimestampToInstant(store->GetMaxTimestamp()).second);
 
+        cumulativeDataSize += store->GetCompressedDataSize();
+        cumulativeDigest->MergeWith(GetDigest(store));
+
+        if (cumulativeDataSize < minCompactionDataSize) {
+            continue;
+        }
+
         auto majorTimestamp = prefixLength < ssize(stores)
             ? TimestampToInstant(stores[prefixLength]->GetMinTimestamp()).first
             : TInstant::Max();
-
-        cumulativeDigest->MergeWith(GetDigest(store));
 
         if (haveAllNeededDigests) {
             if (auto timestamp = CalculateTtlCleanupExpected(cumulativeDigest, mountConfig, minStoresTimestamp, maxStoresTimestamp, majorTimestamp)) {

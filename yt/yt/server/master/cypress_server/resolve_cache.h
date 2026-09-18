@@ -42,7 +42,7 @@ struct TResolveCacheNode
     struct TRootstockPayload
     {
         NCypressClient::TNodeId RootstockNodeId;
-        NYTree::TYPath RootstockPath;
+        NYPath::TYPath RootstockPath;
         NCypressClient::TNodeId ScionNodeId;
     };
 

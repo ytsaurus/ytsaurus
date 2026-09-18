@@ -37,7 +37,6 @@ public class UrlDownloadFunction implements RowFunction {
         StateAccessor<HostState> accessor = ctx.getState(HOST_STATE, message);
         HostState state = accessor.getOrDefault(new HostState(host));
         state.getPendingUrls().add(url);
-        accessor.set(state);
 
         output.addTimer(System.currentTimeMillis() / 1000 + 5, 0L);
         log.debug("Queued url (Host: {}, Url: {})", host, url);
@@ -48,12 +47,11 @@ public class UrlDownloadFunction implements RowFunction {
     @Override
     public void onTimer(Timer timer, OutputCollector output, RuntimeContext ctx) {
         StateAccessor<HostState> accessor = ctx.getState(HOST_STATE, timer);
-        var stateOpt = accessor.get();
-        if (stateOpt.isEmpty() || stateOpt.get().getPendingUrls().isEmpty()) {
+        HostState state = accessor.get();
+        if (state == null || state.getPendingUrls().isEmpty()) {
             accessor.clear();
             return;
         }
-        HostState state = stateOpt.get();
         String host = state.getHost();
 
         for (String url : new ArrayList<>(state.getPendingUrls())) {

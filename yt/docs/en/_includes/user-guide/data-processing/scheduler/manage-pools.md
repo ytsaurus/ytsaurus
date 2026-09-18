@@ -85,18 +85,18 @@ To create a subpool, go to the parent pool by clicking its name. To do this, cli
 
 An example of a pool creation form is shown in the figure.
 
-![](../../../../../images/manage_pool_01.png)
+![](../../../../../_images/manage_pool_01.png)
 
 
 To edit the pool settings, click the pencil on the pool name line on the right-hand side of the screen as shown in the figure.
 
-![](../../../../../images/manage_pool_04.png)
+![](../../../../../_images/manage_pool_04.png)
 
 The pool settings available for editing are divided into groups. The figures show examples of general settings and guaranteed resources, respectively.
 
-![](../../../../../images/manage_pool_02.png)
+![](../../../../../_images/manage_pool_02.png)
 
-![](../../../../../images/manage_pool_03.png)
+![](../../../../../_images/manage_pool_03.png)
 
 In the `Resource Limits` section, you can set an upper limit for the pool if, for example, you need the pool to remain within the 100-core consumption limit. By default, there is no upper limit for pools and the resources available to a pool are limited by the cluster capacity.
 

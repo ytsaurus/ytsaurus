@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/permission.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,14 +37,10 @@ protected:
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission);
 
-    // TODO(danilalexeev): Drop this in favor of |THierarchicPermissionValidator::ValidatePermissionForSubtree|.
+    // TODO(danilalexeev): Drop this method in favor of more efficient subtree
+    // traversion in ValidatePermission().
     virtual TCompactVector<TObject*, 1> ListDescendantsForPermissionValidation(TObject* object) = 0;
     virtual TObject* GetParentForPermissionValidation(TObject* object) = 0;
-
-    virtual void ValidatePermissionForSubtree(
-        TObject* object,
-        NYTree::EPermission permission,
-        bool descendantsOnly = false);
 
     void ValidateCreatePermissions(
         TObject* object,

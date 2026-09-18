@@ -35,6 +35,17 @@ TEST(TXDeltaTest, EmptyPatch)
     EXPECT_EQ(data.ToStringBuf(), result.ToStringBuf());
 }
 
+TEST(TXDeltaTest, TruncatedPatchIsAStructuredError)
+{
+    // A stored patch shorter than the 4-byte length prefix is corruption
+    // and must not abort the process (found by the decode fuzz target).
+    auto data = TSharedRef::FromString(std::string("abracdabra"));
+    auto patch = TSharedRef::FromString(std::string("\x01\x02"));
+    EXPECT_THROW_WITH_SUBSTRING(
+        GetCodec(ECodec::XDelta)->ApplyPatch(data, patch),
+        "shorter than its length prefix");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TXDeltaStateTest, EmptyState)

@@ -48,7 +48,9 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
-            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+            THROW_ERROR_EXCEPTION(
+                "\"max_replication_factor\" must be at least %v",
+                MinVitalReplicationFactor)
                 .With("max_replication_factor", config->MaxReplicationFactor)
                 .With("min_vital_replication_factor", MinVitalReplicationFactor);
         }
@@ -82,7 +84,9 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
-            THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
+            THROW_ERROR_EXCEPTION(
+                "\"max_replication_factor\" must be at least %v",
+                MinVitalReplicationFactor)
                 .With("max_replication_factor", config->MaxReplicationFactor)
                 .With("min_vital_replication_factor", MinVitalReplicationFactor);
         }
@@ -1079,6 +1083,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_verbose_logging_enabled_duration", &TThis::MaxVerboseLoggingEnabledDuration)
         .Default(TDuration::Days(1));
+
+    registrar.Parameter("set_empty_requisition_index_on_import", &TThis::SetEmptyRequisitionIndexOnImport)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& dataCenter : config->BannedStorageDataCenters) {

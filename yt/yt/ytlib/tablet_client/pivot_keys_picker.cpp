@@ -6,10 +6,10 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -276,10 +276,9 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         Logger);
 
     for (const auto& [inputChunk, size] : reshardBuilder.GetChunksForSlicing()) {
-        auto chunkSlice = CreateInputChunkSlice(inputChunk);
-        InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer);
+        auto chunkSlice = CreateInputChunkSlice(inputChunk, rowBuffer, comparator);
+        InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer, /*keyColumnCount*/ std::nullopt, comparator);
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-        dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
 
         auto sliceCount = DivCeil<i64>(size, minSliceSize);
         auto sliceSize = DivCeil<i64>(size, sliceCount);

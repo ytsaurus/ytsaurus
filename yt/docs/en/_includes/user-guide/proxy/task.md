@@ -29,7 +29,7 @@ Each service is described by entities:
 Task proxy balances incoming traffic between all running jobs of one task, directing the request to a specific service of that job. If one of the jobs fails or moves to another node, the proxy automatically redirects traffic to available instances.
 
 
-![](../../../../images/task-proxy.png)
+![](../../../../_images/task-proxy.png)
 
 Automatic discovery (service discovery) works for:
 

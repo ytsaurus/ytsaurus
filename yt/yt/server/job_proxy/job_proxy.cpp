@@ -421,25 +421,24 @@ void TJobProxy::SendHeartbeat()
         req->set_last_progress_save_time(ToProto(*time));
     }
 
-    if (auto& profileFuture = JobProxyPeakMemoryProfile_; profileFuture.has_value()) {
-        if (!profileFuture->IsSet()) {
-            YT_TLOG_DEBUG("JobProxy peak memory profile is not ready to be reported in the current heartbeat");
+    if (JobProxyPeakMemoryProfile_) {
+        if (!JobProxyPeakMemoryProfile_.IsSet()) {
+            YT_TLOG_DEBUG("Job proxy peak memory profile is not ready to be reported in the current heartbeat");
         } else {
-            YT_TLOG_DEBUG("Reporting JobProxy peak memory profile");
-            auto profile = profileFuture
-                ->AsUnique()
+            YT_TLOG_DEBUG("Reporting job proxy peak memory profile");
+            auto profile = JobProxyPeakMemoryProfile_
+                .AsUnique()
                 .GetOrCrash()
                 .ValueOrThrow();
 
             ToProto(
                 req->add_profiles(),
-                TJobProfile{
-                    .ProfilingBinary = EProfilingBinary::JobProxy,
-                    .ProfilerType = EProfilerType::PeakMemory,
-                    .Blob = std::move(profile),
-                    .ProfilingProbability = 1.0,
-                });
-            profileFuture.reset();
+                TJobProfile(
+                    EProfilingBinary::JobProxy,
+                    EProfilerType::PeakMemory,
+                    1.0,
+                    std::move(profile)));
+            JobProxyPeakMemoryProfile_.Reset();
         }
     }
 
@@ -553,7 +552,7 @@ void TJobProxy::RetrieveJobSpec()
     LogJobSpec(GetJobSpecHelper()->GetJobSpec());
 
     auto totalMemoryReserve = resourceUsage.memory();
-    CpuGuarantee_ = resourceUsage.cpu();
+    SetCpuGuarantee(resourceUsage.cpu());
     NetworkUsage_ = resourceUsage.network();
 
     // We never report to node less memory usage, than was initially reserved.
@@ -776,6 +775,14 @@ void TJobProxy::UpdateCumulativeMemoryUsage(i64 memoryUsage)
     LastMemoryMeasureTime_ = now;
 }
 
+void TJobProxy::SetCpuGuarantee(double cpuGuarantee)
+{
+    CpuGuarantee_ = cpuGuarantee;
+    if (JobIoMeter_) {
+        JobIoMeter_->SetIoFairShareWeight(cpuGuarantee);
+    }
+}
+
 void TJobProxy::SetJob(IJobPtr job)
 {
     Job_.Store(std::move(job));
@@ -924,7 +931,9 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
 
-        JobIoMeter_ = New<TJobIoMeter>(Config_->JobIoMeterMaxHistoryDuration);
+        JobIoMeter_ = New<TJobIoMeter>(
+            Config_->JobIoMeterMaxHistoryDuration,
+            Config_->EnableJobIoStatistics);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
         YT_VERIFY(Config_->GrpcServer->Addresses.size() == 1);
@@ -1273,31 +1282,29 @@ void TJobProxy::ReportResult(
             }
 
             // We must extract JobProxyPeakMemoryProfile_ from |JobThread_|.
-            std::optional<TFuture<TString>> profileFuture;
+            TFuture<TString> profileFuture;
             YT_UNUSED_FUTURE(WaitFor(
                 BIND([this, &profileFuture] {
-                    profileFuture.swap(JobProxyPeakMemoryProfile_);
+                    std::swap(profileFuture, JobProxyPeakMemoryProfile_);
                 })
                     .AsyncVia(JobThread_->GetInvoker())
-                    .Run()
-            ));
+                    .Run()));
             if (profileFuture) {
                 if (Config_->JobProxyPeakMemoryProfiler->WaitLastProfile) {
-                    WaitUntilSet(profileFuture->AsVoid());
+                    WaitUntilSet(profileFuture.AsVoid());
                 }
 
-                if (profileFuture->IsSet()) {
+                if (profileFuture.IsSet()) {
                     ToProto(
                         req->add_profiles(),
-                        TJobProfile{
-                            .ProfilingBinary = EProfilingBinary::JobProxy,
-                            .ProfilerType = EProfilerType::PeakMemory,
-                            .Blob = profileFuture
-                                ->AsUnique()
+                        TJobProfile(
+                            EProfilingBinary::JobProxy,
+                            EProfilerType::PeakMemory,
+                            1.0,
+                            profileFuture
+                                .AsUnique()
                                 .GetOrCrash()
-                                .Value(),
-                            .ProfilingProbability = 1.0,
-                        });
+                                .ValueOrThrow()));
                 }
             }
         } catch (const std::exception& ex) {
@@ -1726,6 +1733,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
+        .TargetUserId = options.TargetUserId,
         .ThreadLimit = options.ThreadLimit,
     };
 
@@ -2157,7 +2165,7 @@ bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)
         YT_TLOG_INFO("Changed CPU share")
             .With("OldCpuShare", CpuGuarantee_.load())
             .With("NewCpuShare", cpuGuarantee);
-        CpuGuarantee_ = cpuGuarantee;
+        SetCpuGuarantee(cpuGuarantee);
         UpdateResourceUsage();
         return true;
     } else {
@@ -2344,7 +2352,7 @@ void TJobProxy::OnMemoryEstimationExceeded(i64 usage)
 
     auto job = FindJob();
     if (job) {
-        YT_TLOG_INFO("Profiling Job proxy peak memory")
+        YT_TLOG_INFO("Profiling job proxy peak memory")
             .With("RunExternalSymbolizer", Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
         JobProxyPeakMemoryProfile_ = ProfileJobProxyPeakMemory(
             Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);

@@ -1,7 +1,7 @@
 #include "input_chunk_mapping.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -31,23 +31,27 @@ TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger
     , Logger(logger)
 { }
 
-TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
+TMappedChunkStripe TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
 {
     auto guard = ReaderGuard(SpinLock_);
     return GetMappedStripeGuarded(stripe);
 }
 
-TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
+TMappedChunkStripe TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
-        return stripe;
+        return {
+            .Stripe = stripe,
+            .IsRegenerated = false,
+        };
     }
 
     auto mappedStripe = New<TChunkStripe>();
+    bool isRegenerated = false;
     for (const auto& dataSlice : stripe->DataSlices()) {
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
             const auto& chunk = dataSlice->GetSingleUnversionedChunk();
@@ -56,69 +60,33 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                 // The chunk was never substituted, so it remains as is.
                 mappedStripe->DataSlices().push_back(dataSlice);
             } else {
+                isRegenerated = true;
                 const auto& substitutes = iterator->second;
                 if (substitutes.empty()) {
                     continue;
                 }
 
-                if (dataSlice->IsLegacy) {
-                    // COMPAT(max42): keeping old code as is to ensure old behavior.
-                    if (dataSlice->HasLimits()) {
-                        YT_VERIFY(substitutes.size() == 1);
-                        auto substituteChunk = substitutes.front();
-                        YT_TLOG_DEBUG("Input chunk mapping has mapped a chunk")
-                            .With("From", chunk->GetChunkId())
-                            .With("To", substituteChunk->GetChunkId())
-                            .With("Legacy", true)
-                            .With("Single", true);
-                        auto chunkSlice = CreateInputChunkSlice(substituteChunk);
-                        chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
-                        chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
-                        mappedStripe->DataSlices().push_back(New<TLegacyDataSlice>(
-                            dataSlice->Type,
-                            TLegacyDataSlice::TChunkSliceList{std::move(chunkSlice)},
-                            dataSlice->LegacyLowerLimit(),
-                            dataSlice->LegacyUpperLimit()));
-                        mappedStripe->DataSlices().back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
-                    } else {
-                        for (const auto& substituteChunk : substitutes) {
-                            YT_TLOG_DEBUG("Input chunk mapping has mapped a chunk")
-                                .With("From", chunk->GetChunkId())
-                                .With("To", substituteChunk->GetChunkId())
-                                .With("Legacy", true)
-                                .With("Single", false);
-                            mappedStripe->DataSlices().push_back(New<TLegacyDataSlice>(
-                                dataSlice->Type,
-                                TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)}));
-                            mappedStripe->DataSlices().back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
-                        }
-                    }
+                if (dataSlice->HasLimits()) {
+                    YT_VERIFY(substitutes.size() == 1);
+                    auto substituteChunk = substitutes.front();
+                    YT_TLOG_DEBUG("Input chunk mapping has mapped a limited chunk")
+                        .With("From", chunk->GetChunkId())
+                        .With("To", substituteChunk->GetChunkId());
+
+                    auto mappedDataSlice = CreateInputDataSlice(dataSlice);
+                    mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
+                    mappedDataSlice->CopyPayloadFrom(*dataSlice);
+                    mappedStripe->DataSlices().push_back(std::move(mappedDataSlice));
                 } else {
-                    if (dataSlice->HasLimits()) {
-                        YT_VERIFY(substitutes.size() == 1);
-                        auto substituteChunk = substitutes.front();
-                        YT_TLOG_DEBUG("Input chunk mapping has mapped a chunk")
+                    for (const auto& substituteChunk : substitutes) {
+                        YT_TLOG_DEBUG("Input chunk mapping has mapped a complete chunk")
                             .With("From", chunk->GetChunkId())
-                            .With("To", substituteChunk->GetChunkId())
-                            .With("Legacy", false)
-                            .With("Single", true);
+                            .With("To", substituteChunk->GetChunkId());
 
                         auto mappedDataSlice = CreateInputDataSlice(dataSlice);
                         mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
                         mappedDataSlice->CopyPayloadFrom(*dataSlice);
                         mappedStripe->DataSlices().push_back(std::move(mappedDataSlice));
-                    } else {
-                        for (const auto& substituteChunk : substitutes) {
-                            YT_TLOG_DEBUG("Input chunk mapping has mapped a chunk")
-                                .With("From", chunk->GetChunkId())
-                                .With("To", substituteChunk->GetChunkId())
-                                .With("Legacy", false)
-                                .With("Single", false);
-                            auto mappedDataSlice = CreateInputDataSlice(dataSlice);
-                            mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
-                            mappedDataSlice->CopyPayloadFrom(*dataSlice);
-                            mappedStripe->DataSlices().push_back(std::move(mappedDataSlice));
-                        }
                     }
                 }
             }
@@ -131,7 +99,10 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
         }
     }
 
-    return mappedStripe;
+    return {
+        .Stripe = mappedStripe,
+        .IsRegenerated = isRegenerated,
+    };
 }
 
 void TInputChunkMapping::OnStripeRegenerated(
@@ -252,7 +223,7 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
         if (cookie == resetCookie) {
             stripe = resetStripe;
         } else {
-            stripe = GetMappedStripeGuarded(stripe);
+            stripe = GetMappedStripeGuarded(stripe).Stripe;
         }
     }
 
@@ -283,4 +254,3 @@ PHOENIX_DEFINE_TYPE(TInputChunkMapping);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-

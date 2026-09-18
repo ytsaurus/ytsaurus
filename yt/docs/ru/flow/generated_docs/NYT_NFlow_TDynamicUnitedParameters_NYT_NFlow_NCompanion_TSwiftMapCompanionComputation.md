@@ -5,12 +5,6 @@
 
 #|
 || **Параметр** | **Описание** ||
-|| `weight_multiplier` | **Тип**: `double`
-**Значение по умолчанию**: `1.0`
- ||
-|| `interrupting_weight_multiplier` | **Тип**: `double`
-**Значение по умолчанию**: `0.1`
- ||
 || `desired_partition_count` | **Тип**: `std::optional<int>`
  ||
 || `min_partition_count` | **Тип**: `std::optional<int>`
@@ -34,6 +28,12 @@
 || `partition_count_double_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
 || `partition_count_half_delay` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+ ||
+|| `weight_multiplier` | **Тип**: `double`
+**Значение по умолчанию**: `1.0`
+ ||
+|| `interrupting_weight_multiplier` | **Тип**: `double`
+**Значение по умолчанию**: `0.1`
  ||
 |#
 

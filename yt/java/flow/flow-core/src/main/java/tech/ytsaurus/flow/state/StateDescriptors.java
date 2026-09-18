@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.state;
 
 import java.util.function.Supplier;
 
+import com.google.protobuf.Message;
 import com.google.protobuf.MessageLite;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
 import tech.ytsaurus.flow.row.codec.DefaultYsonCodec;
@@ -41,6 +42,42 @@ public class StateDescriptors {
      */
     public static JoinedExternalStateDescriptor externalReadOnly(String name) {
         return new JoinedExternalStateDescriptor(name);
+    }
+
+    /**
+     * Creates a descriptor for externally managed state in the proto wire format (served by a
+     * proto-capable state manager, e.g. a serializable-profile manager, on the worker side).
+     *
+     * <p>The resulting {@link ProtoStateAccessor} exposes the state as a protobuf message of
+     * {@code stateClass}; the worker-declared proto type is validated against it on access.
+     *
+     * @param name       state name
+     * @param stateClass protoc-generated message class of the state
+     * @param <T>        state message type
+     * @return proto external state descriptor
+     */
+    public static <T extends Message> ProtoExternalStateDescriptor<T> externalProto(
+            String name,
+            Class<T> stateClass
+    ) {
+        return new ProtoExternalStateDescriptor<>(name, stateClass);
+    }
+
+    /**
+     * Creates a descriptor for read-only proto-format external state joined from another
+     * computation (must be declared under {@code external_state_joiners} of the computation
+     * spec).
+     *
+     * @param name       joined external state name
+     * @param stateClass protoc-generated message class of the state
+     * @param <T>        state message type
+     * @return joined proto external state descriptor
+     */
+    public static <T extends Message> JoinedProtoExternalStateDescriptor<T> externalProtoReadOnly(
+            String name,
+            Class<T> stateClass
+    ) {
+        return new JoinedProtoExternalStateDescriptor<>(name, stateClass);
     }
 
     /**

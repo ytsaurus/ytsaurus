@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set,
@@ -9,8 +9,6 @@ from yt_commands import (
     get_singular_chunk_id, get_chunk_replication_factor, set_all_nodes_banned,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
-
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_helpers import (
     wait_until_unlocked
@@ -3221,11 +3219,8 @@ class TestTablesMulticell(TestTables):
             )
 
     @authors("shakurov")
-    @not_implemented_in_sequoia  # Cross-cell copy.
+    @with_portals_dir
     def test_cloned_table_statistics_yt_18290(self):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals", force=True)
-
         create("table", "//tmp/t")
         tx = start_transaction()
         write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)

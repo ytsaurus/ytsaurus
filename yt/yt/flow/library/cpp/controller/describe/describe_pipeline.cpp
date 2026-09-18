@@ -61,6 +61,14 @@ TString BranchUrl(const TFlowCoreBuildInfo& buildInfo)
     return Format("%v%v", VcsBranchUrlPrefix, buildInfo.Branch);
 }
 
+TString FormatPipelineAuthentication(const TPipelineAuthenticationDescription& authentication)
+{
+    if (authentication.Method == EPipelineAuthenticationMethod::OAuth) {
+        return Format("OAUTH token of %v", authentication.DisplayName);
+    }
+    return Format("TVM service %v", authentication.DisplayName);
+}
+
 //! Renders |text| either as a markdown link or as a plain inline code block.
 TString FormatMaybeLink(std::string_view text, std::string_view url)
 {
@@ -368,6 +376,12 @@ void TPipelineDescription::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("messages", &TThis::Messages)
         .Default();
+    registrar.Parameter("authentication", &TThis::Authentication)
+        .Default();
+    registrar.Parameter("worker_count", &TThis::WorkerCount)
+        .Default(0);
+    registrar.Parameter("current_resource_usage", &TThis::CurrentResourceUsage)
+        .Default();
 
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
@@ -635,6 +649,9 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
 
     TPipelineDescription pipeline;
     FillRetryableErrors(arguments.ControllerErrors, pipeline.Messages);
+    if (arguments.Authenticator) {
+        pipeline.Authentication = arguments.Authenticator->GetPipelineAuthenticationDescription();
+    }
 
     if (!flowView && arguments.StatusOnly) {
         auto& message = pipeline.Messages.emplace_back();
@@ -645,6 +662,9 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
     }
 
     THROW_ERROR_EXCEPTION_UNLESS(flowView, "Flow view is required when StatusOnly=false");
+
+    pipeline.WorkerCount = static_cast<i64>(flowView->State->Workers.size());
+    pipeline.CurrentResourceUsage = New<TCurrentResourceUsage>();
 
     const auto& executionSpec = flowView->State->ExecutionSpec;
     pipeline.Status = executionSpec->PipelineState->GetValue();
@@ -660,8 +680,10 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
 
         TStringBuilder markdownText;
 
-        if (arguments.Authenticator) {
-            markdownText.AppendFormat("Authentication method: %v\n\n", arguments.Authenticator->GetAuthDescription());
+        if (pipeline.Authentication) {
+            markdownText.AppendFormat(
+                "Authentication method: %v\n\n",
+                FormatPipelineAuthentication(*pipeline.Authentication));
         }
 
         auto prettyPath = Format("%v:%v",
@@ -672,7 +694,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         markdownText.AppendFormat("* Pipeline rich path: `%v`\n", prettyPath);
         markdownText.AppendFormat("* Draw pipeline debug graph: `ya tool yt-flow-draw-pipeline-graph --input %v`\n", prettyPath);
         markdownText.AppendFormat("* Run job investigation: `ya tool yt-flow-job-investigation --input %v`\n", prettyPath);
-        markdownText.AppendFormat("* Run reshard flow tables: `ya run yt/yt/flow/tools/reshard_flow_tables -- --pipeline-path %v`\n", prettyPath);
+        markdownText.AppendFormat("* Run reshard flow tables: `ya run yt/yt/flow/tools/reshard_flow_tables -- --commit --pipeline-path %v`\n", prettyPath);
         markdownText.AppendFormat("* Show public controller logs: `ya tool yt --proxy %v flow show-logs --pipeline-path %v`\n",
             flowView->EphemeralState->PipelinePath.GetCluster(),
             flowView->EphemeralState->PipelinePath.GetPath());
@@ -720,7 +742,10 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
     FillFlowCoreTargetMessage(flowView, arguments.ControllerFlowCoreVersion, pipeline.Messages);
 
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
-    auto computationBaseDescriptions = MakeComputationDescriptions(flowView, intermediateDescriptions);
+    auto computationBaseDescriptions = MakeComputationDescriptions(
+        flowView,
+        intermediateDescriptions,
+        pipeline.CurrentResourceUsage.Get());
     for (const auto& [computationId, computationDescription] : computationBaseDescriptions) {
         // Copy common parameters.
         auto& pipelineCompDesc = pipeline.Computations[computationId] = ConvertTo<TPipelineComputationDescription>(computationDescription);
@@ -862,6 +887,9 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         TPipelineDescription filteredPipeline;
         filteredPipeline.Status = pipeline.Status;
         filteredPipeline.Messages = pipeline.Messages;
+        filteredPipeline.Authentication = pipeline.Authentication;
+        filteredPipeline.WorkerCount = pipeline.WorkerCount;
+        filteredPipeline.CurrentResourceUsage = pipeline.CurrentResourceUsage;
         return filteredPipeline;
     }
 

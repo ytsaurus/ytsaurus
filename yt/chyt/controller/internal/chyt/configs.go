@@ -236,6 +236,7 @@ func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.O
 	if _, ok := configAsMap["clique_instance_count"]; !ok {
 		configAsMap["clique_instance_count"] = speclet.Resources.InstanceCount
 	}
+	configAsMap["orchid_root"] = c.orchidDir(oplet.Alias())
 	// TODO(max42): put to preprocessor similarly to yt/cpu_limit.
 	if _, ok := configAsMap["worker_thread_count"]; !ok {
 		configAsMap["worker_thread_count"] = *speclet.Resources.InstanceCPU
@@ -261,8 +262,8 @@ func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.O
 			version, ok := versionVal.(int64)
 			if !ok || version != 2 {
 				err = fmt.Errorf("expected discovery version 2, got %v(%T)", versionVal, versionVal)
+				return
 			}
-			return
 		}
 
 		if _, ok := discovery["version"]; !ok {
@@ -438,6 +439,10 @@ func (c *Controller) artifactDir(alias string) ypath.Path {
 
 func (c *Controller) sqlUDFDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("user_defined_sql_functions")
+}
+
+func (c *Controller) orchidDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("orchids")
 }
 
 func (c *Controller) systemLogTableRootDir(alias string) ypath.Path {

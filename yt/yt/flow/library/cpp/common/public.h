@@ -35,7 +35,7 @@ YT_DEFINE_STRONG_TYPEDEF(TWatermarkAlignmentGroup, std::string);
 
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TStreamId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TResourceId);
-YT_DEFINE_STRONG_TYPEDEF(TFileSourceId, std::string);
+YT_DEFINE_STRONG_TYPEDEF(TFileProviderId, std::string);
 YT_DEFINE_STRONG_TYPEDEF(TFileSnapshotId, i64);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TComputationId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TSinkId);
@@ -82,6 +82,7 @@ static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
+DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
 
 struct TMessageMeta;
 struct TMessage;
@@ -112,7 +113,7 @@ DEFINE_ENUM(EPartitionState,
     ((Executing)       (1))
     // Partition processing is interrupting. It cannot receive input messages, but can distribute output.
     ((Interrupting)    (2))
-    // Partition processing has been successfully completed. Cleaning states and other partition data.
+    // Partition processing has completed. It only distributes persisted output, then cleans owned state.
     ((Completing)      (3))
     // Partition processing has been successfully completed and fully cleaned. So, it will never start again.
     ((Completed)       (4))
@@ -200,6 +201,7 @@ DECLARE_REFCOUNTED_STRUCT(TAggregatedNodeInputMetrics);
 DECLARE_REFCOUNTED_STRUCT(TJobStatus);
 DECLARE_REFCOUNTED_STRUCT(TMessageDistributorStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerResourceStatus);
+DECLARE_REFCOUNTED_STRUCT(TWorkerStatistics);
 DECLARE_REFCOUNTED_STRUCT(TWorkerStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerSpec);
 DECLARE_REFCOUNTED_STRUCT(TPartitionJobStatus);
@@ -233,6 +235,7 @@ DECLARE_REFCOUNTED_STRUCT(TInputOrderingSpec);
 
 DECLARE_REFCOUNTED_STRUCT(IExternalStateManager);
 DECLARE_REFCOUNTED_STRUCT(IExternalStateJoiner);
+DECLARE_REFCOUNTED_STRUCT(ICompanionStateAdapter);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateManagerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateManagerContext);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateJoinerContext);
@@ -244,6 +247,8 @@ DECLARE_REFCOUNTED_STRUCT(TStateJoinSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
+
+DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
@@ -265,7 +270,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableRequestSpec);
 DECLARE_REFCOUNTED_STRUCT(TMessageBatcherSettings);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
-DECLARE_REFCOUNTED_STRUCT(TDynamicFileSourceSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicFileProviderSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerClassSpec);
@@ -316,8 +321,8 @@ DECLARE_REFCOUNTED_STRUCT(IInitContext);
 DECLARE_REFCOUNTED_CLASS(TStreamLimitUsageState);
 DECLARE_REFCOUNTED_STRUCT(TComputationContext);
 DECLARE_REFCOUNTED_STRUCT(IComputationRunContext);
-DECLARE_REFCOUNTED_STRUCT(TComputationOrchidState);
 DECLARE_REFCOUNTED_STRUCT(TComputationStatus);
+DECLARE_REFCOUNTED_STRUCT(TComputationProcessingRates);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationContext);
 DECLARE_REFCOUNTED_STRUCT(IComputation);
 
@@ -328,6 +333,7 @@ DECLARE_REFCOUNTED_STRUCT(IKeyedBatchProcessFunction);
 struct ISyncProcessFunction;
 DECLARE_REFCOUNTED_STRUCT(IRuntimeContext);
 DECLARE_REFCOUNTED_STRUCT(IRuntimeInitContext);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionContext);
 
 DECLARE_REFCOUNTED_STRUCT(TSourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicSourceContext);
@@ -344,10 +350,10 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSinkControllerContext);
 DECLARE_REFCOUNTED_STRUCT(ISinkController);
 
 DECLARE_REFCOUNTED_STRUCT(TProcessPartitionTraverseDataResult);
-DECLARE_REFCOUNTED_STRUCT(TComputationControllerCommonContext);
 DECLARE_REFCOUNTED_STRUCT(TComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(IComputationController);
+DECLARE_REFCOUNTED_STRUCT(TComputationPartitionStatus);
 
 DECLARE_REFCOUNTED_STRUCT(TResourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
@@ -361,11 +367,11 @@ DECLARE_REFCOUNTED_STRUCT(TResourceControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceControllerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceController);
 
-DECLARE_REFCOUNTED_STRUCT(TFileSourceSpec);
-DECLARE_REFCOUNTED_STRUCT(TFileSourceRevision);
-DECLARE_REFCOUNTED_STRUCT(TFileSourceContext);
-DECLARE_REFCOUNTED_STRUCT(TDynamicFileSourceContext);
-DECLARE_REFCOUNTED_STRUCT(IFileSource);
+DECLARE_REFCOUNTED_STRUCT(TFileProviderSpec);
+DECLARE_REFCOUNTED_STRUCT(TFileProviderRevision);
+DECLARE_REFCOUNTED_STRUCT(TFileProviderContext);
+DECLARE_REFCOUNTED_STRUCT(TDynamicFileProviderContext);
+DECLARE_REFCOUNTED_STRUCT(IFileProvider);
 
 DEFINE_ENUM(EFileSnapshotState,
     ((Preparing) (0))

@@ -26,7 +26,7 @@ bool TBoundedPriorityQueue<TPayload>::IsEmpty() const
 }
 
 template <class TPayload>
-void TBoundedPriorityQueue<TPayload>::Insert(double cost, TPayload&& payload)
+void TBoundedPriorityQueue<TPayload>::Insert(double cost, TPayload payload)
 {
     if (cost < BestDiscardedCost_) {
         return;

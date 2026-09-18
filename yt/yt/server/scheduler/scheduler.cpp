@@ -1264,6 +1264,13 @@ public:
         return NodeManager_->GetResourceUsage(filter);
     }
 
+    TCellTag GetPrimaryMasterCellTag() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+    }
+
     void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);
@@ -1338,6 +1345,7 @@ public:
                 }
                 if (operation->GetState() != expectedState) { // EOperationState::RevivingJobs or EOperationState::Materializing
                     YT_TLOG_INFO("Operation state changed during materialization, skip materialization postprocessing")
+                        .With("OperationId", operation->GetId())
                         .With("ActualState", operation->GetState())
                         .With("ExpectedState", expectedState);
                     return;
@@ -3156,9 +3164,11 @@ private:
                 YT_TLOG_DEBUG("Full heartbeat from agent processed, aborted allocations supposed to be considered by controller agent")
                     .With("OperationId", operation->GetId());
             } catch (const std::exception& ex) {
+                YT_TLOG_WARNING("Failed to wait for full heartbeat from agent")
+                    .With("OperationId", operation->GetId())
+                    .With(ex);
                 auto error = TError("Failed to wait full heartbeat from agent for operation %v", operation->GetId())
                     .With(ex);
-                YT_LOG_WARNING(error);
                 Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
             }
         }
@@ -3550,14 +3560,17 @@ private:
                 WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to abort controller of operation %v", operation->GetId())
-                    .With(ex);
                 if (auto agent = operation->FindAgent()) {
-                    YT_LOG_WARNING(error);
+                    YT_TLOG_WARNING("Failed to abort operation controller")
+                        .With("OperationId", operation->GetId())
+                        .With(ex);
+                    auto error = TError("Failed to abort controller of operation %v", operation->GetId())
+                        .With(ex);
                     Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
                 } else {
                     YT_TLOG_WARNING("Operation termination failed but looks like controller is already unregistered")
-                        .With(error);
+                        .With("OperationId", operation->GetId())
+                        .With(ex);
                 }
                 return;
             }

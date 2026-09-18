@@ -1,0 +1,22 @@
+{
+  "invocation": {
+    "script_arguments": [
+      "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
+      "--component",
+      "node",
+      "--type",
+      "info",
+      "-t",
+      "2026-07-22 13:00:00",
+      "-e",
+      "2026-07-22 15:00:00"
+    ]
+  },
+  "expected": {
+    "outcome": "failed",
+    "result": "access_unavailable",
+    "selected_component": null,
+    "selected_base": null,
+    "log_read": false
+  }
+}

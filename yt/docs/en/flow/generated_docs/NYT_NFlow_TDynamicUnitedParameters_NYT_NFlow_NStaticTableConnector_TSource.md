@@ -19,6 +19,9 @@ The time to read one input table. The main parameter for controlling read speed.
 || `restart_instant` | **Type**: `TInstant`
 **Default value**: `1970-01-01T00:00:00.000000Z`
 Set this parameter to the current time in ISO 8601 to forget the current progress and start reading static tables from scratch. You can safely decrease the parameter value without triggering an additional read restart. A restart happens only if the current restart_instant is greater than the last restart_instant that the source saved internally. This parameter does not correlate with static table timestamps and does not filter them for the read restart. ||
+|| `allow_v1_migration` | **Type**: `bool`
+**Default value**: `false`
+Controls departure from V1-compatible ordering. The default is `false`. A V1-shaped checkpoint is detected as `V1`, and native V2 with this flag explicitly enabled advances it one way through `V1` &rarr; `Draining` &rarr; `V2`, or directly to `V2` when no V1 table is in progress. The flag is effective only when the source is registered under the native V2 class name; rollout under the old compatibility name stays in `V1`. Persisted `Draining` and `V2` are authoritative after rollback to the old name and are never downgraded by the class-name guard or by changing this flag to `false`. ||
 |#
 
 

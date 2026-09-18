@@ -682,7 +682,9 @@ std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilizat
             trafficUtilization.MaxEstimatedTimeToReadPendingBytes = totalUsage.MaxEstimatedOverdraftDuration;
             trafficUtilization.MinEstimatedTimeToReadPendingBytes = totalUsage.MinEstimatedOverdraftDuration;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Unexpected throttler id %Qv", throttlerId);
+            YT_TLOG_WARNING("Unexpected throttler id")
+                .With("ThrottlerId", throttlerId)
+                .With(ex);
         }
     }
     return result;

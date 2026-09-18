@@ -418,6 +418,7 @@ class FlowTestBase:
         workers_count: int,
         secret_env: list[str] | None = None,
         runtime_cluster: str | None = None,
+        config_patch: dict | None = None,
     ):
         """Patches the pipeline-config YSON in-place to enable a vanilla-jobs launch."""
         config_path = pipeline_binary_args.get("--config")
@@ -448,6 +449,8 @@ class FlowTestBase:
             pipeline_config["vanilla"]["runtime_cluster"] = runtime_cluster
             # All clusters of the test federation expose the same proxy role.
             pipeline_config["vanilla"]["runtime_proxy_role"] = self.RPC_PROXY_ROLE
+        if config_patch:
+            pipeline_config["vanilla"].update(config_patch)
         dump_yson_config(pipeline_config, config_path)
 
     @contextmanager
@@ -468,6 +471,7 @@ class FlowTestBase:
         use_vanilla_jobs: bool = False,
         vanilla_secret_env: list[str] | None = None,
         vanilla_runtime_cluster: str | None = None,
+        vanilla_config_patch: dict | None = None,
         patch_node_config: bool = True,
         additional_env: dict[str, str] | None = None,
         worker_node_config_overrides: list[dict] | None = None,
@@ -495,7 +499,9 @@ class FlowTestBase:
             leader_wait_timeout = max(leader_wait_timeout, 120)
 
         if use_vanilla_jobs:
-            self._inject_vanilla_block(pipeline_binary_args, workers_count, vanilla_secret_env, vanilla_runtime_cluster)
+            self._inject_vanilla_block(
+                pipeline_binary_args, workers_count, vanilla_secret_env, vanilla_runtime_cluster, vanilla_config_patch
+            )
 
         if problems:
             if controller_problems_config is None:
@@ -524,6 +530,7 @@ class FlowTestBase:
             use_vanilla_jobs=use_vanilla_jobs,
             worker_node_config_overrides=worker_node_config_overrides,
             client=self.client,
+            dump_pipeline_state=self._try_dump_pipeline_state,
         ) as federation:
             monitoring = (
                 MonitoringStack(self.path_to_flow_logs, self.port_manager) if MONITORING_STACK_ENABLED else None
@@ -551,9 +558,7 @@ class FlowTestBase:
                 debug_hang = True
                 raise
             finally:
-                self._try_dump_flow_view()
-                self._try_dump_description()
-                federation.try_dump_processes_state(debug_hang=debug_hang)
+                federation.try_dump_final_state(debug_hang=debug_hang)
                 # Pause before teardown so the pipeline stays up for inspection. Requested explicitly
                 # via PAUSE_BEFORE_FLOW_PROCESS_FEDERATION_TEARDOWN, or implicitly whenever the
                 # monitoring stack actually came up (its whole point is to browse the live metrics) --
@@ -567,6 +572,10 @@ class FlowTestBase:
                     monitoring.notify_hold()
                 while pause_before_teardown:
                     time.sleep(1)
+
+    def _try_dump_pipeline_state(self):
+        self._try_dump_flow_view()
+        self._try_dump_description()
 
     def _try_dump_flow_view(self):
         try:
@@ -638,6 +647,19 @@ class FlowTestBase:
                 )
             )
 
+    def wait_jobs_initialized(self, timeout=180):
+        def jobs_initialized():
+            statuses = self.client.get_flow_view(
+                self.pipeline_path,
+                view_path="/feedback/partition_job_statuses",
+                cache=False,
+            )
+            return bool(statuses) and all(
+                status.get("current_job_status", {}).get("inited_time") is not None for status in statuses.values()
+            )
+
+        wait(jobs_initialized, timeout=timeout, ignore_exceptions=True)
+
     def ask_key_visitor_to_complete(self, computation_id, stream_id):
         """Ask a running key visitor to finish sweeping.
 
@@ -663,11 +685,10 @@ class FlowTestBase:
         wait(check, timeout=timeout, ignore_exceptions=True)
 
     def get_processing_watermark(self):
-        epoch = self.client.get_flow_view(self.pipeline_path, view_path="/state/epoch")
         united_stream = self.client.get_flow_view(self.pipeline_path, view_path="/state/traverse_data/united_stream")
-        if epoch == united_stream.get("epoch", -1):
-            return united_stream.get("event_watermark", 0)
-        return 0
+        # Job restarts can leave stream traverses on mixed spec generations.
+        # Their watermarks remain monotonic.
+        return united_stream.get("event_watermark", 0)
 
     def run_yt_sync_ensure(self, yt_sync_binary_path, extra_env=None):
         env = dict(os.environ)

@@ -158,6 +158,8 @@ class TestFail(TestCase):
             ('[,', "Expecting value", 1),
             ('--', 'Expecting value', 0),
             ('"\x18d', "Invalid control character %r", 1),
+            # control char after content: pos must point to the control char, not start of content
+            ('"d\x18"', "Invalid control character %r", 2),
         ]
         for data, msg, idx in test_cases:
             try:

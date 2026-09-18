@@ -9,7 +9,6 @@
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
-#include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
@@ -19,6 +18,7 @@
 namespace NYT::NTableClient::NProto {
 
 class TRspCheckBackup;
+class TRspCheckDynamicTableLock;
 class TTabletStatistics;
 class TTableReplicaStatistics;
 
@@ -84,6 +84,7 @@ DECLARE_REFCOUNTED_STRUCT(ITabletCellBalancerProvider)
 DECLARE_REFCOUNTED_STRUCT(ITabletNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletChunkManager)
+DECLARE_REFCOUNTED_STRUCT(IStoresUpdateThrottler)
 
 DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
 
@@ -99,6 +100,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicTabletManagerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTablesMulticellGossipConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicTabletNodeTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellHydraPersistenceSynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoresUpdateThrottlerConfig)
 
 class TTableReplica;
 
@@ -127,6 +129,7 @@ struct TCreateTabletActionOptions;
 struct TTabletStatistics;
 
 class TTabletResources;
+class TTabletCellBundleResources;
 
 struct TUnmountTabletOptions;
 struct TTableSettings;
@@ -145,8 +148,6 @@ using TSerializedTabletOwnerSettings = std::variant<
 >;
 
 extern const std::string DefaultTabletCellBundleName;
-
-extern const TTimeFormula DefaultTabletBalancerSchedule;
 
 constexpr i64 EdenStoreIdsSizeLimit = 100;
 

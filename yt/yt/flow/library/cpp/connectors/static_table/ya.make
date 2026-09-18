@@ -4,12 +4,14 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     arrival_order_table_sink.cpp
-    spec.cpp
     source.cpp
+    source_spec.cpp
+    spec.cpp
     GLOBAL register.cpp
 )
 
 PEERDIR(
+    library/cpp/timezone_conversion
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/connectors/common
     yt/yt/flow/library/cpp/resources

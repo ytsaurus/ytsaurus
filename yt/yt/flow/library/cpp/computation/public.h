@@ -15,11 +15,6 @@ class TComputationBase;
 DECLARE_REFCOUNTED_STRUCT(IMessageFilter);
 DECLARE_REFCOUNTED_STRUCT(IOutputCollector);
 
-DECLARE_REFCOUNTED_STRUCT(TOutputStoreStreamOrchidState);
-DECLARE_REFCOUNTED_STRUCT(TUniversalComputationOrchidState);
-DECLARE_REFCOUNTED_STRUCT(TUniversalComputationDynamicPartitionSpec);
-DECLARE_REFCOUNTED_STRUCT(TUniversalComputationPartitionStatus);
-
 DECLARE_REFCOUNTED_CLASS(TRootOutputCollector);
 DECLARE_REFCOUNTED_STRUCT(IOutputCollector);
 
@@ -64,6 +59,7 @@ DEFINE_ENUM(EProcessingMode,
 );
 
 DECLARE_REFCOUNTED_STRUCT(TUniversalComputationControllerState);
+DECLARE_REFCOUNTED_STRUCT(TUniversalComputationControllerPartitioningState);
 DECLARE_REFCOUNTED_CLASS(TUniversalComputationController);
 
 DECLARE_REFCOUNTED_STRUCT(TKeyVisitorInterval);

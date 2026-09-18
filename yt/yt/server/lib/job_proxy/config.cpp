@@ -198,7 +198,8 @@ void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
 void TJobEnvironmentConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("start_uid", &TThis::StartUid)
-        .Default(10000);
+        .Default(10000)
+        .GreaterThan(0);
 
     registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
         .Default(TDuration::Seconds(1));
@@ -342,6 +343,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("input_pipe_blinker_period", &TThis::InputPipeBlinkerPeriod)
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
+        .Default(false);
 
     registrar.Parameter("job_io_meter_max_history_duration", &TThis::JobIoMeterMaxHistoryDuration)
         .Default(TDuration::Hours(1));
@@ -545,6 +549,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("jaeger", &TThis::Jaeger)
         .DefaultNew();
+
+    registrar.Parameter("enable_job_io_statistics", &TThis::EnableJobIoStatistics)
+        .Default(false);
 
     registrar.Parameter("enable_job_shell_seccomp", &TThis::EnableJobShellSeccopm)
         .Default(true);

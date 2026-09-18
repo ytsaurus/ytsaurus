@@ -971,9 +971,17 @@ private:
         TSequoiaSessionPtr session;
         TMaybeUnreachableResolveResult resolveResult;
         try {
+            TStringBuilder descriptionBuilder;
+            descriptionBuilder.AppendFormat("%v %v", header.method(), originalTargetPath);
+            const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            if (ypathExt.original_additional_paths_size() > 0) {
+                descriptionBuilder.AppendFormat("; additional paths: %v", ypathExt.original_additional_paths());
+            }
+
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
                 std::move(authenticationIdentity),
+                descriptionBuilder.Flush(),
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
@@ -1121,6 +1129,34 @@ private:
         RpcContext_->Reply(error);
     }
 
+    void MaybeWrapSubresponseRetriableError(TSharedRefArray* subresponseMessage)
+    {
+        NRpc::NProto::TResponseHeader subresponseHeader;
+        if (!TryParseResponseHeader(*subresponseMessage, &subresponseHeader)) {
+            YT_TLOG_ALERT("Failed to parse subresponse header");
+            return;
+        }
+
+        if (!subresponseHeader.has_error()) {
+            return;
+        }
+
+        auto error = FromProto<TError>(subresponseHeader.error());
+        const auto* effectiveError = &error;
+        if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed && !error.InnerErrors().empty()) {
+            effectiveError = &error.InnerErrors().front();
+        }
+
+        if (NRpc::IsRetriableError(*effectiveError)) {
+            YT_TLOG_DEBUG("Wrapping subresponse retriable error")
+                .With("EffectiveError", *effectiveError);
+            ToProto(subresponseHeader.mutable_error(),
+                TError(NSequoiaClient::EErrorCode::SequoiaRetriableError, "Retriable Sequoia error")
+                    .With(error));
+            *subresponseMessage = SetResponseHeader(*subresponseMessage, subresponseHeader);
+        }
+    }
+
     void ReplyOnSubrequest(
         int subrequestIndex,
         TSharedRefArray subresponseMessage,
@@ -1128,6 +1164,8 @@ private:
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
+
+        MaybeWrapSubresponseRetriableError(&subresponseMessage);
 
         auto& response = RpcContext_->Response();
 

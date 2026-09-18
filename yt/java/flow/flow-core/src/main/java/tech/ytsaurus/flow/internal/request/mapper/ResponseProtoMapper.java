@@ -5,9 +5,12 @@ import java.util.ArrayList;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.computation.AddMessageOptions;
+import tech.ytsaurus.flow.computation.MessageIdSuffix;
 import tech.ytsaurus.flow.computation.TransformResult;
 import tech.ytsaurus.flow.request.ResponseContext;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.rpc.TMessageIdSuffix;
 import tech.ytsaurus.flow.rpc.TNewTimer;
 import tech.ytsaurus.flow.rpc.TResponseData;
 import tech.ytsaurus.flow.stream.StreamSpecs;
@@ -60,26 +63,32 @@ public class ResponseProtoMapper {
             for (var timer : transformResult.getTimers()) {
                 protoTimers.add(newTimerMapper.toProto(timer));
             }
-            protoGroups.add(TResponseData.TGroup.newBuilder()
+            var groupBuilder = TResponseData.TGroup.newBuilder()
                     .addAllMessages(protoMessages)
                     .addAllDistribute(transformResult.getDistribute())
                     .addAllParentIds(protoParentIds)
-                    .addAllTimers(protoTimers)
-                    .build());
+                    .addAllTimers(protoTimers);
+            if (transformResult.getMessageIdSuffixes().stream()
+                    .anyMatch(suffix -> suffix.getMode() != MessageIdSuffix.Mode.SEQUENCE_NUMBER)) {
+                for (var suffix : transformResult.getMessageIdSuffixes()) {
+                    groupBuilder.addMessageIdSuffixes(messageIdSuffixToProto(suffix));
+                }
+            }
+            protoGroups.add(groupBuilder.build());
         }
         builder.addAllOutput(protoGroups);
 
         // Internal states.
         var internalStateMapper = new InternalStateProtoMapper(
                 /*keySchema not needed for toProto*/ null,
-                codecs.getKeyCodec(),
-                codecs.getInternalStateValueCodec()
+                codecs.getKeyCodec()
         );
         var protoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getInternalStates().values()) {
-            // Only states changed via accessors are sent back; skip holders with no modifications.
-            if (namedState.hasModifiedStates()) {
-                protoStates.add(internalStateMapper.toProto(namedState));
+            // Only modified states are sent back.
+            var modifiedStates = namedState.collectModifiedStates();
+            if (!modifiedStates.isEmpty()) {
+                protoStates.add(internalStateMapper.toProto(namedState, modifiedStates));
             }
         }
         builder.addAllInternalStates(protoStates);
@@ -87,14 +96,14 @@ public class ResponseProtoMapper {
         // External states.
         var externalStateMapper = new ExternalStateProtoMapper(
                 /*keySchema not needed for toProto*/ null,
-                codecs.getKeyCodec(),
-                codecs.getPayloadCodec()
+                codecs.getKeyCodec()
         );
         var externalProtoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getExternalStates().values()) {
-            // Only states changed via accessors are sent back; skip holders with no modifications.
-            if (namedState.hasModifiedStates()) {
-                externalProtoStates.add(externalStateMapper.toProto(namedState));
+            // Only modified states are sent back.
+            var modifiedStates = namedState.collectModifiedStates();
+            if (!modifiedStates.isEmpty()) {
+                externalProtoStates.add(externalStateMapper.toProto(namedState, modifiedStates));
             }
         }
         builder.addAllExternalStates(externalProtoStates);
@@ -131,11 +140,23 @@ public class ResponseProtoMapper {
             }
             var transformResult = new TransformResult(parentIds);
             var distribute = protoGroup.getDistributeList();
+            var messageIdSuffixes = protoGroup.getMessageIdSuffixesList();
+            if (!messageIdSuffixes.isEmpty() && messageIdSuffixes.size() != protoGroup.getMessagesCount()) {
+                throw new IllegalArgumentException("Message ID suffixes count must match output messages count");
+            }
             int messageIndex = 0;
             for (var protoMessage : protoGroup.getMessagesList()) {
                 // Empty distribute means "distribute all".
                 boolean messageDistribute = distribute.isEmpty() || distribute.get(messageIndex);
-                transformResult.addMessage(messageMapper.fromProto(protoMessage), messageDistribute);
+                var messageIdSuffix = messageIdSuffixes.isEmpty()
+                        ? MessageIdSuffix.sequenceNumber()
+                        : messageIdSuffixFromProto(messageIdSuffixes.get(messageIndex));
+                transformResult.addMessage(
+                        messageMapper.fromProto(protoMessage),
+                        AddMessageOptions.builder()
+                                .setDistribute(messageDistribute)
+                                .setMessageIdSuffix(messageIdSuffix)
+                                .build());
                 ++messageIndex;
             }
             for (var protoTimer : protoGroup.getTimersList()) {
@@ -145,19 +166,35 @@ public class ResponseProtoMapper {
         }
 
         // Internal states.
-        var internalStateMapper = new InternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getInternalStateValueCodec()
+        var internalStates = new InternalStateProtoMapper(keySchema, codecs.getKeyCodec()).fromProto(
+                responseData.getInternalStatesList(), jobId, requestId
         );
-        var internalStates = internalStateMapper.fromProto(responseData.getInternalStatesList());
 
         // External states.
-        var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getPayloadCodec()
-        );
-        var externalStates = externalStateMapper.fromProto(
+        var externalStates = new ExternalStateProtoMapper(keySchema, codecs.getKeyCodec()).fromProto(
                 responseData.getExternalStatesList(), jobId, requestId
         );
 
         return new ResponseContext(jobId, requestId, transformResults, internalStates, externalStates);
+    }
+
+    private static TMessageIdSuffix messageIdSuffixToProto(MessageIdSuffix suffix) {
+        var builder = TMessageIdSuffix.newBuilder();
+        switch (suffix.getMode()) {
+            case SEQUENCE_NUMBER -> builder.setMode(TMessageIdSuffix.EMode.MIS_SEQUENCE_NUMBER);
+            case PAYLOAD_HASH -> builder.setMode(TMessageIdSuffix.EMode.MIS_PAYLOAD_HASH);
+            case USER_DEFINED -> builder
+                    .setMode(TMessageIdSuffix.EMode.MIS_USER_DEFINED)
+                    .setUserDefined(ByteString.copyFromUtf8(suffix.getValue()));
+        }
+        return builder.build();
+    }
+
+    private static MessageIdSuffix messageIdSuffixFromProto(TMessageIdSuffix suffix) {
+        return switch (suffix.getMode()) {
+            case MIS_SEQUENCE_NUMBER -> MessageIdSuffix.sequenceNumber();
+            case MIS_PAYLOAD_HASH -> MessageIdSuffix.payloadHash();
+            case MIS_USER_DEFINED -> MessageIdSuffix.userDefined(suffix.getUserDefined().toStringUtf8());
+        };
     }
 }

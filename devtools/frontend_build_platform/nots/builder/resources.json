@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-08-28T00:37:48Z",
+    "created": "2026-09-17T17:03:09Z",
     "pr": {
-      "id": 15302532,
+      "id": 15816274,
       "author": "baymer",
-      "summary": "DEVTOOLSSUPPORT-94180: убрать pnpm install из TS_PACKAGE"
+      "summary": "FBP-3313: Убрать промежуточный pre.pnpm-lock.yaml из TS_PREPARE_DEPS"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:13389096329"
+      "uri": "sbr:13716638405"
     },
     "darwin-arm64": {
-      "uri": "sbr:13389095338"
+      "uri": "sbr:13716636402"
     },
     "linux": {
-      "uri": "sbr:13389098318"
+      "uri": "sbr:13716643132"
     },
     "linux-aarch64": {
-      "uri": "sbr:13389097465"
+      "uri": "sbr:13716640824"
     }
   }
 }

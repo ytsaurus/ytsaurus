@@ -6,6 +6,7 @@
 #include "persisted_state_control.h"
 #include "spec.h"
 #include "stream_spec_storage_state.h"
+#include "stream_statistics.h"
 #include "timestamp_statistics.h"
 #include "traverse.h"
 
@@ -115,12 +116,16 @@ struct TJob
     : public NYTree::TYsonStruct
 {
     TJobId JobId;
+    //! Monotonically increasing fencing token; every subsequently created job for the same partition has a greater value.
+    TUniqueSeqNo Generation;
     std::string WorkerAddress;
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
+    //! The prerequisite the worker attaches to the commits of this job's epochs: a master
+    //! transaction of the leader under the Cypress backend, a chaos lease under the Chaos one.
     TLeaseId LeaseId;
     //! When set, the job is fenced by rows of the pipeline's leases dynamic table instead of a
-    //! lease transaction prerequisite (LeaseId stays null).
+    //! prerequisite (LeaseId stays null).
     //!
     //! The counterpart of #LeaseId for the dyntable backend: both are filled once the fence of
     //! this job exists — the rows are committed by their own transaction before the layout that
@@ -144,9 +149,9 @@ struct TNodePerformanceMetrics
     std::optional<double> CpuUsage30s;
     std::optional<double> CpuUsage10m;
 
-    i64 MemoryUsageCurrent{};
-    i64 MemoryUsage30s{};
-    i64 MemoryUsage10m{};
+    std::optional<i64> MemoryUsageCurrent;
+    std::optional<i64> MemoryUsage30s;
+    std::optional<i64> MemoryUsage10m;
 
     REGISTER_YSON_STRUCT(TNodePerformanceMetrics);
 
@@ -385,6 +390,20 @@ DEFINE_REFCOUNTED_TYPE(TWorkerResourceStatus);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWorkerStatistics
+    : public NYTree::TYsonStruct
+{
+    TLineageRatios LineageRatios;
+
+    REGISTER_YSON_STRUCT(TWorkerStatistics);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TWorkerStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWorkerStatus
     : public NYTree::TYsonStruct
 {
@@ -394,6 +413,7 @@ struct TWorkerStatus
     TMessageDistributorStatusPtr MessageDistributorStatus;
     THashMap<TResourceId, TWorkerResourceStatusPtr> ResourceStatuses;
     THashMap<TResourceId, EPreloadedResourceState> PreloadedResourceStates;
+    TWorkerStatisticsPtr Statistics;
 
     REGISTER_YSON_STRUCT(TWorkerStatus);
 
@@ -424,6 +444,9 @@ struct TWorkerSpec
     : public NYTree::TYsonStruct
 {
     THashSet<TResourceId> PreloadResources;
+    //! Incarnation of the worker that received these preloads. A new incarnation of the same
+    //! address has no preloaded resources, so the spec does not apply to it.
+    std::optional<TIncarnationId> WorkerIncarnationId;
 
     REGISTER_YSON_STRUCT(TWorkerSpec);
 
@@ -768,19 +791,6 @@ DEFINE_REFCOUNTED_TYPE(TStreamTraverseDataMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStreamSpeedStatistics
-    : public NYTree::TYsonStructLite
-{
-    double ProcessedMessagesPerSecond{};
-    double ProcessedBytesPerSecond{};
-
-    REGISTER_YSON_STRUCT_LITE(TStreamSpeedStatistics);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPipelineSpeedStatistics
     : public NYTree::TYsonStructLite
 {
@@ -816,10 +826,14 @@ struct TFlowEphemeralState
     THashMap<TPartitionId, TPartitionEphemeralStatePtr> Partitions;
     THashMap<TComputationId, THashMap<TStreamId, TStreamTraverseDataMetricsPtr>> StreamTraverseDataMetrics;
     THashMap<TWorkerGroupId, TSequenceId> MaxAppliedBalancerSequenceIds;
+    //! #TFlowLayout::Jobs grouped by worker incarnation, maintained by the layout mutation notifier.
+    //! Never trimmed by the registered workers: a worker that registers late still owns its jobs.
     THashMap<TIncarnationId, THashSet<TJobId>> WorkerIncarnationsJobs;
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+
+    TLineageRatios LineageRatios;
 
     THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 

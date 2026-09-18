@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.spring;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +16,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -22,6 +24,8 @@ import org.springframework.core.ResolvableType;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
+import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 
@@ -99,6 +103,25 @@ class FlowRunnerBootstrapTest {
     }
 
     @Test
+    void productionLaunchPassesTheDeclaredStatesOn() throws Exception {
+        try (var parent = new AnnotationConfigApplicationContext(ParentStateConfig.class)) {
+            contextRunner
+                    .withParent(parent)
+                    .withUserConfiguration(StreamConfig.class, StateConfig.class)
+                    .run(context -> {
+                        var bootstrap = productionBootstrap(context);
+                        bootstrap.run(new DefaultApplicationArguments("--config", "p.yson", "--flow-bin", "fs"));
+
+                        // Provider states and bean states, parent contexts included.
+                        assertThat(bootstrap.launchedStates).containsExactlyInAnyOrder(
+                                StateConfig.SHARED,
+                                context.getBean("beanState", StateDescriptor.class),
+                                parent.getBean("parentState", StateDescriptor.class));
+                    });
+        }
+    }
+
+    @Test
     void disabledRunnerLaunchesNothingEvenOutsideATest() throws Exception {
         // The escape hatch for undetected test frameworks.
         contextRunner
@@ -137,6 +160,7 @@ class FlowRunnerBootstrapTest {
     private static class RecordingBootstrap extends FlowRunnerBootstrap {
         String @Nullable [] launchedArgs;
         @Nullable Map<String, FlowStream<?>> launchedStreams;
+        @Nullable Collection<StateDescriptor<?>> launchedStates;
         @Nullable Integer exitCode;
 
         RecordingBootstrap(
@@ -155,19 +179,57 @@ class FlowRunnerBootstrapTest {
         }
 
         @Override
-        int launch(String[] args, Map<String, FlowStream<?>> streams) throws Exception {
+        int launch(
+                String[] args,
+                Map<String, FlowStream<?>> streams,
+                Collection<StateDescriptor<?>> states
+        ) throws Exception {
             if (!List.of(args).contains("--config")) {
                 // Mirror the parser contract the real launch enforces.
-                return super.launch(args, streams);
+                return super.launch(args, streams, states);
             }
             this.launchedArgs = args;
             this.launchedStreams = streams;
+            this.launchedStates = states;
             return 7;
         }
 
         @Override
         void exit(int code) {
             this.exitCode = code;
+        }
+    }
+
+    @Configuration
+    static class StateConfig {
+        static final StateDescriptor<?> SHARED = StateDescriptors.external("/shared");
+
+        @Bean
+        ComputationProvider stateProvider() {
+            return new ComputationProvider() {
+                @Override
+                public List<FlowStream<?>> getStreams() {
+                    return List.of();
+                }
+
+                @Override
+                public List<StateDescriptor<?>> getStates() {
+                    return List.of(SHARED);
+                }
+            };
+        }
+
+        @Bean
+        StateDescriptor<?> beanState() {
+            return StateDescriptors.external("/bean");
+        }
+    }
+
+    @Configuration
+    static class ParentStateConfig {
+        @Bean
+        StateDescriptor<?> parentState() {
+            return StateDescriptors.external("/parent");
         }
     }
 

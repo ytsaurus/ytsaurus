@@ -67,11 +67,6 @@ void IComputationRunContext::MarkDeduplicated(TMessageId messageId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TComputationOrchidState::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TComputationStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_traverse", &TThis::NodeTraverse)
@@ -88,6 +83,14 @@ void TComputationStatus::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TComputationPartitionStatus::Register(TRegistrar registrar)
+{
+    registrar.Parameter("active_source_status", &TThis::ActiveSourceStatus)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void IComputation::TParametersBase::Register(TRegistrar /*registrar*/)
 { }
 
@@ -98,8 +101,15 @@ void IComputation::TDynamicParametersBase::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IComputation::TDynamicPartitionSpecBase::Register(TRegistrar /*registrar*/)
-{ }
+void IComputation::TDynamicPartitionSpecBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("active_source", &TThis::ActiveSource)
+        .Default();
+    registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
+        .Default();
+    registrar.Parameter("availability_group_unavailable", &TThis::AvailabilityGroupUnavailable)
+        .Default(false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

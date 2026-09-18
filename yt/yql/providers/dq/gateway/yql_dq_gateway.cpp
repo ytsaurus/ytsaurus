@@ -313,16 +313,33 @@ public:
         const auto alwaysFallback = EFallbackPolicy::Always == fallbackPolicy;
         auto self = weak_from_this();
         auto callback = [self, promise, sessionId = SessionId, alwaysFallback, resultFormatSettings, modulesMapping](
-            NYdbGrpc::TGrpcStatus&& status, TResponse&& resp) mutable {
-            auto this_ = self.lock();
-            if (!this_) {
-                YQL_CLOG(DEBUG, ProviderDq) << "Session was closed: " << sessionId;
-                promise.SetException("Session was closed");
-                return;
-            }
+            NYdbGrpc::TGrpcStatus&& status, TResponse&& resp) mutable noexcept {
+            try {
+                auto this_ = self.lock();
+                if (!this_) {
+                    YQL_CLOG(DEBUG, ProviderDq) << "Session was closed: " << sessionId;
+                    promise.SetException("Session was closed");
+                    return;
+                }
 
-            this_->OnResponse(std::move(promise), std::move(status), std::move(resp), resultFormatSettings,
-                modulesMapping, alwaysFallback);
+                // Keep our promise handle valid: SetValue runs subscribers inline,
+                // and a subscriber is allowed to throw after the promise is set.
+                this_->OnResponse(promise, std::move(status), std::move(resp), resultFormatSettings,
+                    modulesMapping, alwaysFallback);
+            } catch (...) {
+                auto exception = std::current_exception();
+                YQL_CLOG(ERROR, ProviderDq) << "Unhandled exception in ExecuteGraph callback: "
+                    << CurrentExceptionMessage();
+                try {
+                    // If OnResponse failed before completing the promise, propagate
+                    // the error. If a subscriber threw after completion, this is a
+                    // no-op; either way no exception escapes into the gRPC thread.
+                    promise.TrySetException(exception);
+                } catch (...) {
+                    YQL_CLOG(ERROR, ProviderDq) << "Exception while completing ExecuteGraph promise: "
+                        << CurrentExceptionMessage();
+                }
+            }
         };
 
         Service.DoRequest<TRequest, TResponse>(queryPB, callback, stub);

@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/security_client/acl.h>

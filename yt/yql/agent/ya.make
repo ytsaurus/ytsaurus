@@ -22,6 +22,9 @@ SRCS(
     interop.cpp
     type_builder.cpp
     data_builder.cpp
+    query_identity.cpp
+    token_manager.cpp
+    token_service.cpp
 )
 
 PEERDIR(

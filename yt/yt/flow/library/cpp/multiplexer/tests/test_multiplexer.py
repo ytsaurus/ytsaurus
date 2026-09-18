@@ -50,11 +50,13 @@ class Test(FlowTestBase):
         rows = []
         for key, count in rows_per_key.items():
             for i in range(count):
-                rows.append({
-                    "key": key,
-                    "secondary_key": i,
-                    "region": f"region-{key}-{i}",
-                })
+                rows.append(
+                    {
+                        "key": key,
+                        "secondary_key": i,
+                        "region": f"region-{key}-{i}",
+                    }
+                )
         self.client.insert_rows(self.secondary_index, rows)
 
     def prepare_pipeline_config(self, batch_size=50, timer_period=2000):
@@ -69,7 +71,9 @@ class Test(FlowTestBase):
             }
         )
 
-        multiplexer_params = pipeline_config["spec"]["computations"]["multiplexer"]["parameters"]
+        multiplexer_spec = pipeline_config["spec"]["computations"]["multiplexer"]
+        multiplexer_dynamic_spec = pipeline_config["dynamic_spec"]["computations"]["multiplexer"]
+        multiplexer_params = multiplexer_spec["processing_function_parameters"]
         multiplexer_params["table_path"] = f"<cluster=primary>{self.secondary_index}"
 
         sink_params = pipeline_config["spec"]["computations"]["multiplexer"]["sinks"]["queue"]["parameters"]
@@ -79,7 +83,7 @@ class Test(FlowTestBase):
             }
         )
 
-        pipeline_config["dynamic_spec"]["computations"]["multiplexer"]["parameters"].update(
+        multiplexer_dynamic_spec["processing_function_parameters"].update(
             {
                 "batch_size": batch_size,
                 "timer_period": timer_period,
@@ -165,9 +169,7 @@ class Test(FlowTestBase):
             )
 
             self.assert_exact_output_for_payload("collapse_key", "P2", 149)
-            logging.info(
-                "test_collapse_single passed: total rows = %d", len(self.get_output_for_key("collapse_key"))
-            )
+            logging.info("test_collapse_single passed: total rows = %d", len(self.get_output_for_key("collapse_key")))
 
     # ------------------------------------------------------------------
     # Test 3: Multi-collapse — send key 3 times with payloads P1, P2, P3.

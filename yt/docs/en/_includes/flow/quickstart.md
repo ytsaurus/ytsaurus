@@ -162,7 +162,7 @@ $ ya run . -- --input {{flow-example-cluster}}://tmp/example/noop --ttl 1
 
 This creates an .svg file with the pipeline image. You can open the file in a browser. For information about what you can learn from the graph, read the README.md file next to the utility.
 
-![](../../flow/images/flow_noop_pipeline.png =600x230){ .center }
+![](../../flow/_images/flow_noop_pipeline.png =600x230){ .center }
 
 ## Run in a YT vanilla operation {#vanilla}
 

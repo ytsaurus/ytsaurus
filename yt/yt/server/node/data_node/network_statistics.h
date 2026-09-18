@@ -33,10 +33,12 @@ public:
 
     void IncrementReadThrottlingCounter(const std::string& name);
     void IncrementWriteThrottlingCounter(const std::string& name);
+    void Reconfigure(const TDataNodeDynamicConfigPtr& config);
     void UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics);
 
 private:
     const TDataNodeConfigPtr Config_;
+    std::atomic<NProfiling::TCpuDuration> ThrottlingDuration_;
 
     NConcurrency::TSyncMap<std::string, TIntrusivePtr<TNetworkCounters>> Counters_;
 

@@ -2,10 +2,12 @@ package tech.ytsaurus.flow.internal.request.mapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.job.Job;
 import tech.ytsaurus.flow.request.RequestContext;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.Visit;
@@ -34,14 +36,17 @@ public class RequestProtoMapper {
     }
 
     /**
-     * Maps a protobuf ProcessBatch request to a {@link RequestContext}.
+     * Maps a protobuf ProcessBatch request to a {@link RequestContext} carrying the
+     * companion-hosted resources acquired for this batch.
      *
-     * @param request the protobuf request
-     * @param job     the job instance
+     * @param request   the protobuf request
+     * @param job       the job instance
+     * @param resources the acquired companion resources keyed by alias
      * @return the request context
      */
-    public RequestContext fromProto(TReqProcessBatch request, Job job) {
+    public RequestContext fromProto(TReqProcessBatch request, Job job, Map<String, FlowResource> resources) {
         var builder = RequestContext.builder();
+        builder.setResources(resources);
         // Base fields.
         builder.setComputationId(request.getComputationId());
         GUID jobId = ProtoUtils.fromProto(request.getJobId());
@@ -70,16 +75,12 @@ public class RequestProtoMapper {
         }
         builder.setMessages(messages);
 
-        // Internal states.
-        var internalStateMapper = new InternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getInternalStateValueCodec()
+        // States.
+        var internalStateMapper = new InternalStateProtoMapper(keySchema, codecs.getKeyCodec());
+        builder.setInternalStates(
+                internalStateMapper.fromProto(request.getInternalStatesList(), jobId, requestId)
         );
-        builder.setInternalStates(internalStateMapper.fromProto(request.getInternalStatesList()));
-
-        // External states.
-        var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getPayloadCodec()
-        );
+        var externalStateMapper = new ExternalStateProtoMapper(keySchema, codecs.getKeyCodec());
         builder.setExternalStates(
                 externalStateMapper.fromProto(request.getExternalStatesList(), jobId, requestId)
         );

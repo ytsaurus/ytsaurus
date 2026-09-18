@@ -47,6 +47,25 @@ TEST(TSwiftMapSpecValidationTest, RejectsSourceStreams)
     ExpectValidationError(spec, "does not support source streams");
 }
 
+TEST(TSwiftMapSpecValidationTest, RejectsSinks)
+{
+    auto spec = ParseComputationSpec(R"##(
+        {
+            computation_class_name = "NYT::NFlow::TSwiftPassthroughComputation";
+            group_by_schema = [];
+            input_stream_ids = [ in ];
+            output_stream_ids = [ out ];
+            sinks = {
+                sink = {
+                    sink_class_name = "SomeSink";
+                    input_stream_ids = [ out ];
+                };
+            };
+        }
+    )##");
+    ExpectValidationError(spec, "does not support sinks");
+}
+
 TEST(TSwiftMapSpecValidationTest, RejectsMissingInputStreams)
 {
     auto spec = ParseComputationSpec(R"##(
@@ -67,10 +86,9 @@ TEST(TSwiftMapSpecValidationTest, AcceptsWellFormedSpec)
             input_stream_ids = [ in ];
         }
     )##");
+    ASSERT_FALSE(spec->WatermarkStrategy->WatermarkGenerator);
     EXPECT_NO_THROW(TRegistry::Get()->ValidateComputationSpec(spec));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NFlow

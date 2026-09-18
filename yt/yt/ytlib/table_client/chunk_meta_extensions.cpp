@@ -185,7 +185,7 @@ TChunkMeta FilterChunkMetaByPartitionTags(
             return Contains(partitionTags, blockMeta.partition_index());
         }));
 
-    auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().Allocate();
+    auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().AllocateUnique();
     NYT::ToProto(blockMetaExt->mutable_data_blocks(), filteredBlocks);
     SetProtoExtension(filteredChunkMeta.mutable_extensions(), *blockMetaExt);
 

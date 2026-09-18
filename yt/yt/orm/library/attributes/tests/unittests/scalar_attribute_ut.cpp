@@ -90,6 +90,15 @@ TEST(TClearAttributesTest, SimpleField)
     EXPECT_EQ(2, message.nested_message().int32_field());
 }
 
+TEST(TClearAttributesTest, RejectsNestedYsonStringPath)
+{
+    NProto::TMessage message;
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        ClearProtobufFieldByPath(message, "/yson_string_field/key", /*skipMissing*/ true),
+        EErrorCode::MalformedPath);
+}
+
 TEST(TClearAttributesTest, MapField)
 {
     NProto::TMessage message;
@@ -546,6 +555,100 @@ TEST_P(TSetAttributeTest, Scalar)
     TESTCASE(float_field, 1.0f);
     TESTCASE(double_field, 0.1);
 #undef TESTCASE
+}
+
+TEST_P(TSetAttributeTest, YsonStringField)
+{
+    NProto::TMessage message;
+
+    for (const auto& value : {"123", "#", "", "{key=value;}"}) {
+        auto node = NYTree::ConvertToNode(value);
+        EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/yson_string_field", node));
+        EXPECT_EQ(NYson::ConvertToYsonString(node).AsStringBuf(), message.yson_string_field());
+        EXPECT_EQ(
+            value,
+            NYTree::ConvertToNode(NYson::TYsonString(message.yson_string_field()))->AsString()->GetValue());
+    }
+
+    auto mapValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/yson_string_field", mapValue));
+    EXPECT_EQ(NYson::ConvertToYsonString(mapValue).AsStringBuf(), message.yson_string_field());
+}
+
+TEST_P(TSetAttributeTest, RepeatedYsonStringField)
+{
+    NProto::TMessage message;
+    message.add_repeated_yson_string_field("{old=value;}");
+
+    auto itemValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("new").Value("value")
+        .EndMap();
+    EXPECT_NO_THROW(SetProtobufFieldByPath(
+        message,
+        "/repeated_yson_string_field/0",
+        itemValue));
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(itemValue).AsStringBuf(),
+        message.repeated_yson_string_field(0));
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        SetProtobufFieldByPath(
+            message,
+            "/repeated_yson_string_field/0/key",
+            NYTree::ConvertToNode("value"),
+            {},
+            /*recursive*/ true),
+        EErrorCode::MalformedPath);
+}
+
+TEST(TSetAttributeWireStringTest, YsonStringFields)
+{
+    const auto* rootType = NYson::ReflectProtobufMessageType<NProto::TMessage>();
+    NProto::TMessage message;
+
+    auto singularValue = NYTree::BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key").Value("value")
+        .EndMap();
+    auto singularElement = NYson::ResolveProtobufElementByYPath(rootType, "/yson_string_field").Element;
+    auto singularWireStringBuffer = ConvertYsonStringToWireString(singularValue, singularElement);
+    auto singularWireString = TWireString::FromSerialized(singularWireStringBuffer);
+    SetProtobufFieldByPath(message, "/yson_string_field", singularWireString);
+    EXPECT_EQ(NYson::ConvertToYsonString(singularValue).AsStringBuf(), message.yson_string_field());
+
+    message.add_repeated_yson_string_field("{old=value;}");
+    auto repeatedValue = NYTree::BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Value(1)
+            .Item().Value(2)
+        .EndList();
+    auto repeatedElement = NYson::ResolveProtobufElementByYPath(
+        rootType,
+        "/repeated_yson_string_field/0").Element;
+    auto repeatedWireStringBuffer = ConvertYsonStringToWireString(repeatedValue, repeatedElement);
+    auto repeatedWireString = TWireString::FromSerialized(repeatedWireStringBuffer);
+    SetProtobufFieldByPath(message, "/repeated_yson_string_field/0", repeatedWireString);
+    EXPECT_EQ(
+        NYson::ConvertToYsonString(repeatedValue).AsStringBuf(),
+        message.repeated_yson_string_field(0));
+}
+
+TEST_P(TSetAttributeTest, RejectsNestedYsonStringPath)
+{
+    NProto::TMessage message;
+
+    EXPECT_THROW_WITH_ERROR_CODE(
+        SetProtobufFieldByPath(
+            message,
+            "/yson_string_field/key",
+            NYTree::ConvertToNode("value"),
+            {},
+            /*recursive*/ true),
+        EErrorCode::MalformedPath);
 }
 
 TEST_P(TSetAttributeTest, Message)
@@ -1070,6 +1173,72 @@ TEST_F(TSetAttributeTest, DiscardUnknownFields)
     EXPECT_EQ(message.repeated_nested_message().at(0).unknown_fields().field_count(), 0);
 }
 
+TEST_F(TSetAttributeTest, RejectsInvalidYsonStringInWireMessage)
+{
+    auto expectInvalid = [] (const NProto::TMessage& updateMessage) {
+        NProto::TMessage message;
+        EXPECT_THROW(
+            NAttributes::SetProtobufFieldByPath(
+                message,
+                /*path*/ {},
+                TWireString::FromSerialized(updateMessage.SerializeAsString())),
+            std::exception);
+    };
+
+    NProto::TMessage updateMessage;
+    updateMessage.set_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    updateMessage.add_repeated_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    updateMessage.mutable_nested_message()->set_yson_string_field("{");
+    expectInvalid(updateMessage);
+
+    updateMessage.Clear();
+    (*updateMessage.mutable_nested_message_map())["key"].set_yson_string_field("{");
+    expectInvalid(updateMessage);
+}
+
+TEST_F(TSetAttributeTest, ValidatesOnlyUpdatedYsonStringFields)
+{
+    NProto::TMessage message;
+    message.set_yson_string_field("{");
+
+    auto int32Value = SerializeInt64(
+        42,
+        NYson::TProtobufElementType{NProtoBuf::FieldDescriptor::TYPE_INT32});
+    EXPECT_NO_THROW(NAttributes::SetProtobufFieldByPath(
+        message,
+        "/int32_field",
+        TWireString::FromSerialized(int32Value)));
+    EXPECT_EQ(42, message.int32_field());
+
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/yson_string_field",
+            TWireString::FromSerialized("{")),
+        std::exception);
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/repeated_yson_string_field/end",
+            TWireString::FromSerialized("{")),
+        std::exception);
+
+    NProto::TNestedMessage nestedMessage;
+    nestedMessage.set_yson_string_field("{");
+    EXPECT_THROW(
+        NAttributes::SetProtobufFieldByPath(
+            message,
+            "/nested_message",
+            TWireString::FromSerialized(nestedMessage.SerializeAsString())),
+        std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1079,6 +1248,35 @@ INSTANTIATE_TEST_SUITE_P(
     /*evalGenerateName*/ [] (const testing::TestParamInfo<TSetAttributeTest::ParamType>& setViaYson) {
         return setViaYson.param ? "Yson" : "WireString";
     });
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TScalarAttributeEqualityTest, RepeatedYsonString)
+{
+    const std::vector<NYson::TYsonString> lhs{
+        NYson::TYsonString(TStringBuf("{value=1;}")),
+        NYson::TYsonString(TStringBuf("[2;3;]")),
+    };
+    const auto equal = lhs;
+    auto different = lhs;
+    different[1] = NYson::TYsonString(TStringBuf("[2;4;]"));
+
+    EXPECT_TRUE(AreScalarAttributesEqual(lhs, equal));
+    EXPECT_FALSE(AreScalarAttributesEqual(lhs, different));
+}
+
+TEST(TScalarAttributeEqualityTest, RejectsNestedYsonStringPath)
+{
+    const auto value = NYson::TYsonString(TStringBuf("{title=book;}"));
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreScalarAttributesEqualByPath(value, value, "/title"),
+        EErrorCode::MalformedPath);
+
+    const std::vector values{value};
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreScalarAttributesEqualByPath(values, values, "/*/title", {}),
+        EErrorCode::MalformedPath);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1130,6 +1328,13 @@ TEST_F(TScalarAttributesEqualitySuite, Simple)
     EXPECT_FALSE(AreEqual("/int32_field"));
     Message1.set_int32_field(16);
     EXPECT_TRUE(AreEqual("/int32_field"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, RejectsNestedYsonStringPath)
+{
+    EXPECT_THROW_WITH_ERROR_CODE(
+        AreEqual("/yson_string_field/key"),
+        EErrorCode::MalformedPath);
 }
 
 TEST_F(TScalarAttributesEqualitySuite, Map)

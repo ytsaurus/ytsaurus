@@ -137,6 +137,7 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
     const NYPath::TRichYPath& pipelinePath,
     const IPipelineAuthenticatorPtr& authenticator,
     const IStatusProfilerPtr& statusProfiler,
+    const NProfiling::TProfiler& profiler,
     const IPayloadConverterCachePtr& converterCache,
     const NLogging::TLogger& logger)
 {
@@ -193,9 +194,11 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
         context->StateCache = jobStateCache->WithName(name);
         context->KeySchema = bundle.ComputationKeySchema;
         context->ClientsCache = clientsCache;
+        context->StaticResources = staticResources;
         context->PipelinePath = pipelinePath;
         context->SerializedInvoker = perRequestInvoker;
         context->StatusProfiler = statusProfiler;
+        context->Profiler = profiler.WithTag("external_state_manager", name);
         context->Logger = logger.WithTag("ExternalStateManager", name);
 
         auto dynamicContext = New<TDynamicExternalStateManagerContext>();

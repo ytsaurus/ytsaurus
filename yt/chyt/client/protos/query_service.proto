@@ -19,12 +19,14 @@ message TReqExecuteQuery
     optional int64 row_count_limit = 2;
     optional NYT.NProto.TGuid query_id = 3;
     optional NYT.NProto.TGuid parent_transaction_id = 4;
+    optional bool annotate_result_schema_with_native_types = 5;
 }
 
 message TRspExecuteQuery
 {
     optional NYT.NProto.TGuid query_id = 1;
     optional NYT.NProto.TError error = 2;
+    repeated bool is_truncated = 3;
     // Attachments contain wire-encoded data.
 }
 

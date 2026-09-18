@@ -14,7 +14,7 @@ import yt.yson as yson
 from yt.wrapper.errors import YtError, YtResponseError
 from yt.wrapper.http_helpers import get_proxy_address_url, get_http_api_version, get_token
 
-from yt.yt.flow.library.python.bullied_process import ProcessDiedException
+from yt.yt.flow.library.python.bullied_process import ProcessExitedNormallyException
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 from yt.yt.flow.library.python.queue import batching_write_rows
@@ -596,10 +596,25 @@ class FlowExecuteTestBase(FlowTestBase):
                 res = console_flow_execute("get-flow-view", "--output-format=proto")
 
             # Test describe-pipeline-status.
-            res = self.client.flow_execute(
-                self.pipeline_path, flow_command="describe-pipeline", flow_argument={"status_only": True}
-            )
+            def describe_pipeline_is_ready():
+                nonlocal res
+                res = self.client.flow_execute(
+                    self.pipeline_path, flow_command="describe-pipeline", flow_argument={"status_only": True}
+                )
+                return res["worker_count"] == workers_count
+
+            wait(describe_pipeline_is_ready, timeout=180)
+            current_resource_usage = res["current_resource_usage"]
+            assert current_resource_usage["cpu_usage_cores"] >= 0
+            assert current_resource_usage["memory_usage"] >= 0
             assert len(res["messages"]) > 0
+            authentication = res["authentication"]
+            assert authentication["method"] in {"oauth", "tvm"}
+            subject_type_by_method = {"oauth": "user", "tvm": "tvm"}
+            expected_subject_type = subject_type_by_method[authentication["method"]]
+            assert authentication["subject_type"] == expected_subject_type
+            assert authentication["subject"]
+            assert authentication["display_name"]
 
             # Test describe-computations.
             res = self.client.flow_execute(self.pipeline_path, flow_command="describe-computations")
@@ -1025,21 +1040,28 @@ class FlowExecuteTestBase(FlowTestBase):
         self.prepare_environment()
         pipeline_config_path = self.prepare_pipeline_config()
 
-        with pytest.raises(ProcessDiedException):
-            with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}):
-                # Wait flow to be started.
-                wait(lambda: self._get_partitions_count() != 0)
-                self._wait_epoch_sync()
+        # Check the expected worker exit synchronously instead of injecting an exception into a client call.
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            start_watcher_thread=False,
+        ) as federation:
+            wait(lambda: self._get_partitions_count() != 0)
+            self._wait_epoch_sync()
 
-                workers = self.client.flow_execute(self.pipeline_path, flow_command="describe-workers")
-                assert len(workers["workers"]) > 0
-                worker_address = workers["workers"][0]["address"]
+            workers = self.client.flow_execute(self.pipeline_path, flow_command="describe-workers")
+            assert len(workers["workers"]) == 1
+            worker_address = workers["workers"][0]["address"]
+            worker = federation.workers[0]
+            assert worker.is_running()
 
-                self.client.flow_execute(
-                    self.pipeline_path, flow_command="kill-worker", flow_argument={"worker": worker_address}
-                )
+            self.client.flow_execute(
+                self.pipeline_path, flow_command="kill-worker", flow_argument={"worker": worker_address}
+            )
 
-                wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "completed", timeout=180)
+            wait(lambda: not worker.is_running(), timeout=180)
+            with pytest.raises(ProcessExitedNormallyException, match=r"exit_code: 13\)"):
+                worker.ensure_running()
 
     @pytest.mark.authors(["timoninmaxim"])
     def test_flow_core_target_version(self):

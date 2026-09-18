@@ -435,15 +435,21 @@ func (blanker) OnMessage(_ context.Context, rt flow.Runtime, msg flow.ExtendedMe
 	return state.Set(nil)
 }
 
-func TestHarnessRefusesAStateWrittenAsEmptyBytes(t *testing.T) {
+func TestHarnessClearsAStateWrittenAsEmptyBytes(t *testing.T) {
 	h := New(t, flow.NewRowComputation("blanker", blanker{}), Options{
 		Streams:        map[string]flow.Schema{"words": wordSchema},
 		KeySchema:      wordSchema,
 		InternalStates: []string{"words"},
 	})
 
-	err := h.ProcessError(h.KeyedMessage("words", h.Key(Row{"word": "hello"}), Row{"word": "hello"}))
-	require.ErrorIs(t, err, flow.ErrEmptyStateValue)
+	key := h.Key(Row{"word": "hello"})
+	h.PutInternalState("words", key, []byte("stored"))
+
+	response := h.Process(h.KeyedMessage("words", key, Row{"word": "hello"}))
+	require.True(t, response.InternalStateReset("words", key))
+
+	_, ok := response.InternalStateRaw("words", key)
+	require.False(t, ok)
 }
 
 func TestHarnessFailsOnAnUnknownStream(t *testing.T) {

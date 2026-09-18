@@ -40,10 +40,31 @@
 /** Macro: Whether a GeoLoop is empty */
 #define IS_EMPTY_GEOFENCE(geoloop) geoloop->numVerts == 0
 
+// 1s in the 4 bits defining the polyfill containment mode, 0s elsewhere
+#define FLAG_CONTAINMENT_MODE_MASK ((uint32_t)(15))
+#define FLAG_GET_CONTAINMENT_MODE(flags) (flags & FLAG_CONTAINMENT_MODE_MASK)
+
+// Defined in algos.c:
+void destroyGeoLoop(GeoLoop *loop);
+void destroyGeoPolygon(GeoPolygon *poly);
+
 // Defined directly in polygon.c:
+H3Error validatePolygonFlags(uint32_t flags);
 void bboxesFromGeoPolygon(const GeoPolygon *polygon, BBox *bboxes);
 bool pointInsidePolygon(const GeoPolygon *geoPolygon, const BBox *bboxes,
                         const LatLng *coord);
+bool cellBoundaryInsidePolygon(const GeoPolygon *geoPolygon, const BBox *bboxes,
+                               const CellBoundary *boundary,
+                               const BBox *boundaryBBox);
+bool cellBoundaryCrossesPolygon(const GeoPolygon *geoPolygon,
+                                const BBox *bboxes,
+                                const CellBoundary *boundary,
+                                const BBox *boundaryBBox);
+bool cellBoundaryCrossesGeoLoop(const GeoLoop *geoloop, const BBox *loopBBox,
+                                const CellBoundary *boundary,
+                                const BBox *boundaryBBox);
+bool lineCrossesLine(const LatLng *a1, const LatLng *a2, const LatLng *b1,
+                     const LatLng *b2);
 
 // The following functions are created via macro in polygonAlgos.h,
 // so their signatures are documented here:

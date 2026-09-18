@@ -1,13 +1,12 @@
 #include "consistent_chunk_placement.h"
 
+#include "chunk.h"
+#include "chunk_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/object_server/object.h>
-
-#include <yt/yt/server/master/chunk_server/chunk.h>
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>

@@ -681,7 +681,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         sync_mount_table(input)
 
         def check_all_operations(checker, only_input_query=False):
-            checker(map, command="cat", mode="ordered")
+            checker(map, command="cat", ordered=True)
             checker(merge, mode="ordered")
             if not only_input_query:
                 checker(reduce, reduce_by="k", command="cat")
@@ -1559,7 +1559,9 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
             "operation_options": {
                 "min_uncompressed_block_size": 1,
             },
-            "enable_partition_map_job_size_adjustment": True,
+            "map_reduce_operation_options": {
+                "enable_partition_map_job_size_adjustment": True,
+            },
         }
     }
 

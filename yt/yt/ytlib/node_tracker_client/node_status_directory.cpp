@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NNodeTrackerClient {

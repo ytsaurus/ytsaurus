@@ -15,7 +15,8 @@
                 "parameters" = {};
             };
             "multiplexer" = {
-                "computation_class_name" = "TTestMultiplexerComputation";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "TTestMultiplexerProcessFunction";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
                     {"name" = "key"; "type" = "string";};
@@ -39,6 +40,7 @@
                     };
                 };
                 "parameters" = {};
+                "processing_function_parameters" = {};
                 "allow_timer_self_dependency" = %true;
             };
         };
@@ -48,7 +50,7 @@
             "key_reader" = {
             };
             "multiplexer" = {
-                "parameters" = {
+                "processing_function_parameters" = {
                     "timer_period" = 2000;
                     "batch_size" = 50;
                 };

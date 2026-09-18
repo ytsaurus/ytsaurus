@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    key_set_bench.cpp
     payload_converter_bench.cpp
 )
 

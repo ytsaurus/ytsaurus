@@ -458,11 +458,11 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
-            "Duplicate chunks point to the same inode: %v vs %v",
-            currentPath,
-            oldPath);
+            "Duplicate chunks point to the same inode")
+            .With("CurrentPath", currentPath)
+            .With("OldPath", oldPath);
 
         switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
             case EObjectType::Chunk:
@@ -471,9 +471,9 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.
-                YT_LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
-                    currentPath,
-                    oldPath);
+                YT_TLOG_WARNING("Removing duplicate blob chunk")
+                    .With("CurrentPath", currentPath)
+                    .With("OldPath", oldPath);
                 chunk->SyncRemove(true);
                 break;
             }
@@ -500,13 +500,13 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 }
 
                 // Remove shorter replica.
-                YT_LOG_WARNING("Removing shorter journal chunk: %v (RowCount: %v, Sealed: %v) vs %v (RowCount: %v, Sealed: %v)",
-                    shorterChunk->GetFileName(),
-                    shorterRowCount,
-                    shorterChunk->AsJournalChunk()->IsSealed(),
-                    longerChunk->GetFileName(),
-                    longerRowCount,
-                    longerChunk->AsJournalChunk()->IsSealed());
+                YT_TLOG_WARNING("Removing shorter journal chunk")
+                    .With("ShorterFileName", shorterChunk->GetFileName())
+                    .With("ShorterRowCount", shorterRowCount)
+                    .With("ShorterSealed", shorterChunk->AsJournalChunk()->IsSealed())
+                    .With("LongerFileName", longerChunk->GetFileName())
+                    .With("LongerRowCount", longerRowCount)
+                    .With("LongerSealed", longerChunk->AsJournalChunk()->IsSealed());
 
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
@@ -905,8 +905,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     std::vector<int> candidateIndices;
     candidateIndices.reserve(Locations_.size());
 
-    std::vector<TStoreLocationPtr> throttledLocations;
-    std::vector<TError> throttledLocationErrors;
+    struct TThrottledLocationInfo
+    {
+        TStoreLocationPtr Location;
+        TError Error;
+        ELocationWriteThrottlingReason Reason = ELocationWriteThrottlingReason::LocationNotWritable;
+    };
+
+    std::vector<TThrottledLocationInfo> throttledLocations;
 
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
@@ -916,18 +922,24 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         }
 
         if (auto error = location->CheckWritable(); !error.IsOK()) {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(error);
+            throttledLocations.push_back({
+                .Location = location,
+                .Error = std::move(error),
+                .Reason = ELocationWriteThrottlingReason::LocationNotWritable,
+            });
             continue;
         }
 
         if (options.MinLocationAvailableSpace) {
             if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
-                    .With("location_id", location->GetId())
-                    .With("needed_space", *options.MinLocationAvailableSpace)
-                    .With("available_space", location->GetAvailableSpace()));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of free space")
+                        .With("location_id", location->GetId())
+                        .With("needed_space", *options.MinLocationAvailableSpace)
+                        .With("available_space", location->GetAvailableSpace()),
+                    .Reason = ELocationWriteThrottlingReason::NotEnoughSpace,
+                });
                 continue;
             }
         }
@@ -939,11 +951,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (memoryLimitFractionForStartingNewSessions &&
                 usedMemory > memoryLimit)
             {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    .With("location_id", location->GetId())
-                    .With("used_memory", usedMemory)
-                    .With("memory_limit", memoryLimit));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of memory")
+                        .With("location_id", location->GetId())
+                        .With("used_memory", usedMemory)
+                        .With("memory_limit", memoryLimit),
+                    .Reason = ELocationWriteThrottlingReason::NewSessionWriteMemoryLimitExceeded,
+                });
                 continue;
             }
 
@@ -953,11 +968,14 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (memoryLimitFractionForStartingNewSessions &&
                 trackedMemory > totalMemoryLimit)
             {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    .With("location_id", location->GetId())
-                    .With("category_memory_used", trackedMemory)
-                    .With("category_memory_limit", totalMemoryLimit));
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started due to lack of memory")
+                        .With("location_id", location->GetId())
+                        .With("category_memory_used", trackedMemory)
+                        .With("category_memory_limit", totalMemoryLimit),
+                    .Reason = ELocationWriteThrottlingReason::NewSessionWriteMemoryTrackerLimitExceeded,
+                });
                 continue;
             }
         }
@@ -965,20 +983,27 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         auto sessionCount = location->GetSessionCount();
         auto sessionCountLimit = location->GetSessionCountLimit();
         if (sessionCount >= sessionCountLimit) {
-            throttledLocations.push_back(location);
-            throttledLocationErrors.push_back(TError("Session cannot be started because of too many concurrent sessions")
-                .With("location_id", location->GetId())
-                .With("session_count", sessionCount)
-                .With("session_count_limit", sessionCountLimit));
+            throttledLocations.push_back({
+                .Location = location,
+                .Error = TError("Session cannot be started because of too many concurrent sessions")
+                    .With("location_id", location->GetId())
+                    .With("session_count", sessionCount)
+                    .With("session_count_limit", sessionCountLimit),
+                .Reason = ELocationWriteThrottlingReason::SessionCountLimitReached,
+            });
             continue;
         }
 
         if (ShouldSkipWriteThrottlingLocations()) {
             auto diskThrottlingResult = location->CheckWriteThrottling(options.WorkloadDescriptor, true, options.UseProbePutBlocks);
-            if (diskThrottlingResult.Enabled || diskThrottlingResult.MemoryOvercommit) {
-                throttledLocations.push_back(location);
-                throttledLocationErrors.push_back(TError("Session cannot be started because of disk throttling")
-                    .With(diskThrottlingResult.Error));
+            if (diskThrottlingResult.IsEnabled() || diskThrottlingResult.MemoryOvercommit) {
+                YT_VERIFY(diskThrottlingResult.Reason);
+                throttledLocations.push_back({
+                    .Location = location,
+                    .Error = TError("Session cannot be started because of disk throttling")
+                        .With(diskThrottlingResult.Error),
+                    .Reason = *diskThrottlingResult.Reason,
+                });
                 continue;
             }
         }
@@ -1015,11 +1040,10 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             .With("session_id", ToString(sessionId));
 
         if (!throttledLocations.empty()) {
-            auto size = throttledLocations.size();
-            auto index = RandomNumber(size);
-            throttledLocations[index]->ReportThrottledWrite();
-            if (!throttledLocationErrors[index].IsOK()) {
-                error.Add(throttledLocationErrors[index]);
+            const auto& throttledLocation = throttledLocations[RandomNumber(throttledLocations.size())];
+            throttledLocation.Location->ReportThrottledWrite(throttledLocation.Reason);
+            if (!throttledLocation.Error.IsOK()) {
+                error.Add(throttledLocation.Error);
             }
         }
 

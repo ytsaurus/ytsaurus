@@ -80,7 +80,8 @@ TEST(TPipelineTest, TypedDeclarationRegistersFunction)
     second.AddTransform<TPipelineUnittestFunction>("t1");
 
     auto function = TRegistry::Get()->CreateProcessFunction(
-        TypeName<TPipelineUnittestFunction>());
+        TypeName<TPipelineUnittestFunction>(),
+        New<TProcessFunctionContext>());
     EXPECT_TRUE(function);
 }
 

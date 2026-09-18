@@ -24,6 +24,8 @@ from yt_scheduler_helpers import (
 
 from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation, write_log_barrier
 
+from yt_gpu_scheduler_helpers import read_gpu_events, wait_for_gpu_event
+
 from yt.test_helpers import are_almost_equal
 
 import yt.yson as yson
@@ -1921,6 +1923,71 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
 
     def _get_node_tag_from_module(self, module):
         return module
+
+    @authors("severovv")
+    def test_operation_timeline_events(self):
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", True)
+        update_pool_tree_config_option(
+            "default",
+            "scheduling_segments/enable_module_reset_on_zero_fair_share_and_usage",
+            True,
+        )
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        gang_op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "is_gang": True},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(gang_op.get_running_jobs()) == 1)
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_received_fair_share",
+            op=gang_op,
+        )
+
+        gang_op.suspend(abort_running_jobs=True)
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_module_assignment_revoked",
+            op=gang_op,
+        )
+        to_barrier = write_log_barrier(scheduler_address)
+        events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            to_barrier=to_barrier,
+            op=gang_op,
+        )
+
+        expected_event_types = [
+            "operation_received_fair_share",
+            "operation_assigned_to_module",
+            "operation_lost_fair_share",
+            "operation_module_assignment_revoked",
+        ]
+        timeline_events = [
+            event
+            for event in events
+            if event["event_type"] in expected_event_types
+        ]
+        actual_event_types = [event["event_type"] for event in timeline_events]
+        assert actual_event_types == expected_event_types
+        assert all(event["policy_kind"] == "classic" for event in events)
+
+        received_fair_share, assigned_to_module, lost_fair_share, module_assignment_revoked = timeline_events
+
+        for fair_share_event in [received_fair_share, lost_fair_share]:
+            assert "resource_demand" in fair_share_event
+            assert "fair_resources" in fair_share_event
+        assert (
+            module_assignment_revoked["scheduling_segment_module"]
+            == assigned_to_module["scheduling_segment_module"]
+        )
 
 
 class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):

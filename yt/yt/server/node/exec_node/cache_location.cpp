@@ -167,18 +167,16 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
             descriptor.DiskSpace = dataSize + metaSize;
             return descriptor;
         }
-        YT_LOG_WARNING("Artifact meta file %v is empty, removing artifact files",
-            metaFileName);
+        YT_TLOG_WARNING("Artifact meta file is empty, removing artifact files")
+            .With("MetaFileName", metaFileName);
     } else if (hasData && !hasMeta) {
-        YT_LOG_WARNING(
-            "Artifact meta file %v is missing, removing data file %v",
-            metaFileName,
-            dataFileName);
+        YT_TLOG_WARNING("Artifact meta file is missing, removing data file")
+            .With("MetaFileName", metaFileName)
+            .With("DataFileName", dataFileName);
     } else if (!hasData && hasMeta) {
-        YT_LOG_WARNING(
-            "Artifact data file %v is missing, removing meta file %v",
-            dataFileName,
-            metaFileName);
+        YT_TLOG_WARNING("Artifact data file is missing, removing meta file")
+            .With("DataFileName", dataFileName)
+            .With("MetaFileName", metaFileName);
     }
 
     if (hasData) {

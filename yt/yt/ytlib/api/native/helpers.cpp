@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/config.h>
 
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
@@ -112,15 +113,40 @@ TAllocationBriefInfo ParseGetBreifAllocationInfoResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsValidSourceTvmId(const IConnectionPtr& connection, TTvmId tvmId)
+TError ValidateSourceTvmId(const IConnectionPtr& connection, TTvmId tvmId)
 {
-    return tvmId == connection->GetConfig()->TvmId || connection->GetClusterDirectory()->HasTvmId(tvmId);
+    if (tvmId == connection->GetConfig()->TvmId) {
+        return {};
+    }
+
+    const auto& clusterDirectory = connection->GetClusterDirectory();
+
+    // NB: lastUpdateTime is set after populating clusterDirectory, read it before probing tvmId.
+    auto lastUpdateTime = clusterDirectory->GetLastSuccessfulUpdateTime();
+    if (clusterDirectory->HasTvmId(tvmId)) {
+        return {};
+    }
+
+    const auto& synchronizerConfig = connection->GetConfig()->ClusterDirectorySynchronizer;
+    auto maxStaleness = synchronizerConfig->SyncPeriod * synchronizerConfig->TvmIdRejectionStalenessMultiplier;
+    if (!lastUpdateTime || TInstant::Now() - *lastUpdateTime > maxStaleness) {
+        return TError(
+            NRpc::EErrorCode::TransientFailure,
+            "Cannot validate source TVM id %v since cluster directory has not been synchronized recently",
+            tvmId)
+            .With("last_successful_update_time", lastUpdateTime);
+    }
+
+    return TError(
+        NRpc::EErrorCode::AuthenticationError,
+        "Source TVM id %v is rejected",
+        tvmId);
 }
 
 IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connection)
 {
     return NAuth::CreateNativeAuthenticator([connection] (TTvmId tvmId) {
-        return IsValidSourceTvmId(connection, tvmId);
+        return ValidateSourceTvmId(connection, tvmId);
     });
 }
 

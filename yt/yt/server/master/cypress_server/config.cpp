@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 

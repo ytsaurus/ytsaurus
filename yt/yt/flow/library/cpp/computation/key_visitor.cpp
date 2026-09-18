@@ -28,7 +28,7 @@ using namespace NConcurrency;
 
 namespace {
 
-ui64 GetRangeHashLength(const TKeyRange& range)
+ui64 GetRangeHashSpan(const TKeyRange& range)
 {
     if (range.Lower == range.Upper) {
         return 0;
@@ -38,10 +38,18 @@ ui64 GetRangeHashLength(const TKeyRange& range)
     const auto upper = ExtractFirstUintFromKey(range.Upper)
         .value_or(std::numeric_limits<ui64>::max());
     YT_VERIFY(upper >= lower);
+    return upper - lower;
+}
+
+ui64 GetRangeHashLength(const TKeyRange& range)
+{
+    if (range.Lower == range.Upper) {
+        return 0;
+    }
     // A non-empty range always spans at least one unit: keys that differ only
     // beyond the hash column (e.g. [[5u, "a"]; [5u, "z"])) have an equal hash
     // bound but still contain keys, so they must be read, not skipped.
-    return std::max<ui64>(1, upper - lower);
+    return std::max<ui64>(1, GetRangeHashSpan(range));
 }
 
 TKeyRange TruncateRangeHashLength(const TKeyRange& range, ui64 length)
@@ -101,8 +109,48 @@ TKeyVisitor::TKeyVisitor(
     , PersistedCounter_(Context_->Profiler.Counter("/persisted_count"))
 {
     YT_VERIFY(Context_->Spec);
-    EmittedRate_.Update(0);
-    ProcessedRate_.Update(0);
+
+    // A state manager that cannot serve List() would fail every sweep
+    // iteration behind the retryable background fill and the cursor would
+    // never advance; refuse the combination when the visitor is built.
+    const auto& names = Context_->Spec->Names;
+    const auto& externalNames = Context_->Spec->ExternalNames;
+    const bool scanAll = !names && !externalNames;
+    if (Context_->StateManager && (scanAll || (externalNames && !externalNames->empty()))) {
+        for (const auto& [name, manager] : Context_->StateManager->GetExternalStateManagers()) {
+            if (externalNames && !externalNames->contains(name)) {
+                continue;
+            }
+            try {
+                manager->ValidateListable();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "External state manager %Qv cannot serve key visitor stream %Qv",
+                    name,
+                    Context_->StreamId)
+                    .With(ex);
+            }
+        }
+        for (const auto& [name, joiner] : Context_->StateManager->GetExternalStateJoiners()) {
+            if (!externalNames || !externalNames->contains(name) || !joiner->IsVisitorDriven()) {
+                continue;
+            }
+            try {
+                joiner->ValidateListable();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "External state joiner %Qv cannot serve key visitor stream %Qv",
+                    name,
+                    Context_->StreamId)
+                    .With(ex);
+            }
+        }
+    }
+
+    const auto now = TInstant::Now();
+    ScannedKeyRate_.Update(0, now);
+    ScannedHashRate_.Update(0, now);
+    ProcessedRate_.Update(0, now);
 }
 
 TFuture<void> TKeyVisitor::Init(bool upstreamCompleted)
@@ -218,9 +266,19 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight()
         Store_->IsCurrentPassFinal() && Store_->IsAllCommitted() && Buffer_.empty();
     inflight->InflightMetrics->Count = inflight->Empty ? 0 : BufferRowCount_;
     inflight->InflightMetrics->ReadyCount = BufferRowCount_;
-    inflight->InflightMetrics->NewCountPerSec = EmittedRate_.GetRate();
+    if (inflight->Empty) {
+        inflight->InflightMetrics->NewCountPerSec = 0;
+    } else {
+        // Bootstrap from paired totals until the EMA window matures, even if the buffer fills first.
+        const auto keyRate = ScannedKeyRate_.GetLastRate().value_or(ScannedKeyRate_.GetTotal());
+        const auto hashRate = ScannedHashRate_.GetLastRate().value_or(ScannedHashRate_.GetTotal());
+        if (hashRate > 0) {
+            inflight->InflightMetrics->NewCountPerSec = keyRate / hashRate *
+                GetRangeHashSpan(Context_->PartitionRange) / DynamicContext_->DynamicSpec->Period.SecondsFloat();
+        }
+    }
     inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
-    inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetDecayedRate();
     if (!inflight->Empty && !Buffer_.empty() && !Buffer_.front().Visits.empty()) {
         const auto& head = Buffer_.front().Visits.front();
         inflight->MinSystemTimestamp = head.SystemTimestamp;
@@ -240,9 +298,6 @@ void TKeyVisitor::Sync(NApi::IDynamicTableTransactionPtr transaction)
 void TKeyVisitor::Commit()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
-    if (PendingProcessedCount_ == 0) {
-        return;
-    }
     ProcessedRate_.Inc(PendingProcessedCount_);
     PersistedCounter_.Increment(PendingProcessedCount_);
     PendingProcessedCount_ = 0;
@@ -457,6 +512,10 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
         .ValueOrThrow();
     Store_->MarkBuffered(readRange, now);
 
+    const auto observationTime = TInstant::Now();
+    ScannedKeyRate_.Inc(std::ssize(sortedKeys), observationTime);
+    ScannedHashRate_.Inc(GetRangeHashSpan(readRange), observationTime);
+
     // Snapshot schedule lag once: anchors both the per-visit EventTimestamp
     // stamp and the catch-up toggle. Sweep anchor = oldest non-Pending
     // interval's PassStartedAt (persisted in key_visitor_states, so it
@@ -501,9 +560,7 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
         }
     }
     if (!entry.Visits.empty()) {
-        const auto emitted = static_cast<double>(std::ssize(entry.Visits));
-        EmittedRate_.Inc(emitted);
-        RegisteredCounter_.Increment(static_cast<i64>(emitted));
+        RegisteredCounter_.Increment(std::ssize(entry.Visits));
     }
     BufferRowCount_ += std::ssize(entry.Visits);
     Buffer_.push_back(std::move(entry));

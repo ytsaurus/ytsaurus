@@ -54,7 +54,9 @@ class TestSequoiaCompatibility(YTEnvSetup):
         def check_config():
             for proxy in ls("//sys/cypress_proxies"):
                 applied_config_path = f"//sys/cypress_proxies/{proxy}/orchid/dynamic_config_manager/applied_config"
-                return get(f"{applied_config_path}/object_service/allow_bypass_master_resolve") == bypass_master_resolve
+                if get(f"{applied_config_path}/object_service/allow_bypass_master_resolve") != bypass_master_resolve:
+                    return False
+            return True
 
         wait(check_config)
 

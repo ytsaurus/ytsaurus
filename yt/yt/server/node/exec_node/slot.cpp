@@ -359,6 +359,7 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -375,6 +376,7 @@ public:
             [&] {
                 return VolumeManager_->PrepareVolume(
                     std::move(overlayDataArray),
+                    volumeParams,
                     options);
             });
     }
@@ -401,6 +403,7 @@ public:
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -417,6 +420,7 @@ public:
             [&] {
                 return VolumeManager_->PrepareVolume(
                     std::move(overlayDataArray),
+                    volumeParams,
                     options);
             });
     }
@@ -441,9 +445,9 @@ public:
                 }));
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to prepare non-root volumes since volume manager is not initialized");
-            YT_LOG_WARNING(error);
-            return MakeFuture<std::vector<TVolumeResultPtr>>(std::move(error));
+            static constexpr auto Message = "Failed to prepare non-root volumes since volume manager is not initialized"_sb;
+            YT_TLOG_WARNING(Message);
+            return MakeFuture<std::vector<TVolumeResultPtr>>(TError(Message));
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
@@ -453,7 +457,7 @@ public:
             [&] {
                 if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {
                     for (const auto& volume : volumeParams) {
-                        if (!volume->LayerArtifactKeys.empty()) {
+                        if (!volume->LayerArtifactKeys.GetAll().empty()) {
                             THROW_ERROR_EXCEPTION(
                                 "Cannot create fake non-root volume %v since it contains a layer",
                                 volume->VolumeId);
@@ -513,9 +517,9 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to link volumes since volume manager is not initialized");
-            YT_LOG_WARNING(error);
-            return MakeFuture<void>(std::move(error));
+            static constexpr auto Message = "Failed to link volumes since volume manager is not initialized"_sb;
+            YT_TLOG_WARNING(Message);
+            return MakeFuture<void>(TError(Message));
         }
 
         if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {
@@ -604,8 +608,7 @@ public:
     }
 
     TFuture<void> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options,
-        bool hasRootVolume) override
+        const TUserSandboxOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -618,8 +621,7 @@ public:
             [&] {
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
-                    options,
-                    hasRootVolume);
+                    options);
             });
     }
 

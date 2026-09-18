@@ -1,6 +1,8 @@
 #pragma once
 #include "public.h"
 
+#include "computation_statistics.h"
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow {
@@ -67,6 +69,45 @@ struct TStreamTraverseData
 
 DEFINE_REFCOUNTED_TYPE(TStreamTraverseData);
 
+struct TWeightedRatio
+    : public NYTree::TYsonStructLite
+{
+    double Ratio = 0;
+    double Weight = 0;
+
+    REGISTER_YSON_STRUCT_LITE(TWeightedRatio);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TLineageRatio
+    : public NYTree::TYsonStructLite
+{
+    std::optional<TWeightedRatio> Count;
+    std::optional<TWeightedRatio> ByteSize;
+
+    REGISTER_YSON_STRUCT_LITE(TLineageRatio);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TLineageDeltaValue
+{
+    double Count{};
+    double ByteSize{};
+    double InputCount{};
+    double InputByteSize{};
+};
+
+//! Paired input totals and attributed output totals per completed processing observation, keyed by computation-local streams.
+using TLineageDelta = THashMap<TStreamId, THashMap<TStreamId, TLineageDeltaValue>>;
+
+//! Output/input ratios weighted by decayed input observations, keyed by pipeline-global streams.
+using TLineageRatios = THashMap<TStreamId, THashMap<TStreamId, TLineageRatio>>;
+
+constexpr auto LineageDecayTime = TDuration::Minutes(5);
+constexpr auto LineageRetentionTime = TDuration::Minutes(50);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStreamTraverseDataPtr MakeCompletedStreamTraverseData(
@@ -124,6 +165,7 @@ struct TNodeTraverseData
     TSystemTimestamp ReportTime;
 
     std::optional<i64> IterationCycle;
+    TComputationProcessingRatesPtr ProcessingRates;
 
     THashMap<TStreamId, TStreamTraverseDataPtr> Streams;
 

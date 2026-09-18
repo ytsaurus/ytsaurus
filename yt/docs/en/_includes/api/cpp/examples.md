@@ -202,9 +202,9 @@ Suppose you want to filter a table with URLs by regular expressions that are loc
 
 However, you don't need all the records with the same host to go to the same machine to solve the task. You can distribute the table with URLs among several machines: note that the host must be received along with the URL.
 
-![](../../../../images/reduce.svg){ .center}
+![](../../../../_images/reduce.svg){ .center}
 
-![](../../../../images/join_reduce.svg){ .center}
+![](../../../../_images/join_reduce.svg){ .center}
 
 The example is located at [yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode]({{source-root}}/yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode).
 

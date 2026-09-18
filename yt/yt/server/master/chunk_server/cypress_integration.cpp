@@ -1,20 +1,18 @@
 #include "cypress_integration.h"
 
-#include "private.h"
-#include "chunk_location.h"
 #include "chunk.h"
-#include "chunk_view.h"
-#include "chunk_list.h"
+#include "chunk_manager.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
-#include "domestic_medium.h"
 #include "chunks_samples.h"
+#include "data_node_tracker.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_statistics_collector.h>
-
-#include <yt/yt/server/master/chunk_server/chunk_manager.h>
-#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
@@ -23,6 +21,8 @@
 #include <yt/yt/server/lib/object_server/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 

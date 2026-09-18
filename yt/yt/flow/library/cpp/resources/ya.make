@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    file_provider_postprocessor.cpp
     resource_base.cpp
     resource_controller_base.cpp
     yt_client_factory_detail.cpp
@@ -13,6 +14,7 @@ SRCS(
 PEERDIR(
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/misc
+    yt/yt/library/process
     yt/yt/client/cache
     yt/yt/client/hedging
     library/cpp/yt/misc

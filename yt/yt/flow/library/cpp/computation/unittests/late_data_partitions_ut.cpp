@@ -114,7 +114,7 @@ protected:
         const TComputationSpecPtr& spec) const
     {
         return ApplyEventWatermarkComputeRule(
-            {{"default", nodes}},
+            {{TStreamId("source_stream"), {{"default", nodes}}}},
             spec,
             TSensorsOwner(),
             TLogger("Test"),
@@ -184,6 +184,53 @@ TEST_P(TLateDataPartitionsParameterizedTest, Scenario)
             << "Expected " << expected.Count << " nodes with watermark offset "
             << expected.WatermarkOffset.ToString() << ", got " << actualCount;
     }
+}
+
+TEST_F(TLateDataPartitionsTestBase, MultipleSourcesAreProcessedIndependently)
+{
+    auto spec = CreateSpec(TWatermarkPercentile(50.0), TDuration::Zero());
+    auto sourceSpec = spec->SourceStreams.at("source_stream");
+    spec->SourceStreams.clear();
+    spec->SourceStreams["first"] = sourceSpec;
+    spec->SourceStreams["second"] = CloneYsonStruct(sourceSpec);
+    spec->StreamsDependency["output_stream"] = {"first", "second"};
+
+    auto firstSourceNodes = CreateNodes({
+        TimestampWithOffset(TDuration::Minutes(10)),
+        TimestampWithOffset(TDuration::Minutes(10)),
+    });
+    auto secondSourceNodes = CreateNodes({Now(), Now()});
+    auto setSourceStreams = [&] (
+        const std::vector<TNodeTraverseDataPtr>& nodes,
+        const TStreamId& activeSource,
+        const TStreamId& foreignSource,
+        TSystemTimestamp foreignWatermark) {
+        for (const auto& node : nodes) {
+            node->Streams[activeSource] = node->Streams.at("source_stream");
+            node->Streams.erase("source_stream");
+            node->Streams[foreignSource] = CloneYsonStruct(node->Streams.at(activeSource));
+            node->Streams[foreignSource]->EventWatermark = foreignWatermark;
+        }
+    };
+    setSourceStreams(firstSourceNodes, "first", "second", Now());
+    setSourceStreams(
+        secondSourceNodes,
+        "second",
+        "first",
+        TimestampWithOffset(TDuration::Minutes(10)));
+
+    auto result = ApplyEventWatermarkComputeRule(
+        {
+            {TStreamId("first"), {{"default", firstSourceNodes}}},
+            {TStreamId("second"), {{"default", secondSourceNodes}}},
+        },
+        spec,
+        {},
+        TLogger("Test"),
+        CreateSyncStatusProfiler()->ErrorState("/idle_partitions_watermark_stall"));
+
+    EXPECT_EQ(CountNodesWithWatermark(result, TimestampWithOffset(TDuration::Minutes(10))), 2);
+    EXPECT_EQ(CountNodesWithWatermark(result, Now()), 2);
 }
 
 INSTANTIATE_TEST_SUITE_P(

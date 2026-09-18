@@ -15,6 +15,7 @@
 add_subdirectory(proto)
 add_subdirectory(server)
 add_subdirectory(unittests)
+add_subdirectory(benchmark)
 
 add_library(library-cpp-companion)
 
@@ -34,6 +35,9 @@ target_link_libraries(library-cpp-companion PUBLIC
   yutil
   cpp-companion-proto
   yt-library-process
+  library-profiling-solomon
+  yt-core-http
+  yt-core-https
   core-rpc-grpc
   library-cpp-common
   library-cpp-computation
@@ -81,6 +85,9 @@ target_link_libraries(library-cpp-companion.global PUBLIC
   yutil
   cpp-companion-proto
   yt-library-process
+  library-profiling-solomon
+  yt-core-http
+  yt-core-https
   core-rpc-grpc
   library-cpp-common
   library-cpp-computation

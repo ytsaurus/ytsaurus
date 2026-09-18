@@ -6,5 +6,6 @@
 || Possible values | **Description** ||
 || `none` |  ||
 || `x_delta` |  ||
+|| `v_c_diff` |  ||
 |#
 

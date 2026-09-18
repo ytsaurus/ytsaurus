@@ -1,16 +1,14 @@
 #include "input_chunk.h"
 
-#include <yt/yt/library/erasure/impl/codec.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 
@@ -74,11 +72,14 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         UniqueKeys_ = IsSortedDynamicStore();
         TabletId_ = GetTabletIdFromChunkSpec(chunkSpec);
     } else {
+        auto chunkType = FromProto<EChunkType>(chunkMeta.type());
+        auto chunkFormat = FromProto<EChunkFormat>(chunkMeta.format());
         YT_VERIFY(
-            FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Table ||
-            FromProto<EChunkType>(chunkMeta.type()) == EChunkType::Hunk ||
-            FromProto<EChunkType>(chunkMeta.type()) == EChunkType::File);
-        ChunkFormat_ = FromProto<EChunkFormat>(chunkMeta.format());
+            chunkType == EChunkType::Table ||
+            chunkType == EChunkType::Hunk ||
+            chunkType == EChunkType::File ||
+            (chunkType == EChunkType::Journal && chunkFormat == EChunkFormat::JournalDistributed));
+        ChunkFormat_ = chunkFormat;
     }
 }
 
@@ -455,9 +456,11 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
         ToProto(chunkSpec->mutable_upper_limit(), *inputChunk->UpperLimit_);
     }
 
-    chunkSpec->mutable_chunk_meta()->set_type(ToProto(EChunkType::Table));
-    chunkSpec->mutable_chunk_meta()->set_format(ToProto(inputChunk->ChunkFormat_));
-    chunkSpec->mutable_chunk_meta()->mutable_extensions();
+    auto* chunkMeta = chunkSpec->mutable_chunk_meta();
+    bool isDistributedJournal = inputChunk->ChunkFormat_ == EChunkFormat::JournalDistributed;
+    chunkMeta->set_type(ToProto(isDistributedJournal ? EChunkType::Journal : EChunkType::Table));
+    chunkMeta->set_format(ToProto(inputChunk->ChunkFormat_));
+    chunkMeta->mutable_extensions();
 }
 
 void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec)

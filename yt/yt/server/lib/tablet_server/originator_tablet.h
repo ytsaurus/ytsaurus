@@ -3,6 +3,7 @@
 #include <yt/yt/server/lib/tablet_server/public.h>
 
 #include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/yson/public.h>
 
 namespace NYT::NTabletServer {
 

@@ -24,28 +24,18 @@ PIPELINE_SORTED_TABLE_PRESET = {
                     "merge_rows_on_flush": True,
                     "merge_deletions_on_flush": True,
                 },
-                # The chaos replication log of every sorted pipeline table inherits this block
-                # (yt_sync's resolve_replication_log_attributes moves it onto the log).
-                #
-                # -1 is the sentinel that asks yt_sync to size the log itself: half the data
-                # replica's tablet count below 100 tablets, a third at or above, rounded to its
-                # grid (get_replication_log_recommended_tablet_count). Leaving the block out is
-                # not the same as leaving it empty — an unset count reads back as 1
-                # (tablet_info.effective_tablet_count), the auto-sizing is skipped for anything
-                # positive, and the log is born with a single tablet that then takes the table's
-                # whole write stream. Which table runs hot depends on the pipeline, so the
-                # default covers them all.
-                #
-                # On a non-chaos deployment nothing strips this block (the pop happens only on
-                # the chaos path), so it lands on the data table as a plain node attribute. It
-                # changes no behaviour there, but it does show up as an attribute diff once, and
-                # since it is neither "regular" nor unmount-requiring for yt_sync, that first
-                # sync remounts the sorted tables. Deliberate: a one-off remount is the accepted
-                # price of having the logs sized correctly everywhere.
-                "replication_log": {
+                "hunk_chunk_reader": {"fragment_read_hedging_delay": 50},
+            },
+        },
+        # Replication logs exist only under chaos, so elsewhere this block is never merged in.
+        "_all_chaos_data_clusters": {
+            # -1 asks yt_sync to size the log after its data replica. Leaving it unset is not
+            # neutral: the count reads back as 1, and a single-tablet log takes the whole write
+            # stream of its table.
+            "replication_log": {
+                "attributes": {
                     "tablet_count": -1,
                 },
-                "hunk_chunk_reader": {"fragment_read_hedging_delay": 50},
             },
         },
     },
@@ -93,9 +83,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -119,9 +106,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -208,6 +192,41 @@ PIPELINE_TABLES_PRESET = {
                     "mount_config": {
                         "enable_lookup_hash_table": True,
                     },
+                    # The table holds a handful of fixed keys, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # Spreading them buys no throughput either: the hot key is a single row, and
+                    # a row lives in one tablet whatever the count. The minimum is overridden
+                    # together with the desired count, or an installation that raises it would
+                    # leave the pair contradictory and the master would reject it.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
+                },
+            },
+        },
+    },
+    "leader_election_lock": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    # A single tiny row rewritten on every lease ping.
+                    "in_memory_mode": "uncompressed",
+                    "mount_config": {
+                        "enable_lookup_hash_table": True,
+                    },
+                    # The table holds one row per election group, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # The minimum is overridden together with it: an installation that raises the
+                    # minimum would otherwise leave it above the desired count, and the master
+                    # rejects that pair outright.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
+                    "erasure_codec": "none",
+                    "compression_codec": "none",
                 },
             },
         },
@@ -286,18 +305,7 @@ PIPELINE_TABLES_PRESET = {
 PIPELINE_QUEUES_PRESET = {
     "controller_logs": {
         "$merge_presets": ["builtin:pipeline_ordered_table_preset"],
-        "clusters": {
-            "_all_data_clusters": {
-                "attributes": {
-                    "tablet_count": 1,
-                    "mount_config": {
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "max_data_ttl": 86400000,
-                    },
-                },
-            },
-        },
+        "clusters": {},
     },
 }
 

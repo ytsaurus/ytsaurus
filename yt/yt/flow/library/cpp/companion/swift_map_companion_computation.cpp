@@ -45,8 +45,13 @@ void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCol
             groupParents.push_back(GetOrCrash(messageMap, parentId));
         }
         auto groupOutput = output->SetParents(groupParents, {}, {});
-        for (auto& message : group.Messages) {
-            groupOutput->AddMessage(std::move(message));
+        for (int index = 0; index < std::ssize(group.Messages); ++index) {
+            groupOutput->AddMessage(
+                std::move(group.Messages[index]),
+                TAddMessageOptions{
+                    .Distribute = group.Distribute[index],
+                    .MessageIdSuffix = std::move(group.MessageIdSuffixes[index]),
+                });
         }
     }
 

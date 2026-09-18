@@ -86,18 +86,27 @@ THashSet<TKey> ExtractKeys(
     return result;
 }
 
-THashSet<TKey> ExtractKeys(const IInputContextPtr& context)
+THashSet<TKey> ExtractKeys(const IInputContextPtr& context, const TExtractKeysOptions& options)
 {
     THashSet<TKey> result;
-    result.reserve(context->GetMessages().size() + context->GetTimers().size() + context->GetVisits().size());
-    for (const auto& message : context->GetMessages()) {
-        result.insert(message->Key);
+    result.reserve(
+        (options.Messages ? context->GetMessages().size() : 0) +
+        (options.Timers ? context->GetTimers().size() : 0) +
+        (options.Visits ? context->GetVisits().size() : 0));
+    if (options.Messages) {
+        for (const auto& message : context->GetMessages()) {
+            result.insert(message->Key);
+        }
     }
-    for (const auto& timer : context->GetTimers()) {
-        result.insert(timer->Key);
+    if (options.Timers) {
+        for (const auto& timer : context->GetTimers()) {
+            result.insert(timer->Key);
+        }
     }
-    for (const auto& visit : context->GetVisits()) {
-        result.insert(visit->Key);
+    if (options.Visits) {
+        for (const auto& visit : context->GetVisits()) {
+            result.insert(visit->Key);
+        }
     }
     return result;
 }

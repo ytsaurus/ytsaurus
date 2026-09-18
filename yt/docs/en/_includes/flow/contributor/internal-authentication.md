@@ -39,6 +39,17 @@ The main binding is `PipelineObjectId`: a user who manages the pods of pipeline 
 
 The controller knows its own `ControllerAddress`: it’s the address that the controller publishes in Cypress (`leader_controller_address`) and that the proxy resolves from there. The address can change in dynamic environments, but the controller accepts only the address it currently advertises; if the published address changes on the fly, the proxy will re-resolve it, and from Flow’s perspective, this is a new leader.
 
+{% note info %}
+
+A new leader controller checks that the cluster can connect to it through the RPC proxy: it sends a flow command to itself at the published address (leadership confirmation) and gives up leadership if the command does not arrive. The check is skipped in two cases:
+
+- Automatically, if the cluster requires TLS to connect to the controller and the controller bus server has no TLS certificate and key. This is because Flow does not currently support running in {{product-name}} with encryption enabled.
+- If the `YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION=1` environment variable is set — a testing workaround for a cluster that cannot connect to the controller at all. Set the variable in the controller process environment; for a vanilla operation, set it in the runner environment and list it in [`secret_env`](../../../flow/release/security.md#secrets).
+
+In both cases the pipeline processes data, but user flow commands (`yt flow`, SDK clients) and the UI do not work.
+
+{% endnote %}
+
 ### Threat model {#proxy-threat-model}
 
 **Mitigated threats:**

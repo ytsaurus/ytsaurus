@@ -1090,7 +1090,7 @@ private:
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_{};
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_;
     TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.

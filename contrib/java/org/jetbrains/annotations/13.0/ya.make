@@ -1,0 +1,13 @@
+JAVA_CONTRIB(annotations-13.0)
+
+VERSION(13.0)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(65627451)
+
+SRC_RESOURCE(65627450)
+
+ORIGINAL_SOURCE(https://github.com/JetBrains/intellij-community)
+
+END()

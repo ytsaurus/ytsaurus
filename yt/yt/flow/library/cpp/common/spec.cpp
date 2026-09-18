@@ -28,6 +28,63 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void ValidateUserDefinedEntityId(TStringBuf entityKind, TStringBuf id)
+{
+    static constexpr TStringBuf AllowedCharacters =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-";
+
+    THROW_ERROR_EXCEPTION_IF(
+        id.empty() || id.find_first_not_of(AllowedCharacters) != TStringBuf::npos,
+        "Invalid %v ID %Qv: expected a non-empty ID matching %v",
+        entityKind,
+        id,
+        "[0-9A-Za-z_-]+");
+}
+
+template <class TMap>
+void ValidateDeclarationIds(TStringBuf entityKind, const TMap& declarations)
+{
+    for (const auto& [id, _] : declarations) {
+        ValidateUserDefinedEntityId(entityKind, id.Underlying());
+    }
+}
+
+void ValidatePipelineDeclarationIds(const TPipelineSpec* spec)
+{
+    ValidateDeclarationIds("computation", spec->Computations);
+    ValidateDeclarationIds("stream", spec->Streams);
+    ValidateDeclarationIds("resource", spec->Resources);
+
+    for (const auto& [_, computationSpec] : spec->Computations) {
+        ValidateDeclarationIds("timer stream", computationSpec->TimerStreams);
+        ValidateDeclarationIds("key visitor stream", computationSpec->KeyVisitorStreams);
+        ValidateDeclarationIds("sink", computationSpec->Sinks);
+    }
+
+    for (const auto& [_, resourceSpec] : spec->Resources) {
+        ValidateDeclarationIds("file provider", resourceSpec->FileProviders);
+    }
+}
+
+void ValidateThrottlerIds(const TDynamicPipelineSpec* spec)
+{
+    ValidateDeclarationIds("throttler", spec->Throttlers);
+}
+
+void ValidateDynamicPipelineDeclarationIds(const TDynamicPipelineSpec* spec)
+{
+    ValidateThrottlerIds(spec);
+    for (const auto& [_, throttlerSpec] : spec->Throttlers) {
+        ValidateDeclarationIds("quota class", throttlerSpec->Classes);
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStreamId MakeGlobalStreamId(const TComputationId& computationId, const TStreamId& localStreamId, const TComputationSpecPtr& spec)
 {
     if (spec->InputStreamIds.contains(localStreamId) || spec->OutputStreamIds.contains(localStreamId)) {
@@ -52,7 +109,8 @@ void TStreamSpec::Register(TRegistrar registrar)
 
 bool operator==(const TStreamSpec& lhs, const TStreamSpec& rhs)
 {
-    return (lhs.Schema && rhs.Schema ? *lhs.Schema == *rhs.Schema : lhs.Schema == rhs.Schema) &&
+    return lhs.ClassName == rhs.ClassName &&
+        (lhs.Schema && rhs.Schema ? *lhs.Schema == *rhs.Schema : lhs.Schema == rhs.Schema) &&
         lhs.MigrationFunction == rhs.MigrationFunction;
 }
 
@@ -106,7 +164,7 @@ void TWatermarkGeneratorSpec::Register(TRegistrar registrar)
     registrar.Parameter("use_source_watermark", &TThis::UseSourceWatermark)
         .Default(false);
     registrar.Parameter("out_of_orderness_bound", &TThis::OutOfOrdernessBound)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Zero());
     registrar.Parameter("idle_partitions", &TThis::IdlePartitions)
         .Default();
     registrar.Parameter("unavailable_partition_groups", &TThis::UnavailablePartitionGroups)
@@ -281,6 +339,8 @@ void TExternalStateManagerSpec::Register(TRegistrar registrar)
     registrar.Parameter("external_state_manager_class_name", &TThis::ExternalStateManagerClassName)
         .Alias("class_name")
         .Default("NYT::NFlow::TSimpleExternalStateManager");
+    registrar.Parameter("auto_preload", &TThis::AutoPreload)
+        .Default(true);
     registrar.Parameter("parameters", &TThis::Parameters)
         .Default();
 }
@@ -433,6 +493,10 @@ void TComputationSpec::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* computationSpec) {
         // All validations are placed in ValidatePipelineSpec().
 
+        if (!computationSpec->SourceStreams.empty() && !computationSpec->WatermarkStrategy->WatermarkGenerator) {
+            computationSpec->WatermarkStrategy->WatermarkGenerator = New<TWatermarkGeneratorSpec>();
+        }
+
         for (const auto& timerStreamId : GetKeys(computationSpec->TimerStreams)) {
             if (!computationSpec->StreamsDependency.contains(timerStreamId)) {
                 computationSpec->StreamsDependency[timerStreamId] = {};
@@ -527,6 +591,44 @@ bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("desired_partition_count", &TThis::DesiredPartitionCount)
+        .Default();
+    registrar.Parameter("min_partition_count", &TThis::MinPartitionCount)
+        .Default();
+    registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
+        .Default();
+    registrar.Parameter("sink_channel_multiplier", &TThis::SinkChannelMultiplier)
+        .Default();
+    registrar.Parameter("desired_average_partition_cpu_load", &TThis::DesiredAveragePartitionCpuLoad)
+        .Default();
+    registrar.Parameter("desired_average_partition_memory_used", &TThis::DesiredAveragePartitionMemoryUsed)
+        .Default();
+    registrar.Parameter("desired_average_partition_messages_per_second", &TThis::DesiredAveragePartitionMessagesPerSecond)
+        .Default();
+    registrar.Parameter("desired_average_partition_bytes_per_second", &TThis::DesiredAveragePartitionBytesPerSecond)
+        .Default();
+    registrar.Parameter("desired_average_partition_timer_count", &TThis::DesiredAveragePartitionTimerCount)
+        .Default();
+    registrar.Parameter("allowed_partition_count_deviation", &TThis::AllowedPartitionCountDeviation)
+        .InRange(1.01, 100)
+        .Default();
+    registrar.Parameter("partition_count_double_delay", &TThis::PartitionCountDoubleDelay)
+        .Default();
+    registrar.Parameter("partition_count_half_delay", &TThis::PartitionCountHalfDelay)
+        .Default();
+    registrar.Postprocessor([] (TThis* arg) {
+        if (arg->MinPartitionCount && arg->MaxPartitionCount && *arg->MinPartitionCount > *arg->MaxPartitionCount) {
+            THROW_ERROR_EXCEPTION("\"min_partition_count\" must be less than or equal to \"max_partition_count\": got %v > %v",
+                *arg->MinPartitionCount,
+                *arg->MaxPartitionCount);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TResourceDescription::Register(TRegistrar registrar)
 {
     registrar.Parameter("alias", &TThis::Alias)
@@ -547,7 +649,7 @@ void TResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
-    registrar.Parameter("file_sources", &TThis::FileSources)
+    registrar.Parameter("file_providers", &TThis::FileProviders)
         .Default();
     registrar.Parameter("dependencies", &TThis::Dependencies)
         .Default();
@@ -589,13 +691,7 @@ void TPipelineSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* spec) {
-        for (const auto& [computationId, computationSpec] : spec->Computations) {
-            // The colon is reserved: resource-controller states live in the computation-state
-            // namespace under "resource:<id>" keys.
-            THROW_ERROR_EXCEPTION_IF(computationId.Underlying().find(':') != std::string::npos,
-                "Computation id %Qv must not contain a colon",
-                computationId);
-        }
+        ValidatePipelineDeclarationIds(spec);
     });
 }
 
@@ -757,6 +853,9 @@ void TMessageBatcherSettings::Register(TRegistrar registrar)
         .Default(NYTree::TSize(1'000));
     registrar.Parameter("max_bytes_per_batch", &TThis::MaxBytesPerBatch)
         .Default(NYTree::TSize(10_MB));
+    registrar.Parameter("max_keys_per_batch", &TThis::MaxKeysPerBatch)
+        .Default()
+        .GreaterThan(NYTree::TSize(0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -876,12 +975,12 @@ void TDynamicResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
-    registrar.Parameter("file_sources", &TThis::FileSources)
+    registrar.Parameter("file_providers", &TThis::FileProviders)
         .Default();
-    registrar.Parameter("file_source_discover_period", &TThis::FileSourceDiscoverPeriod)
+    registrar.Parameter("file_provider_discover_period", &TThis::FileProviderDiscoverPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(30));
-    registrar.Parameter("file_source_update_retry_period", &TThis::FileSourceUpdateRetryPeriod)
+    registrar.Parameter("file_provider_update_retry_period", &TThis::FileProviderUpdateRetryPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Minutes(1));
     registrar.Parameter("file_snapshot_min_creation_period", &TThis::FileSnapshotMinCreationPeriod)
@@ -932,18 +1031,49 @@ void TDynamicThrottlerSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_grant_amount", &TThis::MaxGrantAmount)
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("use_class_weights_as_limit", &TThis::UseClassWeightsAsLimit)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* spec) {
         for (const auto& [classId, _] : spec->Classes) {
+            ValidateUserDefinedEntityId("quota class", classId.Underlying());
             ValidateQuotaClassName(classId.Underlying());
         }
+
+        if (spec->UseClassWeightsAsLimit) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Limit.has_value(),
+                "%Qv and %Qv are mutually exclusive",
+                "limit",
+                "use_class_weights_as_limit");
+            // The sum would be zero, and the throttler would grant nothing at
+            // all with no hint as to why.
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Classes.empty(),
+                "%Qv requires at least one class in %Qv",
+                "use_class_weights_as_limit",
+                "classes");
+        }
     });
+}
+
+std::optional<double> TDynamicThrottlerSpec::GetEffectiveLimit() const
+{
+    if (Limit || !UseClassWeightsAsLimit) {
+        return Limit;
+    }
+
+    double limit = 0;
+    for (const auto& [_, classSpec] : Classes) {
+        limit += classSpec->Weight;
+    }
+    return limit;
 }
 
 NConcurrency::TThroughputThrottlerConfigPtr TDynamicThrottlerSpec::BuildThroughputConfig() const
 {
     auto config = New<NConcurrency::TThroughputThrottlerConfig>();
-    config->Limit = Limit;
+    config->Limit = GetEffectiveLimit();
     config->Period = Period;
     return config;
 }
@@ -953,10 +1083,10 @@ NConcurrency::TPrefetchingThrottlerConfigPtr TDynamicThrottlerSpec::BuildPrefetc
     auto config = New<NConcurrency::TPrefetchingThrottlerConfig>();
     config->TargetRps = 1.0 / RequestPeriod.SecondsFloat();
     config->MinPrefetchAmount = 1;
-    if (Limit) {
-        // |Limit| is already a per-second rate, and |Period| is only the leaky
+    if (auto limit = GetEffectiveLimit()) {
+        // The limit is already a per-second rate, and |Period| is only the leaky
         // bucket's refill granularity, so it must not divide the rate here.
-        auto maxPrefetch = static_cast<i64>(std::ceil(*Limit * RequestPeriod.SecondsFloat()));
+        auto maxPrefetch = static_cast<i64>(std::ceil(*limit * RequestPeriod.SecondsFloat()));
         config->MaxPrefetchAmount = std::max<i64>(maxPrefetch, 1);
     } else {
         // Unlimited: no meaningful upper bound; pick a large batch so the
@@ -986,6 +1116,22 @@ bool TDynamicThrottlerSpec::ClientConfigEquals(const TDynamicThrottlerSpec& othe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TEvenLoadThresholds::Register(TRegistrar registrar)
+{
+    registrar.Parameter("spread", &TThis::Spread)
+        .Default();
+    registrar.Parameter("ratio", &TThis::Ratio)
+        .Default();
+    registrar.Postprocessor([] (TThis* thresholds) {
+        if (thresholds->Ratio && *thresholds->Ratio < 1.0) {
+            THROW_ERROR_EXCEPTION("Even-load ratio threshold must be at least 1 (Ratio: %v)",
+                *thresholds->Ratio);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("balancer_type", &TThis::BalancerType)
@@ -1006,11 +1152,14 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("rebalance_count_exceeded_allowed", &TThis::RebalanceCountExceedAllowed)
         .Default(1.2);
+    registrar.Parameter("rebalance_even_load_thresholds", &TThis::RebalanceEvenLoadThresholds)
+        .Default();
     registrar.Parameter("rebalance_min_cpu_spread", &TThis::RebalanceMinCpuSpread)
-        .Default(1.0);
+        .Default();
     registrar.Parameter("rebalance_min_cpu_ratio", &TThis::RebalanceMinCpuRatio)
-        .GreaterThanOrEqual(1.0)
-        .Default(1.2);
+        .Default();
+    registrar.Parameter("balance_weights", &TThis::BalanceWeights)
+        .Default({{EBalanceResource::Cpu, 1.0}, {EBalanceResource::Memory, 0.0}});
     registrar.Parameter("disable_even_load_gate", &TThis::DisableEvenLoadGate)
         .Default();
     registrar.Parameter("async_balancing", &TThis::AsyncBalancing)
@@ -1028,6 +1177,38 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
             spec->BalancerType = *spec->UseCpuAwareBalancer
                 ? EJobBalancerType::CpuAware
                 : EJobBalancerType::Greedy;
+        }
+
+        // Handle the deprecated flat CPU thresholds: they feed the CPU entry of the per-resource map
+        // unless that entry already sets the same field explicitly.
+        if (spec->RebalanceMinCpuSpread || spec->RebalanceMinCpuRatio) {
+            auto& thresholds = spec->RebalanceEvenLoadThresholds[EBalanceResource::Cpu];
+            if (!thresholds) {
+                thresholds = New<TEvenLoadThresholds>();
+            }
+            if (!thresholds->Spread) {
+                thresholds->Spread = spec->RebalanceMinCpuSpread;
+            }
+            if (!thresholds->Ratio) {
+                thresholds->Ratio = spec->RebalanceMinCpuRatio;
+            }
+            if (thresholds->Ratio && *thresholds->Ratio < 1.0) {
+                THROW_ERROR_EXCEPTION("Even-load ratio threshold must be at least 1 (Ratio: %v)",
+                    *thresholds->Ratio);
+            }
+        }
+
+        double balanceWeightSum = 0.0;
+        for (const auto& [resource, weight] : spec->BalanceWeights) {
+            if (weight < 0.0) {
+                THROW_ERROR_EXCEPTION("Balance weight must be non-negative (Resource: %Qlv, Weight: %v)",
+                    resource,
+                    weight);
+            }
+            balanceWeightSum += weight;
+        }
+        if (balanceWeightSum <= 0.0) {
+            THROW_ERROR_EXCEPTION("Balance weights must have a positive sum");
         }
     });
 }
@@ -1183,6 +1364,9 @@ void TDynamicControllerConnectorSpec::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("controller_heartbeat_period", &TThis::ControllerHeartbeatPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("worker_statistics_report_period", &TThis::WorkerStatisticsReportPeriod)
+        .Default(TDuration::Seconds(30))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("controller_heartbeat_rpc_timeout", &TThis::ControllerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("controller_heartbeat_failure_backoff", &TThis::ControllerHeartbeatFailureBackoff)
@@ -1245,6 +1429,10 @@ void TDynamicPipelineSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("flow_view_cache_codec", &TThis::FlowViewCacheCodec)
         .Default(NCompression::ECodec::Zstd_2);
+
+    registrar.Postprocessor([] (TThis* spec) {
+        ValidateThrottlerIds(spec);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1436,7 +1624,7 @@ void CollectAndValidateYTPaths(const TPipelineSpecPtr& spec)
     }
 }
 
-void ValidateControllerResourceFileSources(const TPipelineSpecPtr& spec)
+void ValidateControllerResourceFileProviders(const TPipelineSpecPtr& spec)
 {
     THashSet<TResourceId> visited;
     std::vector<TResourceId> pending;
@@ -1461,9 +1649,9 @@ void ValidateControllerResourceFileSources(const TPipelineSpecPtr& spec)
         }
         const auto& resourceSpec = resourceIt->second;
         THROW_ERROR_EXCEPTION_IF(
-            !resourceSpec->FileSources.empty(),
-            "File-source-backed resource %Qv cannot be loaded on the controller; "
-            "named file sources are worker-only",
+            !resourceSpec->FileProviders.empty(),
+            "File-provider-backed resource %Qv cannot be loaded on the controller; "
+            "named file providers are worker-only",
             resourceId);
         for (const auto& [dependencyId, _] : resourceSpec->Dependencies) {
             pending.push_back(dependencyId);
@@ -1494,7 +1682,9 @@ std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
 
 void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 {
-    ValidateControllerResourceFileSources(spec);
+    ValidatePipelineDeclarationIds(spec.Get());
+
+    ValidateControllerResourceFileProviders(spec);
 
     for (const auto& [streamId, streamSpec] : spec->Streams) {
         try {
@@ -1509,6 +1699,12 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
     // Validate computation specs.
     for (const auto& [computationId, computationSpec] : spec->Computations) {
         try {
+            THROW_ERROR_EXCEPTION_IF(
+                computationSpec->SourceStreams.empty() &&
+                    computationSpec->WatermarkStrategy &&
+                    computationSpec->WatermarkStrategy->WatermarkGenerator,
+                "\"watermark_generator\" requires at least one source stream");
+
             ValidateGroupBySchema(computationSpec->GroupBySchema);
             if (!computationSpec->KeyVisitorStreams.empty()) {
                 const auto& columns = computationSpec->GroupBySchema->Columns();
@@ -1663,6 +1859,9 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
     }
 
     THashMap<TStreamId, TComputationId> streamProducers;
+    auto publicStreamIds = GetKeys(spec->Streams);
+    THashSet<TStreamId> globalStreamIds(publicStreamIds.begin(), publicStreamIds.end());
+
     // Fill stream producers.
     for (const auto& [computationId, computationSpec] : spec->Computations) {
         THashSet<TStreamId> sourceStreamIds;
@@ -1688,6 +1887,17 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
         {
             if (!localStreamIds.insert(streamId).second) {
                 THROW_ERROR_EXCEPTION("Stream %Qv is registered twice in computation %Qv",
+                    streamId,
+                    computationId);
+            }
+        }
+
+        for (const auto& streamId : Concatenate(sourceStreamIds, timerStreamIds, keyVisitorStreamIds)) {
+            auto globalStreamId = MakeGlobalStreamId(computationId, streamId, computationSpec);
+            if (!globalStreamIds.insert(globalStreamId).second) {
+                THROW_ERROR_EXCEPTION(
+                    "Global stream id %Qv of stream %Qv in computation %Qv is registered twice",
+                    globalStreamId,
                     streamId,
                     computationId);
             }
@@ -1908,8 +2118,8 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 
     for (const auto& [resourceId, resourceSpec] : spec->Resources) {
         try {
-            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
-                ValidateFileSourceName(fileSourceId.Underlying());
+            for (const auto& [fileProviderId, _] : resourceSpec->FileProviders) {
+                ValidateFileProviderName(fileProviderId.Underlying());
             }
             TRegistry::Get()->ValidateResourceSpec(resourceSpec);
         } catch (const std::exception& ex) {
@@ -1954,10 +2164,12 @@ void ValidateQuotaClassWeight(double weight)
 
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
 {
+    ValidateDynamicPipelineDeclarationIds(dynamicSpec.Get());
+
     for (const auto& [resourceId, resourceSpec] : dynamicSpec->Resources) {
         try {
-            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
-                ValidateFileSourceName(fileSourceId.Underlying());
+            for (const auto& [fileProviderId, _] : resourceSpec->FileProviders) {
+                ValidateFileProviderName(fileProviderId.Underlying());
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(ex)

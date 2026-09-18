@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
+#include <yt/yt/ytlib/object_client/private.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -660,12 +661,12 @@ private:
                 effectiveError = &error.InnerErrors().front();
             }
 
-            if (effectiveError->GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            if (effectiveError->FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)) {
                 return true;
             }
 
             if (options.RetryRequestQueueSizeLimitExceeded &&
-                effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+                effectiveError->FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded))
             {
                 return true;
             }

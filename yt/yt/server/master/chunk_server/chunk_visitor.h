@@ -1,9 +1,9 @@
 #pragma once
 
-#include "chunk.h"
-#include "chunk_tree_statistics.h"
-#include "chunk_tree_traverser.h"
 #include "public.h"
+
+#include "chunk.h"
+#include "chunk_tree_traverser.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 

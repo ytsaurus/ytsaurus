@@ -167,7 +167,7 @@ TInputBuffer::TInputBuffer(
     , ComputationId_(std::move(computationId))
     , FinalizerPoolInvoker_(finalizerPoolInvoker)
     , SerializedInvoker_(CreateSerializedInvoker(finalizerPoolInvoker, "InputBuffer"))
-    , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch)
+    , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch, dynamicSpec->MaxKeysPerBatch)
     , BatchDuration_(dynamicSpec->BatchDuration)
     , EpochCycleTracker_(std::move(epochCycleTracker))
     , TimeProvider_(std::move(timeProvider))
@@ -214,7 +214,10 @@ void TInputBuffer::Reconfigure(TDynamicComputationSpecPtr dynamicSpec)
 void TInputBuffer::DoReconfigure(TDynamicComputationSpecPtr dynamicSpec)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-    BatchLimiter_ = TMessageBatchLimiter(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
+    BatchLimiter_ = TMessageBatchLimiter(
+        dynamicSpec->MaxRowsPerBatch,
+        dynamicSpec->MaxBytesPerBatch,
+        dynamicSpec->MaxKeysPerBatch);
     BatchDuration_ = dynamicSpec->BatchDuration;
 }
 
@@ -458,6 +461,14 @@ void TInputBuffer::DoAcknowledge(
         TOnProcessedCallbackHash>
         messageIdsByCallback;
 
+    struct TProcessedStreamCounters
+    {
+        i64 Count = 0;
+        i64 Bytes = 0;
+    };
+
+    THashMap<TStreamId, TProcessedStreamCounters> processedByStream;
+
     MakePrefetcher()
         .Add([] (const TMessageId& messageId) {
             messageId.Prefetch();
@@ -476,10 +487,9 @@ void TInputBuffer::DoAcknowledge(
             auto& streamState = GetOrCrash(StreamStates_, messageState.StreamId);
             if (reportProcessed) {
                 MessageProcessingTimer_.Record(now - messageState.RegisterTime);
-                streamState.PersistedMessagesCounter.Increment(1);
-                streamState.PersistedBytesCounter.Increment(messageState.ByteSize);
-                streamState.PersistedMessagesRate.Inc(1, now);
-                streamState.PersistedBytesRate.Inc(messageState.ByteSize, now);
+                auto& counters = processedByStream[messageState.StreamId];
+                ++counters.Count;
+                counters.Bytes += messageState.ByteSize;
             }
 
             --streamState.NotPersistedMessageCount;
@@ -488,6 +498,15 @@ void TInputBuffer::DoAcknowledge(
 
             MessageStatesMap_.erase(it);
         });
+
+    // EMA counters accept only one cumulative update per timestamp.
+    for (const auto& [streamId, counters] : processedByStream) {
+        auto& streamState = GetOrCrash(StreamStates_, streamId);
+        streamState.PersistedMessagesCounter.Increment(counters.Count);
+        streamState.PersistedBytesCounter.Increment(counters.Bytes);
+        streamState.PersistedMessagesRate.Inc(counters.Count, now);
+        streamState.PersistedBytesRate.Inc(counters.Bytes, now);
+    }
 
     FinalizerPoolInvoker_->Invoke(BIND([jobId = JobId_, messageIdsByCallback = std::move(messageIdsByCallback)] () mutable {
         for (auto& [callback, callbackMessageIds] : messageIdsByCallback) {
@@ -515,11 +534,11 @@ THashMap<TStreamId, TInflightMetricsPtr> TInputBuffer::DoGetInflightMetrics() co
         metrics->ByteSize = streamState.NotPersistedByteSize;
         metrics->ReadyCount = std::ssize(streamState.Messages);
         metrics->ReadyByteSize = streamState.ReadyByteSize;
-        metrics->OfferedCountPerSec = streamState.OfferedMessagesRate.GetRate(now);
-        metrics->OfferedBytesPerSec = streamState.OfferedBytesRate.GetRate(now);
+        metrics->OfferedCountPerSec = streamState.OfferedMessagesRate.GetDecayedRate(now);
+        metrics->OfferedBytesPerSec = streamState.OfferedBytesRate.GetDecayedRate(now);
 
-        metrics->ProcessedCountPerSec = streamState.PersistedMessagesRate.GetRate(now);
-        metrics->ProcessedBytesPerSec = streamState.PersistedBytesRate.GetRate(now);
+        metrics->ProcessedCountPerSec = streamState.PersistedMessagesRate.GetDecayedRate(now);
+        metrics->ProcessedBytesPerSec = streamState.PersistedBytesRate.GetDecayedRate(now);
         result.emplace(streamId, std::move(metrics));
     }
     return result;

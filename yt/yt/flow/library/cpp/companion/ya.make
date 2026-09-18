@@ -28,7 +28,10 @@ PEERDIR(
     yt/yt/flow/library/cpp/companion/proto
 
     yt/yt/library/process
+    yt/yt/library/profiling/solomon
 
+    yt/yt/core/http
+    yt/yt/core/https
     yt/yt/core/rpc/grpc
 
     yt/yt/flow/library/cpp/common
@@ -45,3 +48,9 @@ RECURSE(
 RECURSE_FOR_TESTS(
     unittests
 )
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        benchmark
+    )
+ENDIF()

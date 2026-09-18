@@ -49,6 +49,31 @@ DEFINE_ENUM(EIOCategory,
     (Realtime)
 );
 
+DEFINE_ENUM(ELocationReadThrottlingReason,
+    (WorkloadCategoryPendingIOSizeLimitExceeded)
+    (TotalInFlightRequestLimitExceeded)
+    (ReadInFlightRequestLimitExceeded)
+    (ReadMemoryLimitExceeded)
+    (TotalMemoryLimitExceeded)
+    (ReadMemoryTrackerLimitExceeded)
+    (AlwaysThrottleLocation)
+);
+
+DEFINE_ENUM(ELocationWriteThrottlingReason,
+    (TotalInFlightRequestLimitExceeded)
+    (TotalMemoryLimitExceeded)
+    (WriteMemoryTrackerLimitExceeded)
+    (WorkloadCategoryWriteMemoryLimitExceeded)
+    (WriteMemoryLimitExceeded)
+    (NewSessionWriteMemoryTrackerLimitExceeded)
+    (NewSessionWriteMemoryLimitExceeded)
+    (WriteInFlightRequestLimitExceeded)
+    (AlwaysThrottleLocation)
+    (LocationNotWritable)
+    (NotEnoughSpace)
+    (SessionCountLimitReached)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLocationPerformanceCounters
@@ -62,19 +87,19 @@ struct TLocationPerformanceCounters
 
     NProfiling::TCounter ThrottledReplicationReads;
     NProfiling::TCounter ThrottledProbingReads;
-    NProfiling::TCounter ThrottledReads;
+    TEnumIndexedArray<ELocationReadThrottlingReason, NProfiling::TCounter> ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
     void ReportThrottledReplicationRead();
     void ReportThrottledProbingRead();
-    void ReportThrottledRead();
+    void ReportThrottledRead(ELocationReadThrottlingReason reason);
 
     NProfiling::TCounter ThrottledProbingWrites;
-    NProfiling::TCounter ThrottledWrites;
+    TEnumIndexedArray<ELocationWriteThrottlingReason, NProfiling::TCounter> ThrottledWrites;
     std::atomic<NProfiling::TCpuInstant> LastWriteThrottleTime{};
 
     void ReportThrottledProbingWrite();
-    void ReportThrottledWrite();
+    void ReportThrottledWrite(ELocationWriteThrottlingReason reason);
 
     NProfiling::TEventTimer PutBlocksWallTime;
     NProfiling::TEventTimer BlobChunkMetaReadTime;
@@ -252,17 +277,26 @@ public:
     //! Returns |true| if writes were throttled (within some recent time interval).
     bool IsWriteThrottling() const;
 
+    template <class TReason>
     struct TDiskThrottlingResult
     {
-        bool Enabled;
-        bool MemoryOvercommit;
-        i64 QueueSize;
+        bool MemoryOvercommit = false;
+        i64 QueueSize = 0;
         TError Error;
+        std::optional<TReason> Reason;
+
+        bool IsEnabled() const
+        {
+            return Reason.has_value();
+        }
     };
+
+    using TReadThrottlingResult = TDiskThrottlingResult<ELocationReadThrottlingReason>;
+    using TWriteThrottlingResult = TDiskThrottlingResult<ELocationWriteThrottlingReason>;
 
     //! Returns whether reads must be throttled
     //! and the total number of bytes to read from disk including those accounted by out throttler.
-    TDiskThrottlingResult CheckReadThrottling(
+    TReadThrottlingResult CheckReadThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool isProbing = false,
         bool isReplication = false) const;
@@ -270,22 +304,22 @@ public:
     //! Reports throttled read.
     void ReportThrottledReplicationRead() const;
     void ReportThrottledProbingRead() const;
-    void ReportThrottledRead() const;
+    void ReportThrottledRead(ELocationReadThrottlingReason reason) const;
 
     //! Returns whether writes must be throttled.
     void ReportThrottledProbingWrite() const;
-    TDiskThrottlingResult CheckWriteThrottling(
+    TWriteThrottlingResult CheckWriteThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool blocksWindowShifted,
         bool withProbing) const;
-    TDiskThrottlingResult CheckWriteThrottling(
+    TWriteThrottlingResult CheckWriteThrottling(
         TChunkId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
         bool blocksWindowShifted,
         bool withProbing) const;
 
     //! Reports throttled write.
-    void ReportThrottledWrite() const;
+    void ReportThrottledWrite(ELocationWriteThrottlingReason reason) const;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     //! This method returns memory limit fraction.

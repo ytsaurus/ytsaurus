@@ -306,6 +306,9 @@ struct TPoolConfig
 
     bool EnableStepFunctionForGangOperations;
 
+    //! Inherited by the whole subtree unless a descendant pool overrides it.
+    std::optional<bool> EnableFifoChildrenReorderingForGuaranteeUtilization;
+
     THashMap<std::string, std::string> MeteringTags;
 
     TOffloadingSettings OffloadingSettings;

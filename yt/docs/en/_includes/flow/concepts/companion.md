@@ -30,7 +30,7 @@ The companion returns its output in groups; each group carries [lineage](../../.
 
 In the future, you’ll also be able to use Unix sockets.
 
-![](../../../flow/images/companion_v1.svg)
+![](../../../flow/_images/companion_v1.svg)
 
 You manage the companion process through the [resource](../../../flow/concepts/glossary.md#resource) `CompanionManager`.
 
@@ -108,6 +108,8 @@ The function is selected by the name from the `processing_function` field of the
     };
 };
 ```
+
+A process function in a companion can take the HTTP clients from `IRuntimeInitContext` in `Init` (`GetHttpClient()`, `GetHttpsClient()`). The clients are configured by the `http_client_config`, `https_client_config` and `http_poller_threads` fields of the `companion` block of the worker node config ([TCompanionConfig](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig)).
 
 Limitations of the first version of the C++ companion:
 

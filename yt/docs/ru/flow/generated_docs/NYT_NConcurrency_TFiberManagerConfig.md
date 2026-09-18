@@ -5,6 +5,9 @@
 
 #|
 || **Параметр** | **Описание** ||
+|| `fiber_stack_sizes` | **Тип**: `THashMap<`[NYT::NConcurrency::EExecutionStackKind](./all_yson_structs#NYT_NConcurrency_EExecutionStackKind)`, unsigned long>`
+**Значение по умолчанию**: `{}`
+ ||
 || `fiber_stack_pool_sizes` | **Тип**: `THashMap<`[NYT::NConcurrency::EExecutionStackKind](./all_yson_structs#NYT_NConcurrency_EExecutionStackKind)`, int>`
 **Значение по умолчанию**: `{}`
  ||

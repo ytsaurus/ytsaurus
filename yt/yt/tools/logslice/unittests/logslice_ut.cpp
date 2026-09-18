@@ -204,6 +204,26 @@ TEST_F(TLogSliceTest, ParseLogLineTime)
     // 26-char log timestamp, which parses back to the same instant.
     EXPECT_EQ("2020-01-02 03:04:05,123456", FormatLogTime(*local));
     EXPECT_EQ(local, ParseLogLineTime(FormatLogTime(*local)));
+
+    // Master access logs use the structured JSON formatter and millisecond
+    // precision. A payload field using the same key must not win over the
+    // formatter's later system field.
+    auto json = ParseLogLineTime(
+        R"({"instant":"1999-01-01 00:00:00,000","instant":"2020-01-02 03:04:05,123","method":"PrepareUnmount"})");
+    ASSERT_TRUE(json.has_value());
+    EXPECT_EQ(query + TDuration::MicroSeconds(123000), *json);
+
+    // Key-shaped text inside a payload string is not a structured timestamp.
+    EXPECT_FALSE(ParseLogLineTime(
+        R"({"message":"fake \"instant\":\"1999-01-01 00:00:00,000\""})").has_value());
+
+    // Block probes may include more than one JSON line. Only the first record
+    // describes the block's first timestamp; a later line must not replace it.
+    auto jsonBlockPrefix = ParseLogLineTime(
+        R"({"instant":"2020-01-02 03:04:05,123","method":"PrepareUnmount"}
+{"instant":"2020-01-02 03:04:06,456","method":"CommitUnmount"})");
+    ASSERT_TRUE(jsonBlockPrefix.has_value());
+    EXPECT_EQ(query + TDuration::MicroSeconds(123000), *jsonBlockPrefix);
 }
 
 TEST_F(TLogSliceTest, ParseQueryTimeFormats)

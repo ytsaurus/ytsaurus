@@ -688,6 +688,8 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
         .Default(false);
+    registrar.Parameter("enable_fifo_children_reordering_for_guarantee_utilization", &TThis::EnableFifoChildrenReorderingForGuaranteeUtilization)
+        .Default(false);
     registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation", &TThis::EnableImprovedFairShareByFitFactorComputation)
         .Default(false);
     registrar.Parameter("enable_improved_fair_share_by_fit_factor_computation_distribution_gap", &TThis::EnableImprovedFairShareByFitFactorComputationDistributionGap)
@@ -1421,7 +1423,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(68);
+        .Default(69);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

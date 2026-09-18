@@ -201,12 +201,14 @@ private:
 
     std::optional<int> OomScoreAdj_;
 
-    std::optional<TFuture<TString>> JobProxyPeakMemoryProfile_;
+    TFuture<TString> JobProxyPeakMemoryProfile_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
     void UpdateCumulativeMemoryUsage(i64 memoryUsage);
+
+    void SetCpuGuarantee(double cpuGuarantee);
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;

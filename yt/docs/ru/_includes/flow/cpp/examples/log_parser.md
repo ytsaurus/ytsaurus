@@ -1,6 +1,6 @@
 # Log Parser в {{product-name}} Flow (C++)
 
-Пример показывает [`TTransformOrderedSourceComputation`](../../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) (детали в [Computation (C++)](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)): [пайплайн]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) читает строки лога из очереди и парсит их сразу при чтении источника, без промежуточного passthrough-компьютейшена и `TTransformComputation`. Сама логика разбора написана как [process function](../../../../flow/cpp/process-functions.md) и работает под встроенным адаптером. Дополнительно пример показывает чтение из `Source` и собственный durable-стейт, переживающий рестарты (см. [Стейт](#state)).
+Пример показывает [process function](../../../../flow/cpp/process-functions.md) в materialized ordered-source режиме: [пайплайн]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) читает строки лога из очереди и парсит их сразу при чтении источника, без промежуточного passthrough-компьютейшена. Функцию исполняет встроенный `TProcessFunctionTransformOrderedSourceComputation`. Дополнительно пример показывает чтение из `Source` и собственный durable-стейт, переживающий рестарты (см. [Стейт](#state)).
 
 [Исходный код]({{source-root}}/yt/yt/flow/examples/cpp/log_parser)
 
@@ -14,7 +14,7 @@
 
 Результат трансформации — стрим `records` — материализуется в {{product-name}}, как у `TTransformComputation`, поэтому требований к детерминированности трансформации нет: после рестарта Flow дораспределяет уже материализованные сообщения с ранее назначенными им `MessageId`, а не вычисляет их заново.
 
-Наследоваться от класса по-прежнему можно: так написан пример [Proto Parser](../../../../flow/cpp/examples/proto_parser.md) — на хелпере `TProtoTransformOrderedSourceComputation<TProto>` поверх `TTransformOrderedSourceComputation`. Валидатор спеки у адаптера тот же, что у базового класса: непустой `group_by_schema`, таймеры, key-visitor-стримы и `external_state_managers` отвергаются в любом варианте (полный [список ограничений](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
+Пример [Proto Parser](../../../../flow/cpp/examples/proto_parser.md) использует тот же режим исполнения через переиспользуемую базу process function: `TProtoLogParserFunction` наследуется от `TProtoParsingProcessFunctionBase<TLogRecordProto>` и запускается под `TProcessFunctionTransformOrderedSourceComputation`. Валидатор спеки у адаптера-хоста тот же, что у базового класса компьютейшена: непустой `group_by_schema`, таймеры, key-visitor-стримы и `external_state_managers` отвергаются (полный [список ограничений](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
 
 ### Спека компьютейшена parser
 
@@ -37,7 +37,7 @@
 
 ## Стейт {#state}
 
-`TLogParserProcessFunction` — стейтовая. Стейт `TWorstSeverityState` она держит в поле `TMutableStateKeyClient<TWorstSeverityState> StateClient_` — ровно как `TTransformComputation` (см. [Работа со стейтами (C++)](../../../../flow/cpp/state.md#internal-state)). Остальное делает адаптер `TProcessFunctionTransformOrderedSourceComputation`: он вызывает `Init(const IRuntimeInitContextPtr& initContext)`, где клиент подключается к стейту вызовом `initContext->InitClient(StateClient_, WorstSeverityStateName)` (имя стейта — `worst_severity`), и `ProcessMessage`, где стейт читается аксессором `GetState(message->Key)`, а выходные записи приводятся к сообщениям через `context->ConvertToMessage(...)`.
+`TLogParserProcessFunction` — стейтовая. Стейт `TWorstSeverityState` она держит в поле `TMutableStateKeyClient<TWorstSeverityState> StateClient_` (см. [Работа со стейтами (C++)](../../../../flow/cpp/state.md#internal-state)). Адаптер `TProcessFunctionTransformOrderedSourceComputation` вызывает `Init(const IRuntimeInitContextPtr& initContext)`, где клиент подключается к стейту вызовом `initContext->InitClient(StateClient_, WorstSeverityStateName)` (имя стейта — `worst_severity`), и `ProcessMessage`, где стейт читается аксессором `GetState(message->Key)`, а выходные записи приводятся к сообщениям через `context->ConvertToMessage(...)`.
 
 Инстанс компьютейшена привязан к единственной партиции источника, поэтому все сообщения несут один и тот же ключ и обращаются к одной строке стейта: `state->WorstSeverity = std::max(state->WorstSeverity, SeverityRank(record.Level))`.
 

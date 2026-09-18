@@ -1841,6 +1841,26 @@ func (r *MultiLookupRequest) SetTxOptions(opts *TransactionOptions) {
 	r.Timestamp = convertTimestamp(&opts.TxStartTimestamp)
 }
 
+var _ ReadRetryRequest = (*GetTableMountInfoRequest)(nil)
+
+type GetTableMountInfoRequest struct {
+	*rpc_proxy.TReqGetTableMountInfo
+}
+
+func NewGetTableMountInfoRequest(r *rpc_proxy.TReqGetTableMountInfo) *GetTableMountInfoRequest {
+	return &GetTableMountInfoRequest{TReqGetTableMountInfo: r}
+}
+
+func (r GetTableMountInfoRequest) Log() []log.Field {
+	return []log.Field{log.String("path", string(r.GetPath()))}
+}
+
+func (r GetTableMountInfoRequest) Path() (string, bool) {
+	return string(r.GetPath()), true
+}
+
+func (r *GetTableMountInfoRequest) ReadRetryOptions() {}
+
 var _ TransactionalRequest = (*LockRowsRequest)(nil)
 
 type LockRowsRequest struct {
@@ -1852,10 +1872,14 @@ func NewLockRowsRequest(r *rpc_proxy.TReqModifyRows) *LockRowsRequest {
 }
 
 func (r LockRowsRequest) Log() []log.Field {
+	rowLocks := r.GetRowLocks()
 	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
-		log.Any("locks", r.GetRowLocks()),
+		log.Int("row_count", len(rowLocks)),
 		// log.Any("lockType", r.LockType), // todo
+	}
+	if len(rowLocks) != 0 {
+		fields = append(fields, log.Any("lock_mask", rowLocks[0]))
 	}
 	fields = appendEmbeddedOptions(fields, r.TReqModifyRows)
 	return fields

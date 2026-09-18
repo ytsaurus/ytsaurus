@@ -143,7 +143,8 @@ func complexValueType(t schema.ComplexType) (wire.ValueType, bool) {
 
 func primitiveValueType(t schema.Type) (wire.ValueType, bool) {
 	switch t {
-	case schema.TypeInt8, schema.TypeInt16, schema.TypeInt32, schema.TypeInt64, schema.TypeInterval:
+	case schema.TypeInt8, schema.TypeInt16, schema.TypeInt32, schema.TypeInt64, schema.TypeInterval,
+		schema.TypeDate32, schema.TypeDatetime64, schema.TypeTimestamp64, schema.TypeInterval64:
 		return wire.TypeInt64, true
 	case schema.TypeUint8, schema.TypeUint16, schema.TypeUint32, schema.TypeUint64,
 		schema.TypeDate, schema.TypeDatetime, schema.TypeTimestamp:

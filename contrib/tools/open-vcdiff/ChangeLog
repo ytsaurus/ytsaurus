@@ -1,0 +1,217 @@
+Wed, 14 May 2014 13:29:25 -0700  Google Inc. <opensource@google.com>
+
+  Release version 0.8.4 with the following changes:
+  * Issue #35: Add "src/zlib" to the list of additional include directories
+    when compiling open-vcdiff with Visual Studio.  This addresses a
+    regression introduced in version 0.8.3.
+  * Issues #36 and #37: Don't use trailing commas in JSON encoding.  Add a
+    check for non-ASCII characters when using JSON format.  Cast char to
+    unsigned char when testing whether its value is >= 0x80.
+  * Issue #40: Avoid working with negative source offsets if the source data is
+    small enough that it does not contain any blocks to hash.
+  * Issue #41: Set GTEST_HAS_TR1_TUPLE to 0 so that it excludes
+    (unused) std::tuple support when compiling gtest.
+    According to the bug, <tr1/tuple> is not available on OS X.
+  * Issue #42: Use unique_ptr (if available) instead of auto_ptr.
+  * Issue #43: Remove a newline from Makefile.am to fix a reported
+    incompatibility with openembedded framework and autoreconf.
+  * Fix unused-local-typedefs warnings in GCC 4.7+ by marking the CompileAssert
+    typedefs with __attribute__((unused)).
+  * Remove unnecessary methods CodeTableWriterInterface::target_length() and
+    VCDiffEngine::FinishEncoding().
+  * Add the FALLTHROUGH_INTENDED macro to indicate that the lack of a "break;"
+    at the end of a case in a switch statement is intentional.
+  * Fix the comment for VCDiffFileBasedCoder::OpenFileForReading().
+
+Tue, 03 Apr 2012 09:59:09 -0700  Google Inc. <opensource@google.com>
+
+  Release version 0.8.3 with the following changes:
+  * Issue #34: Move zconf.h, zlib.h, and adler32.c into a zlib subdirectory to
+    avoid conflicts with other revisions of these files included in Chromium.
+    Please see: http://codereview.chromium.org/9555002/
+  * Issue #32: Fix erroneous parameter in unit test.
+
+Tue, 27 Sep 2011 10:30:38 -0700  Google Inc. <opensource@google.com>
+
+  Release version 0.8.2 with the following changes:
+  * Issue #29: Include public header format_extension_flags.h in the Debian
+    package libvcdenc-dev.
+  * Issue #31: Add missing license text to codetablewriter_interface.h and to
+    the packaging scripts.
+
+Fri,  6 Aug 2010 11:36:36 -0800  Google Inc. <opensource@google.com>
+
+  Release version 0.8.1 with the following change:
+  * Issue #24: Revert the fix for Issue #21, which caused a regression
+    (the Debian package did not properly install the vcdiff executable.)
+    This version of open-vcdiff builds and tests successfully using MinGW 5.1.6,
+    so Issue #21 is no longer a problem.
+  * Fix warning in autogen.sh by providing only one directory argument to
+    AC_CONFIG_MACRO_DIR.  The subordinate directory gflags/m4 is still
+    specified as an -I argument to aclocal.
+
+Tue,  3 Aug 2010 10:44:32 -0800  Google Inc. <opensource@google.com>
+
+  Release version 0.8 with the following changes:
+  * Issue #12: Truncate decoded_target_ after decoding each window, rather than
+    after each call to DecodeChunk().  This helps limit memory usage when
+    processing multiple windows.
+  * Issue #22: To work around a bug in the gold linker
+    (http://sourceware.org/bugzilla/show_bug.cgi?id=10238), list all direct
+    library dependencies in Makefile.am.
+  * Issue #23: Add an option for the encoder to produce simple JSON output
+    instead of VCDIFF (RFC 3284) format.
+  * Issue #25: Enable VCDIFF_USE_BLOCK_COMPARE_WORDS for the PowerPC
+    architecture as well as for x86.  The test
+    BlockContentsMatchIsAsFastAsBlockCompareWords failed on a PowerPC machine
+    running AIX 5.3.8.
+  * Issue #28: Only call string::reserve() when the required capacity is greater
+    than the string's current capacity.
+  * Get rid of ExitFatal().  It is no longer used for anything since the custom
+    test framework was replaced with gtest.
+  * Get rid of the match count feature.
+  * Rename the log macros: for example, LOG(ERROR) is now VCD_ERROR.
+    Rename COMPILE_ASSERT to VCD_COMPILE_ASSERT.
+  * Simplify RollingHash by performing its sanity checks at compile time.
+  * The googletest package is now referenced as an svn:externals property.
+    Remove the branched googletest sources from src/gtest and instead reference
+    the source files in the top-level gtest directory.
+  * Likewise, the google-gflags package is now referenced as an svn:externals
+    property.  Remove the branched gflags sources from src/gflags and instead
+    reference the source files in the top-level gflags directory.
+  * Use version 1.11 of Automake.
+  * Explicitly include the m4 directory in configuration scripts.
+  * Call LT_INIT from configure.ac as suggested by libtool.
+  * Don't distribute gflags and gtest documents whose names conflict with the
+    same documents in the open-vcdiff package.
+  * Only define _XOPEN_SOURCE if not already defined.
+  * Fix warnings that appeared when compiling on RedHat 9 with gcc 3.2.2:
+      src/encodetable_test.cc:111: warning: cannot pass objects of non-POD
+          type `struct std::string' through `...'; call will abort at runtime
+  * Fix Visual Studio compiler warning about mismatch between size_t and int
+    in blockhash_test.cc.
+  * Add contributors' names to THANKS file.
+
+Fri, 09 Oct 2009 10:32:10 -0700  Google Inc. <opensource@google.com>
+
+  Release version 0.7 with the following changes:
+  * Fix a case in which VarintBE::Parse would read off the end of available
+    input if the variable-length integer began with leading zero bytes
+    with their continuation bits set (0x80 bytes.)
+  * Define std::string as string only within namespaces and class definitions
+    in case there is a string class defined at the outermost scope.  If that
+    is the case, the HAS_GLOBAL_STRING label should be defined manually.
+  * Update with changes to gflags package as of 2009/07/23.
+
+Thu, 09 Apr 2009 09:16:58 -0700  Google Inc. <opensource@google.com>
+
+  Release version 0.6 with the following changes:
+  * Issue #9: Add option to optimize VCDIFF decoder when VCD_TARGET will not be
+              used as source segment.
+    Add new interface SetAllowVcdTarget to control whether the VCD_TARGET flag
+    may be used.  If this option is set to false and the decoder finds a
+    VCD_TARGET flag, it will issue an error and refuse to continue decoding.
+  * Issue #19: ERROR: Length of target window (100001916) exceeds limit of
+               67108864 bytes
+    Remove the limit of INT32_MAX on the value of --max_target_file_size, since
+    the new SetAllowVcdTarget feature means that the entire target file will not
+    need to be kept in memory.  Separate vcdecoder_test into five test targets,
+    one of which is devoted to the new SetAllowVcdTarget feature.  Get rid of
+    kMaxBufferSize and kDefaultBufferSize, which were used ambiguously.  A new
+    constant kDefaultMaxTargetSize provides the default values for the
+    --max_target_file_size and --max_target_window_size options.  The
+    --buffersize option, if specified, should control the buffer size used,
+    without limits on its value.
+  * Issue #21: Fail to test on MinGW 5.1.4
+    The wrapper executables produced by libtool failed on MinGW with the error
+    "File /bin/sh not found".  Add the option AC_DISABLE_FAST_INSTALL to avoid
+    creating wrapper executables.  The option implies an extra link step during
+    "make install", but the package is small enough that this does not take
+    long.
+  * Remove the annotated-output feature from the decoder.
+  * Automatically detect and work around a Solaris 10 bug which causes the error
+    "libstdc++.la is not a valid libtool archive".
+        http://whocares.de/2006/05/solaris-10-fixup-for-libstdcla-is-not-a-valid-libtool-archive/
+  * Update with latest changes to gflags package.
+  * Fix type-conversion warning in vcdiff_main.cc in 32-bit Visual Studio build.
+
+Wed, 18 Mar 2009 14:28:23 -0700  Google Inc. <opensource@google.com>
+
+  * Issue #14: HashedDictionary may free memory twice if implicitly copied.
+    * Add private copy constructor and assignment operator for HashedDictionary.
+  * Issue #18: Building RPM package fails on Fedora 9: Installed (but
+    unpackaged) file vcdiff.1.gz.
+    * Some OS, including Fedora 9, automatically compress man pages that are
+      installed using /usr/bin/install.  This confuses the RPM packager, which
+      expects a file named "vcdiff.1" and finds one named "vcdiff.1.gz" instead.
+      Use a wild-card character to accept either of these two alternatives.
+  * Change the VCDIFF block size to 16, but have the encoder discard all matches
+    smaller than 32 bytes.  This doubles the CPU and memory needed by the
+    encoder, but finds better string matches, producing a more efficient
+    encoding.  Loosen the timing test limit in blockhash_test.cc for the debug
+    build only.
+  * Make the code table writer a virtual interface.
+  * Add an interface SetTargetMatching() to the simple encoder class
+    VCDEncoder.
+  * Remove all references to LOG and logging.h from the unit tests and
+    command-line client.
+  * Remove all special cases for kBlockSize < 4.  kBlockSize must be a multiple
+    of the machine word size (see blockhash.cc), so it will never be smaller
+    than 4.
+  * Use version 1.10 of Automake.
+  * Incorporate recent changes to gflags package
+    (http://code.google.com/p/google-gflags/)
+  * Fix Visual Studio type-mismatch warning in vcdecoder4_test.cc.
+  * Use address cache helper functions IsSameMode(), IsHereMode(), etc. to
+    simplify test code.
+  * Add contributor's name to THANKS file.
+
+Thu, 23 Oct 2008 09:03:56 -0700  Google Inc. <opensource@google.com>
+
+  * Issue #6: vcdiff crashes with zero-size dictionary
+    * Add special cases for empty dictionary file in vcdiff_main.cc.
+  * Issue #7: vcdiff incorrect binary I/O on Windows
+    * Change stdin/stdout file type to binary in vcdiff_main.cc.
+  * Issue #13: Add unit test for vcdiff command-line executable
+    * Unit test vcdiff_test.bat added for Visual Studio testing of vcdiff.exe.
+      Includes regression tests for issues #6 and #7.
+  * Issue #15: open-vcdiff fails to compile on Fedora 9
+    * Apply patch sent by Daniel Kegel
+    * Add header <string.h> to src/vcdiffengine.cc, which uses memcpy.
+    * Remove const qualifier from integral return types to fix gcc 4.3.1
+      warning.
+  * Add contributors' names to THANKS file.
+
+Fri, 10 Oct 2008 11:16:23 -0700  Google Inc. <opensource@google.com>
+
+  * Issue #15: open-vcdiff fails to compile on Fedora 9
+    * Add header <string.h> to source files that use memcmp, memset, memcpy,
+      and/or strlen.
+    * Change C++-style includes like <cstdlib> to C-style includes like
+      <stdlib.h> so that function names are guaranteed to be defined
+      in the global namespace.
+  * Issue #8: Decoder should not crash if it runs out of memory
+    * Add a new interface that places a limit on the maximum bytes allowed in
+      a single target window or a target file.
+  * Issue #13: Add unit test for vcdiff command-line executable
+    * Unit test vcdiff_test.sh added for Linux and Mac builds.
+    * Still need to add a Windows version of this test.
+
+Tue, 02 Sep 2008 09:27:54 -0700  Google Inc. <opensource@google.com>
+
+  * Fix problems found on OpenBSD platform.
+    * Issue #1: vcdiff command-line executable crashes on startup.
+      This was a problem with the stub intended to replace pthread_once if the
+      package was not linked with the pthreads library.  Simplify gflags.cc to
+      assume single-threaded execution.
+    * Issue #2: Unit test blockhash_test fails.
+      Define VCDIFF_USE_BLOCK_COMPARE_WORDS for BSD platforms to ensure that
+      the most efficient version of memcmp is used in the encoder's inner loop.
+  * Fix compilation warnings in gtest-filepath.cc: "warning: missing
+    initializer for member 'stat::...'"
+
+Mon, 16 Jun 2008 15:15:51 -0700  Google Inc. <opensource@google.com>
+
+  * open-vcdiff: initial release:
+  The open-vcdiff package provides an encoder and decoder for the VCDIFF format
+  described in RFC 3284 (http://www.ietf.org/rfc/rfc3284.txt).

@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE, with_portals_dir)
 from yt_queue_agent_test_base import (GenericObjectPath, OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
@@ -14,7 +14,8 @@ from yt_commands import (alter_table_replica, authors, commit_transaction, gener
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
-                         execute_batch, make_batch_request, abort_transaction, read_table, create_user)
+                         execute_batch, make_batch_request, abort_transaction, read_table, create_user,
+                         get_tablet_infos, unmount_table)
 
 from yt.environment.helpers import write_config
 
@@ -5558,6 +5559,7 @@ class QueueStaticExportCrossCellBase(TestQueueStaticExport):
     EXPORT_DIR = None
 
     @authors("achulkov2", "nadya73")
+    @with_portals_dir
     def test_different_native_cells(self):
         _, queue_id = self._create_queue(self.QUEUE_PATH)
 
@@ -5763,12 +5765,22 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         return super()._create_chaos_replicated_queue(path)
 
     def _prepare_queue_replicas(self, replicas):
-        for replica in replicas:
-            driver = get_driver(cluster=replica["cluster_name"])
-            replica_path = replica["replica_path"]
-            sync_unmount_table(replica_path, driver=driver)
+        def driver_replica_path_pairs():
+            for replica in replicas:
+                yield get_driver(cluster=replica["cluster_name"]), replica["replica_path"]
+
+        for driver, replica_path in driver_replica_path_pairs():
+            unmount_table(replica_path, driver=driver)
+
+        for driver, replica_path in driver_replica_path_pairs():
+            wait_for_tablet_state(replica_path, "unmounted", driver=driver)
             set(f"{replica_path}/@dynamic_store_auto_flush_period", YsonEntity(), driver=driver)
-            sync_mount_table(replica_path, driver=driver)
+
+        for driver, replica_path in driver_replica_path_pairs():
+            mount_table(replica_path, driver=driver)
+
+        for driver, replica_path in driver_replica_path_pairs():
+            wait_for_tablet_state(replica_path, "mounted", driver=driver)
 
     def _update_export_period(self, replica, export_period, export_name="default"):
         replica_driver = get_driver(cluster=replica["cluster_name"])
@@ -5791,6 +5803,16 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
     def _get_export_tables_count(self, replica, export_dir="//tmp/export"):
         replica_cluster = replica["cluster_name"]
         return len(ls(export_dir, driver=get_driver(cluster=replica_cluster)))
+
+    @staticmethod
+    def _get_trimmed_row_count(replica, partition_index=0):
+        driver = get_driver(cluster=replica["cluster_name"])
+        tablet_info = get_tablet_infos(
+            replica["replica_path"],
+            [partition_index],
+            driver=driver,
+        )["tablets"][0]
+        return tablet_info["trimmed_row_count"]
 
     @classmethod
     def _wait_for_replicated_queue_row_range(cls, replicas, row_index_range, partition_index=0):
@@ -5873,29 +5895,28 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._flush_replicated_queue(replicas)
 
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
-        # Nothing should be trimmed.
+        # Nothing should be exported
+        assert self._get_trimmed_row_count(replicas[1]) == 0
+        assert self._get_trimmed_row_count(replicas[2]) == 0
         assert self._get_export_tables_count(replicas[1]) == 0
         assert self._get_export_tables_count(replicas[2]) == 0
         self._wait_for_replicated_queue_row_range(replicas, range(3))
 
-        # We first check that trim correctly takes into account second export (remote_1),
-        # and then the first (remote_0) to check that export progress aggregation works as expected.
+        # We first check that trim correctly takes into account first export (remote_0),
+        # and then the second (remote_1) to check that export progress aggregation works as expected.
 
-        # Checking trim for export on remote_1 cluster.
+        # Checking trim for export on remote_0 cluster.
 
         self._update_export_period(replicas[1], 1000)
 
         wait(lambda: self._get_export_tables_count(replicas[1]) == 1)
         replicas_orchids[1].wait_fresh_pass()
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
         # Nothing should be trimmed as no exports for replicas[2] has occured.
         assert self._get_export_tables_count(replicas[2]) == 0
+        assert self._get_trimmed_row_count(replicas[2]) == 0
         self._wait_for_replicated_queue_row_range(replicas, range(3))
 
         self._update_export_period(replicas[2], 1000)
@@ -5918,11 +5939,10 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         wait(lambda: self._get_export_tables_count(replicas[2]) == 2)
         replicas_orchids[2].wait_fresh_pass()
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
         # Nothing should be trimmed as no exports for replicas[1] has occured.
         assert self._get_export_tables_count(replicas[1]) == 1
+        assert self._get_trimmed_row_count(replicas[1]) == 3
         self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
 
         self._update_export_period(replicas[1], 1000)
@@ -5938,8 +5958,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
 
         for replica in replicas[1:]:
-            cluster_name = replica["cluster_name"]
-            replica_driver = get_driver(cluster=cluster_name)
             self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
@@ -5996,10 +6014,13 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._flush_replicated_queue(replicas)
 
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
+
+        def check_all_replicas_trimmed(row_count):
+            for i in range(1, len(replicas)):
+                assert self._get_trimmed_row_count(replicas[i]) == row_count, f"Unexpected trimmed row count for replica[{i}]"
 
         # Nothing should be trimmed.
+        check_all_replicas_trimmed(0)
         assert self._get_export_tables_count(replicas[1]) == 0
         assert self._get_export_tables_count(replicas[2]) == 0
         self._wait_for_replicated_queue_row_range(replicas, range(3))
@@ -6008,21 +6029,19 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             for replica in replicas[1:]:
                 wait(lambda: self._get_export_tables_count(replica) == count)
 
-        def wait_for_all_replica_orchids(wait_for_queue=False):
+        def wait_for_all_replica_orchids():
             replicas_orchids[1].wait_fresh_pass()
             replicas_orchids[2].wait_fresh_pass()
             queue_orchid.wait_fresh_pass()
 
         # Firstly, we check that vital consumers are properly handled, when exports are present.
-
         self._update_export_periods(replicas[1:], 1000)
         wait_for_all_exports(1)
         wait_for_all_replica_orchids()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
         # Nothing should be trimmed as no consumer offset is 0.
         self._wait_for_replicated_queue_row_range(replicas, range(3))
+        check_all_replicas_trimmed(0)
 
         advance_consumer(consumer_path, queue_path, 0, 0, 3)
         consumer_orchid.wait_fresh_pass()
@@ -6041,8 +6060,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         advance_consumer(consumer_path, queue_path, 0, 3, 6)
         consumer_orchid.wait_fresh_pass()
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
         # Nothing should be trimmed as nothing is exported yet.
         self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
@@ -6059,8 +6076,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._wait_for_replicated_queue_row_range(replicas, range(6, 9))
 
         for replica in replicas[1:]:
-            cluster_name = replica["cluster_name"]
-            replica_driver = get_driver(cluster=cluster_name)
             self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
@@ -6122,10 +6137,10 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._flush_replicated_queue(replicas)
 
         queue_orchid.wait_fresh_pass()
-        # Wait to check that trim did not occur.
-        time.sleep(10)
 
         # Nothing should be trimmed.
+        assert self._get_trimmed_row_count(replicas[1]) == 0
+        assert self._get_trimmed_row_count(replicas[2]) == 0
         assert self._get_export_tables_count(replicas[1]) == 0
         assert self._get_export_tables_count(replicas[2]) == 0
         self._wait_for_replicated_queue_row_range(replicas, range(3))
@@ -6642,8 +6657,22 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         }
     }
 
-    def _generate_table_with_hunks(self, queue_path, export_dir, hunk_storage_attrs={}):
-        _, queue_id = self._create_queue(queue_path, max_inline_hunk_size=10, mount=False)
+    def _generate_table_with_hunks(
+        self,
+        queue_path,
+        export_dir,
+        hunk_storage_attrs=None,
+        partition_count=1,
+        rows=None,
+    ):
+        hunk_storage_attrs = hunk_storage_attrs or {}
+
+        _, queue_id = self._create_queue(
+            queue_path,
+            max_inline_hunk_size=10,
+            mount=False,
+            partition_count=partition_count,
+        )
 
         queue_external_cell_tag = get("//tmp/q/@external_cell_tag")
         hunk_storage_attrs["external_cell_tag"] = queue_external_cell_tag
@@ -6662,7 +6691,8 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        rows = [{"data": "x" * 30}]
+        if rows is None:
+            rows = [{"data": "x" * 30}]
 
         iteration = 0
         while iteration < 100:
@@ -6817,6 +6847,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         sync_unmount_table(queue_path)
         remove(f"{queue_path}/@hunk_storage_id")
+        assert get(f"{queue_path}/@hunk_storage_id") == "0-0-0-0"
         remove(f"{queue_path}/@static_export_config")
         self._wait_for_global_sync()
         assert get(f"{queue_path}/@locks") == []
@@ -6871,9 +6902,43 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         queue_agent_orchid = QueueAgentOrchid()
 
-        self._generate_table_with_hunks(queue_path, export_dir, hunk_storage_attrs={
-            "store_rotation_period": 1000000
-        })
+        blocked_export_rows = [
+            {"$tablet_index": 0, "data": "inline"},
+            {"$tablet_index": 1, "data": "x" * 30},
+        ]
+        self._generate_table_with_hunks(
+            queue_path,
+            export_dir,
+            hunk_storage_attrs={"store_rotation_period": 1000000},
+            partition_count=2,
+            rows=blocked_export_rows,
+        )
+
+        # Separate two time export time segments.
+        time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
+        later_export_rows = [{"$tablet_index": 0, "data": "later inline"}]
+        insert_rows(queue_path, later_export_rows)
+        sync_flush_table(queue_path)
+
+        store_chunk_ids = [
+            chunk_id
+            for chunk_id in get(f"{queue_path}/@chunk_ids")
+            if get(f"#{chunk_id}/@chunk_type") == "table"
+        ]
+        assert len(store_chunk_ids) == 3
+
+        hunk_chunk_ids = builtins.set()
+        for store_chunk_id in store_chunk_ids:
+            hunk_chunk_ids.update(
+                ref["chunk_id"]
+                for ref in get(f"#{store_chunk_id}/@hunk_chunk_refs")
+            )
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = next(iter(hunk_chunk_ids))
+        assert not get(f"#{hunk_chunk_id}/@sealed")
+
+        # Make both time segments eligible before starting export.
+        time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
 
         set(f"{queue_path}/@static_export_config", {
             "default": {
@@ -6884,14 +6949,25 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         })
 
         self._wait_for_component_passes()
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_orchid = queue_agent_orchid.get_queue_orchid("primary://tmp/q")
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+        exporter_orchid.wait_fresh_invocation()
 
-        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
-            "queue_agent_queue_controller_static_export_failed",
-            text="Attempted to attach unsealed journal chunk",
-        ), timeout=5, ignore_exceptions=True)
-
+        assert len(queue_orchid.get_alerts()) == 0
         assert len(ls(export_dir)) == 0
+
+        sync_unmount_table("//tmp/h")
+        wait(lambda: get(f"#{hunk_chunk_id}/@sealed"))
+
+        wait(lambda: len(ls(export_dir)) == 2)
+        self._check_export(
+            export_dir,
+            [
+                [row["data"] for row in blocked_export_rows],
+                [row["data"] for row in later_export_rows],
+            ],
+        )
 
         self.remove_export_destinations([export_dir])
 

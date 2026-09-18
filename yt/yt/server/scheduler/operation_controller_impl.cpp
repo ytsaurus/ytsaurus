@@ -548,11 +548,10 @@ void TOperationControllerImpl::OnAllocationAborted(
     };
 
     auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(eventSummary)});
-    YT_LOG_TRACE(
-        "%v abort notification %v (AllocationId: %v)",
-        scheduled ? "Allocation" : "Nonscheduled allocation",
-        result ? "enqueued" : "dropped",
-        allocationId);
+    YT_TLOG_TRACE("Allocation abort notification processed")
+        .With("Scheduled", scheduled)
+        .With("Enqueued", result)
+        .With("AllocationId", allocationId);
 }
 
 void TOperationControllerImpl::OnAllocationAborted(
@@ -583,10 +582,9 @@ void TOperationControllerImpl::OnAllocationFinished(const TAllocationPtr& alloca
     };
 
     auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(summary)});
-    YT_LOG_TRACE(
-        "Allocation finish notification %v (AllocationId: %v)",
-        result ? "enqueued" : "dropped",
-        allocationId);
+    YT_TLOG_TRACE("Allocation finish notification processed")
+        .With("Enqueued", result)
+        .With("AllocationId", allocationId);
 }
 
 void TOperationControllerImpl::OnNonscheduledAllocationAborted(
@@ -717,13 +715,19 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const std::string& treeId,
     const TYPath& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-    std::optional<std::string> allocationGroupName)
+    std::optional<std::string> allocationGroupName,
+    TAllocationId allocationId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto nodeId = context->GetNodeDescriptor()->Id;
-    auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
-    auto allocationId = GenerateAllocationId(cellTag, nodeId);
+
+    if (allocationId) {
+        YT_VERIFY(CheckAllocationId(allocationId, nodeId));
+    } else {
+        auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+        allocationId = GenerateAllocationId(cellTag, nodeId);
+    }
 
     const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
     const auto shardId = nodeManager->GetNodeShardId(nodeId);

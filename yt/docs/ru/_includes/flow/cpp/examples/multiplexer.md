@@ -1,6 +1,6 @@
 # Multiplexer в {{product-name}} Flow (C++)
 
-Multiplexer &mdash; шаблон [компьютейшена](../../../../flow/concepts/glossary.md#stream-and-computation), который по входному ключу читает связанный с ним набор записей и отдаёт каждую запись отдельным выходным сообщением. Типичный пример: на вход прилетает ключ X, на выход надо отдать все строки сортированной динтаблицы, у которых X является префиксом ключа.
+Multiplexer &mdash; шаблон процесс-функции, который по входному ключу читает связанный с ним набор записей и отдаёт каждую запись отдельным выходным сообщением. Типичный пример: на вход поступает ключ X, а на выходе нужны все строки сортированной динамической таблицы, у которых X является префиксом ключа.
 
 Что обеспечивает базовый класс:
 
@@ -9,7 +9,7 @@ Multiplexer &mdash; шаблон [компьютейшена](../../../../flow/c
 
 ## Как устроена итерация
 
-Базовый класс хранит per-key стейт с курсором (`Offset`) и в каждый «тик таймера» дёргает у наследника `DoFetchBatch`, передавая текущий `startOffsetExclusive`. Наследник возвращает следующий курсор; если данные кончились &mdash; `nullopt`.
+Базовый класс хранит состояние для каждого ключа с курсором (`Offset`) и при каждом срабатывании таймера вызывает у наследника `FetchBatch`, передавая текущий `startOffsetExclusive`. Наследник возвращает следующий курсор; если данные закончились &mdash; `nullopt`.
 
 При коллапсе (повторное входное сообщение для активного ключа) базовый класс запоминает текущую позицию (`InitialStartOffset`) и читает данные в два прохода:
 
@@ -18,43 +18,79 @@ Multiplexer &mdash; шаблон [компьютейшена](../../../../flow/c
 
 Так гарантируется, что после коллапса будут выданы все строки с новой версией payload'а &mdash; включая те, которые уже были эмитены до коллапса со старой версией.
 
-## Готовый класс: `TDynamicTableMultiplexerComputation`
+## Готовый класс: `TDynamicTableMultiplexerProcessFunction` {#dynamic-table-multiplexer}
 
 Покрывает типовой сценарий: есть сортированная динтаблица, а на вход прилетают сообщения с ключом и payload'ом. На каждое входное сообщение нужно выдать по одной строке для каждой записи таблицы с этим ключом.
 
-[Заголовок класса]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_computation.h)
+[Заголовок класса]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_process_function.h)
 
 ### Параметры
 
 ```yson
 {
-    "table_path" = "<cluster=primary>//path/to/lookup_table";
+    "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+    "processing_function" = "TMyMultiplexerProcessFunction";
+    "processing_function_parameters" = {
+        "table_path" = "<cluster=primary>//path/to/lookup_table";
+    };
 }
 ```
 
-Один параметр &mdash; путь к таблице. Набор колонок для итерации (key columns после group_by) и payload-колонок класс читает из схемы таблицы при инициализации (`Get(table_path/@schema)`) и кэширует.
+Зарегистрируйте наследника с теми же типами статических и динамических параметров:
 
-`group_by_schema` компьютейшена должна совпадать с ведущими ключевыми колонками таблицы. Если схема таблицы поменялась между запусками пайплайна, итерация по затронутым ключам автоматически перезапускается с нуля &mdash; базовый класс хранит в state'е схему текущего offset'а и сравнивает её перед каждым тиком.
+```cpp
+YT_FLOW_DEFINE_PROCESS_FUNCTION(
+    TMyMultiplexerProcessFunction,
+    TDynamicTableMultiplexerParameters,
+    TDynamicMultiplexerParameters);
+```
+
+`table_path` &mdash; обязательный путь с указанием кластера. Перед первым чтением батча класс получает из схемы таблицы набор колонок для итерации (ключевые колонки после `group_by_schema`) и колонки данных, а затем кэширует их.
+
+`group_by_schema` компьютейшена должна совпадать с ведущими ключевыми колонками таблицы. После этого префикса в таблице должна быть хотя бы одна дополнительная сортировочная ключевая колонка. Базовый класс сохраняет схему дополнительных ключевых колонок вместе со смещением и сбрасывает смещение, если эта схема изменилась между запусками пайплайна. Изменения только в колонках данных не приводят к такому сбросу. Схема таблицы кэшируется на всё время работы экземпляра процесс-функции.
+
+В конфигурационном фрагменте выше показаны только поля процесс-функции. Для компьютейшена также нужны `group_by_schema`, входные и выходные потоки, поток таймеров типа `current_time`, зависимость таймера от потока таймеров и входного потока, а также `allow_timer_self_dependency = %true`. См. [реализацию функции]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/tests/pipeline/main.cpp) и её [спецификацию пайплайна]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/tests/pipeline/pipeline.yson).
 
 ### Что нужно реализовать
 
-Достаточно унаследоваться и переопределить `DoBuildOutputForRow` &mdash; как построить выходное сообщение для одной строки. Если требуется прокинуть что-то из входного сообщения в выход &mdash; задайте свой `TUserState` и переопределите `DoOnInputMessage`. Иначе оставьте `TUserState` дефолтным (`TEmptyMultiplexerUserState`) и `DoOnInputMessage` не трогайте.
+Унаследуйтесь от класса и откройте его конструктор через `using TDynamicTableMultiplexerProcessFunction::TDynamicTableMultiplexerProcessFunction` либо определите конструктор, который принимает `TProcessFunctionContextPtr`. Переопределите `BuildOutputForRow`, чтобы построить выходное сообщение для одной выбранной строки. Метод получает входной ключ, строку и её схему, пользовательское состояние, коллектор выходных сообщений и контекст выполнения. Если требуется передать данные из входного сообщения в выходное, задайте свой `TUserState` и переопределите `OnInputMessage`. Иначе оставьте `TUserState` по умолчанию (`TEmptyMultiplexerUserState`) и не переопределяйте `OnInputMessage`.
 
-[Полный пример]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/tests/pipeline/main.cpp): вход `(key, payload)`, лукап-таблица `[hash, key, secondary_key, region]`, выход `(key, secondary_key, region, payload)`.
+```cpp
+void BuildOutputForRow(
+    const TKey& key,
+    const TPayload& rowPayload,
+    const NTableClient::TTableSchemaPtr& rowSchema,
+    TStateAccessor<TUserState>& userState,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context) override;
+```
+
+В полном примере по ссылкам выше используются вход `(key, payload)`, таблица поиска `[hash, key, secondary_key, region]` и выход `(key, secondary_key, region, payload)`.
 
 `rowPayload` &mdash; одна строка таблицы целиком (без group_by-колонок) как [`TPayload`](../../../../flow/cpp/state.md), `rowSchema` описывает её колонки (имена + типы). Колонки достаются по имени через `GetColumnValue<T>` ([`payload.h`]({{source-root}}/yt/yt/flow/library/cpp/common/payload.h)).
 
 ### Динамические параметры
 
 Унаследованы от базового класса:
-- `timer_period` (default 5 сек) &mdash; как часто срабатывает per-key таймер.
-- `batch_size` (default 1000) &mdash; размер одного батча, передаётся в `LIMIT` запроса.
+- `timer_period` (по умолчанию 5 секунд) &mdash; как часто срабатывает таймер для ключа.
+- `batch_size` (по умолчанию 1000) &mdash; размер одного батча, передаётся в `LIMIT` запроса.
 
-## Базовый класс: `TMultiplexerComputation`
+В динамической спецификации компьютейшена укажите оба поля в `processing_function_parameters`:
 
-Если источник данных &mdash; не сортированная динтаблица, а что-то другое (in-memory структура, custom-RPC сервис, ...), наследуйтесь напрямую от [`TMultiplexerComputation<TUserState>`]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/multiplexer_computation.h) и реализуйте `DoFetchBatch` руками.
+```yson
+{
+    "processing_function_parameters" = {
+        "timer_period" = "10s";
+        "batch_size" = 1000;
+    };
+}
+```
 
-Контракт `DoFetchBatch`:
+## Базовый класс: `TMultiplexerProcessFunction` {#multiplexer-process-function}
+
+Если источник данных &mdash; не сортированная динамическая таблица, а, например, структура в памяти или пользовательский RPC-сервис, наследуйтесь напрямую от [`TMultiplexerProcessFunction<TUserState>`]({{source-root}}/yt/yt/flow/library/cpp/multiplexer/multiplexer_process_function.h) и реализуйте `FetchBatch`.
+
+Контракт `FetchBatch`:
 
 - **Offset** (`TKey`) &mdash; должен быть сравним и монотонно возрастать в рамках одной итерации. Базовый класс проверит монотонность и упадёт, если контракт нарушен.
 - **`startOffsetExclusive`** &mdash; читать данные строго **после** этой позиции. `nullopt` означает «с самого начала».
@@ -62,9 +98,9 @@ Multiplexer &mdash; шаблон [компьютейшена](../../../../flow/c
 - **`limit`** &mdash; рекомендуемый максимум строк в одном батче.
 - **Возврат `nullopt`** &mdash; в текущем диапазоне данных больше нет. Базовый класс либо переключится в фазу 2, либо завершит итерацию.
 
-`DoOnInputMessage` вызывается на каждое входное сообщение для ключа &mdash; и при появлении нового ключа, и при коллапсе. Различить можно через `userState.IsEmpty()`. Если из входа ничего сохранять не нужно &mdash; не переопределяйте.
+`OnInputMessage` вызывается для каждого входного сообщения ключа &mdash; как при появлении нового ключа, так и при коллапсе. Если реализации нужно различать эти случаи, храните в `TUserState` отдельный признак инициализации. Не полагайтесь на `userState.IsEmpty()`: состояние, состоящее из значений по умолчанию, останется пустым. Если сохранять данные из входного сообщения не требуется, не переопределяйте этот метод.
 
 ## См. также
 
-- [Computation (C++)](../../../../flow/cpp/computation.md)
+- [Процесс-функции (C++)](../../../../flow/cpp/process-functions.md)
 - [Работа со стейтами (C++)](../../../../flow/cpp/state.md)

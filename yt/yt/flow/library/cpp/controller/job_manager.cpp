@@ -15,6 +15,7 @@
 #include <yt/yt/flow/library/cpp/common/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+#include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <yt/yt/flow/library/cpp/client/public.h>
 
@@ -69,7 +70,6 @@ public:
         THROW_ERROR_EXCEPTION_UNLESS(State_, "Initial JobManagerState cannot be null");
 
         THashSet<TWorkerGroupId> workerGroups;
-        auto computationControllerCommonContext = New<TComputationControllerCommonContext>();
 
         // Collect the controller-side required resources across all computations and load them
         // once. LoadRequiredResources also drives the always-on resources, so it is called even
@@ -88,10 +88,11 @@ public:
         for (const auto& [computationId, spec] : Spec_->Computations) {
             const auto dynamicSpec = GetOrDefault(DynamicSpec_->Computations, computationId, New<TDynamicComputationSpec>());
             workerGroups.insert(spec->WorkerGroup);
-            auto context = New<TComputationControllerContext>(computationControllerCommonContext);
+            auto context = New<TComputationControllerContext>();
             context->ComputationSpec = spec;
             context->ComputationId = computationId;
             context->TimeProvider = Context_->TimeProvider;
+            context->VersionProvider = Context_->VersionProvider;
             context->Profiler = WithPipelineRelatedTags(
                 ControllerProfiler()
                     .WithPrefix("/computation")
@@ -119,7 +120,8 @@ public:
                 .With("ComputationId", computationId);
             try {
                 auto controller = TRegistry::Get()->CreateComputationController(context, dynamicContext);
-                controller->Init(StateManager_->CreateContext(computationId));
+                auto initContext = StateManager_->CreateContext(computationId);
+                controller->Init(initContext);
                 ComputationControllers_[computationId] = controller;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create computation controller")
@@ -128,11 +130,19 @@ public:
             }
         }
 
+        PartitioningCoordinator_ = New<NPartitioning::TPartitioningCoordinator>(
+            ComputationControllers_,
+            StateManager_->CreatePartitioningContext(),
+            Logger(),
+            PublicControllerLogger());
+
         for (const auto& [resourceId, resourceSpec] : Spec_->Resources) {
             auto resourceControllerContext = New<TResourceControllerContext>();
             resourceControllerContext->ResourceId = resourceId;
             resourceControllerContext->ResourceSpec = resourceSpec;
+            resourceControllerContext->PipelineAuthenticator = PipelineAuthenticator_;
             resourceControllerContext->ClientsCache = Context_->ClientsCache;
+            resourceControllerContext->HttpClient = Context_->HttpClient;
             resourceControllerContext->PipelinePath = Context_->PipelinePath;
             resourceControllerContext->Invoker = Context_->MainCycleInvoker;
             resourceControllerContext->TimeProvider = Context_->TimeProvider;
@@ -189,6 +199,11 @@ public:
                 balanceSynchronizer->StopBalancing();
             }
         }
+    }
+
+    void BeginIteration() override
+    {
+        PartitioningCoordinator_->BeginIteration();
     }
 
     void Reconfigure(TDynamicPipelineSpecPtr dynamicSpec) override
@@ -266,8 +281,12 @@ public:
         }
         {
             THashSet<TComputationId> uncoveredComputations;
-            for (const auto& [computationId, controller] : ComputationControllers_) {
-                if (!controller->IsFullCoverage(groupedPartitions[computationId], flowView)) {
+            for (const auto& [computationId, _] : ComputationControllers_) {
+                if (!PartitioningCoordinator_->IsFullCoverage(
+                    computationId,
+                    groupedPartitions[computationId],
+                    flowView))
+                {
                     YT_TLOG_INFO("Computation does not have full coverage")
                         .With("ComputationId", computationId);
                     uncoveredComputations.insert(computationId);
@@ -332,9 +351,9 @@ public:
             auto computationSpec = GetOrCrash(spec->Computations, computationId);
             auto& current = traverseData->Computations[computationId];
             try {
-                auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, flowView);
+                auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, current, flowView);
                 flowView->EphemeralState->StreamTraverseDataMetrics[computationId] = processTraverseDataResult->StreamMetrics;
-                current = AdvanceNodeTraverseData(current, processTraverseDataResult->MergedTraverseData);
+                current = processTraverseDataResult->AcceptedTraverseData;
             } catch (const std::exception& ex) {
                 // One failing computation must not abort the whole aggregation - that freezes the
                 // traverse (stream metrics, watermarks) of the entire pipeline. Reuse the previous
@@ -405,15 +424,15 @@ public:
         traverseData->UnitedOutputStream = MergeStreamTraverseData(ConcatVectors(outputStreams, completedStream), EInflightMerge::Sum, /*allowPartial*/ true);
         auto unitedInputStream = MergeStreamTraverseData(ConcatVectors(inputStreams, completedStream), EInflightMerge::None);
 
-        if (unitedInputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch() && traverseData->UnitedOutputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch()) {
-            auto newWatermark = std::min(traverseData->UnitedOutputStream->SystemWatermark, unitedInputStream->SystemWatermark);
-            if (traverseData->InputSystemWatermark > newWatermark) {
-                YT_TLOG_WARNING("Possible data loss: system has events below InputSystemWatermark.")
-                    .With("InputSystemWatermark", traverseData->InputSystemWatermark)
-                    .With("ComputedWatermark", newWatermark);
-            }
-            traverseData->InputSystemWatermark = std::max(newWatermark, traverseData->InputSystemWatermark);
+        // A partition id keeps its range, and its reported watermark is a durable monotone frontier.
+        // With full current-layout coverage above, an older-epoch report can only lower this minimum.
+        auto newWatermark = std::min(traverseData->UnitedOutputStream->SystemWatermark, unitedInputStream->SystemWatermark);
+        if (traverseData->InputSystemWatermark > newWatermark) {
+            YT_TLOG_WARNING("Possible data loss: system has events below InputSystemWatermark.")
+                .With("InputSystemWatermark", traverseData->InputSystemWatermark)
+                .With("ComputedWatermark", newWatermark);
         }
+        traverseData->InputSystemWatermark = std::max(newWatermark, traverseData->InputSystemWatermark);
 
         traverseData->UnitedStream = MergeStreamTraverseData(
             ConcatVectors(sourceStreams, timerStreams, keyVisitorStreams, outputStreams, completedStream),
@@ -566,6 +585,7 @@ public:
 
                 auto newJob = New<TJob>();
                 newJob->JobId = TJobId(TGuid::Create());
+                newJob->Generation = TUniqueSeqNo(Context_->VersionProvider->GenerateVersion().Underlying());
                 newJob->WorkerAddress = targetWorkerIt->second->RpcAddress;
                 newJob->WorkerIncarnationId = targetWorkerIt->second->IncarnationId;
                 newJob->PartitionId = partition->PartitionId;
@@ -792,19 +812,7 @@ public:
 
 
         ssize_t oldUpdated = layout->GetUpdated();
-        {
-            THashMap<TComputationId, std::vector<TPartitionId>> partitions;
-            for (const auto& [partitionId, partition] : layout->Partitions) {
-                if (ComputationControllers_.count(partition->ComputationId) > 0) {
-                    partitions[partition->ComputationId].push_back(partitionId);
-                } else if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
-                    layout->UpdatePartition(partitionId, EPartitionState::Interrupted, flowView->State->ExecutionSpec->GetEpoch(), TInstant::Now());
-                }
-            }
-            for (auto& [computationId, controller] : ComputationControllers_) {
-                controller->DoPartitioning(partitions[computationId], flowView);
-            }
-        }
+        PartitioningCoordinator_->DoPartitioning(flowView);
         ssize_t updated = layout->GetUpdated() - oldUpdated;
 
         const auto& partitionJobStatuses = flowView->Feedback->PartitionJobStatuses;
@@ -962,6 +970,7 @@ public:
             }
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
+            job->Generation = TUniqueSeqNo(Context_->VersionProvider->GenerateVersion().Underlying());
             job->WorkerAddress = worker->RpcAddress;
             job->WorkerIncarnationId = worker->IncarnationId;
             job->PartitionId = partitionId;
@@ -1037,12 +1046,21 @@ public:
             }
 
             for (const auto& preloadAction : rebalanceResult.PreloadResourceActions) {
+                auto* worker = flowView->State->Workers.FindPtr(preloadAction.WorkerAddress);
                 auto* existingSpec = layout->WorkerSpecs.FindPtr(preloadAction.WorkerAddress);
-                auto workerSpec = existingSpec ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
+                // A spec of a previous incarnation of the address does not apply to the current one:
+                // start a new spec, do not copy its resources.
+                bool existingSpecIsVoid = existingSpec && worker &&
+                    (*existingSpec)->WorkerIncarnationId &&
+                    *(*existingSpec)->WorkerIncarnationId != (*worker)->IncarnationId;
+                auto workerSpec = existingSpec && !existingSpecIsVoid ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
                 if (preloadAction.Type == NBalancer::ERebalanceActionType::Add) {
                     workerSpec->PreloadResources.insert(preloadAction.ResourceId);
                 } else {
                     workerSpec->PreloadResources.erase(preloadAction.ResourceId);
+                }
+                if (worker) {
+                    workerSpec->WorkerIncarnationId = (*worker)->IncarnationId;
                 }
                 layout->WorkerSpecs.insert_or_assign(preloadAction.WorkerAddress, std::move(workerSpec));
             }
@@ -1081,6 +1099,7 @@ public:
 
     void Commit(const TFlowViewPtr& flowView) override
     {
+        PartitioningCoordinator_->Commit();
         for (const auto& [computationId, controller] : ComputationControllers_) {
             controller->UpdateWatermarkState(flowView->State->ExecutionSpec->WatermarkState->GetValue());
             controller->Commit();
@@ -1099,6 +1118,7 @@ private:
     const IResourceManagerPtr ResourceManager_;
 
     THashMap<TComputationId, IComputationControllerPtr> ComputationControllers_;
+    NPartitioning::TPartitioningCoordinatorPtr PartitioningCoordinator_;
     THashMap<TWorkerGroupId, IStatusErrorStatePtr> InsufficientWorkersErrorStates_;
 
     struct TResourceControllerEntry

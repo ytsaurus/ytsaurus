@@ -5,6 +5,7 @@ from yt.environment import YTServerComponentBase, YTComponent
 
 import logging
 import os
+import shutil
 
 logger = logging.getLogger("YtLocal")
 
@@ -29,6 +30,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_binary = None
         self._qtworker_inspector_ports = {}
         self._qtworker_instances = []
+        self._qtworker_skip_instances = set()
 
     def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
@@ -93,9 +95,15 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             "${yt_debug_log_file}",
             os.path.join(self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)))
 
-        if len(self.remote_envs) > 0:
-            gw_text = gw_text.replace("${remote_cluster_name}", self.remote_envs[0].id)
-            gw_text = gw_text.replace("${remote_cluster_address}", self.remote_envs[0].get_http_proxy_address())
+        remote_cluster_mappings = []
+        for remote_env in self.remote_envs:
+            remote_cluster_mappings.append("\n".join([
+                "ClusterMapping {",
+                "        Name: \"{}\"".format(remote_env.id),
+                "        Cluster: \"{}\"".format(remote_env.get_http_proxy_address()),
+                "    }",
+            ]))
+        gw_text = gw_text.replace("${remote_cluster_mappings}", "\n\n    ".join(remote_cluster_mappings))
 
         return gw_text
 
@@ -150,6 +158,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             worker_text = template_file.read()
         qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
 
+        yt_token_resolver_config = ""
+        if self.config.get("use_token_resolver", False):
+            yt_token_resolver_config = "\n".join([
+                "YtTokenResolver {",
+                "        YqlAgent {",
+                "            UnixSocketPath: \"{}\"".format(
+                    self._get_token_service_socket_path(instance["index"])),
+                "        }",
+                "    }",
+            ])
+
         for key, value in [
             ("${instance_root}", instance_root),
             ("${udfs_dir}", udfs_dir),
@@ -161,6 +180,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             ("${inspector_port}", str(instance["inspector_port"])),
             ("${core_port}", str(core_port)),
             ("${core_task_port}", str(core_task_port)),
+            ("${yt_token_resolver_config}", yt_token_resolver_config),
         ]:
             worker_text = worker_text.replace(key, value)
 
@@ -185,6 +205,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_binary = binary
         self._qtworker_processes = []
         self._qtworker_instances = []
+        # Configs are prepared for all instances, including the skipped ones,
+        # so that a test may start the missing qtworker later via start_qtworker.
+        self._qtworker_skip_instances = set(self.config.get("qtworker_skip_instances") or [])
 
         # Start a dedicated qtworker per yql agent instance, each bound to that
         # agent's inspector port and using isolated ports, sockets and paths.
@@ -205,6 +228,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self._qtworker_enabled:
             logger.info("Starting qtworkers")
             for instance in self._qtworker_instances:
+                if instance["index"] in self._qtworker_skip_instances:
+                    logger.info("Skipping qtworker start for yql agent %s", instance["index"])
+                    continue
                 self._start_qtworker(instance)
             logger.info("Qtworkers started")
         logger.info("Yql agent started")
@@ -242,6 +268,16 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         self._run_qtworker_role(instance, "forker")
         self._run_qtworker_role(instance, "core")
+
+    def start_qtworker(self, index):
+        for instance in self._qtworker_instances:
+            if instance["index"] == index:
+                if index not in self._qtworker_skip_instances:
+                    raise YtError("Qtworker instance {0} is already running".format(index))
+                self._qtworker_skip_instances.discard(index)
+                self._start_qtworker(instance)
+                return
+        raise YtError("There is no qtworker instance with index {0}".format(index))
 
     def wait(self):
         logger.info("Waiting for yql agent to become ready")
@@ -300,6 +336,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self.artifacts_path:
             return self._get_artifact_path("libyqlplugin.so")
         return self.config.get("yql_plugin_shared_library") or ""
+
+    def _get_token_service_socket_path(self, instance_index):
+        return os.path.join(
+            self.env.path,
+            "yql_agent_token_service_{}".format(instance_index),
+            "socket")
 
     def override_common_settings(self, config, instance_index: int):
         # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
@@ -364,6 +406,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        if self.config.get("use_token_resolver", False):
+            config["yql_agent"]["use_token_resolver"] = True
+            config["yql_agent"]["token_service"] = {
+                "unix_socket_path": self._get_token_service_socket_path(instance_index),
+            }
 
         if self.dynamic_config_update_period is not None:
             config["dynamic_config_manager"] = {
@@ -437,6 +485,10 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config
+            config["yql_agent"]["file_storage_config"].setdefault(
+                "path",
+                os.path.join(process_plugin_config["slots_root_path"], "file_storage"),
+            )
 
         return config
 
@@ -444,6 +496,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/service/version"),
              ignore_exceptions=True,
              timeout=600)
+
+        if self._qtworker_enabled:
+            if self.addresses.index(address) in self._qtworker_skip_instances:
+                return
+
+            # The agent starts serving RPC before its plugin is able to execute queries
+            # (e.g. before qtworkers have registered), so wait for the plugin as well.
+            wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/yql_agent/ready"),
+                 error_message=f"Yql agent {address} didn't become ready in time",
+                 ignore_exceptions=True,
+                 timeout=600)
 
     def stop(self):
         if self._qtworker_processes:
@@ -453,11 +516,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             logger.info("Qtworker processes stopped")
             self._qtworker_processes = []
 
-        logger.info("Stopping yql agent")
-        super(YqlAgent, self).stop()
+        try:
+            logger.info("Stopping yql agent")
+            super(YqlAgent, self).stop()
 
-        self.client.remove(f"//sys/users/{self.USER_NAME}")
-        self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
-        self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
-        self.client.remove("//sys/yql_agent", recursive=True, force=True)
-        logger.info("Yql agent stopped")
+            self.client.remove(f"//sys/users/{self.USER_NAME}")
+            self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
+            self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
+            self.client.remove("//sys/yql_agent", recursive=True, force=True)
+            logger.info("Yql agent stopped")
+        finally:
+            # Each qtworker instance leaves ~1-2 GB of file cache behind; its processes
+            # are already stopped, so wiping it is safe.
+            for instance in self._qtworker_instances:
+                shutil.rmtree(os.path.join(instance["instance_root"], "filecache"), ignore_errors=True)

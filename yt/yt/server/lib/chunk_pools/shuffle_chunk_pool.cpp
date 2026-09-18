@@ -4,8 +4,8 @@
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
@@ -80,8 +80,6 @@ public:
         inputStripe.ElementaryIndexBegin = std::ssize(ElementaryStripes_);
 
         for (const auto& dataSlice : stripe->DataSlices()) {
-            YT_VERIFY(!dataSlice->IsLegacy);
-
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
             const auto& chunkSpec = dataSlice->GetSingleUnversionedChunk();
 
@@ -334,12 +332,6 @@ private:
             list->SetFilteringPartitionTags({PartitionIndex_}, run.DataWeight, run.RowCount);
 
             list->SetApproximate(run.IsApproximate);
-
-            for (const auto& stripe : list->Stripes()) {
-                for (const auto& dataSlice : stripe->DataSlices()) {
-                    YT_VERIFY(!dataSlice->IsLegacy);
-                }
-            }
 
             return list;
         }

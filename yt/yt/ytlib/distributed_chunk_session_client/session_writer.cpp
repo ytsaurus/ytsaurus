@@ -37,13 +37,20 @@ public:
             SequencerNode_.GetAddressOrThrow(Connection_->GetNetworks())))
     { }
 
-    TFuture<void> WriteRecord(TSharedRef record) final
+    TFuture<void> WriteRecord(
+        TSharedRef record,
+        TDistributedChunkSessionWriteStatistics statistics) final
     {
+        YT_VERIFY(statistics.DataWeight > 0);
+        YT_VERIFY(statistics.UncompressedDataSize > 0);
+        YT_VERIFY(statistics.RowCount > 0);
+
         TDistributedChunkSessionServiceProxy proxy(Channel_);
         auto req = proxy.WriteRecord();
         ToProto(req->mutable_session_id(), SessionId_);
+        ToProto(req->mutable_statistics(), statistics);
 
-        req->Attachments().push_back(record);
+        req->Attachments().push_back(std::move(record));
         req->SetTimeout(Config_->RpcTimeout);
 
         return req->Invoke().AsVoid();

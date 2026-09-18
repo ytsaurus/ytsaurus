@@ -25,6 +25,11 @@ REQUIREMENTS(
 
 TAG(ya:huge_logs)
 
+FORK_SUBTESTS()
+
+# The nine integration launches consume almost the entire 600-second MEDIUM chunk budget.
+SPLIT_FACTOR(2)
+
 SIZE(MEDIUM)
 
 END()

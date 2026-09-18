@@ -6,6 +6,7 @@
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -15,6 +16,8 @@
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
+
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 

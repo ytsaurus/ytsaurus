@@ -1,6 +1,8 @@
 RECURSE(
     fmrrun
     mrjob
+    ytflowrun
+    ytflow_worker
     ytrun
 )
 
@@ -9,12 +11,13 @@ IF (NOT OPENSOURCE)
         dq
         dqrun
         dqrun_light
+        qt_release_helper
         qt_stress
         query_replay
+        query_replay_admin
         udf_admin
         ytfilerun
-        ytflowrun
-        ytflow_worker
+        ytflowrun/full
         qtworker
         qtworker/full
     )

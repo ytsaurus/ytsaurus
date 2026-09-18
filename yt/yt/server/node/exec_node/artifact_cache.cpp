@@ -700,9 +700,9 @@ private:
 
         auto [location, lockedChunkGuard] = AcquireNewChunkLocation(chunkId);
         if (!location) {
-            auto error = TError("Cannot find a suitable location for artifact chunk");
-            cookie.Cancel(error);
-            YT_LOG_ERROR(error);
+            static constexpr auto Message = "Cannot find a suitable location for artifact chunk"_sb;
+            cookie.Cancel(TError(Message));
+            YT_TLOG_ERROR(Message);
             return;
         }
 
@@ -1256,7 +1256,9 @@ private:
                 chunkId)
                 .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading chunk into cache")
+                .With("ChunkId", chunkId)
+                .With(ex);
         }
     }
 
@@ -1292,7 +1294,8 @@ private:
             auto error = TError("Error downloading file artifact into cache")
                 .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading file artifact into cache")
+                .With(ex);
         }
     }
 
@@ -1388,7 +1391,10 @@ private:
             auto error = TError("Error downloading table artifact into cache")
                 .With(ex);
             cookie.Cancel(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error downloading table artifact into cache")
+                .With("ArtifactKey", key)
+                .With("ChunkId", chunkId)
+                .With(ex);
         }
     }
 
@@ -1662,38 +1668,34 @@ private:
 
         auto readMeta = [&] () -> std::optional<TArtifactKey> {
             if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
-                YT_LOG_WARNING(
-                    "Artifact meta file %v is too short: at least %v bytes expected",
-                    metaFileName,
-                    sizeof(TArtifactMetaHeader));
+                YT_TLOG_WARNING("Artifact meta file is too short")
+                    .With("FileName", metaFileName)
+                    .With("MinSize", sizeof(TArtifactMetaHeader));
                 return std::nullopt;
             }
 
             const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
             if (header->Signature != header->ExpectedSignature) {
-                YT_LOG_WARNING(
-                    "Bad signature in artifact meta file %v: expected %X, actual %X",
-                    metaFileName,
-                    header->ExpectedSignature,
-                    header->Signature);
+                YT_TLOG_WARNING("Bad signature in artifact meta file")
+                    .With("FileName", metaFileName)
+                    .WithFormat("ExpectedSignature", "%X", header->ExpectedSignature)
+                    .WithFormat("Signature", "%X", header->Signature);
                 return std::nullopt;
             }
 
             if (header->Version != header->ExpectedVersion) {
-                YT_LOG_WARNING(
-                    "Incompatible version in artifact meta file %v: expected %v, actual %v",
-                    metaFileName,
-                    header->ExpectedVersion,
-                    header->Version);
+                YT_TLOG_WARNING("Incompatible version in artifact meta file")
+                    .With("FileName", metaFileName)
+                    .With("ExpectedVersion", header->ExpectedVersion)
+                    .With("Version", header->Version);
                 return std::nullopt;
             }
 
             metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
             TArtifactKey key;
             if (!TryDeserializeProto(&key, metaBlob)) {
-                YT_LOG_WARNING(
-                    "Failed to parse artifact meta file %v",
-                    metaFileName);
+                YT_TLOG_WARNING("Failed to parse artifact meta file")
+                    .With("FileName", metaFileName);
                 return std::nullopt;
             }
 

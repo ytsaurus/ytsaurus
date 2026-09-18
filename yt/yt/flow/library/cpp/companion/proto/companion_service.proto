@@ -67,6 +67,12 @@ message TState
     // Payload schema. Might be empty for reset=true or internal state.
     optional bytes schema = 2;
     repeated TStateItem stateItems = 3;
+    // Wire format of the state item payloads: 0 = simple wire row, 1 = serialized
+    // proto message. A state with a non-default format is only sent to companions
+    // that advertised it in CompanionInfo supported_state_formats.
+    optional int32 format = 4 [default = 0];
+    // Fully qualified proto message name of the payloads; set when format = 1.
+    optional string proto_type = 5;
 }
 
 message TStream
@@ -106,6 +112,19 @@ message TNewTimer
     required uint64 trigger_timestamp = 1;
     optional uint64 event_timestamp = 2;
     optional bytes stream_id = 3;
+}
+
+message TMessageIdSuffix
+{
+    enum EMode
+    {
+        MIS_SEQUENCE_NUMBER = 0;
+        MIS_PAYLOAD_HASH = 1;
+        MIS_USER_DEFINED = 2;
+    }
+
+    optional EMode mode = 1 [default = MIS_SEQUENCE_NUMBER];
+    optional bytes user_defined = 2;
 }
 
 message TReqProcessBatch
@@ -152,6 +171,9 @@ message TResponseData
 	  	repeated bytes parent_ids = 3; // String
         // Per-message distribute flag, aligned with messages. Empty means "distribute all".
 	  	repeated bool distribute = 4;
+        // Per-message message ID suffix selector. Empty list means sequence numbers.
+        // Aligned with messages when present.
+        repeated TMessageIdSuffix message_id_suffixes = 5;
 	};
     repeated TGroup output = 1;
     // Modified states.

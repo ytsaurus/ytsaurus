@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/companion/companion_computation_base.h>
 
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
@@ -294,6 +295,49 @@ private:
     const IPayloadConverterCachePtr ConverterCache_;
 };
 
+// A read-only adapter over the fake provider: keys are extract-derived through the provider's
+// override parameters, payloads are marker bytes for keys the provider holds a state for.
+class TFakeJoinedStateAdapter
+    : public ICompanionStateAdapter
+{
+public:
+    explicit TFakeJoinedStateAdapter(TIntrusivePtr<TFakeJoinedStateKeyProvider> provider)
+        : Provider_(std::move(provider))
+    { }
+
+    TCompanionStateDescriptor Describe() const final
+    {
+        return TCompanionStateDescriptor{
+            .StateName = "/j",
+        };
+    }
+
+    TSharedRef EncodeState(const TKey& key) final
+    {
+        return Provider_->GetState(key)
+            ? TSharedRef::FromString(std::string("payload"))
+            : TSharedRef();
+    }
+
+    void ApplyState(const TKey& /*key*/, TSharedRef /*payload*/) final
+    {
+        YT_ABORT();
+    }
+
+    void ResetState(const TKey& /*key*/) final
+    {
+        YT_ABORT();
+    }
+
+    THashSet<TKey> ExtractKeys(const IInputContextPtr& input) const final
+    {
+        return ExtractJoinedStateKeys(*Provider_, input);
+    }
+
+private:
+    const TIntrusivePtr<TFakeJoinedStateKeyProvider> Provider_;
+};
+
 const auto PayloadSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf(
     R"""([{name="word"; type="string";};])"""));
 
@@ -342,8 +386,8 @@ TEST(TAddJoinedExternalStatesTest, UsesExtractDerivedKeys)
     provider->States[MakeKey("def")] = New<NFlow::TStateHolder<TSimpleExternalState>>();
 
     auto request = New<TCompanionProcessRequest>();
-    THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>> joiners;
-    joiners.emplace("/j", client);
+    THashMap<std::string, ICompanionStateAdapterPtr> joiners;
+    joiners.emplace("/j", New<TFakeJoinedStateAdapter>(provider));
 
     AddJoinedExternalStates(request, joiners, input);
 

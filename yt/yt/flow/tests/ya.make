@@ -15,7 +15,10 @@ RECURSE(
     keep_order_mode
     keep_order_mode/pipeline
     key_visitor/cpp
+    key_visitor/cpp/completion
     key_visitor/cpp/pipeline
+    key_visitor/cpp/repartition
+    key_visitor/cpp/sweep
     key_visitor/joiner
     key_visitor/joiner/pipeline
     key_visitor/python
@@ -63,8 +66,10 @@ ENDIF()
 IF (NOT OPENSOURCE)
     # Use replicated/chaos tables — out of yt_sync_mini's scope.
     RECURSE(
+        chaos_leases
         read_chaos_tables
         sorted_dynamic_table
+        write_chaos_sorted_table
     )
 
     RECURSE(
