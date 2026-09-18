@@ -32,7 +32,8 @@ public:
         const NApi::ITransactionPtr& transaction,
         NObjectClient::TObjectId viewId,
         EMaterializedViewSourceType sourceType,
-        NObjectClient::TObjectId sourceObjectId);
+        NObjectClient::TObjectId sourceObjectId,
+        bool populate);
 
 private:
     class TImpl;

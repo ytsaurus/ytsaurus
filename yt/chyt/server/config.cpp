@@ -342,6 +342,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
         .Default(false);
 
+    registrar.Parameter("materialized_view_populate", &TThis::MaterializedViewPopulate)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
         config->TableReader->WindowSize = 70_MB;
