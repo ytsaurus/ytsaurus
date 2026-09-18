@@ -181,9 +181,14 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
     }
 
     if (address.empty()) {
-        YT_TLOG_DEBUG("Leader controller is not found in flow control table; falling back to pipeline attribute")
-            .With("PipelinePath", pipelinePath)
-            .WithIf(!lookupResultOrError.IsOK(), "Error", lookupResultOrError);
+        if (lookupResultOrError.IsOK()) {
+            YT_TLOG_DEBUG("Leader controller is not found in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath);
+        } else {
+            YT_TLOG_DEBUG("Error looking up leader controller in flow control table; falling back to pipeline attribute")
+                .With("PipelinePath", pipelinePath)
+                .With(lookupResultOrError);
+        }
         address = attributes.Get<std::string>(LeaderControllerAddressAttribute, "");
     }
 
