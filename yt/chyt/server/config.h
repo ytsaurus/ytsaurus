@@ -464,6 +464,10 @@ struct TQuerySettings
 
     bool OmitInaccessibleRows;
 
+    // TODO(buyval01) Temporary compatibility workaround for ClickHouse's TO + POPULATE restriction.
+    // Replace with standard POPULATE DDL syntax once ClickHouse supports it.
+    bool MaterializedViewPopulate;
+
     REGISTER_YSON_STRUCT(TQuerySettings);
 
     static void Register(TRegistrar registrar);

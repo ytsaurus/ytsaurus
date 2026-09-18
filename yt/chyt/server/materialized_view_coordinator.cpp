@@ -953,7 +953,8 @@ public:
         const NApi::ITransactionPtr& transaction,
         TObjectId viewId,
         EMaterializedViewSourceType sourceType,
-        TObjectId sourceObjectId)
+        TObjectId sourceObjectId,
+        bool populate)
     {
         ProgressStore_->EnsureReady(transaction);
 
@@ -969,8 +970,8 @@ public:
             auto partition = New<TMaterializedViewPartitionProgress>();
             partition->ObjectId = info.ObjectId;
             partition->PartitionIndex = info.PartitionIndex;
-            partition->NextRowIndex = info.RowCount;
-            partition->TotalRowCount = partition->NextRowIndex;
+            partition->NextRowIndex = populate ? 0 : info.RowCount;
+            partition->TotalRowCount = info.RowCount;
             progress->Partitions.push_back(std::move(partition));
         }
 
@@ -1067,14 +1068,16 @@ void TMaterializedViewCoordinator::InitializeProgress(
     const NApi::ITransactionPtr& transaction,
     TObjectId viewId,
     EMaterializedViewSourceType sourceType,
-    TObjectId sourceObjectId)
+    TObjectId sourceObjectId,
+    bool populate)
 {
     Impl_->InitializeProgress(
         client,
         transaction,
         viewId,
         sourceType,
-        sourceObjectId);
+        sourceObjectId,
+        populate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

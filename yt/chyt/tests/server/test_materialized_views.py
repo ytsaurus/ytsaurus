@@ -10,6 +10,7 @@ from yt_queue_agent_test_base import TestQueueAgentBase as _QueueAgentTestBase
 
 import yt.yson as yson
 
+import pytest
 import threading
 import time
 
@@ -61,6 +62,38 @@ class MaterializedViewsTestBase:
             for key in ("object_id", "next_row_index", "total_row_count")
         }
 
+    def _check_populate(self, source_expression, append_rows):
+        initial_rows = [{"key": i, "value": str(i)} for i in range(3)]
+        new_rows = [{"key": 3, "value": "3"}]
+        append_rows(initial_rows)
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100, "max_rows_per_refresh": 1}}}
+        with Clique(1, config_patch=config_patch) as clique:
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock("//tmp/target", mode="exclusive", tx=transaction_id)
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
+                    f'AS SELECT key, value FROM {source_expression}',
+                    settings={"chyt.materialized_view_populate": 1})
+                view_id = get(self._statement_path(clique) + "/@id")
+                progress_path = clique.materialized_views_path + "/progress/" + view_id
+                partitions = get(progress_path)["partitions"]
+                assert all(partition["next_row_index"] == 0 for partition in partitions)
+                assert sum(partition["total_row_count"] for partition in partitions) == len(initial_rows)
+                assert read_table("//tmp/target") == []
+            finally:
+                abort_transaction(transaction_id)
+
+            def target_rows():
+                return sorted(read_table("//tmp/target"), key=lambda row: row["key"])
+
+            wait(lambda: target_rows() == initial_rows)
+            append_rows(new_rows)
+            wait(lambda: target_rows() == initial_rows + new_rows)
+            wait(lambda: all(
+                partition["next_row_index"] == partition["total_row_count"]
+                for partition in get(progress_path)["partitions"]))
+
 
 class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
     # NB: ClickHouseTestBase forwards test_name/run_id, which TestQueueAgentBase.setup_class does not accept.
@@ -70,6 +103,19 @@ class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
 
 
 class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
+    @authors("buyval01")
+    @pytest.mark.parametrize("table_range", [False, True])
+    def test_populate(self, table_range):
+        source_path = "//tmp/source"
+        source_expression = '"//tmp/source"'
+        if table_range:
+            create("map_node", "//tmp/source_directory")
+            source_path = "//tmp/source_directory/part"
+            create("table", source_path, attributes={"schema": self.SCHEMA})
+            create("table", "//tmp/source_directory/empty", attributes={"schema": self.SCHEMA})
+            source_expression = 'concatYtTablesRange("//tmp/source_directory")'
+        self._check_populate(source_expression, lambda rows: write_table("<append=%true>" + source_path, rows))
+
     @authors("buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
@@ -733,6 +779,13 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             enable_cumulative_data_weight_column=False,
             schema=self.SCHEMA,
             enable_dynamic_store_read=True)
+
+    @authors("buyval01")
+    def test_populate_queue(self):
+        self._create_queue_source(partition_count=2)
+        self._check_populate('"//tmp/source"', lambda rows: insert_rows("//tmp/source", [
+            {"$tablet_index": row["key"] % 2, **row} for row in rows
+        ]))
 
     @authors("buyval01")
     def test_queue_consumer_is_initialized_by_coordinator(self):
