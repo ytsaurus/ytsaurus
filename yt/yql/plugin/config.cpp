@@ -64,7 +64,6 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"HybridDqDataSizeLimitForOrdered", "384M"},
     {"HybridDqDataSizeLimitForUnordered", "8G"},
     {"UseYqlRowSpecCompactForm", "false"},
-    {"_UseKeyBoundApi", "false"},
     {"UseNewPredicateExtraction", "true"},
     {"PruneKeyFilterLambda", "true"},
     {"JoinCommonUseMapMultiOut", "true"},
@@ -108,7 +107,6 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"QueryCacheChunkLimit", "100000"},
-    {"_UseKeyBoundApi", "true"},
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({

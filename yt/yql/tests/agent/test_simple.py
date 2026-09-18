@@ -495,8 +495,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicC
         #         'cluster': 'localhost:29782',
         #         'name': 'primary',
         #         'settings': [
-        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'},
-        #             {'name': '_UseKeyBoundApi', 'value': 'true'}
+        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'}
         #         ]
         #     }
         # ]
@@ -979,8 +978,8 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             assert gateway_config["yt_log_level"] == "YL_DEBUG"
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
-            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 3
-            assert len(gateway_config["default_settings"]) == 63
+            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
+            assert len(gateway_config["default_settings"]) == 62
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
