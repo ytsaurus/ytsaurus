@@ -874,6 +874,16 @@ private:
             Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairOut));
     }
 
+    TChunkReaderMemoryManagerHolderPtr CreateReaderMemoryManagerHolder()
+    {
+        auto options = TChunkReaderMemoryManagerOptions(
+            DynamicConfig_->WindowSize,
+            /*profilingTagList*/ {},
+            /*enableDetailedLogging*/ false,
+            MemoryUsageTracker_);
+        return TChunkReaderMemoryManager::CreateHolder(options);
+    }
+
     TFuture<void> StartChunkRepairJob(
         NErasure::ICodec* codec,
         NErasure::TPartIndexList erasedPartIndexes,
@@ -884,8 +894,9 @@ private:
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
 
-        // TODO(gritukan): Implement adaptive repair for striped erasure.
-        if (readerConfig->EnableAutoRepair && !stripedErasure) {
+        if (readerConfig->EnableAutoRepair &&
+            (!stripedErasure || DynamicConfig_->EnableAdaptiveRepairForStripedErasureChunks))
+        {
             YT_TLOG_INFO("Executing adaptive chunk repair")
                 .With("ReplicationReaderSpeedLimitPerSec", readerConfig->ReplicationReaderSpeedLimitPerSec)
                 .With("SlowReaderExpirationTimeout", readerConfig->SlowReaderExpirationTimeout)
@@ -896,17 +907,47 @@ private:
             for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
                 readers.push_back(CreateReader(partIndex));
             }
-            auto future = AdaptiveRepairErasedParts(
-                ChunkId_,
-                codec,
-                readerConfig,
-                erasedPartIndexes,
-                readers,
-                BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
-                readBlocksOptions,
-                std::move(writeBlocksOptions),
-                Logger,
-                Sensors_.AdaptivelyRepairedChunksCounter);
+            TFuture<void> future;
+            if (stripedErasure) {
+                auto repairErasedParts = [=, this, this_ = MakeStrong(this)] (
+                    const NErasure::TPartIndexList& unavailablePartIndexes,
+                    const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders,
+                    const std::vector<IChunkWriterPtr>& attemptWriters)
+                {
+                    return RepairErasedPartsStriped(
+                        readerConfig,
+                        codec,
+                        unavailablePartIndexes,
+                        availableReaders,
+                        attemptWriters,
+                        CreateReaderMemoryManagerHolder(),
+                        readBlocksOptions,
+                        writeBlocksOptions);
+                };
+
+                future = AdaptiveRepairErasedPartsWithCallback(
+                    ChunkId_,
+                    codec,
+                    readerConfig,
+                    erasedPartIndexes,
+                    readers,
+                    BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
+                    std::move(repairErasedParts),
+                    Logger,
+                    Sensors_.AdaptivelyRepairedChunksCounter);
+            } else {
+                future = AdaptiveRepairErasedParts(
+                    ChunkId_,
+                    codec,
+                    readerConfig,
+                    erasedPartIndexes,
+                    readers,
+                    BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
+                    readBlocksOptions,
+                    std::move(writeBlocksOptions),
+                    Logger,
+                    Sensors_.AdaptivelyRepairedChunksCounter);
+            }
 
             future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& handler) {
                 if (handler.IsOK()) {
@@ -939,20 +980,13 @@ private:
         }
 
         if (stripedErasure) {
-            auto windowSize = DynamicConfig_->WindowSize;
-            auto options = TChunkReaderMemoryManagerOptions(
-                windowSize,
-                {},
-                false,
-                MemoryUsageTracker_);
-            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(options);
-
             return RepairErasedPartsStriped(
                 readerConfig,
                 codec,
+                std::move(erasedPartIndexes),
                 std::move(readers),
                 std::move(writers),
-                std::move(memoryManagerHolder),
+                CreateReaderMemoryManagerHolder(),
                 std::move(readBlocksOptions),
                 std::move(writeBlocksOptions));
         } else {

@@ -744,6 +744,10 @@ struct TRepairChunkJobDynamicConfig
 
     i64 WindowSize;
 
+    //! Enables retries with a different set of source parts when striped erasure repair
+    //! encounters a failed or slow reader.
+    bool EnableAdaptiveRepairForStripedErasureChunks;
+
     REGISTER_YSON_STRUCT(TRepairChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
