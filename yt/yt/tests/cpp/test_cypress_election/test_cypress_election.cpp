@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
 #include <yt/yt/client/api/rpc_proxy/transaction_impl.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -66,7 +68,8 @@ protected:
         const std::string& name,
         TActionQueuePtr actionQueue = nullptr,
         TCypressElectionManagerConfigPtr config = nullptr,
-        IAttributeDictionaryPtr transactionAttributes = nullptr)
+        IAttributeDictionaryPtr transactionAttributes = nullptr,
+        NApi::IClientPtr client = nullptr)
     {
         auto options = New<TCypressElectionManagerOptions>();
         options->GroupName = name;
@@ -80,7 +83,7 @@ protected:
             options->TransactionAttributes = transactionAttributes;
         }
         auto electionManager = CreateCypressElectionManager(
-            Client_,
+            client ? client : Client_,
             actionQueue->GetInvoker(),
             config,
             options);
@@ -112,7 +115,91 @@ protected:
         return isActive.IsOK() &&
             ConvertTo<NApi::NRpcProxy::ETransactionState>(isActive.Value()) == NApi::NRpcProxy::ETransactionState::Active;
     }
+
+    static NApi::IClientPtr CreateRpcProxyClient()
+    {
+        auto proxyAddresses = ConvertTo<std::vector<std::string>>(WaitFor(Client_->ListNode("//sys/rpc_proxies"))
+            .ValueOrThrow());
+        auto config = New<NApi::NRpcProxy::TConnectionConfig>();
+        config->ProxyAddresses = std::move(proxyAddresses);
+        return NApi::NRpcProxy::CreateConnection(config)->CreateClient(NApi::TClientOptions::FromUser("root"));
+    }
 };
+
+TEST_F(TCypressElectionManagerTest, StopAbortsRpcProxyLeaderAndPendingFollower)
+{
+    auto client = CreateRpcProxyClient();
+    auto leader = CreateElectionManager(
+        "leader",
+        /*actionQueue*/ nullptr,
+        /*config*/ nullptr,
+        /*transactionAttributes*/ nullptr,
+        client);
+    leader->Start();
+    WaitForPredicate([&] {
+        return leader->IsLeader();
+    });
+    auto leaderTransactionId = leader->GetPrerequisiteId();
+
+    auto follower = CreateElectionManager(
+        "follower",
+        /*actionQueue*/ nullptr,
+        /*config*/ nullptr,
+        /*transactionAttributes*/ nullptr,
+        client);
+    follower->Start();
+    TTransactionId followerTransactionId;
+    WaitForPredicate([&] {
+        auto locks = ConvertTo<std::vector<IMapNodePtr>>(WaitFor(Client_->GetNode(GetLockPath() + "/@locks"))
+            .ValueOrThrow());
+        for (const auto& lock : locks) {
+            if (lock->GetChildValueOrThrow<std::string>("state") == "pending") {
+                followerTransactionId = lock->GetChildValueOrThrow<TTransactionId>("transaction_id");
+                return true;
+            }
+        }
+        return false;
+    });
+    EXPECT_FALSE(follower->IsLeader());
+
+    WaitFor(follower->Stop())
+        .ThrowOnError();
+    EXPECT_FALSE(IsActive(followerTransactionId));
+    EXPECT_TRUE(IsActive(leaderTransactionId));
+
+    WaitFor(leader->Stop())
+        .ThrowOnError();
+    EXPECT_FALSE(IsActive(leaderTransactionId));
+    EXPECT_EQ(StartCount_, 1);
+    EXPECT_EQ(EndCount_, 1);
+
+    AbortCypressTransactions();
+}
+
+TEST_F(TCypressElectionManagerTest, StopLeadingAbortsRpcProxyTransaction)
+{
+    auto client = CreateRpcProxyClient();
+    auto electionManager = CreateElectionManager(
+        "leader",
+        /*actionQueue*/ nullptr,
+        /*config*/ nullptr,
+        /*transactionAttributes*/ nullptr,
+        client);
+    electionManager->Start();
+    WaitForPredicate([&] {
+        return electionManager->IsLeader();
+    });
+    auto transactionId = electionManager->GetPrerequisiteId();
+
+    WaitFor(electionManager->StopLeading())
+        .ThrowOnError();
+    EXPECT_FALSE(IsActive(transactionId));
+    EXPECT_TRUE(electionManager->IsActive());
+
+    WaitFor(electionManager->Stop())
+        .ThrowOnError();
+    AbortCypressTransactions();
+}
 
 TEST_F(TCypressElectionManagerTest, TestElectionManager)
 {
