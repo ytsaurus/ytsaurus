@@ -71,6 +71,9 @@ protected:
     const TIntrusivePtr<NiceMock<TMockClient>> Client_ = New<NiceMock<TMockClient>>();
     const TIntrusivePtr<NiceMock<TMockTransaction>> Transaction_ = New<NiceMock<TMockTransaction>>();
 
+    //! Set once a takeover gets as far as asking the bundle for its cells.
+    TPromise<void> TakeoverStarted_ = NewPromise<void>();
+
     NLockElection::ILockElectionManagerPtr CreateManager()
     {
         auto config = New<TChaosElectionManagerConfig>();
@@ -81,7 +84,7 @@ protected:
         config->LockAcquisitionPeriod = TDuration::MilliSeconds(50);
 
         auto options = New<TChaosElectionManagerOptions>();
-        options->GroupName = TString(GroupName);
+        options->GroupName = std::string(GroupName);
         options->MemberName = "contender";
 
         return CreateChaosElectionManager(
@@ -90,9 +93,6 @@ protected:
             std::move(config),
             std::move(options));
     }
-
-    //! Set once a takeover gets as far as asking the bundle for its cells.
-    TPromise<void> TakeoverStarted_ = NewPromise<void>();
 
     //! A contender reads the stale row of a leader that is no longer pinging. The takeover that
     //! may follow is stopped at the cell fetch: what happens after it is not what these tests are
@@ -122,11 +122,6 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Probing the recorded lease must not prolong it. Attaching pings by default, so a probe that
-// keeps the default would refresh the dead leader's lease on every lock acquisition period: the
-// lease would outlive its owner for as long as any contender keeps looking at it, and the takeover
-// would never happen.
 
 TEST_F(TChaosElectionManagerTest, ProbesTheRecordedLeaseWithoutPingingIt)
 {
