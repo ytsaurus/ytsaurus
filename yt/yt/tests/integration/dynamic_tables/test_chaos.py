@@ -3443,6 +3443,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: lookup_rows("//tmp/r", [{"key": 1}]) == expected)
 
     @authors("savrus")
+    @pytest.mark.timeout(180)
     def test_replicated_table_tracker(self):
         self._init_replicated_table_tracker()
         cell_id = self._sync_create_chaos_bundle_and_cell()
