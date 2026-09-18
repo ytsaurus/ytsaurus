@@ -503,7 +503,7 @@ message TProjectFlagOptions
     optional string description = 2;
 }
 
-// Next field 30062.
+// Next field 30067.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -635,6 +635,13 @@ extend google.protobuf.FileOptions
     optional bool enable_schema_watch_log_info = 30060 [(edition_flag) = {
         at_edition: 1
         description: "Expose /control/watch_log_info on the schema object."
+    }];
+
+    // Adds the |tags| field to TAccessControlEntry. Edition flag: defaults on at edition 7+; an
+    // installation below edition 7 (or pinning it |= false|) keeps the field dropped.
+    optional bool enable_acl_entry_tags = 30066 [(edition_flag) = {
+        at_edition: 7
+        description: "Add the tags field to access control entries."
     }];
 
     // Enables the |multi_consumer| system table and native multi-consumer support.
