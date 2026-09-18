@@ -792,7 +792,8 @@ TYsonString TFlowExecutor::DescribeComputation(const std::string& /*command*/, c
     auto argument = ConvertTo<TDescribeComputationArg>(serializedArgument);
     auto descr = NDescribe::DescribeComputation(
         Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.ComputationId);
+        argument.ComputationId,
+        RootStatusProfiler_->GetStatus().Errors);
     return ConvertToYsonString(descr);
 }
 
@@ -801,7 +802,9 @@ TYsonString TFlowExecutor::DescribeComputation(const std::string& /*command*/, c
 TYsonString TFlowExecutor::DescribeComputations(const std::string& /*command*/, const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TEmptyArg>(serializedArgument);
-    return ConvertToYsonString(NDescribe::DescribeComputations(Controller_->GetFlowViewKeeper()->GetFlowView()));
+    return ConvertToYsonString(NDescribe::DescribeComputations(
+        Controller_->GetFlowViewKeeper()->GetFlowView(),
+        RootStatusProfiler_->GetStatus().Errors));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

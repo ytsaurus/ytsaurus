@@ -86,7 +86,8 @@ void FillPerformanceMessage(
 
 TExtendedComputationDescription DescribeComputation(
     const TFlowViewPtr& flowView,
-    const TComputationId& computationId);
+    const TComputationId& computationId,
+    const THashMap<std::string, TError>& controllerErrors);
 
 ////////////////////////////////////////////////////////////////////////////////
 

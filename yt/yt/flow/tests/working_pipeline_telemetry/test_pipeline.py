@@ -61,6 +61,7 @@ class Test(FlowTestBase):
         consumer_class=None,
         fixed_input=False,
         fail_before_commit=False,
+        broken_queue_computation=False,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -77,6 +78,29 @@ class Test(FlowTestBase):
             ]
             parameters["message_size_mean"] = 0
             parameters["message_key_range"] = 0
+        if broken_queue_computation:
+            pipeline_config["spec"]["computations"]["broken_reader"] = {
+                "computation_class_name": "TTransformReader",
+                "output_stream_ids": ["missing_queue_data"],
+                "source_streams": {
+                    "missing_queue": {
+                        "source_class_name": "NYT::NFlow::TQueueSource",
+                        "parameters": {
+                            "queue_path": f"<cluster={self.primary_cluster_name}>{self.work_yt_path}/missing_queue",
+                            "consumer_path": (
+                                f"<cluster={self.primary_cluster_name}>{self.work_yt_path}/missing_consumer"
+                            ),
+                            "update_partition_count_period": "100ms",
+                            "update_partition_count_retry_min_backoff": "50ms",
+                        },
+                    }
+                },
+                "parameters": {},
+            }
+            pipeline_config["spec"]["streams"]["missing_queue_data"] = copy.deepcopy(
+                pipeline_config["spec"]["streams"]["data"]
+            )
+            pipeline_config["dynamic_spec"]["computations"]["broken_reader"] = {"parameters": {}}
         if commit_gate is not None:
             ready_path, release_path = commit_gate
             reader_parameters = pipeline_config["spec"]["computations"]["reader"]["parameters"]
@@ -134,6 +158,7 @@ class Test(FlowTestBase):
             commit_gate=(commit_gate_ready_path, commit_gate_release_path),
             consumer_class=consumer_class,
             fixed_input=True,
+            broken_queue_computation=True,
         )
 
         with self.start_flow_process_federation(
@@ -336,7 +361,67 @@ class Test(FlowTestBase):
                 for worker_status in flow_view.get("feedback", {}).get("worker_statuses", {}).values()
             )
 
-            # TODO: Test computation retryable errors.
+            controller_component = (
+                "/job_manager/computation_controllers/broken_reader/"
+                "sources/missing_queue/queue_info/update_partition_count"
+            )
+
+            def matching_controller_errors(messages):
+                return [
+                    message
+                    for message in messages
+                    if str(message.get("text", "")).startswith("Retryable error in component")
+                    and controller_component in str(message.get("text", ""))
+                    and "Failed to update partition count" in str(message)
+                ]
+
+            pipeline_description = None
+
+            def controller_error_is_routed():
+                nonlocal pipeline_description
+                pipeline_description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                assert pipeline_description["status"] == "working", (
+                    "Pipeline stopped while waiting for the intentional queue-controller error",
+                    pipeline_description,
+                )
+                broken_reader_description = pipeline_description["computations"]["broken_reader"]
+                return broken_reader_description["status"] == "warning" and bool(
+                    matching_controller_errors(broken_reader_description["messages"])
+                )
+
+            wait(
+                controller_error_is_routed,
+                timeout=120,
+                error_message=lambda: (
+                    f"Queue-controller error {controller_component!r} was not routed to broken_reader: "
+                    f"{pipeline_description!r}"
+                ),
+            )
+            broken_reader_description = pipeline_description["computations"]["broken_reader"]
+            assert broken_reader_description["status"] == "warning", broken_reader_description
+            assert matching_controller_errors(broken_reader_description["messages"]), broken_reader_description
+            assert matching_controller_errors(pipeline_description["messages"]), pipeline_description["messages"]
+
+            computation_description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-computation",
+                flow_argument={"computation_id": "broken_reader"},
+            )
+            assert computation_description["status"] == "warning", computation_description
+            assert matching_controller_errors(computation_description["messages"]), computation_description
+
+            computations_description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-computations",
+            )
+            listed_broken_reader = next(
+                computation
+                for computation in computations_description["computations"]
+                if computation["name"] == "broken_reader"
+            )
+            assert listed_broken_reader["status"] == "warning", listed_broken_reader
+            assert matching_controller_errors(listed_broken_reader["messages"]), listed_broken_reader
+
             # TODO: Test metrics.
 
     @pytest.mark.authors(["pechatnov"])

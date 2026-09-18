@@ -339,7 +339,7 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
     Spec->Computations[TComputationId("Computation_1")]->ProcessingFunction = "MyProcessFunction";
 
     auto makeComputationDescriptions = [&] {
-        return MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        return MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), {});
     };
 
     auto makeExpectedMetrics = [] (double cpuUsage10m, i64 memoryUsage10m) {
@@ -468,7 +468,7 @@ TEST_W(TDescribeTest, PartitionsStatsCountByJobState)
     }
 
     auto statsOf = [&] (const TComputationId& computationId) {
-        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), {});
         return GetOrCrash(computations, computationId).PartitionsStats;
     };
 
@@ -499,7 +499,7 @@ TEST_W(TDescribeTest, WarnsOnPartitionStuckWithoutJob)
     ASSERT_TRUE(strandedPartitionId.has_value());
 
     auto describe = [&] {
-        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), {});
         return GetOrCrash(computations, TComputationId("Computation_1"));
     };
 
@@ -539,7 +539,7 @@ TEST_W(TDescribeTest, DoesNotWarnOnPartitionsWithoutJobsWhenPipelineIsInactive)
         FlowView->State->ExecutionSpec->PipelineState->TrySetValue(pipelineState, TestVersionProvider());
         FlowView->State->CommitMutation();
 
-        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), {});
         const auto& description = GetOrCrash(computations, TComputationId("Computation_1"));
         EXPECT_EQ(description.Status, ELogLevel::Info)
             << ConvertToYsonString(description, EYsonFormat::Text).ToString();
@@ -995,18 +995,98 @@ TEST_W(TDescribeTest, DescribePipelineNoFlowView)
 TEST_W(TDescribeTest, DescribeComputations)
 {
     Prepare();
-    auto description = DescribeComputations(FlowView);
+    auto description = DescribeComputations(FlowView, {});
     EXPECT_EQ(description.Computations.size(), Spec->Computations.size());
 }
 
 TEST_W(TDescribeTest, DescribeComputation)
 {
     Prepare();
-    auto description = DescribeComputation(FlowView, "Computation_1");
+    auto description = DescribeComputation(FlowView, "Computation_1", {});
     EXPECT_EQ(description.Name, "Computation_1");
     ASSERT_EQ(description.Partitions.size(), 3u);
     EXPECT_EQ(description.Partitions[0].ComputationId, "Computation_1");
     EXPECT_EQ(description.CpuUsage, 90);
+}
+
+TEST_W(TDescribeTest, RoutesComputationControllerErrors)
+{
+    Prepare();
+
+    const std::string computation1Component = "/job_manager/computation_controllers/Computation_1/async_http_sink";
+    const std::string computation2Component = "/job_manager/computation_controllers/Computation_2";
+    const std::string staleComputationComponent = "/job_manager/computation_controllers/Computation_10/source";
+    const std::string pipelineComponent = "/job_manager/resource_manager/failed_resource";
+    THashMap<std::string, TError> controllerErrors = {
+        {computation1Component, TError("Computation 1 controller error")},
+        {computation2Component, TError("Computation 2 controller error")},
+        {staleComputationComponent, TError("Stale computation controller error")},
+        {pipelineComponent, TError("Pipeline controller error")},
+    };
+
+    auto pipelineDescription = DescribePipeline({
+        .FlowView = FlowView,
+        .ControllerErrors = controllerErrors,
+        .Logger = TLogger("test"),
+    });
+
+    const auto& computation1 = GetOrCrash(pipelineDescription.Computations, TComputationId("Computation_1"));
+    const auto& computation2 = GetOrCrash(pipelineDescription.Computations, TComputationId("Computation_2"));
+    EXPECT_EQ(computation1.Status, ELogLevel::Warning);
+    EXPECT_EQ(computation2.Status, ELogLevel::Warning);
+    EXPECT_TRUE(MessagesContain(computation1.Messages, computation1Component));
+    EXPECT_FALSE(MessagesContain(computation1.Messages, computation2Component));
+    EXPECT_FALSE(MessagesContain(computation1.Messages, staleComputationComponent));
+    EXPECT_TRUE(MessagesContain(computation2.Messages, computation2Component));
+
+    auto hasDirectRetryableError = [] (const std::vector<TMessage>& messages, const std::string& component) {
+        return std::any_of(messages.begin(), messages.end(), [&] (const TMessage& message) {
+            return message.Text.starts_with("Retryable error in component") &&
+                message.Text.find(component) != std::string::npos;
+        });
+    };
+    EXPECT_TRUE(hasDirectRetryableError(pipelineDescription.Messages, computation1Component));
+    EXPECT_TRUE(hasDirectRetryableError(pipelineDescription.Messages, computation2Component));
+    EXPECT_TRUE(hasDirectRetryableError(pipelineDescription.Messages, staleComputationComponent));
+    EXPECT_TRUE(hasDirectRetryableError(pipelineDescription.Messages, pipelineComponent));
+
+    auto computationsDescription = DescribeComputations(FlowView, controllerErrors);
+    const TComputationDescription* listedComputation1 = nullptr;
+    const TComputationDescription* listedComputation2 = nullptr;
+    for (const auto& computation : computationsDescription.Computations) {
+        if (computation.Name == "Computation_1") {
+            listedComputation1 = &computation;
+        } else if (computation.Name == "Computation_2") {
+            listedComputation2 = &computation;
+        }
+    }
+    ASSERT_NE(listedComputation1, nullptr);
+    ASSERT_NE(listedComputation2, nullptr);
+    EXPECT_EQ(listedComputation1->Status, ELogLevel::Warning);
+    EXPECT_EQ(listedComputation2->Status, ELogLevel::Warning);
+    EXPECT_TRUE(MessagesContain(listedComputation1->Messages, computation1Component));
+    EXPECT_FALSE(MessagesContain(listedComputation1->Messages, computation2Component));
+    EXPECT_FALSE(MessagesContain(listedComputation1->Messages, staleComputationComponent));
+    EXPECT_TRUE(MessagesContain(listedComputation2->Messages, computation2Component));
+
+    auto computationDescription = DescribeComputation(
+        FlowView,
+        TComputationId("Computation_1"),
+        controllerErrors);
+    EXPECT_EQ(computationDescription.Status, ELogLevel::Warning);
+    EXPECT_TRUE(MessagesContain(computationDescription.Messages, computation1Component));
+    EXPECT_FALSE(MessagesContain(computationDescription.Messages, computation2Component));
+    EXPECT_FALSE(MessagesContain(computationDescription.Messages, staleComputationComponent));
+    EXPECT_FALSE(MessagesContain(computationDescription.Messages, pipelineComponent));
+
+    auto statusOnlyDescription = DescribePipeline({
+        .FlowView = FlowView,
+        .ControllerErrors = controllerErrors,
+        .Logger = TLogger("test"),
+        .StatusOnly = true,
+    });
+    EXPECT_TRUE(hasDirectRetryableError(statusOnlyDescription.Messages, computation1Component));
+    EXPECT_TRUE(hasDirectRetryableError(statusOnlyDescription.Messages, computation2Component));
 }
 
 TEST_W(TDescribeTest, DescribePartition)
@@ -1212,11 +1292,11 @@ TEST_W(TDescribeTest, AdequatePerformance)
     });
 
     auto computationsDescription = run("describe_computations", [&] {
-        return DescribeComputations(FlowView);
+        return DescribeComputations(FlowView, {});
     });
     ASSERT_GE(computationsDescription.Computations.size(), 1u);
     auto firstComputationDescription = run("describe_computation", [&] {
-        return DescribeComputation(FlowView, TComputationId(computationsDescription.Computations[0].Name));
+        return DescribeComputation(FlowView, TComputationId(computationsDescription.Computations[0].Name), {});
     });
 
     auto workersDescription = run("describe_workers", [&] {

@@ -745,6 +745,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
     auto computationBaseDescriptions = MakeComputationDescriptions(
         flowView,
         intermediateDescriptions,
+        arguments.ControllerErrors,
         pipeline.CurrentResourceUsage.Get());
     for (const auto& [computationId, computationDescription] : computationBaseDescriptions) {
         // Copy common parameters.

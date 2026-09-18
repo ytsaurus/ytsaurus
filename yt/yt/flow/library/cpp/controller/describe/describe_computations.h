@@ -18,7 +18,9 @@ struct TComputationsDescription
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TComputationsDescription DescribeComputations(const TFlowViewPtr& flowView);
+TComputationsDescription DescribeComputations(
+    const TFlowViewPtr& flowView,
+    const THashMap<std::string, TError>& controllerErrors);
 
 ////////////////////////////////////////////////////////////////////////////////
 
