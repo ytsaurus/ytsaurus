@@ -8,6 +8,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/flow/library/cpp/computation
+    yt/yt/flow/library/cpp/connectors/queue
     yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/runner
 )

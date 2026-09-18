@@ -401,8 +401,6 @@ void FillRetryableErrors(const THashMap<std::string, TError>& errors, std::vecto
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 double GetMostStableCpuUsage(const TNodePerformanceMetricsPtr& metrics)
@@ -422,6 +420,7 @@ i64 GetMostStableMemoryUsage(const TNodePerformanceMetricsPtr& metrics)
 THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
     const TFlowViewPtr& flowView,
     const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions,
+    const THashMap<std::string, TError>& controllerErrors,
     TCurrentResourceUsage* currentResourceUsage)
 {
     THashMap<TComputationId, TComputationDescription> computationDescriptions;
@@ -516,6 +515,27 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
                 computationDescription.GroupBySchemaStr += column.Name();
             }
         }
+    }
+
+    static const std::string ComputationControllerPrefix = "/job_manager/computation_controllers/";
+    THashMap<TComputationId, THashMap<std::string, TError>> computationControllerErrors;
+    for (const auto& [component, error] : controllerErrors) {
+        if (!component.starts_with(ComputationControllerPrefix)) {
+            continue;
+        }
+
+        auto computationIdEnd = component.find('/', ComputationControllerPrefix.size());
+        auto computationId = TComputationId(component.substr(
+            ComputationControllerPrefix.size(),
+            computationIdEnd - ComputationControllerPrefix.size()));
+        if (computationId.Underlying().empty() || !computationDescriptions.contains(computationId)) {
+            continue;
+        }
+        computationControllerErrors[computationId].emplace(component, error);
+    }
+    for (const auto& [computationId, errors] : computationControllerErrors) {
+        auto& computationDescription = GetOrCrash(computationDescriptions, computationId);
+        FillRetryableErrors(errors, computationDescription.Messages, &computationDescription.Status);
     }
 
     // Cpu and memory usage.

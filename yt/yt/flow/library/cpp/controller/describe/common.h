@@ -224,6 +224,7 @@ DEFINE_REFCOUNTED_TYPE(TCurrentResourceUsage);
 THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
     const TFlowViewPtr& flowView,
     const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions,
+    const THashMap<std::string, TError>& controllerErrors,
     TCurrentResourceUsage* currentResourceUsage = nullptr);
 
 void FillPartitionDescription(
