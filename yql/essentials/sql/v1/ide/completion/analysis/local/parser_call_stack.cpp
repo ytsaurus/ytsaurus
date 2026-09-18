@@ -41,7 +41,7 @@ const TVector<TRuleId> PreferredRules = {
     RULE(Value_constructor),
 };
 
-bool ContainsStack(const TParserCallStack& sequence, const TParserCallStack& stack) {
+bool Contains(const TParserCallStack& sequence, const TParserCallStack& stack) {
     return !std::ranges::search(stack, sequence).empty();
 }
 
@@ -53,13 +53,13 @@ bool IsDropViewStack(const TParserCallStack& stack) {
     return Find(stack, RULE(Drop_view_stmt)) != std::end(stack);
 }
 
-bool IsLikelyExistingTableOrViewStack(const TParserCallStack& stack) {
-    return !ContainsStack({RULE(Create_table_stmt),
+bool IsTableRefStack(const TParserCallStack& stack) {
+    return !Contains({RULE(Create_table_stmt),
                            RULE(Simple_table_ref)}, stack) &&
-           (ContainsStack({RULE(Simple_table_ref),
+           (Contains({RULE(Simple_table_ref),
                            RULE(Simple_table_ref_core),
                            RULE(Object_ref)}, stack) ||
-            ContainsStack({RULE(Single_source),
+            Contains({RULE(Single_source),
                            RULE(Table_ref),
                            RULE(Table_key),
                            RULE(Id_table_or_type)}, stack));
@@ -71,10 +71,6 @@ bool EndsWith(const TParserCallStack& suffix, const TParserCallStack& stack) {
     }
     const size_t prefixSize = stack.size() - suffix.size();
     return Equal(std::begin(stack) + prefixSize, std::end(stack), std::begin(suffix));
-}
-
-bool Contains(const TParserCallStack& sequence, const TParserCallStack& stack) {
-    return !std::ranges::search(stack, sequence).empty();
 }
 
 bool ContainsRule(TRuleId rule, const TParserCallStack& stack) {
@@ -131,13 +127,11 @@ bool IsLikelyObjectRefStack(const TParserCallStack& stack) {
 }
 
 bool IsLikelyExistingTableStack(const TParserCallStack& stack) {
-    return IsDropTableStack(stack) ||
-           (!IsDropViewStack(stack) && IsLikelyExistingTableOrViewStack(stack));
+    return (IsTableRefStack(stack) && !IsDropViewStack(stack)) || IsDropTableStack(stack);
 }
 
 bool IsLikelyExistingViewStack(const TParserCallStack& stack) {
-    return IsDropViewStack(stack) ||
-           (!IsDropTableStack(stack) && IsLikelyExistingTableOrViewStack(stack));
+    return (IsTableRefStack(stack) && !IsDropTableStack(stack)) || IsDropViewStack(stack);
 }
 
 bool IsLikelyTableArgStack(const TParserCallStack& stack) {

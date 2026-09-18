@@ -102,27 +102,23 @@ TCandidate ToCandidate(TFolderName name, TLocalSyntaxContext& local) {
     return candidate;
 }
 
-TCandidate ToCandidate(TObjectName name, TLocalSyntaxContext& local)
-{
+template<ECandidateKind Kind>
+TCandidate ToCandidateT(TIdentifier name, TLocalSyntaxContext& local) {
     if (!local.IsQuoted.AtLhs) {
         name.Identifier.prepend('`');
     }
     if (!local.IsQuoted.AtRhs) {
         name.Identifier.append('`');
     }
-    return {.Content = std::move(name.Identifier)};
+    return {.Kind = Kind, .Content = std::move(name.Identifier)};
 }
 
 TCandidate ToCandidate(TTableName name, TLocalSyntaxContext& local) {
-    auto candidate = ToCandidate(TObjectName(std::move(name)), local);
-    candidate.Kind = ECandidateKind::TableName;
-    return candidate;
+    return ToCandidateT<ECandidateKind::TableName>(std::move(name), local);
 }
 
 TCandidate ToCandidate(TViewName name, TLocalSyntaxContext& local) {
-    auto candidate = ToCandidate(TObjectName(std::move(name)), local);
-    candidate.Kind = ECandidateKind::ViewName;
-    return candidate;
+    return ToCandidateT<ECandidateKind::ViewName>(std::move(name), local);
 }
 
 TCandidate ToCandidate(TClusterName name) {
