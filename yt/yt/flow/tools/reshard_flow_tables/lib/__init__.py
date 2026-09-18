@@ -835,7 +835,7 @@ def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_c
 
 def plan_computation_key_table(computations, source_keys, table, tablet_count, compact_key=False):
     if len(computations) == 0:
-        logging.info(f"Skip {table} because there is no computations")
+        logging.info(f"Skip {table} because there are no computations")
         return None
 
     hash_step = 2**64 // tablet_count
@@ -864,6 +864,9 @@ def plan_computation_key_table(computations, source_keys, table, tablet_count, c
 
 
 def plan_partition_table(computations, table, tablet_count):
+    if len(computations) == 0:
+        logging.info(f"Skip {table} because there are no computations")
+        return None
     return table, {"tablet_count": tablet_count * len(computations), "uniform": True}
 
 
