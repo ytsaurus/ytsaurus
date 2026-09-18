@@ -61,6 +61,9 @@ public:
     //! The partition id the init context reports, freshly generated per environment.
     TPartitionId GetPartitionId() const;
 
+    //! The computation id the init context reports.
+    TComputationId GetComputationId() const;
+
     //! Sets the static ``function_parameters`` the init context hands out: |parameters| is
     //! served by GetParameters<T>() as is (production parses the block into the registered type
     //! instead) and serialized to the raw node. Call before Create<T>().

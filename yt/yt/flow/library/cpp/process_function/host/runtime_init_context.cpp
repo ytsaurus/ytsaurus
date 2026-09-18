@@ -10,6 +10,7 @@ namespace NYT::NFlow {
 TRuntimeInitContext::TRuntimeInitContext(
     IJobInitContextPtr underlying,
     TJobStateManagerPtr stateManager,
+    TComputationId computationId,
     TPartitionId partitionId,
     NYTree::IMapNodePtr parametersNode,
     NYTree::TYsonStructPtr parametersObject,
@@ -19,6 +20,7 @@ TRuntimeInitContext::TRuntimeInitContext(
     NHttp::IClientPtr httpsClient)
     : Underlying_(std::move(underlying))
     , StateManager_(std::move(stateManager))
+    , ComputationId_(std::move(computationId))
     , PartitionId_(partitionId)
     , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
     , ParametersObject_(std::move(parametersObject))
@@ -53,6 +55,7 @@ IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
     return New<TRuntimeInitContext>(
         Underlying_->WithPrefix(prefix),
         StateManager_,
+        ComputationId_,
         PartitionId_,
         ParametersNode_,
         ParametersObject_,
@@ -105,6 +108,11 @@ NHttp::IClientPtr TRuntimeInitContext::GetHttpsClient() const
         THROW_ERROR_EXCEPTION("HTTPS client is not available in this init context");
     }
     return HttpsClient_;
+}
+
+TComputationId TRuntimeInitContext::GetComputationId() const
+{
+    return ComputationId_;
 }
 
 TPartitionId TRuntimeInitContext::GetPartitionId() const

@@ -141,6 +141,62 @@ TEST(TProcessFunctionSourceComputationAdapterTest, DoInitHandsTheComputationPart
     EXPECT_EQ(TRegisteredPartitionAwareProcessFunction::ObservedPartitionId, partitionId);
 }
 
+// Registered under its own class, like the partition-aware function above: the adapter creates
+// the instance through the registry, so the observed id is reachable only through a static.
+class TRegisteredComputationAwareProcessFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        ObservedComputationId = initContext->GetComputationId();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    { }
+
+    static TComputationId ObservedComputationId;
+};
+
+TComputationId TRegisteredComputationAwareProcessFunction::ObservedComputationId;
+
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TRegisteredComputationAwareProcessFunction);
+
+// The id the function sees is the hosting computation's, not the state manager's: the test
+// environment generates one of its own, and the assertion pins which of the two arrives.
+TEST(TProcessFunctionSourceComputationAdapterTest, DoInitHandsTheComputationIdToTheFunction)
+{
+    TRegisteredComputationAwareProcessFunction::ObservedComputationId = {};
+
+    auto queue = New<NConcurrency::TActionQueue>("ComputationSourceAdapterTest");
+    auto invoker = queue->GetInvoker();
+
+    auto spec = New<TComputationSpec>();
+    spec->ComputationClassName = "NYT::NFlow::TProcessFunctionSourceComputation";
+    spec->ProcessingFunction = std::string(TypeName<TRegisteredComputationAwareProcessFunction>());
+
+    auto computationId = TComputationId("adapter-computation");
+    auto context = MakeAdapterTestComputationContext(invoker, std::move(spec));
+    context->Partition->ComputationId = computationId;
+    auto dynamicContext = MakeAdapterTestDynamicComputationContext();
+
+    TTestStateEnvironment environment;
+    ASSERT_NE(environment.GetComputationId(), computationId);
+
+    NConcurrency::WaitFor(
+        BIND([&] {
+            auto computation = New<TProcessFunctionSourceComputation>(context, dynamicContext);
+            computation->DoInit(environment.GetStateManager()->CreateContext());
+        }).AsyncVia(invoker)
+            .Run())
+        .ThrowOnError();
+
+    EXPECT_EQ(TRegisteredComputationAwareProcessFunction::ObservedComputationId, computationId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

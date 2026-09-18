@@ -590,12 +590,15 @@ TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
         THashMap<TResourceId, IResourcePtr>{},
         /*prefix*/ std::string(),
         /*profiler*/ NProfiling::TProfiler(),
-        context);
+        context,
+        /*computationId*/ TComputationId("the-computation"));
 
     EXPECT_EQ(initContext->GetHttpClient(), context->HttpClient);
     EXPECT_EQ(initContext->GetHttpsClient(), context->HttpsClient);
     EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpClient(), context->HttpClient);
     EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpsClient(), context->HttpsClient);
+    EXPECT_EQ(initContext->GetComputationId(), TComputationId("the-computation"));
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetComputationId(), TComputationId("the-computation"));
 
     context->HttpPoller->Shutdown();
 }

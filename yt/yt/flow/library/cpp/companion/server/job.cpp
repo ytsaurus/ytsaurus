@@ -274,7 +274,8 @@ bool TJob::EnsureInitialized()
         std::move(*resources),
         /*prefix*/ std::string(),
         Profiler_,
-        ServerContext_);
+        ServerContext_,
+        ComputationId_);
     auto context = New<TProcessFunctionContext>();
     context->InitContext = initContext;
     context->Logger = CompanionServerLogger()
