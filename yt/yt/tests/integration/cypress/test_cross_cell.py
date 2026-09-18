@@ -14,7 +14,6 @@ from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 
 from datetime import timedelta
-import decorator
 import pytest
 import random
 
@@ -22,15 +21,6 @@ import time
 
 
 ################################################################################
-
-
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if self.USE_SEQUOIA:
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 
 class TestCrossCellCopy(YTEnvSetup):
@@ -1002,8 +992,11 @@ class TestCrossCellCopy(YTEnvSetup):
             self.execute_command(src_path, dst_path)
 
     @authors("h0pless")
-    @not_implemented_in_sequoia  # It's really hard to ensure that a node is created on a specific cell.
     def test_non_external_table(self):
+        if self.USE_SEQUOIA:
+            # It's really hard to ensure that a node is created on a specific cell.
+            pytest.skip("Not implemented in Sequoia")
+
         src_path = f"{self.SRC}/table"
         dst_path = f"{self.DST}/table"
 
