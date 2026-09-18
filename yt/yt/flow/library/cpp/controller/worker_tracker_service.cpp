@@ -97,19 +97,18 @@ private:
             EmplaceOrCrash(workerCapabilities, capability.key(), capability.value());
         }
 
-        context->SetRequestInfo("WorkerIdentifyingString: %v, WorkerBuildVersion: %v, WorkerGroups: %v, WorkerCapabilities: %v",
-            workerNodeInfo.GetIdentifyingString(),
-            workerNodeInfo.BuildVersion,
-            workerGroups,
-            workerCapabilities);
+        context->AnnotateRequest()
+            .With("WorkerIdentifyingString", workerNodeInfo.GetIdentifyingString())
+            .With("WorkerBuildVersion", workerNodeInfo.BuildVersion)
+            .With("WorkerGroups", workerGroups)
+            .With("WorkerCapabilities", workerCapabilities);
 
         CheckWorkerNodeIncarnationId(workerNodeInfo);
 
         const auto workerInfo = WorkerTracker_->RegisterWorker(workerNodeInfo, std::move(workerGroups), std::move(workerCapabilities));
 
-        context->SetResponseInfo(
-            "ConnectionIncarnationId: %v",
-            workerInfo.ConnectionIncarnationId);
+        context->AnnotateResponse()
+            .With("ConnectionIncarnationId", workerInfo.ConnectionIncarnationId);
 
         ToProto(response->mutable_connection_incarnation_id(), workerInfo.ConnectionIncarnationId);
 
@@ -124,9 +123,9 @@ private:
         const auto connectionIncarnationId = FromProto<NWorker::TIncarnationId>(request->connection_incarnation_id());
         const auto& heartbeatSeqNo = request->heartbeat_seq_no();
 
-        context->SetRequestInfo("Worker: %v, ConnectionIncarnationId: %v",
-            workerAddress,
-            connectionIncarnationId);
+        context->AnnotateRequest()
+            .With("Worker", workerAddress)
+            .With("ConnectionIncarnationId", connectionIncarnationId);
 
         const auto workerInfo = WorkerTracker_->HandleWorkerHeartbeat(workerAddress, connectionIncarnationId, heartbeatSeqNo);
 

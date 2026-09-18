@@ -155,11 +155,11 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     auto computationId = TComputationId(request->computation_id());
-    context->SetRequestInfo("JobId: %v, ComputationId: %v, MessageCount: %v, TimerCount: %v",
-        jobId,
-        computationId,
-        request->messages_size(),
-        request->timers_size());
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("ComputationId", computationId)
+        .With("MessageCount", request->messages_size())
+        .With("TimerCount", request->timers_size());
 
     // An abandoned request must not register a job nobody will remove, and
     // there is no point running the batch for it either.
@@ -287,7 +287,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 
 DEFINE_RPC_SERVICE_METHOD(TCompanionService, CompanionInfo)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     response->set_payload(CompanionInfoPayload_.ToString());
     response->set_status(NProto::NCompanion::RS_OK);
@@ -298,9 +298,9 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, PutJob)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     auto computationId = TComputationId(request->computation_id());
-    context->SetRequestInfo("JobId: %v, ComputationId: %v",
-        jobId,
-        computationId);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("ComputationId", computationId);
 
     // An abandoned request must not register a job nobody will remove.
     if (context->IsCanceled()) {
@@ -325,7 +325,8 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, PutJob)
 DEFINE_RPC_SERVICE_METHOD(TCompanionService, RemoveJob)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
-    context->SetRequestInfo("JobId: %v", jobId);
+    context->AnnotateRequest()
+        .With("JobId", jobId);
 
     *response->mutable_request_id() = request->request_id();
     *response->mutable_job_id() = request->job_id();
@@ -338,14 +339,15 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, RemoveJob)
 
 DEFINE_RPC_SERVICE_METHOD(TCompanionService, ListJobs)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     *response->mutable_request_id() = request->request_id();
     ToProto(response->mutable_job_ids(), JobRegistry_->ListJobIds());
     response->set_process_id(GetPID());
     response->set_status(NProto::NCompanion::RS_OK);
 
-    context->SetResponseInfo("JobCount: %v", response->job_ids_size());
+    context->AnnotateResponse()
+        .With("JobCount", response->job_ids_size());
     context->Reply();
 }
 
@@ -353,9 +355,9 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ResourceExecute)
 {
     auto resourceId = TResourceId(request->resource_id());
     auto command = static_cast<NCompanion::ECompanionResourceCommand>(request->command());
-    context->SetRequestInfo("ResourceId: %v, Command: %v",
-        resourceId,
-        command);
+    context->AnnotateRequest()
+        .With("ResourceId", resourceId)
+        .With("Command", command);
 
     *response->mutable_request_id() = request->request_id();
 
@@ -379,7 +381,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ResourceExecute)
 
 DEFINE_RPC_SERVICE_METHOD(TCompanionService, GetJfr)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     response->set_status(NProto::NCompanion::RS_ERROR);
     response->set_error_message("JFR is not supported by C++ companion");

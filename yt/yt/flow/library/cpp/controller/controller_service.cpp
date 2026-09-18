@@ -79,14 +79,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSpec)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         TGetPipelineSpecArg executorArg;
         auto executorResult = FlowExecutor_->GetPipelineSpec(executorArg);
 
         response->set_spec(ToProto(ConvertToYsonString(executorResult.Spec)));
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
@@ -99,25 +100,29 @@ private:
         executorArg.Spec = ConvertTo<NYTree::INodePtr>(TYsonStringBuf(request->spec()));
         executorArg.Force = request->force();
 
-        context->SetRequestInfo("ExpectedVersion: %v, Force: %v", executorArg.ExpectedVersion, executorArg.Force);
+        context->AnnotateRequest()
+            .With("ExpectedVersion", executorArg.ExpectedVersion)
+            .With("Force", executorArg.Force);
 
         auto executorResult = FlowExecutor_->SetPipelineSpec(executorArg);
 
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetDynamicSpec)
     {
         TGetPipelineDynamicSpecArg executorArg;
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto executorResult = FlowExecutor_->GetPipelineDynamicSpec(executorArg);
 
         response->set_spec(ToProto(ConvertToYsonString(executorResult.Spec)));
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
@@ -129,12 +134,14 @@ private:
             : std::nullopt;
         executorArg.Spec = ConvertTo<NYTree::INodePtr>(TYsonStringBuf(request->spec()));
 
-        context->SetRequestInfo("ExpectedVersion: %v", executorArg.ExpectedVersion);
+        context->AnnotateRequest()
+            .With("ExpectedVersion", executorArg.ExpectedVersion);
 
         auto executorResult = FlowExecutor_->SetPipelineDynamicSpec(executorArg);
 
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
