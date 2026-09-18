@@ -1986,11 +1986,14 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
 
     auto dataFileName = fileName;
     auto indexFileName = fileName + "." + ChangelogIndexExtension;
+    auto sealedFileName = fileName + "." + SealedFlagExtension;
 
     auto trashIndexFileName = trashFileName + "." + ChangelogIndexExtension;
+    auto trashSealedFileName = trashFileName + "." + SealedFlagExtension;
 
     bool hasData = NFS::Exists(dataFileName);
     bool hasIndex = NFS::Exists(indexFileName);
+    bool hasSealed = NFS::Exists(sealedFileName);
 
     if (hasData) {
         const auto& dispatcher = ChunkContext_->JournalDispatcher;
@@ -2019,11 +2022,20 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
         }
 
         return descriptor;
-    } else if (!hasData && hasIndex) {
+    }
+
+    if (hasIndex) {
         YT_TLOG_WARNING("Journal data file is missing, moving index file to trash")
             .With("DataFileName", dataFileName)
             .With("IndexFileName", indexFileName);
         NFS::Replace(indexFileName, trashIndexFileName);
+    }
+
+    if (hasSealed) {
+        YT_TLOG_WARNING("Journal data file is missing, moving seal file to trash")
+            .With("DataFileName", dataFileName)
+            .With("SealedFileName", sealedFileName);
+        NFS::Replace(sealedFileName, trashSealedFileName);
     }
 
     return {};
@@ -2115,8 +2127,6 @@ void TStoreLocation::DoScanTrash()
 
     YT_TLOG_INFO("Started scanning location trash");
 
-    ForceHashDirectories(GetTrashPath());
-
     THashSet<TChunkId> trashChunkIds;
     {
         // Enumerate files under the location's trash directory.
@@ -2160,6 +2170,8 @@ void TStoreLocation::DoAsyncScanTrash()
 
 std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 {
+    ForceHashDirectories(GetTrashPath());
+
     auto result = TChunkLocation::DoScan();
 
     DoAsyncScanTrash();
