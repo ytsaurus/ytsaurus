@@ -247,10 +247,8 @@ private:
                 }
 
                 try {
-                    // NB: Probing must not prolong what it probes. Attaching pings by default, and
-                    // a ping here would refresh the dead leader's lease: contenders probe once per
-                    // lock acquisition period, so as long as that period stays below the lease
-                    // timeout the lease outlives its owner and the takeover below is never reached.
+                    // NB: Probing must not prolong what it probes: attaching pings by default, and
+                    // a ping keeps the dead leader's lease alive while probes outrun its timeout.
                     TChaosLeaseAttachOptions probeOptions;
                     probeOptions.Ping = false;
                     auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId, probeOptions))
