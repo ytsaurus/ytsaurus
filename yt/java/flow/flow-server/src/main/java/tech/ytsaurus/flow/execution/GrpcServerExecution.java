@@ -65,7 +65,8 @@ public final class GrpcServerExecution implements CompanionExecution {
                 new PipelineContextSnapshot(spec.getPipelineContext()),
                 resolvedJobContext,
                 spec.getPipelineContext().getMetricsContext(),
-                spec.getHttpHandlers()
+                spec.getHttpHandlers(),
+                spec.getJobSpecValidator()
         );
         this.startupDiagnostics = JvmDiagnostics::warnIfHeapDumpOptionsNotSet;
     }

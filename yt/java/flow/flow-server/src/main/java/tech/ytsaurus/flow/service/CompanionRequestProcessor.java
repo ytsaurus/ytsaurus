@@ -46,18 +46,43 @@ public class CompanionRequestProcessor {
     private final RequestProtoMapper requestMapper;
     private final ResponseProtoMapper responseMapper;
     private final JobProtoMapper jobMapper;
+    private final JobSpecValidator jobSpecValidator;
 
     public CompanionRequestProcessor(PipelineContextSnapshot pipelineContext, JobContext jobContext) {
-        this(pipelineContext, jobContext,
-                new ResourceStore(Objects.requireNonNull(pipelineContext).getResourceFactories()));
+        this(pipelineContext, jobContext, JobSpecValidator.NOOP);
+    }
+
+    public CompanionRequestProcessor(
+            PipelineContextSnapshot pipelineContext,
+            JobContext jobContext,
+            JobSpecValidator jobSpecValidator
+    ) {
+        this(
+                pipelineContext,
+                jobContext,
+                new ResourceStore(Objects.requireNonNull(pipelineContext).getResourceFactories()),
+                jobSpecValidator
+        );
     }
 
     /**
      * Processes requests using the resource store owned by the caller's runtime or test harness.
      */
     public CompanionRequestProcessor(
-            PipelineContextSnapshot pipelineContext, JobContext jobContext, ResourceStore resourceStore
+            PipelineContextSnapshot pipelineContext,
+            JobContext jobContext,
+            ResourceStore resourceStore
     ) {
+        this(pipelineContext, jobContext, resourceStore, JobSpecValidator.NOOP);
+    }
+
+    public CompanionRequestProcessor(
+            PipelineContextSnapshot pipelineContext,
+            JobContext jobContext,
+            ResourceStore resourceStore,
+            JobSpecValidator jobSpecValidator
+    ) {
+        this.jobSpecValidator = Objects.requireNonNull(jobSpecValidator, "jobSpecValidator");
         this.pipelineContext = Objects.requireNonNull(pipelineContext, "pipelineContext must not be null");
         this.jobContext = Objects.requireNonNull(jobContext, "jobContext must not be null");
         this.executionMeter = new ExecutionMeter();
@@ -150,6 +175,7 @@ public class CompanionRequestProcessor {
         log.debug("Processing PutJob: (RequestId: {}, JobId: {})", requestId, jobId);
 
         var measured = executionMeter.measure(() -> {
+            jobSpecValidator.validate(request.getComputationId(), request.getJobInfo());
             var job = jobMapper.fromProto(request);
             jobContext.putJob(jobId, job);
             return EResponseStatus.RS_OK;
@@ -230,6 +256,7 @@ public class CompanionRequestProcessor {
 
     private @Nullable Job retrieveOrCreateJob(GUID jobId, String computationId, @Nullable TJobInfo jobInfo) {
         if (jobInfo != null) {
+            jobSpecValidator.validate(computationId, jobInfo);
             Job job = jobMapper.fromProto(jobId, computationId, jobInfo);
             jobContext.putJob(jobId, job);
             return job;
