@@ -14,7 +14,8 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     THashMap<TResourceId, IResourcePtr> resources,
     std::string prefix,
     NProfiling::TProfiler profiler,
-    TCompanionServerContextPtr serverContext)
+    TCompanionServerContextPtr serverContext,
+    TComputationId computationId)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
@@ -24,6 +25,7 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     , Prefix_(std::move(prefix))
     , Profiler_(std::move(profiler))
     , ServerContext_(std::move(serverContext))
+    , ComputationId_(std::move(computationId))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TCompanionRuntimeInitContext::CreateMutableStateKeyProvider(
@@ -57,7 +59,8 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
         Resources_,
         ExtendStateNamePrefix(Prefix_, prefix),
         Profiler_,
-        ServerContext_);
+        ServerContext_,
+        ComputationId_);
 }
 
 const std::string& TCompanionRuntimeInitContext::GetPrefix() const
@@ -102,6 +105,11 @@ NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpsClient() const
     THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpsClient,
         "HTTPS client is not available in this companion init context");
     return ServerContext_->HttpsClient;
+}
+
+TComputationId TCompanionRuntimeInitContext::GetComputationId() const
+{
+    return ComputationId_;
 }
 
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const

@@ -92,6 +92,9 @@ public:
     virtual NHttp::IClientPtr GetHttpClient() const = 0;
     virtual NHttp::IClientPtr GetHttpsClient() const = 0;
 
+    //! Id of the computation this function instance serves; fixed for the instance's lifetime.
+    virtual TComputationId GetComputationId() const = 0;
+
     //! Id of the partition this function instance serves; fixed for the instance's lifetime.
     //! Throws out of process, where the hosting partition is not known.
     virtual TPartitionId GetPartitionId() const = 0;

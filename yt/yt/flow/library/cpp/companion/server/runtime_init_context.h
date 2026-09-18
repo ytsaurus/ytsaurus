@@ -25,7 +25,8 @@ public:
         THashMap<TResourceId, IResourcePtr> resources = {},
         std::string prefix = {},
         NProfiling::TProfiler profiler = {},
-        TCompanionServerContextPtr serverContext = {});
+        TCompanionServerContextPtr serverContext = {},
+        TComputationId computationId = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
         std::function<IStateHolderPtr()> ctor) const override;
@@ -51,6 +52,9 @@ public:
     NHttp::IClientPtr GetHttpClient() const override;
     NHttp::IClientPtr GetHttpsClient() const override;
 
+    //! The id of the computation this companion hosts, as carried by the request.
+    TComputationId GetComputationId() const override;
+
     //! Throws because the wire protocol does not identify a partition.
     TPartitionId GetPartitionId() const override;
 
@@ -70,6 +74,7 @@ private:
     //! Process-wide facilities of the hosting companion; null only when a test
     //! constructs the context directly.
     const TCompanionServerContextPtr ServerContext_;
+    const TComputationId ComputationId_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeInitContext);

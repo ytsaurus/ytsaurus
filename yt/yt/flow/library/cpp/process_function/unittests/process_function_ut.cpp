@@ -1807,6 +1807,47 @@ TEST(TProcessFunctionPartitionTest, PartitionIdsDifferBetweenPartitions)
     EXPECT_NE(firstEnv.GetInitContext()->GetPartitionId(), secondEnv.GetInitContext()->GetPartitionId());
 }
 
+//! Tags its output with the computation it runs in, the way a function that needs the
+//! computation id (for logging, metrics or external requests) does.
+class TComputationTaggingFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        ComputationId_ = initContext->GetComputationId();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    { }
+
+    TComputationId GetComputationId() const
+    {
+        return ComputationId_;
+    }
+
+private:
+    TComputationId ComputationId_;
+};
+
+TEST(TProcessFunctionComputationTest, InitContextExposesTheComputationId)
+{
+    TTestStateEnvironment stateEnv;
+
+    const auto& initContext = stateEnv.GetInitContext();
+    EXPECT_EQ(initContext->GetComputationId(), stateEnv.GetComputationId());
+
+    // Prefixing keeps the computation id: state naming does not change who is running.
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetComputationId(), stateEnv.GetComputationId());
+
+    auto function = New<TComputationTaggingFunction>();
+    function->Init(initContext);
+    EXPECT_EQ(function->GetComputationId(), stateEnv.GetComputationId());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

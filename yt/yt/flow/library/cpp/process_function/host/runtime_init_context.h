@@ -19,6 +19,7 @@ public:
     TRuntimeInitContext(
         IJobInitContextPtr underlying,
         TJobStateManagerPtr stateManager,
+        TComputationId computationId,
         TPartitionId partitionId,
         NYTree::IMapNodePtr parametersNode = {},
         NYTree::TYsonStructPtr parametersObject = {},
@@ -47,6 +48,7 @@ public:
     NHttp::IClientPtr GetHttpClient() const override;
     NHttp::IClientPtr GetHttpsClient() const override;
 
+    TComputationId GetComputationId() const override;
     TPartitionId GetPartitionId() const override;
 
 protected:
@@ -56,6 +58,7 @@ protected:
 private:
     const IJobInitContextPtr Underlying_;
     const TJobStateManagerPtr StateManager_;
+    const TComputationId ComputationId_;
     const TPartitionId PartitionId_;
     const NYTree::IMapNodePtr ParametersNode_;
     //! The parameters node parsed into the registered static-parameters type (see
