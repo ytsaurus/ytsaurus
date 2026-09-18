@@ -1204,6 +1204,84 @@ TEST_F(TReplicatedTableTrackerTest, TableCollocationWithPreferredReplicaClusters
     validateSyncOnCluster2();
 }
 
+TEST_F(TReplicatedTableTrackerTest, TableCollocationWithQueueOnlyTable)
+{
+    Tracker_->DisableTracking();
+    WaitForUpdatesFromTracker();
+
+    const std::array clusters = {Cluster1, Cluster2, Cluster3};
+    for (const auto& cluster : clusters) {
+        MockGoodReplicaCluster(Host_->GetMockClient(cluster));
+    }
+
+    auto mixedTable = Host_->CreateReplicatedTable();
+    auto queueOnlyTable = Host_->CreateReplicatedTable();
+    for (auto tableId : {mixedTable, queueOnlyTable}) {
+        auto options = Host_->GetTableOptions(tableId);
+        options->MinSyncReplicaCount = 0;
+        options->MaxSyncReplicaCount = 1;
+        options->MinSyncQueueReplicaCount = 1;
+        options->MaxSyncQueueReplicaCount = 2;
+        Host_->SetTableOptions(tableId, std::move(options));
+    }
+
+    auto createReplicas = [&] (
+        TTableId tableId,
+        ETableReplicaContentType contentType,
+        const TYPath& tablePath)
+    {
+        std::array<TTableReplicaId, 3> replicas;
+        for (int index = 0; index < std::ssize(clusters); ++index) {
+            auto client = Host_->GetMockClient(clusters[index]);
+            MockGoodBundle(client, tablePath);
+            MockGoodTable(client, tablePath);
+
+            bool sync = index == 2 || (index == 1 && contentType == ETableReplicaContentType::Queue);
+            replicas[index] = Host_->CreateTableReplica(
+                tableId,
+                sync ? ETableReplicaMode::Sync : ETableReplicaMode::Async,
+                /*enabled*/ true,
+                clusters[index],
+                tablePath,
+                /*replicaLagTime*/ TDuration::Zero(),
+                EObjectType::ChaosTableReplica,
+                contentType);
+        }
+        return replicas;
+    };
+
+    auto dataReplicas = createReplicas(mixedTable, ETableReplicaContentType::Data, "//tmp/data");
+    auto mixedQueueReplicas = createReplicas(mixedTable, ETableReplicaContentType::Queue, "//tmp/mixed_queue");
+    auto queueOnlyReplicas = createReplicas(queueOnlyTable, ETableReplicaContentType::Queue, "//tmp/queue_only");
+    auto collocationId = Host_->CreateReplicationCollocation({mixedTable, queueOnlyTable});
+
+    WaitForUpdatesFromTracker();
+    Tracker_->EnableTracking();
+    WaitForTrackerWarmUp();
+
+    EXPECT_EQ(Host_->GetReplicaMode(dataReplicas[0]), ETableReplicaMode::Async);
+    EXPECT_EQ(Host_->GetReplicaMode(dataReplicas[1]), ETableReplicaMode::Async);
+    EXPECT_EQ(Host_->GetReplicaMode(dataReplicas[2]), ETableReplicaMode::Sync);
+    for (const auto& replicas : {mixedQueueReplicas, queueOnlyReplicas}) {
+        EXPECT_EQ(Host_->GetReplicaMode(replicas[0]), ETableReplicaMode::Async);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas[1]), ETableReplicaMode::Sync);
+        EXPECT_EQ(Host_->GetReplicaMode(replicas[2]), ETableReplicaMode::Sync);
+    }
+    Host_->ResetReplicaModeCommandCounts();
+
+    Host_->UpdateReplicationCollocationOptions(collocationId, std::vector<std::string>{Cluster1});
+    WaitForUpdatesFromTracker();
+
+    Host_->ValidateReplicaModeChanged(dataReplicas[0], ETableReplicaMode::Sync);
+    Host_->ValidateReplicaModeRemained(dataReplicas[1]);
+    Host_->ValidateReplicaModeChanged(dataReplicas[2], ETableReplicaMode::Async);
+    for (const auto& replicas : {mixedQueueReplicas, queueOnlyReplicas}) {
+        Host_->ValidateReplicaModeChanged(replicas[0], ETableReplicaMode::Sync);
+        Host_->ValidateReplicaModeChanged(replicas[1], ETableReplicaMode::Async);
+        Host_->ValidateReplicaModeRemained(replicas[2]);
+    }
+}
+
 TEST_F(TReplicatedTableTrackerTest, CollocatedTablesSharePreferredSyncReplicaSwitchCooldown)
 {
     Host_->GetConfig()->PreferredSyncReplicaSwitchCooldown = TDuration::Hours(1);

@@ -1444,13 +1444,27 @@ private:
             }
 
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                auto replicasByState = table.GroupReplicasByTargetState(contentType);
+                bool hasReplicas = false;
+                for (const auto& replicas : replicasByState) {
+                    if (!replicas.empty()) {
+                        hasReplicas = true;
+                        break;
+                    }
+                }
+
+                // Tables without tracked replicas of this content type must not clear the collocation's common replica clusters.
+                if (!hasReplicas) {
+                    continue;
+                }
+
                 EmplaceOrCrash(
                     replicaFamilyToReplicasByState,
                     TReplicaFamily{
                         .TableId = tableId,
                         .ContentType = contentType,
                     },
-                    table.GroupReplicasByTargetState(contentType));
+                    std::move(replicasByState));
             }
         }
 
