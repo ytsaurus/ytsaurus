@@ -218,17 +218,26 @@ TResourceBalanceContext CollectResourceContext(
         auto& tmpWorkerInfo = tmpWorkerInfoSet[workerAddress];
         workerInfo.Capabilities = worker->Capabilities;
         // Fill PreloadResourceIssued from WorkerSpecs in the layout (what the controller issued to this worker).
+        // Skip a spec of a previous incarnation of the address: the current incarnation has none of
+        // those resources.
         auto workerSpecIt = layout->WorkerSpecs.find(workerAddress);
         if (workerSpecIt != layout->WorkerSpecs.end()) {
-            workerInfo.PreloadResourceIssued = workerSpecIt->second->PreloadResources;
+            const auto& workerSpec = workerSpecIt->second;
+            if (!workerSpec->WorkerIncarnationId || *workerSpec->WorkerIncarnationId == worker->IncarnationId) {
+                workerInfo.PreloadResourceIssued = workerSpec->PreloadResources;
+            }
         }
 
-        // Collect worker resource stats from feedback.
+        // Collect worker resource stats from feedback. Skip a status of a previous incarnation of
+        // the address: that worker is gone, its preloads and queues do not exist.
         auto statusIt = flowView->Feedback->WorkerStatuses.find(workerAddress);
         if (statusIt == flowView->Feedback->WorkerStatuses.end()) {
             continue;
         }
         const auto& workerStatus = statusIt->second;
+        if (workerStatus->WorkerIncarnationId && *workerStatus->WorkerIncarnationId != worker->IncarnationId) {
+            continue;
+        }
         for (const auto& [resourceId, resourceStatus] : workerStatus->ResourceStatuses) {
             // A worker keeps reporting a resource for a while after it is removed from the spec.
             // Such stale stats must not shape the worker's capacity estimate.

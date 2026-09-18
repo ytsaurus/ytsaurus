@@ -1312,10 +1312,14 @@ private:
             }
         }
 
-        // Remove WorkerSpecs entries for workers that no longer exist.
+        // Remove the WorkerSpecs of workers that no longer exist and of workers that re-registered
+        // with a new incarnation: a new incarnation has no preloaded resources.
         std::vector<std::string> staleWorkerAddresses;
         for (const auto& [workerAddress, workerSpec] : flowLayout->WorkerSpecs) {
-            if (!flowView->State->Workers.contains(workerAddress)) {
+            auto* worker = flowView->State->Workers.FindPtr(workerAddress);
+            if (!worker ||
+                (workerSpec->WorkerIncarnationId && *workerSpec->WorkerIncarnationId != (*worker)->IncarnationId))
+            {
                 staleWorkerAddresses.push_back(workerAddress);
             }
         }

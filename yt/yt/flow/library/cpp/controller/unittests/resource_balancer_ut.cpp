@@ -1698,6 +1698,64 @@ TEST_F(TResourceBalancerTest, StaleStatsOfRemovedResourceAreIgnored)
     EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker1"), 1.0);
 }
 
+//! The balancer skips a preload spec of a previous incarnation of the address: the new incarnation
+//! has no preloaded resources, so the model is requested again.
+TEST_F(TResourceBalancerTest, PreloadOfPreviousIncarnationIsReissued)
+{
+    auto compId = MakeComputationId("comp1");
+    auto modelId = MakeResourceId("model");
+
+    SetResourceSpec(modelId, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {modelId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    FlowView->State->Workers.at("worker1")->IncarnationId = TIncarnationId(TGuid::Create());
+    SetPreloadIssued(FlowView, "worker1", modelId);
+    {
+        // Stamp the spec with the incarnation it was issued to.
+        FlowView->State->StartMutation();
+        auto workerSpec = CloneYsonStruct(FlowView->State->ExecutionSpec->Layout->WorkerSpecs.at("worker1"));
+        workerSpec->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+        FlowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign("worker1", workerSpec);
+        FlowView->State->CommitMutation();
+    }
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/1.0, std::nullopt);
+
+    auto result = RunBalancer();
+
+    bool reissued = false;
+    for (const auto& action : GetPreloadAddActions(result)) {
+        if (action.WorkerAddress == "worker1" && action.ResourceId == modelId) {
+            reissued = true;
+        }
+    }
+    EXPECT_TRUE(reissued);
+}
+
+//! The balancer skips a worker status of a previous incarnation of the address: the model it
+//! reports as preloaded is not on the new incarnation, so a stray partition is not placed there.
+TEST_F(TResourceBalancerTest, FeedbackOfPreviousIncarnationIsIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto modelId = MakeResourceId("model");
+
+    SetResourceSpec(modelId, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {modelId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    FlowView->State->Workers.at("worker1")->IncarnationId = TIncarnationId(TGuid::Create());
+    SetPreloadIssued(FlowView, "worker1", modelId);
+    SetPreloadCompleted(FlowView, "worker1", modelId);
+    FlowView->Feedback->WorkerStatuses.at("worker1")->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/1.0, std::nullopt);
+
+    auto result = RunBalancer();
+
+    EXPECT_FALSE(GetAddActions(result).contains(MakePartitionId(1)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

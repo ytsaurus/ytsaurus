@@ -1046,12 +1046,21 @@ public:
             }
 
             for (const auto& preloadAction : rebalanceResult.PreloadResourceActions) {
+                auto* worker = flowView->State->Workers.FindPtr(preloadAction.WorkerAddress);
                 auto* existingSpec = layout->WorkerSpecs.FindPtr(preloadAction.WorkerAddress);
-                auto workerSpec = existingSpec ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
+                // A spec of a previous incarnation of the address does not apply to the current one:
+                // start a new spec, do not copy its resources.
+                bool existingSpecIsVoid = existingSpec && worker &&
+                    (*existingSpec)->WorkerIncarnationId &&
+                    *(*existingSpec)->WorkerIncarnationId != (*worker)->IncarnationId;
+                auto workerSpec = existingSpec && !existingSpecIsVoid ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
                 if (preloadAction.Type == NBalancer::ERebalanceActionType::Add) {
                     workerSpec->PreloadResources.insert(preloadAction.ResourceId);
                 } else {
                     workerSpec->PreloadResources.erase(preloadAction.ResourceId);
+                }
+                if (worker) {
+                    workerSpec->WorkerIncarnationId = (*worker)->IncarnationId;
                 }
                 layout->WorkerSpecs.insert_or_assign(preloadAction.WorkerAddress, std::move(workerSpec));
             }
