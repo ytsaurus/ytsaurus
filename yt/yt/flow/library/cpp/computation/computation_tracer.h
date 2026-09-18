@@ -12,8 +12,10 @@ enum class EEpochPartKind
 {
     // Work on available input, including I/O and throttling.
     Processing,
-    // Input starvation, downstream backpressure, or pipeline coordination.
+    // Pipeline coordination or unclassified waiting.
     Waiting,
+    WaitingForInput,
+    WaitingForOutput,
 };
 
 class IComputationTracer

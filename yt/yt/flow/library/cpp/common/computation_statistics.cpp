@@ -11,19 +11,18 @@ TBatchStatistics& TBatchStatistics::operator+=(const TBatchStatistics& other)
     return *this;
 }
 
-void TPartitionProcessingRates::Register(TRegistrar registrar)
+void TProcessingObservation::Register(TRegistrar registrar)
 {
-    registrar.Parameter("processed", &TThis::Processed);
-    registrar.Parameter("capacity", &TThis::Capacity)
-        .Default();
-}
-
-void TComputationProcessingRates::Register(TRegistrar registrar)
-{
-    registrar.Parameter("rate_1m", &TThis::Rate1m)
-        .Default();
-    registrar.Parameter("rate_10m", &TThis::Rate10m)
-        .Default();
+    registrar.Parameter("sequence", &TThis::Sequence);
+    registrar.Parameter("spec_generation", &TThis::SpecGeneration);
+    registrar.Parameter("captured_at", &TThis::CapturedAt);
+    registrar.Parameter("observation_duration", &TThis::ObservationDuration);
+    registrar.Parameter("processed_count", &TThis::ProcessedCount);
+    registrar.Parameter("processed_byte_size", &TThis::ProcessedByteSize);
+    registrar.Parameter("processing_time", &TThis::ProcessingTime);
+    registrar.Parameter("input_waiting_time", &TThis::InputWaitingTime);
+    registrar.Parameter("output_waiting_time", &TThis::OutputWaitingTime);
+    registrar.Parameter("other_waiting_time", &TThis::OtherWaitingTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

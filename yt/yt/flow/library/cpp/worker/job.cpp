@@ -422,6 +422,7 @@ public:
                         status->InputMetrics = JobInputMetrics_;
                     }
                 }
+                status->ProcessingObservation = std::move(computationStatus->ProcessingObservation);
                 status->PartitionStatus = computationStatus->PartitionStatus;
                 status->EpochPartTimes = computationStatus->EpochPartTimes;
                 // Get internal computation limits. Will be enriched later.

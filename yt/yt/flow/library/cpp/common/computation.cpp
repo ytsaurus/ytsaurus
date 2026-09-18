@@ -1,5 +1,7 @@
 #include "computation.h"
 
+#include "computation_statistics.h"
+
 #include "flow_view.h"
 #include "message.h"
 #include "spec.h"
@@ -70,6 +72,9 @@ void IComputationRunContext::MarkDeduplicated(TMessageId messageId)
 void TComputationStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_traverse", &TThis::NodeTraverse)
+        .Default();
+    registrar.Parameter("processing_observation", &TThis::ProcessingObservation)
+        .DontSerializeDefault()
         .Default();
     registrar.Parameter("partition_status", &TThis::PartitionStatus)
         .Default();

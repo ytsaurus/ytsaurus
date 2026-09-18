@@ -2,43 +2,43 @@
 
 #include "computation_tracer.h"
 
-#include <yt/yt/core/misc/ema_counter.h>
 #include <yt/yt/flow/library/cpp/common/computation_statistics.h>
+
+#include <array>
 
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProcessingRateEstimator
+class TProcessingObservationAccumulator
 {
 public:
-    explicit TProcessingRateEstimator(TInstant startTime);
+    explicit TProcessingObservationAccumulator(TInstant startTime);
 
     void StartEpoch(const THashMap<EEpochPartKind, IComputationTracer::TPartState>& partStates);
     void AddInputs(i64 count, i64 byteSize);
-    TComputationProcessingRatesPtr Commit(
+    TProcessingObservationPtr Commit(
         const THashMap<EEpochPartKind, IComputationTracer::TPartState>& partStates,
         TInstant now = TInstant::Now());
 
 private:
-    using TCounter = TEmaCounter<double, 2>;
-
-    static TCounter MakeCounter();
+    static constexpr std::array PartKinds_ = {
+        EEpochPartKind::Processing,
+        EEpochPartKind::Waiting,
+        EEpochPartKind::WaitingForInput,
+        EEpochPartKind::WaitingForOutput,
+    };
 
     TInstant LastCommitTime_;
-    TDuration BaselineProcessingTime_;
-    TDuration BaselineWaitingTime_;
+    std::array<TDuration, PartKinds_.size()> BaselineTimes_;
+    std::array<TDuration, PartKinds_.size()> TotalTimes_;
+    i64 Sequence_ = 0;
     bool EpochCommitted_ = false;
-    TCounter Count_ = MakeCounter();
-    TCounter Bytes_ = MakeCounter();
     i64 TotalCount_ = 0;
     i64 TotalBytes_ = 0;
     i64 PendingCount_ = 0;
     i64 PendingBytes_ = 0;
-    double TotalProcessingTime_ = 0;
-    double TotalWallTime_ = 0;
-    TCounter ProcessingTime_ = MakeCounter();
-    TCounter WallTime_ = MakeCounter();
+    TDuration TotalWallTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

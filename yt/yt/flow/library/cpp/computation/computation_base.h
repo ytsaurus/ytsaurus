@@ -6,7 +6,7 @@
 #include "job_state/state_manager.h"
 #include "key_visitor.h"
 #include "lineage_accumulator.h"
-#include "processing_rate_estimator.h"
+#include "processing_observation_accumulator.h"
 #include "universal_controller.h"
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
@@ -160,8 +160,7 @@ protected:
         TSystemTimestamp reportTime,
         TSystemTimestamp systemWatermark,
         const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
-        i64 iterationCycle,
-        TComputationProcessingRatesPtr processingRates);
+        i64 iterationCycle);
 
     //! Returns the distributed throttler client for the given id.
     //! Throws if |throttlerId| is not in the dynamic pipeline spec's
@@ -649,8 +648,8 @@ private:
 
     TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
 
-    TProcessingRateEstimator ProcessingRateEstimator_{StartTime_};
-    TComputationProcessingRatesPtr ProcessingRates_;
+    TProcessingObservationAccumulator ProcessingObservationAccumulator_{StartTime_};
+    TAtomicIntrusivePtr<TProcessingObservation> ProcessingObservation_;
 
     std::optional<TStreamId> CreateActiveSourceStreamId();
     ISourcePtr CreateActiveSource();

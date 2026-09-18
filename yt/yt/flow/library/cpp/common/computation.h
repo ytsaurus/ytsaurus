@@ -143,6 +143,7 @@ struct TComputationStatus
     : public NYTree::TYsonStruct
 {
     TNodeTraverseDataPtr NodeTraverse;
+    TProcessingObservationPtr ProcessingObservation;
     NYTree::IMapNodePtr PartitionStatus;
     THashMap<std::string, double> EpochPartTimes;
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits;

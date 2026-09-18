@@ -165,7 +165,6 @@ struct TNodeTraverseData
     TSystemTimestamp ReportTime;
 
     std::optional<i64> IterationCycle;
-    TComputationProcessingRatesPtr ProcessingRates;
 
     THashMap<TStreamId, TStreamTraverseDataPtr> Streams;
 

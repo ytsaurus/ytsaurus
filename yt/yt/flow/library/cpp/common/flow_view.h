@@ -301,6 +301,7 @@ struct TJobStatus
     i64 Epoch{};
 
     TFromPartitionTraverseDataPtr FromPartitionTraverseData;
+    TProcessingObservationPtr ProcessingObservation;
 
     TNodePerformanceMetricsPtr PerformanceMetrics;
     TNodeInputMetricsPtr InputMetrics;
