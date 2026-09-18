@@ -31,13 +31,14 @@ TSchedulingHeartbeatContextBase::TSchedulingHeartbeatContextBase(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
+    IInvokerPtr backgroundInvoker,
     const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     const TJobResources& defaultMinSpareAllocationResources)
     : NodeShardId_(nodeShardId)
     , Config_(std::move(config))
     , Node_(std::move(node))
-    , NodeDescriptor_(Node_->BuildExecDescriptor())
+    , NodeDescriptor_(Node_->BuildExecDescriptorWithOffloadedDtor(std::move(backgroundInvoker)))
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
     , DefaultMinSpareAllocationResources_(defaultMinSpareAllocationResources)
