@@ -235,6 +235,31 @@ class InternalStateTrackingTest {
     }
 
     @Test
+    @DisplayName("reading a protobuf state does not send it back")
+    void readingAProtoStateDoesNotSendItBack() {
+        // Bytes that do not round-trip: an unknown field placed before the known one comes back
+        // after it. A tracked read re-encodes the value and takes that difference for a change.
+        var payload = ByteString.copyFrom(new byte[]{0x10, 0x07, 0x08, 0x2A});
+        holder(PROTO_STATE).load(key(message), new State(protoWire(payload)));
+
+        assertEquals(42L, ctx.getState(PROTO, message).get().getCount());
+
+        assertTrue(modifiedOf(PROTO_STATE).isEmpty());
+        assertEquals(0, proto(PROTO_STATE).getStateItemsCount());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of a protobuf state attaches it without writing it")
+    void protoGetOrDefaultAttachesWithoutWriting() {
+        var value = ctx.getState(PROTO, message).getOrDefault();
+
+        assertEquals(TOptionalTestMessage.getDefaultInstance(), value);
+        assertSame(value, ctx.getState(PROTO, message).get());
+        assertTrue(modifiedOf(PROTO_STATE).isEmpty());
+        assertEquals(0, proto(PROTO_STATE).getStateItemsCount());
+    }
+
+    @Test
     @DisplayName("getOrDefault(value) binds the given value, so changes to it are written back")
     void getOrDefaultBindsTheGivenValue() {
         var initial = new Counter();
@@ -483,6 +508,10 @@ class InternalStateTrackingTest {
 
     private static UnversionedRow key(ExtendedMessage forMessage) {
         return forMessage.getKey().getRow();
+    }
+
+    private static ByteString protoWire(ByteString payload) {
+        return CodecRegistry.getInstance().getInternalStateValueCodec().encode(payload.toByteArray());
     }
 
     private static ByteString wire(long value) {

@@ -17,6 +17,9 @@ import tech.ytsaurus.flow.row.codec.InternalStateValueCodec;
  * to the bytes it arrived with, the default of {@link #getOrDefault} included.
  * {@link #readOnly()} gives the untracked view.
  *
+ * <p>A state whose value cannot be changed in place — a protobuf one — is never tracked: it is
+ * written by {@link #set} and {@link #clear} alone.
+ *
  * @param <T> state value type.
  */
 public class InternalStateAccessor<T> implements StateAccessor<T> {
@@ -63,7 +66,7 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
         if (state == null || state.isReset()) {
             return null;
         }
-        return state.getMutableValue(codec);
+        return descriptor.holdsImmutableValue() ? state.getValue(codec) : state.getMutableValue(codec);
     }
 
     /**
@@ -128,11 +131,17 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
     /**
      * Puts {@code value} under the key as an unmodified state and encodes it right away, so that
      * the bytes serve as the baseline the end-of-request sweep compares against: an untouched
-     * default produces no write, one changed in place does.
+     * default produces no write, one changed in place does. An immutable value is stored without
+     * the codec instead — there is nothing for the sweep to find, so it skips the entry.
      */
     private T attach(T value) {
-        State state = new State(value, codec);
-        state.getBytes();
+        State state;
+        if (descriptor.holdsImmutableValue()) {
+            state = new State(codec.encode(value), value);
+        } else {
+            state = new State(value, codec);
+            state.getBytes();
+        }
         statesHolder.load(key.getRow(), state);
         return value;
     }

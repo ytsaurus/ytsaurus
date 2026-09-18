@@ -24,6 +24,7 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
     private final ByteArrayCodec<T> codec;
     private final @Nullable Supplier<T> defaultValueSupplier;
     private final boolean readOnly;
+    private final boolean immutableValue;
 
     InternalStateDescriptor(
             String name,
@@ -31,7 +32,17 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
             ByteArrayCodec<T> codec,
             @Nullable Supplier<T> defaultValueSupplier
     ) {
-        this(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ false);
+        this(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ false, /*immutableValue*/ false);
+    }
+
+    InternalStateDescriptor(
+            String name,
+            Class<T> stateClass,
+            ByteArrayCodec<T> codec,
+            @Nullable Supplier<T> defaultValueSupplier,
+            boolean immutableValue
+    ) {
+        this(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ false, immutableValue);
     }
 
     InternalStateDescriptor(
@@ -47,13 +58,25 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
             Class<T> stateClass,
             ByteArrayCodec<T> codec,
             @Nullable Supplier<T> defaultValueSupplier,
-            boolean readOnly
+            boolean readOnly,
+            boolean immutableValue
     ) {
         this.name = name;
         this.stateClass = stateClass;
         this.codec = codec;
         this.defaultValueSupplier = defaultValueSupplier;
         this.readOnly = readOnly;
+        this.immutableValue = immutableValue;
+    }
+
+    /**
+     * Whether a value of this state cannot be changed in place, so that reading it need not track
+     * it: the end-of-request sweep would re-encode the value only to find the bytes it arrived
+     * with. True for a protobuf state — its messages are immutable and a change is expressed as
+     * {@code set(get().toBuilder()...build())}.
+     */
+    boolean holdsImmutableValue() {
+        return immutableValue;
     }
 
     /**
@@ -112,7 +135,8 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
         if (readOnly) {
             return this;
         }
-        return new InternalStateDescriptor<>(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ true);
+        return new InternalStateDescriptor<>(
+                name, stateClass, codec, defaultValueSupplier, /*readOnly*/ true, immutableValue);
     }
 
     @Override
