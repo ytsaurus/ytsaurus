@@ -3383,6 +3383,7 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
     // Add a worker.
     auto worker = New<NFlow::TWorker>();
     worker->RpcAddress = workerAddress;
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
     FlowView->State->Workers[workerAddress] = worker;
 
     // Assign the partition to the worker (so ResourceQueue balancer sees it as a computation worker).
@@ -3415,13 +3416,81 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
     JobManager->DistributeJobs(FlowView);
     FlowView->State->CommitMutation();
 
-    // Verify: WorkerSpecs[workerAddress].PreloadResources contains resId.
+    // Verify: WorkerSpecs[workerAddress].PreloadResources contains resId, stamped with the incarnation.
     const auto& layout = FlowView->State->ExecutionSpec->Layout;
     auto* workerSpec = layout->WorkerSpecs.FindPtr(workerAddress);
     ASSERT_TRUE(workerSpec != nullptr) << "WorkerSpecs must have an entry for the worker after PreloadAdd";
     ASSERT_TRUE(*workerSpec != nullptr);
     EXPECT_TRUE((*workerSpec)->PreloadResources.contains(resId))
         << "PreloadResources must contain the preloadable resource after DistributeJobs applies PreloadAdd action";
+    ASSERT_TRUE((*workerSpec)->WorkerIncarnationId);
+    EXPECT_EQ(*(*workerSpec)->WorkerIncarnationId, worker->IncarnationId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The first preload action for a new incarnation of the address replaces the spec of the previous
+//! incarnation instead of extending it: the new incarnation has none of its resources.
+TEST_F(TJobBalancerTest, PreloadSpecOfPreviousIncarnationIsReplaced)
+{
+    Reset();
+
+    const TResourceId resId = TResourceId("res_preload");
+    const TResourceId staleResId = TResourceId("res_stale");
+    const TComputationId compId = TComputationId("Computation0");
+    const std::string workerAddress = "flow0";
+
+    auto spec = New<TPipelineSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
+    resourceSpec->PreloadRequired = true;
+    spec->Resources[resId] = resourceSpec;
+    spec->Resources[staleResId] = resourceSpec;
+
+    auto computationSpec = CreateGenericComputationSpec<TSimpleComputation>();
+    auto resourceDescription = New<TResourceDescription>();
+    resourceDescription->Controller = false;
+    computationSpec->RequiredResourceIds[resId] = resourceDescription;
+    spec->Computations[compId] = computationSpec;
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->JobManager->BalancerType = EJobBalancerType::ResourceQueue;
+    dynamicSpec->JobManager->AsyncBalancing = false;
+    dynamicSpec->Computations[compId] = New<TDynamicComputationSpec>();
+    dynamicSpec->Computations[compId]->Parameters->AddChild("desired_partition_count", NYTree::ConvertToNode(1u));
+
+    Prepare(spec, dynamicSpec);
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+
+    auto worker = New<NFlow::TWorker>();
+    worker->RpcAddress = workerAddress;
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
+    FlowView->State->Workers[workerAddress] = worker;
+
+    // The previous incarnation was issued the stale resource.
+    {
+        FlowView->State->StartMutation();
+        auto staleSpec = New<TWorkerSpec>();
+        staleSpec->PreloadResources.insert(staleResId);
+        staleSpec->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+        FlowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign(workerAddress, staleSpec);
+        FlowView->State->CommitMutation();
+    }
+
+    // The stray partition makes the balancer plan the worker and issue a preload for resId.
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    FlowView->State->CommitMutation();
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    auto* workerSpec = layout->WorkerSpecs.FindPtr(workerAddress);
+    ASSERT_TRUE(workerSpec != nullptr);
+    EXPECT_TRUE((*workerSpec)->PreloadResources.contains(resId));
+    EXPECT_FALSE((*workerSpec)->PreloadResources.contains(staleResId));
+    ASSERT_TRUE((*workerSpec)->WorkerIncarnationId);
+    EXPECT_EQ(*(*workerSpec)->WorkerIncarnationId, worker->IncarnationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

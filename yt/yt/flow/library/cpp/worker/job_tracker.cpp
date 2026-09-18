@@ -380,12 +380,15 @@ public:
                 ExecutionSpec_->ResourceTargetRevisions->GetValue());
         }
 
-        // Update preloaded resources based on WorkerSpecs.
+        // Update preloaded resources based on WorkerSpecs. Skip a spec of a previous incarnation of
+        // this address: the controller will replace it.
         auto workerSpecIt = ExecutionSpec_->Layout->WorkerSpecs.find(Context_->WorkerNodeInfo->RpcAddress);
-        if (workerSpecIt != ExecutionSpec_->Layout->WorkerSpecs.end()) {
-            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
-        } else {
+        if (workerSpecIt == ExecutionSpec_->Layout->WorkerSpecs.end()) {
             ResourceManager_->UpdatePreloadedResources({});
+        } else if (const auto& incarnationId = workerSpecIt->second->WorkerIncarnationId;
+            !incarnationId || *incarnationId == Context_->WorkerNodeInfo->IncarnationId)
+        {
+            ResourceManager_->UpdatePreloadedResources(workerSpecIt->second->PreloadResources);
         }
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {

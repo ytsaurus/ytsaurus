@@ -587,6 +587,8 @@ void TWorkerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("preload_resources", &TThis::PreloadResources)
         .Default();
+    registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
