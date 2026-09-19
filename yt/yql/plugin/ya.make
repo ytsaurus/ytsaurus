@@ -18,3 +18,7 @@ RECURSE(
     process
     qtworker
 )
+
+RECURSE_FOR_TESTS(
+    ut
+)
