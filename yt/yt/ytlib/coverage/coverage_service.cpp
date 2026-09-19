@@ -35,7 +35,7 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TCoverageService, Collect)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ToProto(response->mutable_coverage_map(), ReadCoverageOrThrow());
 
