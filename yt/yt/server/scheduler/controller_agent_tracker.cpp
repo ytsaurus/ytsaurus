@@ -1328,11 +1328,11 @@ private:
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
                     TError("Too few agents matching tag")
-                        .With(TErrorAttribute{"controller_agent_tag", tag})
-                        .With(TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag})
-                        .With(TErrorAttribute{"agents", agentsWithTag})
-                        .With(TErrorAttribute{"min_alive_agent_count", thresholds.Absolute})
-                        .With(TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative}));
+                        .With("controller_agent_tag", tag)
+                        .With("alive_agents", aliveAgentWithCurrentTag)
+                        .With("agents", agentsWithTag)
+                        .With("min_alive_agent_count", thresholds.Absolute)
+                        .With("min_alive_agent_ratio", thresholds.Relative));
             }
         }
 
