@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/rpc/config.h>
+
 #include <yt/yt/library/dynamic_config/config.h>
 
 namespace NYT::NMasterCache {
@@ -47,6 +49,9 @@ void TMasterCacheProgramConfig::Register(TRegistrar /*registrar*/)
 void TMasterCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
+        .DefaultNew();
+
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
