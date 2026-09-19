@@ -178,6 +178,7 @@ private:
     {
         BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+        RpcServer_->Configure(Config_->RpcServer);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
         if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
             HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
@@ -284,6 +285,8 @@ private:
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
         TSingletonManager::Reconfigure(newConfig);
+
+        RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
     }
