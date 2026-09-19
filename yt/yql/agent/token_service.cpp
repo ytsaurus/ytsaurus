@@ -39,7 +39,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, IssueQueryTemporaryToken)
     {
-        context->SetRequestInfo("Cluster: %v", request->cluster());
+        context->AnnotateRequest()
+            .With("Cluster", request->cluster());
 
         auto tokenFuture = TokenManager_->IssueQueryTemporaryToken(
             request->query_identity_token(),
