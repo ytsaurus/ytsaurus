@@ -175,11 +175,15 @@ public:
     TShuffleService(
         IInvokerPtr invoker,
         IClientPtr client,
-        std::string localServerAddress)
+        std::string localServerAddress,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
             invoker,
             TShuffleServiceProxy::GetDescriptor(),
-            ShuffleServiceLogger())
+            ShuffleServiceLogger(),
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
         , LocalServerAddress_(std::move(localServerAddress))
         , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
         , ShuffleManager_(CreateShuffleManager(std::move(client), std::move(invoker)))
@@ -500,12 +504,14 @@ private:
 IServicePtr CreateShuffleService(
     IInvokerPtr invoker,
     IClientPtr client,
-    std::string localServerAddress)
+    std::string localServerAddress,
+    IAuthenticatorPtr authenticator)
 {
     return New<TShuffleService>(
         std::move(invoker),
         std::move(client),
-        std::move(localServerAddress));
+        std::move(localServerAddress),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
