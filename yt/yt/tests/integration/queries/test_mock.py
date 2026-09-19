@@ -16,6 +16,11 @@ from yt.common import date_string_to_timestamp_mcs
 from yt.test_helpers import assert_items_equal
 
 from yt.wrapper import yson
+import yt.packages.requests as requests
+
+from yt.common import YtResponseError
+
+import json
 
 from collections import Counter
 from builtins import set as Set
@@ -1711,3 +1716,50 @@ class TestSearchRpcProxy(TestSearch):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
+
+
+class TestQueriesHttpProxy(QueriesTestBase):
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    def _get_proxy_address(self):
+        return "http://" + self.Env.get_proxy_address()
+
+    def _get_query_declared_parameters_info_via_http(self, params):
+        headers = {
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
+            "X-YT-User-Name": "root",
+        }
+        return requests.post(
+            "{}/api/v4/get_query_declared_parameters_info".format(self._get_proxy_address()),
+            headers=headers)
+
+    def _raise_for_yt_error(self, rsp):
+        if "X-YT-Error" in rsp.headers:
+            raise YtResponseError(json.loads(rsp.headers["X-YT-Error"]))
+        rsp.raise_for_status()
+
+    # YTADMINREQ-60283: Core dump on uninitialized "engine" in driver.
+    @authors("achains")
+    def test_get_query_declared_parameters_info_without_engine(self, query_tracker):
+        rsp = self._get_query_declared_parameters_info_via_http({
+            "query": "some query",
+            "stage": "production",
+        })
+        with raises_yt_error():
+            self._raise_for_yt_error(rsp)
+
+        assert requests.get(self._get_proxy_address() + "/ping").ok
+
+    @authors("achains")
+    def test_get_query_declared_parameters_info(self, query_tracker):
+        rsp = self._get_query_declared_parameters_info_via_http({
+            "query": "some query",
+            "engine": "mock",
+            "stage": "production",
+        })
+        self._raise_for_yt_error(rsp)
+        result = yson.loads(rsp.content)
+        assert "parameters" in result
