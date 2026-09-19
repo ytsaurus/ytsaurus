@@ -182,26 +182,23 @@ private:
         auto atomicity = AtomicityFromTransactionId(params.TransactionId);
         auto durability = FromProto<EDurability>(request->durability());
 
-        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, CommitSignature: %x, "
-            "Generation: %x, RowCount: %v, DataWeight: %v, RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, "
-            "UpstreamReplicaId: %v, ReplicationEra: %v",
-            tabletId,
-            params.TransactionId,
-            params.TransactionStartTimestamp,
-            params.TransactionTimeout,
-            atomicity,
-            durability,
-            params.PrepareSignature,
-            params.CommitSignature,
-            params.Generation,
-            params.RowCount,
-            params.DataWeight,
-            requestCodecId,
-            params.Versioned,
-            params.SyncReplicaIds,
-            upstreamReplicaId,
-            replicationEra);
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("TransactionId", params.TransactionId)
+            .With("TransactionStartTimestamp", params.TransactionStartTimestamp)
+            .With("TransactionTimeout", params.TransactionTimeout)
+            .With("Atomicity", atomicity)
+            .With("Durability", durability)
+            .WithFormat("PrepareSignature", "%x", params.PrepareSignature)
+            .WithFormat("CommitSignature", "%x", params.CommitSignature)
+            .WithFormat("Generation", "%x", params.Generation)
+            .With("RowCount", params.RowCount)
+            .With("DataWeight", params.DataWeight)
+            .With("RequestCodec", requestCodecId)
+            .With("Versioned", params.Versioned)
+            .With("SyncReplicaIds", params.SyncReplicaIds)
+            .With("UpstreamReplicaId", upstreamReplicaId)
+            .With("ReplicationEra", replicationEra);
 
         TServiceProfilerGuard profilerGuard;
 
@@ -392,14 +389,13 @@ private:
             ? request->commit_signature()
             : prepareSignature;
 
-        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
-            "ActionCount: %v, PrepareSignature: %x, CommitSignature: %x",
-            transactionId,
-            transactionStartTimestamp,
-            transactionTimeout,
-            request->actions_size(),
-            prepareSignature,
-            commitSignature);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("TransactionStartTimestamp", transactionStartTimestamp)
+            .With("TransactionTimeout", transactionTimeout)
+            .With("ActionCount", request->actions_size())
+            .WithFormat("PrepareSignature", "%x", prepareSignature)
+            .WithFormat("CommitSignature", "%x", commitSignature);
 
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto future = transactionManager->RegisterTransactionActions(
@@ -421,9 +417,9 @@ private:
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto trimmedRowCount = request->trimmed_row_count();
 
-        context->SetRequestInfo("TabletId: %v, TrimmedRowCount: %v",
-            tabletId,
-            trimmedRowCount);
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("TrimmedRowCount", trimmedRowCount);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
@@ -443,7 +439,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqSuspendTabletCell());
@@ -454,7 +450,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqResumeTabletCell());
@@ -469,10 +465,10 @@ private:
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto payloads = std::move(request->Attachments());
 
-        context->SetRequestInfo("TabletId: %v, MountRevision: %v, HunkCount: %v",
-            tabletId,
-            mountRevision,
-            payloads.size());
+        context->AnnotateRequest()
+            .With("TabletId", tabletId)
+            .With("MountRevision", mountRevision)
+            .With("HunkCount", payloads.size());
 
         const auto& tabletManager = Slot_->GetHunkTabletManager();
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);

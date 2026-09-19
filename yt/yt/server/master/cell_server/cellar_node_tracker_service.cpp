@@ -52,9 +52,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            node->GetDefaultAddress());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
         cellarNodeTracker->ProcessHeartbeat(context);

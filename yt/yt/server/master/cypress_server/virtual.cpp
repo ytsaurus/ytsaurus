@@ -168,7 +168,9 @@ void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
+    context->AnnotateRequest()
+        .With("Limit", limit)
+        .With("AttributeFilter", attributeFilter);
 
     if (limit < 0) {
         THROW_ERROR_EXCEPTION("Limit is negative")
@@ -221,10 +223,10 @@ void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
             auto strLength = stream.Str().length();
             response->set_value(std::move(stream).Str());
 
-            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
-                session->Items.size(),
-                limit,
-                strLength);
+            context->AnnotateResponse()
+                .With("Count", session->Items.size())
+                .With("Limit", limit)
+                .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
@@ -249,9 +251,9 @@ void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        attributeFilter,
-        limit);
+    context->AnnotateRequest()
+        .With("AttributeFilter", attributeFilter)
+        .With("Limit", limit);
 
     if (limit < 0) {
         THROW_ERROR_EXCEPTION("Limit is negative")
@@ -304,10 +306,10 @@ void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
             auto strLength = stream.Str().length();
             response->set_value(std::move(stream).Str());
 
-            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
-                session->Items.size(),
-                limit,
-                strLength);
+            context->AnnotateResponse()
+                .With("Count", session->Items.size())
+                .With("Limit", limit)
+                .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
@@ -518,7 +520,9 @@ void TVirtualMulticellMapBase::GetSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
+    context->AnnotateRequest()
+        .With("Limit", limit)
+        .With("AttributeFilter", attributeFilter);
 
     // NB: Must deal with owning node's attributes here due to thread affinity issues.
     auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
@@ -569,10 +573,10 @@ void TVirtualMulticellMapBase::GetSelf(
             auto strLength = stream.Str().length();
             response->set_value(std::move(stream).Str());
 
-            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
-                session->Items.size(),
-                limit,
-                strLength);
+            context->AnnotateResponse()
+                .With("Count", session->Items.size())
+                .With("Limit", limit)
+                .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
@@ -590,7 +594,9 @@ void TVirtualMulticellMapBase::ListSelf(
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
+    context->AnnotateRequest()
+        .With("Limit", limit)
+        .With("AttributeFilter", attributeFilter);
 
     FetchItems(limit, attributeFilter)
         .Subscribe(BIND([=] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
@@ -630,10 +636,10 @@ void TVirtualMulticellMapBase::ListSelf(
             auto strLength = stream.Str().length();
             response->set_value(std::move(stream).Str());
 
-            context->SetResponseInfo("Count: %v, Limit: %v, ByteSize: %v",
-                session->Items.size(),
-                limit,
-                strLength);
+            context->AnnotateResponse()
+                .With("Count", session->Items.size())
+                .With("Limit", limit)
+                .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
@@ -916,7 +922,9 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
     i64 limit = request->limit();
 
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
+    context->AnnotateRequest()
+        .With("Limit", limit)
+        .With("AttributeFilter", attributeFilter);
 
     GetKeys(limit)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
@@ -959,9 +967,9 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
                 }
             }
 
-            context->SetResponseInfo("Count: %v, Incomplete: %v",
-                response->items_size(),
-                response->incomplete());
+            context->AnnotateResponse()
+                .With("Count", response->items_size())
+                .With("Incomplete", response->incomplete());
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }

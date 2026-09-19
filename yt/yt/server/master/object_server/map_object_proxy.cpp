@@ -752,20 +752,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
         THROW_ERROR_EXCEPTION("\"ignore_type_mismatch\" option is not supported for nonversioned map objects");
     }
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
-        type,
-        ignoreExisting,
-        recursive,
-        force,
-        ignoreTypeMismatch);
+    context->AnnotateRequest()
+        .With("Type", type)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("Recursive", recursive)
+        .With("Force", force)
+        .With("IgnoreTypeMismatch", ignoreTypeMismatch);
 
     auto proxy = Create(type, path, explicitAttributes.Get());
     const auto& objectId = proxy->GetId();
 
     response->set_cell_tag(ToProto(TBase::Bootstrap_->GetCellTag()));
     ToProto(response->mutable_node_id(), objectId);
-    context->SetResponseInfo("ObjectId: %v",
-        objectId);
+    context->AnnotateResponse()
+        .With("ObjectId", objectId);
 
     context->Reply();
 }
@@ -853,12 +853,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    context->SetRequestInfo("SourcePath: %v, Mode: %v, Recursive: %v, IgnoreExisting: %v, Force: %v",
-        sourcePath,
-        mode,
-        recursive,
-        ignoreExisting,
-        force);
+    context->AnnotateRequest()
+        .With("SourcePath", sourcePath)
+        .With("Mode", mode)
+        .With("Recursive", recursive)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("Force", force);
 
     auto clonedProxy = Copy(sourcePath, targetPath, mode, ignoreExisting);
 

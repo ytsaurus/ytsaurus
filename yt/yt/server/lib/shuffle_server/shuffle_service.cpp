@@ -218,16 +218,14 @@ public:
 
         auto codec = FromProto<ECodec>(request->codec());
 
-        context->SetRequestInfo(
-            "ParentTransaction: %v, Account: %v, PartitionCount: %v, Medium: %v, ReplicationFactor: %v, "
-            "UsePushBasedShuffle: %v, Codec: %v",
-            parentTransactionId,
-            account,
-            partitionCount,
-            medium,
-            replicationFactor,
-            usePushBasedShuffle,
-            codec);
+        context->AnnotateRequest()
+            .With("ParentTransaction", parentTransactionId)
+            .With("Account", account)
+            .With("PartitionCount", partitionCount)
+            .With("Medium", medium)
+            .With("ReplicationFactor", replicationFactor)
+            .With("UsePushBasedShuffle", usePushBasedShuffle)
+            .With("Codec", codec);
 
         THROW_ERROR_EXCEPTION_IF(
             parentTransactionId.IsEmpty(),
@@ -282,7 +280,8 @@ public:
 
         response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
 
-        context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
+        context->AnnotateResponse()
+            .With("TransactionId", shuffleHandle->TransactionId);
 
         context->Reply();
     }
@@ -301,12 +300,11 @@ public:
                 "Logical writer index must be set when overwrite existing writer data option is enabled");
         }
 
-        context->SetRequestInfo(
-            "ShuffleHandle: %v, ChunkCount: %v, LogicalWriterIndex: %v, OverwriteExistingWriterData: %v",
-            shuffleHandle,
-            request->chunk_specs_size(),
-            logicalWriterIndex,
-            overwriteExistingWriterData);
+        context->AnnotateRequest()
+            .With("ShuffleHandle", shuffleHandle)
+            .With("ChunkCount", request->chunk_specs_size())
+            .With("LogicalWriterIndex", logicalWriterIndex)
+            .With("OverwriteExistingWriterData", overwriteExistingWriterData);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
@@ -352,11 +350,10 @@ public:
             logicalWriterIndexRange = std::pair(begin, end);
         }
 
-        context->SetRequestInfo(
-            "ShuffleHandle: %v, PartitionIndex: %v, LogicalWriterIndexRange: %v",
-            shuffleHandle,
-            request->partition_index(),
-            logicalWriterIndexRange);
+        context->AnnotateRequest()
+            .With("ShuffleHandle", shuffleHandle)
+            .With("PartitionIndex", request->partition_index())
+            .With("LogicalWriterIndexRange", logicalWriterIndexRange);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
@@ -388,7 +385,8 @@ public:
             nodeDirectoryBuilder.Add(GetReplicasFromChunkSpec(chunkSpec));
         }
 
-        context->SetResponseInfo("ChunkCount: %v", response->chunk_specs_size());
+        context->AnnotateResponse()
+            .With("ChunkCount", response->chunk_specs_size());
 
         context->Reply();
     }
@@ -417,11 +415,10 @@ public:
             excludedSessionId = FromProto<NChunkClient::TSessionId>(request->excluded_session_id());
         }
 
-        context->SetRequestInfo(
-            "ShuffleHandle: %v, PartitionIndex: %v, ExcludedSessionId: %v",
-            shuffleHandle,
-            partitionIndex,
-            excludedSessionId);
+        context->AnnotateRequest()
+            .With("ShuffleHandle", shuffleHandle)
+            .With("PartitionIndex", partitionIndex)
+            .With("ExcludedSessionId", excludedSessionId);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
@@ -434,7 +431,8 @@ public:
         ToProto(session->mutable_session_id(), sessionDescriptor.SessionId);
         ToProto(session->mutable_sequencer_node(), sessionDescriptor.SequencerNode);
 
-        context->SetResponseInfo("SessionId: %v", sessionDescriptor.SessionId);
+        context->AnnotateResponse()
+            .With("SessionId", sessionDescriptor.SessionId);
         context->Reply();
     }
 
@@ -455,11 +453,10 @@ private:
             : std::nullopt;
         bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
 
-        context->SetRequestInfo(
-            "ShuffleHandle: %v, LogicalWriterIndex: %v, OverwriteExistingWriterData: %v",
-            shuffleHandle,
-            logicalWriterIndex,
-            overwriteExistingWriterData);
+        context->AnnotateRequest()
+            .With("ShuffleHandle", shuffleHandle)
+            .With("LogicalWriterIndex", logicalWriterIndex)
+            .With("OverwriteExistingWriterData", overwriteExistingWriterData);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
@@ -477,10 +474,9 @@ private:
             ToProto(session->mutable_sequencer_node(), readySession.Descriptor.SequencerNode);
         }
 
-        context->SetResponseInfo(
-            "WriterId: %v, ReadySessionCount: %v",
-            registration.WriterId,
-            registration.ReadySessions.size());
+        context->AnnotateResponse()
+            .With("WriterId", registration.WriterId)
+            .With("ReadySessionCount", registration.ReadySessions.size());
         context->Reply();
     }
 

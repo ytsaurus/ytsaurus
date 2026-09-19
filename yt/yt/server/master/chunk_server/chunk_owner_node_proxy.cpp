@@ -444,7 +444,8 @@ private:
         YT_VERIFY(!Finished_);
         Finished_ = true;
 
-        RpcContext_->SetResponseInfo("ChunkCount: %v", RpcContext_->Response().chunks_size());
+        RpcContext_->AnnotateResponse()
+            .With("ChunkCount", RpcContext_->Response().chunks_size());
         RpcContext_->Reply();
     }
 
@@ -1755,9 +1756,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo("OmitDynamicStores: %v, ThrowOnChunkViews: %v",
-        request->omit_dynamic_stores(),
-        request->throw_on_chunk_views());
+    context->AnnotateRequest()
+        .With("OmitDynamicStores", request->omit_dynamic_stores())
+        .With("ThrowOnChunkViews", request->throw_on_chunk_views());
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -1869,19 +1870,17 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto replicateStartToCellTags = replicatedToCellTags;
     replicateStartToCellTags.erase(externalCellTag);
 
-    context->SetRequestInfo(
-        "SchemaMode: %v, UpdateMode: %v, OptimizeFor: %v, LockMode: %v, Title: %v, Timeout: %v, "
-        "ReplicatedToCellTags: %v, IsTableSchemaPresent: %v, TableSchemaId: %v, ChunkSchemaId: %v",
-        uploadContext.SchemaMode,
-        uploadContext.Mode,
-        uploadContext.OptimizeFor,
-        lockMode,
-        uploadTransactionTitle,
-        uploadTransactionTimeout,
-        replicatedToCellTags,
-        tableSchema || tableSchemaId,
-        tableSchemaId,
-        chunkSchemaId);
+    context->AnnotateRequest()
+        .With("SchemaMode", uploadContext.SchemaMode)
+        .With("UpdateMode", uploadContext.Mode)
+        .With("OptimizeFor", uploadContext.OptimizeFor)
+        .With("LockMode", lockMode)
+        .With("Title", uploadTransactionTitle)
+        .With("Timeout", uploadTransactionTimeout)
+        .With("ReplicatedToCellTags", replicatedToCellTags)
+        .With("IsTableSchemaPresent", tableSchema || tableSchemaId)
+        .With("TableSchemaId", tableSchemaId)
+        .With("ChunkSchemaId", chunkSchemaId);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -1971,10 +1970,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                         chunkManager->AttachToChunkList(newChunkList, {deltaChunkList});
 
-                        context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v",
-                            newChunkList->GetId(),
-                            snapshotChunkList->GetId(),
-                            deltaChunkList->GetId());
+                        context->AnnotateResponse()
+                            .With("NewChunkListId", newChunkList->GetId())
+                            .With("SnapshotChunkListId", snapshotChunkList->GetId())
+                            .With("DeltaChunkListId", deltaChunkList->GetId());
                         break;
                     }
 
@@ -1997,9 +1996,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             newTabletChunkList->SetPivotKey(snapshotChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
                         }
 
-                        context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v",
-                            newChunkList->GetId(),
-                            snapshotChunkList->GetId());
+                        context->AnnotateResponse()
+                            .With("NewChunkListId", newChunkList->GetId())
+                            .With("SnapshotChunkListId", snapshotChunkList->GetId());
                         break;
                     }
 
@@ -2056,9 +2055,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto hunkChunkListId = lockedNode->GetHunkChunkList()
                             ? lockedNode->GetHunkChunkList()->GetId()
                             : NullChunkListId;
-                        context->SetIncrementalResponseInfo("NewChunkListId: %v, NewHunkChunkListId: %v",
-                            lockedNode->GetChunkList()->GetId(),
-                            hunkChunkListId);
+                        context->AnnotateResponse()
+                            .With("NewChunkListId", lockedNode->GetChunkList()->GetId())
+                            .With("NewHunkChunkListId", hunkChunkListId);
 
                         break;
                     }
@@ -2106,8 +2105,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
     }
 
-    context->SetIncrementalResponseInfo("UploadTransactionId: %v",
-        uploadTransactionId);
+    context->AnnotateResponse()
+        .With("UploadTransactionId", uploadTransactionId);
     context->Reply();
 }
 
@@ -2119,10 +2118,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     bool fetchHunkChunkListId = request->fetch_hunk_chunk_list_id();
     bool fetchTabletHunkChunkListIds = request->fetch_tablet_hunk_chunk_list_ids();
 
-    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListId: %v, FetchTabletHunkChunkListIds: %v",
-        fetchLastKey,
-        fetchHunkChunkListId,
-        fetchTabletHunkChunkListIds);
+    context->AnnotateRequest()
+        .With("FetchLastKey", fetchLastKey)
+        .With("FetchHunkChunkListId", fetchHunkChunkListId)
+        .With("FetchTabletHunkChunkListIds", fetchTabletHunkChunkListIds);
 
     ValidateNotExternal();
     ValidateInUpdate();
@@ -2158,10 +2157,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             node->GetUploadParams(&md5Hasher);
             ToProto(response->mutable_md5_hasher(), md5Hasher);
 
-            context->SetIncrementalResponseInfo("UploadChunkListId: %v, HasLastKey: %v, RowCount: %v",
-                uploadChunkListId,
-                response->has_last_key(),
-                response->row_count());
+            context->AnnotateResponse()
+                .With("UploadChunkListId", uploadChunkListId)
+                .With("HasLastKey", response->has_last_key())
+                .With("RowCount", response->row_count());
             break;
         }
 
@@ -2280,14 +2279,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = FromProto<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, "
-        "MD5Hasher: %v, OptimizeFor: %v",
-        uploadContext.Statistics,
-        uploadContext.CompressionCodec,
-        uploadContext.ErasureCodec,
-        uploadContext.ChunkFormat,
-        uploadContext.MD5Hasher.has_value(),
-        uploadContext.OptimizeFor);
+    context->AnnotateRequest()
+        .With("Statistics", uploadContext.Statistics)
+        .With("CompressionCodec", uploadContext.CompressionCodec)
+        .With("ErasureCodec", uploadContext.ErasureCodec)
+        .With("ChunkFormat", uploadContext.ChunkFormat)
+        .With("MD5Hasher", uploadContext.MD5Hasher.has_value())
+        .With("OptimizeFor", uploadContext.OptimizeFor);
 
     ValidateTransaction();
     ValidateInUpdate();

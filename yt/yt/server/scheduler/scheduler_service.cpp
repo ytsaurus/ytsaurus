@@ -68,10 +68,9 @@ private:
         auto transactionId = GetTransactionId(context);
         auto mutationId = context->GetMutationId();
 
-        context->SetRequestInfo(
-            "Type: %v, TransactionId: %v",
-            type,
-            transactionId);
+        context->AnnotateRequest()
+            .With("Type", type)
+            .With("TransactionId", transactionId);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -100,7 +99,8 @@ private:
         auto id = operation->GetId();
         ToProto(response->mutable_operation_id(), id);
 
-        context->SetResponseInfo("OperationId: %v", id);
+        context->AnnotateResponse()
+            .With("OperationId", id);
         context->Reply();
     }
 
@@ -108,9 +108,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationIdOrAlias);
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -141,10 +140,9 @@ private:
 
         bool abortRunningAllocations = request->abort_running_jobs();
 
-        context->SetRequestInfo(
-            "OperationId: %v, AbortRunningAllocations: %v",
-            operationIdOrAlias,
-            abortRunningAllocations);
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias)
+            .With("AbortRunningAllocations", abortRunningAllocations);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -167,9 +165,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationIdOrAlias);
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -190,9 +187,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationIdOrAlias);
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -214,9 +210,8 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationIdOrAlias);
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -247,10 +242,9 @@ private:
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
         auto patches = FromProto<TSpecPatchList>(request->patches());
-        context->SetRequestInfo(
-            "OperationId: %v, Patches: %v",
-            operationIdOrAlias,
-            MakeFormattableView(patches, TDefaultFormatter()));
+        context->AnnotateRequest()
+            .With("OperationId", operationIdOrAlias)
+            .With("Patches", MakeFormattableView(patches, TDefaultFormatter()));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -295,7 +289,8 @@ private:
 
         ToProto(response->mutable_allocation_brief_info(), briefOperationInfo);
 
-        context->SetResponseInfo("AllocationId: %v", allocationId);
+        context->AnnotateResponse()
+            .With("AllocationId", allocationId);
         context->Reply();
     }
 };

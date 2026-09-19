@@ -343,9 +343,9 @@ private:
         auto movableTableIds = FromProto<std::vector<TTableId>>(request->movable_tables());
         bool keepActions = request->keep_actions();
 
-        context->SetRequestInfo("TableIds: %v, KeepActions: %v",
-            movableTableIds,
-            keepActions);
+        context->AnnotateRequest()
+            .With("TableIds", movableTableIds)
+            .With("KeepActions", keepActions);
 
         ValidateNoTransaction();
 
@@ -390,9 +390,9 @@ private:
         TTabletCellBundleResources resourceDelta;
         Deserialize(resourceDelta, ConvertToNode(TYsonString(request->resource_delta())));
 
-        context->SetRequestInfo("SrcBundle: %v, DstBundle: %v",
-            srcBundle->GetName(),
-            impl->GetName());
+        context->AnnotateRequest()
+            .With("SrcBundle", srcBundle->GetName())
+            .With("DstBundle", impl->GetName());
 
         tabletManager->TransferTabletCellBundleResources(srcBundle, impl->As<TTabletCellBundle>(), resourceDelta);
 

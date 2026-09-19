@@ -44,12 +44,11 @@ private:
     {
         auto slotManager = Bootstrap_->GetSlotManager();
 
-        context->SetRequestInfo(
-            "Locations: %v, AlertTypesToReset: %v, ForceReset: %v, HasArmedPersistentAlerts: %v",
-            request->locations(),
-            request->alert_types_to_reset(),
-            request->force_reset(),
-            slotManager->HasArmedPersistentAlerts());
+        context->AnnotateRequest()
+            .With("Locations", request->locations())
+            .With("AlertTypesToReset", request->alert_types_to_reset())
+            .With("ForceReset", request->force_reset())
+            .With("HasArmedPersistentAlerts", slotManager->HasArmedPersistentAlerts());
 
         THashSet<std::string> alertTypesToReset(
             request->alert_types_to_reset().begin(),

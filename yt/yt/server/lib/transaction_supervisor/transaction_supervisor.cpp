@@ -878,25 +878,22 @@ private:
                     .With("coordinator_clock_cluster_tag", owner->SelfClockClusterTag_);
             }
 
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
-                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorPrepareMode: %v, "
-                "CoordinatorCommitMode: %v, StronglyOrdered: %v, MaxAllowedCommitTimestamp: %v, StrongOrderingTags: %v, "
-                "CoordinatorExpectedPrepareSignature: %v, ParticipantExpectedPrepareSignatures: %v",
-                transactionId,
-                participantCellIds,
-                prepareOnlyParticipantCellIds,
-                cellIdsToSyncWithBeforePrepare,
-                force2PC,
-                generatePrepareTimestamp,
-                inheritCommitTimestamp,
-                clockClusterTag,
-                coordinatorPrepareMode,
-                coordinatorCommitMode,
-                stronglyOrdered,
-                maxAllowedCommitTimestamp,
-                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
-                expectedPrepareSignatures.Coordinator,
-                expectedPrepareSignatures.Participants);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .With("ParticipantCellIds", participantCellIds)
+                .With("PrepareOnlyParticipantCellIds", prepareOnlyParticipantCellIds)
+                .With("CellIdsToSyncWithBeforePrepare", cellIdsToSyncWithBeforePrepare)
+                .With("Force2PC", force2PC)
+                .With("GeneratePrepareTimestamp", generatePrepareTimestamp)
+                .With("InheritCommitTimestamp", inheritCommitTimestamp)
+                .With("ClockClusterTag", clockClusterTag)
+                .With("CoordinatorPrepareMode", coordinatorPrepareMode)
+                .With("CoordinatorCommitMode", coordinatorCommitMode)
+                .With("StronglyOrdered", stronglyOrdered)
+                .With("MaxAllowedCommitTimestamp", maxAllowedCommitTimestamp)
+                .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100))
+                .With("CoordinatorExpectedPrepareSignature", expectedPrepareSignatures.Coordinator)
+                .With("ParticipantExpectedPrepareSignatures", expectedPrepareSignatures.Participants);
 
             // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
             if (owner->TransactionManager_->CommitTransaction(context)) {
@@ -978,9 +975,9 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             bool force = request->force();
 
-            context->SetRequestInfo("TransactionId: %v, Force: %v",
-                transactionId,
-                force);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .With("Force", force);
 
             auto owner = GetOwnerOrThrow();
 
@@ -1006,9 +1003,9 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             bool pingAncestors = request->ping_ancestors();
 
-            context->SetRequestInfo("TransactionId: %v, PingAncestors: %v",
-                transactionId,
-                pingAncestors);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .With("PingAncestors", pingAncestors);
 
             auto owner = GetOwnerOrThrow();
             context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors, /*pingerAddress*/ std::nullopt));
@@ -1016,8 +1013,8 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, PingTransactions)
         {
-            context->SetRequestInfo("TransactionCount: %v",
-                request->subrequests_size());
+            context->AnnotateRequest()
+                .With("TransactionCount", request->subrequests_size());
 
             auto owner = GetOwnerOrThrow();
 
@@ -1051,8 +1048,8 @@ private:
         {
             auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
-            context->SetRequestInfo("CellCount: %v",
-                cellIds.size());
+            context->AnnotateRequest()
+                .With("CellCount", cellIds.size());
 
             auto owner = GetOwnerOrThrow();
             auto downedCellIds = owner->GetDownedParticipants(cellIds);
@@ -1060,8 +1057,8 @@ private:
             auto* responseCellIds = context->Response().mutable_cell_ids();
             ToProto(responseCellIds, downedCellIds);
 
-            context->SetResponseInfo("DownedCellCount: %v",
-                downedCellIds.size());
+            context->AnnotateResponse()
+                .With("DownedCellCount", downedCellIds.size());
 
             context->Reply();
         }
@@ -1237,9 +1234,9 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto stronglyOrdered = request->strongly_ordered();
 
-            context->SetRequestInfo("TransactionId: %v, StronglyOrdered: %v",
-                transactionId,
-                stronglyOrdered);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .With("StronglyOrdered", stronglyOrdered);
 
             NTransactionSupervisor::NProto::TReqParticipantAbortTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);

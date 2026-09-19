@@ -147,7 +147,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
-        context->SetRequestInfo("Count: %v", request->count());
+        context->AnnotateRequest()
+            .With("Count", request->count());
 
         DoGenerateTimestamps(context);
     }
@@ -214,7 +215,8 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ = TTimestamp(CurrentTimestamp_.Underlying() + count);
 
-        context->SetResponseInfo("Timestamp: %v", result);
+        context->AnnotateResponse()
+            .With("Timestamp", result);
 
         context->Response().set_timestamp(ToProto(result));
         if (ClockClusterTag_ != InvalidCellTag) {

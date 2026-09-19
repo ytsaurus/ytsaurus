@@ -67,9 +67,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            node->GetDefaultAddress());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessFullHeartbeat(node, context);
@@ -91,11 +91,11 @@ private:
 
         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, LocationUuid: %v, Validation: %v",
-            nodeId,
-            node->GetDefaultAddress(),
-            locationUuid,
-            request->is_validation());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress())
+            .With("LocationUuid", locationUuid)
+            .With("Validation", request->is_validation());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessLocationFullHeartbeat(node, context);
@@ -115,9 +115,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            node->GetDefaultAddress());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->FinalizeFullHeartbeatSession(node, context);
@@ -138,9 +138,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v",
-            nodeId,
-            node->GetDefaultAddress());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessIncrementalHeartbeat(context);

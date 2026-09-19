@@ -76,11 +76,11 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v, SequenceNumber: %v",
-            nodeId,
-            node->GetDefaultAddress(),
-            FormatResourceUsage(resourceUsage, resourceLimits),
-            request->sequence_number());
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress())
+            .With("ResourceUsage", FormatResourceUsage(resourceUsage, resourceLimits))
+            .With("SequenceNumber", request->sequence_number());
 
         if (!node->ReportedDataNodeHeartbeat()) {
             SyncWithUpstream();

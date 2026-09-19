@@ -524,7 +524,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
-        context->SetRequestInfo("LeaseId: %v", leaseId);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId);
 
         NProto::TReqRegisterLease req;
         ToProto(req.mutable_lease_id(), leaseId);
@@ -539,9 +540,9 @@ private:
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto force = request->force();
-        context->SetRequestInfo("LeaseId: %v, Force: %v",
-            leaseId,
-            force);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Force", force);
 
         NProto::TReqRevokeLease req;
         ToProto(req.mutable_lease_id(), leaseId);
@@ -558,10 +559,10 @@ private:
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
         auto force = request->force();
-        context->SetRequestInfo("LeaseId: %v, Persistent: %v, Force: %v",
-            leaseId,
-            persistent,
-            force);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Persistent", persistent)
+            .With("Force", force);
 
         if (persistent) {
             NProto::TReqToggleLeaseRefCounter req;
@@ -584,9 +585,9 @@ private:
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
-        context->SetRequestInfo("LeaseId: %v, Persistent: %v",
-            leaseId,
-            persistent);
+        context->AnnotateRequest()
+            .With("LeaseId", leaseId)
+            .With("Persistent", persistent);
 
         if (persistent) {
             NProto::TReqToggleLeaseRefCounter req;

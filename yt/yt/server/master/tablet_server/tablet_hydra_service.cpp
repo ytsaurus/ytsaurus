@@ -66,11 +66,11 @@ private:
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
         auto storeCounts = FromProto<std::vector<int>>(request->store_counts());
 
-        context->SetRequestInfo("SubrequestCount: %v, TotalStoreCount: %v, BundleName: %v, UpdateReason: %v",
-            ssize(storeCounts),
-            std::accumulate(storeCounts.begin(), storeCounts.end(), 0),
-            bundleName,
-            updateReason);
+        context->AnnotateRequest()
+            .With("SubrequestCount", ssize(storeCounts))
+            .With("TotalStoreCount", std::accumulate(storeCounts.begin(), storeCounts.end(), 0))
+            .With("BundleName", bundleName)
+            .With("UpdateReason", updateReason);
 
         for (auto storeCount : storeCounts) {
             THROW_ERROR_EXCEPTION_IF(
@@ -96,9 +96,9 @@ private:
         bool balancingAttributesRequested = request->fetch_balancing_attributes();
         bool statisticsRequested = request->fetch_statistics();
 
-        context->SetRequestInfo("BalancingAttributesRequested: %v, StatisticsRequested: %v",
-            balancingAttributesRequested,
-            statisticsRequested);
+        context->AnnotateRequest()
+            .With("BalancingAttributesRequested", balancingAttributesRequested)
+            .With("StatisticsRequested", statisticsRequested);
 
         SyncWithUpstream();
 

@@ -69,12 +69,15 @@ private:
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo("JobId: %v, TransactionId: %v", jobId, transactionId);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("TransactionId", transactionId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto chunkIds = job->DumpInputContext(transactionId);
 
-        context->SetResponseInfo("ChunkIds: %v", chunkIds);
+        context->AnnotateResponse()
+            .With("ChunkIds", chunkIds);
         ToProto(response->mutable_chunk_ids(), chunkIds);
         context->Reply();
     }
@@ -84,7 +87,10 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v, Limit: %v, Offset: %v", jobId, request->limit(), request->offset());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("Limit", request->limit())
+            .With("Offset", request->offset());
 
         auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
         if (!job) {
@@ -104,7 +110,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
         if (!job) {
@@ -122,7 +129,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         auto job = Bootstrap_->GetJobController()->FindRecentlyRemovedJob(jobId);
         if (!job) {
@@ -143,10 +151,9 @@ private:
         TJobShellDescriptor jobShellDescriptor;
         jobShellDescriptor.Subcontainer = subcontainer;
 
-        context->SetRequestInfo(
-            "JobId: %v, Subcontainer: %v",
-            jobId,
-            subcontainer);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("Subcontainer", subcontainer);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto pollShellResponse = job->PollJobShell(jobShellDescriptor, parameters);
@@ -154,7 +161,8 @@ private:
         response->set_result(ToProto(pollShellResponse.Result));
         if (pollShellResponse.LoggingContext) {
             response->set_logging_context(ToProto(pollShellResponse.LoggingContext));
-            context->SetResponseInfo("LoggingContext: %v", pollShellResponse.LoggingContext);
+            context->AnnotateResponse()
+                .With("LoggingContext", pollShellResponse.LoggingContext);
         }
         context->Reply();
     }
@@ -167,9 +175,9 @@ private:
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
-        context->SetRequestInfo(
-            "JobId: %v, InterruptionTimeout: %v",
-            jobId, timeout);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("InterruptionTimeout", timeout);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
 
@@ -202,7 +210,8 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto error = FromProto<TError>(request->error());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         job->Abort(error);
@@ -224,11 +233,10 @@ private:
         auto path = FromProto<NYPath::TYPath>(request->path());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo(
-            "JobId: %v, Path: %v, TransactionId: %v",
-            jobId,
-            path,
-            transactionId);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("Path", path)
+            .With("TransactionId", transactionId);
 
         const auto& jobProxyLogManager = Bootstrap_->GetJobProxyLogManager();
         if (!jobProxyLogManager) {

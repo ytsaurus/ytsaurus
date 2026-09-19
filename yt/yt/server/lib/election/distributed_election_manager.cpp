@@ -1015,9 +1015,9 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
     auto epochId = FromProto<TEpochId>(request->epoch_id());
     auto leaderId = request->leader_id();
 
-    context->SetRequestInfo("Epoch: %v, LeaderId: %v",
-        epochId,
-        leaderId);
+    context->AnnotateRequest()
+        .With("Epoch", epochId)
+        .With("LeaderId", leaderId);
 
     if (State_ != EPeerState::Following) {
         THROW_ERROR_EXCEPTION(
@@ -1053,7 +1053,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
     Y_UNUSED(request);
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     if (!IsVotingPeer()) {
         THROW_ERROR_EXCEPTION(
@@ -1069,11 +1069,11 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId_);
     response->set_self_id(CellManager_->GetSelfPeerId());
 
-    context->SetResponseInfo("State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v",
-        State_,
-        VoteId_,
-        ElectionCallbacks_->FormatPriority(priority),
-        VoteEpochId_);
+    context->AnnotateResponse()
+        .With("State", State_)
+        .With("VoteId", VoteId_)
+        .With("Priority", ElectionCallbacks_->FormatPriority(priority))
+        .With("VoteEpochId", VoteEpochId_);
 
     context->Reply();
 }
