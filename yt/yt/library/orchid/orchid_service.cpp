@@ -71,7 +71,8 @@ private:
                 }
 
                 auto error = FromProto<TError>(responseHeader.error());
-                context->SetResponseInfo("InnerError: %v", error);
+                context->AnnotateResponse()
+                    .With("InnerError", error);
 
                 response->Attachments() = responseMessage.ToVector();
 

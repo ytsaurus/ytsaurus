@@ -36,7 +36,8 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Resolve)
     {
-        context->SetRequestInfo("Count: %v", request->subrequests_size());
+        context->AnnotateRequest()
+            .With("Count", request->subrequests_size());
 
         std::vector<TFuture<TNetworkAddress>> futures;
         futures.reserve(request->subrequests_size());
