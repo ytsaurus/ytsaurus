@@ -148,7 +148,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         auto validateJobPhase = [] (EJobPhase jobPhase) {
             if (jobPhase != EJobPhase::SpawningJobProxy) {
@@ -207,7 +208,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -222,9 +224,9 @@ private:
         auto artifactName = request->artifact_name();
         auto pipePath = request->pipe_path();
 
-        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
-            jobId,
-            artifactName);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("ArtifactName", artifactName);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -241,9 +243,9 @@ private:
         auto artifactPath = request->artifact_path();
         auto error = FromProto<TError>(request->error());
 
-        context->SetRequestInfo("JobId: %v, ArtifactName: %v",
-            jobId,
-            artifactName);
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("ArtifactName", artifactName);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -257,7 +259,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -272,17 +275,15 @@ private:
         auto result = std::move(*request->mutable_result());
         auto error = FromProto<TError>(result.error());
         const auto& profiles = request->profiles();
-        context->SetRequestInfo(
-            "JobId: %v, Error: %v, ResultSize: %v, HasStatistics: %v, HasStderr: %v, HasFailedContext: %v, "
-            "ProfileCount: %v, ProfilesTotalSize: %v",
-            jobId,
-            error,
-            result.ByteSizeLong(),
-            request->has_statistics(),
-            request->has_job_stderr(),
-            request->has_fail_context(),
-            profiles.size(),
-            CalculateProfilesSize(profiles));
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("Error", error)
+            .With("ResultSize", result.ByteSizeLong())
+            .With("HasStatistics", request->has_statistics())
+            .With("HasStderr", request->has_job_stderr())
+            .With("HasFailedContext", request->has_fail_context())
+            .With("ProfileCount", profiles.size())
+            .With("ProfilesTotalSize", CalculateProfilesSize(profiles));
 
         auto job = GetSchedulerJobOrThrow(jobId);
 
@@ -330,7 +331,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -349,17 +351,15 @@ private:
         auto hasJobTrace = request->has_job_trace();
         const auto& profiles = request->profiles();
 
-        context->SetRequestInfo(
-            "JobId: %v, Progress: %lf, Statistics: %v, StderrSize: %v, HasJobTrace: %v, HeartbeatEpoch: %v, "
-            "ProfileCount: %v, ProfilesTotalSize: %v",
-            jobId,
-            progress,
-            NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf(),
-            stderrSize,
-            hasJobTrace,
-            request->epoch(),
-            profiles.size(),
-            CalculateProfilesSize(profiles));
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .WithFormat("Progress", "%lf", progress)
+            .With("Statistics", NYson::ConvertToYsonString(statistics, EYsonFormat::Text).AsStringBuf())
+            .With("StderrSize", stderrSize)
+            .With("HasJobTrace", hasJobTrace)
+            .With("HeartbeatEpoch", request->epoch())
+            .With("ProfileCount", profiles.size())
+            .With("ProfilesTotalSize", CalculateProfilesSize(profiles));
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
@@ -429,12 +429,12 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto clusterName = TClusterName(YT_OPTIONAL_FROM_PROTO(*request, remote_cluster_name));
 
-        context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, ClusterName: %v",
-            throttlerType,
-            amount,
-            jobId,
-            workloadDescriptor,
-            clusterName);
+        context->AnnotateRequest()
+            .With("ThrottlerType", throttlerType)
+            .With("Amount", amount)
+            .With("JobId", jobId)
+            .With("WorkloadDescriptor", workloadDescriptor)
+            .With("ClusterName", clusterName);
 
         const auto& throttler = GetJobThrottler(throttlerType, std::move(clusterName));
         auto future = throttler->Throttle(amount);
@@ -444,7 +444,8 @@ private:
             auto throttlingRequestId = Bootstrap_->GetJobController()->RegisterThrottlingRequest(future);
 
             ToProto(response->mutable_throttling_request_id(), throttlingRequestId);
-            context->SetResponseInfo("ThrottlingRequestId: %v", throttlingRequestId);
+            context->AnnotateResponse()
+                .With("ThrottlingRequestId", throttlingRequestId);
         }
 
         context->Reply();
@@ -454,7 +455,8 @@ private:
     {
         auto throttlingRequestId = FromProto<TGuid>(request->throttling_request_id());
 
-        context->SetRequestInfo("ThrottlingRequestId: %v", throttlingRequestId);
+        context->AnnotateRequest()
+            .With("ThrottlingRequestId", throttlingRequestId);
 
         auto future = Bootstrap_->GetJobController()->GetThrottlingRequestOrThrow(throttlingRequestId);
         auto optionalResult = future.TryGet();
@@ -462,7 +464,8 @@ private:
             optionalResult->ThrowOnError();
         }
         response->set_completed(optionalResult.has_value());
-        context->SetResponseInfo("Completed: %v", response->completed());
+        context->AnnotateResponse()
+            .With("Completed", response->completed());
         context->Reply();
     }
 
@@ -470,7 +473,8 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v", jobId);
+        context->AnnotateRequest()
+            .With("JobId", jobId);
 
         Bootstrap_->GetJobController()->OnJobMemoryThrashing(jobId);
 
@@ -482,13 +486,14 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto payload = FromProto<std::string>(request->payload());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
-            jobId,
-            payload.size());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("PayloadSize", payload.size());
 
         auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
 
-        context->SetResponseInfo("JobId: %v", jobId);
+        context->AnnotateResponse()
+            .With("JobId", jobId);
 
         ToProto(response->mutable_signature(), signature);
         context->Reply();
@@ -499,16 +504,18 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         auto signature = FromProto<TSignaturePtr>(request->signature());
 
-        context->SetRequestInfo("JobId: %v, PayloadSize: %v",
-            jobId,
-            signature->Payload().size());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .With("PayloadSize", signature->Payload().size());
 
         bool isValid = WaitFor(Bootstrap_->GetSignatureValidator()->Validate(signature))
             .ValueOrThrow();
 
         response->set_valid(isValid);
 
-        context->SetResponseInfo("JobId: %v, Valid: %v", jobId, isValid);
+        context->AnnotateResponse()
+            .With("JobId", jobId)
+            .With("Valid", isValid);
         context->Reply();
     }
 };

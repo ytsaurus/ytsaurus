@@ -1266,8 +1266,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     auto cellTag = context->GetTargetMasterCellTag();
     auto masterChannelKind = context->GetTargetMasterChannelKind();
 
-    context->SetRequestInfo("RequestCount: %v",
-        request->part_counts_size());
+    context->AnnotateRequest()
+        .With("RequestCount", request->part_counts_size());
 
     if (masterChannelKind != EMasterChannelKind::Leader &&
         masterChannelKind != EMasterChannelKind::Follower)

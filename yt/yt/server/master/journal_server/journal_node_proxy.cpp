@@ -323,7 +323,8 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("Statistics: %v", request->statistics());
+        context->AnnotateRequest()
+            .With("Statistics", request->statistics());
 
         auto* journal = GetThisImpl();
         YT_VERIFY(journal->IsTrunk());
@@ -342,7 +343,7 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto* journal = GetThisImpl();
         const auto& journalManager = Bootstrap_->GetJournalManager();
@@ -359,7 +360,8 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo("RowCount: %v", request->row_count());
+        context->AnnotateRequest()
+            .With("RowCount", request->row_count());
 
         auto* journal = LockThisImpl();
         const auto& journalManager = Bootstrap_->GetJournalManager();

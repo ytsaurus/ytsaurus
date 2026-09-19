@@ -1349,7 +1349,7 @@ private:
 
         DeclareNonMutating();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto chunk = TEphemeralObjectPtr<TChunk>(GetThisImpl());
 

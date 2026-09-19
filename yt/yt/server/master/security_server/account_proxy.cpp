@@ -694,9 +694,9 @@ private:
             Bootstrap_,
             /*zeroByDefault*/ true);
 
-        context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
-            srcAccount->GetName(),
-            impl->GetName());
+        context->AnnotateRequest()
+            .With("SrcAccount", srcAccount->GetName())
+            .With("DstAccount", impl->GetName());
 
         securityManager->TransferAccountResources(srcAccount, impl, resourceDelta);
 

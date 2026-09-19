@@ -2742,7 +2742,8 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo("TransactionId: %v", id);
+            context->AnnotateResponse()
+                .With("TransactionId", id);
         }
     }
 
@@ -2812,7 +2813,8 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo("TransactionId: %v", id);
+            context->AnnotateResponse()
+                .With("TransactionId", id);
         }
     }
 
@@ -3277,15 +3279,13 @@ private:
         }
 
         if (context) {
-            context->SetResponseInfo(
-                "ReplicatedTransactionIds: %v, MissingTransactionIds: %v, SkippedTransactionIds: %v, "
-                "BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v",
-                postedTransactionIds,
-                postedMissingTransactionIds,
-                skippedTransactionIds,
-                boomerangMutationId,
-                boomerangWaveId,
-                boomerangWaveSize);
+            context->AnnotateResponse()
+                .With("ReplicatedTransactionIds", postedTransactionIds)
+                .With("MissingTransactionIds", postedMissingTransactionIds)
+                .With("SkippedTransactionIds", skippedTransactionIds)
+                .With("BoomerangMutationId", boomerangMutationId)
+                .With("BoomerangWaveId", boomerangWaveId)
+                .With("BoomerangWaveSize", boomerangWaveSize);
         }
     }
 

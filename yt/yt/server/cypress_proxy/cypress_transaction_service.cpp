@@ -69,7 +69,8 @@ private:
         auto request = createRequest(proxy);
         auto requestId = request->GetRequestId();
 
-        context->SetRequestInfo("NewRequestId: %v", requestId);
+        context->AnnotateRequest()
+            .With("NewRequestId", requestId);
 
         // Copy everything.
         request->CopyFrom(context->Request());
@@ -96,7 +97,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, CommitTransaction)
     {
-        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
+        context->AnnotateRequest(/*flush*/ false)
+            .With("TransactionId", FromProto<TTransactionId>(request->transaction_id()));
 
         ForwardRequestToMaster(std::move(context), [] (const TCypressTransactionServiceProxy& proxy) {
             return proxy.CommitTransaction();
@@ -109,7 +111,8 @@ private:
             return proxy.AbortTransaction();
         };
 
-        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
+        context->AnnotateRequest(/*flush*/ false)
+            .With("TransactionId", FromProto<TTransactionId>(request->transaction_id()));
 
         ForwardRequestToMaster(std::move(context), createForwardingRequest);
     }
@@ -120,7 +123,8 @@ private:
             return proxy.PingTransaction();
         };
 
-        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
+        context->AnnotateRequest(/*flush*/ false)
+            .With("TransactionId", FromProto<TTransactionId>(request->transaction_id()));
 
         ForwardRequestToMaster(std::move(context), createForwardingRequest);
     }

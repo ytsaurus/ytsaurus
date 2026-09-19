@@ -743,15 +743,13 @@ private:
 
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
-        RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, SuppressStronglyOrderedTransactionBarrier: %v, "
-            "OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
-            TotalSubrequestCount_,
-            GetSuppressUpstreamSync(RpcContext_),
-            GetSuppressTransactionCoordinatorSync(RpcContext_),
-            GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()),
-            originalRequestId,
-            GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
+        RpcContext_->AnnotateRequest()
+            .With("SubrequestCount", TotalSubrequestCount_)
+            .With("SuppressUpstreamSync", GetSuppressUpstreamSync(RpcContext_))
+            .With("SuppressTransactionCoordinatorSync", GetSuppressTransactionCoordinatorSync(RpcContext_))
+            .With("SuppressStronglyOrderedTransactionBarrier", GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()))
+            .With("OriginalRequestId", originalRequestId)
+            .With("AllowResolveFromSequoiaObject", GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
@@ -2108,8 +2106,9 @@ private:
 
             YT_VERIFY(!context->IsReplied());
             // Either we're answering with a kept response or this is a boomerang mutation.
-            context->SetRequestInfo();
-            context->SetResponseInfo("KeptResponse: %v", true);
+            context->AnnotateRequest();
+            context->AnnotateResponse()
+                .With("KeptResponse", true);
             context->Reply(response.Data);
         }  else if (response.GroundUpdateQueueSequenceNumber) {
             subrequest->GroundUpdateQueueSequenceNumber = *response.GroundUpdateQueueSequenceNumber;
@@ -2475,9 +2474,9 @@ private:
             return;
         }
 
-        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes: %v",
-            response.subresponses_size(),
-            response.uncertain_subrequest_indexes());
+        RpcContext_->AnnotateResponse()
+            .With("SubresponseCount", response.subresponses_size())
+            .With("UncertainSubrequestIndexes", response.uncertain_subrequest_indexes());
 
         if (groundUpdateQueueSequenceNumber != -1) {
             YT_TLOG_DEBUG("Synchronizing with ground update queue before replying")
@@ -2867,7 +2866,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     Y_UNUSED(request);
     Y_UNUSED(response);
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateClusterInitialized();
     ValidatePeer(EPeerKind::Leader);

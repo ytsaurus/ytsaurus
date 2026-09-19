@@ -57,12 +57,12 @@ template <class T>
         checkOptions.Vital = request->vital();
     }
 
-    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
-        userName,
-        permission,
-        checkOptions.Columns,
-        checkOptions.Vital,
-        ignoreSafeMode);
+    context->AnnotateRequest()
+        .With("User", userName)
+        .With("Permission", permission)
+        .With("Columns", checkOptions.Columns)
+        .With("Vital", checkOptions.Vital)
+        .With("IgnoreSafeMode", ignoreSafeMode);
 
     const auto& securityManager = bootstrap->GetSecurityManager();
     if (!ignoreSafeMode && securityManager->IsSafeMode()) {
@@ -104,7 +104,8 @@ template <class T>
         ToProto(response->mutable_row_level_acl()->mutable_items(), *checkResponse.RowLevelAcl);
     }
 
-    context->SetResponseInfo("Action: %v", checkResponse.Action);
+    context->AnnotateResponse()
+        .With("Action", checkResponse.Action);
     context->Reply();
 }
 

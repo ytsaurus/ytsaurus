@@ -111,11 +111,12 @@ private:
         auto query = rpcRequest.query();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         QueryTracker_->StartQuery(queryId, engine, query, options, user);
 
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
@@ -138,7 +139,8 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         QueryTracker_->AbortQuery(queryId, options, user);
 
@@ -158,9 +160,9 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
-            queryId,
-            resultIndex);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("ResultIndex", resultIndex);
 
         auto queryResult = QueryTracker_->GetQueryResult(queryId, resultIndex, user);
 
@@ -206,9 +208,9 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, ResultIndex: %v",
-            queryId,
-            resultIndex);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("ResultIndex", resultIndex);
 
         auto rowset = QueryTracker_->ReadQueryResult(queryId, resultIndex, options, user);
 
@@ -243,7 +245,8 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         auto query = QueryTracker_->GetQuery(queryId, options, user);
         ToProto(rpcResponse->mutable_query(), query);
@@ -306,7 +309,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->ListQueries(options, user);
 
@@ -345,7 +348,8 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         QueryTracker_->AlterQuery(queryId, options, user);
 
@@ -370,7 +374,7 @@ private:
         if (rpcRequest.has_settings()) {
             options.Settings = ConvertToNode(TYsonStringBuf(rpcRequest.settings()));
         }
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->GetQueryTrackerInfo(options);
 
@@ -408,7 +412,7 @@ private:
         }
         options.Query = rpcRequest.query();
         options.Engine = ConvertQueryEngineFromProto(rpcRequest.engine());
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto result = QueryTracker_->GetQueryDeclaredParametersInfo(options);
 

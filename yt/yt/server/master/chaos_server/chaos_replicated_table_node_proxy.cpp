@@ -656,7 +656,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     DeclareNonMutating();
     SuppressAccessTracking();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -679,11 +679,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
 
     auto setResponseInfo = [] (auto& context) {
-        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-            context->Response().tablets_size(),
-            context->Response().tablet_cells_size(),
-            context->Response().replicas_size(),
-            context->Response().indices_size());
+        context->AnnotateResponse()
+            .With("TabletCount", context->Response().tablets_size())
+            .With("TabletCellCount", context->Response().tablet_cells_size())
+            .With("ReplicaCount", context->Response().replicas_size())
+            .With("IndexCount", context->Response().indices_size());
     };
 
     if (trunkTable->IsQueue()) {
@@ -730,8 +730,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
     }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    context->SetRequestInfo("Schema: %v",
-        tableManager->GetHeavyTableSchemaSync(schema));
+    context->AnnotateRequest()
+        .With("Schema", tableManager->GetHeavyTableSchemaSync(schema));
 
     auto* table = LockThisImpl();
 

@@ -101,7 +101,7 @@ private:
 
     void SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         auto* impl = LockThisImpl();
         if (DelegateInvocation(impl->GetValue(), request, response, context)) {

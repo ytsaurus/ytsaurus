@@ -1511,8 +1511,8 @@ private:
         FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
         if (context) {
-            context->SetResponseInfo("NodeId: %v",
-                node->GetId());
+            context->AnnotateResponse()
+                .With("NodeId", node->GetId());
         }
     }
 

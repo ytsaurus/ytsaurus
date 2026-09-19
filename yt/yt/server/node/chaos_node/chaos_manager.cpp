@@ -782,8 +782,8 @@ private:
         ToProto(response->mutable_replication_card_id(), replicationCardId);
 
         if (context) {
-            context->SetResponseInfo("ReplicationCardId: %v",
-                replicationCardId);
+            context->AnnotateResponse()
+                .With("ReplicationCardId", replicationCardId);
         }
     }
 
@@ -855,8 +855,8 @@ private:
         ToProto(response->mutable_replication_card_id(), replicationCardId);
 
         if (context) {
-            context->SetResponseInfo("ReplicationCardId: %v",
-                replicationCardId);
+            context->AnnotateResponse()
+                .With("ReplicationCardId", replicationCardId);
         }
     }
 
@@ -1357,8 +1357,8 @@ private:
         ToProto(response->mutable_replica_id(), newReplicaId);
 
         if (context) {
-            context->SetResponseInfo("ReplicaId: %v",
-                newReplicaId);
+            context->AnnotateResponse()
+                .With("ReplicaId", newReplicaId);
         }
     }
 
@@ -3012,8 +3012,8 @@ private:
         ToProto(response->mutable_replication_card_collocation_id(), collocation->GetId());
 
         if (context) {
-            context->SetResponseInfo("ReplicationCardCollocationId: %v",
-                collocation->GetId());
+            context->AnnotateResponse()
+                .With("ReplicationCardCollocationId", collocation->GetId());
         }
     }
 

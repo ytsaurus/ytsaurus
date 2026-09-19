@@ -72,11 +72,10 @@ private:
 
         auto sessionTimeout = FromProto<TDuration>(request->session_timeout());
 
-        context->SetRequestInfo(
-            "SessionId: %v, Targets: %v, SessionTimeout: %v",
-            sessionId,
-            targets,
-            sessionTimeout);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("Targets", targets)
+            .With("SessionTimeout", sessionTimeout);
 
         NodeDirectory_->MergeFrom(request->node_directory());
 
@@ -104,7 +103,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto sequencer = DistributedChunkSessionManager_
             ->RenewSessionLeaseAndGetSequencerOrThrow(sessionId);
@@ -122,9 +122,8 @@ private:
             "Invalid attachments size: expected 1, got %v",
             request->Attachments().size());
 
-        context->SetRequestInfo(
-            "SessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto statistics = FromProto<TDistributedChunkSessionWriteStatistics>(request->statistics());
 
@@ -139,9 +138,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo(
-            "SessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
