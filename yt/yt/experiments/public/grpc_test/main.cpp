@@ -60,9 +60,11 @@ public:
 
 DEFINE_RPC_SERVICE_METHOD(TTestService, TestCall)
 {
-    context->SetRequestInfo("a: %v", request->a());
+    context->AnnotateRequest()
+        .With("a", request->a());
     response->set_b(request->a() + 42);
-    context->SetResponseInfo("b: %v", response->b());
+    context->AnnotateResponse()
+        .With("b", response->b());
     context->Reply();
 }
 

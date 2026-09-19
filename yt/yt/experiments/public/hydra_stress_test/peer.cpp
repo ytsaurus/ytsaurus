@@ -53,13 +53,14 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NYT::NProto, Read)
     {
         Y_UNUSED(request);
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
 
         auto value = Peer_->AutomatonPart_->GetCasValue();
         response->set_result(value);
-        context->SetResponseInfo("Result: %v", value);
+        context->AnnotateResponse()
+            .With("Result", value);
         TDelayedExecutor::WaitForDuration(RandomDuration(TDuration::Seconds(3)));
         context->Reply();
     }
@@ -69,9 +70,9 @@ private:
         Y_UNUSED(response);
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("Expected: %v, Desired: %v",
-            request->expected(),
-            request->desired());
+        context->AnnotateRequest()
+            .With("Expected", request->expected())
+            .With("Desired", request->desired());
         auto future = Peer_->AutomatonPart_->CreateCasMutation(context)->CommitAndReply(context);
     }
 
@@ -80,9 +81,9 @@ private:
         Y_UNUSED(response);
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("Count: %v, SequenceId: %v",
-            request->count(),
-            request->id());
+        context->AnnotateRequest()
+            .With("Count", request->count())
+            .With("SequenceId", request->id());
         auto future = Peer_->AutomatonPart_->CreateSequenceMutation(context)->CommitAndReply(context);
     }
 
