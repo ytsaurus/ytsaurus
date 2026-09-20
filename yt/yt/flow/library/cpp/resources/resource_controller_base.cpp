@@ -317,6 +317,7 @@ public:
 
     std::optional<std::pair<TFileSnapshotPtr, TFileSnapshotPtr>> BuildTargetFileSnapshots()
     {
+        const auto& Logger = Context_->Logger;
         std::optional<THashMap<TFileProviderId, TFileProviderRevisionPtr>> revisionsToSnapshot;
         {
             auto guard = Guard(Lock_);
@@ -343,6 +344,7 @@ public:
             }
         }
 
+        TFileSnapshotPtr createdSnapshot;
         if (revisionsToSnapshot) {
             THROW_ERROR_EXCEPTION_UNLESS(
                 Context_->TimeProvider,
@@ -360,10 +362,16 @@ public:
                     now >= *LastFileSnapshotCreationTime_ + FileSnapshotMinCreationPeriod_))
             {
                 PreparingFileSnapshot_ = std::move(snapshot);
+                createdSnapshot = PreparingFileSnapshot_;
                 RegisterKnownFileSnapshot(PreparingFileSnapshot_);
                 LastFileSnapshotCreationTime_ = now;
                 PersistFileSnapshotState();
             }
+        }
+
+        if (createdSnapshot) {
+            YT_TLOG_INFO("Created file snapshot for rollout")
+                .With("FileSnapshotId", createdSnapshot->Id);
         }
 
         auto guard = Guard(Lock_);
@@ -377,6 +385,7 @@ public:
         const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
         std::optional<i64> publishedRevisionId)
     {
+        const auto& Logger = Context_->Logger;
         if (Providers_.empty()) {
             return;
         }
@@ -451,6 +460,7 @@ public:
             }
         }
 
+        std::optional<TFileSnapshotId> promotedSnapshotId;
         if (publishedRevisionId) {
             auto guard = Guard(Lock_);
             if (PreparingFileSnapshot_) {
@@ -460,6 +470,7 @@ public:
                         status->PreparingFileSnapshot->State == EFileSnapshotState::Validated)
                     {
                         ActiveFileSnapshot_ = PreparingFileSnapshot_;
+                        promotedSnapshotId = ActiveFileSnapshot_->Id;
                         PreparingFileSnapshot_.Reset();
                         ActiveFileSnapshotPublishedAt_ = TInstant::Now();
                         PersistFileSnapshotState();
@@ -467,6 +478,11 @@ public:
                     }
                 }
             }
+        }
+
+        if (promotedSnapshotId) {
+            YT_TLOG_INFO("Promoted file snapshot to active target")
+                .With("FileSnapshotId", *promotedSnapshotId);
         }
 
         UpdateRolloutStatus(authoritativeWorkerStatuses, publishedRevisionId);
@@ -884,11 +900,15 @@ private:
                     id,
                     revision->FileProviderClassName,
                     entry.Spec->FileProviderClassName);
+                bool changed = false;
                 {
                     auto guard = Guard(Lock_);
                     if (generation != entry.Generation) {
                         return;
                     }
+                    auto previousIt = PendingRevisions_.find(id);
+                    changed = previousIt == PendingRevisions_.end() ||
+                        !AreNodesEqual(ConvertToNode(previousIt->second), ConvertToNode(revision));
                     PendingRevisions_[id] = revision;
                     if (PendingRevisions_.size() == Providers_.size()) {
                         PublishedRevisions_ = PendingRevisions_;
@@ -898,6 +918,13 @@ private:
                     }
                 }
                 entry.DiscoveryError->ClearError();
+                if (changed) {
+                    YT_TLOG_INFO("Discovered new file provider revision")
+                        .With("FileProvider", id)
+                        .With("ObjectId", revision->ObjectId)
+                        .With("DisplayVersion", revision->DisplayVersion)
+                        .With("ExpectedSize", revision->Size);
+                }
                 return;
             }
 

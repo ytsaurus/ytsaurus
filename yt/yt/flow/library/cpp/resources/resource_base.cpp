@@ -200,11 +200,25 @@ TFuture<TMaterializedFileProviderPtr> TResourceBase::MaterializeFileProvider(
         "Resource cannot materialize file provider %Qv because file storage is unavailable in this process",
         id);
 
+    auto providerLogger = Logger
+        .WithTag("Component", "FileProvider")
+        .WithTag("FileProvider", id);
     auto rawObjectFuture = Context_->FileStorage->GetOrCreate(
         GetFileProviderDownloadObjectId(Context_->ResourceId, id, revision),
         revision->Size,
-        [provider = providerIt->second, revision] (const std::string& directory) {
-            return provider->Download(revision, directory);
+        [provider = providerIt->second, revision, Logger = std::move(providerLogger)] (const std::string& directory) {
+            auto startedAt = TInstant::Now();
+            YT_TLOG_INFO("File provider download started")
+                .With("ObjectId", revision->ObjectId)
+                .With("DisplayVersion", revision->DisplayVersion)
+                .With("ExpectedSize", revision->Size);
+            return provider->Download(revision, directory)
+                .Apply(BIND([revision, startedAt, Logger] {
+                    YT_TLOG_INFO("File provider download completed")
+                        .With("ObjectId", revision->ObjectId)
+                        .With("DisplayVersion", revision->DisplayVersion)
+                        .With("Elapsed", TInstant::Now() - startedAt);
+                }));
         });
     TFuture<NFileStorage::IFileStorageObjectPtr> storageObjectFuture;
     if (!providerSpec->PostprocessCommand) {

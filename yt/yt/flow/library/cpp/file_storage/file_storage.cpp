@@ -530,6 +530,10 @@ public:
         if (hit) {
             HitCounter_.Increment();
             RefreshMetrics();
+            YT_TLOG_INFO("File storage cache hit")
+                .With("ObjectId", id.Underlying())
+                .With("Path", hit->GetPath())
+                .With("CacheLevel", "memory");
             return MakeFuture<IFileStorageObjectPtr>(std::move(hit));
         }
 
@@ -557,6 +561,10 @@ public:
         if (hit) {
             HitCounter_.Increment();
             RefreshMetrics();
+            YT_TLOG_INFO("File storage cache hit")
+                .With("ObjectId", id.Underlying())
+                .With("Path", hit->GetPath())
+                .With("CacheLevel", "memory");
             return MakeFuture<IFileStorageObjectPtr>(std::move(hit));
         }
 
@@ -627,9 +635,17 @@ private:
 
         if (auto object = Probe(id, digest, finalDirectory)) {
             HitCounter_.Increment();
+            YT_TLOG_INFO("File storage cache hit")
+                .With("ObjectId", id.Underlying())
+                .With("Path", object->GetPath())
+                .With("CacheLevel", "disk");
             return object;
         }
         MissCounter_.Increment();
+        YT_TLOG_INFO("File storage cache miss")
+            .With("ObjectId", id.Underlying())
+            .With("ExpectedSize", expectedSize);
+        auto startedAt = TInstant::Now();
 
         auto stagingDirectory = Root_ / "staging" / ToString(TGuid::Create());
         auto payload = stagingDirectory / "payload";
@@ -708,6 +724,11 @@ private:
             auto object = AdoptAndPin(id, digest, finalDirectory, manifest);
             CapacityError_->ClearError();
             DiskFullError_->ClearError();
+            YT_TLOG_INFO("File storage object published")
+                .With("ObjectId", id.Underlying())
+                .With("Path", object->GetPath())
+                .With("Size", manifest->TotalSize)
+                .With("Elapsed", TInstant::Now() - startedAt);
             return object;
         } catch (const std::exception& ex) {
             auto error = TError(ex);
@@ -1237,11 +1258,17 @@ private:
             return EEvictionResult::Failed;
         }
 
-        return DeleteKnownTrashEntry(
+        auto result = DeleteKnownTrashEntry(
             trashName,
             trashPath,
             entry->Size,
             error);
+        if (result == EEvictionResult::Evicted) {
+            YT_TLOG_INFO("Evicted file storage object")
+                .With("ObjectId", rawId)
+                .With("Size", entry->Size);
+        }
+        return result;
     }
 
     void Reconcile()
