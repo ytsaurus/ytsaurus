@@ -327,7 +327,7 @@ public:
         auto requestTags = NLogging::TLoggingTagList()
             .With("RequestId", context->GetRequestId())
             .With("Method", context->GetMethod());
-        if (!CheckTransaction(transaction, "begin finish request for", requestTags) ||
+        if (!CheckTransaction(transaction, "BeginFinishRequest", requestTags) ||
             transaction->GetPersistentState() != ETransactionState::Active ||
             FinishQueue_.Contains(transaction))
         {
@@ -363,7 +363,7 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
-        if (!CheckTransaction(transaction, "persist finish request for", MakeFinishRequestTags(request))) {
+        if (!CheckTransaction(transaction, "PersistFinishRequest", MakeFinishRequestTags(request))) {
             return;
         }
 
@@ -412,7 +412,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        if (!CheckTransaction(transaction, "schedule expired transaction leases revocation for")) {
+        if (!CheckTransaction(transaction, "ScheduleExpiredTransactionLeasesRevocation")) {
             return;
         }
 
@@ -518,7 +518,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        if (!CheckTransaction(transaction, "schedule finish of")) {
+        if (!CheckTransaction(transaction, "ScheduleFinish")) {
             return;
         }
 
@@ -583,7 +583,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        if (!CheckTransaction(transaction, "qneueue leases revocation for")) {
+        if (!CheckTransaction(transaction, "EnqueueLeasesRevocation")) {
             return;
         }
 
@@ -624,7 +624,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        if (!CheckTransaction(transaction, "enqueue finish of")) {
+        if (!CheckTransaction(transaction, "EnqueueFinish")) {
             return;
         }
 
@@ -801,7 +801,7 @@ private:
 
         NTracing::TTraceContextGuard traceGuard(NTracing::GetOrCreateTraceContext("TransactionFinish"));
 
-        if (!CheckTransaction(transaction, "dequeue finish of")) {
+        if (!CheckTransaction(transaction, "DequeueFinish")) {
             return;
         }
 

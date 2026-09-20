@@ -1905,7 +1905,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Partitioning)
                 .With(ex);
 
@@ -2012,7 +2011,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
                 .With(ex);
 
@@ -2328,7 +2326,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
                 .With(ex);
 

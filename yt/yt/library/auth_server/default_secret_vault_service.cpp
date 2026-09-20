@@ -318,9 +318,8 @@ private:
 
         YT_TLOG_DEBUG("Retrieving delegation token from Vault")
             .With("SecretId", request.SecretId)
-            .With("Signature", request.Signature)
-            .With("UserTicket", // signatures are not secret; tokens are
-                       RemoveTicketSignature(request.UserTicket))
+            .With("Signature", request.Signature) // signatures are not secret; tokens are
+            .With("UserTicket", RemoveTicketSignature(request.UserTicket))
             .With("CallId", callId);
 
         CallCountCounter_.Increment();

@@ -2061,7 +2061,7 @@ void TResourceHolder::UpdateResourceDemand(
     YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
 
     YT_TLOG_DEBUG("Resource demand updated")
-        .With("NewRecourceDemand", resources)
+        .With("NewResourceDemand", resources)
         .With("NewPortCount", allocationAttributes.PortCount);
 
     BaseResourceUsage_ = resources;

@@ -264,7 +264,7 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
         WaitFor(lease->Ping())
             .ThrowOnError();
         YT_TLOG_INFO("Ping succeeded")
-                .With("Index", i);
+            .With("Index", i);
     }
 
     ASSERT_TRUE(LeaseExists(lease->GetId()));

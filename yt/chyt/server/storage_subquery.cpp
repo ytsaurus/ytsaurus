@@ -144,7 +144,7 @@ public:
                 leakedMemory[index] = (index < 2) ? 1 : leakedMemory[index - 2] + leakedMemory[index - 1];
             }
             // Prevent optimization.
-            YT_TLOG_DEBUG("Testing Fibbonacci number calculated")
+            YT_TLOG_DEBUG("Testing Fibonacci number calculated")
                 .With("Index", StorageContext_->Settings->Testing->SubqueryAllocationSize - 1)
                 .With("Value", leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
         }

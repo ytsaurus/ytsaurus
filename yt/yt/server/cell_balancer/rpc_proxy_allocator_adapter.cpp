@@ -310,7 +310,7 @@ public:
 
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
 
-            YT_TLOG_INFO("Annotating new rpc proxy")
+            YT_TLOG_INFO("Annotating new RPC proxy")
                 .With("ProxyName", proxyName)
                 .With("Bundle", spareBundleName)
                 .With("Vcpu", resource->Vcpu)

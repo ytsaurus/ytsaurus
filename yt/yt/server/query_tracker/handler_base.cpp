@@ -339,7 +339,7 @@ void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TWireRow
         } else {
             YT_TLOG_DEBUG("Result error")
                 .With("Index", index)
-                .With("Error", static_cast<TError>(wireRowsetOrError));
+                .With(static_cast<TError>(wireRowsetOrError));
         }
     }
 

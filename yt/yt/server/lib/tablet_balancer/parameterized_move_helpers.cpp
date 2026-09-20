@@ -748,7 +748,9 @@ private:
 
         if (!CheckMoveFollowsMemoryLimits(tablet, sourceCell, cell)) {
             // Cannot move due to memory limits.
-            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration, "Cannot move tablet")
+            YT_TLOG_DEBUG_IF(
+                Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+                "Cannot move tablet")
                 .With("TabletId", tablet->Id)
                 .With("CellId", cell->Id)
                 .With("SourceNode", sourceNode->Address)

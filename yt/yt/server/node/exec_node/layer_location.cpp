@@ -878,7 +878,6 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
 
         if (dynamicConfig->AbortOnOperationWithLayerFailed) {
             YT_TLOG_FATAL("Failed to import layer")
-                .With("LayerId", layerId)
                 .With("LayerPath", artifactKey.data_source().path())
                 .With(ex);
         } else {
@@ -937,7 +936,6 @@ void TLayerLocation::DoRemoveLayer(const TLayerId& layerId)
 
         if (config->AbortOnOperationWithLayerFailed) {
             YT_TLOG_FATAL("Failed to remove layer")
-                .With("LayerId", layerId)
                 .With(ex);
         } else {
             THROW_ERROR(error);
@@ -1096,8 +1094,6 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
 
         if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
             YT_TLOG_FATAL("Failed to create volume")
-                .With("VolumeType", volumeType)
-                .With("VolumeId", volumeId)
                 .With(ex);
         } else {
             THROW_ERROR(error);
@@ -1440,7 +1436,6 @@ void TLayerLocation::DoRemoveVolume(
 
         if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
             YT_TLOG_FATAL("Failed to remove volume")
-                .With("VolumeId", volumeId)
                 .With(ex);
         } else {
             THROW_ERROR(error);

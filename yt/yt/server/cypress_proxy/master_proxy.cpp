@@ -107,7 +107,9 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
         }
 
         auto [_, emplaced] = schemaDescriptors.emplace(schemaId, entry.mutable_schema());
-        YT_TLOG_ALERT_AND_THROW_UNLESS(emplaced, "Duplicate schema ID received during copy prerequisite materialization")
+        YT_TLOG_ALERT_AND_THROW_UNLESS(
+            emplaced,
+            "Duplicate schema ID received during copy prerequisite materialization")
             .With("SchemaId", schemaId);
     }
 

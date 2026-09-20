@@ -139,7 +139,10 @@ TEST_P(TCypressLocksTest, LockConflictResolution)
 
     YT_TLOG_DEBUG("Transactions started")
         .With("BlockingTxId", blockingTx->GetId())
-        .WithFormat("WorkingTxIds", "[%v]", MakeFormattableView(
+        .WithFormat(
+            "WorkingTxIds",
+            "[%v]",
+            MakeFormattableView(
                 workingTxs,
                 [] (auto* builder, const auto& transaction) {
                     builder->AppendFormat("%v", transaction->GetId());

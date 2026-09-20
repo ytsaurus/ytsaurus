@@ -2039,7 +2039,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         force);
 
     // Sanity checks.
-    YT_TLOG_ALERT_AND_THROW_IF(request->node_id_to_children_size() == 0, "Empty list received when attempting to assemble tree copy");
+    YT_TLOG_ALERT_AND_THROW_IF(
+        request->node_id_to_children_size() == 0,
+        "Empty list received when attempting to assemble tree copy");
     YT_TLOG_ALERT_AND_THROW_IF(
         rootNodeId != FromProto<TNodeId>(request->node_id_to_children()[0].node_id()),
         "Received malformed request to assemble tree copy")

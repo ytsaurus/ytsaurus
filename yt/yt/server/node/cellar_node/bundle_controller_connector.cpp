@@ -143,7 +143,7 @@ void TBundleControllerConnector::ProcessHeartbeatResponse(const TRspClientHeartb
     }
 
     if (ExpectedTag_ && ExpectedTag_.value() != tag) {
-        YT_TLOG_INFO("Cancelled previoud out of band cell move pipeline")
+        YT_TLOG_INFO("Cancelled previous out of band cell move pipeline")
             .With("PreviousTag", ExpectedTag_.value())
             .With("NextTag", tag);
 

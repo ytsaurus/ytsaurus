@@ -748,7 +748,9 @@ void TChunkLocationBase::CreateDisableLockFile(const TError& reason)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto state = GetState();
-    YT_TLOG_FATAL_IF(state != ELocationState::Disabling, "Disable lock file should be created when state is equal to ELocationState::Disabling");
+    YT_TLOG_FATAL_IF(
+        state != ELocationState::Disabling,
+        "Disable lock file should be created when state is equal to ELocationState::Disabling");
 
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.

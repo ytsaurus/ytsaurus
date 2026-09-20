@@ -2142,7 +2142,7 @@ public:
         YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
 
         YT_TLOG_DEBUG("Network project renamed")
-            .With("NetworkProject", networkProject->GetId())
+            .With("NetworkProjectId", networkProject->GetId())
             .With("OldName", networkProject->GetName())
             .With("NewName", newName);
 

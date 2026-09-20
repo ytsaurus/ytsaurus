@@ -110,12 +110,12 @@ void OomWatchdog(TOomWatchdogOptions options)
                 .With("RssFile", rssFile)
                 .With("RssShmem", rssShmem)
                 .With("TCMalloc",
-                MakeFormattableView(
-                    TRange(TCMallocStats),
-                    [&] (auto* builder, auto metric) {
-                        auto value = tcmalloc::MallocExtension::GetNumericProperty(metric);
-                        builder->AppendFormat("%v: %v", metric, value);
-                    }));
+                    MakeFormattableView(
+                        TRange(TCMallocStats),
+                        [&] (auto* builder, auto metric) {
+                            auto value = tcmalloc::MallocExtension::GetNumericProperty(metric);
+                            builder->AppendFormat("%v: %v", metric, value);
+                        }));
 
             YT_TLOG_FATAL("Early OOM triggered")
                 .With("MemoryUsage", rss)

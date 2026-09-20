@@ -740,7 +740,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     JobsCpuLimit_.store(newJobsCpuLimit);
 
     if (newJobsCpuLimit > oldJobsCpuLimit) {
-        YT_TLOG_DEBUG("Jobs cpu limit increased, notifying job resource manager")
+        YT_TLOG_DEBUG("Jobs CPU limit increased, notifying job resource manager")
             .With("OldJobsCpuLimit", oldJobsCpuLimit)
             .With("NewJobsCpuLimit", newJobsCpuLimit);
         Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();

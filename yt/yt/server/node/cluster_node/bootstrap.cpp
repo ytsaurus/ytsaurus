@@ -1387,7 +1387,7 @@ private:
 
             YT_TLOG_FATAL_UNLESS(
                 error.IsOK(),
-                "Unexpected failure while waiting for the first dynamic config loaded during node registration compelition")
+                "Unexpected failure while waiting for the first dynamic config loaded during node registration completion")
                 .With(error);
         }
     }

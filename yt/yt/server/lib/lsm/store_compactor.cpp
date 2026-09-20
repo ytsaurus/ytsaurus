@@ -878,7 +878,9 @@ private:
         }
 
         if (CurrentTime_ > config.StartTime + config.Duration) {
-            YT_TLOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging, "Found store that was supposed to be compacted by now")
+            YT_TLOG_DEBUG_IF(
+                store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging,
+                "Found store that was supposed to be compacted by now")
                 .With(store->GetTablet()->LoggingTags())
                 .With("StoreId", store->GetId())
                 .With("StartTime", config.StartTime)

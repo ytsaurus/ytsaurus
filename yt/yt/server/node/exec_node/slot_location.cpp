@@ -1452,9 +1452,11 @@ void TSlotLocation::UpdateDiskResources()
             }
         }
     } catch (const std::exception& ex) {
-        YT_TLOG_WARNING("Disabling slot location")
+        static constexpr auto Message = "Failed to get disk info"_sb;
+        YT_TLOG_WARNING(Message)
             .With(ex);
-        auto error = TError("Failed to get disk info").With(ex);
+        auto error = TError(Message)
+            .With(ex);
         Disable(error);
     }
 
@@ -1573,11 +1575,12 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(
 
     auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout, preservedVolumePaths));
     if (!removeVolumesResult.IsOK()) {
-        YT_TLOG_ERROR("Disabling slot location")
+        static constexpr auto Message = "Failed to remove volumes from porto place"_sb;
+        YT_TLOG_ERROR(Message)
             .With("PortoPlace", portoPlacePath)
             .With("SlotIndex", slotIndex)
             .With(removeVolumesResult);
-        auto error = TError("Failed to remove volumes from porto place")
+        auto error = TError(Message)
             .With("porto_place", portoPlacePath)
             .With("slot_index", slotIndex)
             .With(removeVolumesResult);
