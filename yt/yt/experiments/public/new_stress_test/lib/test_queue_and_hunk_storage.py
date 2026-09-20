@@ -11,6 +11,7 @@ import copy
 import logging
 import random
 
+
 RSG = RandomStringGenerator()
 
 
@@ -82,17 +83,27 @@ class MountState:
 def mount_async_tablets(obj, tablet_index):
     mounted_async_tablet_indexes = obj.mount_state.get_mounted_tablet_indexes(tablet_index, sync=False)
     if mounted_async_tablet_indexes:
-        logger.info(f"Object {obj.path} was mounted async for tablets {mounted_async_tablet_indexes}, mounting with sync)")
+        logger.info(f"Waiting for tablets {mounted_async_tablet_indexes} of {obj.path} to mount")
+        wait_for_tablet_state(obj.path, mounted_async_tablet_indexes, "mounted")
         for mounted_async_tablet_index in mounted_async_tablet_indexes:
-            obj.mount(mounted_async_tablet_index, sync=True)
+            obj.mount_state.mount(mounted_async_tablet_index, sync=True)
 
 
 def unmount_async_tablets(obj, tablet_index):
     unmounted_async_tablet_indexes = obj.mount_state.get_unmounted_tablet_indexes(tablet_index, sync=False)
     if unmounted_async_tablet_indexes:
-        logger.info(f"Object {obj.path} was unmounted async for tablets {unmounted_async_tablet_indexes}, unmounting with sync)")
-        for unmounted_async_tablet_index in unmounted_async_tablet_indexes:
-            obj.unmount(unmounted_async_tablet_index, sync=True)
+        logger.info(
+            f"Waiting for tablets {unmounted_async_tablet_indexes} of {obj.path} to unmount")
+        obj.wait_for_unmount(unmounted_async_tablet_indexes)
+
+
+def wait_for_tablet_condition(predicate, error_message):
+    wait(
+        predicate,
+        error_message=error_message,
+        timeout=yt.config["tablets_ready_timeout"] / 1000,
+        sleep_backoff=yt.config["tablets_check_interval"] / 1000,
+    )
 
 
 def wait_for_tablet_state(path, tablet_indexes, state):
@@ -103,11 +114,33 @@ def wait_for_tablet_state(path, tablet_indexes, state):
             for tablet_index in tablet_indexes
         )
 
-    wait(
+    wait_for_tablet_condition(
         _tablets_ready,
-        error_message=f"Mounted tablets of queue {path} did not become {state}",
-        timeout=yt.config["tablets_ready_timeout"] / 1000,
-        sleep_backoff=yt.config["tablets_check_interval"] / 1000,
+        error_message=f"Tablets of {path} did not become {state}",
+    )
+
+
+def wait_for_hunk_storage_unmounts(tablets_by_storage):
+    pending = {storage: indexes for storage, indexes in tablets_by_storage.items() if indexes}
+    if not pending:
+        return
+
+    def _unmounted():
+        for storage, tablet_indexes in list(pending.items()):
+            tablets = yt.get(f"{storage.path}/@tablets")
+            tablets = [tablets[index] for index in tablet_indexes]
+            storage._unmount_locking_tablets(tablets)
+            if all(tablet["state"] == "unmounted" for tablet in tablets):
+                for tablet_index in tablet_indexes:
+                    storage.mount_state.unmount(tablet_index, sync=True)
+                del pending[storage]
+        return not pending
+
+    paths = ", ".join(storage.path for storage in pending)
+    # Locks may appear after the first orchid snapshot, before unmount reaches the node.
+    wait_for_tablet_condition(
+        _unmounted,
+        error_message=f"Tablets of hunk storages {paths} did not become unmounted",
     )
 
 
@@ -640,6 +673,14 @@ class Queue(TableBase):
 
         self.mount_state.unmount(tablet_index, sync)
 
+    def wait_for_unmount(self, tablet_indexes):
+        if not tablet_indexes:
+            return
+
+        wait_for_tablet_state(self.path, tablet_indexes, "unmounted")
+        for tablet_index in tablet_indexes:
+            self.mount_state.unmount(tablet_index, sync=True)
+
     def write(self, only_in_sync_mounted, spec, retry_count):
         cfg = spec.queue_and_hunk_storage
         batch_size = random.randint(cfg.write_min_batch_size, cfg.write_max_batch_size)
@@ -716,7 +757,7 @@ class Queue(TableBase):
 
         wait(check_written, error_message=f"Queue {self.path} has unexpected written row count (expected: {self.written_row_count})")
 
-    def flush(self) -> None:
+    def flush(self):
         logger.info(f"Flushing queue {self.path}")
         if self.mount_state.has_mounted_tablet():
             mount_async_tablets(self, tablet_index=None)
@@ -941,9 +982,10 @@ class StaticTable(TableBase):
 
 
 class HunkStorage:
-    def __init__(self, base_path, name, cell_tag=None, tablet_count=1):
+    def __init__(self, base_path, name, queues, cell_tag=None, tablet_count=1):
         self.name = name
         self.path = f"{base_path}/{name}"
+        self.queues = queues
         self.mount_state = MountState(tablet_count)
         self.cell_tag = cell_tag
         self.hunk_storage_id = None
@@ -986,12 +1028,79 @@ class HunkStorage:
 
         mount_async_tablets(self, tablet_index)
 
-        if tablet_index is not None:
-            yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
-        else:
-            yt.unmount_table(self.path, sync=sync)
+        tablet_indexes = range(self.tablet_count) if tablet_index is None else [tablet_index]
+        tablets = yt.get(f"{self.path}/@tablets")
+        tablets = [tablets[index] for index in tablet_indexes]
 
-        self.mount_state.unmount(tablet_index, sync)
+        # Pending queue mounts finish first; regular and hunk unmounts then overlap.
+        self._unmount_locking_tablets(tablets)
+
+        if tablet_index is not None:
+            yt.unmount_table(
+                self.path,
+                first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index,
+                sync=False,
+            )
+        else:
+            yt.unmount_table(self.path, sync=False)
+
+        self.mount_state.unmount(tablet_index, sync=False)
+
+        if sync:
+            self.wait_for_unmount(tablet_indexes)
+
+    def wait_for_unmount(self, tablet_indexes):
+        wait_for_hunk_storage_unmounts({self: tablet_indexes})
+
+    def _unmount_locking_tablets(self, tablets):
+        # Owners are recorded per store and may include queues that are no longer linked here.
+        lock_holders = set()
+        for tablet in tablets:
+            if tablet["state"] == "unmounted":
+                continue
+
+            tablet_path = f"//sys/tablets/{tablet['tablet_id']}"
+            try:
+                stores = yt.get(f"{tablet_path}/orchid/stores")
+            except YtError as err:
+                state = yt.get(f"{tablet_path}/@state")
+                if state == "unmounted":
+                    continue
+                # The orchid disappears before the master processes the unmount acknowledgement.
+                if state == "unmounting" and err.is_resolve_error():
+                    continue
+                raise
+
+            for store in stores.values():
+                lock_holders.update(store["tablet_locks"])
+
+        if not lock_holders:
+            return
+
+        # Resolve each owner to one queue tablet; leave the rest of the queue mounted.
+        queues_by_path = {queue.path: queue for queue in self.queues.values()}
+        for tablet_id in sorted(lock_holders):
+            try:
+                attributes = yt.get(
+                    f"//sys/tablets/{tablet_id}/@",
+                    attributes=["table_path", "index"],
+                )
+            except YtError as err:
+                if not err.is_resolve_error():
+                    raise
+                # A normal synchronous unmount and queue removal can finish before the hunk
+                # cell commits the unlock, so orchid may still list a deleted owner.
+                logger.info(f"Skipping removed lock holder {tablet_id}")
+                continue
+
+            queue_path = attributes["table_path"]
+            if queue_path not in queues_by_path:
+                raise YtError(f"Locking tablet {tablet_id} belongs to unknown queue {queue_path}")
+            queue = queues_by_path[queue_path]
+            tablet_index = attributes["index"]
+            if queue.mount_state.is_mounted_tablet[tablet_index]:
+                queue.unmount(tablet_index=tablet_index, sync=False)
 
     def remove(self):
         logger.info(f"Removing hunk_storage {self.path}")
@@ -1089,7 +1198,12 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _create_hunk_storage():
         hunk_storage_name = _generate_hunk_storage_name()
-        hunk_storage = HunkStorage(base_path, hunk_storage_name, tablet_count=random.choice(range(1, 6)))
+        hunk_storage = HunkStorage(
+            base_path,
+            hunk_storage_name,
+            queues,
+            tablet_count=random.choice(range(1, 6)),
+        )
         hunk_storage.create(erasure=random.choice([True, False]))
         hunk_storages[hunk_storage_name] = hunk_storage
 
@@ -1131,6 +1245,34 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             if hunk_storages:
                 link(queue, hunk_storages[random.choice(list(hunk_storages))])
 
+    def _get_mounted_queue_tablets():
+        return [
+            (queue, tablet_index)
+            for queue in queues.values()
+            if not queue.replicated
+            for tablet_index, mounted in enumerate(queue.mount_state.is_mounted_tablet)
+            if mounted
+        ]
+
+    def _restore_queue_tablets(mounted_tablets):
+        # Restore only tablets temporarily unmounted for hunk locks.
+        restored_tablets = {}
+        for queue, tablet_index in mounted_tablets:
+            if not queue.mount_state.is_mounted_tablet[tablet_index]:
+                restored_tablets.setdefault(queue, []).append(tablet_index)
+
+        for queue, tablet_indexes in restored_tablets.items():
+            queue.wait_for_unmount(tablet_indexes)
+
+        for queue, tablet_indexes in restored_tablets.items():
+            for tablet_index in tablet_indexes:
+                queue.mount(tablet_index=tablet_index, sync=False)
+
+        for queue, tablet_indexes in restored_tablets.items():
+            wait_for_tablet_state(queue.path, tablet_indexes, "mounted")
+            for tablet_index in tablet_indexes:
+                queue.mount_state.mount(tablet_index, sync=True)
+
     def _remount():
         for queue in queues.values():
             if queue.replicated:
@@ -1142,16 +1284,20 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
             for tablet_index in range(queue.tablet_count):
                 if random.random() < spec.queue_and_hunk_storage.unmount_queue_tablet_probability:
-                    queue.unmount(tablet_index=tablet_index)
+                    queue.unmount(tablet_index=tablet_index, sync=False)
                 elif random.random() < spec.queue_and_hunk_storage.mount_queue_tablet_probability:
-                    queue.mount(tablet_index=tablet_index)
+                    queue.mount(tablet_index=tablet_index, sync=False)
 
+            mount_async_tablets(queue, tablet_index=None)
+            unmount_async_tablets(queue, tablet_index=None)
+
+        # Remember the randomly chosen queue states before draining hunk lock holders.
+        mounted_queue_tablets = _get_mounted_queue_tablets()
+
+        hunk_tablets_to_mount = []
         for hunk_storage in hunk_storages.values():
             if random.random() < spec.queue_and_hunk_storage.unmount_hunk_storage_probability:
-                if len(hunk_storage.linked_queue_names) > 0:
-                    for queue_name in hunk_storage.linked_queue_names:
-                        queues[queue_name].unmount()
-                hunk_storage.unmount()
+                hunk_storage.unmount(sync=False)
             else:
                 hunk_storage.mount()
 
@@ -1159,18 +1305,36 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                 if random.random() < spec.queue_and_hunk_storage.unmount_hunk_storage_tablet_probability:
                     hunk_storage.unmount(tablet_index=tablet_index, sync=False)
                 elif random.random() < spec.queue_and_hunk_storage.mount_hunk_storage_tablet_probability:
-                    hunk_storage.mount(tablet_index=tablet_index, sync=False)
+                    hunk_tablets_to_mount.append((hunk_storage, tablet_index))
+
+        # Finish hunk unmounts before restoring the queue tablets that released their locks.
+        wait_for_hunk_storage_unmounts({
+            hunk_storage: hunk_storage.mount_state.get_unmounted_tablet_indexes(None, sync=False)
+            for hunk_storage in hunk_storages.values()
+        })
+
+        for hunk_storage, tablet_index in hunk_tablets_to_mount:
+            hunk_storage.mount(tablet_index=tablet_index, sync=False)
+
+        _restore_queue_tablets(mounted_queue_tablets)
+
+    def _expect_unmounted_write_error(queue, only_in_sync_mounted):
+        hunk_storage = hunk_storages[queue.hunk_storage_name] if queue.hunk_storage_name else None
+        return (
+            (not only_in_sync_mounted and (
+                queue.mount_state.has_unmounted_tablet() or
+                queue.mount_state.has_mounted_tablet(sync=False))) or
+            (hunk_storage is not None and
+                not hunk_storage.mount_state.has_mounted_tablet(sync=True)))
 
     def _check_write_error(queue, only_in_sync_mounted, err):
-        unmounted = (not only_in_sync_mounted and queue.mount_state.has_unmounted_tablet()) or (queue.hunk_storage_name and not hunk_storages[queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True))
-        if unmounted and is_unmounted_error(err):
+        if _expect_unmounted_write_error(queue, only_in_sync_mounted) and is_unmounted_error(err):
             logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
         else:
             raise err
 
     def _check_read_error(queue, err):
-        unmounted = queue.mount_state.has_unmounted_tablet() or (queue.hunk_storage_name and hunk_storages[queue.hunk_storage_name].mount_state.has_unmounted_tablet())
-        if unmounted and is_unmounted_error(err):
+        if _has_unmount_issue(queue) and is_unmounted_error(err):
             logger.info(f"Error was expected, queue or hunk_storage has unmounted tablet")
         else:
             raise err
@@ -1186,10 +1350,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             # caller below wants to observe and classify that error, not hide it behind a
             # long retry loop. A modeled healthy state still gets a few retries for genuine
             # transient tablet/cell failures.
-            expected_unmounted = (
-                (not only_in_sync_mounted and queue.mount_state.has_unmounted_tablet()) or
-                (queue.hunk_storage_name and not hunk_storages[
-                    queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True)))
+            expected_unmounted = _expect_unmounted_write_error(queue, only_in_sync_mounted)
             retry_count = 1 if expected_unmounted else spec.queue_and_hunk_storage.write_retry_count
             try:
                 queue.write(
@@ -1226,7 +1387,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     def _has_unmount_issue(table):
         if not isinstance(table, Queue):
             return False
-        if table.mount_state.has_unmounted_tablet():
+        if (table.mount_state.has_unmounted_tablet() or
+                table.mount_state.has_mounted_tablet(sync=False)):
             return True
         if table.hunk_storage_name and hunk_storages[table.hunk_storage_name].mount_state.has_unmounted_tablet():
             return True
@@ -1323,15 +1485,11 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         for queue_name in removed_queue_names:
             del queues[queue_name]
 
+        mounted_queue_tablets = _get_mounted_queue_tablets()
         removed_hunk_storage_names = []
         for hunk_storage in hunk_storages.values():
             if random.random() < spec.queue_and_hunk_storage.remove_probability:
                 try:
-                    if len(hunk_storage.linked_queue_names) > 0:
-                        logger.info(f"Removing hunk storage {hunk_storage.name}, need to unmount linked queues {hunk_storage.linked_queue_names}")
-                        for queue_name in hunk_storage.linked_queue_names:
-                            queues[queue_name].unmount()
-
                     hunk_storage.remove()
                     removed_hunk_storage_names += [hunk_storage.name]
                     removed_hunk_storage_count += 1
@@ -1342,6 +1500,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                         raise err
         for hunk_storage_name in removed_hunk_storage_names:
             del hunk_storages[hunk_storage_name]
+
+        _restore_queue_tablets(mounted_queue_tablets)
 
     def _copy():
         queues_to_copy = []
