@@ -2132,6 +2132,9 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
+                "job_controller": {
+                    "min_required_disk_space": 1024 * 1024,
+                },
                 "nbd": {
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
@@ -2329,6 +2332,48 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         })
 
         assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd_nbd") == 0
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    def test_nbd_disk_request_disk_space_is_zero(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "max_failed_job_count": 1,
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "disk_request": {
+                            "medium_name": "ssd_nbd",
+                            "disk_space": 16 * 1024 * 1024,
+                            "nbd_disk": {},
+                        },
+                    },
+                },
+            },
+        )
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        allocations_path = f"//sys/cluster_nodes/{nodes[0]}/orchid/exec_node/job_controller/allocations"
+
+        result = None
+
+        def get_disk_space_request():
+            nonlocal result
+            allocation_ids = ls(allocations_path)
+            if not allocation_ids:
+                return False
+            orchid = get(f"{allocations_path}/{allocation_ids[0]}")
+            result = orchid["base_resource_usage"]["disk_space_request"]
+            return True
+
+        wait(get_disk_space_request)
+
+        assert result == 0
+
+        op.abort()
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
