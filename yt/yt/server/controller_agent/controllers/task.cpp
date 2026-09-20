@@ -531,7 +531,6 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
         auto& attributes = startDescriptor.AllocationAttributes;
 
         attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
-        // Do not set disk_request allocation attributes in case of NBD disk.
         for (const auto& [_, volume] : userJobSpec->Volumes) {
             if (!volume->DiskRequest) {
                 continue;
@@ -541,6 +540,9 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
                 attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
                 attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+            } else if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd) {
+                // NBD uses no local disk; keep exec node from falling back to MinRequiredDiskSpace.
+                attributes.DiskRequest.DiskSpace = attributes.DiskRequest.DiskSpace.value_or(0);
             }
         }
         attributes.PortCount = userJobSpec->PortCount;
