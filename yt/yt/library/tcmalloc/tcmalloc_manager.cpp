@@ -456,7 +456,14 @@ public:
             tcmalloc::MallocExtension::ActivateGuardedSampling();
         }
 
+        auto oldConfig = Config_.Acquire();
         Config_.Store(config);
+
+        // NB: Fail-fast is static: it is applied at the initial configuration only.
+        if (!oldConfig && config->FailFastOnOom) {
+            tcmalloc::MallocExtension::SetFailFastOnOomExitCode(
+                ToUnderlying(EProcessExitCode::OutOfMemory));
+        }
 
         if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
             std::call_once(InitAggressiveReleaseThread_, [&] {

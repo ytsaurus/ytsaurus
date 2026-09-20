@@ -91,6 +91,10 @@ struct TTCMallocConfig
     i64 MaxTotalThreadCacheBytes;
     i64 BackgroundReleaseRate;
 
+    //! If true, an out-of-memory failure terminates the process without
+    //! writing a coredump.
+    bool FailFastOnOom;
+
     THeapSizeLimitConfigPtr HeapSizeLimit;
 
     TTCMallocConfigPtr ApplyDynamic(const TDynamicTCMallocConfigPtr& dynamicConfig) const;

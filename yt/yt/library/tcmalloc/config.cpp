@@ -112,6 +112,8 @@ void TTCMallocConfig::Register(TRegistrar registrar)
         .Default(24_MB);
     registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
         .Default(32_MB);
+    registrar.Parameter("fail_fast_on_oom", &TThis::FailFastOnOom)
+        .Default(true);
 
     registrar.Parameter("heap_size_limit", &TThis::HeapSizeLimit)
         .DefaultNew();
