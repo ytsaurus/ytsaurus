@@ -504,6 +504,12 @@ public:
         auto oldConfig = Config_.Acquire();
         Config_.Store(config);
 
+        // NB: Fail-fast is static: it is applied at the initial configuration only.
+        if (!oldConfig && config->FailFastOnOom) {
+            tcmalloc::MallocExtension::SetFailFastOnOomExitCode(
+                ToUnderlying(EProcessExitCode::OutOfMemory));
+        }
+
         // NB: Retention is static: it is applied at the initial configuration only.
         if (!oldConfig) {
             const auto& heapSizeLimitConfig = config->HeapSizeLimit;
