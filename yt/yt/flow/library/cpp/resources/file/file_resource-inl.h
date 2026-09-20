@@ -434,6 +434,12 @@ void TFileResourceBase<TData>::BeginPreparation(
         }
     }
 
+    YT_TLOG_INFO("File resource snapshot preparation started")
+        .With("SnapshotRole", role == ESnapshotRole::Active ? "active" : "preparing")
+        .With("FileSnapshotId", fileSnapshot->Id)
+        .With("DeliveryRevisionId", target->RevisionId)
+        .With("AttemptGeneration", attemptGeneration);
+
     try {
         ValidateSnapshot(fileSnapshot);
 
@@ -477,6 +483,11 @@ void TFileResourceBase<TData>::OnMaterialized(
             return;
         }
 
+        YT_TLOG_INFO("File resource snapshot materialized; initializing")
+            .With("SnapshotRole", role == ESnapshotRole::Active ? "active" : "preparing")
+            .With("FileSnapshotId", fileSnapshot->Id)
+            .With("DeliveryRevisionId", target->RevisionId)
+            .With("AttemptGeneration", attemptGeneration);
         auto data = Initialize(fileProviders);
         THROW_ERROR_EXCEPTION_UNLESS(data, "File resource initializer returned null data");
         if (!SetSnapshotPreparationStage(
@@ -489,7 +500,17 @@ void TFileResourceBase<TData>::OnMaterialized(
             return;
         }
 
+        YT_TLOG_INFO("File resource snapshot initialized; validating")
+            .With("SnapshotRole", role == ESnapshotRole::Active ? "active" : "preparing")
+            .With("FileSnapshotId", fileSnapshot->Id)
+            .With("DeliveryRevisionId", target->RevisionId)
+            .With("AttemptGeneration", attemptGeneration);
         Validate(data);
+        YT_TLOG_INFO("File resource snapshot validated")
+            .With("SnapshotRole", role == ESnapshotRole::Active ? "active" : "preparing")
+            .With("FileSnapshotId", fileSnapshot->Id)
+            .With("DeliveryRevisionId", target->RevisionId)
+            .With("AttemptGeneration", attemptGeneration);
         CompletePreparation(
             role,
             target,
@@ -578,6 +599,7 @@ void TFileResourceBase<TData>::ActivateCandidate(
     bool completeInitialLoad = false;
     TSnapshotPtr candidate;
     TSnapshotPtr previousSnapshot;
+    std::optional<TFileSnapshotId> previousSnapshotId;
     {
         auto guard = Guard(Lock_);
         if (!IsCurrentAttempt(
@@ -598,7 +620,6 @@ void TFileResourceBase<TData>::ActivateCandidate(
         previousSnapshot = ActiveSnapshot_.Exchange(candidate);
         ActiveSlot_.State = EFileSnapshotState::Draining;
 
-        std::optional<TFileSnapshotId> previousSnapshotId;
         if (previousSnapshot) {
             previousSnapshotId = previousSnapshot->FileProviders->GetFileSnapshot()->Id;
         }
@@ -653,6 +674,12 @@ void TFileResourceBase<TData>::ActivateCandidate(
         completeInitialLoad = TryCompleteActivation(guard);
     }
     previousSnapshot.Reset();
+
+    YT_TLOG_INFO("File resource snapshot switched")
+        .With("PreviousFileSnapshotId", previousSnapshotId)
+        .With("FileSnapshotId", fileSnapshot->Id)
+        .With("DeliveryRevisionId", target->RevisionId)
+        .With("AttemptGeneration", attemptGeneration);
 
     if (UpdateError_) {
         UpdateError_->ClearError();
