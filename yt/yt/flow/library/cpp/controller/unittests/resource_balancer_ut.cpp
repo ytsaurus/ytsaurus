@@ -1756,6 +1756,195 @@ TEST_F(TResourceBalancerTest, FeedbackOfPreviousIncarnationIsIgnored)
     EXPECT_FALSE(GetAddActions(result).contains(MakePartitionId(1)));
 }
 
+//! The zero-queue level is per worker: one saturated worker with a standing queue above its own
+//! level must be equalized even when the group total is below ZeroQueueLatency worth of the
+//! group load because its peer runs without a queue.
+TEST_F(TResourceBalancerTest, SaturatedWorkerNextToQueueFreePeerIsEqualized)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+
+    SetResourceSpec(res1, MakeResourceSpec());
+    SetResourceSpec(res2, MakeResourceSpec());
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddWorker(FlowView, "worker3", Group);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+    }
+    for (int i = 11; i <= 19; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp2, /*rps=*/10.0, "worker2");
+    }
+    // worker1 is saturated with 1.5 s of queue; worker2 keeps up without a queue; worker3 is idle.
+    // Group total: queue 150 against 190 of load, below the level; worker1 alone: 150 against 100.
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/90.0,
+        /*fetchRate=*/90.0,
+        /*queueSize=*/0.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    bool movedToIdle = false;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        if (workerAddress == "worker3") {
+            movedToIdle = true;
+        }
+    }
+    EXPECT_TRUE(movedToIdle);
+}
+
+//! A computation short of capacity by a share of its own workers is not a reason to take a worker
+//! from another computation: Step 4 used to hand worker1 over here and Step 5 then unloaded the
+//! model that two running partitions use. Neither may happen.
+TEST_F(TResourceBalancerTest, PreloadKeptWhilePartitionsUseIt)
+{
+    auto compBig = MakeComputationId("big");
+    auto compStarving = MakeComputationId("starving");
+    auto modelBig = MakeResourceId("modelBig");
+    auto modelStarving = MakeResourceId("modelStarving");
+
+    SetResourceSpec(modelBig, MakeResourceSpec({}, /*preloadRequired=*/true));
+    // The starving model needs nvlink, which worker3 lacks: once worker1 is handed over, nothing
+    // can hand it back within the round.
+    SetResourceSpec(modelStarving, MakeResourceSpec({{"nvlink", 1}}, /*preloadRequired=*/true));
+    SetComputationSpec(compBig, MakeComputationSpec(Group, {modelBig}));
+    SetComputationSpec(compStarving, MakeComputationSpec(Group, {modelStarving}));
+
+    AddWorker(FlowView, "worker1", Group, {{"nvlink", 1}});
+    AddWorker(FlowView, "worker2", Group, {{"nvlink", 1}});
+    AddWorker(FlowView, "worker3", Group);
+    for (const auto& w : {"worker1", "worker2"}) {
+        SetPreloadIssued(FlowView, w, modelBig);
+        SetPreloadCompleted(FlowView, w, modelBig);
+    }
+    SetPreloadIssued(FlowView, "worker2", modelStarving);
+    SetPreloadCompleted(FlowView, "worker2", modelStarving);
+
+    // big: 2 partitions on worker1 and 2 on worker2; starving: 1 partition on worker2, which is
+    // overloaded. worker3 is free, so Step 4 sends big there and gives worker1 to starving.
+    AddPartition(FlowView, MakePartitionId(1), compBig, /*rps=*/1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compBig, /*rps=*/1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(3), compBig, /*rps=*/1.0, "worker2");
+    AddPartition(FlowView, MakePartitionId(4), compBig, /*rps=*/1.0, "worker2");
+    AddPartition(FlowView, MakePartitionId(5), compStarving, /*rps=*/1.0, "worker2");
+
+    // worker1 has a little headroom, so big is satisfiable by its own workers and skips Step 2;
+    // its queue matches worker2's, so Step 4.5 does not enroll it back for big.
+    SetWorkerResourceStatus(FlowView, "worker1", modelBig,
+        /*putRate=*/2.0,
+        /*fetchRate=*/2.5,
+        /*queueSize=*/10.0,
+        /*queueGrowthRate=*/-0.5);
+    // worker2 drains two of the three it gets.
+    SetWorkerResourceStatus(FlowView, "worker2", modelBig,
+        /*putRate=*/2.0,
+        /*fetchRate=*/1.5,
+        /*queueSize=*/7.0,
+        /*queueGrowthRate=*/0.5);
+    SetWorkerResourceStatus(FlowView, "worker2", modelStarving,
+        /*putRate=*/1.0,
+        /*fetchRate=*/0.5,
+        /*queueSize=*/3.0,
+        /*queueGrowthRate=*/0.5);
+
+    auto result = RunBalancer();
+
+    for (const auto& action : GetPreloadAddActions(result)) {
+        EXPECT_FALSE(action.WorkerAddress == "worker1" && action.ResourceId == modelStarving);
+    }
+    for (const auto& action : GetPreloadDelActions(result)) {
+        EXPECT_FALSE(action.WorkerAddress == "worker1" && action.ResourceId == modelBig);
+    }
+}
+
+//! A deficit within RebalanceTargetDeviation is noise of the capacity estimate: the computation
+//! is not seeded into Step 2 and no worker is requested for it.
+TEST_F(TResourceBalancerTest, DeficitWithinDeviationDoesNotSeedStep2)
+{
+    auto compId = MakeComputationId("comp1");
+    auto modelId = MakeResourceId("model");
+
+    SetResourceSpec(modelId, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {modelId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    SetPreloadIssued(FlowView, "worker1", modelId);
+    SetPreloadCompleted(FlowView, "worker1", modelId);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/10.0, "worker1");
+    }
+    // worker1 serves 95 of the 100 it gets, no standing queue (so Step 4.5 has nothing to spread).
+    SetWorkerResourceStatus(FlowView, "worker1", modelId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/95.0,
+        /*queueSize=*/0.0,
+        /*queueGrowthRate=*/5.0);
+
+    auto result = RunBalancer();
+
+    for (const auto& action : GetPreloadAddActions(result)) {
+        EXPECT_NE(action.WorkerAddress, "worker2");
+    }
+}
+
+//! Two computations sharing an overloaded worker each look satisfiable on their own, so neither is
+//! seeded into Step 2; the growing queue still gets them spread through Step 4.5 and Step 8.
+TEST_F(TResourceBalancerTest, SharedOverloadedWorkerIsSpreadByQueue)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+
+    SetResourceSpec(res1, MakeResourceSpec());
+    SetResourceSpec(res2, MakeResourceSpec());
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    for (int i = 1; i <= 6; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker1");
+    }
+    // worker1 gets 120 and serves 100; the queue grows.
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/60.0,
+        /*fetchRate=*/50.0,
+        /*queueSize=*/250.0,
+        /*queueGrowthRate=*/10.0);
+    SetWorkerResourceStatus(FlowView, "worker1", res2,
+        /*putRate=*/60.0,
+        /*fetchRate=*/50.0,
+        /*queueSize=*/250.0,
+        /*queueGrowthRate=*/10.0);
+
+    auto result = RunBalancer();
+
+    bool movedToIdle = false;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        if (workerAddress == "worker2") {
+            movedToIdle = true;
+        }
+    }
+    EXPECT_TRUE(movedToIdle);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
