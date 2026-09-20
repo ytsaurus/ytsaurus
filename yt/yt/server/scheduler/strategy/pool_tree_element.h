@@ -1138,8 +1138,6 @@ TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& v
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! NB: #schedulerElement is bound in the |if| initializer so it is evaluated once; both the
-//! logger and the level come from it.
 #define YT_ELEMENT_LOG_DETAILED(schedulerElement, message) \
     if (auto&& schedulerElement__ = (schedulerElement); false) \
     { } else \

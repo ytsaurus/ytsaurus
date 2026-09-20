@@ -45,7 +45,7 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
                     if (!performanceCountersTableSchema->FindColumn(performanceCounterKey)) {
                         YT_TLOG_DEBUG_IF(
                             Index == 0 &&
-                                performanceCountersTableSchema->GetValueColumnCount() == std::ssize(performanceCountersKeys),
+                            performanceCountersTableSchema->GetValueColumnCount() == std::ssize(performanceCountersKeys),
                             "Statistics reporter schema does not contain performance counter column")
                             .With("PerformanceCounterKey", performanceCounterKey)
                             .With("TabletId", Id);
@@ -78,7 +78,9 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
     auto performanceCountersProto = std::get_if<TPerformanceCountersProtoList>(&PerformanceCounters);
     YT_VERIFY(performanceCountersProto);
 
-    YT_TLOG_FATAL_IF(performanceCountersProto->size() != std::ssize(performanceCountersKeys), "Performance counters proto has unexpected keys")
+    YT_TLOG_FATAL_IF(
+        performanceCountersProto->size() != std::ssize(performanceCountersKeys),
+        "Performance counters proto has unexpected keys")
         .With("TabletId", Id)
         .With("TableId", Table->Id)
         .With("TablePath", Table->Path)

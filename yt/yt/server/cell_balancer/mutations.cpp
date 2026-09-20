@@ -44,19 +44,17 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
         return doFormatValue(value, doFormatValue);
     };
 
-    auto onIndexedEntries = [&] (TStringBuf prefix, const auto& entries) {
+    auto onIndexedEntries = [&] (TStringBuf mutation, const auto& entries) {
         for (const auto& [key, value] : entries) {
-            YT_TLOG_DEBUG("Mutation")
-                .With("Mutation", prefix)
+            YT_TLOG_DEBUG(Format("Mutation: %v", mutation))
                 .With("Key", key)
                 .With("Value", formatValue(value));
         }
     };
 
-    auto onSet = [&] (TStringBuf prefix, const auto& entries) {
+    auto onSet = [&] (TStringBuf mutation, const auto& entries) {
         for (const auto& entry : entries) {
-            YT_TLOG_DEBUG("Mutation")
-                .With("Mutation", prefix)
+            YT_TLOG_DEBUG(Format("Mutation: %v", mutation))
                 .With("Value", formatValue(entry));
         }
     };

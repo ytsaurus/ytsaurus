@@ -485,7 +485,9 @@ private:
 
         statistics.MaxTabletMetric = statistics.DesiredTabletMetric * 1.9;
 
-        YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging, "Reporting reshard limits and statistics")
+        YT_TLOG_DEBUG_IF(
+            Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging,
+            "Reporting reshard limits and statistics")
             .With("MinTabletSize", statistics.MinTabletSize)
             .With("DesiredTabletSize", statistics.DesiredTabletSize)
             .With("MaxTabletSize", statistics.MaxTabletSize)

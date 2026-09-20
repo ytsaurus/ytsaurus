@@ -125,10 +125,7 @@ std::vector<TParsedToken> Tokenize(
     YT_TLOG_DEBUG("Query parsed")
         .With("TokenOccurences", MakeShrunkFormattableView(
             result,
-            [] (
-                TStringBuilderBase* builder,
-                const TParsedToken& entry
-            ) {
+            [] (TStringBuilderBase* builder, const TParsedToken& entry) {
                 builder->AppendFormat("%v: %v", entry.Token, entry.Occurrences);
             },
             20));

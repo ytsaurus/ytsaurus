@@ -238,7 +238,6 @@ public:
             OnSessionFailed(tablet, /*backoff*/ true);
 
             YT_TLOG_ERROR(Message)
-                .With("TabletId", TabletId_)
                 .With("BackgroundActivity", ETabletBackgroundActivity::DictionaryBuilding)
                 .With(ex);
         }

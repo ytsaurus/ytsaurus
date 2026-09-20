@@ -1115,8 +1115,7 @@ private:
             "Porto API call error")
             .With("Error", error)
             .With("Command", command)
-            .With("Message",
-            errorMessage);
+            .With("Message", errorMessage);
 
         if (!IsRetriableErrorCode(error, idempotent) || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
             THROW_ERROR CreatePortoError(error, errorMessage);

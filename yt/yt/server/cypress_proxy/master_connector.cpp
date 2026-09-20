@@ -134,9 +134,12 @@ private:
 
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_TLOG_EVENT(Logger, Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
+            YT_TLOG_EVENT(
+                Logger,
+                Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
                     ? NLogging::ELogLevel::Alert
-                    : NLogging::ELogLevel::Error, "Failed to send heartbeat")
+                    : NLogging::ELogLevel::Error,
+                "Failed to send heartbeat")
                 .With("CurrentSequoiaReign", GetCurrentSequoiaReign())
                 .With("Version", GetVersion());
 

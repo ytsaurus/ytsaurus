@@ -1066,7 +1066,7 @@ private:
     void GracefulAbort(TError error) override
     {
         YT_TLOG_DEBUG("User job gracefully aborted")
-            .With("Error", error);
+            .With(error);
         YT_VERIFY(error.GetCode() == NExecNode::EErrorCode::AbortByControllerAgent);
         JobErrorPromise_.TrySet(std::move(error));
         CleanupUserProcesses();

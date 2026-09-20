@@ -44,6 +44,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NHiveServer {

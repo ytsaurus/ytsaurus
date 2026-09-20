@@ -275,10 +275,11 @@ TError EnsureUserExists(
         return TError();
     }
 
-    auto error = TError("Failed to create user")
+    static constexpr auto Message = "Failed to create user"_sb;
+    auto error = TError(Message)
         .With("name", name)
         .With(std::move(userOrError));
-    YT_TLOG_WARNING("Failed to check user existence")
+    YT_TLOG_WARNING(Message)
         .With(error);
     return error;
 }

@@ -1540,10 +1540,10 @@ private:
                     YT_TLOG_DEBUG("Got grouped by samples ranges")
                         .With("PartitionIndex", partitionIndex)
                         .With("SampleRanges", MakeFormattableView(sampleRanges, [] (TStringBuilderBase* builder, const TSampleRange& item) {
-                                builder->AppendFormat("Sample: %kv .. %kv, Ranges: %v",
-                                    item.LowerSampleKey,
-                                    item.UpperSampleKey,
-                                    MakeFormattableView(item.Ranges, TRangeFormatter()));
+                            builder->AppendFormat("Sample: %kv .. %kv, Ranges: %v",
+                                item.LowerSampleKey,
+                                item.UpperSampleKey,
+                                MakeFormattableView(item.Ranges, TRangeFormatter()));
                         }));
                 }
                 partitionRanges.push_back({std::move(sampleRanges), partitionIndex});

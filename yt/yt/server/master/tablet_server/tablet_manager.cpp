@@ -5761,7 +5761,7 @@ private:
                             .With(tags);
                         tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
                     } else {
-                        YT_TLOG_ALERT("Trimmed row count exceeds total row count of the tablet and will be rolled back")
+                        YT_TLOG_ALERT("Trimmed row count exceeds total row count of the tablet")
                             .With(tags);
                     }
                 }

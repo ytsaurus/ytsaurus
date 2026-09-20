@@ -360,7 +360,7 @@ private:
                 }
             }
 
-            static constexpr auto Message = "Aborting hunk tablet scan"_sb;
+            static constexpr auto Message = "Timed out waiting for transaction to unlock hunk tablet"_sb;
             YT_TLOG_ALERT(Message)
                 .With("TransactionId", transaction->GetId());
             auto error = TError(Message)

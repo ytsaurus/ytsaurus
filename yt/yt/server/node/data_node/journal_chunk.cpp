@@ -183,7 +183,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
         std::ssize(alreadyReadBlocks) + blockCount == std::ssize(blockCookies));
 
     if (!blocksOrError.IsOK()) {
-        auto error = TError("Error occured while reading %v blocks starting from block %v of journal chunk %v",
+        auto error = TError("Error occurred while reading %v blocks starting from block %v of journal chunk %v",
             blockCount,
             firstBlockIndex,
             Id_)

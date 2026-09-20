@@ -3321,16 +3321,16 @@ void TJobTracker::ProcessAllocationEvents(
     YT_TLOG_FATAL_UNLESS(operationInfo.JobsReady, "Unexpected allocation events during revival")
         .With("IncarnationId", IncarnationId_)
         .With("AllocationIds", [&] {
-                std::vector<TAllocationId> allocationIds;
-                for (const auto& abortedAllocationSummary : abortedAllocations) {
-                    allocationIds.push_back(abortedAllocationSummary.Id);
-                }
+            std::vector<TAllocationId> allocationIds;
+            for (const auto& abortedAllocationSummary : abortedAllocations) {
+                allocationIds.push_back(abortedAllocationSummary.Id);
+            }
 
-                for (const auto& finishedAllocationSummary : finishedAllocations) {
-                    allocationIds.push_back(finishedAllocationSummary.Id);
-                }
+            for (const auto& finishedAllocationSummary : finishedAllocations) {
+                allocationIds.push_back(finishedAllocationSummary.Id);
+            }
 
-                return allocationIds;
+            return allocationIds;
         }());
 
     // NB(pogorelov): We postpone non-empty allocation event processing until the next node heartbeat to not loose job result and respect job revival.

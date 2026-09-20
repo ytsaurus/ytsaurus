@@ -145,7 +145,7 @@ public:
                 0.5 * Reader_->GetDataStatistics().row_count() / total +
                 0.5 * Writer_->GetDataStatistics().row_count() / total;
             YT_TLOG_DEBUG("Progress requested")
-                .WithFormat("Progress", "%lf", progress);
+                .With("Progress", progress);
             return progress;
         }
     }
