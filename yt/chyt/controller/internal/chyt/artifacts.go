@@ -13,6 +13,7 @@ import (
 const (
 	CHYTBinaryDirectory       = ypath.Path("//sys/bin/ytserver-clickhouse")
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
+	JDBCDriversDirectory      = ypath.Path("//sys/bin/jdbc-drivers")
 )
 
 type chytBinaryInfo struct {
@@ -66,13 +67,13 @@ type artifact struct {
 	path ypath.Path
 }
 
-func (c *Controller) buildArtifact(ctx context.Context, artifact artifact) (path ypath.Rich, err error) {
+func (c *Controller) resolveArtifact(ctx context.Context, artifact artifact) (path ypath.Rich, err error) {
 	path.FileName = artifact.name
 	path.Path, err = c.resolveSymlink(ctx, artifact.path)
 	return
 }
 
-func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any, chytVersion *chytOpletInfo) (err error) {
+func (c *Controller) buildArtifacts(speclet *Speclet) []artifact {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault())},
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
@@ -96,11 +97,30 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 		}
 	}
 
+	if speclet.JDBCConfig.EnableOrDefault() {
+		artifacts = append(artifacts, artifact{"jdbc-trampoline", TrampolineBinaryDirectory.Child(speclet.JDBCConfig.TrampolineVersionOrDefault())})
+		bridgeJar := speclet.JDBCConfig.BridgeJarOrDefault()
+		artifacts = append(artifacts, artifact{filepath.Base(bridgeJar.String()), bridgeJar})
+		for _, path := range speclet.JDBCConfig.DatasourceFiles {
+			artifacts = append(artifacts, artifact{filepath.Base(path.String()), path})
+		}
+		for _, name := range speclet.JDBCConfig.Drivers {
+			artifacts = append(artifacts, artifact{name, JDBCDriversDirectory.Child(name)})
+		}
+		for _, extraFilePath := range speclet.JDBCConfig.ExtraFiles {
+			artifacts = append(artifacts, artifact{filepath.Base(extraFilePath.String()), extraFilePath})
+		}
+	}
+
+	return artifacts
+}
+
+func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any, chytVersion *chytOpletInfo) (err error) {
 	var artifactDescription = map[string]yson.RawValue{}
 
-	for _, artifact := range artifacts {
+	for _, artifact := range c.buildArtifacts(speclet) {
 		var path ypath.Rich
-		path, err = c.buildArtifact(ctx, artifact)
+		path, err = c.resolveArtifact(ctx, artifact)
 		if err != nil {
 			return
 		}

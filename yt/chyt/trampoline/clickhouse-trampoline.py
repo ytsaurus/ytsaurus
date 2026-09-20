@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import ctypes
 import logging
 import re
 import tarfile
@@ -61,6 +62,9 @@ def extract_geodata():
 
 ODBC_INI_NAMES = ("odbcinst.ini", "odbc.ini")
 ODBC_CONFIG_DIR = "odbc"
+JDBC_BRIDGE_HOST = "127.0.0.1"
+JDBC_BRIDGE_PORT_ENV = "YT_PORT_5"
+PR_SET_PDEATHSIG = 1
 
 UNEXPANDED_SECRET_RE = re.compile(r"\$\{?(YT_SECURE_VAULT_\w*)\}?")
 
@@ -130,7 +134,7 @@ def disable_fqdn_resolution(config):
     config["address_resolver"]["resolve_hostname_into_fqdn"] = False
 
 
-def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn):
+def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn, jdbc_bridge_port=None):
     logger.info("Patching ytserver-clickhouse config")
     assert os.path.exists("./config.yson")
     with open("./config.yson", "r") as f:
@@ -139,6 +143,9 @@ def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn):
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
     config = yt.yson.loads(str.encode(content))
+    if jdbc_bridge_port is not None:
+        bridge_config = config["clickhouse"].setdefault("jdbc_bridge", {})
+        bridge_config.update(host=JDBC_BRIDGE_HOST, port=jdbc_bridge_port)
     if inside_mtn:
         logger.info("Disabling FQDN resolution in ytserver-clickhouse config")
         disable_fqdn_resolution(config)
@@ -166,19 +173,82 @@ def patch_log_tailer_config(inside_mtn):
     logger.info("Config patched")
 
 
-def start_process(args, shell=False):
+def start_process(args, shell=False, parent_death_signal=None):
     logger.info("Going to invoke following command: %s", args)
     # NB: without preexec_fn=os.setpgrp any signal coming to the parent will always be immediately propagated to
     # children.
     # See https://stackoverflow.com/questions/3791398/how-to-stop-python-from-propagating-signals-to-subprocesses for
     # more details.
-    kwargs = {"preexec_fn": os.setpgrp}
+    parent_pid = os.getpid()
+
+    def configure_child():
+        os.setpgrp()
+        if parent_death_signal is not None:
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(PR_SET_PDEATHSIG, parent_death_signal) != 0:
+                errno = ctypes.get_errno()
+                raise OSError(errno, os.strerror(errno))
+            if os.getppid() != parent_pid:
+                os.kill(os.getpid(), parent_death_signal)
+
+    kwargs = {"preexec_fn": configure_child}
     if shell:
         kwargs["shell"] = True
         kwargs["executable"] = "/bin/bash"
     process = subprocess.Popen(args, **kwargs)
     logger.info("Process started, pid = %d", process.pid)
     return process
+
+
+def stop_process(name, process):
+    if process.poll() is not None:
+        return
+
+    logger.info("Stopping %s", name)
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        logger.warning("%s did not stop in 10 seconds, killing it", name)
+        process.kill()
+        process.wait()
+
+
+def run_jdbc_bridge(jdbc_trampoline_bin, port):
+    logger.info("Starting JDBC bridge")
+
+    process = start_process([jdbc_trampoline_bin, "--port", str(port)], parent_death_signal=signal.SIGTERM)
+    http_address = "http://{}:{}/ping".format(JDBC_BRIDGE_HOST, port)
+
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(
+                "JDBC bridge exited before becoming ready with code {}".format(process.returncode))
+        try:
+            if requests.get(http_address, timeout=1).content.strip() == b"Ok.":
+                logger.info("JDBC bridge is ready")
+                return process
+        except requests.RequestException:
+            pass
+        time.sleep(1)
+
+    stop_process("JDBC bridge", process)
+    raise RuntimeError("JDBC bridge did not become ready in 60 seconds")
+
+
+def wait_for_ytserver_clickhouse(ytserver_clickhouse_process, jdbc_bridge_process):
+    if jdbc_bridge_process is None:
+        return ytserver_clickhouse_process.wait()
+
+    while ytserver_clickhouse_process.poll() is None and jdbc_bridge_process.poll() is None:
+        time.sleep(1)
+
+    if jdbc_bridge_process.poll() is not None and ytserver_clickhouse_process.poll() is None:
+        logger.error("JDBC bridge exited unexpectedly with code %d", jdbc_bridge_process.returncode)
+        ytserver_clickhouse_process.terminate()
+
+    return ytserver_clickhouse_process.wait()
 
 
 def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port, stderr_file):
@@ -292,6 +362,8 @@ def main():
     parser.add_argument("ytserver_clickhouse_bin", nargs="?", help="ytserver-clickhouse binary path")
     parser.add_argument("--prepare-geodata", action="store_true", help="Extract archive with geodata")
     parser.add_argument("--prepare-odbc", action="store_true", help="Prepare ODBC env variables")
+    parser.add_argument("--prepare-jdbc", action="store_true", help="Start JDBC bridge")
+    parser.add_argument("--jdbc-trampoline-bin", help="JDBC trampoline executable path")
     parser.add_argument("--monitoring-port", help="Port for monitoring HTTP server")
     parser.add_argument("--log-tailer-monitoring-port", help="Port for log tailer monitoring HTTP server")
     parser.add_argument("--core-dump-destination", help="Path where to move all core dumps that appear after execution")
@@ -327,11 +399,19 @@ def main():
     if args.prepare_odbc:
         prepare_odbc()
 
+    jdbc_bridge_process = None
+    jdbc_bridge_port = None
+    if args.prepare_jdbc:
+        if not args.jdbc_trampoline_bin:
+            parser.error("--jdbc-trampoline-bin is required with --prepare-jdbc")
+        jdbc_bridge_port = int(os.environ[JDBC_BRIDGE_PORT_ENV])
+        jdbc_bridge_process = run_jdbc_bridge(args.jdbc_trampoline_bin, jdbc_bridge_port)
+
     inside_mtn = is_inside_mtn()
     if inside_mtn:
         logger.info("Apparently we are inside MTN")
 
-    patch_ytserver_clickhouse_config(args.prepare_geodata, inside_mtn)
+    patch_ytserver_clickhouse_config(args.prepare_geodata, inside_mtn, jdbc_bridge_port)
 
     stderr_file = args.stderr_file
 
@@ -355,8 +435,11 @@ def main():
         wait_for_readiness(args.readiness_timeout, ytserver_clickhouse_process)
 
     logger.info("Waiting for ytserver-clickhouse to finish")
-    exit_code = ytserver_clickhouse_process.wait()
+    exit_code = wait_for_ytserver_clickhouse(ytserver_clickhouse_process, jdbc_bridge_process)
     logger.info("ytserver-clickhouse exit code is %d", exit_code)
+
+    if jdbc_bridge_process is not None:
+        stop_process("JDBC bridge", jdbc_bridge_process)
 
     if exit_code < 0:
         exit_code = 128 + abs(exit_code)

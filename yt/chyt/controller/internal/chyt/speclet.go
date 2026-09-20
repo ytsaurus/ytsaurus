@@ -40,6 +40,7 @@ type Speclet struct {
 
 	// ODBCConfig contains ODBC drivers, data sources, and extra files configuration.
 	ODBCConfig *ODBCConfig `yson:"odbc_config"`
+	JDBCConfig *JDBCConfig `yson:"jdbc_config"`
 
 	logsDir *string
 }
