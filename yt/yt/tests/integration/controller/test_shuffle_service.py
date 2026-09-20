@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, has_tvm_service_support
 
 from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
@@ -10,6 +10,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
+from yt_driver_bindings import Driver as NativeDriver
 from yt_driver_rpc_bindings import Driver
 from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
@@ -23,6 +24,7 @@ import builtins
 import os
 import pytest
 import string
+import yt_error_codes
 
 
 ##################################################################
@@ -912,6 +914,38 @@ class TestShuffleService(YTEnvSetup):
             assert read_quorum + write_quorum > replication_factor
 
         commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
+    @pytest.mark.skipif(not has_tvm_service_support, reason="Native authentication requires a TVM service")
+    def test_coordinator_requires_service_ticket(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=1,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
+
+        base_driver_config = deepcopy(self.Env.configs["driver"])
+        base_driver_config["connection_type"] = "native"
+
+        for ticket_mode in ["trusted", "missing", "wrong_destination"]:
+            driver_config = deepcopy(base_driver_config)
+            driver_config["api_version"] = 4
+            if ticket_mode == "missing":
+                driver_config.pop("tvm_id", None)
+                driver_config.pop("tvm_service", None)
+            elif ticket_mode == "wrong_destination":
+                driver_config["tvm_id"] += 1
+            driver = NativeDriver(driver_config)
+            try:
+                expected_error = (
+                    raises_yt_error("Invalid partition index") if ticket_mode == "trusted"
+                    else raises_yt_error(code=yt_error_codes.RpcAuthenticationError))
+                with expected_error:
+                    read_shuffle_data(shuffle_handle, partition_index=1, driver=driver)
+            finally:
+                driver.terminate()
 
 
 @pytest.mark.parametrize("use_push_based_shuffle", [False, True])

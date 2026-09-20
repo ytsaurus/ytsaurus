@@ -845,7 +845,11 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         auto shuffleService = CreateShuffleService(
             apiInvoker,
             rootClient,
-            localServerAddress);
+            localServerAddress,
+            // TODO(apollo1321): The shuffle service is exposed to the user here. The TVM bridge
+            // cannot validate service tickets, since ParseServiceTicket is unimplemented for it.
+            // See YT-29714 for details.
+            /*authenticator*/ nullptr);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
         connection->RegisterShuffleService(localServerAddress);
         YT_TLOG_INFO("Shuffle Service registered")
