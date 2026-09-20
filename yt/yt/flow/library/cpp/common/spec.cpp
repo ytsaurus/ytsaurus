@@ -2266,6 +2266,29 @@ void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
             }
         }
     }
+
+    // The ResourceQueue balancer asks for more workers below (1 - deviation) of the consumption, so
+    // a deviation of one or more silently stops provisioning; the other balancers use the field as
+    // a score threshold where any value is meaningful. Checked on set, not in the postprocessor: a
+    // stored spec of an older release must still load on recovery.
+    auto validateRebalanceTargetDeviation = [] (const TDynamicJobBalancerSpecPtr& balancerSpec, TStringBuf path) {
+        if (balancerSpec->BalancerType != EJobBalancerType::ResourceQueue) {
+            return;
+        }
+        double deviation = balancerSpec->RebalanceTargetDeviation;
+        if (deviation < 0.0 || deviation >= 1.0) {
+            THROW_ERROR_EXCEPTION(
+                "Rebalance target deviation %v of the ResourceQueue balancer at %v must be in [0, 1)",
+                deviation,
+                path);
+        }
+    };
+    if (const auto& jobManager = dynamicSpec->JobManager) {
+        validateRebalanceTargetDeviation(jobManager, "job_manager");
+        for (const auto& [workerGroup, groupSpec] : jobManager->WorkerGroupOverride) {
+            validateRebalanceTargetDeviation(groupSpec, Format("job_manager/worker_group_override/%v", workerGroup));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -876,7 +876,8 @@ TRebalanceResult DoBalanceResourceQueue(
     //   min(w.TotalCapacity, workerInfo.ComputationLoad[c] + freeCapacity[w])
     // where freeCapacity[w] = max(0, w.TotalCapacity - workerInfo.TotalLoad).
     //
-    // If maxPossibleCapacity[c] < computationInfo.Consumption, c needs more workers.
+    // If maxPossibleCapacity[c] falls short of computationInfo.Consumption by more than
+    // RebalanceTargetDeviation, c needs more workers; a smaller deficit is noise of the estimate.
     //
     // starvingComputations: sorted by starvation degree descending.
     // starvation[c] = 1 - allocatedCapacity[c] / consumption[c], clamped to [0,1].
@@ -1095,8 +1096,12 @@ TRebalanceResult DoBalanceResourceQueue(
         return allocated;
     };
 
+    // Computations that need more workers per Step 1. Only these may take a worker from others in
+    // Steps 3-4; a deficit the own workers can cover is left to Step 8.
+    THashSet<TComputationId> needsMoreWorkers;
+
     // Helper: recompute AllocatedCapacity for all computations and build a fresh starvation queue.
-    // Includes all computations where AllocatedCapacity < Consumption.
+    // Includes the computations of |needsMoreWorkers| where AllocatedCapacity < Consumption.
     // Computations with no workers are unconditionally starving (starvation = 1.0).
     auto buildStarvingQueue = [&] {
         std::priority_queue<TStarvationEntry> queue;
@@ -1104,6 +1109,9 @@ TRebalanceResult DoBalanceResourceQueue(
             if (computationInfo.Workers.empty()) {
                 // No workers assigned yet — unconditionally starving.
                 queue.emplace(1.0, computationId);
+                continue;
+            }
+            if (!needsMoreWorkers.contains(computationId)) {
                 continue;
             }
             if (computationInfo.Consumption <= 0.) {
@@ -1119,8 +1127,8 @@ TRebalanceResult DoBalanceResourceQueue(
         return queue;
     };
 
-    // Seed the starvation queue for Step 2: only computations that cannot be satisfied
-    // even with optimal redistribution among current workers (maxPossible < Consumption).
+    // Seed the starvation queue for Step 2: only computations whose current workers cannot cover
+    // the consumption even after an optimal redistribution, by more than RebalanceTargetDeviation.
     // Computations with no workers are unconditionally starving (starvation = 1.0).
     for (auto& [computationId, computationInfo] : context.Computations) {
         if (computationInfo.Workers.empty()) {
@@ -1128,6 +1136,7 @@ TRebalanceResult DoBalanceResourceQueue(
                 .With("Computation", computationId)
                 .With("StrayPartitions", computationInfo.StrayPartitions.size())
                 .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
+            needsMoreWorkers.insert(computationId);
             starvingQueue.emplace(1.0, computationId);
             continue;
         }
@@ -1143,7 +1152,10 @@ TRebalanceResult DoBalanceResourceQueue(
             .With("MaxPossibleCapacity", maxPossible)
             .With("CurrentWorkers", computationInfo.Workers.size())
             .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
-        if (maxPossible >= computationInfo.Consumption) {
+        // The capacity estimate hovers around the consumption of a worker that keeps up, so a
+        // deficit within RebalanceTargetDeviation is noise: seeding on it asks for a worker one
+        // round and releases it the next.
+        if (maxPossible >= (1. - balancerSpec->RebalanceTargetDeviation) * computationInfo.Consumption) {
             YT_TLOG_DEBUG("ResourceQueue: Step 1 computation satisfied by existing workers, skipping Step 2")
                 .With("Computation", computationId);
             continue; // Can be satisfied by existing workers — skip Step 2 for this computation.
@@ -1152,6 +1164,7 @@ TRebalanceResult DoBalanceResourceQueue(
         YT_TLOG_DEBUG("ResourceQueue: Step 1 computation seeded into starvation queue")
             .With("Computation", computationId)
             .With("Starvation", starvation);
+        needsMoreWorkers.insert(computationId);
         starvingQueue.emplace(starvation, computationId);
     }
 
@@ -1251,7 +1264,7 @@ TRebalanceResult DoBalanceResourceQueue(
     //   Prefer the cSurplus with the smallest load on w (cheapest to move).
     //   Bound: stop after O(numWorkers) total moves.
 
-    // Rebuild the starvation queue for Step 3: all computations where AllocatedCapacity < Consumption.
+    // Rebuild the starvation queue for Step 3: the computations Step 2 could not satisfy.
     starvingQueue = buildStarvingQueue();
 
     YT_TLOG_DEBUG("ResourceQueue: Step 3 starting")
@@ -1581,12 +1594,23 @@ TRebalanceResult DoBalanceResourceQueue(
     // computationInfo.Workers = workers virtually assigned to c (from Steps 2-4).
     // computationInfo.ResourceConsumptionMultiplier = resources required by c (from spec via CollectResourceContext).
     THashMap<TWorkerId, THashSet<TResourceId>> desiredWorkerResources;
+    auto desireComputationResources = [&] (const TWorkerId& workerAddress, const TComputationInfo& computationInfo) {
+        for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+            desiredWorkerResources[workerAddress].insert(resourceId);
+        }
+    };
     for (const auto& [computationId, computationInfo] : context.Computations) {
         for (const auto& workerAddress : computationInfo.Workers) {
-            for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
-                desiredWorkerResources[workerAddress].insert(resourceId);
-            }
+            desireComputationResources(workerAddress, computationInfo);
         }
+    }
+    // A resource stays desired while partitions using it run on the worker: Steps 3-4 drop a
+    // worker from a computation's plan without evacuating them, and a job cannot lose its model.
+    for (const auto& [partitionId, partitionInfo] : context.Partitions) {
+        if (!partitionInfo.WorkerId) {
+            continue;
+        }
+        desireComputationResources(*partitionInfo.WorkerId, GetOrCrash(context.Computations, partitionInfo.ComputationId));
     }
 
     // Emit preload Add/Del actions and build workerPreloadReady.
@@ -1871,13 +1895,17 @@ TRebalanceResult DoBalanceResourceQueue(
     // absolute Cv drop of RebalanceTargetDeviation.
     double improvementThreshold = balancerSpec->RebalanceTargetDeviation * baselineMetric.Mean;
 
-    // Below ZeroQueueLatency worth of load in total there is no queue to balance (the per-worker
-    // Underloaded rule applied to the group). Gates the baseline only.
-    double enrolledLoad = 0.;
+    // There is a queue to balance only if some worker projects more than ZeroQueueLatency worth of
+    // its own load (the Underloaded rule). A group total would hide one saturated worker behind
+    // the load of its queue-free peers. Gates the baseline only.
+    bool aboveZeroLevel = false;
     for (const auto& workerAddress : enrolledWorkers) {
-        enrolledLoad += GetOrDefault(baselineState, workerAddress, TEmulatedWorker{}).Load;
+        const auto& state = GetOrDefault(baselineState, workerAddress, TEmulatedWorker{});
+        if (computeProjectedAvgQueue(workerAddress, state) > zeroQueueLatencySeconds * state.Load + kEpsilon) {
+            aboveZeroLevel = true;
+            break;
+        }
     }
-    bool aboveZeroLevel = baselineMetric.Sum > zeroQueueLatencySeconds * enrolledLoad + kEpsilon;
 
     YT_TLOG_DEBUG("ResourceQueue: Step 7 baseline queue metric computed")
         .With("WorkerGroup", workerGroup)
