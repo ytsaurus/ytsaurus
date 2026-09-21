@@ -10,6 +10,7 @@ SRCS(
     experiments_ut.cpp
     job_monitoring_index_manager_ut.cpp
     input_statistics_collector_ut.cpp
+    job_phase_ut.cpp
     job_splitter_ut.cpp
     partition_keys_builder_ut.cpp
     partitioning_parameters_ut.cpp

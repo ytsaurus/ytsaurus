@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/server/lib/controller_agent/structs.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <util/generic/cast.h>
@@ -197,7 +199,9 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(13, BriefStatistics);
     PHOENIX_REGISTER_FIELD(14, Progress);
     PHOENIX_REGISTER_FIELD(15, StderrSize);
-    PHOENIX_REGISTER_FIELD(16, Phase);
+    PHOENIX_REGISTER_FIELD(16, Phase,
+        // COMPAT(pogorelov)
+        .template Serializer<TJobPhaseSerializer>());
     PHOENIX_REGISTER_FIELD(17, CompetitionIds);
     PHOENIX_REGISTER_FIELD(18, HasCompetitors);
     PHOENIX_REGISTER_FIELD(19, TaskName);
