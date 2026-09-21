@@ -9,6 +9,9 @@ namespace NYT::NFlow::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Exceptions from eviction callbacks are fatal. This includes #TCompressibleValue::Compress(),
+// #TCompressibleValue::GetWeight(), and hashing, copying or comparing #TKey.
+// Other cache operations may propagate exceptions to the caller.
 template <class TKey, class TCompressibleValue>
 class TTwoLevelCache
     : public TRefCounted
@@ -40,7 +43,7 @@ public:
 
         i64 GetWeight(const TItemPtr& item) const override;
 
-        void OnRemoved(const TItemPtr& item) override;
+        void OnRemoved(const TItemPtr& item) noexcept override;
 
         bool IsResurrectionSupported() const override;
 

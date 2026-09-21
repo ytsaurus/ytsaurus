@@ -24,6 +24,7 @@ SRCS(
     retryable_client_ut.cpp
     retryable_transaction_ut.cpp
     status_profiler_ut.cpp
+    two_level_cache_ut.cpp
     weighted_random_ut.cpp
     remedian_splitter_ut.cpp
     versioned_value_ut.cpp
