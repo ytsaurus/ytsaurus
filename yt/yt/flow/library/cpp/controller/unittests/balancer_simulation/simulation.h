@@ -48,11 +48,15 @@ struct TScenario
     double QueueCap = 0.;
     int ComputationCount = 0;
     int PartitionsPerComputation = 0;
-    double DemandPerPartition = 0.;  // requests per second per partition
-    int PreloadedWorkersAtStart = 0; // workers that already have every model at step 0
-    ssize_t ModelGpuMemory = 0;      // required_capabilities.gpu_memory of every model
-    ssize_t WorkerGpuMemory = 0;     // gpu_memory capability of every worker
-    int PreloadDelaySteps = 0;       // steps between a preload request and its completion
+    double DemandPerPartition = 0.;    // requests per second per partition
+    int PreloadedWorkersAtStart = 0;   // workers that already have every model at step 0
+    std::vector<double> InitialShares; // share of each computation placed on worker i at step 0; the rest is stray
+    int DemandDipStartMinute = 0;      // demand is multiplied by DemandDipMultiplier on minutes [Start, End)
+    int DemandDipEndMinute = 0;
+    double DemandDipMultiplier = 1.;
+    ssize_t ModelGpuMemory = 0;  // required_capabilities.gpu_memory of every model
+    ssize_t WorkerGpuMemory = 0; // gpu_memory capability of every worker
+    int PreloadDelaySteps = 0;   // steps between a preload request and its completion
     int TotalSteps = 0;
     std::vector<int> CheckpointMinutes;
 
@@ -60,8 +64,7 @@ struct TScenario
     double ZeroQueueLatencySeconds = 0.;
     double RebalanceTargetDeviation = 0.;
 
-    // Whether every worker is expected to end the run within its capacity.
-    bool ExpectLoadWithinCapacity = false;
+    bool ExpectNoPreloadCancellationWhileLoading = false; // no preload Del while the model is loading
 
     int TotalPartitions() const
     {
@@ -124,6 +127,9 @@ public:
 
     int StrayCount() const;
 
+    //! Preload Del actions for a model the worker was still loading.
+    int PreloadCancelledWhileLoading() const;
+
 private:
     static constexpr int WindowCount = 2;
     static constexpr std::array<TDuration, WindowCount> WindowDurations = {TDuration::Seconds(30), TDuration::Minutes(10)};
@@ -164,7 +170,7 @@ private:
         std::optional<TJobId> JobId;
         double Demand = 0.;
         double MeasuredRps = 0.;
-        int StartedAtStep = 0;
+        TInstant StartTime;
     };
 
     TScenario Scenario_;
@@ -172,8 +178,12 @@ private:
     TFlowViewPtr FlowView_;
     TDynamicJobBalancerSpecPtr BalancerSpec_;
 
-    // Fixed epoch: the simulated clock never touches the wall clock.
+    // Fixed epoch: the simulated clock never touches the wall clock. Partitions placed by
+    // the scenario start at Epoch_; the run starts StartOffset later, so they are past
+    // PartitionWarmupPeriod (job_balancer_resource_queue.cpp, 10 minutes) with a margin.
+    static constexpr TDuration StartOffset = TDuration::Minutes(30);
     const TInstant Epoch_ = TInstant::Seconds(1'700'000'000);
+    const TInstant Start_ = Epoch_ + StartOffset;
 
     std::vector<TComputationId> Computations_;
     std::vector<TResourceId> Resources_;
@@ -188,8 +198,11 @@ private:
     std::vector<TPreloadEvent> PreloadEvents_;
     std::vector<TCheckpoint> Checkpoints_;
     TEnumIndexedArray<EViolation, int> Violations_;
+    int PreloadCancelledWhileLoading_ = 0;
 
     TInstant Now() const;
+
+    double DemandAt(int step) const;
 
     TInstant StepEnd() const;
 

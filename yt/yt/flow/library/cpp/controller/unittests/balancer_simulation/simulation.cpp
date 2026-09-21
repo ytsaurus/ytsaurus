@@ -6,6 +6,8 @@
 
 #include <library/cpp/testing/common/env.h>
 
+#include <cmath>
+
 namespace NYT::NFlow::NBalancer::NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,14 +115,26 @@ int TSimulation::StrayCount() const
     return n;
 }
 
+int TSimulation::PreloadCancelledWhileLoading() const
+{
+    return PreloadCancelledWhileLoading_;
+}
+
 TInstant TSimulation::Now() const
 {
-    return Epoch_ + TDuration::Seconds(Step_ * StepSeconds);
+    return Start_ + TDuration::Seconds(Step_ * StepSeconds);
 }
 
 TInstant TSimulation::StepEnd() const
 {
-    return Epoch_ + TDuration::Seconds((Step_ + 1) * StepSeconds);
+    return Start_ + TDuration::Seconds((Step_ + 1) * StepSeconds);
+}
+
+double TSimulation::DemandAt(int step) const
+{
+    int minute = step * StepSeconds / 60;
+    bool dip = Scenario_.DemandDipStartMinute <= minute && minute < Scenario_.DemandDipEndMinute;
+    return Scenario_.DemandPerPartition * (dip ? Scenario_.DemandDipMultiplier : 1.);
 }
 
 void TSimulation::SetSpecs(const TPipelineSpecPtr& pipelineSpec)
@@ -170,12 +184,30 @@ void TSimulation::Build()
             partition.Index = index;
             partition.Id = MakePartitionId(index + 1); // 0 would be a null id.
             partition.Computation = c;
-            partition.Demand = Scenario_.DemandPerPartition;
+            partition.Demand = DemandAt(0);
             PartitionIndex_[partition.Id] = index;
             Partitions_.push_back(partition);
             // Stray: no job. The job status is published by Publish().
             AddPartition(FlowView_, partition.Id, Computations_[c], partition.Demand, std::nullopt);
             ++index;
+        }
+    }
+
+    YT_VERIFY(std::ssize(Scenario_.InitialShares) <= Scenario_.WorkerCount);
+    for (int c = 0; c < Scenario_.ComputationCount; ++c) {
+        int next = c * Scenario_.PartitionsPerComputation;
+        int end = next + Scenario_.PartitionsPerComputation;
+        for (int w = 0; w < std::ssize(Scenario_.InitialShares); ++w) {
+            int count = static_cast<int>(std::lround(Scenario_.InitialShares[w] * Scenario_.PartitionsPerComputation));
+            YT_VERIFY(count == 0 || Workers_[w].Preloaded.contains(Resources_[c]));
+            YT_VERIFY(next + count <= end);
+            for (; count > 0; --count, ++next) {
+                CreateJob(Partitions_[next], Workers_[w].Address);
+                Partitions_[next].StartTime = Epoch_;
+                // A placed partition is serving its demand before the run starts; without this
+                // the balancer sees rps 0 on the first round and the group looks empty.
+                Partitions_[next].MeasuredRps = Partitions_[next].Demand;
+            }
         }
     }
 }
@@ -184,6 +216,10 @@ void TSimulation::Step()
 {
     const double dt = StepSeconds;
     const auto stepEnd = StepEnd();
+    const double demand = DemandAt(Step_);
+    for (auto& partition : Partitions_) {
+        partition.Demand = demand;
+    }
     for (auto& worker : Workers_) {
         for (auto& q : worker.Queues) {
             q.Load = 0.;
@@ -259,7 +295,7 @@ void TSimulation::Publish()
         }
         auto status = New<TPartitionJobStatus>();
         status->CurrentJobStatus = New<TJobStatus>();
-        status->CurrentJobStatus->StartTime = Epoch_ + TDuration::Seconds(partition.StartedAtStep * StepSeconds);
+        status->CurrentJobStatus->StartTime = partition.StartTime;
         auto inputMetrics = New<TNodeInputMetrics>();
         inputMetrics->Global.MessagesPerSecond = partition.MeasuredRps;
         status->CurrentJobStatus->InputMetrics = inputMetrics;
@@ -312,7 +348,7 @@ void TSimulation::CreateJob(TPartitionModel& partition, const std::string& worke
     FlowView_->State->CommitMutation();
     partition.JobId = job->JobId;
     partition.Worker = worker;
-    partition.StartedAtStep = Step_;
+    partition.StartTime = Now();
 }
 
 bool TSimulation::HasPartitionsOf(const TWorkerModel& worker, int computation) const
@@ -390,6 +426,9 @@ void TSimulation::Apply(const TRebalanceResult& result)
             // A real worker cannot drop a model its jobs are using; count it and keep the model.
             ++Violations_[EViolation::UnloadInUse];
             continue;
+        }
+        if (worker.PreloadCompletesAtStep.contains(action.ResourceId)) {
+            ++PreloadCancelledWhileLoading_;
         }
         worker.Preloaded.erase(action.ResourceId);
         worker.PreloadCompletesAtStep.erase(action.ResourceId);

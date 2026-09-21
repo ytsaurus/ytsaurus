@@ -26,7 +26,6 @@ TScenario BaseScenario()
     scenario.PlanningHorizonSeconds = 600.;
     scenario.ZeroQueueLatencySeconds = 1.;
     scenario.RebalanceTargetDeviation = 0.1;
-    scenario.ExpectLoadWithinCapacity = true;
     return scenario;
 }
 
@@ -56,11 +55,41 @@ TScenario ManyModelsColdStart()
     return scenario;
 }
 
+//! Partitions run on the two preloaded workers, demand halves on minutes 5..15.
+//! Expected: the preloads ordered for the other workers survive the dip, and after it
+//! the two workers are unloaded.
+TScenario DemandDipAfterPlacement()
+{
+    auto scenario = SpecApplyTwoPreloaded();
+    scenario.Name = "DemandDipAfterPlacement";
+    scenario.InitialShares = {0.5, 0.5};
+    scenario.DemandDipStartMinute = 5;
+    scenario.DemandDipEndMinute = 15;
+    scenario.DemandDipMultiplier = 0.5;
+    scenario.ExpectNoPreloadCancellationWhileLoading = true;
+    return scenario;
+}
+
+//! One worker holds 34% of every computation (40.8k against 32k), the other four are
+//! below capacity. Expected: the worker is drained.
+TScenario OneWorkerOverloaded()
+{
+    auto scenario = BaseScenario();
+    scenario.Name = "OneWorkerOverloaded";
+    scenario.WorkerCount = 5;
+    scenario.ComputationCount = 4;
+    scenario.PreloadedWorkersAtStart = 5;
+    scenario.InitialShares = {0.34, 0.21, 0.17, 0.16, 0.12};
+    return scenario;
+}
+
 std::vector<TScenario> Scenarios()
 {
     return {
         SpecApplyTwoPreloaded(),
         ManyModelsColdStart(),
+        DemandDipAfterPlacement(),
+        OneWorkerOverloaded(),
     };
 }
 
@@ -98,26 +127,26 @@ TEST_P(TResourceBalancerSimulationTest, Trajectory)
     EXPECT_EQ(violations[EViolation::UnloadInUse], 0);
     EXPECT_EQ(violations[EViolation::AddWithoutDel], 0);
 
-    if (scenario.ExpectLoadWithinCapacity) {
-        for (const auto& [worker, load] : checkpoints.back().Load) {
-            EXPECT_LE(load, scenario.WorkerCapacity) << worker << " at minute " << checkpoints.back().Minute;
-        }
+    if (scenario.ExpectNoPreloadCancellationWhileLoading) {
+        EXPECT_EQ(simulation.PreloadCancelledWhileLoading(), 0);
+    }
+
+    for (const auto& [worker, load] : checkpoints.back().Load) {
+        EXPECT_LE(load, scenario.WorkerCapacity) << worker << " at minute " << checkpoints.back().Minute;
     }
 
     // The balancer's own goal: equal queues. At the end the queues are either all empty
     // by its definition (shorter than ZeroQueueLatency worth of capacity) or spread by
     // no more than RebalanceTargetDeviation of the longest one.
-    {
-        double maxQueue = 0.;
-        double minQueue = std::numeric_limits<double>::max();
-        for (const auto& [_, queue] : checkpoints.back().Queue) {
-            maxQueue = std::max(maxQueue, queue);
-            minQueue = std::min(minQueue, queue);
-        }
-        double emptyQueue = scenario.ZeroQueueLatencySeconds * scenario.WorkerCapacity;
-        EXPECT_TRUE(maxQueue <= emptyQueue || (maxQueue - minQueue) <= scenario.RebalanceTargetDeviation * maxQueue)
-            << "queues at minute " << checkpoints.back().Minute << ": min " << minQueue << ", max " << maxQueue;
+    double maxQueue = 0.;
+    double minQueue = std::numeric_limits<double>::max();
+    for (const auto& [_, queue] : checkpoints.back().Queue) {
+        maxQueue = std::max(maxQueue, queue);
+        minQueue = std::min(minQueue, queue);
     }
+    double emptyQueue = scenario.ZeroQueueLatencySeconds * scenario.WorkerCapacity;
+    EXPECT_TRUE(maxQueue <= emptyQueue || (maxQueue - minQueue) <= scenario.RebalanceTargetDeviation * maxQueue)
+        << "queues at minute " << checkpoints.back().Minute << ": min " << minQueue << ", max " << maxQueue;
 }
 
 INSTANTIATE_TEST_SUITE_P(
