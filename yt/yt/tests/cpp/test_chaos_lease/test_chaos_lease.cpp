@@ -24,6 +24,7 @@
 #include <util/random/random.h>
 
 #include <atomic>
+#include <optional>
 
 namespace NYT::NCppTests {
 
@@ -60,6 +61,7 @@ protected:
 
     TCellId EnabledCell_;
     TCellId DisabledCell_;
+    std::optional<TCellId> SuspendedCoordinator_;
 
     static void SetUpTestCase()
     {
@@ -83,6 +85,11 @@ protected:
 
     void TearDown() override
     {
+        if (SuspendedCoordinator_) {
+            WaitFor(Client_->ResumeCoordinator(*SuspendedCoordinator_))
+                .ThrowOnError();
+        }
+
         ResumeBothCells();
     }
 
@@ -409,10 +416,7 @@ TEST_P(TChaosLeaseTest, WatchCoordinatorChange)
     expectedUpdatedCoordinatorCellIds.erase(coordinatorToSuspend);
     WaitFor(Client_->SuspendCoordinator(coordinatorToSuspend))
         .ThrowOnError();
-    auto resumeCoordinatorGuard = Finally([&] {
-        WaitFor(Client_->ResumeCoordinator(coordinatorToSuspend))
-            .ThrowOnError();
-    });
+    SuspendedCoordinator_ = coordinatorToSuspend;
 
     waitForCoordinators(expectedUpdatedCoordinatorCellIds);
 }
