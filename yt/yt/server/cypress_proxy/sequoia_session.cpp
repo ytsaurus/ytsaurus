@@ -610,7 +610,7 @@ void TSequoiaSession::MaybeLockAndReplicateCypressTransaction()
     // lib/sequoia/cypress_transaction.cpp.
     SequoiaTransaction_->LockRow(
         NRecords::TTransactionKey{.TransactionId = cypressTransactionId},
-        SequoiaTransaction_->GetFeatures().UseSharedWriteLocksForCypressTransactions
+        SequoiaTransaction_->GetFeatures().UseSharedWriteLocksForCypressTransactions.value_or(true)
             ? ELockType::SharedWrite
             : ELockType::SharedStrong);
 
