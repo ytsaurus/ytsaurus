@@ -29,6 +29,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -292,10 +293,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         }
         HttpClient httpClient = httpClientBuilder.build();
 
-        proxyGetter = new HttpProxyGetter(
+        HttpProxyGetter httpProxyGetter = new HttpProxyGetter(
                 httpClient,
                 httpBuilder
         );
+        proxyGetter = httpProxyGetter;
+        toClose.add(httpProxyGetter);
 
         executorService = httpBuilder.eventLoop;
         updatePeriodMs = httpBuilder.options.getProxyUpdateTimeout().toMillis();
@@ -946,7 +949,7 @@ interface ProxyGetter {
 
 @NonNullApi
 @NonNullFields
-class HttpProxyGetter implements ProxyGetter {
+class HttpProxyGetter implements ProxyGetter, AutoCloseable {
     private static final int HTTP_PROXY_PORT = 80;
     private static final int HTTPS_PROXY_PORT = 443;
 
@@ -956,7 +959,7 @@ class HttpProxyGetter implements ProxyGetter {
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
 
-    private final HttpClient httpClient;
+    private final AtomicReference<HttpClient> httpClientRef;
     private final String balancerFqdn;
     private final Duration discoverProxiesTimeout;
     @Nullable
@@ -972,7 +975,7 @@ class HttpProxyGetter implements ProxyGetter {
     String proxyNetworkName;
 
     HttpProxyGetter(HttpClient httpClient, ClientPoolService.HttpBuilder httpBuilder) {
-        this.httpClient = httpClient;
+        this.httpClientRef = new AtomicReference<>(httpClient);
         this.balancerFqdn = Objects.requireNonNull(httpBuilder.balancerFqdn);
         this.balancerPort = httpBuilder.balancerPort;
         this.discoverProxiesTimeout = Objects.requireNonNull(httpBuilder.options).getProxyUpdateTimeout();
@@ -986,6 +989,11 @@ class HttpProxyGetter implements ProxyGetter {
 
     @Override
     public CompletableFuture<List<HostPort>> getProxies() {
+        HttpClient httpClient = httpClientRef.get();
+        if (httpClient == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("HTTP proxy getter is closed"));
+        }
+
         var discoverProxiesUrl = String.format(
                 "%s://%s/api/v4/discover_proxies?type=rpc", createScheme(), createFqdnWithPort()
         );
@@ -1060,6 +1068,32 @@ class HttpProxyGetter implements ProxyGetter {
             }
             return result;
         });
+    }
+
+    /**
+     * Releases the HTTP client used for proxy discovery.
+     *
+     * <p>On Java 11-20 {@link HttpClient} has no close method. The JDK tracks its internal facade through a weak
+     * reference named {@code facadeRef}. Clearing our strong reference allows the facade to be collected, after
+     * which the JDK stops the selector thread when all pending requests have finished.
+     *
+     * <p>Starting from Java 21 {@link HttpClient} implements {@link AutoCloseable}, so it is closed explicitly
+     * without relying on garbage collection.
+     */
+    @Override
+    public void close() {
+        HttpClient httpClient = httpClientRef.getAndSet(null);
+        if (httpClient == null) {
+            return;
+        }
+
+        if (httpClient instanceof AutoCloseable) {
+            try {
+                ((AutoCloseable) httpClient).close();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to close HTTP proxy discovery client", e);
+            }
+        }
     }
 
     private String createScheme() {
