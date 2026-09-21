@@ -2,7 +2,10 @@
 
 #include <queue>
 #include <list>
-#include <unordered_map>
+#include <tuple>
+
+#include <util/generic/algorithm.h>
+#include <util/generic/hash.h>
 
 #include <yql/essentials/utils/log/log.h>
 
@@ -47,6 +50,7 @@ public:
         , HistoryKeepingTime(TDuration::Minutes(config.GetHistoryKeepingTime()))
         , MaxOperations(config.GetMaxOperations())
         , MaxOperationsPerUser(config.GetMaxOperationsPerUser())
+        , EnablePerUserMetrics(config.GetEnablePerUserMetrics())
         , Counters(TMyCounters::Make(metricsRegistry))
         , EnableLimiter(config.GetLimitTasksPerWindow())
         , LimiterNumerator(config.GetLimiterNumerator())
@@ -54,28 +58,133 @@ public:
     {}
 
 private:
-    struct TUserInfo {
+    class TUserInfo {
+    public:
+        TUserInfo(i64& allocatedTotal, TMyCounters* schedulerCounters, const TString& user)
+            : AllocatedTotal(allocatedTotal)
+            , SchedulerCounters(schedulerCounters)
+            , User(user)
+        {
+            if (SchedulerCounters) {
+                const auto group = SchedulerCounters->Group->GetSubgroup("user", User);
+                Counters.Await = group->GetCounter("Await");
+                Counters.AwaitOperations = group->GetCounter("AwaitOperations");
+                Counters.Allocated = group->GetCounter("Allocated");
+            }
+        }
+
+        ~TUserInfo() {
+            Cleanup();
+            if (SchedulerCounters) {
+                SchedulerCounters->Group->RemoveSubgroup("user", User);
+            }
+        }
+
+        ui64 GetAwaitOperations() const {
+            return AwaitOperations;
+        }
+
+        ui64 GetAllocated() const {
+            return Allocated;
+        }
+
+        bool CanBeRemoved() const {
+            return Await == 0 && Allocated == 0 && AwaitOperations == 0 && History.empty();
+        }
+
+        void Enqueue(ui32 count) {
+            Await += count;
+            AwaitOperations += 1;
+            UpdateAwaitCounters();
+        }
+
+        void Allocate(ui32 count, const TInstant& now) {
+            Await -= count;
+            AwaitOperations -= 1;
+            Allocated += count;
+            AllocatedTotal += count;
+            History.emplace(now, count);
+            UpdateAwaitCounters();
+            UpdateAllocatedCounter();
+        }
+
+        void Dequeue(ui32 count) {
+            Await -= count;
+            AwaitOperations -= 1;
+            UpdateAwaitCounters();
+        }
+
+        void ExpireAllocations(const TInstant& from) {
+            ui64 expired = 0;
+            while (!History.empty() && History.front().first <= from) {
+                expired += History.front().second;
+                History.pop();
+            }
+            if (expired) {
+                Allocated -= expired;
+                AllocatedTotal -= expired;
+                UpdateAllocatedCounter();
+            }
+        }
+
+    private:
+        // Reference to TScheduler::AllocatedTotal.
+        i64& AllocatedTotal;
+        TMyCounters* const SchedulerCounters;
+        const TString User;
+
         ui64 Await = 0ULL;
         ui64 Allocated = 0ULL;
         ui64 AwaitOperations = 0LL;
         std::queue<std::pair<TInstant, ui32>> History;
+
+        struct {
+            NMonitoring::TDynamicCounters::TCounterPtr Await;
+            NMonitoring::TDynamicCounters::TCounterPtr AwaitOperations;
+            NMonitoring::TDynamicCounters::TCounterPtr Allocated;
+        } Counters;
+
+        void UpdateAwaitCounters() {
+            if (Counters.Await) {
+                Counters.Await->Set(Await);
+                Counters.AwaitOperations->Set(AwaitOperations);
+            }
+        }
+
+        void UpdateAllocatedCounter() {
+            if (Counters.Allocated) {
+                Counters.Allocated->Set(Allocated);
+            }
+        }
+
+        void Cleanup() {
+            AllocatedTotal -= Allocated;
+            Await = 0;
+            Allocated = 0;
+            AwaitOperations = 0;
+            UpdateAwaitCounters();
+            UpdateAllocatedCounter();
+        }
     };
 
-    using THistoryMap = std::unordered_map<TString, TUserInfo>;
+    using THistoryMap = THashMap<TString, TUserInfo>;
 
     struct TFullWaitInfo : public TWaitInfo {
-        TFullWaitInfo(TWaitInfo&& info, THistoryMap::value_type* userInfo)
+        TFullWaitInfo(TWaitInfo&& info, TUserInfo* userInfo)
             : TWaitInfo(std::move(info)), UserInfo(userInfo)
         {}
 
-        THistoryMap::value_type* const UserInfo;
+        TUserInfo* const UserInfo;
     };
 
      bool Suspend(TWaitInfo&& info) final {
-        auto& userInfo = *AllocationsHistory.emplace(info.Request.GetUser(), TUserInfo()).first;
+        const auto& user = info.Request.GetUser();
+        // Reuse the lookup context for insertion to avoid hashing a new user twice.
+        THistoryMap::insert_ctx insertCtx = nullptr;
+        auto userIt = AllocationsHistory.find(user, insertCtx);
 
         if (info.Request.GetCount() > 1U) {
-            if (userInfo.second.AwaitOperations >= MaxOperationsPerUser) {
+            if (userIt != AllocationsHistory.end() && userIt->second.GetAwaitOperations() >= MaxOperationsPerUser) {
                 return false;
             }
             if (LargeWaitList.size() >= MaxOperations) {
@@ -83,9 +192,19 @@ private:
             }
         }
 
-        userInfo.second.Await += info.Request.GetCount();
-        userInfo.second.AwaitOperations += 1;
-        (info.Request.GetCount() > 1U ? LargeWaitList : SmallWaitList).emplace_back(std::move(info), &userInfo);
+        if (userIt == AllocationsHistory.end()) {
+            userIt = AllocationsHistory.emplace_direct(
+                insertCtx,
+                std::piecewise_construct,
+                std::forward_as_tuple(user),
+                std::forward_as_tuple(
+                    AllocatedTotal,
+                    EnablePerUserMetrics ? Counters.get() : nullptr,
+                    user));
+        }
+
+        userIt->second.Enqueue(info.Request.GetCount());
+        (info.Request.GetCount() > 1U ? LargeWaitList : SmallWaitList).emplace_back(std::move(info), &userIt->second);
         return true;
     }
 
@@ -97,20 +216,18 @@ private:
         SmallWaitList.clear();
         LargeWaitList.clear();
         AllocationsHistory.clear();
-        AllocatedTotal = 0;
         return senders;
     }
 
     size_t UpdateMetrics() final {
         if (Counters) {
-            // TODO(lucius): Restore per-user metrics if Unified Agent starts accepting them.
-            *Counters->KnownUsers = AllocationsHistory.size();
-            *Counters->AllocatedTotal = AllocatedTotal;
-            *Counters->QueueSizeForSmall = SmallWaitList.size();
-            *Counters->QueueSizeForLarge = LargeWaitList.size();
-            *Counters->IntegralQueueSizeForLarge = std::accumulate(LargeWaitList.cbegin(), LargeWaitList.cend(), 0ULL,
+            Counters->KnownUsers->Set(AllocationsHistory.size());
+            Counters->AllocatedTotal->Set(AllocatedTotal);
+            Counters->QueueSizeForSmall->Set(SmallWaitList.size());
+            Counters->QueueSizeForLarge->Set(LargeWaitList.size());
+            Counters->IntegralQueueSizeForLarge->Set(std::accumulate(LargeWaitList.cbegin(), LargeWaitList.cend(), 0ULL,
                 [] (ui64 c, const TFullWaitInfo& info) { return c += info.Request.GetCount(); }
-            );
+            ));
         }
 
         return SmallWaitList.size() + LargeWaitList.size();
@@ -118,16 +235,14 @@ private:
 
     void Process(size_t total, size_t count, const TProcessor& processor, const TInstant& now) final {
         const auto from = now - HistoryKeepingTime;
-        for (auto& info : AllocationsHistory) {
-            for (auto& history = info.second.History; !history.empty() && history.front().first <= from; history.pop()) {
-                const auto expired = history.front().second;
-                info.second.Allocated -= expired;
-                AllocatedTotal -= expired;
-            }
-        };
+        EraseNodesIf(AllocationsHistory, [from](auto& item) {
+            auto& userInfo = item.second;
+            userInfo.ExpireAllocations(from);
+            return userInfo.CanBeRemoved();
+        });
 
         const auto sort = [](const TFullWaitInfo& lhs, const TFullWaitInfo& rhs) {
-            return lhs.UserInfo->second.Allocated < rhs.UserInfo->second.Allocated;
+            return lhs.UserInfo->GetAllocated() < rhs.UserInfo->GetAllocated();
         };
 
         SmallWaitList.sort(sort);
@@ -139,7 +254,7 @@ private:
                 if (quota < count)
                     return false;
 
-                if (EnableLimiter && (info.UserInfo->second.Allocated+count) > LimiterNumerator * total / LimiterDenumerator) {
+                if (EnableLimiter && (info.UserInfo->GetAllocated() + count) > LimiterNumerator * total / LimiterDenumerator) {
                     if (Counters) {
                         *Counters->UserLimited += 1;
                     }
@@ -147,11 +262,7 @@ private:
                 }
 
                 if (processor(info)) {
-                    info.UserInfo->second.Await -= count;
-                    info.UserInfo->second.AwaitOperations -= 1;
-                    info.UserInfo->second.Allocated += count;
-                    AllocatedTotal += count;
-                    info.UserInfo->second.History.emplace(now, count);
+                    info.UserInfo->Allocate(count, now);
                     quota -= count;
                     return true;
                 }
@@ -180,8 +291,7 @@ private:
     void ProcessAll(const TProcessor& processor) final {
         const auto proc = [&processor](const TFullWaitInfo& info) {
             if (processor(info)) {
-                info.UserInfo->second.Await -= info.Request.GetCount();
-                info.UserInfo->second.AwaitOperations -= 1;
+                info.UserInfo->Dequeue(info.Request.GetCount());
                 return true;
             }
             return false;
@@ -200,12 +310,13 @@ private:
     const TDuration HistoryKeepingTime;
     const size_t MaxOperations;
     const size_t MaxOperationsPerUser;
+    const bool EnablePerUserMetrics;
 
+    i64 AllocatedTotal = 0;
     const TMyCounters::TPtr Counters;
 
     THistoryMap AllocationsHistory;
     std::list<TFullWaitInfo> SmallWaitList, LargeWaitList;
-    i64 AllocatedTotal = 0;
 
     bool EnableLimiter;
     ui32 LimiterNumerator;

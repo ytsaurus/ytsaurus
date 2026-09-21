@@ -296,7 +296,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     }
 
     Y_UNIT_TEST(UpdateMetricsAfterRejectedLargeRequest) {
-        // A rejected user remains in AllocationsHistory and must not break metric updates.
+        // A rejected request from a new user must not create scheduler state or break metric updates.
         // Also pins incremental AllocatedTotal across allocation, history expiry and Cleanup().
         NYql::NProto::TDqConfig::TScheduler cfg;
         cfg.SetMaxOperations(1);
@@ -319,7 +319,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user2"));
 
-        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 1);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
         const auto now = TInstant::Now();
@@ -331,6 +331,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         // The queue is already drained; this call only runs the history expiry sweep.
         scheduler->Process(3U, 0U, process, now + TDuration::Minutes(1));
         scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
         UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
@@ -342,6 +343,63 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->UpdateMetrics();
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+    }
+
+    Y_UNIT_TEST(PerUserMetrics) {
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetHistoryKeepingTime(1);
+        cfg.SetMaxOperations(1);
+        cfg.SetEnablePerUserMetrics(true);
+
+        NYql::TSensorsGroupPtr sensorsPtr = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensorsPtr));
+        const auto schedulerCounters = sensorsPtr->FindSubgroup("component", "scheduler");
+        UNIT_ASSERT(scheduler);
+        UNIT_ASSERT(schedulerCounters);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        const auto user1Counters = schedulerCounters->FindSubgroup("user", "user1");
+        UNIT_ASSERT(user1Counters);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 0);
+
+        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        const auto user2Counters = schedulerCounters->FindSubgroup("user", "user2");
+        UNIT_ASSERT(!user2Counters);
+
+        const auto now = TInstant::Now();
+        const auto process = [] (const IScheduler::TWaitInfo&) { return true; };
+        scheduler->Process(3U, 3U, process, now);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 3);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user1"), {}}));
+        scheduler->ProcessAll(process);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 3);
+
+        scheduler->Process(3U, 0U, process, now + TDuration::Minutes(1));
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 0);
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        const auto recreatedUser1Counters = schedulerCounters->FindSubgroup("user", "user1");
+        UNIT_ASSERT(recreatedUser1Counters);
+        scheduler->Process(3U, 3U, process, now + TDuration::Minutes(1));
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Allocated")->Val(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
+
+        scheduler->Cleanup();
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Allocated")->Val(), 0);
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
     }
 
     Y_UNIT_TEST(UseOnlyHalfForLargeInOverload) {
