@@ -396,11 +396,14 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& reportedResourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("JobId: %v, ReportedResourceUsage: {Cpu: %v, Memory %v, Network: %v}",
-            jobId,
-            reportedResourceUsage.cpu(),
-            reportedResourceUsage.memory(),
-            reportedResourceUsage.network());
+        context->AnnotateRequest()
+            .With("JobId", jobId)
+            .WithFormat(
+                "ReportedResourceUsage",
+                "{Cpu: %v, Memory: %v, Network: %v}",
+                reportedResourceUsage.cpu(),
+                reportedResourceUsage.memory(),
+                reportedResourceUsage.network());
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);

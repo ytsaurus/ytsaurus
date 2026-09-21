@@ -310,17 +310,16 @@ private:
         options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
         options.UseDirectIo = request->use_direct_io();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
-            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v, UseDirectIo: %v",
-            sessionId,
-            options.WorkloadDescriptor,
-            options.SyncOnClose,
-            options.EnableMultiplexing,
-            options.PlacementId,
-            options.DisableSendBlocks,
-            options.UseProbePutBlocks,
-            options.PreallocateDiskSpace,
-            options.UseDirectIo);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("Workload", options.WorkloadDescriptor)
+            .With("SyncOnClose", options.SyncOnClose)
+            .With("EnableMultiplexing", options.EnableMultiplexing)
+            .With("PlacementId", options.PlacementId)
+            .With("DisableSendBlocks", options.DisableSendBlocks)
+            .With("UseProbePutBlocks", options.UseProbePutBlocks)
+            .With("PreallocateDiskSpace", options.PreallocateDiskSpace)
+            .With("UseDirectIo", options.UseDirectIo);
 
         ValidateOnline();
 
@@ -1194,12 +1193,10 @@ private:
                     response->Attachments().clear();
 
                     // Override response info.
-                    context->SetResponseInfo(
-                        "ChunkId: %v, HasCompleteChunk: %v,"
-                        "NetThrottling: %v",
-                        responseTemplate.ChunkId,
-                        hasCompleteChunk,
-                        true);
+                    context->AnnotateResponse()
+                        .With("ChunkId", responseTemplate.ChunkId)
+                        .With("HasCompleteChunk", hasCompleteChunk)
+                        .With("NetThrottling", true);
                 }
 
                 // Directly hold current request context.
@@ -1701,15 +1698,13 @@ private:
             }
         }
 
-        context->SetRequestInfo("ReadSessionId: %v, Workload: %v, ReadAndCacheWholeBlocks: %v, BlockCountToPrecache: %v, "
-            "SubrequestCount: %v, FragmentsSize: %v/%v",
-            readSessionId,
-            workloadDescriptor,
-            readAndCacheWholeBlocks,
-            blockCountToPrecache,
-            request->subrequests_size(),
-            totalFragmentSize,
-            totalFragmentCount);
+        context->AnnotateRequest()
+            .With("ReadSessionId", readSessionId)
+            .With("Workload", workloadDescriptor)
+            .With("ReadAndCacheWholeBlocks", readAndCacheWholeBlocks)
+            .With("BlockCountToPrecache", blockCountToPrecache)
+            .With("SubrequestCount", request->subrequests_size())
+            .WithFormat("FragmentsSize", "%v/%v", totalFragmentSize, totalFragmentCount);
 
         ValidateOnline();
 

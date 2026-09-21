@@ -518,10 +518,9 @@ private:
         }
 
         const auto& requestPath = GetOriginalRequestTargetYPath(context->RequestHeader());
-        context->SetRequestInfo("Method: %v.%v, Path: %v",
-            context->GetService(),
-            context->GetMethod(),
-            requestPath);
+        context->AnnotateRequest()
+            .WithFormat("Method", "%v.%v", context->GetService(), context->GetMethod())
+            .With("Path", requestPath);
 
         const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId;

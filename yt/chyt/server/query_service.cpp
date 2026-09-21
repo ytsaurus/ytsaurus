@@ -404,8 +404,8 @@ private:
                 .With("ProgressCount", response->multi_progress().progresses().size())
                 .With("FinishedCount", finishedCount);
         } else {
-            context->SetResponseInfo(
-                "No progress found because the query has already finished or was initiated on another instance");
+            context->AnnotateResponse()
+                .With("ProgressFound", false);
         }
 
         context->Reply();
