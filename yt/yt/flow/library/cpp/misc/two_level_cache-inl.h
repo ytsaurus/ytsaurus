@@ -6,6 +6,12 @@
     #include "two_level_cache.h"
 #endif
 
+#include <library/cpp/yt/assert/assert.h>
+
+#include <library/cpp/yt/string/format.h>
+
+#include <util/generic/yexception.h>
+
 namespace NYT::NFlow::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,15 +46,19 @@ i64 TTwoLevelCache<TKey, TCompressibleValue>::TCache::GetWeight(const TItemPtr& 
 }
 
 template <class TKey, class TCompressibleValue>
-void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr& item)
+void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr& item) noexcept
 {
-    if (NextCache_ && item->AllowCompression.exchange(false) == true) {
-        item->Value->Compress();
-        auto cookie = NextCache_->BeginInsert(item->GetKey());
-        cookie.EndInsert(item);
-        NextCache_->Touch(item);
+    try {
+        if (NextCache_ && item->AllowCompression.exchange(false) == true) {
+            item->Value->Compress();
+            auto cookie = NextCache_->BeginInsert(item->GetKey());
+            cookie.EndInsert(item);
+            NextCache_->Touch(item);
+        }
+        TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
+    } catch (...) {
+        YT_ABORT(Format("Exception in cache eviction callback: %v", CurrentExceptionMessage()));
     }
-    TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
 }
 
 template <class TKey, class TCompressibleValue>
