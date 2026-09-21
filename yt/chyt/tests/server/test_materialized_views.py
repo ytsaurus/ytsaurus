@@ -360,6 +360,87 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             wait(lambda: len(get_refresh_queries()) == len(expected_rows))
 
     @authors("buyval01")
+    @pytest.mark.parametrize("partition_limit", [0, 1, 2, 10])
+    @pytest.mark.parametrize("idle_partition", [False, True])
+    def test_partition_refresh_round_limit(self, partition_limit, idle_partition):
+        create("map_node", "//tmp/source_directory")
+        partition_count = 5
+        source_rows = {}
+        for index in range(partition_count):
+            path = f"//tmp/source_directory/{index}"
+            source_id = create("table", path, attributes={"schema": self.SCHEMA})
+            row = None if idle_partition and index == 0 else {"key": index, "value": str(index)}
+            source_rows[source_id] = row
+            if row is not None:
+                write_table(path, [row])
+        failed_index = int(idle_partition)
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "materialized_view_consumer_commit_breakpoint": get_breakpoint_node("refresh_round"),
+                        "fail_materialized_view_refresh_query_response_for_partition": failed_index,
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 100,
+                    "max_partitions_per_refresh": partition_limit,
+                    "max_rows_per_refresh": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock("//tmp/target", mode="exclusive", tx=transaction_id)
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
+                    'AS SELECT key, value FROM concatYtTablesRange("//tmp/source_directory")',
+                    settings={"chyt.materialized_view_populate": 1})
+                view_id = get(self._statement_path(clique) + "/@id")
+                progress_path = clique.materialized_views_path + "/progress/" + view_id
+                progress = get(progress_path)
+                partitions = progress["partitions"]
+                partition_rows = [source_rows[partition["object_id"]] for partition in partitions]
+                assert progress["next_partition_index"] == 0
+                assert all(partition["next_row_index"] == 0 for partition in partitions)
+                assert sum(partition["total_row_count"] for partition in partitions) == (
+                    partition_count - int(idle_partition))
+                assert read_table("//tmp/target") == []
+            finally:
+                abort_transaction(transaction_id)
+
+            wait_breakpoint("refresh_round")
+            try:
+                progress = get(progress_path)
+                partitions = progress["partitions"]
+                task_indexes = [index for index, row in enumerate(partition_rows) if row is not None]
+                task_indexes = task_indexes[:partition_limit or partition_count]
+                if failed_index in task_indexes:
+                    assert partitions[failed_index]["last_error"]
+                final_offsets = [
+                    int(row is not None and index != failed_index)
+                    for index, row in enumerate(partition_rows)
+                ]
+                first_offsets = [
+                    offset if index in task_indexes else 0
+                    for index, offset in enumerate(final_offsets)
+                ]
+                assert [partition["next_row_index"] for partition in partitions] == first_offsets
+                assert progress["next_partition_index"] == (task_indexes[-1] + 1) % partition_count
+                assert len(read_table("//tmp/target")) == sum(first_offsets)
+            finally:
+                release_breakpoint("refresh_round")
+
+            wait(lambda: [partition["next_row_index"] for partition in get(progress_path)["partitions"]]
+                 == final_offsets)
+            expected_rows = sorted(
+                (row for row, offset in zip(partition_rows, final_offsets) if offset),
+                key=lambda row: row["key"])
+            assert sorted(read_table("//tmp/target"), key=lambda row: row["key"]) == expected_rows
+
+    @authors("buyval01")
     def test_table_range_background_refresh(self):
         create("map_node", "//tmp/source_directory")
         create("table", "//tmp/source_directory/initial", attributes={"schema": self.SCHEMA})

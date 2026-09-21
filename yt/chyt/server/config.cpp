@@ -555,6 +555,9 @@ void TMaterializedViewsConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_rows_per_refresh", &TThis::MaxRowsPerRefresh)
         .GreaterThanOrEqual(0)
         .Default(0);
+    registrar.Parameter("max_partitions_per_refresh", &TThis::MaxPartitionsPerRefresh)
+        .GreaterThanOrEqual(0)
+        .Default(10);
     registrar.Parameter("query_timeout", &TThis::QueryTimeout)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("table_mount_timeout", &TThis::TableMountTimeout)
