@@ -60,8 +60,6 @@ private:
             .With("Async", request->async())
             .With("BuildRowsets", request->build_rowsets())
             .With("RowCountLimit", request->row_count_limit());
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
 
         if (ComponentStateChecker_->IsComponentBanned()) {
             YT_TLOG_INFO("YQL agent is banned; failing query")
@@ -117,8 +115,6 @@ private:
 
         context->AnnotateRequest()
             .With("QueryId", queryId);
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
 
         WaitFor(YqlAgent_->AbortQuery(queryId))
             .ThrowOnError();
@@ -152,8 +148,6 @@ private:
             : TQueryId::Create();
 
         context->AnnotateRequest()
-            .With("QueryId", queryId);
-        context->AnnotateResponse()
             .With("QueryId", queryId);
 
         response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));

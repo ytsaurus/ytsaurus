@@ -200,7 +200,7 @@ void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
     }
 
     AllSucceeded(std::move(asyncItems))
-        .Subscribe(BIND([session = std::move(session), context, response, limit] (const TError& error) {
+        .Subscribe(BIND([session = std::move(session), context, response] (const TError& error) {
             if (!error.IsOK()) {
                 context->Reply(error);
                 return;
@@ -225,7 +225,6 @@ void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
 
             context->AnnotateResponse()
                 .With("Count", session->Items.size())
-                .With("Limit", limit)
                 .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -283,7 +282,7 @@ void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
     }
 
     AllSucceeded(std::move(asyncItems))
-        .Subscribe(BIND([session = std::move(session), context, response, limit] (const TError& error) {
+        .Subscribe(BIND([session = std::move(session), context, response] (const TError& error) {
             if (!error.IsOK()) {
                 context->Reply(error);
                 return;
@@ -308,7 +307,6 @@ void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
 
             context->AnnotateResponse()
                 .With("Count", session->Items.size())
-                .With("Limit", limit)
                 .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -575,7 +573,6 @@ void TVirtualMulticellMapBase::GetSelf(
 
             context->AnnotateResponse()
                 .With("Count", session->Items.size())
-                .With("Limit", limit)
                 .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -638,7 +635,6 @@ void TVirtualMulticellMapBase::ListSelf(
 
             context->AnnotateResponse()
                 .With("Count", session->Items.size())
-                .With("Limit", limit)
                 .With("ByteSize", strLength);
             context->Reply();
         }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
