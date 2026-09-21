@@ -84,7 +84,8 @@ message TJobStatus
     required NYT.NProto.TGuid operation_id = 2;
     optional int32 job_type = 3;
     optional int32 state = 4;
-    optional int32 phase = 5;
+    // COMPAT(pogorelov): Remove in 26.3.
+    optional int32 phase_old = 5;
     optional double progress = 6;
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
@@ -106,6 +107,8 @@ message TJobStatus
     optional uint64 start_time = 22;
 
     optional uint64 last_progress_save_time = 23;
+
+    optional int32 phase = 24;
 }
 
 message TCoreInfo

@@ -4693,6 +4693,7 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
 
     status->set_job_type(ToProto(job->GetType()));
     status->set_state(ToProto(job->GetState()));
+    status->set_phase_old(ToProto(ConvertJobPhaseToOld(job->GetPhase())));
     status->set_phase(ToProto(job->GetPhase()));
     status->set_job_execution_completed(job->IsJobProxyCompleted());
     status->set_interruption_reason(ToProto(job->GetInterruptionReason()));

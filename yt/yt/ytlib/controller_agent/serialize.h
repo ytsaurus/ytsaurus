@@ -129,6 +129,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputChunkSliceUncompressedDataSize)   (302306))
     ((DropLegacyDataSliceRepresentation)     (302307))
     ((DropInvalidatedJoblets)                (302308))
+    ((JobPhaseSpacing)                       (302309))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
