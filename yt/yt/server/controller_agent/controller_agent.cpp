@@ -1705,11 +1705,18 @@ private:
         ScheduleAllocationRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_allocation_requests());
 
         auto now = TInstant::Now();
-        preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
-        preparedRequest.OperationJobMetricsSent = LastOperationJobMetricsSendTime_ + Config_->OperationJobMetricsPushPeriod < now;
-        preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
-        preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
+        auto isDue = [&] (TInstant lastTime, TDuration period) {
+            return lastTime + period < now;
+        };
+
+        preparedRequest.ExecNodesRequested = isDue(LastExecNodesUpdateTime_, Config_->ExecNodesUpdatePeriod);
+        preparedRequest.OperationsSent = isDue(LastOperationsSendTime_, Config_->OperationsPushPeriod);
+        preparedRequest.OperationJobMetricsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationJobMetricsSendTime_, Config_->OperationJobMetricsPushPeriod);
+        preparedRequest.OperationAlertsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationAlertsSendTime_, Config_->OperationAlertsPushPeriod);
+        preparedRequest.SuspiciousJobsSent = preparedRequest.OperationsSent &&
+            isDue(LastSuspiciousJobsSendTime_, Config_->SuspiciousJobsPushPeriod);
 
         for (const auto& [operationId, operation] : GetOperations()) {
             bool flushJobMetrics = flushJobMetricsOperationIds.contains(operationId);
@@ -1722,7 +1729,7 @@ private:
             auto* protoOperation = request->add_operations();
             ToProto(protoOperation->mutable_operation_id(), operationId);
 
-            // We must to sent job metrics for finished operations.
+            // We must send job metrics for finished operations.
             if (preparedRequest.OperationJobMetricsSent || flushJobMetrics) {
                 auto jobMetricsDelta = controller->PullJobMetricsDelta(/*force*/ flushJobMetrics);
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
@@ -1833,6 +1840,7 @@ private:
         YT_TLOG_DEBUG("Sending heartbeat")
             .With("ExecNodesRequested", preparedRequest.ExecNodesRequested)
             .With("OperationsSent", preparedRequest.OperationsSent)
+            .With("OperationJobMetricsSent", preparedRequest.OperationJobMetricsSent)
             .With("OperationAlertsSent", preparedRequest.OperationAlertsSent)
             .With("SuspiciousJobsSent", preparedRequest.SuspiciousJobsSent)
             .With("OperationEventCount", preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size());
