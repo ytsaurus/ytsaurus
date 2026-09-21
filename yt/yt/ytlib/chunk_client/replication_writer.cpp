@@ -1369,7 +1369,7 @@ i64 TGroup::GetSize() const
 
 i64 TGroup::GetCumulativeBlockSize() const
 {
-    return Size_;
+    return CumulativeBlockSize_;
 }
 
 bool TGroup::IsWritten() const
