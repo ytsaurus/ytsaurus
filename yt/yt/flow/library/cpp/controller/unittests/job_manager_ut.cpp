@@ -1997,15 +1997,19 @@ TEST_F(TJobBalancerTest, ForeignStrayPartitionsDoNotReleaseTheRebalanceBuffer)
         }
         FlowView->State->CommitMutation();
     }
+    // The async loop keeps reading the feedback it was pushed, so install a new one as the
+    // controller does instead of changing the pushed one in place.
     auto setLoads = [&] {
+        auto feedback = New<TFlowFeedback>();
         for (const auto& partitionId : balancedPartitions) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
-            FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+            feedback->PartitionJobStatuses[partitionId] = status;
         }
+        FlowView->Feedback = std::move(feedback);
     };
     auto distribute = [&] {
         FlowView->State->StartMutation();
