@@ -12,38 +12,16 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(yt-library-s3)
+add_library(cpp-html-pcdata)
 
 
-target_compile_options(yt-library-s3 PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(yt-library-s3 PUBLIC
-  linux-headers-generic::linux-headers-generic
+target_link_libraries(cpp-html-pcdata PUBLIC
   contrib-libs-cxxsupp
   yutil
-  library-tvm-service
-  yt-yt-core
-  yt-core-http
-  cpp-html-pcdata
-  cpp-string_utils-base64
-  libs-poco-XML
 )
 
-target_sources(yt-library-s3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/credential_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/crypto_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/http.cpp
+target_sources(cpp-html-pcdata PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/html/pcdata/pcdata.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/html/pcdata/pcdata.h
 )
 

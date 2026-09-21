@@ -12,35 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(yt-library-s3)
-
-
-target_compile_options(yt-library-s3 PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(yt-library-s3 PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  library-tvm-service
-  yt-yt-core
-  yt-core-http
-  cpp-html-pcdata
-  cpp-string_utils-base64
-  libs-poco-XML
-)
-
-target_sources(yt-library-s3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/credential_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/crypto_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/s3/http.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
