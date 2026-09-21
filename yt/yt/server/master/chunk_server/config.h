@@ -787,6 +787,10 @@ struct TDynamicChunkManagerConfig
     //! in order to receive responses from all the replicas and then run fast path
     //! during chunk seal.
     TDuration QuorumSessionDelay;
+    //! Maximum number of chunks to process during a global seal scan.
+    int MaxChunksPerGlobalSealScan;
+    //! Maximum number of chunks to examine during a seal queue scan.
+    int MaxChunksPerSealQueueScan;
     //! Maximum number of chunks to process during a seal scan.
     int MaxChunksPerSeal;
     //! Maximum number of chunks that can be sealed concurrently.

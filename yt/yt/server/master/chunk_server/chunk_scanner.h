@@ -52,6 +52,9 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk);
 
+    //! Returns whether the chunk belongs to a started shard, even after its global scan has finished.
+    bool IsRelevant(TChunk* chunk) const;
+
     //! Tries to dequeue the next chunk.
     /*!
      *  Returns the next chunk in the global list.
@@ -108,8 +111,6 @@ public:
 
 protected:
     static int GetShardIndex(TChunk* chunk);
-
-    bool IsRelevant(TChunk* chunk) const;
 };
 
 class TChunkScanQueueBase

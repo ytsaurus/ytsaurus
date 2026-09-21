@@ -1864,6 +1864,23 @@ std::pair<int, int> DecodeRepairQueueKey(int key)
         key % RepairPriorityCount);     // priority
 }
 
+ESealPriority GetChunkSealPriority(const TChunk* chunk)
+{
+    switch (chunk->GetChunkFormat()) {
+        case EChunkFormat::JournalDefault:
+            return ESealPriority::JournalDefault;
+        case EChunkFormat::HunkJournal:
+            return ESealPriority::HunkJournal;
+        case EChunkFormat::JournalDistributed:
+            return ESealPriority::JournalDistributed;
+        default:
+            YT_LOG_ALERT("Unexpected journal chunk format encountered in chunk sealer (ChunkId: %v, ChunkFormat: %v)",
+                chunk->GetId(),
+                chunk->GetChunkFormat());
+            return TEnumTraits<ESealPriority>::GetMaxValue();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
