@@ -715,7 +715,6 @@ private:
         }
 
         context->AnnotateResponse()
-            .With("MemberId", memberId)
             .With("ThrottlerCount", response->throttlers().size());
 
         context->Reply();

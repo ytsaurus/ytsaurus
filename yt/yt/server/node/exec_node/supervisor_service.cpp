@@ -495,9 +495,6 @@ private:
 
         auto signature = Bootstrap_->GetSignatureGenerator()->Sign(std::move(payload));
 
-        context->AnnotateResponse()
-            .With("JobId", jobId);
-
         ToProto(response->mutable_signature(), signature);
         context->Reply();
     }
@@ -517,7 +514,6 @@ private:
         response->set_valid(isValid);
 
         context->AnnotateResponse()
-            .With("JobId", jobId)
             .With("Valid", isValid);
         context->Reply();
     }

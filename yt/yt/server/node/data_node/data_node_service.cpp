@@ -511,7 +511,6 @@ private:
         response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
 
         context->AnnotateResponse()
-            .With("SessionId", request->session_id())
             .With("MaxRequestedCumulativeBlockSize", maxRequestedCumulativeBlockSize)
             .With("ApprovedCumulativeBlockSize", approvedCumulativeBlockSize);
         context->Reply();
@@ -947,7 +946,6 @@ private:
         response->set_net_queue_size(netThrottling.QueueSize);
 
         context->AnnotateResponse()
-            .With("ChunkCount", chunkCount)
             .With("CompleteChunkCount", completeChunkCount)
             .With("NetThrottling", netThrottling.Enabled)
             .With("NetQueueSize", netThrottling.QueueSize);
@@ -1040,7 +1038,6 @@ private:
         }
 
         context->AnnotateResponse()
-            .With("ChunkId", chunkId)
             .With("HasCompleteChunk", hasCompleteChunk)
             .With("NetThrottling", netThrottling.Enabled)
             .With("NetQueueSize", netThrottling.QueueSize)
@@ -1651,7 +1648,6 @@ private:
 
             context->AnnotateResponse()
                 .With("ReadSessionId", readSessionId)
-                .With("Workload", workloadDescriptor)
                 .With("TotalFragmentSize", totalFragmentSize)
                 .With("DataBytesReadFromCache", chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed))
                 .With("BytesReadFromDisk", bytesReadFromDisk)
@@ -2026,9 +2022,6 @@ private:
             response->set_fetched_rows(false);
             response->set_request_schema(true);
             context->AnnotateResponse()
-                .With("ChunkId", chunkId)
-                .With("ReadSessionId", readSessionId)
-                .With("Workload", workloadDescriptor)
                 .With("SchemaRequested", schemaRequested);
             context->Reply();
             return;
@@ -2075,9 +2068,6 @@ private:
             useDirectIO);
 
         context->AnnotateResponse()
-            .With("ChunkId", chunkId)
-            .With("ReadSessionId", readSessionId)
-            .With("Workload", workloadDescriptor)
             .With("DiskThrottling", diskThrottling.IsEnabled())
             .With("DiskQueueSize", diskThrottling.QueueSize)
             .With("NetThrottling", netThrottling.Enabled)
@@ -2786,8 +2776,6 @@ private:
 
         context->ReplyFrom(locationManager->DisableChunkLocations({locationUuids.begin(), locationUuids.end()})
             .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
-                context->AnnotateResponse()
-                    .With("LocationUuids", locationUuids);
 
                 ToProto(response->mutable_location_uuids(), locationUuids);
             })));
@@ -2807,8 +2795,6 @@ private:
             recoverUnlinkedDisks,
             {locationUuids.begin(), locationUuids.end()})
             .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
-                context->AnnotateResponse()
-                    .With("LocationUuids", locationUuids);
 
                 ToProto(response->mutable_location_uuids(), locationUuids);
             })));
@@ -2824,8 +2810,6 @@ private:
 
         context->ReplyFrom(locationManager->ResurrectChunkLocations({locationUuids.begin(), locationUuids.end()})
             .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
-                context->AnnotateResponse()
-                    .With("LocationUuids", locationUuids);
 
                 ToProto(response->mutable_location_uuids(), locationUuids);
             })));

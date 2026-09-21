@@ -230,7 +230,6 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
     ToProto(response->mutable_new_node_id(), newNodeId);
 
     context->AnnotateResponse()
-        .With("OldNodeId", oldNodeId)
         .With("NewNodeId", newNodeId);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(newNodeId), /*commitSession*/ true);

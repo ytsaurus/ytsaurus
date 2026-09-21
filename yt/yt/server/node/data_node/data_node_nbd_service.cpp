@@ -149,7 +149,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .WithFormat("Cookie", "%x", cookie)
             .With("ShouldCloseSession", shouldCloseSession);
 
@@ -188,7 +187,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .WithFormat("Cookie", "%x", cookie)
             .With("ShouldCloseSession", shouldCloseSession);
 
@@ -219,7 +217,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .WithFormat("Cookie", "%x", cookie)
             .With("ShouldCloseSession", shouldCloseSession);
 
@@ -258,7 +255,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .WithFormat("Cookie", "%x", cookie)
             .With("ShouldCloseSession", shouldCloseSession);
 
@@ -281,7 +277,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .WithFormat("Cookie", "%x", cookie)
             .With("ShouldCloseSession", shouldCloseSession);
 
@@ -310,7 +305,6 @@ private:
         response->set_should_close_session(shouldCloseSession);
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .With("ShouldCloseSession", shouldCloseSession);
 
         context->Reply();

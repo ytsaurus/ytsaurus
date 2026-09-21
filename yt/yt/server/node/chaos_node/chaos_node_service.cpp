@@ -172,8 +172,6 @@ private:
             // Replication card is small without replication progress,
             // so do not try to copy or validate the progress if progress was not requested.
             ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
-            context->AnnotateResponse()
-                .With("ReplicationCardId", replicationCardId);
             context->Reply();
             return;
         }
@@ -373,7 +371,6 @@ private:
         }
 
         context->AnnotateResponse()
-            .With("ChaosObjectId", chaosObjectId)
             .With("ExistenceResult", existenceResult);
         context->Reply();
     }
@@ -531,7 +528,6 @@ private:
         auto replicationCardIds = collocation->GetReplicationCardIds();
 
         context->AnnotateResponse()
-            .With("ReplicationCardCollocationId", replicationCardCollocationId)
             .With("ReplicationCardIds", replicationCardIds);
         ToProto(response->mutable_replication_card_ids(), replicationCardIds);
         response->set_options(ToProto(ConvertToYsonString(collocation->Options())));
