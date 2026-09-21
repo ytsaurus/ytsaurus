@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
+#include <yt/yt/core/actions/invoker_util.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
@@ -312,6 +314,7 @@ protected:
             nodeShardId,
             SchedulerConfig_,
             std::move(execNode),
+            GetSyncInvoker(),
             /*runningJobs*/ {},
             MediumDirectory_,
             /*defaultMinSpareAllocationResources*/ TJobResources());

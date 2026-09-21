@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/scheduler/private.h>
 
+#include <yt/yt/core/actions/invoker_util.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -635,6 +637,7 @@ protected:
             /*nodeShardId*/ 0,
             SchedulerConfig_,
             execNode,
+            GetSyncInvoker(),
             /*runningAllocations*/ {},
             strategyHost->GetMediumDirectory(),
             DefaultMinSpareResources_);

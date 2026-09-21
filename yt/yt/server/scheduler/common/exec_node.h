@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/core/actions/public.h>
+
 #include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -147,6 +149,7 @@ public:
 
     //! Constructs a descriptor containing the current snapshot of node's state.
     TExecNodeDescriptorPtr BuildExecDescriptor() const;
+    TExecNodeDescriptorPtr BuildExecDescriptorWithOffloadedDtor(IInvokerPtr backgroundInvoker) const;
 
     //! Set the node's IO weight.
     void SetIOWeights(const THashMap<std::string, double>& mediumToWeight);

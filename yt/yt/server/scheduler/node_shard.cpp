@@ -737,6 +737,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         Id_,
         Config_,
         node,
+        Bootstrap_->GetScheduler()->GetBackgroundInvoker(),
         runningAllocations,
         mediumDirectory,
         minSpareResources);
