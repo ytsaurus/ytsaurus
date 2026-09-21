@@ -608,7 +608,7 @@ class TestArtifactReuseInAllocation(TestArtifactReuseInAllocationBase):
         assert stats2["exec_agent"]["artifacts"]["cache_miss_artifacts_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["files_cached_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["files_downloaded_size"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["files_downloaded_aggr_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["files_downloaded_total_duration"]["sum"] == 0
 
     @authors("pogorelov")
     def test_artifact_evicted_when_allocation_not_reused(self):
