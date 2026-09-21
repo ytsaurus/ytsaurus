@@ -700,6 +700,7 @@ struct TMaterializedViewsConfig
     NYPath::TYPath RootPath;
     TDuration ScanPeriod;
     i64 MaxRowsPerRefresh;
+    int MaxPartitionsPerRefresh;
     TDuration QueryTimeout;
     TDuration TableMountTimeout;
     TDuration TransactionTimeout;

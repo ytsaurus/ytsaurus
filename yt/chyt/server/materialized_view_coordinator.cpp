@@ -25,6 +25,8 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/actions/current_invoker.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -129,6 +131,7 @@ struct TMaterializedViewProgress
     std::vector<TMaterializedViewPartitionProgressPtr> Partitions;
     std::string LastError;
     bool QueueConsumerInitialized = false;
+    int NextPartitionIndex = 0;
 
     REGISTER_YSON_STRUCT(TMaterializedViewProgress);
 
@@ -139,6 +142,9 @@ struct TMaterializedViewProgress
             .Default();
         registrar.Parameter("queue_consumer_initialized", &TThis::QueueConsumerInitialized)
             .Default(false);
+        registrar.Parameter("next_partition_index", &TThis::NextPartitionIndex)
+            .GreaterThanOrEqual(0)
+            .Default(0);
     }
 };
 
@@ -604,6 +610,7 @@ private:
         auto progress = New<TMaterializedViewProgress>();
         progress->LastError = persistedProgress->LastError;
         progress->QueueConsumerInitialized = persistedProgress->QueueConsumerInitialized;
+        progress->NextPartitionIndex = persistedProgress->NextPartitionIndex;
         progress->Partitions.reserve(partitionInfos.size());
 
         THashMap<std::pair<TObjectId, std::optional<int>>, TMaterializedViewPartitionProgressPtr> partitionProgresses;
@@ -646,12 +653,19 @@ private:
     std::vector<TRefreshTask> BuildTasks(const TMaterializedViewProgressPtr& currentProgress) const
     {
         std::vector<TRefreshTask> tasks;
-        tasks.reserve(currentProgress->Partitions.size());
-        for (int index = 0; index < std::ssize(currentProgress->Partitions); ++index) {
+        int partitionCount = std::ssize(currentProgress->Partitions);
+        int maxTaskCount = Config_->MaxPartitionsPerRefresh > 0
+            ? std::min(partitionCount, Config_->MaxPartitionsPerRefresh)
+            : partitionCount;
+        tasks.reserve(maxTaskCount);
+        int startIndex = currentProgress->NextPartitionIndex;
+        for (int offset = 0; offset < partitionCount && std::ssize(tasks) < maxTaskCount; ++offset) {
+            int index = (startIndex + offset) % partitionCount;
             const auto& progress = currentProgress->Partitions[index];
             if (progress->NextRowIndex == progress->TotalRowCount) {
                 continue;
             }
+            currentProgress->NextPartitionIndex = (index + 1) % partitionCount;
 
             auto lowerRowIndex = progress->NextRowIndex;
             auto upperRowIndex = progress->TotalRowCount;
@@ -765,54 +779,42 @@ private:
         TObjectId targetObjectId,
         const std::vector<TRefreshTask>& tasks)
     {
-        std::vector<TRefreshResult> results;
-        results.reserve(tasks.size());
-        std::vector<TFuture<void>> taskFutures;
-        taskFutures.reserve(tasks.size());
-
         auto queries = BuildRefreshQueries(targetObjectId, tasks);
-
-        TTransactionStartOptions options;
-        options.ParentId = Transaction_->GetId();
-        options.Timeout = Config_->TransactionTimeout;
-        std::vector<TFuture<NApi::ITransactionPtr>> transactionFutures;
-        transactionFutures.reserve(tasks.size());
+        std::vector<TFuture<TRefreshResult>> taskFutures;
+        taskFutures.reserve(tasks.size());
         for (int index = 0; index < std::ssize(tasks); ++index) {
-            transactionFutures.push_back(Client_->StartTransaction(ETransactionType::Master, options));
+            taskFutures.push_back(BIND([this, task = tasks[index], query = std::move(queries[index])] {
+                TTransactionStartOptions options;
+                options.ParentId = Transaction_->GetId();
+                options.Timeout = Config_->TransactionTimeout;
+                auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
+                    .ValueOrThrow();
+
+                TRefreshResult result{
+                    .PartitionIndex = task.PartitionIndex,
+                    .OldOffset = task.LowerRowIndex,
+                    .Result = task.UpperRowIndex,
+                };
+                auto error = WaitFor(StartRefreshQuery(query, task.PartitionIndex, transaction->GetId()));
+                if (!error.IsOK()) {
+                    // Parent commit aborts any nested transaction whose explicit abort did not succeed.
+                    YT_UNUSED_FUTURE(transaction->Abort());
+                    result.Result = std::move(error);
+                } else {
+                    WaitFor(transaction->Commit())
+                        .ThrowOnError();
+                }
+                return result;
+            }).AsyncVia(GetCurrentInvoker()).Run());
         }
-        auto transactions = WaitFor(AllSucceeded(std::move(transactionFutures)))
+
+        auto taskResults = WaitFor(AllSet(std::move(taskFutures)))
             .ValueOrThrow();
-
-        for (int index = 0; index < std::ssize(tasks); ++index) {
-            const auto& task = tasks[index];
-            taskFutures.push_back(StartRefreshQuery(
-                queries[index],
-                task.PartitionIndex,
-                transactions[index]->GetId()));
-
-            results.push_back({
-                .PartitionIndex = task.PartitionIndex,
-                .OldOffset = task.LowerRowIndex,
-                .Result = task.UpperRowIndex,
-            });
+        std::vector<TRefreshResult> results;
+        results.reserve(taskResults.size());
+        for (const auto& result : taskResults) {
+            results.push_back(result.ValueOrThrow());
         }
-
-        auto errors = WaitFor(AllSet(std::move(taskFutures)))
-            .ValueOrThrow();
-        std::vector<TFuture<void>> commitFutures;
-        commitFutures.reserve(results.size());
-        for (int index = 0; index < std::ssize(results); ++index) {
-            auto& result = results[index];
-            if (!errors[index].IsOK()) {
-                // Parent commit aborts any nested transaction whose explicit abort did not succeed.
-                YT_UNUSED_FUTURE(transactions[index]->Abort());
-                result.Result = std::move(errors[index]);
-            } else {
-                commitFutures.push_back(transactions[index]->Commit().AsVoid());
-            }
-        }
-        WaitFor(AllSucceeded(std::move(commitFutures)))
-            .ThrowOnError();
 
         return results;
     }
