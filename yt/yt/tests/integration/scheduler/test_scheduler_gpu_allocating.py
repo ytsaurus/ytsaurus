@@ -3850,6 +3850,255 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 ##################################################################
 
 
+class TestAllocatingGpuPolicyRevivalOfPreemptedAllocation(AllocatingGpuSchedulingPolicyBaseConfig):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+        }
+    }
+
+    OTHER_DATA_CENTER = "VLA"
+    OTHER_RACK = "VLA1"
+
+    def setup_method(self, method):
+        super(TestAllocatingGpuPolicyRevivalOfPreemptedAllocation, self).setup_method(method)
+
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/initialization_timeout", 1000)
+
+    def _scheduler_log_file(self):
+        return self.path_to_run + "/logs/scheduler-0.json.log"
+
+    def _scheduler_address(self):
+        return ls("//sys/scheduler/instances")[0]
+
+    def _agent_states(self):
+        return [agent_info["state"]
+                for agent_info in get("//sys/scheduler/orchid/scheduler/controller_agents").values()]
+
+    @authors("yaishenka")
+    def test_revived_preempted_allocation_gets_no_assignment(self):
+        # The allocation is preempted but survives the preemption timeout, then its controller agent
+        # restarts. The revived allocation must stay preempted: re-creating an assignment for it lets
+        # the planner preempt it once more, and the scheduler crashes on the duplicate preemption.
+        update_pool_tree_config_option("gpu", "allocation_preemption_timeout", 600000)
+
+        op = run_test_vanilla(
+            "trap '' INT; sleep 1000",
+            task_patch={
+                "gpu_limit": 8,
+                "enable_gpu_layers": False,
+                "interruption_signal": "SIGINT",
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        allocation_id = assignment["allocation_id"]
+        node_address = assignment["node_address"]
+        job_id = list(op.get_running_jobs())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 0}}}},
+        )
+
+        preemption_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            allocation_id=allocation_id,
+        )
+        assert preemption_event["reason"] == "resource_limits_violated"
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 8}}}},
+        )
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: all(state == "unregistered" for state in self._agent_states()))
+            wait(lambda: not get_operation_from_gpu_policy_orchid(op)["enabled"])
+
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+
+        # The revived allocation must not get an assignment back.
+        assert len(get_operation_from_gpu_policy_orchid(op)["assignments"]) == 0
+
+        revival_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_revived",
+            op=op,
+            allocation_id=allocation_id,
+        )
+        assert revival_event["orphan"]
+        assert revival_event["preemption_state"] == "preempted"
+
+        # Changing the node's scheduling module preempts every assignment on the node in the next heartbeat.
+        create_data_center(self.OTHER_DATA_CENTER)
+        create_rack(self.OTHER_RACK)
+        set("//sys/racks/{}/@data_center".format(self.OTHER_RACK), self.OTHER_DATA_CENTER)
+        set("//sys/cluster_nodes/{}/@rack".format(node_address), self.OTHER_RACK)
+        wait(lambda: get_node_from_gpu_policy_orchid(node_address)["scheduling_module"] == self.OTHER_DATA_CENTER)
+
+        # The preemption is re-sent once, since the revived scheduler-side allocation forgot it.
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            allocation_id=allocation_id,
+            predicate=lambda event: event.get("reason") == "unexpected_allocation",
+        )
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        assert operation["enabled"]
+        assert len(operation["assignments"]) == 0
+        assert operation["allocations"][allocation_id]["resource_usage"]["gpu"] == 0
+        assert job_id in op.get_running_jobs()
+
+        preemption_events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            allocation_id=allocation_id,
+        )
+        assert [event["reason"] for event in preemption_events] == ["resource_limits_violated", "unexpected_allocation"]
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_revived_allocation_awaiting_preemption_gets_no_assignment(self):
+        # Same as above, but the preemption has only been decided: the scheduling heartbeat is parked
+        # inside PreemptAllocation, so the node has not been told anything yet and the allocation is
+        # still in AllocationsToPreempt when its controller agent restarts.
+        delay_before_allocation_preemption = 30000
+
+        update_pool_tree_config_option("gpu", "allocation_preemption_timeout", 600000)
+
+        op = run_test_vanilla(
+            "trap '' INT; sleep 1000",
+            task_patch={
+                "gpu_limit": 8,
+                "enable_gpu_layers": False,
+                "interruption_signal": "SIGINT",
+            },
+            spec={
+                "testing": {
+                    "delay_before_allocation_preemption": {
+                        "duration": delay_before_allocation_preemption,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        allocation_id = assignment["allocation_id"]
+        node_address = assignment["node_address"]
+        job_id = list(op.get_running_jobs())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 0}}}},
+        )
+
+        preemption_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="assignment_preempted",
+            predicate=lambda event: event.get("assignment", {}).get("allocation_id") == allocation_id,
+        )
+        assert preemption_event["reason"] == "resource_limits_violated"
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"gpu": {"resource_limits": {"gpu": 8}}}},
+        )
+
+        # The heartbeat parks inside PreemptAllocation for the whole restart, so the node is never told
+        # about the preemption and the allocation stays in AllocationsToPreempt across the revival.
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: all(state == "unregistered" for state in self._agent_states()))
+            wait(lambda: not get_operation_from_gpu_policy_orchid(op)["enabled"])
+
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+
+        # The revived allocation must not get an assignment back.
+        assert len(get_operation_from_gpu_policy_orchid(op)["assignments"]) == 0
+
+        revival_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_revived",
+            op=op,
+            allocation_id=allocation_id,
+        )
+        assert revival_event["orphan"]
+        assert revival_event["preemption_state"] == "awaiting_preemption"
+
+        assert not read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            allocation_id=allocation_id,
+        ), "the scheduling heartbeat did not park inside PreemptAllocation"
+        assert job_id in op.get_running_jobs()
+
+        # The park expires and the pending preemption is applied to the revived allocation. Its
+        # TPreemptionInfo was lost with the operation's allocation state, hence the degraded reason.
+        preemption_event = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            event_type="allocation_preempted",
+            op=op,
+            allocation_id=allocation_id,
+            timeout=delay_before_allocation_preemption / 1000.0 + 30,
+        )
+        assert preemption_event["reason"] == "unexpected_allocation"
+
+        # Changing the node's scheduling module preempts every assignment on the node in the next heartbeat.
+        create_data_center(self.OTHER_DATA_CENTER)
+        create_rack(self.OTHER_RACK)
+        set("//sys/racks/{}/@data_center".format(self.OTHER_RACK), self.OTHER_DATA_CENTER)
+        set("//sys/cluster_nodes/{}/@rack".format(node_address), self.OTHER_RACK)
+        wait(lambda: get_node_from_gpu_policy_orchid(node_address)["scheduling_module"] == self.OTHER_DATA_CENTER)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        assert operation["enabled"]
+        assert len(operation["assignments"]) == 0
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+##################################################################
+
+
 class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = False
     NUM_MASTERS = 1

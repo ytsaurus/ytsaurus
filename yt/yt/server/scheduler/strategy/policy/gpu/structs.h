@@ -306,6 +306,8 @@ public:
     void PreemptAllocation(TAllocationId allocationId);
     void RemovePreemptedAllocation(TAllocationId allocationId);
 
+    EAllocationPreemptionState GetAllocationPreemptionState(TAllocationId allocationId) const;
+
     TNodeSnapshotState BuildSnapshotInfo() const;
 
 private:

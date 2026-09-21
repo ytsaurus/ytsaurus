@@ -58,6 +58,15 @@ DEFINE_ENUM(EModuleBindingLostReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Preemption state of an allocation as tracked by its node.
+DEFINE_ENUM(EAllocationPreemptionState,
+    (None)
+    (AwaitingPreemption)
+    (Preempted)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 
 DECLARE_REFCOUNTED_STRUCT(TAssignment)

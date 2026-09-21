@@ -429,14 +429,24 @@ void TSchedulingPolicy::ReviveAllocation(
 {
     auto allocationId = allocation->GetId();
     auto nodeId = allocation->GetRevivalNodeId();
-    const auto& resourceUsage = allocation->ResourceUsage();
-
-    element->IncreaseHierarchicalResourceUsage(resourceUsage);
 
     auto node = GetOrDefault(Nodes_, nodeId);
+    auto preemptionState = node
+        ? node->GetAllocationPreemptionState(allocationId)
+        : EAllocationPreemptionState::None;
+
+    // NB(yaishenka): The node has already been told to preempt the allocation, so it reports zero usage.
+    auto resourceUsage = preemptionState == EAllocationPreemptionState::Preempted
+        ? TJobResources()
+        : allocation->ResourceUsage();
+
+    if (resourceUsage != TJobResources()) {
+        element->IncreaseHierarchicalResourceUsage(resourceUsage);
+    }
+
+    auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
 
     if (!node) {
-        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         operation->AddOrphanAllocation(allocationState);
         EmplaceOrCrash(
             PendingRevivedAllocations_[nodeId],
@@ -450,7 +460,8 @@ void TSchedulingPolicy::ReviveAllocation(
             .Item("operation_id").Value(operation->GetId())
             .Item("allocation_id").Value(allocationId)
             .Item("node_id").Value(nodeId)
-            .Item("orphan").Value(true);
+            .Item("orphan").Value(true)
+            .Item("preemption_state").Value(preemptionState);
 
         YT_LOG_DEBUG("Allocation revived as orphan (OperationId: %v, AllocationId: %v, NodeId: %v)",
             operation->GetId(),
@@ -462,14 +473,19 @@ void TSchedulingPolicy::ReviveAllocation(
     TJobResourcesWithQuota assignmentResources(resourceUsage);
     assignmentResources.DiskQuota() = allocation->DiskQuota();
 
+    bool orphan = preemptionState != EAllocationPreemptionState::None;
+
     TAssignmentId assignmentId;
-    if (auto assignment = operation->FindAssignment(allocationId)) {
+    if (orphan) {
+        // NB(yaishenka): The assignment was removed when the allocation was preempted; the preemption
+        // is still pending or running on the node, so the allocation must not get an assignment back.
+        operation->AddOrphanAllocation(allocationState);
+    } else if (auto assignment = operation->FindAssignment(allocationId)) {
         YT_VERIFY(assignment->Reviving);
         YT_VERIFY(assignment->Node == node.Get());
 
         assignment->Reviving = false;
         assignmentId = assignment->Id;
-        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         operation->AddRevivedAllocation(allocationState, assignment);
     } else {
         auto newAssignment = New<TAssignment>(
@@ -482,7 +498,6 @@ void TSchedulingPolicy::ReviveAllocation(
         node->AddAssignment(newAssignment);
 
         assignmentId = newAssignment->Id;
-        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         newAssignment->AddAllocation(allocationState);
     }
 
@@ -490,14 +505,16 @@ void TSchedulingPolicy::ReviveAllocation(
         .Item("operation_id").Value(operation->GetId())
         .Item("allocation_id").Value(allocationId)
         .Item("node_id").Value(nodeId)
-        .Item("orphan").Value(false);
+        .Item("orphan").Value(orphan)
+        .Item("preemption_state").Value(preemptionState);
 
     YT_LOG_DEBUG(
-        "Allocation revived (OperationId: %v, AllocationId: %v, AssignmentId: %v, NodeId: %v)",
+        "Allocation revived (OperationId: %v, AllocationId: %v, AssignmentId: %v, NodeId: %v, PreemptionState: %v)",
         operation->GetId(),
         allocationId,
         assignmentId,
-        nodeId);
+        nodeId,
+        preemptionState);
 }
 
 TFuture<std::vector<TProcessAllocationUpdateResult>> TSchedulingPolicy::ProcessAllocationUpdates(
@@ -1385,20 +1402,32 @@ void TSchedulingPolicy::PreemptAllocations(
             continue;
         }
 
-        if (node->PreemptedAllocations().contains(allocationId)) {
-            continue;
-        }
-
         const auto& [runningAllocation, operationElement] = allocationInfo;
 
+        bool preempted = node->PreemptedAllocations().contains(allocationId);
+
         if (!operationElement) {
-            YT_LOG_WARNING("Dangling allocation found (AllocationId: %v)", allocationId);
+            YT_LOG_WARNING_UNLESS(preempted, "Dangling allocation found (AllocationId: %v)", allocationId);
             continue;
         }
 
-        YT_LOG_WARNING("Found allocation without assignment (OperationId: %v, AllocationId: %v)",
-            runningAllocation->GetOperationId(),
-            runningAllocation->GetId());
+        if (preempted && runningAllocation->GetPreempted()) {
+            continue;
+        }
+
+        // NB(yaishenka): A revived allocation is a fresh scheduler-side object that no longer remembers
+        // it was preempted, so the preemption is sent again once the operation is enabled.
+        // TODO(yaishenka): Keep the original preemption reason across revival instead of falling back
+        // to |UnexpectedAllocation|.
+        if (preempted) {
+            YT_LOG_DEBUG("Resending preemption of revived allocation (OperationId: %v, AllocationId: %v)",
+                runningAllocation->GetOperationId(),
+                runningAllocation->GetId());
+        } else {
+            YT_LOG_DEBUG("Found allocation without assignment (OperationId: %v, AllocationId: %v)",
+                runningAllocation->GetOperationId(),
+                runningAllocation->GetId());
+        }
 
         PreemptAllocation(
             runningAllocation,
@@ -1837,6 +1866,8 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
             allocationUpdate.AllocationId);
 
         if (allocationUpdate.Finished) {
+            // TODO(yaishenka): Erase the allocation from the node's preemption sets here and
+            // in |DisableOperation| with |markAsNonAlive| set, otherwise the entry leaks.
             return TProcessAllocationUpdateResult{
                 .Status = EAllocationUpdateStatus::Unexpected,
             };

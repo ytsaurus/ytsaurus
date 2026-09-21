@@ -483,6 +483,7 @@ void TNode::PreemptAssignment(
             .PreemptedForOperationId = preemptedForOperationId,
         });
 
+        YT_VERIFY(!PreemptedAllocations_.contains(assignment->AllocationId));
         InsertOrCrash(AllocationsToPreempt_, assignment->AllocationId);
     }
 
@@ -498,6 +499,17 @@ void TNode::PreemptAllocation(TAllocationId allocationId)
 void TNode::RemovePreemptedAllocation(TAllocationId allocationId)
 {
     EraseOrCrash(PreemptedAllocations_, allocationId);
+}
+
+EAllocationPreemptionState TNode::GetAllocationPreemptionState(TAllocationId allocationId) const
+{
+    if (AllocationsToPreempt_.contains(allocationId)) {
+        return EAllocationPreemptionState::AwaitingPreemption;
+    }
+    if (PreemptedAllocations_.contains(allocationId)) {
+        return EAllocationPreemptionState::Preempted;
+    }
+    return EAllocationPreemptionState::None;
 }
 
 void TNode::AddAllocation(const TAllocationStatePtr& allocation, const TAssignmentPtr& assignment)
