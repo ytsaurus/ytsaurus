@@ -152,7 +152,7 @@ def read_gpu_events(scheduler_log_file, from_barrier, to_barrier=None, event_typ
     )
 
 
-def wait_for_gpu_event(scheduler_log_file, from_barrier, event_type, **kwargs):
+def wait_for_gpu_event(scheduler_log_file, from_barrier, event_type, timeout=None, **kwargs):
     """Wait until a matching GPU structured event appears. Returns the first match."""
     holder = {}
 
@@ -163,7 +163,8 @@ def wait_for_gpu_event(scheduler_log_file, from_barrier, event_type, **kwargs):
             return True
         return False
 
-    wait(check)
+    wait(check, timeout=timeout)
+
     return holder["event"]
 
 
