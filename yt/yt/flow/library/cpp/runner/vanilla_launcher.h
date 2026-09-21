@@ -150,12 +150,15 @@ TFlowNodeConfigPtr PatchVanillaNodeConfig(
 //! Submits a YT vanilla operation that runs a Flow federation for the given pipeline.
 //! |pipelinePath| must carry the cluster annotation (`<cluster=...>/path/to/pipeline`).
 //! |clientsCache| supplies the clients for the pipeline, runtime and prior-operation clusters.
+//! |directControllerCommands|, when enabled, routes the commands that stop or pause the prior
+//! operation's pipeline straight to its controller; the RPC proxy is used when null or disabled.
 //! Called by TSimpleRunnerProgram when the runner config contains a "vanilla" block.
 TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanilla,
-    const NClient::NCache::IClientsCachePtr& clientsCache);
+    const NClient::NCache::IClientsCachePtr& clientsCache,
+    TDirectControllerCommandsConfigPtr directControllerCommands = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

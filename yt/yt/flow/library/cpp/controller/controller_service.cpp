@@ -6,6 +6,7 @@
 #include "persisted_state_manager.h"
 #include "private.h"
 
+#include <yt/yt/flow/library/cpp/client/authentication.h>
 #include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/flow/library/cpp/common/authenticator.h>
@@ -184,11 +185,35 @@ private:
         } else {
             argument = TYsonString(request->argument(), EYsonType::Node);
         }
-        response->set_result(FlowExecutor_->Execute(request->command(), argument, request->user()).ToString());
+
+        // The RPC proxy checks the pipeline permission before forwarding a request; a request
+        // marked as direct is authorized here, where the command is known.
+        auto user = request->user();
+        if (IsDirectRequest(context->GetRequestHeader())) {
+            user = context->GetAuthenticationIdentity().User;
+            FlowExecutor_->AuthorizeCommand(request->command(), user);
+        }
+
+        response->set_result(FlowExecutor_->Execute(request->command(), argument, user).ToString());
         context->Reply();
     }
 
 private:
+    //! Only #FlowExecute knows the command being run and authorizes the caller itself; the other
+    //! methods trust the RPC proxy that forwarded the request, so a request marked as direct
+    //! must not reach them.
+    void BeforeInvoke(NRpc::IServiceContext* context) override
+    {
+        TServiceBase::BeforeInvoke(context);
+
+        if (context->GetMethod() != "FlowExecute" && IsDirectRequest(context->GetRequestHeader())) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::AuthenticationError,
+                "Method %Qv accepts requests forwarded by the RPC proxy only",
+                context->GetMethod());
+        }
+    }
+
     void SetTargetPipelineState(EPipelineState state)
     {
         TSetTargetPipelineStateArg executorArg;

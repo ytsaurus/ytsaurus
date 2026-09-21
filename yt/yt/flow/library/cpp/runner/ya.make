@@ -37,6 +37,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/vanilla
     yt/yt/flow/library/cpp/worker
     yt/yt/flow/library/cpp/pipeline_helpers
+    yt/yt/flow/library/cpp/pipeline_helpers/flow_execute
     yt/yt/flow/library/cpp/controller
     yt/yt/flow/library/cpp/companion
     yt/yt/flow/library/cpp/common

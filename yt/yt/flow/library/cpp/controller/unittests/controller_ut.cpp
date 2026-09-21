@@ -1715,5 +1715,67 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAuthorizeCommandTest
+    : public TControllerTest
+{
+protected:
+    const TIntrusivePtr<StrictMock<TMockClient>> Client_ = New<StrictMock<TMockClient>>();
+    IFlowExecutorPtr FlowExecutor_;
+
+    void SetUp() override
+    {
+        TControllerTest::SetUp();
+
+        FlowExecutor_ = CreateFlowExecutor(
+            Controller,
+            PersistedStateManager,
+            YTConnector,
+            New<TControllerServiceConfig>(),
+            /*orchidRoot*/ nullptr,
+            CreateSyncStatusProfiler(),
+            GetSyncInvoker());
+
+        // The executor is built on the fixture's null client; only the permission check needs a real one.
+        EXPECT_CALL(*YTConnector, GetClient())
+            .WillRepeatedly(Return(Client_));
+    }
+
+    void ExpectPermissionCheck(EPermission permission, NSecurityClient::ESecurityAction action)
+    {
+        TCheckPermissionResponse response;
+        response.Action = action;
+        EXPECT_CALL(*Client_, CheckPermission("alice", NYPath::TYPath("//path"), permission, _))
+            .WillOnce(Return(MakeFuture(response)));
+    }
+};
+
+TEST_F(TAuthorizeCommandTest, ChecksThePermissionTheCommandRequires)
+{
+    ExpectPermissionCheck(EPermission::Read, NSecurityClient::ESecurityAction::Allow);
+    FlowExecutor_->AuthorizeCommand("get-pipeline-state", "alice");
+
+    ExpectPermissionCheck(EPermission::Write, NSecurityClient::ESecurityAction::Allow);
+    FlowExecutor_->AuthorizeCommand("set-target-pipeline-state", "alice");
+}
+
+TEST_F(TAuthorizeCommandTest, RejectsDeniedUser)
+{
+    ExpectPermissionCheck(EPermission::Write, NSecurityClient::ESecurityAction::Deny);
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        FlowExecutor_->AuthorizeCommand("set-target-pipeline-state", "alice"),
+        "No \"write\" permission for pipeline //path");
+}
+
+TEST_F(TAuthorizeCommandTest, RejectsUnknownCommand)
+{
+    // No permission check expectation: an unknown command fails before the cluster is asked.
+    EXPECT_THROW_WITH_SUBSTRING(
+        FlowExecutor_->AuthorizeCommand("no-such-command", "alice"),
+        "No such command: no-such-command");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow::NController

@@ -12,12 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_library(cpp-pipeline_helpers-flow_execute)
+add_executable(yt-flow-tests-direct_controller_commands-pipeline)
 
 
-target_compile_options(cpp-pipeline_helpers-flow_execute PRIVATE
+set_property(TARGET yt-flow-tests-direct_controller_commands-pipeline PROPERTY OUTPUT_NAME
+  pipeline
+)
+
+target_compile_options(yt-flow-tests-direct_controller_commands-pipeline PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,19 +29,30 @@ target_compile_options(cpp-pipeline_helpers-flow_execute PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(cpp-pipeline_helpers-flow_execute PUBLIC
-  linux-headers-generic::linux-headers-generic
+target_link_libraries(yt-flow-tests-direct_controller_commands-pipeline PUBLIC
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
-  yt-yt-client
-  library-cpp-client
-  library-cpp-common
-  yt-library-auth
-  flow-controller-proto
+  build-cow-on
+  library-cpp-computation
+  cpp-connectors-random
+  library-cpp-runner
 )
 
-target_sources(cpp-pipeline_helpers-flow_execute PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/pipeline_helpers/flow_execute/flow_execute.cpp
+target_allocator(yt-flow-tests-direct_controller_commands-pipeline
+  system_allocator
 )
 
+target_link_options(yt-flow-tests-direct_controller_commands-pipeline PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+target_sources(yt-flow-tests-direct_controller_commands-pipeline PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/tests/direct_controller_commands/pipeline/main.cpp
+)
+
+
+vcs_info(yt-flow-tests-direct_controller_commands-pipeline)

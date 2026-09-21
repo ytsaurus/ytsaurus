@@ -30,7 +30,10 @@ target_link_libraries(cpp-pipeline_helpers-flow_execute PUBLIC
   yutil
   yt-yt-core
   yt-yt-client
+  library-cpp-client
   library-cpp-common
+  yt-library-auth
+  flow-controller-proto
 )
 
 target_sources(cpp-pipeline_helpers-flow_execute PRIVATE

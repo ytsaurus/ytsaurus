@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/tvm/service/public.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 #include <library/cpp/yt/misc/static_initializer.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -89,7 +91,8 @@ struct IPipelineAuthenticator
     //! Returns authenticator for services processing internal Flow pipeline requests.
     virtual NRpc::IAuthenticatorPtr CreateSelfRpcAuthenticator() = 0;
 
-    //! Returns authenticator for controller service to authenticate requests from YT.
+    //! Returns authenticator for controller service to authenticate requests from YT:
+    //! forwarded by the RPC proxy, or sent directly by a runner with its own credentials.
     virtual NRpc::IAuthenticatorPtr CreateYTControllerRpcAuthenticator() = 0;
 
     virtual TPipelineAuthenticationDescriptionPtr GetPipelineAuthenticationDescription() = 0;
@@ -104,6 +107,11 @@ IPipelineAuthenticatorPtr CreatePipelineAuthenticator(
     TNodeInfoPtr nodeInfo,
     NClient::NCache::TClientsCacheConfigPtr clientsCacheConfig);
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Authenticates a request by the YT credentials it carries: asks the cluster whom they belong to.
+//! Authorization is left to the caller, which knows the command being executed.
+NRpc::IAuthenticatorPtr CreateClientCredentialsAuthenticator(NApi::IConnectionPtr connection);
 
 ////////////////////////////////////////////////////////////////////////////////
 

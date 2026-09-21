@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/guid.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <string>
@@ -22,6 +24,17 @@ constexpr std::string_view ControllerRequestMetadataMethod = "FlowExecute";
 
 //! TCustomMetadataExt entry that carries the signature over the serialized TControllerRequestMetadata.
 constexpr std::string_view ControllerRequestMetadataSignatureKey = "yt-controller-request-metadata-signature";
+
+//! TCustomMetadataExt entry that marks a request sent to the controller directly, not through the RPC proxy.
+constexpr std::string_view DirectRequestMetadataKey = "ytflow-direct";
+
+//! Marks |header| as a direct request: the controller authenticates it by the caller's own
+//! YT credentials and authorizes the command itself.
+void MarkDirectRequest(NRpc::NProto::TRequestHeader* header);
+
+//! Whether the request is marked as direct. Credentials alone do not tell: the RPC proxy
+//! forwards requests with a service ticket of its own.
+bool IsDirectRequest(const NRpc::NProto::TRequestHeader& header);
 
 ////////////////////////////////////////////////////////////////////////////////
 

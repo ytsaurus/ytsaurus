@@ -476,7 +476,13 @@ class FlowTestBase:
         additional_env: dict[str, str] | None = None,
         worker_node_config_overrides: list[dict] | None = None,
         leader_wait_timeout: Optional[int] = None,
+        wait_pipeline: bool = True,
     ):
+        """Start the controllers, the workers and (unless run_pipeline is False) the runner.
+
+        wait_pipeline=False skips the pipeline state waits, which go through the RPC proxy;
+        for clusters where the proxy cannot reach the controller.
+        """
         if node_config is None:
             node_config = {}
         if binary_path is None:
@@ -545,14 +551,15 @@ class FlowTestBase:
                         lambda: self.client.exists(f"{self.pipeline_path}/@leader_controller_address"),
                         timeout=leader_wait_timeout,
                     )
-                if run_pipeline:
-                    self.wait_pipeline_state(["working", "completed"])
-                else:
-                    wait(
-                        lambda: self.client.get_pipeline_state(self.pipeline_path) != "",
-                        timeout=180,
-                        ignore_exceptions=True,
-                    )
+                if wait_pipeline:
+                    if run_pipeline:
+                        self.wait_pipeline_state(["working", "completed"])
+                    else:
+                        wait(
+                            lambda: self.client.get_pipeline_state(self.pipeline_path) != "",
+                            timeout=180,
+                            ignore_exceptions=True,
+                        )
                 yield federation
             except WaitFailed:
                 debug_hang = True

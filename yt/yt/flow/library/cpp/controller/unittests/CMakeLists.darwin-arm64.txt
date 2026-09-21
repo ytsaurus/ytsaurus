@@ -38,6 +38,8 @@ target_link_libraries(yt-flow-library-cpp-controller-unittests PUBLIC
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  cpp-testing-common
+  yt-library-auth
   common-unittests-mock
   controller-unittests-mock
   library-cpp-controller
@@ -68,6 +70,7 @@ target_sources(yt-flow-library-cpp-controller-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/chunked_modification_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/compact_rebalance_actions_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/controller_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/dyntable_election_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/job_manager_ut.cpp

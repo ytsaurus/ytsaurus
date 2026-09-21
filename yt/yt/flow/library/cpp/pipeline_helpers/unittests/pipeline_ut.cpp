@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NFlow {
@@ -25,6 +27,24 @@ using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The mock client as a flow_execute target: the commands stay on the RPC proxy path.
+TFlowExecuteTarget Target(const TIntrusivePtr<StrictMock<TMockClient>>& client)
+{
+    return TFlowExecuteTarget(client);
+}
+
+//! The reply of the get-pipeline-state command.
+TFuture<TFlowExecuteResult> MakePipelineStateResult(EPipelineState state)
+{
+    TGetPipelineStateResult result;
+    result.PipelineState = state;
+    return MakeFuture(TFlowExecuteResult{
+        .Result = NYson::ConvertToYsonString(result),
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TWaitPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
 {
     auto client = New<StrictMock<TMockClient>>();
@@ -33,8 +53,8 @@ TEST(TWaitPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
     // The controller log tail opens on the log table's row count.
     EXPECT_CALL(*client, GetTabletInfos(_, _, _))
         .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillRepeatedly(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillRepeatedly(Return(MakeFuture<TFlowExecuteResult>(TError("Cannot connect to pipeline controller leader"))));
     EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
         .WillOnce([] (const NScheduler::TOperationIdOrAlias&, const TGetOperationOptions&) {
             TOperation operation;
@@ -44,7 +64,7 @@ TEST(TWaitPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
 
     EXPECT_THROW_WITH_SUBSTRING(
         WaitPipeline(
-            client,
+            Target(client),
             NYPath::TRichYPath("//tmp/pipeline"),
             TDuration::Hours(1),
             TVanillaOperationHandle{.Client = client, .OperationId = operationId}),
@@ -60,8 +80,8 @@ TEST(TRunPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
         .WillRepeatedly(Return(MakeFuture(true)));
     EXPECT_CALL(*client, GetTabletInfos(_, _, _))
         .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillRepeatedly(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillRepeatedly(Return(MakeFuture<TFlowExecuteResult>(TError("Cannot connect to pipeline controller leader"))));
     EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
         .WillOnce([] (const NScheduler::TOperationIdOrAlias&, const TGetOperationOptions&) {
             TOperation operation;
@@ -71,7 +91,7 @@ TEST(TRunPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
 
     EXPECT_THROW_WITH_SUBSTRING(
         RunPipeline(
-            client,
+            Target(client),
             "//tmp/pipeline",
             New<TPipelineSpec>(),
             New<TDynamicPipelineSpec>(),
@@ -93,15 +113,15 @@ TEST(TWaitPipelineTest, KeepsWaitingWhenTheVanillaOperationLookupFails)
         .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
 
     InSequence sequence;
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce(Return(MakeFuture<TFlowExecuteResult>(TError("Cannot connect to pipeline controller leader"))));
     EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
         .WillOnce(Return(MakeFuture<TOperation>(TError("Scheduler is unavailable"))));
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Completed})));
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce(Return(MakePipelineStateResult(EPipelineState::Completed)));
 
     WaitPipeline(
-        client,
+        Target(client),
         NYPath::TRichYPath("//tmp/pipeline"),
         TDuration::Hours(1),
         TVanillaOperationHandle{.Client = client, .OperationId = operationId});
@@ -113,15 +133,15 @@ TEST(TWaitPipelineStateTest, PassesExplicitRequestTimeout)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce([] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             EXPECT_TRUE(options.Timeout);
             EXPECT_EQ(options.Timeout.value_or(TDuration::Zero()), TDuration::Seconds(1));
-            return MakeFuture(TPipelineState{.State = EPipelineState::Stopped});
+            return MakePipelineStateResult(EPipelineState::Stopped);
         });
 
     WaitPipelineState(
-        client,
+        Target(client),
         "//tmp/pipeline",
         EPipelineState::Stopped,
         TDuration::Hours(1),
@@ -132,15 +152,15 @@ TEST(TWaitPipelineStateTest, UsesDefaultRequestTimeout)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce([] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             EXPECT_TRUE(options.Timeout);
             EXPECT_EQ(options.Timeout.value_or(TDuration::Zero()), TDuration::Seconds(60));
-            return MakeFuture(TPipelineState{.State = EPipelineState::Stopped});
+            return MakePipelineStateResult(EPipelineState::Stopped);
         });
 
     WaitPipelineState(
-        client,
+        Target(client),
         "//tmp/pipeline",
         EPipelineState::Stopped,
         TDuration::Hours(1));
@@ -152,15 +172,15 @@ TEST(TWaitPipelineStateTest, ClampsRequestTimeoutToRemainingWaitBudget)
     const auto waitTimeout = TDuration::Hours(1);
     std::optional<TDuration> actualTimeout;
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce([&] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce([&] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             actualTimeout = options.Timeout;
-            return MakeFuture(TPipelineState{.State = EPipelineState::Stopped});
+            return MakePipelineStateResult(EPipelineState::Stopped);
         });
 
     const auto started = TInstant::Now();
     WaitPipelineState(
-        client,
+        Target(client),
         "//tmp/pipeline",
         EPipelineState::Stopped,
         waitTimeout,
@@ -176,19 +196,19 @@ TEST(TWaitPipelineStateTest, RetriesFailedRequest)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
         .Times(2)
-        .WillOnce([] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+        .WillOnce([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             EXPECT_EQ(options.Timeout, TDuration::Seconds(1));
-            return MakeFuture<TPipelineState>(TError("Transient state request failure"));
+            return MakeFuture<TFlowExecuteResult>(TError("Transient state request failure"));
         })
-        .WillOnce([] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+        .WillOnce([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             EXPECT_EQ(options.Timeout, TDuration::Seconds(1));
-            return MakeFuture(TPipelineState{.State = EPipelineState::Stopped});
+            return MakePipelineStateResult(EPipelineState::Stopped);
         });
 
     WaitPipelineState(
-        client,
+        Target(client),
         "//tmp/pipeline",
         EPipelineState::Stopped,
         TDuration::Hours(1),
@@ -199,15 +219,15 @@ TEST(TWaitPipelineStateTest, PropagatesLastErrorAfterRetryLimit)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
         .Times(10)
-        .WillRepeatedly([] (const NYPath::TYPath&, const TGetPipelineStateOptions&) {
-            return MakeFuture<TPipelineState>(TError("Persistent state request failure"));
+        .WillRepeatedly([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions&) {
+            return MakeFuture<TFlowExecuteResult>(TError("Persistent state request failure"));
         });
 
     EXPECT_THROW_WITH_SUBSTRING(
         WaitPipelineState(
-            client,
+            Target(client),
             "//tmp/pipeline",
             EPipelineState::Stopped,
             TDuration::Hours(1),
@@ -219,15 +239,15 @@ TEST(TWaitPipelineStateTest, AttachesLastErrorWhenWaitDeadlineExpires)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillOnce([] (const NYPath::TYPath&, const TGetPipelineStateOptions& options) {
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillOnce([] (const NYPath::TYPath&, const std::string&, const NYson::TYsonString&, const NApi::TFlowExecuteOptions& options) {
             Sleep(options.Timeout.value_or(TDuration::Zero()) + TDuration::MilliSeconds(10));
-            return MakeFuture<TPipelineState>(TError("State request failed at the deadline"));
+            return MakeFuture<TFlowExecuteResult>(TError("State request failed at the deadline"));
         });
 
     try {
         WaitPipelineState(
-            client,
+            Target(client),
             "//tmp/pipeline",
             EPipelineState::Stopped,
             TDuration::MilliSeconds(500),
@@ -244,12 +264,12 @@ TEST(TWaitPipelineStateTest, ZeroWaitDoesNotIssueRequest)
 {
     auto client = New<StrictMock<TMockClient>>();
 
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
         .Times(0);
 
     EXPECT_THROW_WITH_SUBSTRING(
         WaitPipelineState(
-            client,
+            Target(client),
             "//tmp/pipeline",
             EPipelineState::Stopped,
             TDuration::Zero()),
@@ -262,11 +282,11 @@ TEST(TWaitPipelineStateTest, ZeroWaitDoesNotIssueRequest)
 TError WaitPipelineStateUntilTimeout(EPipelineState targetState, EPipelineState observedState)
 {
     auto client = New<StrictMock<TMockClient>>();
-    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
-        .WillRepeatedly(Return(MakeFuture(TPipelineState{.State = observedState})));
+    EXPECT_CALL(*client, FlowExecute("//tmp/pipeline", "get-pipeline-state", _, _))
+        .WillRepeatedly(Return(MakePipelineStateResult(observedState)));
 
     try {
-        WaitPipelineState(client, "//tmp/pipeline", targetState, TDuration::Seconds(2));
+        WaitPipelineState(Target(client), "//tmp/pipeline", targetState, TDuration::Seconds(2));
     } catch (const TErrorException& ex) {
         return ex.Error();
     }
@@ -339,9 +359,9 @@ TIntrusivePtr<StrictMock<TMockClient>> MakeClientWithEmptyLog()
     return client;
 }
 
-TFuture<TPipelineState> MakeUnavailableFuture()
+TFuture<TFlowExecuteResult> MakeUnavailableFuture()
 {
-    return MakeFuture<TPipelineState>(TError("Controller is unavailable"));
+    return MakeFuture<TFlowExecuteResult>(TError("Controller is unavailable"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,11 +369,11 @@ TFuture<TPipelineState> MakeUnavailableFuture()
 TEST(TWaitPipelineTest, DetachesWhenControllerStaysUnreachable)
 {
     auto client = MakeClientWithEmptyLog();
-    EXPECT_CALL(*client, GetPipelineState(_, _))
+    EXPECT_CALL(*client, FlowExecute(_, "get-pipeline-state", _, _))
         .WillRepeatedly(Return(MakeUnavailableFuture()));
 
     auto startInstant = TInstant::Now();
-    WaitPipeline(client, MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
+    WaitPipeline(Target(client), MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
     EXPECT_LT(TInstant::Now() - startInstant, TDuration::Seconds(30));
 }
 
@@ -363,16 +383,16 @@ TEST(TWaitPipelineTest, TransientFailureDoesNotDetach)
     // Without the streak reset on the successful poll the second failure at ~300 ms would
     // exceed the 200 ms budget and the wait would detach before Completed.
     InSequence sequence;
-    EXPECT_CALL(*client, GetPipelineState(_, _))
+    EXPECT_CALL(*client, FlowExecute(_, "get-pipeline-state", _, _))
         .WillOnce(Return(MakeUnavailableFuture()));
-    EXPECT_CALL(*client, GetPipelineState(_, _))
-        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Working})));
-    EXPECT_CALL(*client, GetPipelineState(_, _))
+    EXPECT_CALL(*client, FlowExecute(_, "get-pipeline-state", _, _))
+        .WillOnce(Return(MakePipelineStateResult(EPipelineState::Working)));
+    EXPECT_CALL(*client, FlowExecute(_, "get-pipeline-state", _, _))
         .WillOnce(Return(MakeUnavailableFuture()));
-    EXPECT_CALL(*client, GetPipelineState(_, _))
-        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Completed})));
+    EXPECT_CALL(*client, FlowExecute(_, "get-pipeline-state", _, _))
+        .WillOnce(Return(MakePipelineStateResult(EPipelineState::Completed)));
 
-    WaitPipeline(client, MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
+    WaitPipeline(Target(client), MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

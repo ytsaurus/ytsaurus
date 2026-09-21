@@ -7,6 +7,7 @@ SRCS(
     chunked_modification_ut.cpp
     compact_rebalance_actions_ut.cpp
     config_ut.cpp
+    controller_service_ut.cpp
     controller_ut.cpp
     dyntable_election_manager_ut.cpp
     job_manager_ut.cpp
@@ -19,6 +20,8 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/testing/common
+    yt/yt/library/auth
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/controller/unittests/mock
     yt/yt/flow/library/cpp/controller

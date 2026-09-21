@@ -97,11 +97,12 @@ NApi::IClientPtr GetClusterClient(
 }
 
 void ShutdownPriorVanillaOperation(
-    const NApi::IClientPtr& pipelineClient,
+    const TFlowExecuteTarget& pipelineTarget,
     const NYPath::TYPath& pipelinePath,
     TDuration waitTimeout,
     const NClient::NCache::IClientsCachePtr& clientsCache)
 {
+    const auto& pipelineClient = pipelineTarget.Client;
     auto pipelineExists = WaitFor(pipelineClient->NodeExists(pipelinePath)).ValueOrThrow();
     if (!pipelineExists) {
         return;
@@ -136,11 +137,11 @@ void ShutdownPriorVanillaOperation(
         .With("State", *opInfo.State)
         .With("Graceful", graceful);
     if (graceful) {
-        WaitFor(pipelineClient->StopPipeline(pipelinePath)).ThrowOnError();
-        WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Stopped, waitTimeout);
+        SetTargetPipelineState(pipelineTarget, pipelinePath, EPipelineState::Stopped);
+        WaitPipelineState(pipelineTarget, pipelinePath, EPipelineState::Stopped, waitTimeout);
     } else {
-        WaitFor(pipelineClient->PausePipeline(pipelinePath)).ThrowOnError();
-        WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Paused, waitTimeout);
+        SetTargetPipelineState(pipelineTarget, pipelinePath, EPipelineState::Paused);
+        WaitPipelineState(pipelineTarget, pipelinePath, EPipelineState::Paused, waitTimeout);
     }
     WaitFor(opClient->AbortOperation(opIdOrAlias)).ThrowOnError();
 }
@@ -466,7 +467,8 @@ TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanillaConfig,
-    const NClient::NCache::IClientsCachePtr& clientsCache)
+    const NClient::NCache::IClientsCachePtr& clientsCache,
+    TDirectControllerCommandsConfigPtr directControllerCommands)
 {
     if (!vanillaConfig->Enable) {
         return {};
@@ -591,7 +593,11 @@ TVanillaOperationHandle LaunchInVanillaJob(
     // Switch (make-before-break): stop the prior operation, record the manifest, then start the
     // prepared one. The manifest goes first — the alias is known up front, and a write after the
     // start could fail, leaving a running operation the manifest does not point at.
-    ShutdownPriorVanillaOperation(pipelineClient, pipelinePath.GetPath(), vanillaConfig->WaitTimeout, clientsCache);
+    ShutdownPriorVanillaOperation(
+        TFlowExecuteTarget(pipelineClient, std::move(directControllerCommands)),
+        pipelinePath.GetPath(),
+        vanillaConfig->WaitTimeout,
+        clientsCache);
 
     auto manifest = New<TVanillaOperationManifest>();
     manifest->Cluster = runtimeCluster;

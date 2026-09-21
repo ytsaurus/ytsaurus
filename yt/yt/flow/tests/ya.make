@@ -6,6 +6,7 @@ RECURSE(
     computation_cycles_and_buffers
     conflict_horizon
     diagnostic_tools
+    direct_controller_commands
     dyntable_conflicts
     dyntable_leases
     epoch_seqno_sync
