@@ -368,8 +368,6 @@ private:
     std::optional<TInstant> NodeDirectoryPreparationStartTime_;
     std::optional<TInstant> ArtifactsDownloadStartTime_;
     std::optional<TInstant> ArtifactsDownloadedTime_;
-    std::optional<TCpuInstant> FilesDownloadStartTime_;
-    std::optional<TCpuInstant> FilesDownloadedTime_;
     std::optional<TInstant> StartTime_;
     std::optional<TInstant> ExecStartTime_;
     std::optional<TInstant> FinishTime_;
