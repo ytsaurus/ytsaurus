@@ -356,13 +356,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		if speclet.ODBCConfig == nil {
 			speclet.ODBCConfig = &ODBCConfig{}
 		}
-		// DriversDir points to a pre-populated Cypress directory.
-		// The controller reads config.yson from it and merges the discovered drivers and
-		// extra files into the speclet's own Drivers/ExtraFiles lists, so that a cluster
-		// admin can deploy a shared set of drivers once and have all ODBC-enabled cliques
-		// pick them up automatically without each user having to list them explicitly.
-		driversDir := speclet.ODBCConfig.DriversDirOrDefault()
-		odbcCfg, err := c.loadODBCDriversConfig(ctx, driversDir)
+		odbcCfg, err := c.loadODBCDriversConfig(ctx)
 		if err != nil || odbcCfg == nil {
 			c.l.Warn("failed to load ODBC drivers config, no default drivers will be added", log.Error(err))
 		} else {
