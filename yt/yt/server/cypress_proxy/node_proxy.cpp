@@ -275,12 +275,10 @@ protected:
 
     void SetBasicRequestInfo(const ISequoiaServiceContextPtr& context)
     {
-        context->SetIncrementalRequestInfo(
-            "TargetObjectPath: %v, TargetObjectId: %v, Path: %v%v",
-            Path_,
-            MakeVersionedNodeId(Id_),
-            Path_,
-            GetRequestTargetYPath(context->GetRequestHeader()));
+        context->AnnotateRequest(/*flush*/ false)
+            .With("TargetObjectPath", Path_)
+            .With("TargetObjectId", MakeVersionedNodeId(Id_))
+            .WithFormat("Path", "%v%v", Path_, GetRequestTargetYPath(context->GetRequestHeader()));
     }
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
@@ -2917,10 +2915,9 @@ private:
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
-        context->SetIncrementalRequestInfo("TargetObjectId: %v, Path: %v/%v",
-            Id_,
-            Id_,
-            GetRequestTargetYPath(context->GetRequestHeader()));
+        context->AnnotateRequest(/*flush*/ false)
+            .With("TargetObjectId", Id_)
+            .WithFormat("Path", "%v/%v", Id_, GetRequestTargetYPath(context->GetRequestHeader()));
 
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
         THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", Id_);

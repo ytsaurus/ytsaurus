@@ -864,9 +864,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Copy)
 
     ToProto(response->mutable_node_id(), clonedProxy->GetId());
 
-    context->SetResponseInfo("%v: %v",
-        targetPath.empty() ? "ExistingObjectId" : "ObjectId",
-        clonedProxy->GetId());
+    if (targetPath.empty()) {
+        context->AnnotateResponse()
+            .With("ExistingObjectId", clonedProxy->GetId());
+    } else {
+        context->AnnotateResponse()
+            .With("ObjectId", clonedProxy->GetId());
+    }
 
     context->Reply();
 

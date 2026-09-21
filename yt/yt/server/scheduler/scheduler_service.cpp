@@ -268,13 +268,15 @@ private:
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
         auto requestedAllocationInfo = FromProto<TAllocationInfoToRequest>(request->requested_info());
 
-        context->SetRequestInfo(
-            "AllocationId: %v, RequestedInfo: {OperationId: %v, OperationAcl: %v, CADescriptor: %v, NodeDescriptor: %v}",
-            allocationId,
-            requestedAllocationInfo.OperationId,
-            requestedAllocationInfo.OperationAcl,
-            requestedAllocationInfo.ControllerAgentDescriptor,
-            requestedAllocationInfo.NodeDescriptor);
+        context->AnnotateRequest()
+            .With("AllocationId", allocationId)
+            .WithFormat(
+                "RequestedInfo",
+                "{OperationId: %v, OperationAcl: %v, CADescriptor: %v, NodeDescriptor: %v}",
+                requestedAllocationInfo.OperationId,
+                requestedAllocationInfo.OperationAcl,
+                requestedAllocationInfo.ControllerAgentDescriptor,
+                requestedAllocationInfo.NodeDescriptor);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

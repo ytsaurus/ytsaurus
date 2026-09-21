@@ -745,11 +745,10 @@ private:
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
         int messageCount = request->messages_size();
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v",
-            srcCellId,
-            SelfCellId_,
-            firstMessageId,
-            firstMessageId + messageCount - 1);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_)
+            .WithFormat("MessageIds", "%v-%v", firstMessageId, firstMessageId + messageCount - 1);
 
         ValidatePeer(EPeerKind::Leader);
 
