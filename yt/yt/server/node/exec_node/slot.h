@@ -53,6 +53,8 @@ struct IUserSlot
 
     virtual void Prepare() = 0;
 
+    virtual TFuture<void> BuildSlotRootDirectory() = 0;
+
     virtual TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,

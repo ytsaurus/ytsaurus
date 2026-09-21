@@ -80,7 +80,9 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
 constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
-    if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
+    if (Step == &TJobWorkspaceBuilder::DoBuildSlotRootDirectory) {
+        return "DoBuildSlotRootDirectory";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
         return "DoPrepareRootVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareNonRootVolumes) {
         return "DoPrepareNonRootVolumes";
@@ -151,6 +153,16 @@ void TJobWorkspaceBuilder::UpdateArtifactStatistics(
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit, isLayer);
+}
+
+TFuture<void> TJobWorkspaceBuilder::DoBuildSlotRootDirectory()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    ValidateJobPhase(EJobPhase::PreparingLayers);
+    SetJobPhase(EJobPhase::PreparingSlotDirectories);
+
+    return Context_.Slot->BuildSlotRootDirectory();
 }
 
 void TJobWorkspaceBuilder::MakeArtifactSymlinks()
@@ -252,8 +264,9 @@ TFuture<void> TJobWorkspaceBuilder::Run()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareLayers>()
-        .Run()
+    auto future = OKFuture
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareLayers>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoBuildSlotRootDirectory>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareNonRootVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
@@ -350,7 +363,7 @@ private:
 
         YT_TLOG_DEBUG("Root volume preparation is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::PreparingLayers);
+        ValidateJobPhase(EJobPhase::PreparingSlotDirectories);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         if (!Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
@@ -669,7 +682,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingLayers);
+        ValidateJobPhase(EJobPhase::PreparingSlotDirectories);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         const auto& slot = Context_.Slot;
@@ -1172,7 +1185,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingLayers);
+        ValidateJobPhase(EJobPhase::PreparingSlotDirectories);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         const auto& dockerImage = Context_.FSSecretary->GetDockerImage();

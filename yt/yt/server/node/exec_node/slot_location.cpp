@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
+#include <yt/yt/library/containers/public.h>
+
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/client/misc/io_tags.h>
@@ -92,6 +94,17 @@ private:
 };
 
 static constexpr i64 CopyRateGaugeGrid[] = {0, 1_MB, 10_MB, 100_MB, 1000_MB};
+
+////////////////////////////////////////////////////////////////////////////////
+
+static TErrorCode GetDisableErrorCode(const TError& error)
+{
+    if (NFS::IsOutOfDiskSpaceError(error) || error.FindMatching(NContainers::EPortoErrorCode::NoSpace)) {
+        return NExecNode::EErrorCode::NotEnoughDiskSpace;
+    }
+
+    return NExecNode::EErrorCode::SlotLocationDisabled;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,6 +199,7 @@ TSlotLocation::TSlotLocation(
         .WithTag("location_id", Id_))
     , CopyRate_(Profiler_.Gauge("/copy/rate"))
     , CopyRateEma_(Profiler_.Gauge("/copy/rate_ema"))
+    , EnospcRate_(Profiler_.Counter("/enospc_events"))
     , CopyRateGrid_(std::make_unique<TGaugeGrid>(
         CopyRateGaugeGrid,
         [&] (i64 bucket) -> TGauge {
@@ -339,11 +353,15 @@ TFuture<void> TSlotLocation::Initialize(IVolumeManagerPtr volumeManager)
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
                 .With(ex);
-            Disable(error);
+            Disable(error, /*ignoreOutOfSpace*/ false);
             return;
         }
 
-        HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
+        HealthChecker_->SubscribeFailed(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (const TError& error) {
+            if (auto this_ = weakThis.Lock()) {
+                this_->Disable(error);
+            }
+        })
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
     })
@@ -364,9 +382,10 @@ void TSlotLocation::DoInitialize(IVolumeManagerPtr volumeManager)
     ValidateMinimumSpace();
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-        RemoveVolumesFromPortoPlace(slotIndex, volumeManager);
-        RemoveLayersFromPortoPlace(slotIndex, volumeManager);
-        BuildSlotRootDirectory(slotIndex);
+        RemoveVolumesFromPortoPlace(slotIndex, volumeManager, /*preservedVolumePaths*/ {}, /*initializing*/ true);
+        RemoveLayersFromPortoPlace(slotIndex, volumeManager, /*initializing*/ true);
+        WaitFor(CleanSandboxes(slotIndex, /*initializing*/ true))
+            .ThrowOnError();
     }
 
     DiskResourcesUpdateExecutor_->Start();
@@ -922,7 +941,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             writer.Flush();
         } catch (const std::exception& ex) {
             // Job will be aborted.
-            auto error = TError(NExecNode::EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v",
+            auto error = TError(GetDisableErrorCode(ex), "Failed to write job proxy config into %v",
                 proxyConfigPath)
                 .With(ex);
             Disable(error);
@@ -938,13 +957,15 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
     .Run();
 }
 
-TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
+TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex, bool initializing)
 {
     return BIND([=, this, this_ = MakeStrong(this)] {
         YT_TLOG_DEBUG("Sandboxes cleaning started")
             .With("SlotIndex", slotIndex);
 
-        ValidateEnabled();
+        if (!initializing) {
+            ValidateEnabled();
+        }
 
         {
             auto guard = WriterGuard(SlotsLock_);
@@ -990,13 +1011,12 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     SlotsWithQuota_.erase(slotIndex);
                 }
             }
-
-            // Prepare slot for the next job.
-            BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean sandbox directories")
                 .With(ex);
-            Disable(error);
+            if (!initializing) {
+                Disable(error);
+            }
             THROW_ERROR error;
         }
 
@@ -1039,14 +1059,6 @@ TFuture<void> TSlotLocation::CleanPortoPlace(int slotIndex)
                         .ThrowOnError();
                 }
             }
-
-            // Recreate the porto place directory tree so the next allocation
-            // assigned to this slot finds the expected layout. Without this
-            // step the porto place removed above stays missing until the
-            // node restarts, since BuildSlotRootDirectory is otherwise only
-            // called from DoInitialize and from CleanSandboxes (which skips
-            // the porto place sandbox kind).
-            BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean porto place")
                 .With(ex);
@@ -1259,8 +1271,17 @@ std::string TSlotLocation::GetPath() const
     return Config_->Path;
 }
 
-void TSlotLocation::Disable(const TError& error)
+void TSlotLocation::Disable(const TError& error, bool ignoreOutOfSpace)
 {
+    if (GetDisableErrorCode(error) == NExecNode::EErrorCode::NotEnoughDiskSpace) {
+        EnospcRate_.Increment();
+        if (ignoreOutOfSpace) {
+            YT_TLOG_WARNING("Skipping slot location disable due to an out-of-space error")
+                .With(error);
+            return;
+        }
+    }
+
     // TODO(don-dron): Research and fix unconditional Disabled.
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         YT_TLOG_DEBUG("Cannot disable not enabled slot location")
@@ -1543,7 +1564,8 @@ NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocati
 void TSlotLocation::RemoveVolumesFromPortoPlace(
     int slotIndex,
     const IVolumeManagerPtr& volumeManager,
-    const THashSet<std::string>& preservedVolumePaths)
+    const THashSet<std::string>& preservedVolumePaths,
+    bool initializing)
 {
     auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
 
@@ -1577,8 +1599,10 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(
             .With("porto_place", portoPlacePath)
             .With("slot_index", slotIndex)
             .With(removeVolumesResult);
-        // It would be nice to disable just this particular slot index, not the whole slot.
-        Disable(error);
+        if (!initializing) {
+            // It would be nice to disable just this particular slot index, not the whole slot.
+            Disable(error);
+        }
         THROW_ERROR error;
     }
 
@@ -1587,7 +1611,7 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(
         .With("PortoPlace", portoPlacePath);
 }
 
-void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager)
+void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager, bool initializing)
 {
     auto portoPlacePath = GetSandboxPath(slotIndex, ESandboxKind::PortoPlace);
 
@@ -1621,8 +1645,10 @@ void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManag
             .With("porto_place", portoPlacePath)
             .With("slot_index", slotIndex)
             .With(removeLayersResult);
-        // It would be nice to disable just this particular slot index, not the whole slot.
-        Disable(error);
+        if (!initializing) {
+            // It would be nice to disable just this particular slot index, not the whole slot.
+            Disable(error);
+        }
         THROW_ERROR error;
     }
 
@@ -1631,8 +1657,19 @@ void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManag
         .With("PortoPlace", portoPlacePath);
 }
 
-void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
+TFuture<void> TSlotLocation::BuildSlotRootDirectory(int slotIndex)
 {
+    return BIND(&TSlotLocation::DoBuildSlotRootDirectory, MakeStrong(this), slotIndex)
+        .AsyncVia(LightInvoker_)
+        .Run();
+}
+
+void TSlotLocation::DoBuildSlotRootDirectory(int slotIndex)
+{
+    YT_ASSERT_INVOKER_AFFINITY(LightInvoker_);
+
+    ValidateEnabled();
+
     std::optional<int> uid;
     int nodeUid = getuid();
 
@@ -1645,13 +1682,23 @@ void TSlotLocation::BuildSlotRootDirectory(int slotIndex)
     directoryBuilderConfig->NeedRoot = uid.has_value();
     directoryBuilderConfig->RootDirectoryConfigs.push_back(CreateDefaultRootDirectoryConfig(slotIndex, uid, nodeUid));
 
-    auto future = BIND([=, this_ = MakeStrong(this)] {
+    auto error = WaitFor(BIND([=, this_ = MakeStrong(this)] {
             RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
         })
         .AsyncVia(ToolInvoker_)
-        .Run();
-    WaitFor(future)
-        .ThrowOnError();
+        .Run());
+
+    if (error.IsOK()) {
+        return;
+    }
+
+    auto locationError = TError(GetDisableErrorCode(error), "Failed to build slot root directory")
+        .With("slot_index", slotIndex)
+        .With("slot_path", GetSlotPath(slotIndex))
+        .With(error);
+    Disable(locationError);
+
+    THROW_ERROR std::move(locationError);
 }
 
 TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(

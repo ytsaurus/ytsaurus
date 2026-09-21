@@ -126,8 +126,6 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
-#include <util/system/env.h>
-
 namespace NYT::NExecNode {
 
 using namespace NRpc;
@@ -175,10 +173,6 @@ using NChunkClient::TDataSliceDescriptor;
 
 using NObjectClient::TObjectId;
 using NCypressClient::EObjectType;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,6 +808,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingLayers:
+        case EJobPhase::PreparingSlotDirectories:
         case EJobPhase::PreparingVolumes:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::LinkingVolumes:
@@ -3067,20 +3062,15 @@ void TJob::Cleanup()
     removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
 
     if (const auto& slot = GetUserSlot()) {
-        if (ShouldCleanSandboxes()) {
-            try {
-                YT_TLOG_DEBUG("Clean sandbox")
-                    .With("SlotIndex", slot->GetSlotIndex());
-                slot->CleanSandbox();
-            } catch (const std::exception& ex) {
-                // Errors during cleanup phase do not affect job outcome.
-                YT_TLOG_ERROR("Failed to clean sandbox")
-                    .With("SlotIndex", slot->GetSlotIndex())
-                    .With(ex);
-            }
-        } else {
-            YT_TLOG_WARNING("Sandbox cleanup is disabled by an environment variable; should be used for testing purposes only")
-                .With("Variable", DisableSandboxCleanupEnv);
+        try {
+            YT_TLOG_DEBUG("Clean sandbox")
+                .With("SlotIndex", slot->GetSlotIndex());
+            slot->CleanSandbox();
+        } catch (const std::exception& ex) {
+            // Errors during cleanup phase do not affect job outcome.
+            YT_TLOG_ERROR("Failed to clean sandbox")
+                .With("SlotIndex", slot->GetSlotIndex())
+                .With(ex);
         }
     }
 
@@ -4442,11 +4432,6 @@ void TJob::ReportJobProxyProcessFinish(const TError& error)
     }
 
     Bootstrap_->GetJobController()->OnJobProxyProcessFinished(error, delay);
-}
-
-bool TJob::ShouldCleanSandboxes()
-{
-    return GetEnv(DisableSandboxCleanupEnv) != "1";
 }
 
 bool TJob::NeedGpuLayers()
