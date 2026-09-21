@@ -545,7 +545,9 @@ private:
             case ELeaderConfirmationResult::SkippedByEnvironment:
                 YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
                     "Leadership confirmation through the RPC proxy is skipped; "
-                    "the cluster cannot connect to this controller, so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    "the cluster cannot connect to this controller, so only the runner reaches it, in direct mode "
+                    "(runner config direct_controller_commands/enabled); "
+                    "yt flow and the UI will not work")
                     .With("EnvironmentVariable", SkipLeaderProxyConfirmationEnvVarName)
                     .With("Address", NodeInfo_->RpcAddress);
                 return true;
@@ -554,7 +556,9 @@ private:
                 YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
                     "Leadership confirmation through the RPC proxy is skipped; "
                     "the cluster requires TLS to connect to this controller, but the controller bus server has no TLS certificate and key, "
-                    "so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    "so only the runner reaches it, in direct mode "
+                    "(runner config direct_controller_commands/enabled); "
+                    "yt flow and the UI will not work")
                     .With("Address", NodeInfo_->RpcAddress)
                     .With(confirmationError);
                 return true;

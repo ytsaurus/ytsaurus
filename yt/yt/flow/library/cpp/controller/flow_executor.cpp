@@ -89,6 +89,7 @@ public:
         IPipelineAuthenticatorPtr authenticator);
 
     TYsonString Execute(const std::string& command, const TYsonString& argument, const std::string& user) override;
+    void AuthorizeCommand(const std::string& command, const std::string& user) override;
 
 protected:
     TLogger Logger;
@@ -1616,6 +1617,21 @@ TYsonString TFlowExecutor::Execute(const std::string& command, const TYsonString
     } else {
         return CommandNotFound(command, argument);
     }
+}
+
+void TFlowExecutor::AuthorizeCommand(const std::string& command, const std::string& user)
+{
+    auto it = CommandDescriptors_.find(command);
+    if (it == CommandDescriptors_.end()) {
+        CommandNotFound(command, {});
+    }
+    auto permission = it->second.RequiredPermission;
+    auto pipelinePath = YTConnector_->GetPipelinePath().GetPath();
+
+    auto response = WaitFor(YTConnector_->GetClient()->CheckPermission(user, pipelinePath, permission))
+        .ValueOrThrow();
+    response.ToError(user, permission)
+        .ThrowOnError("No %Qlv permission for pipeline %v", permission, pipelinePath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
