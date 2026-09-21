@@ -622,8 +622,6 @@ private:
 
     void ReportJobProxyProcessFinish(const TError& error);
 
-    static bool ShouldCleanSandboxes();
-
     bool NeedGpuLayers();
 
     bool NeedGpu();
