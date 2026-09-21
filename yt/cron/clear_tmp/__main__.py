@@ -10,6 +10,7 @@ Special attribute @clear_tmp_config adjusts clear_tmp behavior on tables and dir
     @clear_tmp_config/dont_prune
         if true, current object will not be removed, but when set on directory
         children of this directory are still considered for removal
+        --dont-prune-white-list restricts this protection to the listed owners
 """
 
 from yt.common import _pretty_format_for_logging, date_string_to_datetime, update_inplace, utcnow
@@ -76,7 +77,7 @@ class ParseTimedeltaMinutesArgument(argparse.Action):
         setattr(namespace, self.dest, datetime.timedelta(minutes=int(values)))
 
 
-COMMON_ATTRIBUTES_TO_REQUEST = ("account", "acl", "revision", "type", "clear_tmp_config")
+COMMON_ATTRIBUTES_TO_REQUEST = ("account", "acl", "revision", "type", "clear_tmp_config", "owner")
 
 logger = logging.getLogger("clear_tmp")
 
@@ -129,6 +130,14 @@ def is_locked(obj):
     return any(map(lambda lock: lock["mode"] in ("exclusive", "shared"), obj.attributes["locks"]))
 
 
+def _should_honor_dont_prune(obj_attributes, args):
+    return (
+        obj_attributes.clear_tmp_config is not None
+        and obj_attributes.clear_tmp_config.get("dont_prune", False)
+        and (args.dont_prune_white_list is None or obj_attributes.owner in args.dont_prune_white_list)
+    )
+
+
 def _is_deletion_candidate(
     obj_name: str,
     age: datetime.timedelta,
@@ -140,10 +149,9 @@ def _is_deletion_candidate(
     """
     if age < args.safe_age:
         return False
-    if obj_attributes.clear_tmp_config is not None:
-        if obj_attributes.clear_tmp_config.get("dont_prune", False):
-            logger.debug("Skipping: %s has \"dont_prune\"", obj_name)
-            return False
+    if _should_honor_dont_prune(obj_attributes, args):
+        logger.debug("Skipping: %s has \"dont_prune\"", obj_name)
+        return False
     if args.do_not_remove_objects_with_locks:
         if obj_attributes.locks:
             logger.debug("Skipping: %s has locks", obj_name)
@@ -171,7 +179,7 @@ def collect_objects_to_remove(
     dir_childrens_count: Dict[str, int] = dict((obj.name, obj.count) for obj in dirs)
 
     attributes_to_request = set(list(COMMON_ATTRIBUTES_TO_REQUEST) +
-                                ["locks", "resource_usage", "target_path", "owner", time_attribute_name])
+                                ["locks", "resource_usage", "target_path", time_attribute_name])
     ObjectAttributes = namedtuple("ObjectAttributes", list(attributes_to_request))
 
     collected_objects: List[Tuple[bool, datetime.timedelta, bool, str, ObjectAttributes]] = []
@@ -304,6 +312,8 @@ def main():
     parser.add_argument("--do-not-remove-objects-with-locks", action="store_true", default=False,
                         help="Do not remove objects with any locks on them")
     parser.add_argument("--remove-empty", action="store_true", default=False, help="Remove empty tables/files/dirs")
+    parser.add_argument("--dont-prune-white-list", nargs="+", action="extend", metavar="OWNER",
+                        help="Honor dont_prune only for these node owners; defaults to all owners. May be repeated")
     parser.add_argument("--token-env-variable")
     parser.add_argument("--log-level", default="INFO")
     parser.add_argument("--dry-run", action="store_true", default=False, help="Do not remove anything")
@@ -497,7 +507,7 @@ def main():
                     continue
                 if dir_childrens_count[dir.name] != 0:
                     continue
-                if dir.clear_tmp_config is not None and dir.clear_tmp_config.get("dont_prune", False):
+                if _should_honor_dont_prune(dir, args):
                     continue
 
                 # Directory nodes were already counted before collecting objects.

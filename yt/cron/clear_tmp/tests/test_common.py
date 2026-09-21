@@ -2,6 +2,8 @@ from .conftest import yt_env, run_clear_tmp  # noqa
 
 import yt.wrapper as yt
 
+import pytest
+
 
 COMMON_ARGS = [
     "--directory",
@@ -150,3 +152,31 @@ def test_dont_prune(yt_env):  # noqa
 
     assert not client.exists("//tmp/dir/subdir")
     assert client.exists("//tmp/dir")
+
+
+@pytest.mark.parametrize("white_list_args", [
+    [],
+    ["--dont-prune-white-list", "owner_a", "owner_b"],
+    ["--dont-prune-white-list", "owner_a", "--dont-prune-white-list", "owner_b"],
+])
+def test_dont_prune_white_list(yt_env, white_list_args):  # noqa
+    proxy_address = yt_env.yt_instance.get_proxy_address()
+    client = yt_env.yt_client
+
+    for owner in ("owner_a", "owner_b", "owner_c"):
+        client.create("user", attributes={"name": owner})
+        attributes = {"owner": owner, "clear_tmp_config": {"dont_prune": True}}
+        client.create("map_node", f"//tmp/{owner}_dir", attributes=attributes)
+        client.create("table", f"//tmp/{owner}_table", attributes=attributes)
+        # An allowed owner alone does not protect a node or directory children.
+        client.create("table", f"//tmp/{owner}_dir/child", attributes={"owner": owner})
+
+    run_clear_tmp(
+        proxy_address,
+        COMMON_ARGS + ["--remove-empty", "--safe-age", "0"] + white_list_args)
+
+    for owner in ("owner_a", "owner_b", "owner_c"):
+        protected = not white_list_args or owner in ("owner_a", "owner_b")
+        assert client.exists(f"//tmp/{owner}_table") == protected
+        assert client.exists(f"//tmp/{owner}_dir") == protected
+        assert not client.exists(f"//tmp/{owner}_dir/child")
