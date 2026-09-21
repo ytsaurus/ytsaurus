@@ -46,7 +46,7 @@ std::string Trim(const std::string& string)
 
 std::string UriEncode(const std::string& string, bool isObjectPath)
 {
-    auto shouldEncode = [&] (char byte) {
+    auto shouldEncode = [&] (unsigned char byte) {
         if (byte >= 'A' && byte <= 'Z') {
             return false;
         }
@@ -69,7 +69,7 @@ std::string UriEncode(const std::string& string, bool isObjectPath)
     std::string result;
     result.reserve(string.size());
 
-    for (char byte : string) {
+    for (unsigned char byte : string) {
         if (shouldEncode(byte)) {
             result += '%';
             result += DigitToChar(byte >> 4);

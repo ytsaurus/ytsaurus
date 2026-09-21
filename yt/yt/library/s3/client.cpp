@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <library/cpp/html/pcdata/pcdata.h>
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <contrib/libs/poco/XML/include/Poco/XML/XML.h>
@@ -286,7 +287,7 @@ void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
     bodyStream << R"(<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">)";
     for (const auto& key : Objects) {
         bodyStream << "<Object>";
-        bodyStream << "<Key>" << key << "</Key>";
+        bodyStream << "<Key>" << EncodeHtmlPcdata(key) << "</Key>";
         bodyStream << "</Object>";
     }
     bodyStream << "</Delete>";

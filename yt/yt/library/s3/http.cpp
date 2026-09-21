@@ -318,7 +318,12 @@ private:
     TSharedRef FormHeaders(const THttpRequest& request)
     {
         TStringStream stream;
-        stream << ToHttpString(request.Method) << " " << request.Path;
+        stream << ToHttpString(request.Method) << " ";
+        auto encodedPath = NCrypto::UriEncode(request.Path, /*isObjectPath*/ true);
+        if (encodedPath.empty() || encodedPath[0] != '/') {
+            stream << '/';
+        }
+        stream << encodedPath;
         {
             auto first = true;
             for (const auto& [key, value] : request.Query) {
@@ -328,9 +333,9 @@ private:
                 } else {
                     stream << "&";
                 }
-                stream << key;
+                stream << NCrypto::UriEncode(key, /*isObjectPath*/ false);
                 stream << "=";
-                stream << value;
+                stream << NCrypto::UriEncode(value, /*isObjectPath*/ false);
             }
             stream << " HTTP/1.1\r\n";
         }
