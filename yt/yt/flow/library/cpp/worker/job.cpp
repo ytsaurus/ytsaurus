@@ -101,6 +101,7 @@ public:
 
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams) override;
     TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics() override;
+    void RegisterSourceMessages(i64 count) override;
     void MarkPersisted(std::span<const TMessageId> messageIds) override;
     void MarkDeduplicated(std::span<const TMessageId> messageIds) override;
     void RegisterOutputMessages(
@@ -369,6 +370,13 @@ public:
         return InputBuffer_;
     }
 
+    TJobRuntimeCountersPtr GetRuntimeCounters() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return RuntimeCounters_;
+    }
+
     TSystemTimestamp GetInputStabilizedEventTimestamp()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -403,6 +411,7 @@ public:
         if (IsRunning_.load() && InitializePromise_.IsSet()) {
             try {
                 auto computationStatus = Computation_->GetStatus();
+                RuntimeCounters_->NonEmptyIterationCount.store(computationStatus->NonEmptyIterationCount);
                 if (computationStatus->NodeTraverse) {
                     auto traverseData = New<TFromPartitionTraverseData>();
                     traverseData->Node = std::move(computationStatus->NodeTraverse);
@@ -474,6 +483,11 @@ public:
         state->InputStreams = readStreamUsages(StreamLimitUsageStates_.Input);
         state->OutputStreams = readStreamUsages(StreamLimitUsageStates_.Output);
         return state;
+    }
+
+    void RegisterSourceMessages(i64 count)
+    {
+        RuntimeCounters_->InputMessageCount.fetch_add(count);
     }
 
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams)
@@ -654,6 +668,7 @@ private:
     std::optional<TRemedianSplitter<TKey>> RemedianSplitter_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TNodeInputMetricsPtr JobInputMetrics_;
+    const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
 
     struct TDeliveryLogEntry
     {
@@ -703,6 +718,7 @@ private:
         if (messages.empty()) {
             return;
         }
+        RuntimeCounters_->InputMessageCount.fetch_add(std::ssize(messages));
 
         auto now = TInstant::Now();
 
@@ -889,6 +905,13 @@ TFuture<std::vector<TInputMessageConstPtr>> TComputationRunContext::GetNextBatch
         return job->GetNextBatch(allowedStreams);
     }
     return MakeFuture<std::vector<TInputMessageConstPtr>>(MakeExecutionInterruptedError());
+}
+
+void TComputationRunContext::RegisterSourceMessages(i64 count)
+{
+    if (auto job = Job_.Lock()) {
+        job->RegisterSourceMessages(count);
+    }
 }
 
 TFuture<THashMap<TStreamId, TInflightMetricsPtr>> TComputationRunContext::GetInputInflightMetrics()

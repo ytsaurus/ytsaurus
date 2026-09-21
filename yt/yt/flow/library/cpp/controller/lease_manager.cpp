@@ -2,6 +2,7 @@
 
 #include "chunked_modification.h"
 #include "config.h"
+#include "job_balancer_common.h"
 #include "lease_manager.h"
 #include "yt_connector.h"
 
@@ -161,7 +162,7 @@ public:
         }
 
         for (const auto& job : expiredLeaseJobs) {
-            layout->RemoveJob(job->JobId, EJobFinishReason::ExpiredLease);
+            NBalancer::RemoveJobKeepingMetrics(flowView, job->JobId, EJobFinishReason::ExpiredLease);
             // Nothing refers to a dead lease anymore: the partition's next job gets a fresh one.
             ForgetLease(job->LeaseId);
 

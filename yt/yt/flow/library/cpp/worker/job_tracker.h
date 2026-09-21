@@ -94,6 +94,14 @@ IJobTrackerPtr CreateJobTracker(TJobTrackerContextPtr context);
 //! Computes the size of the job thread pool from the dynamic spec and node info.
 int GetJobThreadPoolSize(const TDynamicPipelineSpecPtr& dynamicSpec, const TNodeInfoPtr& nodeInfo);
 
+//! How long a job may stay without any input before its rate counters count as steady anyway.
+constexpr TDuration IdleMetricsSteadyDelay = TDuration::Minutes(1);
+
+//! Whether the rate counters of a job of age |jobAge| describe steady-state work: once its first
+//! iteration with input has completed, or once it has stayed without any input for
+//! #IdleMetricsSteadyDelay.
+bool ShouldMarkPerformanceCountersSteady(i64 nonEmptyIterations, i64 inputMessages, TDuration jobAge);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NWorker

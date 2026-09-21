@@ -105,6 +105,11 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         if (allowRead) {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             sourceMessageBatches = WaitFor(OrderedSource_->GetNextBatch(TMessageBatcherSettingsPtr(dynamicSpec))).ValueOrThrow();
+            i64 sourceMessageCount = 0;
+            for (const auto& sourceBatch : sourceMessageBatches) {
+                sourceMessageCount += std::ssize(sourceBatch.Messages);
+            }
+            context->RegisterSourceMessages(sourceMessageCount);
         }
 
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
@@ -202,6 +207,9 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));
 
+        if (!sourceMessageBatches.empty()) {
+            NoteNonEmptyRunIteration();
+        }
         FinishRunIteration();
 
         WaitForBackoff(dynamicSpec, outputLimitsCheckResult, /*emptyInput*/ sourceMessageBatches.empty());

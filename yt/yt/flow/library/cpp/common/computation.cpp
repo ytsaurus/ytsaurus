@@ -78,6 +78,8 @@ void TComputationStatus::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("partition_status", &TThis::PartitionStatus)
         .Default();
+    registrar.Parameter("non_empty_iteration_count", &TThis::NonEmptyIterationCount)
+        .Default();
     registrar.Parameter("epoch_part_times", &TThis::EpochPartTimes)
         .Default();
     registrar.Parameter("input_limits", &TThis::InputLimits)

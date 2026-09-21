@@ -487,6 +487,8 @@ protected:
     IRetryableTransactionPtr PrepareTransaction(const IComputationRunContextPtr& context);
     void Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction);
     void FinishRunIteration();
+    //! Call once per run iteration that had input to process, see #TComputationStatus::NonEmptyIterationCount.
+    void NoteNonEmptyRunIteration();
 
     TCheckOutputLimitsResult CheckOutputLimits(
         const TDynamicComputationSpecPtr& dynamicSpec,
@@ -632,6 +634,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     i64 RunIteration_ = -1;
+    std::atomic<i64> NonEmptyRunIterations_ = 0;
     TPromise<void> RunIterationStartPromise_;
     TPromise<void> BeforeCommitInIterationPromise_;
     TPromise<void> RunIterationFinishPromise_;

@@ -149,6 +149,11 @@ struct TFailedJob
         return nullptr;
     }
 
+    TJobRuntimeCountersPtr GetRuntimeCounters() override
+    {
+        return RuntimeCounters_;
+    }
+
     TFuture<TJobStatusPtr> GetStatus() override
     {
         auto status = New<TJobStatus>();
@@ -167,6 +172,7 @@ private:
     const TJobStreamLimitUsageStates StreamLimitUsageStates_;
     const TError Error_;
     const TInstant Timestamp_;
+    const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +224,15 @@ int GetJobThreadPoolSize(const TDynamicPipelineSpecPtr& dynamicSpec, const TNode
         return std::ceil(*nodeInfo->VcpuLimit / 1000.0 / *nodeInfo->VcpuFactor);
     }
     return TDynamicJobTrackerSpec::DefaultJobThreads;
+}
+
+bool ShouldMarkPerformanceCountersSteady(i64 nonEmptyIterations, i64 inputMessages, TDuration jobAge)
+{
+    // The first iteration with input carries the initialization (state download, index build), so
+    // the counters are marked steady once it has completed. An idle job is marked after a delay
+    // instead: its near-zero rates must reach the balancer rather than stay unmeasured until input
+    // arrives. A first iteration still consuming its input is not idle.
+    return nonEmptyIterations >= 1 || (inputMessages == 0 && jobAge >= IdleMetricsSteadyDelay);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,8 +307,13 @@ public:
         std::vector<TFuture<TJobStatusPtr>> futures;
         {
             TForbidContextSwitchGuard contextSwitchGuard;
+            bool markSteadyAfterFirstIteration = ExecutionSpec_ &&
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker->MarkPerformanceMetricsSteadyAfterFirstIteration;
             for (const auto& [jobId, state] : JobIdToRuntimeState_) {
                 auto performanceMetrics = state.PerformanceCounters.BuildMetrics();
+                performanceMetrics->MetricsSteadyPending = markSteadyAfterFirstIteration && !state.MetricsSteady;
+                performanceMetrics->FlowCoreVersion = Context_->WorkerNodeInfo->FlowCoreVersion;
+                performanceMetrics->PipelineSpecVersion = state.PipelineSpecVersion;
                 futures.push_back(state.Job->GetStatus().Apply(BIND([performanceMetrics] (const TJobStatusPtr& status) {
                     // TODO(gryzlov-ad): Move status filling from Job to JobTracker.
                     status->PerformanceMetrics = performanceMetrics;
@@ -534,15 +554,25 @@ private:
             , MemoryUsageGauge_(profiler.Gauge("/memory_usage"))
         { }
 
-        void Update(TDuration cpuTime, size_t memoryUsage)
+        void Update(TDuration cpuTime, size_t memoryUsage, i64 inputMessageCount)
         {
             auto now = TInstant::Now();
             CpuTimeEmaCounter_.Update(cpuTime.SecondsFloat(), now);
+            InputMessagesEmaCounter_.Update(inputMessageCount, now);
             MemoryUsageEma_.Set(static_cast<i64>(memoryUsage), now);
 
             CpuTimeCounter_.Add(std::max(cpuTime, TotalCpuTime_) - TotalCpuTime_);
             TotalCpuTime_ = cpuTime;
             MemoryUsageGauge_.Update(memoryUsage);
+        }
+
+        //! Marks the present as the moment the windows start describing steady-state work. The
+        //! windows themselves keep running: what was measured before decays out of them on its own
+        //! (the long window keeps 13% of it after ten minutes), and the memory average stays
+        //! available instead of vanishing for a whole window after a reset.
+        void MarkSteady()
+        {
+            StartTime_ = TInstant::Now();
         }
 
         TNodePerformanceMetricsPtr BuildMetrics() const
@@ -551,6 +581,9 @@ private:
             metrics->CpuUsageCurrent = CpuTimeEmaCounter_.ImmediateRate;
             metrics->CpuUsage30s = CpuTimeEmaCounter_.GetRate(0);
             metrics->CpuUsage10m = CpuTimeEmaCounter_.GetRate(1);
+            metrics->MessagesPerSecond30s = InputMessagesEmaCounter_.GetRate(0);
+            metrics->MessagesPerSecond10m = InputMessagesEmaCounter_.GetRate(1);
+            metrics->MetricsStartTime = StartTime_;
             metrics->MemoryUsageCurrent = MemoryUsageEma_.Last();
             metrics->MemoryUsage30s = MemoryUsageEma_.Average()[0];
             metrics->MemoryUsage10m = MemoryUsageEma_.Average()[1];
@@ -562,6 +595,8 @@ private:
         static constexpr TDuration ShortWindow = TDuration::Seconds(30);
         static constexpr TDuration LongWindow = TDuration::Minutes(10);
         TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{ShortWindow, LongWindow}};
+        TEmaCounter<double, TimeWindowsCount> InputMessagesEmaCounter_{{ShortWindow, LongWindow}};
+        TInstant StartTime_ = TInstant::Now();
         TMultiWindowEma<i64, TimeWindowsCount, /*CalculateRate*/ false> MemoryUsageEma_{{ShortWindow, LongWindow}};
 
         const NProfiling::TProfiler Profiler_;
@@ -576,6 +611,10 @@ private:
         TJobPerformanceCounters PerformanceCounters;
         TJobCpuTimeAccountantPtr CpuTimeAccountant;
         TExternalPerformanceMetricsReporterPtr ExternalMetricsReporter;
+        //! Version of the pipeline spec the job was started with; reported with its metrics.
+        TVersion PipelineSpecVersion;
+        TInstant StartTime;
+        bool MetricsSteady = false;
     };
 
     THashMap<TJobId, TJobRuntimeState> JobIdToRuntimeState_;
@@ -619,13 +658,23 @@ private:
         YT_ASSERT_THREAD_AFFINITY(Control);
 
         auto snapshot = NYTProf::GetGlobalMemoryUsageSnapshot();
+        auto now = TInstant::Now();
+        bool markSteadyAfterFirstIteration = ExecutionSpec_ &&
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker->MarkPerformanceMetricsSteadyAfterFirstIteration;
         for (auto& [jobId, state] : JobIdToRuntimeState_) {
+            const auto& runtimeCounters = state.Job->GetRuntimeCounters();
+            if (markSteadyAfterFirstIteration && !state.MetricsSteady &&
+                ShouldMarkPerformanceCountersSteady(runtimeCounters->NonEmptyIterationCount.load(), runtimeCounters->InputMessageCount.load(), now - state.StartTime))
+            {
+                state.PerformanceCounters.MarkSteady();
+                state.MetricsSteady = true;
+            }
             // A sum memory usage for particular job inside main Flow process and corresponding companion process.
             auto memoryUsage = snapshot->GetUsage(JobIdTag, ToString(jobId)) + state.ExternalMetricsReporter->GetMemoryUsage();
             // The maximum node CPU load is generally same in terms of VCPU load, but might be very different in CPU load.
             // Thus, to balance the load evenly on a diverse set of workers, we should recalculate to VCPU in performance counters.
             auto cpuTime = (state.CpuTimeAccountant->GetCpuTime() + state.ExternalMetricsReporter->GetElapsedCpuTime()) * Context_->WorkerNodeInfo->VcpuFactor.value_or(1);
-            state.PerformanceCounters.Update(cpuTime, memoryUsage);
+            state.PerformanceCounters.Update(cpuTime, memoryUsage, runtimeCounters->InputMessageCount.load());
         }
     }
 
@@ -746,6 +795,8 @@ private:
                         .WithPrefix("/computation")},
                 .CpuTimeAccountant = std::move(cpuTimeAccountant),
                 .ExternalMetricsReporter = externalMetricsReporter,
+                .PipelineSpecVersion = ExecutionSpec_->PipelineSpec->GetVersion(),
+                .StartTime = TInstant::Now(),
             });
         EmplaceOrCrash(JobStopTimes_, jobId, std::pair{MakeWeak(preparedJob), TInstant::Max()});
         JobStartCounter_.Increment();
