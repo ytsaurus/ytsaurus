@@ -12,8 +12,8 @@ import (
 
 const (
 	CHYTBinaryDirectory       = ypath.Path("//sys/bin/ytserver-clickhouse")
+	JDBCDriversDirectory      = ypath.Path("//sys/bin/ytserver-clickhouse/jdbc-drivers")
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
-	JDBCDriversDirectory      = ypath.Path("//sys/bin/jdbc-drivers")
 )
 
 type chytBinaryInfo struct {
