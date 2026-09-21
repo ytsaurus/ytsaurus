@@ -13,6 +13,7 @@ import (
 const (
 	CHYTBinaryDirectory       = ypath.Path("//sys/bin/ytserver-clickhouse")
 	JDBCDriversDirectory      = ypath.Path("//sys/bin/ytserver-clickhouse/jdbc-drivers")
+	ODBCDriversDirectory      = ypath.Path("//sys/bin/ytserver-clickhouse/odbc-drivers")
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
 )
 
@@ -85,8 +86,7 @@ func (c *Controller) buildArtifacts(speclet *Speclet) []artifact {
 
 	if speclet.ODBCConfig.EnableOrDefault() {
 		bridgePath := speclet.ODBCConfig.BridgePathOrDefault()
-		bridgeFileName := filepath.Base(bridgePath.String())
-		artifacts = append(artifacts, artifact{bridgeFileName, bridgePath})
+		artifacts = append(artifacts, artifact{DefaultODBCBridgeVersion, bridgePath})
 		for _, driver := range speclet.ODBCConfig.Drivers {
 			driverFileName := filepath.Base(driver.Path.String())
 			artifacts = append(artifacts, artifact{driverFileName, driver.Path})
