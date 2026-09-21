@@ -291,6 +291,56 @@ TEST(TInputMetricsAggregationTest, IgnoresStaleJobStatuses)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TPerformanceMetricsAggregationTest, RatesAggregateButJobIdentityDoesNot)
+{
+    auto makeMetrics = [] (double cpu, double messages, TInstant startTime) {
+        auto metrics = New<TNodePerformanceMetrics>();
+        metrics->CpuUsage10m = cpu;
+        metrics->MessagesPerSecond10m = messages;
+        metrics->MetricsStartTime = startTime;
+        metrics->FlowCoreVersion = "v1";
+        metrics->PipelineSpecVersion = TVersion(7);
+        return metrics;
+    };
+
+    auto aggregated = AggregateNodePerformanceMetrics({
+        makeMetrics(1.0, 100.0, TInstant::Seconds(10)),
+        makeMetrics(3.0, 300.0, TInstant::Seconds(20)),
+    });
+
+    EXPECT_DOUBLE_EQ(*aggregated->Total->MessagesPerSecond10m, 400.0);
+    EXPECT_DOUBLE_EQ(*aggregated->Avg->MessagesPerSecond10m, 200.0);
+    EXPECT_DOUBLE_EQ(*aggregated->Max->MessagesPerSecond10m, 300.0);
+    EXPECT_DOUBLE_EQ(*aggregated->Total->CpuUsage10m, 4.0);
+
+    for (const auto& metrics : {aggregated->Total, aggregated->Avg, aggregated->Max}) {
+        EXPECT_FALSE(metrics->MetricsStartTime.has_value());
+        EXPECT_FALSE(metrics->FlowCoreVersion.has_value());
+        EXPECT_FALSE(metrics->PipelineSpecVersion.has_value());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A binary rollback loads persisted state written by a newer binary: fields it does not know
+//! must be dropped, not rejected.
+TEST(TPersistedStateCompatibilityTest, UnknownFieldsAreDropped)
+{
+    auto partition = ConvertTo<TPartitionPtr>(TYsonString(TString(
+        "{partition_id=\"1-2-3-4\"; computation_id=c; state_epoch=1; state_timestamp=1; future_field=#}")));
+    EXPECT_EQ(partition->ComputationId, TComputationId("c"));
+
+    auto flowState = ConvertTo<TFlowStatePtr>(TYsonString(TString(
+        "{balancer_state={groups={g={worker_coef_edges={a={b={from=a; to=b; obs=0.1; weight=1.0; updated_at=1; future_field=1}}}}}; "
+        "partition_histories={\"1-2-3-4\"={worker_address=w; cpu_usage=1.0; future_field=1}}; future_field=1}; future_field=1}")));
+    ASSERT_EQ(flowState->BalancerState->Groups.size(), 1u);
+    EXPECT_EQ(flowState->BalancerState->Groups.at(TWorkerGroupId("g"))->WorkerCoefEdges.at("a").size(), 1u);
+    ASSERT_EQ(flowState->BalancerState->PartitionHistories.size(), 1u);
+    EXPECT_EQ(flowState->BalancerState->PartitionHistories.begin()->second->WorkerAddress, "w");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TExecutionSpecEpochTest, AdvancesForEveryVersionComponent)
 {
     auto versions = New<TExecutionSpecVersions>();

@@ -252,6 +252,18 @@ void TNodePerformanceMetrics::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("memory_usage_10m", &TThis::MemoryUsage10m)
         .Default();
+    registrar.Parameter("messages_per_second_30s", &TThis::MessagesPerSecond30s)
+        .Default();
+    registrar.Parameter("messages_per_second_10m", &TThis::MessagesPerSecond10m)
+        .Default();
+    registrar.Parameter("metrics_start_time", &TThis::MetricsStartTime)
+        .Default();
+    registrar.Parameter("metrics_steady_pending", &TThis::MetricsSteadyPending)
+        .Default();
+    registrar.Parameter("flow_core_version", &TThis::FlowCoreVersion)
+        .Default();
+    registrar.Parameter("pipeline_spec_version", &TThis::PipelineSpecVersion)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,6 +290,14 @@ static void NodePerformanceMetricsApply(
     result->MemoryUsageCurrent = aggregator(result->MemoryUsageCurrent.value_or(0), metrics->MemoryUsageCurrent.value_or(0));
     result->MemoryUsage30s = aggregator(result->MemoryUsage30s.value_or(0), metrics->MemoryUsage30s.value_or(0));
     result->MemoryUsage10m = aggregator(result->MemoryUsage10m.value_or(0), metrics->MemoryUsage10m.value_or(0));
+    // The message rates stay unset unless some job reports them (older workers do not).
+    if (metrics->MessagesPerSecond30s) {
+        result->MessagesPerSecond30s = aggregator(result->MessagesPerSecond30s.value_or(0), *metrics->MessagesPerSecond30s);
+    }
+    if (metrics->MessagesPerSecond10m) {
+        result->MessagesPerSecond10m = aggregator(result->MessagesPerSecond10m.value_or(0), *metrics->MessagesPerSecond10m);
+    }
+    // MetricsStartTime and the version fields describe a single job and have no aggregate.
 }
 
 template <typename TAggregator>
@@ -312,6 +332,12 @@ TAggregatedNodePerformanceMetricsPtr AggregateNodePerformanceMetrics(const std::
         result->Avg->MemoryUsageCurrent = result->Total->MemoryUsageCurrent.value_or(0) / count;
         result->Avg->MemoryUsage30s = result->Total->MemoryUsage30s.value_or(0) / count;
         result->Avg->MemoryUsage10m = result->Total->MemoryUsage10m.value_or(0) / count;
+        if (result->Total->MessagesPerSecond30s) {
+            result->Avg->MessagesPerSecond30s = *result->Total->MessagesPerSecond30s / count;
+        }
+        if (result->Total->MessagesPerSecond10m) {
+            result->Avg->MessagesPerSecond10m = *result->Total->MessagesPerSecond10m / count;
+        }
     }
 
     return result;
@@ -1201,6 +1227,47 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitionMetricsHistory::Register(TRegistrar registrar)
+{
+    registrar.Parameter("worker_address", &TThis::WorkerAddress);
+    registrar.Parameter("cpu_usage", &TThis::CpuUsage);
+    registrar.Parameter("messages_per_second", &TThis::MessagesPerSecond)
+        .Default();
+    registrar.Parameter("flow_core_version", &TThis::FlowCoreVersion)
+        .Default();
+    registrar.Parameter("pipeline_spec_version", &TThis::PipelineSpecVersion)
+        .Default();
+}
+
+void TWorkerCoefEdge::Register(TRegistrar registrar)
+{
+    registrar.Parameter("from", &TThis::From);
+    registrar.Parameter("to", &TThis::To);
+    registrar.Parameter("obs", &TThis::Obs);
+    registrar.Parameter("weight", &TThis::Weight);
+    registrar.Parameter("updated_at", &TThis::UpdatedAt);
+}
+
+void TBalancerGroupState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("worker_coef_edges", &TThis::WorkerCoefEdges)
+        .Default();
+    registrar.Parameter("worker_log_coefs", &TThis::WorkerLogCoefs)
+        .Default();
+    registrar.Parameter("worker_last_seen", &TThis::WorkerLastSeen)
+        .Default();
+}
+
+void TBalancerState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("groups", &TThis::Groups)
+        .Default();
+    registrar.Parameter("partition_histories", &TThis::PartitionHistories)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobManagerState::Register(TRegistrar registrar)
 {
     registrar.Parameter("computations", &TThis::Computations)
@@ -1440,6 +1507,9 @@ void TFlowState::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_manager_state", &TThis::JobManagerState)
+        .DefaultNew();
+
+    registrar.Parameter("balancer_state", &TThis::BalancerState)
         .DefaultNew();
 
     registrar.Parameter("speed_statistics", &TThis::SpeedStatistics)

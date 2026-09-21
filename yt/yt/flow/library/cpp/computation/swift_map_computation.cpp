@@ -321,6 +321,9 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
 
         const auto now = WaitForFast(generateReportTimeFuture).ValueOrThrow().Timestamp;
         isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
+        if (!emptyInput) {
+            NoteNonEmptyRunIteration();
+        }
         FinishRunIteration();
 
         WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);

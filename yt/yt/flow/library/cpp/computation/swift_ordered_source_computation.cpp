@@ -142,6 +142,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
             for (const auto& sourceBatch : sourceMessageBatches) {
                 sourceMessageCount += std::ssize(sourceBatch.Messages);
             }
+            context->RegisterSourceMessages(sourceMessageCount);
             YT_TLOG_INFO("Got batch")
                 .With("SourceBatches", sourceMessageBatches.size())
                 .With("SourceMessages", sourceMessageCount);
@@ -172,6 +173,9 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         Commit(context, tx);
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
+        if (!publishResult.EmptyEpoch) {
+            NoteNonEmptyRunIteration();
+        }
         FinishRunIteration();
 
         if (publishResult.EmptyEpoch) {

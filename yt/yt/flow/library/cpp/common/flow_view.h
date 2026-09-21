@@ -153,6 +153,19 @@ struct TNodePerformanceMetrics
     std::optional<i64> MemoryUsage30s;
     std::optional<i64> MemoryUsage10m;
 
+    std::optional<double> MessagesPerSecond30s;
+    std::optional<double> MessagesPerSecond10m;
+
+    //! When the job's rate counters were (re)started; the windowed rates above are measured from here.
+    std::optional<TInstant> MetricsStartTime;
+    //! True while the counters still cover the job's first iteration and will be marked steady once
+    //! it ends; such rates describe initialization, not steady-state work.
+    std::optional<bool> MetricsSteadyPending;
+
+    //! Versions of the worker binary and the pipeline spec the job was running with.
+    std::optional<std::string> FlowCoreVersion;
+    std::optional<TVersion> PipelineSpecVersion;
+
     REGISTER_YSON_STRUCT(TNodePerformanceMetrics);
 
     static void Register(TRegistrar registrar);
@@ -662,6 +675,80 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Aggregated observations of how much CPU per message a partition burned on two workers,
+//! see #NBalancer::TWorkerCoefEstimator. One per observed pair, |From| < |To|.
+struct TWorkerCoefEdge
+    : public NYTree::TYsonStructLite
+{
+    std::string From;
+    std::string To;
+    //! Weighted mean of the observed log(coef(To) / coef(From)).
+    double Obs{};
+    double Weight{};
+    TInstant UpdatedAt;
+
+    REGISTER_YSON_STRUCT_LITE(TWorkerCoefEdge);
+
+    static void Register(TRegistrar registrar);
+};
+
+//! Steady-state metrics last measured for a partition, kept across its jobs so that a freshly
+//! started job does not make the partition look weightless to the balancer.
+struct TPartitionMetricsHistory
+    : public NYTree::TYsonStruct
+{
+    //! Worker the metrics were measured on.
+    std::string WorkerAddress;
+    double CpuUsage{};
+    std::optional<double> MessagesPerSecond;
+    //! Implementation the metrics were measured with, see #TNodePerformanceMetrics.
+    std::optional<std::string> FlowCoreVersion;
+    std::optional<TVersion> PipelineSpecVersion;
+
+    REGISTER_YSON_STRUCT(TPartitionMetricsHistory);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionMetricsHistory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Persisted state of the CpuAware balancer of one worker group.
+struct TBalancerGroupState
+    : public NYTree::TYsonStruct
+{
+    //! Keyed by the pair: From, then To, with From < To.
+    THashMap<std::string, THashMap<std::string, TWorkerCoefEdge>> WorkerCoefEdges;
+    //! The last solution, log(coef) per worker.
+    THashMap<std::string, double> WorkerLogCoefs;
+    //! When each worker was last present in the group; absent workers are forgotten eventually.
+    THashMap<std::string, TInstant> WorkerLastSeen;
+
+    REGISTER_YSON_STRUCT(TBalancerGroupState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancerGroupState);
+
+struct TBalancerState
+    : public NYTree::TYsonStruct
+{
+    THashMap<TWorkerGroupId, TBalancerGroupStatePtr> Groups;
+    //! Kept out of the layout: workers have no use for it, and a layout row would make every one
+    //! of them rebuild its routing. An entry lives until the partition's next job matures.
+    THashMap<TPartitionId, TPartitionMetricsHistoryPtr> PartitionHistories;
+
+    REGISTER_YSON_STRUCT(TBalancerState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancerState);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobManagerState
     : public NYTree::TYsonStruct
 {
@@ -875,6 +962,8 @@ struct TFlowState
     TPipelineTraverseDataPtr TraverseData;
 
     TJobManagerStatePtr JobManagerState;
+
+    TBalancerStatePtr BalancerState;
 
     // Used to warm up buffer demand on pipeline restart. Stored here to survive controller restarts.
     TPipelineSpeedStatistics SpeedStatistics;

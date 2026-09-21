@@ -208,6 +208,9 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
 
+        if (!emptyInput) {
+            NoteNonEmptyRunIteration();
+        }
         FinishRunIteration();
 
         WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);

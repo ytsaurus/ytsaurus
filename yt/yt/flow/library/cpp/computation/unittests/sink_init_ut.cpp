@@ -183,6 +183,9 @@ public:
         return MakeFuture(THashMap<TStreamId, TInflightMetricsPtr>{});
     }
 
+    void RegisterSourceMessages(i64 /*count*/) override
+    { }
+
     void MarkPersisted(std::span<const TMessageId> /*messageIds*/) override
     { }
 

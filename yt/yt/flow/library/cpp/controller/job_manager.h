@@ -68,6 +68,8 @@ struct IJobManager
     virtual TJobManagerStatePtr GetState() = 0;
     virtual void Commit(const TFlowViewPtr& flowView) = 0;
 
+    virtual const THashMap<TComputationId, IComputationControllerPtr>& GetComputationControllers() const = 0;
+
     virtual void Reconfigure(TDynamicPipelineSpecPtr dynamicSpec) = 0;
 };
 

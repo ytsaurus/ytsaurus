@@ -751,6 +751,7 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     auto status = New<TComputationStatus>();
     status->NodeTraverse = GetNodeTraverse();
     status->ProcessingObservation = ProcessingObservation_.Acquire();
+    status->NonEmptyIterationCount = NonEmptyRunIterations_.load();
 
     {
         auto guard = Guard(LimitsLock_);
@@ -1584,6 +1585,13 @@ void TUniversalComputationBase::Commit(
                     "epoch is already committed and durable, only garbage collection is stuck");
         }
     }
+}
+
+void TUniversalComputationBase::NoteNonEmptyRunIteration()
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    NonEmptyRunIterations_.fetch_add(1);
 }
 
 void TUniversalComputationBase::FinishRunIteration()

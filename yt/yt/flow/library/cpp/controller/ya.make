@@ -21,6 +21,7 @@ SRCS(
     state_access.cpp
     state_manager.cpp
     throttler_host.cpp
+    worker_coef_estimator.cpp
     worker_tracker_service.cpp
     worker_tracker.cpp
     worker.cpp

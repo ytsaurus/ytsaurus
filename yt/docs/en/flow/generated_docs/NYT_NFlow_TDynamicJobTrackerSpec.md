@@ -24,5 +24,8 @@ Configuration of the buffer management module for incoming and outgoing messages
 || `state_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicStateCacheSpec](./all_yson_structs#NYT_NFlow_TDynamicStateCacheSpec)`>`
 **Default value**: `{}`
  ||
+|| `mark_performance_metrics_steady_after_first_iteration` | **Type**: `bool`
+**Default value**: `false`
+Report the job's rate counters (CPU, input messages, memory) as steady only once its first iteration with input has completed, so that the balancer reads windowed metrics such as `cpu_usage_10m` after the job's initialization (state download, index build) has decayed out of them; the counters themselves are never reset. A job that has received no input for a minute is reported as steady as well, so an idle job reports its near-zero rates instead of staying unmeasured. Off by default while the change is rolled out pipeline by pipeline; temporary switch. ||
 |#
 
