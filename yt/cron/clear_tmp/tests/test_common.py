@@ -14,6 +14,57 @@ COMMON_ARGS = [
 ]
 
 
+def create_account_with_directory(client, account, disk_space, node_count, chunk_count):
+    client.create("account", attributes={
+        "name": account,
+        "resource_limits": {
+            "disk_space_per_medium": {"default": disk_space},
+            "node_count": node_count,
+            "chunk_count": chunk_count,
+        },
+    })
+    directory = yt.ypath_join("//home", account)
+    client.create("map_node", directory, attributes={"account": account})
+    return directory
+
+
+def test_directory_nodes_count_towards_quota(yt_env):  # noqa
+    proxy_address = yt_env.yt_instance.get_proxy_address()
+    client = yt_env.yt_client
+
+    account = "directory_nodes"
+    directory = create_account_with_directory(
+        client, account, disk_space=1024 * 1024, node_count=8, chunk_count=10)
+    tables = [yt.ypath_join(directory, f"table_{index}") for index in range(2)]
+    for table in tables:
+        client.create("table", table)
+
+    args = [
+        "--directory", directory,
+        "--account", account,
+        "--account-usage-ratio-save-total", "0.5",
+        "--safe-age", "0",
+        "--log-level", "debug",
+        "--verbose",
+    ]
+
+    # Two tables and the home directory fit within the four-node cleanup limit.
+    run_clear_tmp(proxy_address, args)
+    for table in tables:
+        assert client.exists(table)
+
+    # Directories alone now exceed the cleanup limit, while the total of seven
+    # nodes still fits within the account's eight-node creation limit.
+    for index in range(4):
+        client.create("map_node", yt.ypath_join(directory, f"dir_{index}"))
+
+    run_clear_tmp(proxy_address, args)
+
+    for table in tables:
+        assert not client.exists(table)
+    assert client.exists(directory)
+
+
 def test_locked_node(yt_env):  # noqa
     proxy_address = yt_env.yt_instance.get_proxy_address()
 

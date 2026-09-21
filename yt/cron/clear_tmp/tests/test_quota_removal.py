@@ -2,12 +2,8 @@ from .conftest import yt_env, run_clear_tmp  # noqa
 
 
 COMMON_ARGS = [
-    "--directory",
-    "//tmp",
-    "--account",
-    "tmp",
-    "--log-level",
-    "debug",
+    "--account", "tmp",
+    "--log-level", "debug",
     "--verbose",
 ]
 
@@ -29,6 +25,7 @@ def test_locked_files_block_quota_removal(yt_env):  # noqa
         run_clear_tmp(
             proxy_address,
             COMMON_ARGS + [
+                "--directory", "//tmp/dir",
                 "--max-node-count", "1",
                 "--safe-age", "0",
                 "--do-not-remove-objects-with-locks",
@@ -53,6 +50,7 @@ def test_dont_prune_blocks_quota_removal(yt_env):  # noqa
     run_clear_tmp(
         proxy_address,
         COMMON_ARGS + [
+            "--directory", "//tmp/dir",
             "--max-node-count", "1",
             "--safe-age", "0",
         ])
@@ -80,6 +78,7 @@ def test_mixed_non_deletable_block_removal(yt_env):  # noqa
         run_clear_tmp(
             proxy_address,
             COMMON_ARGS + [
+                "--directory", "//tmp/dir",
                 "--max-node-count", "2",
                 "--safe-age", "0",
                 "--do-not-remove-objects-with-locks",
@@ -105,7 +104,8 @@ def test_quota_removal_without_non_deletable(yt_env):  # noqa
     run_clear_tmp(
         proxy_address,
         COMMON_ARGS + [
-            "--max-node-count", "2",
+            "--directory", "//tmp/dir",
+            "--max-node-count", "3",
             "--safe-age", "0",
         ])
 
@@ -131,6 +131,7 @@ def test_locked_within_quota_no_removal(yt_env):  # noqa
         run_clear_tmp(
             proxy_address,
             COMMON_ARGS + [
+                "--directory", "//tmp/dir",
                 "--max-node-count", "3",
                 "--safe-age", "0",
                 "--do-not-remove-objects-with-locks",
@@ -162,6 +163,7 @@ def test_per_user_quota_contributes_to_global_quota(yt_env):  # noqa
     run_clear_tmp(
         proxy_address,
         COMMON_ARGS + [
+            "--directory", "//tmp/dir",
             "--max-node-count", "3",
             "--max-node-count-per-owner", "2",
             "--safe-age", "0",
