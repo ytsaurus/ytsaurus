@@ -131,6 +131,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_26_3)                           (302400))
     ((DropLegacyDataSliceRepresentation)     (302401))
     ((DropInvalidatedJoblets)                (302402))
+    ((JobPhaseSpacing)                       (302403))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

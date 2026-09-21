@@ -22,6 +22,14 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobPhaseSerializer
+{
+    static void Save(TSaveContext& context, EJobPhase phase);
+    static void Load(TLoadContext& context, EJobPhase& phase);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(max42): does this need to belong to server/lib?
 // TODO(max42): make this structure non-copyable.
 struct TJobSummary

@@ -313,6 +313,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_output.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp

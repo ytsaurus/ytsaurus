@@ -283,6 +283,8 @@ SRCS(
     event_log/config.cpp
     event_log/event_log.cpp
 
+    exec_node/public.cpp
+
     exec_node_admin/proto/exec_node_admin_service.proto
     exec_node_tracker_client/proto/exec_node_tracker_service.proto
 
