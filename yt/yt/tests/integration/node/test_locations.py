@@ -3,15 +3,18 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 from yt_commands import (
-    authors, read_table, wait, ls, set, get, map, update_nodes_dynamic_config, create,
+    authors, read_table, wait, wait_no_assert, ls, set, get, map, update_nodes_dynamic_config, create,
     write_file, write_table, merge, create_domestic_medium, exists,
     set_account_disk_space_limit, get_account_disk_space_limit, remove,
     run_test_vanilla)
+
+from yt.common import YtError
 
 import yt_error_codes
 
 import pytest
 import builtins
+import contextlib
 import os
 import shutil
 import time
@@ -683,12 +686,13 @@ class TestCacheLocationQuotaOverflow(CacheLocationOverflowBase):
 
 class TestSlotLocationOverflow(YTEnvSetup):
     USE_PORTO = True
+    USE_CUSTOM_ROOTFS = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
-    _TMPFS_SIZE = 10 * 1024 * 1024
+    _TMPFS_SIZE = 1024 * 1024 * 1024
     _INODE_LIMIT = 1024
 
     @classmethod
@@ -700,6 +704,7 @@ class TestSlotLocationOverflow(YTEnvSetup):
             inode_limit=str(cls._INODE_LIMIT),
         )
         cls.slot_volume_path = vol.path
+        cls.slot_location_path = f"{vol.path}/location"
         super().setup_class()
 
     @classmethod
@@ -712,13 +717,27 @@ class TestSlotLocationOverflow(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         super().modify_node_config(config, cluster_index)
-        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.slot_volume_path
+        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.slot_location_path
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.node_address = ls("//sys/cluster_nodes")[0]
+        self.controller_agent_address = ls("//sys/controller_agents/instances")[0]
 
     def teardown_method(self, method):
         shutil.rmtree(f"{self.slot_volume_path}/filler", ignore_errors=True)
-        with Restarter(self.Env, NODES_SERVICE):
+        with self._restart_node():
             pass
         super().teardown_method(method)
+
+    @contextlib.contextmanager
+    def _restart_node(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: not exists(
+                f"//sys/controller_agents/instances/{self.controller_agent_address}"
+                f"/orchid/controller_agent/job_tracker/nodes/{self.node_address}"
+            ))
+            yield
 
     def _fill_inodes(self):
         filler_dir = f"{self.slot_volume_path}/filler"
@@ -731,31 +750,170 @@ class TestSlotLocationOverflow(YTEnvSetup):
                 break
         assert os.statvfs(self.slot_volume_path).f_favail == 0
 
-    def _slot_location_alert(self, node):
-        for alert in get(f"//sys/cluster_nodes/{node}/@alerts"):
+    def _slot_location_alert(self):
+        for alert in get(f"//sys/cluster_nodes/{self.node_address}/@alerts"):
             if alert["code"] == yt_error_codes.SlotLocationDisabled:
                 return alert
         return None
 
+    def _get_slot_location(self):
+        return get(f"//sys/cluster_nodes/{self.node_address}/orchid/exec_node/slot_manager/locations")[self.slot_location_path]
+
+    def _get_enospc_count(self):
+        return profiler_factory().at_node(self.node_address).get(
+            "exec_node/slot_locations/enospc_events",
+            default=0,
+        )
+
+    def _read_job_abort_entries(self, operation_id, from_barrier, to_barrier):
+        return read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda entry: (
+                entry.get("event_type") == "job_aborted" and
+                entry.get("operation_id") == operation_id
+            ),
+        )
+
     @authors("dann239")
-    @pytest.mark.parametrize("wipe_only_nested", [True, False])
-    def test_disk_full_is_reported(self, wipe_only_nested):
-        node = ls("//sys/cluster_nodes")[0]
-        assert self._slot_location_alert(node) is None
+    @pytest.mark.parametrize("slot_root_exists", [True, False])
+    def test_disk_full_does_not_disable_location(self, slot_root_exists):
+        assert self._slot_location_alert() is None
 
-        slot_path = f"{self.slot_volume_path}/0"
+        slot_path = f"{self.slot_location_path}/0"
 
-        with Restarter(self.Env, NODES_SERVICE):
-            if wipe_only_nested:
-                assert os.path.exists(slot_path)
-                for name in os.listdir(slot_path):
-                    shutil.rmtree(f"{slot_path}/{name}", ignore_errors=True)
-            else:
-                shutil.rmtree(slot_path, ignore_errors=True)
+        with self._restart_node():
+            shutil.rmtree(slot_path, ignore_errors=True)
+            if slot_root_exists:
+                os.makedirs(slot_path)
             self._fill_inodes()
 
-        wait(lambda: self._slot_location_alert(node) is not None)
-        alert = str(self._slot_location_alert(node))
+        wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@state") == "online")
+        assert self._slot_location_alert() is None
+        assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1
 
-        assert "Failed to create directory" in alert, alert
-        assert "No space left on device" in alert, alert
+        initial_enospc_count = self._get_enospc_count()
+
+        from_barrier = write_log_barrier(self.controller_agent_address)
+        op = run_test_vanilla(
+            command="true",
+            spec={"max_failed_job_count": 1, "fail_on_job_restart": True},
+            track=False,
+        )
+        op.wait_for_state("failed")
+        assert op.get_job_count("aborted") == 1
+        wait(lambda: self._get_enospc_count() == initial_enospc_count + 1)
+        to_barrier = write_log_barrier(self.controller_agent_address)
+
+        def check_abort_entries():
+            abort_entries = self._read_job_abort_entries(op.id, from_barrier, to_barrier)
+            assert len(abort_entries) > 0
+            for entry in abort_entries:
+                assert YtError.from_dict(entry["error"]).contains_code(yt_error_codes.NotEnoughDiskSpace), entry
+                assert "No space left on device" in str(entry), entry
+                assert "Failed to build slot root directory" in str(entry), entry
+                assert "Failed to change owner for directory" not in str(entry), entry
+
+        wait_no_assert(check_abort_entries)
+
+        assert self._get_slot_location()["enabled"]
+        assert self._slot_location_alert() is None
+        assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1
+
+    @authors("dann239")
+    def test_non_disk_error_disables_location(self):
+        assert self._slot_location_alert() is None
+
+        slot_path = f"{self.slot_location_path}/0"
+        shutil.rmtree(slot_path, ignore_errors=True)
+        # Block directory creation with a regular file to disable the location on a non-ENOSPC error.
+        with open(slot_path, "wb"):
+            pass
+
+        try:
+            from_barrier = write_log_barrier(self.controller_agent_address)
+            op = run_test_vanilla(
+                command="true",
+                spec={"max_failed_job_count": 1, "fail_on_job_restart": True},
+                track=False,
+            )
+            op.wait_for_state("failed")
+            assert op.get_job_count("aborted") == 1
+            to_barrier = write_log_barrier(self.controller_agent_address)
+
+            wait(lambda: self._slot_location_alert() is not None)
+            assert not self._get_slot_location()["enabled"]
+            assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 0
+
+            def check_abort_entries():
+                abort_entries = self._read_job_abort_entries(op.id, from_barrier, to_barrier)
+                assert len(abort_entries) > 0
+                for entry in abort_entries:
+                    assert YtError.from_dict(entry["error"]).contains_code(yt_error_codes.SlotLocationDisabled), entry
+                    assert "already exists and is not a directory" in str(entry), entry
+
+            wait_no_assert(check_abort_entries)
+
+            # Wait for the abort to be profiled before checking the ENOSPC counter.
+            node_profiler = profiler_factory().at_node(self.node_address)
+            wait(lambda: node_profiler.get(
+                "job_controller/job_final_state",
+                tags={"origin": "scheduler", "state": "aborted"},
+            ) == 1)
+            assert self._get_enospc_count() == 0
+        finally:
+            os.remove(slot_path)
+
+    @authors("dann239")
+    def test_config_enospc_does_not_disable_location(self):
+        run_test_vanilla(command="true", spec={"max_failed_job_count": 1}, track=True)
+
+        config_path = f"{self.slot_location_path}/0/config.yson"
+        os.remove(config_path)
+        # Fail further config writes with ENOSPC.
+        os.symlink("/dev/full", config_path)
+        try:
+            initial_enospc_count = self._get_enospc_count()
+            from_barrier = write_log_barrier(self.controller_agent_address)
+            op = run_test_vanilla(
+                command="true",
+                spec={"max_failed_job_count": 1, "fail_on_job_restart": True},
+                track=False,
+            )
+            op.wait_for_state("failed")
+            assert op.get_job_count("aborted") == 1
+            wait(lambda: self._get_enospc_count() == initial_enospc_count + 1)
+            to_barrier = write_log_barrier(self.controller_agent_address)
+
+            def check_abort_entries():
+                abort_entries = self._read_job_abort_entries(op.id, from_barrier, to_barrier)
+                assert len(abort_entries) > 0
+                for entry in abort_entries:
+                    error = YtError.from_dict(entry["error"])
+                    assert error.contains_code(yt_error_codes.NotEnoughDiskSpace), entry
+                    assert not error.contains_code(yt_error_codes.SlotLocationDisabled), entry
+                    assert "Failed to write job proxy config" in str(entry), entry
+                    assert "No space left on device" in str(entry), entry
+
+            wait_no_assert(check_abort_entries)
+            assert self._get_slot_location()["enabled"]
+            assert self._slot_location_alert() is None
+            assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1
+        finally:
+            os.remove(config_path)
+
+    @authors("dann239")
+    def test_init_enospc_disables_location(self):
+        with self._restart_node():
+            shutil.rmtree(self.slot_location_path)
+            self._fill_inodes()
+
+        wait(lambda: not self._get_slot_location()["enabled"])
+        wait(lambda: self._slot_location_alert() is not None)
+        wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 0)
+        wait(lambda: self._get_enospc_count() == 1)
+        error = self._get_slot_location()["disable_error"]
+        assert "Failed to initialize slot location" in str(error), error
+        assert "No space left on device" in str(error), error
+        assert not os.path.exists(self.slot_location_path)

@@ -176,6 +176,20 @@ public:
         CleanProcessesFuture_.Reset();
     }
 
+    TFuture<void> BuildSlotRootDirectory() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        return RunPreparationAction(
+            /*actionName*/ "BuildSlotRootDirectory",
+            /*uncancelable*/ false,
+            [&] {
+                return Location_->BuildSlotRootDirectory(SlotIndex_);
+            });
+    }
+
     TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,

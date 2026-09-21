@@ -69,6 +69,7 @@ DEFINE_ENUM(EJobPhase,
     ((DownloadingArtifacts)         ( 10))
     ((CachingArtifacts)             ( 11))
     ((PreparingLayers)              ( 12))
+    ((PreparingSlotDirectories)     ( 13))
     ((PreparingVolumes)             ( 15))
     ((PreparingGpuCheckVolume)      ( 20))
     ((LinkingVolumes)               ( 21))

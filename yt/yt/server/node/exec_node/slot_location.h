@@ -43,6 +43,8 @@ public:
 
     TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
 
+    TFuture<void> BuildSlotRootDirectory(int slotIndex);
+
     TFuture<void> CreateFakeNonRootVolumes(
         const IVolumePtr& rootVolume,
         int slotIndex,
@@ -100,7 +102,7 @@ public:
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    TFuture<void> CleanSandboxes(int slotIndex);
+    TFuture<void> CleanSandboxes(int slotIndex, bool initializing = false);
 
     TFuture<void> CleanPortoPlace(int slotIndex);
 
@@ -122,7 +124,7 @@ public:
 
     NNodeTrackerClient::NProto::TSlotLocationStatistics GetSlotLocationStatistics() const;
 
-    void Disable(const TError& error);
+    void Disable(const TError& error, bool ignoreOutOfSpace = true);
 
     //! Returns the error that caused this location to be disabled,
     //! or OK if the location is enabled.
@@ -161,10 +163,11 @@ public:
     void RemoveVolumesFromPortoPlace(
         int slotIndex,
         const IVolumeManagerPtr& volumeManager,
-        const THashSet<std::string>& preservedVolumePaths = {});
+        const THashSet<std::string>& preservedVolumePaths = {},
+        bool initializing = false);
 
     //! Remove layers from porto place for a specific slot.
-    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager);
+    void RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManagerPtr& volumeManager, bool initializing = false);
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -233,6 +236,7 @@ private:
 
     const NProfiling::TGauge CopyRate_;
     const NProfiling::TGauge CopyRateEma_;
+    const NProfiling::TCounter EnospcRate_;
 
     class TGaugeGrid;
     const std::unique_ptr<TGaugeGrid> CopyRateGrid_;
@@ -276,7 +280,7 @@ private:
         TUserSandboxOptions options,
         bool sandboxInsideNonRootVolume);
 
-    void BuildSlotRootDirectory(int slotIndex);
+    void DoBuildSlotRootDirectory(int slotIndex);
 
     NTools::TRootDirectoryConfigPtr CreateDefaultRootDirectoryConfig(
         int slotIndex,
