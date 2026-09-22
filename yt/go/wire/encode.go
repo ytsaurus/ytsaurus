@@ -343,16 +343,16 @@ func convertValue(id uint16, value reflect.Value) (Value, error) {
 		return NewBytes(id, value.Bytes()), nil
 	}
 
-	if m, ok := value.Interface().(encoding.BinaryMarshaler); ok {
-		buf, err := m.MarshalBinary()
+	if m, ok := value.Interface().(encoding.TextMarshaler); ok {
+		buf, err := m.MarshalText()
 		if err != nil {
 			return Value{}, err
 		}
 		return NewBytes(id, buf), nil
 	}
 
-	if m, ok := value.Interface().(encoding.TextMarshaler); ok {
-		buf, err := m.MarshalText()
+	if m, ok := value.Interface().(encoding.BinaryMarshaler); ok {
+		buf, err := m.MarshalBinary()
 		if err != nil {
 			return Value{}, err
 		}
