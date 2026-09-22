@@ -3228,6 +3228,12 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
         }
 
+        for (const auto& nonRootVolumeParams : FSSecretary_->GetNonRootVolumeParams()) {
+            for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
+        }
+
         if (!unresolvedNodeId) {
             break;
         }
