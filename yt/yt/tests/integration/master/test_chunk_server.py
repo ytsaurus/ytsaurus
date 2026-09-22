@@ -2010,7 +2010,7 @@ class TestChunkServerMulticell(TestChunkServer):
         with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
-    @authors("koloshmet")
+    @authors("danilalexeev", "koloshmet")
     def test_historically_non_vital_multicell(self):
         set("//sys/@config/chunk_manager/update_historically_non_vital_in_unexport", True)
 
@@ -2027,9 +2027,17 @@ class TestChunkServerMulticell(TestChunkServer):
         assert not get(f"#{chunk_id}/@historically_non_vital")
         assert len(get(f"#{chunk_id}/@exports")) == 1
 
+        # Wait for the destination's requisition before lowering the source's replication factor.
+        wait(lambda: get(
+            f"#{chunk_id}/@external_requisitions/12/0/replication_policy/replication_factor",
+            default=0) == 3)
+
         set("//tmp/t1/@replication_factor", 1)
-        sleep(1)
+        wait(lambda: get(f"#{chunk_id}/@local_requisition/0/replication_policy/replication_factor") == 1)
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
         remove("//tmp/concat")
+        wait(lambda: not get(f"#{chunk_id}/@exports"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
         assert get(f"#{chunk_id}/@historically_non_vital")
 
