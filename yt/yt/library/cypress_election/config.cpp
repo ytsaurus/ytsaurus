@@ -15,8 +15,6 @@ void TCypressElectionManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("master_transaction_expiration_mode", &TThis::MasterTransactionExpirationMode)
         .Default(NTransactionClient::EMasterTransactionExpirationMode::Optimistic);
-    registrar.Parameter("lock_acquisition_period", &TThis::LockAcquisitionPeriod)
-        .Default(TDuration::Seconds(15));
     registrar.Parameter("leader_cache_update_period", &TThis::LeaderCacheUpdatePeriod)
         .Default(TDuration::Seconds(15));
 }

@@ -1,13 +1,14 @@
-#pragma once
-
-#include <yt/yt/core/misc/public.h>
+#include "config.h"
 
 namespace NYT::NLockElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ILockElectionManager)
-DECLARE_REFCOUNTED_STRUCT(TLockElectionManagerConfig)
+void TLockElectionManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("lock_acquisition_period", &TThis::LockAcquisitionPeriod)
+        .Default(TDuration::Seconds(15));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
