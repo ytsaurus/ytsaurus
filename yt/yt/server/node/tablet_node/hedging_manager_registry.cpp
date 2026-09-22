@@ -177,6 +177,7 @@ public:
             .TableId = tableId,
             .StoreChunkConfig = ConvertToYsonString(storeChunkConfig),
             .HunkChunkConfig = ConvertToYsonString(hunkChunkConfig),
+            .ProfilerTags = profiler.GetTags().Tags(),
         };
 
         {
@@ -217,13 +218,15 @@ private:
         TTableId TableId;
         TYsonString StoreChunkConfig;
         TYsonString HunkChunkConfig;
+        TTagList ProfilerTags;
 
         operator size_t() const
         {
             return MultiHash(
                 TableId,
                 StoreChunkConfig,
-                HunkChunkConfig);
+                HunkChunkConfig,
+                ProfilerTags);
         }
     };
 

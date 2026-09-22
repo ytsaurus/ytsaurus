@@ -36,6 +36,13 @@ DEFINE_ENUM(ETabletWriteMode,
     ((Pull)           (1))
 );
 
+// COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+DEFINE_ENUM(EProfilingTagExportMode,
+    (TableTag)
+    (Both)
+    (TablePath)
+);
+
 DEFINE_ENUM(EBackupStage,
     ((None)                           (0))
     ((TimestampReceived)              (1))
