@@ -1,0 +1,89 @@
+#include "push_based_shuffle_service.h"
+
+#include "private.h"
+#include "push_based_shuffle_manager.h"
+
+#include <yt/yt/server/lib/controller_agent/push_based_shuffle_service_proxy.h>
+
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/core/rpc/service_detail.h>
+
+namespace NYT::NControllerAgent {
+
+using namespace NDistributedChunkSessionClient;
+using namespace NRpc;
+
+using NChunkClient::TSessionId;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPushBasedShuffleService
+    : public TServiceBase
+{
+public:
+    TPushBasedShuffleService(TPushBasedShuffleManagerPtr manager, IAuthenticatorPtr authenticator)
+        : TServiceBase(
+            manager->GetInvoker(),
+            TPushBasedShuffleServiceProxy::GetDescriptor(),
+            ControllerAgentLogger(),
+            TServiceOptions{
+                .Authenticator = std::move(authenticator),
+            })
+        , Manager_(std::move(manager))
+    {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetShuffleWriteSession));
+    }
+
+private:
+    const TPushBasedShuffleManagerPtr Manager_;
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetShuffleWriteSession)
+    {
+        auto incarnationId = FromProto<TIncarnationId>(request->controller_agent_incarnation_id());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto jobId = FromProto<TJobId>(request->job_id());
+        int partitionIndex = request->partition_index();
+        auto excludedSessionId = YT_OPTIONAL_FROM_PROTO(*request, excluded_session_id, TSessionId);
+
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("JobId", jobId)
+            .With("PartitionIndex", partitionIndex)
+            .With("ExcludedSessionId", excludedSessionId);
+
+        auto pool = Manager_->GetShufflePoolOrThrow(incarnationId, operationId);
+
+        context->ReplyFrom(pool->GetSession(partitionIndex, excludedSessionId)
+            .Apply(BIND([context] (const TErrorOr<TSessionDescriptor>& sessionOrError) {
+                const auto& session = sessionOrError.ValueOrThrow();
+                ToProto(context->Response().mutable_session_id(), session.SessionId);
+                ToProto(context->Response().mutable_sequencer_node(), session.SequencerNode);
+                context->AnnotateResponse()
+                    .With("SessionId", session.SessionId)
+                    .With("SequencerNode", session.SequencerNode);
+            })
+                .AsyncVia(Manager_->GetInvoker())));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServicePtr CreatePushBasedShuffleService(
+    TPushBasedShuffleManagerPtr manager,
+    IAuthenticatorPtr authenticator)
+{
+    return New<TPushBasedShuffleService>(std::move(manager), std::move(authenticator));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NControllerAgent

@@ -202,6 +202,11 @@ const TJobTrackerOperationHandlerPtr& TOperationControllerHost::GetJobTrackerOpe
     return JobTrackerOperationHandler_;
 }
 
+const TPushBasedShuffleManagerPtr& TOperationControllerHost::GetPushBasedShuffleManager() const
+{
+    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleManager();
+}
+
 void TOperationControllerHost::Disconnect(const TError& error)
 {
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));

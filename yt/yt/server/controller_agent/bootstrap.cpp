@@ -6,6 +6,7 @@
 #include "job_prober_service.h"
 #include "job_tracker_service.h"
 #include "private.h"
+#include "push_based_shuffle_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -215,6 +216,9 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreatePushBasedShuffleService(
+        ControllerAgent_->GetPushBasedShuffleManager(),
+        NativeAuthenticator_));
 }
 
 void TBootstrap::DoStart()

@@ -115,6 +115,11 @@ public:
      */
     TJobTracker* GetJobTracker() const;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const;
+
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;
 

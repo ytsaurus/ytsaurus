@@ -232,6 +232,11 @@ public:
             "Parent transaction id is null");
 
         THROW_ERROR_EXCEPTION_IF(
+            partitionCount <= 0,
+            "Partition count %v must be positive",
+            partitionCount);
+
+        THROW_ERROR_EXCEPTION_IF(
             usePushBasedShuffle && !schema,
             "Push-based shuffle requires a schema");
 
