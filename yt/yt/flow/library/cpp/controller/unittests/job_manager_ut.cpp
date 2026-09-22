@@ -561,6 +561,15 @@ class TJobBalancerTest
 {
 public:
     static constexpr double BaseCpuLoad = 100;
+    //! Slow balancing gets a wall-clock budget per round, and a sanitizer build spends a short
+    //! budget on the fast path before the slow path even starts; the budget is stretched for it.
+#if defined(_tsan_enabled_)
+    static constexpr int SanitizerSlowdown = 10;
+#elif defined(_asan_enabled_) || defined(_msan_enabled_)
+    static constexpr int SanitizerSlowdown = 4;
+#else
+    static constexpr int SanitizerSlowdown = 1;
+#endif
 
     int WorkerCount{};
     THashMap<TWorkerGroupId, int> WorkerCountByGroup;
@@ -971,6 +980,37 @@ public:
     {
         auto range = MapValues(GetJobCountOnWorker(computationId));
         return std::ranges::max(range) - std::ranges::min(range);
+    }
+
+    //! Balances the deviating partitions until every computation's CPU load spread is within
+    //! |expectedDiff|, then |settledRounds| more rounds to catch a layout that does not stay there.
+    //! The rounds it takes depend on the build: the slow balancer gets a wall-clock budget per round.
+    void BalanceDeviatingPartitionsUntilEven(double expectedDiff, int maxRounds = 40, int settledRounds = 5)
+    {
+        auto isEven = [&] {
+            for (int i = 0; i < ComputationCount; ++i) {
+                if (GetMinMaxDiffCpuLoad(GetComputationId(i)) > expectedDiff) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        // The first round also publishes the statuses the spread is read from.
+        int round = 0;
+        do {
+            SetCpuLoadDeviatingPartitions();
+            DistributeJobs();
+            ++round;
+        } while (round < maxRounds && !isEven());
+        for (int i = 0; i < settledRounds; ++i) {
+            SetCpuLoadDeviatingPartitions();
+            DistributeJobs();
+        }
+        for (int i = 0; i < ComputationCount; ++i) {
+            const auto& computationId = GetComputationId(i);
+            double diameterLoad = GetMinMaxDiffCpuLoad(computationId);
+            ASSERT_LE(diameterLoad, expectedDiff) << Format("Computation %v is not distributed equally by CPU load", computationId);
+        }
     }
 
     TComputationId GetComputationId(int num)
@@ -2472,20 +2512,10 @@ TEST_F(TJobBalancerTest, DeviatingPartitionsStrict)
 {
     auto runTest = [&] (size_t workerCount, const std::vector<TComputationDescription>& descriptions, TDuration slowBalancingTime = TDuration::MilliSeconds(50), double expectedDiff = BaseCpuLoad) {
         Reset();
-        PrepareBalancerTest(workerCount, descriptions, 1, slowBalancingTime);
+        PrepareBalancerTest(workerCount, descriptions, 1, slowBalancingTime * SanitizerSlowdown);
         DistributeJobs();
         InitializeCpuLoadDeviatingPartitions();
-        for (int iteration = 0; iteration < 20; ++iteration) {
-            SetCpuLoadDeviatingPartitions();
-            DistributeJobs();
-        }
-
-        for (int i = 0; i < std::ssize(descriptions); ++i) {
-            const auto& computationId = GetComputationId(i);
-
-            double diameterLoad = GetMinMaxDiffCpuLoad(computationId);
-            ASSERT_LE(diameterLoad, expectedDiff) << Format("Computation %v is not distributed equally by CPU load", computationId);
-        }
+        BalanceDeviatingPartitionsUntilEven(expectedDiff);
     };
 
     // For this test we don't want any unpredictable actions by the balancer.
@@ -2501,20 +2531,10 @@ TEST_F(TJobBalancerTest, DeviatingPartitionsNotStrict)
 {
     auto runTest = [&] (size_t workerCount, const std::vector<TComputationDescription>& descriptions, TDuration slowBalancingTime = TDuration::MilliSeconds(50), double expectedDiff = BaseCpuLoad) {
         Reset();
-        PrepareBalancerTest(workerCount, descriptions, 1.2, slowBalancingTime);
+        PrepareBalancerTest(workerCount, descriptions, 1.2, slowBalancingTime * SanitizerSlowdown);
         DistributeJobs();
         InitializeCpuLoadDeviatingPartitions();
-        for (int iteration = 0; iteration < 40; ++iteration) {
-            SetCpuLoadDeviatingPartitions();
-            DistributeJobs();
-        }
-
-        for (int i = 0; i < std::ssize(descriptions); ++i) {
-            const auto& computationId = GetComputationId(i);
-
-            double diameterLoad = GetMinMaxDiffCpuLoad(computationId);
-            ASSERT_LE(diameterLoad, expectedDiff) << Format("Computation %v is not distributed equally by CPU load", computationId);
-        }
+        BalanceDeviatingPartitionsUntilEven(expectedDiff);
     };
 
     // As opposed to the previous test, here we absolutely allow for the possibility of kicks by fast balancing or moves by slow balancing.
