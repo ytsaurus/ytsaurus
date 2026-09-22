@@ -1,6 +1,7 @@
 PY3_PROGRAM()
 
 PEERDIR(
+    yt/cron/library
     yt/python/client
 )
 
