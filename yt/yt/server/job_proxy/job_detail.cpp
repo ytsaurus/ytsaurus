@@ -10,6 +10,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
@@ -37,6 +38,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/iterator/concatenate.h>
 
 namespace NYT::NJobProxy {
 
@@ -81,6 +84,7 @@ TJob::TJob(IJobHostPtr host)
 void TJob::Initialize()
 {
     PopulateInputNodeDirectory();
+    PopulateChunkReplicaCacheWithHunkChunks();
 
     const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
     JobProfiler_ = CreateJobProfiler(&schedulerJobSpecExt);
@@ -94,6 +98,44 @@ void TJob::PopulateInputNodeDirectory() const
         ->GetNativeConnection()
         ->GetNodeDirectory()
         ->MergeFrom(Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
+}
+
+void TJob::PopulateChunkReplicaCacheWithHunkChunks() const
+{
+    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
+    const auto& dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
+    const auto& chunkReaderHost = Host_->GetChunkReaderHost();
+
+    THashMap<TClusterName, IChunkReplicaCachePtr> clusterToChunkReplicaCache;
+    auto getChunkReplicaCache = [&] (const TClusterName& clusterName) {
+        auto it = clusterToChunkReplicaCache.find(clusterName);
+        if (it == clusterToChunkReplicaCache.end()) {
+            auto client = chunkReaderHost->CreateHostForCluster(clusterName)->Client;
+            it = EmplaceOrCrash(
+                clusterToChunkReplicaCache,
+                clusterName,
+                client->GetNativeConnection()->GetChunkReplicaCache());
+        }
+        return it->second;
+    };
+
+    for (const auto& tableSpec : Concatenate(
+        jobSpecExt.input_table_specs(),
+        jobSpecExt.foreign_input_table_specs()))
+    {
+        for (const auto& hunkChunkSpec : tableSpec.hunk_chunk_specs()) {
+            auto chunkId = FromProto<TChunkId>(hunkChunkSpec.chunk_id());
+            auto replicas = FromProto<TChunkReplicaWithMediumList>(hunkChunkSpec.replicas());
+            if (replicas.empty()) {
+                continue;
+            }
+
+            const auto& dataSource = dataSourceDirectory->DataSources()[hunkChunkSpec.table_index()];
+            getChunkReplicaCache(dataSource->GetClusterName())->UpdateReplicas(
+                chunkId,
+                TAllyReplicasInfo::FromChunkReplicas(replicas));
+        }
+    }
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)

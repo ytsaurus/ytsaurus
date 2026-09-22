@@ -183,7 +183,12 @@ public:
     bool HasRowLevelAcl() const;
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
-    NChunkClient::TInputChunkPtr GetInputChunk(NChunkClient::TChunkId chunkId, int chunkIndex) const;
+    NChunkClient::TInputChunkPtr GetInputChunk(
+        NChunkClient::TChunkId chunkId,
+        std::optional<int> chunkIndex = {}) const;
+    NChunkClient::TInputChunkPtr FindInputChunk(
+        NChunkClient::TChunkId chunkId,
+        std::optional<int> chunkIndex = {}) const;
 
     void RegisterUnavailableInputChunks(bool reportIfFound = false);
     void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;

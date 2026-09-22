@@ -38,9 +38,15 @@ from yt_commands import (
     set_all_nodes_banned,
     wait,
     wait_for_nodes,
+    create_dynamic_table,
+    insert_rows,
+    sync_create_cells,
+    sync_mount_table,
+    sync_unmount_table,
 )
 
 from yt_helpers import profiler_factory
+from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 from yt.common import YtResponseError
 import yt.yson as yson
@@ -1253,3 +1259,46 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         data_weight = data_flow_graph["edges"]["map"]["auto_merge"]["statistics"]["data_weight"]
         assert data_weight > 0
         assert data_flow_graph["edges"]["auto_merge"]["sink"]["statistics"]["data_weight"] == data_weight
+
+
+##################################################################
+
+
+class TestRemoteOperationWithHunks(TestSchedulerRemoteOperationCommandsBase):
+    USE_DYNAMIC_TABLES = True
+
+    @authors("atalmenev")
+    def test_hunk_chunk_replica_prefetch(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        create_dynamic_table(
+            "//tmp/t_in",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ],
+            driver=self.remote_driver)
+        sync_mount_table("//tmp/t_in", driver=self.remote_driver)
+        rows = [{"key": i, "value": "x" * 100} for i in range(20)]
+        insert_rows("//tmp/t_in", rows, driver=self.remote_driver)
+        sync_unmount_table("//tmp/t_in", driver=self.remote_driver)
+
+        create("table", "//tmp/t_out")
+        op = map(
+            in_=self.to_remote_path("//tmp/t_in"),
+            out="//tmp/t_out",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={"mapper": {"monitoring": {"enable": True}}},
+            track=False)
+        job_id = wait_breakpoint()[0]
+
+        time.sleep(10)
+        node = get_job(op.id, job_id)["address"]
+        job_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
+        profiler = profiler_factory().at_job_proxy(
+            node,
+            fixed_tags={"job_descriptor": job_descriptor, "host": ""})
+        assert profiler.get("connection/chunk_replica_cache/master_locate_chunks") == 0
+
+        release_breakpoint()
+        op.track()
+        assert_items_equal(read_table("//tmp/t_out"), rows)
