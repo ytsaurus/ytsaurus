@@ -255,16 +255,11 @@ struct TDynamicTabletManagerConfig
     //! for balancing purposes.
     i64 TabletDataSizeFootprint;
 
-    //! Store chunk reader config for all dynamic tables.
+    //! COMPAT(ifsmirnov): legacy base IO configs are migrated to
+    //! the legacy_base_io_configs experiment during snapshot recovery.
     NTabletNode::TTabletStoreReaderConfigPtr StoreChunkReader;
-
-    //! Hunk chunk reader config for all dynamic tables.
     NTabletNode::TTabletHunkReaderConfigPtr HunkChunkReader;
-
-    //! Store chunk writer config for all dynamic tables.
     NTabletNode::TTabletStoreWriterConfigPtr StoreChunkWriter;
-
-    //! Hunk chunk writer config for all dynamic tables.
     NTabletNode::TTabletHunkWriterConfigPtr HunkChunkWriter;
 
     //! Hunk store writer config for all hunk storages.

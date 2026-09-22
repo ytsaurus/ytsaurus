@@ -5170,16 +5170,16 @@ private:
             .Provided = {
                 .MountConfigNode = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
                 .ExtraMountConfig = extraMountConfigAttributes,
-                .StoreReaderConfig = DeserializeTabletStoreReaderConfig(
-                    TYsonString(tableSettings.store_reader_config()), tabletId),
-                .HunkReaderConfig = DeserializeTabletHunkReaderConfig(
-                    TYsonString(tableSettings.hunk_reader_config()), tabletId),
-                .StoreWriterConfig = DeserializeTabletStoreWriterConfig(
-                    TYsonString(tableSettings.store_writer_config()), tabletId),
+                .StoreReaderConfig = ConvertTo<IMapNodePtr>(
+                    TYsonString(tableSettings.store_reader_config())),
+                .HunkReaderConfig = ConvertTo<IMapNodePtr>(
+                    TYsonString(tableSettings.hunk_reader_config())),
+                .StoreWriterConfig = ConvertTo<IMapNodePtr>(
+                    TYsonString(tableSettings.store_writer_config())),
                 .StoreWriterOptions = DeserializeTabletStoreWriterOptions(
                     TYsonString(tableSettings.store_writer_options()), tabletId),
-                .HunkWriterConfig = DeserializeTabletHunkWriterConfig(
-                    TYsonString(tableSettings.hunk_writer_config()), tabletId),
+                .HunkWriterConfig = ConvertTo<IMapNodePtr>(
+                    TYsonString(tableSettings.hunk_writer_config())),
                 .HunkWriterOptions = DeserializeTabletHunkWriterOptions(
                     TYsonString(tableSettings.hunk_writer_options()), tabletId),
                 .TabletBalancerConfig = tabletBalancerConfig,
@@ -5252,42 +5252,6 @@ private:
         }
     }
 
-    TTabletStoreReaderConfigPtr DeserializeTabletStoreReaderConfig(const TYsonString& str, TTabletId tabletId)
-    {
-        try {
-            return ConvertTo<TTabletStoreReaderConfigPtr>(str);
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error deserializing store reader config")
-                .With("TabletId", tabletId)
-                .With(ex);
-            return New<TTabletStoreReaderConfig>();
-        }
-    }
-
-    TTabletHunkReaderConfigPtr DeserializeTabletHunkReaderConfig(const TYsonString& str, TTabletId tabletId)
-    {
-        try {
-            return ConvertTo<TTabletHunkReaderConfigPtr>(str);
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error deserializing hunk reader config")
-                .With("TabletId", tabletId)
-                .With(ex);
-            return New<TTabletHunkReaderConfig>();
-        }
-    }
-
-    TTabletStoreWriterConfigPtr DeserializeTabletStoreWriterConfig(const TYsonString& str, TTabletId tabletId)
-    {
-        try {
-            return ConvertTo<TTabletStoreWriterConfigPtr>(str);
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error deserializing store writer config")
-                .With("TabletId", tabletId)
-                .With(ex);
-            return New<TTabletStoreWriterConfig>();
-        }
-    }
-
     TTabletStoreWriterOptionsPtr DeserializeTabletStoreWriterOptions(const TYsonString& str, TTabletId tabletId)
     {
         try {
@@ -5297,18 +5261,6 @@ private:
                 .With("TabletId", tabletId)
                 .With(ex);
             return New<TTabletStoreWriterOptions>();
-        }
-    }
-
-    TTabletHunkWriterConfigPtr DeserializeTabletHunkWriterConfig(const TYsonString& str, TTabletId tabletId)
-    {
-        try {
-            return ConvertTo<TTabletHunkWriterConfigPtr>(str);
-        } catch (const std::exception& ex) {
-            YT_TLOG_ERROR("Error deserializing hunk writer config")
-                .With("TabletId", tabletId)
-                .With(ex);
-            return New<TTabletHunkWriterConfig>();
         }
     }
 

@@ -347,6 +347,29 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
 
+        auto addChildIfMissing = [] (const NYTree::IMapNodePtr& node, TStringBuf key, const auto& value) {
+            if (!node->FindChild(key)) {
+                node->AddChild(key, NYTree::ConvertToNode(value));
+            }
+        };
+
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "suspicious_node_grace_period",
+            config->StoreChunkReader->SuspiciousNodeGracePeriod);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "ban_peers_permanently",
+            config->StoreChunkReader->BanPeersPermanently);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "block_size",
+            config->StoreChunkWriter->BlockSize);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "sample_rate",
+            config->StoreChunkWriter->SampleRate);
+
         for (const auto& [name, experiment] : config->TableConfigExperiments) {
             if (experiment->Salt.empty()) {
                 experiment->Salt = name;
