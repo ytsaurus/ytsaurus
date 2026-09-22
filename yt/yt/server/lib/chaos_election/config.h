@@ -4,21 +4,20 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <yt/yt/library/lock_election/config.h>
 
 namespace NYT::NChaosElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChaosElectionManagerConfig
-    : public NYTree::TYsonStruct
+    : public NLockElection::TLockElectionManagerConfig
 {
     NYPath::TYPath LockTablePath;
     std::string ChaosCellBundle;
 
     TDuration LeaseTimeout;
     TDuration LeasePingPeriod;
-    TDuration LockAcquisitionPeriod;
 
     REGISTER_YSON_STRUCT(TChaosElectionManagerConfig);
 
