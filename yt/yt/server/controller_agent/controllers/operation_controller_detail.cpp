@@ -3880,6 +3880,14 @@ void TOperationControllerBase::UpdatePreemptibleProgressStartTime(
     if (joblet->PreemptibleProgressStartTime < preemptibleProgressStartTime) {
         joblet->PreemptibleProgressStartTime = preemptibleProgressStartTime;
         RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = preemptibleProgressStartTime;
+
+        if (jobSummary->LastProgressSaveTime.has_value()) {
+            LogEventFluently(ELogEventType::ProgressSaved)
+                .Item("job_id").Value(jobId)
+                .Item("allocation_id").Value(AllocationIdFromJobId(jobId))
+                .Item("operation_id").Value(OperationId_)
+                .Item("preemptible_progress_start_time").Value(preemptibleProgressStartTime);
+        }
     }
 }
 
