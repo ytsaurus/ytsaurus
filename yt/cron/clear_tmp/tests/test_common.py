@@ -16,6 +16,39 @@ COMMON_ARGS = [
 ]
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_cleanup_counters(yt_env, capfd, dry_run):  # noqa
+    client = yt_env.yt_client
+    client.create("map_node", "//tmp/counters/dir/subdir", recursive=True)
+    client.create("table", "//tmp/counters/dir/subdir/table")
+    client.create("table", "//tmp/counters/protected", attributes={"clear_tmp_config": {"dont_prune": True}})
+    client.create("table", "//tmp/counters/locked")
+
+    with client.Transaction(timeout=60_000):
+        client.lock("//tmp/counters/locked", mode="exclusive")
+        run_clear_tmp(
+            yt_env.yt_instance.get_proxy_address(),
+            COMMON_ARGS + ["--directory", "//tmp/counters", "--remove-empty", "--safe-age", "0"]
+            + (["--dry-run"] if dry_run else []))
+
+    stderr = capfd.readouterr().err
+    assert "Skipped (dont_prune): 1" in stderr
+    assert "Skipped (locked): 1" in stderr
+    if dry_run:
+        assert "Cleanup counters: collected=6, skipped=6, removed=0" in stderr
+        assert "Skipped (dry_run): 4" in stderr
+        assert "Removed (" not in stderr
+        assert client.exists("//tmp/counters/dir/subdir/table")
+    else:
+        assert "Cleanup counters: collected=6, skipped=3, removed=3" in stderr
+        assert "Skipped (root_directory): 1" in stderr
+        assert "Removed (empty_object): 1" in stderr
+        assert "Removed (empty_directory): 2" in stderr
+        assert not client.exists("//tmp/counters/dir")
+    assert client.exists("//tmp/counters/protected")
+    assert client.exists("//tmp/counters/locked")
+
+
 def create_account_with_directory(client, account, disk_space, node_count, chunk_count):
     client.create("account", attributes={
         "name": account,
