@@ -72,12 +72,13 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void BuildSchedulingAttributesStringForNode(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
-        TNodeId /*nodeId*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    { }
+        TNodeId /*nodeId*/) const override
+    {
+        return {};
+    }
 
     void BuildSchedulingAttributesForNode(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,

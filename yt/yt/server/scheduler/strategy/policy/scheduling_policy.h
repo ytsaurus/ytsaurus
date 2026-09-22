@@ -130,11 +130,10 @@ struct ISchedulingPolicy
 
     //! Diagnostics.
     //! Thread affinity: Any.
-    virtual void BuildSchedulingAttributesStringForNode(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        NNodeTrackerClient::TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void BuildSchedulingAttributesForNode(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         NNodeTrackerClient::TNodeId nodeId,

@@ -54,7 +54,7 @@ public:
                 .With("MutationId", mutationId)
                 .With("Retry", context->IsRetry());
 
-            context->SuppressMissingRequestInfoCheck();
+            context->AnnotateRequest();
             context->AnnotateResponse()
                 .With("KeptResponse", true);
             return keptResponse;

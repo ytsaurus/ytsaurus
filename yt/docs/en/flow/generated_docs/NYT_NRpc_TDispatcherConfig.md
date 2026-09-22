@@ -17,7 +17,7 @@ Source: [yt/yt/core/rpc/config.h]({{source-root}}/yt/yt/core/rpc/config.h)
 || `default_request_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1d`
  ||
-|| `alert_on_missing_request_info` | **Type**: `bool`
+|| `alert_on_missing_request_annotation` | **Type**: `bool`
 **Default value**: `false`
  ||
 || `alert_on_unset_request_timeout` | **Type**: `bool`

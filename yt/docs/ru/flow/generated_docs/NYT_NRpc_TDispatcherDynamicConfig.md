@@ -11,7 +11,7 @@
  ||
 || `heavy_pool_polling_period` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
-|| `alert_on_missing_request_info` | **Тип**: `std::optional<bool>`
+|| `alert_on_missing_request_annotation` | **Тип**: `std::optional<bool>`
  ||
 || `send_tracing_baggage` | **Тип**: `std::optional<bool>`
  ||

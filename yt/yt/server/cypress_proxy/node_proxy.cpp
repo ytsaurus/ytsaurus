@@ -273,7 +273,7 @@ protected:
         return ResolveResult_.IsSnapshot();
     }
 
-    void SetBasicRequestInfo(const ISequoiaServiceContextPtr& context)
+    void AnnotateBasicRequest(const ISequoiaServiceContextPtr& context)
     {
         context->AnnotateRequest(/*flush*/ false)
             .With("TargetObjectPath", Path_)
@@ -283,7 +283,7 @@ protected:
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
-        SetBasicRequestInfo(context);
+        AnnotateBasicRequest(context);
 
         auto doInvoke = [&] (const IYPathServiceContextPtr& context) {
             DISPATCH_YPATH_SERVICE_METHOD(Exists);
@@ -2137,7 +2137,7 @@ private:
             return TNodeProxy::DoInvoke(context);
         }
 
-        SetBasicRequestInfo(context);
+        AnnotateBasicRequest(context);
         context->AnnotateRequest();
 
         auto permission = IsRequestMutating(context->RequestHeader())
@@ -2207,7 +2207,7 @@ private:
             }
         }
 
-        SetBasicRequestInfo(context);
+        AnnotateBasicRequest(context);
         context->AnnotateRequest();
 
         // Only forwarded self-request requires a permission check.

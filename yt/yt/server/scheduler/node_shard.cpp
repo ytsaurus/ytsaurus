@@ -769,16 +769,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         .With("SendRegisteredControllerAgents", shouldSendRegisteredControllerAgents)
         .With("NodeFreeResources", schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
 
-    TStringBuilder schedulingAttributesBuilder;
-    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
+    NLogging::TLoggingTagList schedulingAttributeTags;
     {
         TForbidContextSwitchGuard guard;
 
-        strategyProxy->BuildSchedulingAttributesString(
-            schedulingHeartbeatContext,
-            delimitedSchedulingAttributesBuilder);
+        schedulingAttributeTags = strategyProxy->BuildSchedulingAttributeTags(schedulingHeartbeatContext);
     }
-    context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
+    context->AnnotateResponse()
+        .With(schedulingAttributeTags);
 
     FillNodeProfilingTags(response, strategyProxy);
 
