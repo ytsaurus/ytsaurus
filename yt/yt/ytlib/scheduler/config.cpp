@@ -1081,7 +1081,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
-        .Default();
+        .Default(true);
 
     registrar.Parameter("update_secondary_index", &TThis::UpdateSecondaryIndex)
         .Default(true);
