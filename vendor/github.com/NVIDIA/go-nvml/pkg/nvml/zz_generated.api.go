@@ -20,380 +20,413 @@ package nvml
 
 // The variables below represent package level methods from the library type.
 var (
-	ComputeInstanceDestroy                           = libnvml.ComputeInstanceDestroy
-	ComputeInstanceGetInfo                           = libnvml.ComputeInstanceGetInfo
-	DeviceClearAccountingPids                        = libnvml.DeviceClearAccountingPids
-	DeviceClearCpuAffinity                           = libnvml.DeviceClearCpuAffinity
-	DeviceClearEccErrorCounts                        = libnvml.DeviceClearEccErrorCounts
-	DeviceClearFieldValues                           = libnvml.DeviceClearFieldValues
-	DeviceCreateGpuInstance                          = libnvml.DeviceCreateGpuInstance
-	DeviceCreateGpuInstanceWithPlacement             = libnvml.DeviceCreateGpuInstanceWithPlacement
-	DeviceDiscoverGpus                               = libnvml.DeviceDiscoverGpus
-	DeviceFreezeNvLinkUtilizationCounter             = libnvml.DeviceFreezeNvLinkUtilizationCounter
-	DeviceGetAPIRestriction                          = libnvml.DeviceGetAPIRestriction
-	DeviceGetAccountingBufferSize                    = libnvml.DeviceGetAccountingBufferSize
-	DeviceGetAccountingMode                          = libnvml.DeviceGetAccountingMode
-	DeviceGetAccountingPids                          = libnvml.DeviceGetAccountingPids
-	DeviceGetAccountingStats                         = libnvml.DeviceGetAccountingStats
-	DeviceGetActiveVgpus                             = libnvml.DeviceGetActiveVgpus
-	DeviceGetAdaptiveClockInfoStatus                 = libnvml.DeviceGetAdaptiveClockInfoStatus
-	DeviceGetAddressingMode                          = libnvml.DeviceGetAddressingMode
-	DeviceGetApplicationsClock                       = libnvml.DeviceGetApplicationsClock
-	DeviceGetArchitecture                            = libnvml.DeviceGetArchitecture
-	DeviceGetAttributes                              = libnvml.DeviceGetAttributes
-	DeviceGetAutoBoostedClocksEnabled                = libnvml.DeviceGetAutoBoostedClocksEnabled
-	DeviceGetBAR1MemoryInfo                          = libnvml.DeviceGetBAR1MemoryInfo
-	DeviceGetBoardId                                 = libnvml.DeviceGetBoardId
-	DeviceGetBoardPartNumber                         = libnvml.DeviceGetBoardPartNumber
-	DeviceGetBrand                                   = libnvml.DeviceGetBrand
-	DeviceGetBridgeChipInfo                          = libnvml.DeviceGetBridgeChipInfo
-	DeviceGetBusType                                 = libnvml.DeviceGetBusType
-	DeviceGetC2cModeInfoV                            = libnvml.DeviceGetC2cModeInfoV
-	DeviceGetCapabilities                            = libnvml.DeviceGetCapabilities
-	DeviceGetClkMonStatus                            = libnvml.DeviceGetClkMonStatus
-	DeviceGetClock                                   = libnvml.DeviceGetClock
-	DeviceGetClockInfo                               = libnvml.DeviceGetClockInfo
-	DeviceGetClockOffsets                            = libnvml.DeviceGetClockOffsets
-	DeviceGetComputeInstanceId                       = libnvml.DeviceGetComputeInstanceId
-	DeviceGetComputeMode                             = libnvml.DeviceGetComputeMode
-	DeviceGetComputeRunningProcesses                 = libnvml.DeviceGetComputeRunningProcesses
-	DeviceGetConfComputeGpuAttestationReport         = libnvml.DeviceGetConfComputeGpuAttestationReport
-	DeviceGetConfComputeGpuCertificate               = libnvml.DeviceGetConfComputeGpuCertificate
-	DeviceGetConfComputeMemSizeInfo                  = libnvml.DeviceGetConfComputeMemSizeInfo
-	DeviceGetConfComputeProtectedMemoryUsage         = libnvml.DeviceGetConfComputeProtectedMemoryUsage
-	DeviceGetCoolerInfo                              = libnvml.DeviceGetCoolerInfo
-	DeviceGetCount                                   = libnvml.DeviceGetCount
-	DeviceGetCpuAffinity                             = libnvml.DeviceGetCpuAffinity
-	DeviceGetCpuAffinityWithinScope                  = libnvml.DeviceGetCpuAffinityWithinScope
-	DeviceGetCreatableVgpus                          = libnvml.DeviceGetCreatableVgpus
-	DeviceGetCudaComputeCapability                   = libnvml.DeviceGetCudaComputeCapability
-	DeviceGetCurrPcieLinkGeneration                  = libnvml.DeviceGetCurrPcieLinkGeneration
-	DeviceGetCurrPcieLinkWidth                       = libnvml.DeviceGetCurrPcieLinkWidth
-	DeviceGetCurrentClockFreqs                       = libnvml.DeviceGetCurrentClockFreqs
-	DeviceGetCurrentClocksEventReasons               = libnvml.DeviceGetCurrentClocksEventReasons
-	DeviceGetCurrentClocksThrottleReasons            = libnvml.DeviceGetCurrentClocksThrottleReasons
-	DeviceGetDecoderUtilization                      = libnvml.DeviceGetDecoderUtilization
-	DeviceGetDefaultApplicationsClock                = libnvml.DeviceGetDefaultApplicationsClock
-	DeviceGetDefaultEccMode                          = libnvml.DeviceGetDefaultEccMode
-	DeviceGetDetailedEccErrors                       = libnvml.DeviceGetDetailedEccErrors
-	DeviceGetDeviceHandleFromMigDeviceHandle         = libnvml.DeviceGetDeviceHandleFromMigDeviceHandle
-	DeviceGetDisplayActive                           = libnvml.DeviceGetDisplayActive
-	DeviceGetDisplayMode                             = libnvml.DeviceGetDisplayMode
-	DeviceGetDramEncryptionMode                      = libnvml.DeviceGetDramEncryptionMode
-	DeviceGetDriverModel                             = libnvml.DeviceGetDriverModel
-	DeviceGetDriverModel_v2                          = libnvml.DeviceGetDriverModel_v2
-	DeviceGetDynamicPstatesInfo                      = libnvml.DeviceGetDynamicPstatesInfo
-	DeviceGetEccMode                                 = libnvml.DeviceGetEccMode
-	DeviceGetEncoderCapacity                         = libnvml.DeviceGetEncoderCapacity
-	DeviceGetEncoderSessions                         = libnvml.DeviceGetEncoderSessions
-	DeviceGetEncoderStats                            = libnvml.DeviceGetEncoderStats
-	DeviceGetEncoderUtilization                      = libnvml.DeviceGetEncoderUtilization
-	DeviceGetEnforcedPowerLimit                      = libnvml.DeviceGetEnforcedPowerLimit
-	DeviceGetFBCSessions                             = libnvml.DeviceGetFBCSessions
-	DeviceGetFBCStats                                = libnvml.DeviceGetFBCStats
-	DeviceGetFanControlPolicy_v2                     = libnvml.DeviceGetFanControlPolicy_v2
-	DeviceGetFanSpeed                                = libnvml.DeviceGetFanSpeed
-	DeviceGetFanSpeedRPM                             = libnvml.DeviceGetFanSpeedRPM
-	DeviceGetFanSpeed_v2                             = libnvml.DeviceGetFanSpeed_v2
-	DeviceGetFieldValues                             = libnvml.DeviceGetFieldValues
-	DeviceGetGpcClkMinMaxVfOffset                    = libnvml.DeviceGetGpcClkMinMaxVfOffset
-	DeviceGetGpcClkVfOffset                          = libnvml.DeviceGetGpcClkVfOffset
-	DeviceGetGpuFabricInfo                           = libnvml.DeviceGetGpuFabricInfo
-	DeviceGetGpuFabricInfoV                          = libnvml.DeviceGetGpuFabricInfoV
-	DeviceGetGpuInstanceById                         = libnvml.DeviceGetGpuInstanceById
-	DeviceGetGpuInstanceId                           = libnvml.DeviceGetGpuInstanceId
-	DeviceGetGpuInstancePossiblePlacements           = libnvml.DeviceGetGpuInstancePossiblePlacements
-	DeviceGetGpuInstanceProfileInfo                  = libnvml.DeviceGetGpuInstanceProfileInfo
-	DeviceGetGpuInstanceProfileInfoByIdV             = libnvml.DeviceGetGpuInstanceProfileInfoByIdV
-	DeviceGetGpuInstanceProfileInfoV                 = libnvml.DeviceGetGpuInstanceProfileInfoV
-	DeviceGetGpuInstanceRemainingCapacity            = libnvml.DeviceGetGpuInstanceRemainingCapacity
-	DeviceGetGpuInstances                            = libnvml.DeviceGetGpuInstances
-	DeviceGetGpuMaxPcieLinkGeneration                = libnvml.DeviceGetGpuMaxPcieLinkGeneration
-	DeviceGetGpuOperationMode                        = libnvml.DeviceGetGpuOperationMode
-	DeviceGetGraphicsRunningProcesses                = libnvml.DeviceGetGraphicsRunningProcesses
-	DeviceGetGridLicensableFeatures                  = libnvml.DeviceGetGridLicensableFeatures
-	DeviceGetGspFirmwareMode                         = libnvml.DeviceGetGspFirmwareMode
-	DeviceGetGspFirmwareVersion                      = libnvml.DeviceGetGspFirmwareVersion
-	DeviceGetHandleByIndex                           = libnvml.DeviceGetHandleByIndex
-	DeviceGetHandleByPciBusId                        = libnvml.DeviceGetHandleByPciBusId
-	DeviceGetHandleBySerial                          = libnvml.DeviceGetHandleBySerial
-	DeviceGetHandleByUUID                            = libnvml.DeviceGetHandleByUUID
-	DeviceGetHandleByUUIDV                           = libnvml.DeviceGetHandleByUUIDV
-	DeviceGetHostVgpuMode                            = libnvml.DeviceGetHostVgpuMode
-	DeviceGetIndex                                   = libnvml.DeviceGetIndex
-	DeviceGetInforomConfigurationChecksum            = libnvml.DeviceGetInforomConfigurationChecksum
-	DeviceGetInforomImageVersion                     = libnvml.DeviceGetInforomImageVersion
-	DeviceGetInforomVersion                          = libnvml.DeviceGetInforomVersion
-	DeviceGetIrqNum                                  = libnvml.DeviceGetIrqNum
-	DeviceGetJpgUtilization                          = libnvml.DeviceGetJpgUtilization
-	DeviceGetLastBBXFlushTime                        = libnvml.DeviceGetLastBBXFlushTime
-	DeviceGetMPSComputeRunningProcesses              = libnvml.DeviceGetMPSComputeRunningProcesses
-	DeviceGetMarginTemperature                       = libnvml.DeviceGetMarginTemperature
-	DeviceGetMaxClockInfo                            = libnvml.DeviceGetMaxClockInfo
-	DeviceGetMaxCustomerBoostClock                   = libnvml.DeviceGetMaxCustomerBoostClock
-	DeviceGetMaxMigDeviceCount                       = libnvml.DeviceGetMaxMigDeviceCount
-	DeviceGetMaxPcieLinkGeneration                   = libnvml.DeviceGetMaxPcieLinkGeneration
-	DeviceGetMaxPcieLinkWidth                        = libnvml.DeviceGetMaxPcieLinkWidth
-	DeviceGetMemClkMinMaxVfOffset                    = libnvml.DeviceGetMemClkMinMaxVfOffset
-	DeviceGetMemClkVfOffset                          = libnvml.DeviceGetMemClkVfOffset
-	DeviceGetMemoryAffinity                          = libnvml.DeviceGetMemoryAffinity
-	DeviceGetMemoryBusWidth                          = libnvml.DeviceGetMemoryBusWidth
-	DeviceGetMemoryErrorCounter                      = libnvml.DeviceGetMemoryErrorCounter
-	DeviceGetMemoryInfo                              = libnvml.DeviceGetMemoryInfo
-	DeviceGetMemoryInfo_v2                           = libnvml.DeviceGetMemoryInfo_v2
-	DeviceGetMigDeviceHandleByIndex                  = libnvml.DeviceGetMigDeviceHandleByIndex
-	DeviceGetMigMode                                 = libnvml.DeviceGetMigMode
-	DeviceGetMinMaxClockOfPState                     = libnvml.DeviceGetMinMaxClockOfPState
-	DeviceGetMinMaxFanSpeed                          = libnvml.DeviceGetMinMaxFanSpeed
-	DeviceGetMinorNumber                             = libnvml.DeviceGetMinorNumber
-	DeviceGetModuleId                                = libnvml.DeviceGetModuleId
-	DeviceGetMultiGpuBoard                           = libnvml.DeviceGetMultiGpuBoard
-	DeviceGetName                                    = libnvml.DeviceGetName
-	DeviceGetNumFans                                 = libnvml.DeviceGetNumFans
-	DeviceGetNumGpuCores                             = libnvml.DeviceGetNumGpuCores
-	DeviceGetNumaNodeId                              = libnvml.DeviceGetNumaNodeId
-	DeviceGetNvLinkCapability                        = libnvml.DeviceGetNvLinkCapability
-	DeviceGetNvLinkErrorCounter                      = libnvml.DeviceGetNvLinkErrorCounter
-	DeviceGetNvLinkInfo                              = libnvml.DeviceGetNvLinkInfo
-	DeviceGetNvLinkRemoteDeviceType                  = libnvml.DeviceGetNvLinkRemoteDeviceType
-	DeviceGetNvLinkRemotePciInfo                     = libnvml.DeviceGetNvLinkRemotePciInfo
-	DeviceGetNvLinkState                             = libnvml.DeviceGetNvLinkState
-	DeviceGetNvLinkUtilizationControl                = libnvml.DeviceGetNvLinkUtilizationControl
-	DeviceGetNvLinkUtilizationCounter                = libnvml.DeviceGetNvLinkUtilizationCounter
-	DeviceGetNvLinkVersion                           = libnvml.DeviceGetNvLinkVersion
-	DeviceGetNvlinkBwMode                            = libnvml.DeviceGetNvlinkBwMode
-	DeviceGetNvlinkSupportedBwModes                  = libnvml.DeviceGetNvlinkSupportedBwModes
-	DeviceGetOfaUtilization                          = libnvml.DeviceGetOfaUtilization
-	DeviceGetP2PStatus                               = libnvml.DeviceGetP2PStatus
-	DeviceGetPciInfo                                 = libnvml.DeviceGetPciInfo
-	DeviceGetPciInfoExt                              = libnvml.DeviceGetPciInfoExt
-	DeviceGetPcieLinkMaxSpeed                        = libnvml.DeviceGetPcieLinkMaxSpeed
-	DeviceGetPcieReplayCounter                       = libnvml.DeviceGetPcieReplayCounter
-	DeviceGetPcieSpeed                               = libnvml.DeviceGetPcieSpeed
-	DeviceGetPcieThroughput                          = libnvml.DeviceGetPcieThroughput
-	DeviceGetPdi                                     = libnvml.DeviceGetPdi
-	DeviceGetPerformanceModes                        = libnvml.DeviceGetPerformanceModes
-	DeviceGetPerformanceState                        = libnvml.DeviceGetPerformanceState
-	DeviceGetPersistenceMode                         = libnvml.DeviceGetPersistenceMode
-	DeviceGetPgpuMetadataString                      = libnvml.DeviceGetPgpuMetadataString
-	DeviceGetPlatformInfo                            = libnvml.DeviceGetPlatformInfo
-	DeviceGetPowerManagementDefaultLimit             = libnvml.DeviceGetPowerManagementDefaultLimit
-	DeviceGetPowerManagementLimit                    = libnvml.DeviceGetPowerManagementLimit
-	DeviceGetPowerManagementLimitConstraints         = libnvml.DeviceGetPowerManagementLimitConstraints
-	DeviceGetPowerManagementMode                     = libnvml.DeviceGetPowerManagementMode
-	DeviceGetPowerMizerMode_v1                       = libnvml.DeviceGetPowerMizerMode_v1
-	DeviceGetPowerSource                             = libnvml.DeviceGetPowerSource
-	DeviceGetPowerState                              = libnvml.DeviceGetPowerState
-	DeviceGetPowerUsage                              = libnvml.DeviceGetPowerUsage
-	DeviceGetProcessUtilization                      = libnvml.DeviceGetProcessUtilization
-	DeviceGetProcessesUtilizationInfo                = libnvml.DeviceGetProcessesUtilizationInfo
-	DeviceGetRemappedRows                            = libnvml.DeviceGetRemappedRows
-	DeviceGetRepairStatus                            = libnvml.DeviceGetRepairStatus
-	DeviceGetRetiredPages                            = libnvml.DeviceGetRetiredPages
-	DeviceGetRetiredPagesPendingStatus               = libnvml.DeviceGetRetiredPagesPendingStatus
-	DeviceGetRetiredPages_v2                         = libnvml.DeviceGetRetiredPages_v2
-	DeviceGetRowRemapperHistogram                    = libnvml.DeviceGetRowRemapperHistogram
-	DeviceGetRunningProcessDetailList                = libnvml.DeviceGetRunningProcessDetailList
-	DeviceGetSamples                                 = libnvml.DeviceGetSamples
-	DeviceGetSerial                                  = libnvml.DeviceGetSerial
-	DeviceGetSramEccErrorStatus                      = libnvml.DeviceGetSramEccErrorStatus
-	DeviceGetSramUniqueUncorrectedEccErrorCounts     = libnvml.DeviceGetSramUniqueUncorrectedEccErrorCounts
-	DeviceGetSupportedClocksEventReasons             = libnvml.DeviceGetSupportedClocksEventReasons
-	DeviceGetSupportedClocksThrottleReasons          = libnvml.DeviceGetSupportedClocksThrottleReasons
-	DeviceGetSupportedEventTypes                     = libnvml.DeviceGetSupportedEventTypes
-	DeviceGetSupportedGraphicsClocks                 = libnvml.DeviceGetSupportedGraphicsClocks
-	DeviceGetSupportedMemoryClocks                   = libnvml.DeviceGetSupportedMemoryClocks
-	DeviceGetSupportedPerformanceStates              = libnvml.DeviceGetSupportedPerformanceStates
-	DeviceGetSupportedVgpus                          = libnvml.DeviceGetSupportedVgpus
-	DeviceGetTargetFanSpeed                          = libnvml.DeviceGetTargetFanSpeed
-	DeviceGetTemperature                             = libnvml.DeviceGetTemperature
-	DeviceGetTemperatureThreshold                    = libnvml.DeviceGetTemperatureThreshold
-	DeviceGetTemperatureV                            = libnvml.DeviceGetTemperatureV
-	DeviceGetThermalSettings                         = libnvml.DeviceGetThermalSettings
-	DeviceGetTopologyCommonAncestor                  = libnvml.DeviceGetTopologyCommonAncestor
-	DeviceGetTopologyNearestGpus                     = libnvml.DeviceGetTopologyNearestGpus
-	DeviceGetTotalEccErrors                          = libnvml.DeviceGetTotalEccErrors
-	DeviceGetTotalEnergyConsumption                  = libnvml.DeviceGetTotalEnergyConsumption
-	DeviceGetUUID                                    = libnvml.DeviceGetUUID
-	DeviceGetUtilizationRates                        = libnvml.DeviceGetUtilizationRates
-	DeviceGetVbiosVersion                            = libnvml.DeviceGetVbiosVersion
-	DeviceGetVgpuCapabilities                        = libnvml.DeviceGetVgpuCapabilities
-	DeviceGetVgpuHeterogeneousMode                   = libnvml.DeviceGetVgpuHeterogeneousMode
-	DeviceGetVgpuInstancesUtilizationInfo            = libnvml.DeviceGetVgpuInstancesUtilizationInfo
-	DeviceGetVgpuMetadata                            = libnvml.DeviceGetVgpuMetadata
-	DeviceGetVgpuProcessUtilization                  = libnvml.DeviceGetVgpuProcessUtilization
-	DeviceGetVgpuProcessesUtilizationInfo            = libnvml.DeviceGetVgpuProcessesUtilizationInfo
-	DeviceGetVgpuSchedulerCapabilities               = libnvml.DeviceGetVgpuSchedulerCapabilities
-	DeviceGetVgpuSchedulerLog                        = libnvml.DeviceGetVgpuSchedulerLog
-	DeviceGetVgpuSchedulerState                      = libnvml.DeviceGetVgpuSchedulerState
-	DeviceGetVgpuTypeCreatablePlacements             = libnvml.DeviceGetVgpuTypeCreatablePlacements
-	DeviceGetVgpuTypeSupportedPlacements             = libnvml.DeviceGetVgpuTypeSupportedPlacements
-	DeviceGetVgpuUtilization                         = libnvml.DeviceGetVgpuUtilization
-	DeviceGetViolationStatus                         = libnvml.DeviceGetViolationStatus
-	DeviceGetVirtualizationMode                      = libnvml.DeviceGetVirtualizationMode
-	DeviceIsMigDeviceHandle                          = libnvml.DeviceIsMigDeviceHandle
-	DeviceModifyDrainState                           = libnvml.DeviceModifyDrainState
-	DeviceOnSameBoard                                = libnvml.DeviceOnSameBoard
-	DevicePowerSmoothingActivatePresetProfile        = libnvml.DevicePowerSmoothingActivatePresetProfile
-	DevicePowerSmoothingSetState                     = libnvml.DevicePowerSmoothingSetState
-	DevicePowerSmoothingUpdatePresetProfileParam     = libnvml.DevicePowerSmoothingUpdatePresetProfileParam
-	DeviceQueryDrainState                            = libnvml.DeviceQueryDrainState
-	DeviceReadWritePRM_v1                            = libnvml.DeviceReadWritePRM_v1
-	DeviceRegisterEvents                             = libnvml.DeviceRegisterEvents
-	DeviceRemoveGpu                                  = libnvml.DeviceRemoveGpu
-	DeviceRemoveGpu_v2                               = libnvml.DeviceRemoveGpu_v2
-	DeviceResetApplicationsClocks                    = libnvml.DeviceResetApplicationsClocks
-	DeviceResetGpuLockedClocks                       = libnvml.DeviceResetGpuLockedClocks
-	DeviceResetMemoryLockedClocks                    = libnvml.DeviceResetMemoryLockedClocks
-	DeviceResetNvLinkErrorCounters                   = libnvml.DeviceResetNvLinkErrorCounters
-	DeviceResetNvLinkUtilizationCounter              = libnvml.DeviceResetNvLinkUtilizationCounter
-	DeviceSetAPIRestriction                          = libnvml.DeviceSetAPIRestriction
-	DeviceSetAccountingMode                          = libnvml.DeviceSetAccountingMode
-	DeviceSetApplicationsClocks                      = libnvml.DeviceSetApplicationsClocks
-	DeviceSetAutoBoostedClocksEnabled                = libnvml.DeviceSetAutoBoostedClocksEnabled
-	DeviceSetClockOffsets                            = libnvml.DeviceSetClockOffsets
-	DeviceSetComputeMode                             = libnvml.DeviceSetComputeMode
-	DeviceSetConfComputeUnprotectedMemSize           = libnvml.DeviceSetConfComputeUnprotectedMemSize
-	DeviceSetCpuAffinity                             = libnvml.DeviceSetCpuAffinity
-	DeviceSetDefaultAutoBoostedClocksEnabled         = libnvml.DeviceSetDefaultAutoBoostedClocksEnabled
-	DeviceSetDefaultFanSpeed_v2                      = libnvml.DeviceSetDefaultFanSpeed_v2
-	DeviceSetDramEncryptionMode                      = libnvml.DeviceSetDramEncryptionMode
-	DeviceSetDriverModel                             = libnvml.DeviceSetDriverModel
-	DeviceSetEccMode                                 = libnvml.DeviceSetEccMode
-	DeviceSetFanControlPolicy                        = libnvml.DeviceSetFanControlPolicy
-	DeviceSetFanSpeed_v2                             = libnvml.DeviceSetFanSpeed_v2
-	DeviceSetGpcClkVfOffset                          = libnvml.DeviceSetGpcClkVfOffset
-	DeviceSetGpuLockedClocks                         = libnvml.DeviceSetGpuLockedClocks
-	DeviceSetGpuOperationMode                        = libnvml.DeviceSetGpuOperationMode
-	DeviceSetMemClkVfOffset                          = libnvml.DeviceSetMemClkVfOffset
-	DeviceSetMemoryLockedClocks                      = libnvml.DeviceSetMemoryLockedClocks
-	DeviceSetMigMode                                 = libnvml.DeviceSetMigMode
-	DeviceSetNvLinkDeviceLowPowerThreshold           = libnvml.DeviceSetNvLinkDeviceLowPowerThreshold
-	DeviceSetNvLinkUtilizationControl                = libnvml.DeviceSetNvLinkUtilizationControl
-	DeviceSetNvlinkBwMode                            = libnvml.DeviceSetNvlinkBwMode
-	DeviceSetPersistenceMode                         = libnvml.DeviceSetPersistenceMode
-	DeviceSetPowerManagementLimit                    = libnvml.DeviceSetPowerManagementLimit
-	DeviceSetPowerManagementLimit_v2                 = libnvml.DeviceSetPowerManagementLimit_v2
-	DeviceSetTemperatureThreshold                    = libnvml.DeviceSetTemperatureThreshold
-	DeviceSetVgpuCapabilities                        = libnvml.DeviceSetVgpuCapabilities
-	DeviceSetVgpuHeterogeneousMode                   = libnvml.DeviceSetVgpuHeterogeneousMode
-	DeviceSetVgpuSchedulerState                      = libnvml.DeviceSetVgpuSchedulerState
-	DeviceSetVirtualizationMode                      = libnvml.DeviceSetVirtualizationMode
-	DeviceValidateInforom                            = libnvml.DeviceValidateInforom
-	DeviceWorkloadPowerProfileClearRequestedProfiles = libnvml.DeviceWorkloadPowerProfileClearRequestedProfiles
-	DeviceWorkloadPowerProfileGetCurrentProfiles     = libnvml.DeviceWorkloadPowerProfileGetCurrentProfiles
-	DeviceWorkloadPowerProfileGetProfilesInfo        = libnvml.DeviceWorkloadPowerProfileGetProfilesInfo
-	DeviceWorkloadPowerProfileSetRequestedProfiles   = libnvml.DeviceWorkloadPowerProfileSetRequestedProfiles
-	ErrorString                                      = libnvml.ErrorString
-	EventSetCreate                                   = libnvml.EventSetCreate
-	EventSetFree                                     = libnvml.EventSetFree
-	EventSetWait                                     = libnvml.EventSetWait
-	Extensions                                       = libnvml.Extensions
-	GetExcludedDeviceCount                           = libnvml.GetExcludedDeviceCount
-	GetExcludedDeviceInfoByIndex                     = libnvml.GetExcludedDeviceInfoByIndex
-	GetVgpuCompatibility                             = libnvml.GetVgpuCompatibility
-	GetVgpuDriverCapabilities                        = libnvml.GetVgpuDriverCapabilities
-	GetVgpuVersion                                   = libnvml.GetVgpuVersion
-	GpmMetricsGet                                    = libnvml.GpmMetricsGet
-	GpmMetricsGetV                                   = libnvml.GpmMetricsGetV
-	GpmMigSampleGet                                  = libnvml.GpmMigSampleGet
-	GpmQueryDeviceSupport                            = libnvml.GpmQueryDeviceSupport
-	GpmQueryDeviceSupportV                           = libnvml.GpmQueryDeviceSupportV
-	GpmQueryIfStreamingEnabled                       = libnvml.GpmQueryIfStreamingEnabled
-	GpmSampleAlloc                                   = libnvml.GpmSampleAlloc
-	GpmSampleFree                                    = libnvml.GpmSampleFree
-	GpmSampleGet                                     = libnvml.GpmSampleGet
-	GpmSetStreamingEnabled                           = libnvml.GpmSetStreamingEnabled
-	GpuInstanceCreateComputeInstance                 = libnvml.GpuInstanceCreateComputeInstance
-	GpuInstanceCreateComputeInstanceWithPlacement    = libnvml.GpuInstanceCreateComputeInstanceWithPlacement
-	GpuInstanceDestroy                               = libnvml.GpuInstanceDestroy
-	GpuInstanceGetActiveVgpus                        = libnvml.GpuInstanceGetActiveVgpus
-	GpuInstanceGetComputeInstanceById                = libnvml.GpuInstanceGetComputeInstanceById
-	GpuInstanceGetComputeInstancePossiblePlacements  = libnvml.GpuInstanceGetComputeInstancePossiblePlacements
-	GpuInstanceGetComputeInstanceProfileInfo         = libnvml.GpuInstanceGetComputeInstanceProfileInfo
-	GpuInstanceGetComputeInstanceProfileInfoV        = libnvml.GpuInstanceGetComputeInstanceProfileInfoV
-	GpuInstanceGetComputeInstanceRemainingCapacity   = libnvml.GpuInstanceGetComputeInstanceRemainingCapacity
-	GpuInstanceGetComputeInstances                   = libnvml.GpuInstanceGetComputeInstances
-	GpuInstanceGetCreatableVgpus                     = libnvml.GpuInstanceGetCreatableVgpus
-	GpuInstanceGetInfo                               = libnvml.GpuInstanceGetInfo
-	GpuInstanceGetVgpuHeterogeneousMode              = libnvml.GpuInstanceGetVgpuHeterogeneousMode
-	GpuInstanceGetVgpuSchedulerLog                   = libnvml.GpuInstanceGetVgpuSchedulerLog
-	GpuInstanceGetVgpuSchedulerState                 = libnvml.GpuInstanceGetVgpuSchedulerState
-	GpuInstanceGetVgpuTypeCreatablePlacements        = libnvml.GpuInstanceGetVgpuTypeCreatablePlacements
-	GpuInstanceSetVgpuHeterogeneousMode              = libnvml.GpuInstanceSetVgpuHeterogeneousMode
-	GpuInstanceSetVgpuSchedulerState                 = libnvml.GpuInstanceSetVgpuSchedulerState
-	Init                                             = libnvml.Init
-	InitWithFlags                                    = libnvml.InitWithFlags
-	SetVgpuVersion                                   = libnvml.SetVgpuVersion
-	Shutdown                                         = libnvml.Shutdown
-	SystemEventSetCreate                             = libnvml.SystemEventSetCreate
-	SystemEventSetFree                               = libnvml.SystemEventSetFree
-	SystemEventSetWait                               = libnvml.SystemEventSetWait
-	SystemGetConfComputeCapabilities                 = libnvml.SystemGetConfComputeCapabilities
-	SystemGetConfComputeGpusReadyState               = libnvml.SystemGetConfComputeGpusReadyState
-	SystemGetConfComputeKeyRotationThresholdInfo     = libnvml.SystemGetConfComputeKeyRotationThresholdInfo
-	SystemGetConfComputeSettings                     = libnvml.SystemGetConfComputeSettings
-	SystemGetConfComputeState                        = libnvml.SystemGetConfComputeState
-	SystemGetCudaDriverVersion                       = libnvml.SystemGetCudaDriverVersion
-	SystemGetCudaDriverVersion_v2                    = libnvml.SystemGetCudaDriverVersion_v2
-	SystemGetDriverBranch                            = libnvml.SystemGetDriverBranch
-	SystemGetDriverVersion                           = libnvml.SystemGetDriverVersion
-	SystemGetHicVersion                              = libnvml.SystemGetHicVersion
-	SystemGetNVMLVersion                             = libnvml.SystemGetNVMLVersion
-	SystemGetNvlinkBwMode                            = libnvml.SystemGetNvlinkBwMode
-	SystemGetProcessName                             = libnvml.SystemGetProcessName
-	SystemGetTopologyGpuSet                          = libnvml.SystemGetTopologyGpuSet
-	SystemRegisterEvents                             = libnvml.SystemRegisterEvents
-	SystemSetConfComputeGpusReadyState               = libnvml.SystemSetConfComputeGpusReadyState
-	SystemSetConfComputeKeyRotationThresholdInfo     = libnvml.SystemSetConfComputeKeyRotationThresholdInfo
-	SystemSetNvlinkBwMode                            = libnvml.SystemSetNvlinkBwMode
-	UnitGetCount                                     = libnvml.UnitGetCount
-	UnitGetDevices                                   = libnvml.UnitGetDevices
-	UnitGetFanSpeedInfo                              = libnvml.UnitGetFanSpeedInfo
-	UnitGetHandleByIndex                             = libnvml.UnitGetHandleByIndex
-	UnitGetLedState                                  = libnvml.UnitGetLedState
-	UnitGetPsuInfo                                   = libnvml.UnitGetPsuInfo
-	UnitGetTemperature                               = libnvml.UnitGetTemperature
-	UnitGetUnitInfo                                  = libnvml.UnitGetUnitInfo
-	UnitSetLedState                                  = libnvml.UnitSetLedState
-	VgpuInstanceClearAccountingPids                  = libnvml.VgpuInstanceClearAccountingPids
-	VgpuInstanceGetAccountingMode                    = libnvml.VgpuInstanceGetAccountingMode
-	VgpuInstanceGetAccountingPids                    = libnvml.VgpuInstanceGetAccountingPids
-	VgpuInstanceGetAccountingStats                   = libnvml.VgpuInstanceGetAccountingStats
-	VgpuInstanceGetEccMode                           = libnvml.VgpuInstanceGetEccMode
-	VgpuInstanceGetEncoderCapacity                   = libnvml.VgpuInstanceGetEncoderCapacity
-	VgpuInstanceGetEncoderSessions                   = libnvml.VgpuInstanceGetEncoderSessions
-	VgpuInstanceGetEncoderStats                      = libnvml.VgpuInstanceGetEncoderStats
-	VgpuInstanceGetFBCSessions                       = libnvml.VgpuInstanceGetFBCSessions
-	VgpuInstanceGetFBCStats                          = libnvml.VgpuInstanceGetFBCStats
-	VgpuInstanceGetFbUsage                           = libnvml.VgpuInstanceGetFbUsage
-	VgpuInstanceGetFrameRateLimit                    = libnvml.VgpuInstanceGetFrameRateLimit
-	VgpuInstanceGetGpuInstanceId                     = libnvml.VgpuInstanceGetGpuInstanceId
-	VgpuInstanceGetGpuPciId                          = libnvml.VgpuInstanceGetGpuPciId
-	VgpuInstanceGetLicenseInfo                       = libnvml.VgpuInstanceGetLicenseInfo
-	VgpuInstanceGetLicenseStatus                     = libnvml.VgpuInstanceGetLicenseStatus
-	VgpuInstanceGetMdevUUID                          = libnvml.VgpuInstanceGetMdevUUID
-	VgpuInstanceGetMetadata                          = libnvml.VgpuInstanceGetMetadata
-	VgpuInstanceGetRuntimeStateSize                  = libnvml.VgpuInstanceGetRuntimeStateSize
-	VgpuInstanceGetType                              = libnvml.VgpuInstanceGetType
-	VgpuInstanceGetUUID                              = libnvml.VgpuInstanceGetUUID
-	VgpuInstanceGetVmDriverVersion                   = libnvml.VgpuInstanceGetVmDriverVersion
-	VgpuInstanceGetVmID                              = libnvml.VgpuInstanceGetVmID
-	VgpuInstanceSetEncoderCapacity                   = libnvml.VgpuInstanceSetEncoderCapacity
-	VgpuTypeGetBAR1Info                              = libnvml.VgpuTypeGetBAR1Info
-	VgpuTypeGetCapabilities                          = libnvml.VgpuTypeGetCapabilities
-	VgpuTypeGetClass                                 = libnvml.VgpuTypeGetClass
-	VgpuTypeGetDeviceID                              = libnvml.VgpuTypeGetDeviceID
-	VgpuTypeGetFrameRateLimit                        = libnvml.VgpuTypeGetFrameRateLimit
-	VgpuTypeGetFramebufferSize                       = libnvml.VgpuTypeGetFramebufferSize
-	VgpuTypeGetGpuInstanceProfileId                  = libnvml.VgpuTypeGetGpuInstanceProfileId
-	VgpuTypeGetLicense                               = libnvml.VgpuTypeGetLicense
-	VgpuTypeGetMaxInstances                          = libnvml.VgpuTypeGetMaxInstances
-	VgpuTypeGetMaxInstancesPerGpuInstance            = libnvml.VgpuTypeGetMaxInstancesPerGpuInstance
-	VgpuTypeGetMaxInstancesPerVm                     = libnvml.VgpuTypeGetMaxInstancesPerVm
-	VgpuTypeGetName                                  = libnvml.VgpuTypeGetName
-	VgpuTypeGetNumDisplayHeads                       = libnvml.VgpuTypeGetNumDisplayHeads
-	VgpuTypeGetResolution                            = libnvml.VgpuTypeGetResolution
+	ComputeInstanceDestroy                            = libnvml.ComputeInstanceDestroy
+	ComputeInstanceGetInfo                            = libnvml.ComputeInstanceGetInfo
+	DeviceClearAccountingPids                         = libnvml.DeviceClearAccountingPids
+	DeviceClearCpuAffinity                            = libnvml.DeviceClearCpuAffinity
+	DeviceClearEccErrorCounts                         = libnvml.DeviceClearEccErrorCounts
+	DeviceClearFieldValues                            = libnvml.DeviceClearFieldValues
+	DeviceCreateGpuInstance                           = libnvml.DeviceCreateGpuInstance
+	DeviceCreateGpuInstanceWithPlacement              = libnvml.DeviceCreateGpuInstanceWithPlacement
+	DeviceDiscoverGpus                                = libnvml.DeviceDiscoverGpus
+	DeviceFreezeNvLinkUtilizationCounter              = libnvml.DeviceFreezeNvLinkUtilizationCounter
+	DeviceGetAPIRestriction                           = libnvml.DeviceGetAPIRestriction
+	DeviceGetAccountingBufferSize                     = libnvml.DeviceGetAccountingBufferSize
+	DeviceGetAccountingMode                           = libnvml.DeviceGetAccountingMode
+	DeviceGetAccountingPids                           = libnvml.DeviceGetAccountingPids
+	DeviceGetAccountingStats                          = libnvml.DeviceGetAccountingStats
+	DeviceGetAccountingStats_v2                       = libnvml.DeviceGetAccountingStats_v2
+	DeviceGetActiveVgpus                              = libnvml.DeviceGetActiveVgpus
+	DeviceGetAdaptiveClockInfoStatus                  = libnvml.DeviceGetAdaptiveClockInfoStatus
+	DeviceGetAdaptiveTgpModeInfo_v1                   = libnvml.DeviceGetAdaptiveTgpModeInfo_v1
+	DeviceGetAddressingMode                           = libnvml.DeviceGetAddressingMode
+	DeviceGetApplicationsClock                        = libnvml.DeviceGetApplicationsClock
+	DeviceGetArchitecture                             = libnvml.DeviceGetArchitecture
+	DeviceGetAttributes                               = libnvml.DeviceGetAttributes
+	DeviceGetAutoBoostedClocksEnabled                 = libnvml.DeviceGetAutoBoostedClocksEnabled
+	DeviceGetBAR1MemoryInfo                           = libnvml.DeviceGetBAR1MemoryInfo
+	DeviceGetBBXTimeData_v1                           = libnvml.DeviceGetBBXTimeData_v1
+	DeviceGetBankRemapperStatus_v1                    = libnvml.DeviceGetBankRemapperStatus_v1
+	DeviceGetBoardId                                  = libnvml.DeviceGetBoardId
+	DeviceGetBoardPartNumber                          = libnvml.DeviceGetBoardPartNumber
+	DeviceGetBrand                                    = libnvml.DeviceGetBrand
+	DeviceGetBridgeChipInfo                           = libnvml.DeviceGetBridgeChipInfo
+	DeviceGetBusType                                  = libnvml.DeviceGetBusType
+	DeviceGetC2cModeInfoV                             = libnvml.DeviceGetC2cModeInfoV
+	DeviceGetCapabilities                             = libnvml.DeviceGetCapabilities
+	DeviceGetClkMonStatus                             = libnvml.DeviceGetClkMonStatus
+	DeviceGetClock                                    = libnvml.DeviceGetClock
+	DeviceGetClockInfo                                = libnvml.DeviceGetClockInfo
+	DeviceGetClockOffsets                             = libnvml.DeviceGetClockOffsets
+	DeviceGetComputeInstanceId                        = libnvml.DeviceGetComputeInstanceId
+	DeviceGetComputeMode                              = libnvml.DeviceGetComputeMode
+	DeviceGetComputeRunningProcesses                  = libnvml.DeviceGetComputeRunningProcesses
+	DeviceGetConfComputeGpuAttestationReport          = libnvml.DeviceGetConfComputeGpuAttestationReport
+	DeviceGetConfComputeGpuCertificate                = libnvml.DeviceGetConfComputeGpuCertificate
+	DeviceGetConfComputeMemSizeInfo                   = libnvml.DeviceGetConfComputeMemSizeInfo
+	DeviceGetConfComputeProtectedMemoryUsage          = libnvml.DeviceGetConfComputeProtectedMemoryUsage
+	DeviceGetCoolerInfo                               = libnvml.DeviceGetCoolerInfo
+	DeviceGetCount                                    = libnvml.DeviceGetCount
+	DeviceGetCpuAffinity                              = libnvml.DeviceGetCpuAffinity
+	DeviceGetCpuAffinityWithinScope                   = libnvml.DeviceGetCpuAffinityWithinScope
+	DeviceGetCreatableVgpus                           = libnvml.DeviceGetCreatableVgpus
+	DeviceGetCudaComputeCapability                    = libnvml.DeviceGetCudaComputeCapability
+	DeviceGetCurrPcieLinkGeneration                   = libnvml.DeviceGetCurrPcieLinkGeneration
+	DeviceGetCurrPcieLinkWidth                        = libnvml.DeviceGetCurrPcieLinkWidth
+	DeviceGetCurrentClockFreqs                        = libnvml.DeviceGetCurrentClockFreqs
+	DeviceGetCurrentClocksEventReasons                = libnvml.DeviceGetCurrentClocksEventReasons
+	DeviceGetCurrentClocksThrottleReasons             = libnvml.DeviceGetCurrentClocksThrottleReasons
+	DeviceGetDecoderUtilization                       = libnvml.DeviceGetDecoderUtilization
+	DeviceGetDefaultApplicationsClock                 = libnvml.DeviceGetDefaultApplicationsClock
+	DeviceGetDefaultEccMode                           = libnvml.DeviceGetDefaultEccMode
+	DeviceGetDetailedEccErrors                        = libnvml.DeviceGetDetailedEccErrors
+	DeviceGetDeviceHandleFromMigDeviceHandle          = libnvml.DeviceGetDeviceHandleFromMigDeviceHandle
+	DeviceGetDisplayActive                            = libnvml.DeviceGetDisplayActive
+	DeviceGetDisplayMode                              = libnvml.DeviceGetDisplayMode
+	DeviceGetDramEncryptionMode                       = libnvml.DeviceGetDramEncryptionMode
+	DeviceGetDriverModel                              = libnvml.DeviceGetDriverModel
+	DeviceGetDriverModel_v2                           = libnvml.DeviceGetDriverModel_v2
+	DeviceGetDynamicPstatesInfo                       = libnvml.DeviceGetDynamicPstatesInfo
+	DeviceGetEccMode                                  = libnvml.DeviceGetEccMode
+	DeviceGetEncoderCapacity                          = libnvml.DeviceGetEncoderCapacity
+	DeviceGetEncoderSessions                          = libnvml.DeviceGetEncoderSessions
+	DeviceGetEncoderStats                             = libnvml.DeviceGetEncoderStats
+	DeviceGetEncoderUtilization                       = libnvml.DeviceGetEncoderUtilization
+	DeviceGetEnforcedPowerLimit                       = libnvml.DeviceGetEnforcedPowerLimit
+	DeviceGetFBCSessions                              = libnvml.DeviceGetFBCSessions
+	DeviceGetFBCStats                                 = libnvml.DeviceGetFBCStats
+	DeviceGetFanControlPolicy_v2                      = libnvml.DeviceGetFanControlPolicy_v2
+	DeviceGetFanSpeed                                 = libnvml.DeviceGetFanSpeed
+	DeviceGetFanSpeedRPM                              = libnvml.DeviceGetFanSpeedRPM
+	DeviceGetFanSpeed_v2                              = libnvml.DeviceGetFanSpeed_v2
+	DeviceGetFieldValues                              = libnvml.DeviceGetFieldValues
+	DeviceGetGpcClkMinMaxVfOffset                     = libnvml.DeviceGetGpcClkMinMaxVfOffset
+	DeviceGetGpcClkVfOffset                           = libnvml.DeviceGetGpcClkVfOffset
+	DeviceGetGpuFabricInfo                            = libnvml.DeviceGetGpuFabricInfo
+	DeviceGetGpuFabricInfoV                           = libnvml.DeviceGetGpuFabricInfoV
+	DeviceGetGpuFabricInfo_v4                         = libnvml.DeviceGetGpuFabricInfo_v4
+	DeviceGetGpuInstanceById                          = libnvml.DeviceGetGpuInstanceById
+	DeviceGetGpuInstanceId                            = libnvml.DeviceGetGpuInstanceId
+	DeviceGetGpuInstancePossiblePlacements            = libnvml.DeviceGetGpuInstancePossiblePlacements
+	DeviceGetGpuInstanceProfileInfo                   = libnvml.DeviceGetGpuInstanceProfileInfo
+	DeviceGetGpuInstanceProfileInfoByIdV              = libnvml.DeviceGetGpuInstanceProfileInfoByIdV
+	DeviceGetGpuInstanceProfileInfoV                  = libnvml.DeviceGetGpuInstanceProfileInfoV
+	DeviceGetGpuInstanceRemainingCapacity             = libnvml.DeviceGetGpuInstanceRemainingCapacity
+	DeviceGetGpuInstances                             = libnvml.DeviceGetGpuInstances
+	DeviceGetGpuMaxPcieLinkGeneration                 = libnvml.DeviceGetGpuMaxPcieLinkGeneration
+	DeviceGetGpuOperationMode                         = libnvml.DeviceGetGpuOperationMode
+	DeviceGetGraphicsRunningProcesses                 = libnvml.DeviceGetGraphicsRunningProcesses
+	DeviceGetGridLicensableFeatures                   = libnvml.DeviceGetGridLicensableFeatures
+	DeviceGetGspFirmwareMode                          = libnvml.DeviceGetGspFirmwareMode
+	DeviceGetGspFirmwareVersion                       = libnvml.DeviceGetGspFirmwareVersion
+	DeviceGetHandleByIndex                            = libnvml.DeviceGetHandleByIndex
+	DeviceGetHandleByPciBusId                         = libnvml.DeviceGetHandleByPciBusId
+	DeviceGetHandleBySerial                           = libnvml.DeviceGetHandleBySerial
+	DeviceGetHandleByUUID                             = libnvml.DeviceGetHandleByUUID
+	DeviceGetHandleByUUIDV                            = libnvml.DeviceGetHandleByUUIDV
+	DeviceGetHostVgpuMode                             = libnvml.DeviceGetHostVgpuMode
+	DeviceGetHostname_v1                              = libnvml.DeviceGetHostname_v1
+	DeviceGetIndex                                    = libnvml.DeviceGetIndex
+	DeviceGetInforomConfigurationChecksum             = libnvml.DeviceGetInforomConfigurationChecksum
+	DeviceGetInforomImageVersion                      = libnvml.DeviceGetInforomImageVersion
+	DeviceGetInforomVersion                           = libnvml.DeviceGetInforomVersion
+	DeviceGetIrqNum                                   = libnvml.DeviceGetIrqNum
+	DeviceGetJpgUtilization                           = libnvml.DeviceGetJpgUtilization
+	DeviceGetLastBBXFlushTime                         = libnvml.DeviceGetLastBBXFlushTime
+	DeviceGetMPSComputeRunningProcesses               = libnvml.DeviceGetMPSComputeRunningProcesses
+	DeviceGetMarginTemperature                        = libnvml.DeviceGetMarginTemperature
+	DeviceGetMaxClockInfo                             = libnvml.DeviceGetMaxClockInfo
+	DeviceGetMaxCustomerBoostClock                    = libnvml.DeviceGetMaxCustomerBoostClock
+	DeviceGetMaxMigDeviceCount                        = libnvml.DeviceGetMaxMigDeviceCount
+	DeviceGetMaxPcieLinkGeneration                    = libnvml.DeviceGetMaxPcieLinkGeneration
+	DeviceGetMaxPcieLinkWidth                         = libnvml.DeviceGetMaxPcieLinkWidth
+	DeviceGetMemClkMinMaxVfOffset                     = libnvml.DeviceGetMemClkMinMaxVfOffset
+	DeviceGetMemClkVfOffset                           = libnvml.DeviceGetMemClkVfOffset
+	DeviceGetMemoryAffinity                           = libnvml.DeviceGetMemoryAffinity
+	DeviceGetMemoryBusWidth                           = libnvml.DeviceGetMemoryBusWidth
+	DeviceGetMemoryErrorCounter                       = libnvml.DeviceGetMemoryErrorCounter
+	DeviceGetMemoryInfo                               = libnvml.DeviceGetMemoryInfo
+	DeviceGetMemoryInfo_v2                            = libnvml.DeviceGetMemoryInfo_v2
+	DeviceGetMemoryLimits_v1                          = libnvml.DeviceGetMemoryLimits_v1
+	DeviceGetMigDeviceHandleByIndex                   = libnvml.DeviceGetMigDeviceHandleByIndex
+	DeviceGetMigMode                                  = libnvml.DeviceGetMigMode
+	DeviceGetMinMaxClockOfPState                      = libnvml.DeviceGetMinMaxClockOfPState
+	DeviceGetMinMaxFanSpeed                           = libnvml.DeviceGetMinMaxFanSpeed
+	DeviceGetMinorNumber                              = libnvml.DeviceGetMinorNumber
+	DeviceGetModuleId                                 = libnvml.DeviceGetModuleId
+	DeviceGetMultiGpuBoard                            = libnvml.DeviceGetMultiGpuBoard
+	DeviceGetName                                     = libnvml.DeviceGetName
+	DeviceGetNumFans                                  = libnvml.DeviceGetNumFans
+	DeviceGetNumGpuCores                              = libnvml.DeviceGetNumGpuCores
+	DeviceGetNumaNodeId                               = libnvml.DeviceGetNumaNodeId
+	DeviceGetNvLinkCapability                         = libnvml.DeviceGetNvLinkCapability
+	DeviceGetNvLinkErrorCounter                       = libnvml.DeviceGetNvLinkErrorCounter
+	DeviceGetNvLinkInfo                               = libnvml.DeviceGetNvLinkInfo
+	DeviceGetNvLinkRemoteDeviceType                   = libnvml.DeviceGetNvLinkRemoteDeviceType
+	DeviceGetNvLinkRemotePciInfo                      = libnvml.DeviceGetNvLinkRemotePciInfo
+	DeviceGetNvLinkState                              = libnvml.DeviceGetNvLinkState
+	DeviceGetNvLinkTelemetrySamples_v1                = libnvml.DeviceGetNvLinkTelemetrySamples_v1
+	DeviceGetNvLinkUtilizationControl                 = libnvml.DeviceGetNvLinkUtilizationControl
+	DeviceGetNvLinkUtilizationCounter                 = libnvml.DeviceGetNvLinkUtilizationCounter
+	DeviceGetNvLinkVersion                            = libnvml.DeviceGetNvLinkVersion
+	DeviceGetNvlinkBwMode                             = libnvml.DeviceGetNvlinkBwMode
+	DeviceGetNvlinkSupportedBwModes                   = libnvml.DeviceGetNvlinkSupportedBwModes
+	DeviceGetOfaUtilization                           = libnvml.DeviceGetOfaUtilization
+	DeviceGetP2PStatus                                = libnvml.DeviceGetP2PStatus
+	DeviceGetPciInfo                                  = libnvml.DeviceGetPciInfo
+	DeviceGetPciInfoExt                               = libnvml.DeviceGetPciInfoExt
+	DeviceGetPcieLinkMaxSpeed                         = libnvml.DeviceGetPcieLinkMaxSpeed
+	DeviceGetPcieReplayCounter                        = libnvml.DeviceGetPcieReplayCounter
+	DeviceGetPcieSpeed                                = libnvml.DeviceGetPcieSpeed
+	DeviceGetPcieThroughput                           = libnvml.DeviceGetPcieThroughput
+	DeviceGetPdi                                      = libnvml.DeviceGetPdi
+	DeviceGetPerformanceModes                         = libnvml.DeviceGetPerformanceModes
+	DeviceGetPerformanceState                         = libnvml.DeviceGetPerformanceState
+	DeviceGetPersistenceMode                          = libnvml.DeviceGetPersistenceMode
+	DeviceGetPgpuMetadataString                       = libnvml.DeviceGetPgpuMetadataString
+	DeviceGetPlatformInfo                             = libnvml.DeviceGetPlatformInfo
+	DeviceGetPowerManagementDefaultLimit              = libnvml.DeviceGetPowerManagementDefaultLimit
+	DeviceGetPowerManagementLimit                     = libnvml.DeviceGetPowerManagementLimit
+	DeviceGetPowerManagementLimitConstraints          = libnvml.DeviceGetPowerManagementLimitConstraints
+	DeviceGetPowerManagementMode                      = libnvml.DeviceGetPowerManagementMode
+	DeviceGetPowerMizerMode_v1                        = libnvml.DeviceGetPowerMizerMode_v1
+	DeviceGetPowerSource                              = libnvml.DeviceGetPowerSource
+	DeviceGetPowerState                               = libnvml.DeviceGetPowerState
+	DeviceGetPowerUsage                               = libnvml.DeviceGetPowerUsage
+	DeviceGetProcessUtilization                       = libnvml.DeviceGetProcessUtilization
+	DeviceGetProcessesUtilizationInfo                 = libnvml.DeviceGetProcessesUtilizationInfo
+	DeviceGetRemappedRows                             = libnvml.DeviceGetRemappedRows
+	DeviceGetRemappedRows_v2                          = libnvml.DeviceGetRemappedRows_v2
+	DeviceGetRepairStatus                             = libnvml.DeviceGetRepairStatus
+	DeviceGetRetiredPages                             = libnvml.DeviceGetRetiredPages
+	DeviceGetRetiredPagesPendingStatus                = libnvml.DeviceGetRetiredPagesPendingStatus
+	DeviceGetRetiredPages_v2                          = libnvml.DeviceGetRetiredPages_v2
+	DeviceGetRowRemapperHistogram                     = libnvml.DeviceGetRowRemapperHistogram
+	DeviceGetRunningProcessDetailList                 = libnvml.DeviceGetRunningProcessDetailList
+	DeviceGetSamples                                  = libnvml.DeviceGetSamples
+	DeviceGetSerial                                   = libnvml.DeviceGetSerial
+	DeviceGetSramEccErrorStatus                       = libnvml.DeviceGetSramEccErrorStatus
+	DeviceGetSramUniqueUncorrectedEccErrorCounts      = libnvml.DeviceGetSramUniqueUncorrectedEccErrorCounts
+	DeviceGetSupportedClocksEventReasons              = libnvml.DeviceGetSupportedClocksEventReasons
+	DeviceGetSupportedClocksThrottleReasons           = libnvml.DeviceGetSupportedClocksThrottleReasons
+	DeviceGetSupportedEventTypes                      = libnvml.DeviceGetSupportedEventTypes
+	DeviceGetSupportedGraphicsClocks                  = libnvml.DeviceGetSupportedGraphicsClocks
+	DeviceGetSupportedMemoryClocks                    = libnvml.DeviceGetSupportedMemoryClocks
+	DeviceGetSupportedPerformanceStates               = libnvml.DeviceGetSupportedPerformanceStates
+	DeviceGetSupportedVgpus                           = libnvml.DeviceGetSupportedVgpus
+	DeviceGetTargetFanSpeed                           = libnvml.DeviceGetTargetFanSpeed
+	DeviceGetTemperature                              = libnvml.DeviceGetTemperature
+	DeviceGetTemperatureThreshold                     = libnvml.DeviceGetTemperatureThreshold
+	DeviceGetTemperatureV                             = libnvml.DeviceGetTemperatureV
+	DeviceGetThermalSettings                          = libnvml.DeviceGetThermalSettings
+	DeviceGetTopologyCommonAncestor                   = libnvml.DeviceGetTopologyCommonAncestor
+	DeviceGetTopologyNearestGpus                      = libnvml.DeviceGetTopologyNearestGpus
+	DeviceGetTotalEccErrors                           = libnvml.DeviceGetTotalEccErrors
+	DeviceGetTotalEnergyConsumption                   = libnvml.DeviceGetTotalEnergyConsumption
+	DeviceGetUUID                                     = libnvml.DeviceGetUUID
+	DeviceGetUnrepairableMemoryFlag_v1                = libnvml.DeviceGetUnrepairableMemoryFlag_v1
+	DeviceGetUtilizationRates                         = libnvml.DeviceGetUtilizationRates
+	DeviceGetVbiosVersion                             = libnvml.DeviceGetVbiosVersion
+	DeviceGetVgpuCapabilities                         = libnvml.DeviceGetVgpuCapabilities
+	DeviceGetVgpuHeterogeneousMode                    = libnvml.DeviceGetVgpuHeterogeneousMode
+	DeviceGetVgpuInstancesUtilizationInfo             = libnvml.DeviceGetVgpuInstancesUtilizationInfo
+	DeviceGetVgpuMetadata                             = libnvml.DeviceGetVgpuMetadata
+	DeviceGetVgpuProcessUtilization                   = libnvml.DeviceGetVgpuProcessUtilization
+	DeviceGetVgpuProcessesUtilizationInfo             = libnvml.DeviceGetVgpuProcessesUtilizationInfo
+	DeviceGetVgpuSchedulerCapabilities                = libnvml.DeviceGetVgpuSchedulerCapabilities
+	DeviceGetVgpuSchedulerLog                         = libnvml.DeviceGetVgpuSchedulerLog
+	DeviceGetVgpuSchedulerLog_v2                      = libnvml.DeviceGetVgpuSchedulerLog_v2
+	DeviceGetVgpuSchedulerState                       = libnvml.DeviceGetVgpuSchedulerState
+	DeviceGetVgpuSchedulerState_v2                    = libnvml.DeviceGetVgpuSchedulerState_v2
+	DeviceGetVgpuTypeCreatablePlacements              = libnvml.DeviceGetVgpuTypeCreatablePlacements
+	DeviceGetVgpuTypeSupportedPlacements              = libnvml.DeviceGetVgpuTypeSupportedPlacements
+	DeviceGetVgpuUtilization                          = libnvml.DeviceGetVgpuUtilization
+	DeviceGetViolationStatus                          = libnvml.DeviceGetViolationStatus
+	DeviceGetVirtualizationMode                       = libnvml.DeviceGetVirtualizationMode
+	DeviceIsMigDeviceHandle                           = libnvml.DeviceIsMigDeviceHandle
+	DeviceModifyDrainState                            = libnvml.DeviceModifyDrainState
+	DeviceOnSameBoard                                 = libnvml.DeviceOnSameBoard
+	DevicePerfMetricsGetSamples_v1                    = libnvml.DevicePerfMetricsGetSamples_v1
+	DevicePowerSmoothingActivatePresetProfile         = libnvml.DevicePowerSmoothingActivatePresetProfile
+	DevicePowerSmoothingSetState                      = libnvml.DevicePowerSmoothingSetState
+	DevicePowerSmoothingUpdatePresetProfileParam      = libnvml.DevicePowerSmoothingUpdatePresetProfileParam
+	DeviceQueryDrainState                             = libnvml.DeviceQueryDrainState
+	DeviceReadPRMCounters_v1                          = libnvml.DeviceReadPRMCounters_v1
+	DeviceReadWritePRM_v1                             = libnvml.DeviceReadWritePRM_v1
+	DeviceRegisterEvents                              = libnvml.DeviceRegisterEvents
+	DeviceRemoveGpu                                   = libnvml.DeviceRemoveGpu
+	DeviceRemoveGpu_v2                                = libnvml.DeviceRemoveGpu_v2
+	DeviceResetApplicationsClocks                     = libnvml.DeviceResetApplicationsClocks
+	DeviceResetGpuLockedClocks                        = libnvml.DeviceResetGpuLockedClocks
+	DeviceResetMemoryLockedClocks                     = libnvml.DeviceResetMemoryLockedClocks
+	DeviceResetNvLinkErrorCounters                    = libnvml.DeviceResetNvLinkErrorCounters
+	DeviceResetNvLinkUtilizationCounter               = libnvml.DeviceResetNvLinkUtilizationCounter
+	DeviceSetAPIRestriction                           = libnvml.DeviceSetAPIRestriction
+	DeviceSetAccountingMode                           = libnvml.DeviceSetAccountingMode
+	DeviceSetAdaptiveTgpMode_v1                       = libnvml.DeviceSetAdaptiveTgpMode_v1
+	DeviceSetApplicationsClocks                       = libnvml.DeviceSetApplicationsClocks
+	DeviceSetAutoBoostedClocksEnabled                 = libnvml.DeviceSetAutoBoostedClocksEnabled
+	DeviceSetClockOffsets                             = libnvml.DeviceSetClockOffsets
+	DeviceSetComputeMode                              = libnvml.DeviceSetComputeMode
+	DeviceSetConfComputeUnprotectedMemSize            = libnvml.DeviceSetConfComputeUnprotectedMemSize
+	DeviceSetCpuAffinity                              = libnvml.DeviceSetCpuAffinity
+	DeviceSetDefaultAutoBoostedClocksEnabled          = libnvml.DeviceSetDefaultAutoBoostedClocksEnabled
+	DeviceSetDefaultFanSpeed_v2                       = libnvml.DeviceSetDefaultFanSpeed_v2
+	DeviceSetDramEncryptionMode                       = libnvml.DeviceSetDramEncryptionMode
+	DeviceSetDriverModel                              = libnvml.DeviceSetDriverModel
+	DeviceSetEccMode                                  = libnvml.DeviceSetEccMode
+	DeviceSetFanControlPolicy                         = libnvml.DeviceSetFanControlPolicy
+	DeviceSetFanSpeed_v2                              = libnvml.DeviceSetFanSpeed_v2
+	DeviceSetGpcClkVfOffset                           = libnvml.DeviceSetGpcClkVfOffset
+	DeviceSetGpuLockedClocks                          = libnvml.DeviceSetGpuLockedClocks
+	DeviceSetGpuOperationMode                         = libnvml.DeviceSetGpuOperationMode
+	DeviceSetHostname_v1                              = libnvml.DeviceSetHostname_v1
+	DeviceSetMemClkVfOffset                           = libnvml.DeviceSetMemClkVfOffset
+	DeviceSetMemoryLimits_v1                          = libnvml.DeviceSetMemoryLimits_v1
+	DeviceSetMemoryLockedClocks                       = libnvml.DeviceSetMemoryLockedClocks
+	DeviceSetMigMode                                  = libnvml.DeviceSetMigMode
+	DeviceSetNvLinkDeviceLowPowerThreshold            = libnvml.DeviceSetNvLinkDeviceLowPowerThreshold
+	DeviceSetNvLinkUtilizationControl                 = libnvml.DeviceSetNvLinkUtilizationControl
+	DeviceSetNvlinkBwMode                             = libnvml.DeviceSetNvlinkBwMode
+	DeviceSetNvlinkBwModeAsync_v1                     = libnvml.DeviceSetNvlinkBwModeAsync_v1
+	DeviceSetPersistenceMode                          = libnvml.DeviceSetPersistenceMode
+	DeviceSetPowerManagementLimit                     = libnvml.DeviceSetPowerManagementLimit
+	DeviceSetPowerManagementLimit_v2                  = libnvml.DeviceSetPowerManagementLimit_v2
+	DeviceSetRusdSettings_v1                          = libnvml.DeviceSetRusdSettings_v1
+	DeviceSetTemperatureThreshold                     = libnvml.DeviceSetTemperatureThreshold
+	DeviceSetVgpuCapabilities                         = libnvml.DeviceSetVgpuCapabilities
+	DeviceSetVgpuHeterogeneousMode                    = libnvml.DeviceSetVgpuHeterogeneousMode
+	DeviceSetVgpuSchedulerState                       = libnvml.DeviceSetVgpuSchedulerState
+	DeviceSetVgpuSchedulerState_v2                    = libnvml.DeviceSetVgpuSchedulerState_v2
+	DeviceSetVirtualizationMode                       = libnvml.DeviceSetVirtualizationMode
+	DeviceValidateInforom                             = libnvml.DeviceValidateInforom
+	DeviceVgpuForceGspUnload                          = libnvml.DeviceVgpuForceGspUnload
+	DeviceWorkloadPowerProfileClearRequestedProfiles  = libnvml.DeviceWorkloadPowerProfileClearRequestedProfiles
+	DeviceWorkloadPowerProfileGetCurrentProfiles      = libnvml.DeviceWorkloadPowerProfileGetCurrentProfiles
+	DeviceWorkloadPowerProfileGetProfilesInfo         = libnvml.DeviceWorkloadPowerProfileGetProfilesInfo
+	DeviceWorkloadPowerProfileSetRequestedProfiles    = libnvml.DeviceWorkloadPowerProfileSetRequestedProfiles
+	DeviceWorkloadPowerProfileUpdateProfiles_v1       = libnvml.DeviceWorkloadPowerProfileUpdateProfiles_v1
+	ErrorString                                       = libnvml.ErrorString
+	EventSetCreate                                    = libnvml.EventSetCreate
+	EventSetFree                                      = libnvml.EventSetFree
+	EventSetGetContextCount_v1                        = libnvml.EventSetGetContextCount_v1
+	EventSetGetContextData_v1                         = libnvml.EventSetGetContextData_v1
+	EventSetGetContextInfo_v1                         = libnvml.EventSetGetContextInfo_v1
+	EventSetGetGpuOperationalEventContextLegacyXid_v1 = libnvml.EventSetGetGpuOperationalEventContextLegacyXid_v1
+	EventSetRegisterGpuOperationalEvents_v1           = libnvml.EventSetRegisterGpuOperationalEvents_v1
+	EventSetWait                                      = libnvml.EventSetWait
+	EventSetWait_v3                                   = libnvml.EventSetWait_v3
+	Extensions                                        = libnvml.Extensions
+	GetExcludedDeviceCount                            = libnvml.GetExcludedDeviceCount
+	GetExcludedDeviceInfoByIndex                      = libnvml.GetExcludedDeviceInfoByIndex
+	GetVgpuCompatibility                              = libnvml.GetVgpuCompatibility
+	GetVgpuDriverCapabilities                         = libnvml.GetVgpuDriverCapabilities
+	GetVgpuVersion                                    = libnvml.GetVgpuVersion
+	GpmMetricsGet                                     = libnvml.GpmMetricsGet
+	GpmMetricsGetV                                    = libnvml.GpmMetricsGetV
+	GpmMigSampleGet                                   = libnvml.GpmMigSampleGet
+	GpmQueryDeviceSupport                             = libnvml.GpmQueryDeviceSupport
+	GpmQueryDeviceSupportV                            = libnvml.GpmQueryDeviceSupportV
+	GpmQueryIfStreamingEnabled                        = libnvml.GpmQueryIfStreamingEnabled
+	GpmSampleAlloc                                    = libnvml.GpmSampleAlloc
+	GpmSampleFree                                     = libnvml.GpmSampleFree
+	GpmSampleGet                                      = libnvml.GpmSampleGet
+	GpmSetStreamingEnabled                            = libnvml.GpmSetStreamingEnabled
+	GpuInstanceCreateComputeInstance                  = libnvml.GpuInstanceCreateComputeInstance
+	GpuInstanceCreateComputeInstanceWithPlacement     = libnvml.GpuInstanceCreateComputeInstanceWithPlacement
+	GpuInstanceDestroy                                = libnvml.GpuInstanceDestroy
+	GpuInstanceGetActiveVgpus                         = libnvml.GpuInstanceGetActiveVgpus
+	GpuInstanceGetComputeInstanceById                 = libnvml.GpuInstanceGetComputeInstanceById
+	GpuInstanceGetComputeInstancePossiblePlacements   = libnvml.GpuInstanceGetComputeInstancePossiblePlacements
+	GpuInstanceGetComputeInstanceProfileInfo          = libnvml.GpuInstanceGetComputeInstanceProfileInfo
+	GpuInstanceGetComputeInstanceProfileInfoV         = libnvml.GpuInstanceGetComputeInstanceProfileInfoV
+	GpuInstanceGetComputeInstanceRemainingCapacity    = libnvml.GpuInstanceGetComputeInstanceRemainingCapacity
+	GpuInstanceGetComputeInstances                    = libnvml.GpuInstanceGetComputeInstances
+	GpuInstanceGetCreatableVgpus                      = libnvml.GpuInstanceGetCreatableVgpus
+	GpuInstanceGetInfo                                = libnvml.GpuInstanceGetInfo
+	GpuInstanceGetVgpuHeterogeneousMode               = libnvml.GpuInstanceGetVgpuHeterogeneousMode
+	GpuInstanceGetVgpuSchedulerLog                    = libnvml.GpuInstanceGetVgpuSchedulerLog
+	GpuInstanceGetVgpuSchedulerLog_v2                 = libnvml.GpuInstanceGetVgpuSchedulerLog_v2
+	GpuInstanceGetVgpuSchedulerState                  = libnvml.GpuInstanceGetVgpuSchedulerState
+	GpuInstanceGetVgpuSchedulerState_v2               = libnvml.GpuInstanceGetVgpuSchedulerState_v2
+	GpuInstanceGetVgpuTypeCreatablePlacements         = libnvml.GpuInstanceGetVgpuTypeCreatablePlacements
+	GpuInstanceSetVgpuHeterogeneousMode               = libnvml.GpuInstanceSetVgpuHeterogeneousMode
+	GpuInstanceSetVgpuSchedulerState                  = libnvml.GpuInstanceSetVgpuSchedulerState
+	GpuInstanceSetVgpuSchedulerState_v2               = libnvml.GpuInstanceSetVgpuSchedulerState_v2
+	Init                                              = libnvml.Init
+	InitWithFlags                                     = libnvml.InitWithFlags
+	SetVgpuVersion                                    = libnvml.SetVgpuVersion
+	Shutdown                                          = libnvml.Shutdown
+	SystemEventSetCreate                              = libnvml.SystemEventSetCreate
+	SystemEventSetFree                                = libnvml.SystemEventSetFree
+	SystemEventSetWait                                = libnvml.SystemEventSetWait
+	SystemGetCPER_v1                                  = libnvml.SystemGetCPER_v1
+	SystemGetConfComputeCapabilities                  = libnvml.SystemGetConfComputeCapabilities
+	SystemGetConfComputeGpusReadyState                = libnvml.SystemGetConfComputeGpusReadyState
+	SystemGetConfComputeKeyRotationThresholdInfo      = libnvml.SystemGetConfComputeKeyRotationThresholdInfo
+	SystemGetConfComputeSettings                      = libnvml.SystemGetConfComputeSettings
+	SystemGetConfComputeState                         = libnvml.SystemGetConfComputeState
+	SystemGetCudaDriverVersion                        = libnvml.SystemGetCudaDriverVersion
+	SystemGetCudaDriverVersion_v2                     = libnvml.SystemGetCudaDriverVersion_v2
+	SystemGetDriverBranch                             = libnvml.SystemGetDriverBranch
+	SystemGetDriverVersion                            = libnvml.SystemGetDriverVersion
+	SystemGetHicVersion                               = libnvml.SystemGetHicVersion
+	SystemGetNVMLVersion                              = libnvml.SystemGetNVMLVersion
+	SystemGetNvlinkBwMode                             = libnvml.SystemGetNvlinkBwMode
+	SystemGetProcessName                              = libnvml.SystemGetProcessName
+	SystemGetTopologyGpuSet                           = libnvml.SystemGetTopologyGpuSet
+	SystemRegisterEvents                              = libnvml.SystemRegisterEvents
+	SystemSetConfComputeGpusReadyState                = libnvml.SystemSetConfComputeGpusReadyState
+	SystemSetConfComputeKeyRotationThresholdInfo      = libnvml.SystemSetConfComputeKeyRotationThresholdInfo
+	SystemSetNvlinkBwMode                             = libnvml.SystemSetNvlinkBwMode
+	UnitGetCount                                      = libnvml.UnitGetCount
+	UnitGetDevices                                    = libnvml.UnitGetDevices
+	UnitGetFanSpeedInfo                               = libnvml.UnitGetFanSpeedInfo
+	UnitGetHandleByIndex                              = libnvml.UnitGetHandleByIndex
+	UnitGetLedState                                   = libnvml.UnitGetLedState
+	UnitGetPsuInfo                                    = libnvml.UnitGetPsuInfo
+	UnitGetTemperature                                = libnvml.UnitGetTemperature
+	UnitGetUnitInfo                                   = libnvml.UnitGetUnitInfo
+	UnitSetLedState                                   = libnvml.UnitSetLedState
+	VgpuInstanceClearAccountingPids                   = libnvml.VgpuInstanceClearAccountingPids
+	VgpuInstanceGetAccountingMode                     = libnvml.VgpuInstanceGetAccountingMode
+	VgpuInstanceGetAccountingPids                     = libnvml.VgpuInstanceGetAccountingPids
+	VgpuInstanceGetAccountingStats                    = libnvml.VgpuInstanceGetAccountingStats
+	VgpuInstanceGetEccMode                            = libnvml.VgpuInstanceGetEccMode
+	VgpuInstanceGetEncoderCapacity                    = libnvml.VgpuInstanceGetEncoderCapacity
+	VgpuInstanceGetEncoderSessions                    = libnvml.VgpuInstanceGetEncoderSessions
+	VgpuInstanceGetEncoderStats                       = libnvml.VgpuInstanceGetEncoderStats
+	VgpuInstanceGetFBCSessions                        = libnvml.VgpuInstanceGetFBCSessions
+	VgpuInstanceGetFBCStats                           = libnvml.VgpuInstanceGetFBCStats
+	VgpuInstanceGetFbUsage                            = libnvml.VgpuInstanceGetFbUsage
+	VgpuInstanceGetFrameRateLimit                     = libnvml.VgpuInstanceGetFrameRateLimit
+	VgpuInstanceGetGpuInstanceId                      = libnvml.VgpuInstanceGetGpuInstanceId
+	VgpuInstanceGetGpuPciId                           = libnvml.VgpuInstanceGetGpuPciId
+	VgpuInstanceGetLicenseInfo                        = libnvml.VgpuInstanceGetLicenseInfo
+	VgpuInstanceGetLicenseStatus                      = libnvml.VgpuInstanceGetLicenseStatus
+	VgpuInstanceGetMdevUUID                           = libnvml.VgpuInstanceGetMdevUUID
+	VgpuInstanceGetMetadata                           = libnvml.VgpuInstanceGetMetadata
+	VgpuInstanceGetRuntimeStateSize                   = libnvml.VgpuInstanceGetRuntimeStateSize
+	VgpuInstanceGetType                               = libnvml.VgpuInstanceGetType
+	VgpuInstanceGetUUID                               = libnvml.VgpuInstanceGetUUID
+	VgpuInstanceGetVmDriverVersion                    = libnvml.VgpuInstanceGetVmDriverVersion
+	VgpuInstanceGetVmID                               = libnvml.VgpuInstanceGetVmID
+	VgpuInstanceSetEncoderCapacity                    = libnvml.VgpuInstanceSetEncoderCapacity
+	VgpuTypeGetBAR1Info                               = libnvml.VgpuTypeGetBAR1Info
+	VgpuTypeGetCapabilities                           = libnvml.VgpuTypeGetCapabilities
+	VgpuTypeGetClass                                  = libnvml.VgpuTypeGetClass
+	VgpuTypeGetDeviceID                               = libnvml.VgpuTypeGetDeviceID
+	VgpuTypeGetFrameRateLimit                         = libnvml.VgpuTypeGetFrameRateLimit
+	VgpuTypeGetFramebufferSize                        = libnvml.VgpuTypeGetFramebufferSize
+	VgpuTypeGetGpuInstanceProfileId                   = libnvml.VgpuTypeGetGpuInstanceProfileId
+	VgpuTypeGetID                                     = libnvml.VgpuTypeGetID
+	VgpuTypeGetLicense                                = libnvml.VgpuTypeGetLicense
+	VgpuTypeGetMaxInstances                           = libnvml.VgpuTypeGetMaxInstances
+	VgpuTypeGetMaxInstancesPerGpuInstance             = libnvml.VgpuTypeGetMaxInstancesPerGpuInstance
+	VgpuTypeGetMaxInstancesPerVm                      = libnvml.VgpuTypeGetMaxInstancesPerVm
+	VgpuTypeGetName                                   = libnvml.VgpuTypeGetName
+	VgpuTypeGetNumDisplayHeads                        = libnvml.VgpuTypeGetNumDisplayHeads
+	VgpuTypeGetResolution                             = libnvml.VgpuTypeGetResolution
 )
 
 // Interface represents the interface for the library type.
@@ -415,14 +448,18 @@ type Interface interface {
 	DeviceGetAccountingMode(Device) (EnableState, Return)
 	DeviceGetAccountingPids(Device) ([]int, Return)
 	DeviceGetAccountingStats(Device, uint32) (AccountingStats, Return)
+	DeviceGetAccountingStats_v2(Device, uint32) (AccountingStats_v2, Return)
 	DeviceGetActiveVgpus(Device) ([]VgpuInstance, Return)
 	DeviceGetAdaptiveClockInfoStatus(Device) (uint32, Return)
+	DeviceGetAdaptiveTgpModeInfo_v1(Device) (AdaptiveTgpModeInfo_v1, Return)
 	DeviceGetAddressingMode(Device) (DeviceAddressingMode, Return)
 	DeviceGetApplicationsClock(Device, ClockType) (uint32, Return)
 	DeviceGetArchitecture(Device) (DeviceArchitecture, Return)
 	DeviceGetAttributes(Device) (DeviceAttributes, Return)
 	DeviceGetAutoBoostedClocksEnabled(Device) (EnableState, EnableState, Return)
 	DeviceGetBAR1MemoryInfo(Device) (BAR1Memory, Return)
+	DeviceGetBBXTimeData_v1(Device) (BBXTimeData_v1, Return)
+	DeviceGetBankRemapperStatus_v1(Device) (EccBankRemapperStatus_v1, Return)
 	DeviceGetBoardId(Device) (uint32, Return)
 	DeviceGetBoardPartNumber(Device) (string, Return)
 	DeviceGetBrand(Device) (BrandType, Return)
@@ -480,6 +517,7 @@ type Interface interface {
 	DeviceGetGpcClkVfOffset(Device) (int, Return)
 	DeviceGetGpuFabricInfo(Device) (GpuFabricInfo, Return)
 	DeviceGetGpuFabricInfoV(Device) GpuFabricInfoHandler
+	DeviceGetGpuFabricInfo_v4(Device) (GpuFabricInfo_v4, Return)
 	DeviceGetGpuInstanceById(Device, int) (GpuInstance, Return)
 	DeviceGetGpuInstanceId(Device) (int, Return)
 	DeviceGetGpuInstancePossiblePlacements(Device, *GpuInstanceProfileInfo) ([]GpuInstancePlacement, Return)
@@ -500,6 +538,7 @@ type Interface interface {
 	DeviceGetHandleByUUID(string) (Device, Return)
 	DeviceGetHandleByUUIDV(*UUID) (Device, Return)
 	DeviceGetHostVgpuMode(Device) (HostVgpuMode, Return)
+	DeviceGetHostname_v1(Device) (string, Return)
 	DeviceGetIndex(Device) (int, Return)
 	DeviceGetInforomConfigurationChecksum(Device) (uint32, Return)
 	DeviceGetInforomImageVersion(Device) (string, Return)
@@ -521,6 +560,7 @@ type Interface interface {
 	DeviceGetMemoryErrorCounter(Device, MemoryErrorType, EccCounterType, MemoryLocation) (uint64, Return)
 	DeviceGetMemoryInfo(Device) (Memory, Return)
 	DeviceGetMemoryInfo_v2(Device) (Memory_v2, Return)
+	DeviceGetMemoryLimits_v1(Device, string) (MemoryLimits_v1, Return)
 	DeviceGetMigDeviceHandleByIndex(Device, int) (Device, Return)
 	DeviceGetMigMode(Device) (int, int, Return)
 	DeviceGetMinMaxClockOfPState(Device, ClockType, Pstates) (uint32, uint32, Return)
@@ -538,6 +578,7 @@ type Interface interface {
 	DeviceGetNvLinkRemoteDeviceType(Device, int) (IntNvLinkDeviceType, Return)
 	DeviceGetNvLinkRemotePciInfo(Device, int) (PciInfo, Return)
 	DeviceGetNvLinkState(Device, int) (EnableState, Return)
+	DeviceGetNvLinkTelemetrySamples_v1(Device, NvlinkTelemetrySamples_v1) (NvlinkTelemetrySamples_v1, Return)
 	DeviceGetNvLinkUtilizationControl(Device, int, int) (NvLinkUtilizationControl, Return)
 	DeviceGetNvLinkUtilizationCounter(Device, int, int) (uint64, uint64, Return)
 	DeviceGetNvLinkVersion(Device, int) (uint32, Return)
@@ -568,6 +609,7 @@ type Interface interface {
 	DeviceGetProcessUtilization(Device, uint64) ([]ProcessUtilizationSample, Return)
 	DeviceGetProcessesUtilizationInfo(Device) (ProcessesUtilizationInfo, Return)
 	DeviceGetRemappedRows(Device) (int, int, bool, bool, Return)
+	DeviceGetRemappedRows_v2(Device) (RemappedRowsInfo_v2, Return)
 	DeviceGetRepairStatus(Device) (RepairStatus, Return)
 	DeviceGetRetiredPages(Device, PageRetirementCause) ([]uint64, Return)
 	DeviceGetRetiredPagesPendingStatus(Device) (EnableState, Return)
@@ -595,6 +637,7 @@ type Interface interface {
 	DeviceGetTotalEccErrors(Device, MemoryErrorType, EccCounterType) (uint64, Return)
 	DeviceGetTotalEnergyConsumption(Device) (uint64, Return)
 	DeviceGetUUID(Device) (string, Return)
+	DeviceGetUnrepairableMemoryFlag_v1(Device) (UnrepairableMemoryStatus_v1, Return)
 	DeviceGetUtilizationRates(Device) (Utilization, Return)
 	DeviceGetVbiosVersion(Device) (string, Return)
 	DeviceGetVgpuCapabilities(Device, DeviceVgpuCapability) (bool, Return)
@@ -605,7 +648,9 @@ type Interface interface {
 	DeviceGetVgpuProcessesUtilizationInfo(Device) (VgpuProcessesUtilizationInfo, Return)
 	DeviceGetVgpuSchedulerCapabilities(Device) (VgpuSchedulerCapabilities, Return)
 	DeviceGetVgpuSchedulerLog(Device) (VgpuSchedulerLog, Return)
+	DeviceGetVgpuSchedulerLog_v2(Device, VgpuSchedulerLogInfo_v2) (VgpuSchedulerLogInfo_v2, Return)
 	DeviceGetVgpuSchedulerState(Device) (VgpuSchedulerGetState, Return)
+	DeviceGetVgpuSchedulerState_v2(Device, VgpuSchedulerStateInfo_v2) (VgpuSchedulerStateInfo_v2, Return)
 	DeviceGetVgpuTypeCreatablePlacements(Device, VgpuTypeId) (VgpuPlacementList, Return)
 	DeviceGetVgpuTypeSupportedPlacements(Device, VgpuTypeId) (VgpuPlacementList, Return)
 	DeviceGetVgpuUtilization(Device, uint64) (ValueType, []VgpuInstanceUtilizationSample, Return)
@@ -614,10 +659,12 @@ type Interface interface {
 	DeviceIsMigDeviceHandle(Device) (bool, Return)
 	DeviceModifyDrainState(*PciInfo, EnableState) Return
 	DeviceOnSameBoard(Device, Device) (int, Return)
+	DevicePerfMetricsGetSamples_v1(Device) (PerfMetricsSamples_v1, Return)
 	DevicePowerSmoothingActivatePresetProfile(Device, *PowerSmoothingProfile) Return
 	DevicePowerSmoothingSetState(Device, *PowerSmoothingState) Return
 	DevicePowerSmoothingUpdatePresetProfileParam(Device, *PowerSmoothingProfile) Return
 	DeviceQueryDrainState(*PciInfo) (EnableState, Return)
+	DeviceReadPRMCounters_v1(Device, []PRMCounterId, int) ([]PRMCounter_v1, Return)
 	DeviceReadWritePRM_v1(Device, *PRMTLV_v1) Return
 	DeviceRegisterEvents(Device, uint64, EventSet) Return
 	DeviceRemoveGpu(*PciInfo) Return
@@ -629,6 +676,7 @@ type Interface interface {
 	DeviceResetNvLinkUtilizationCounter(Device, int, int) Return
 	DeviceSetAPIRestriction(Device, RestrictedAPI, EnableState) Return
 	DeviceSetAccountingMode(Device, EnableState) Return
+	DeviceSetAdaptiveTgpMode_v1(Device, EnableState) Return
 	DeviceSetApplicationsClocks(Device, uint32, uint32) Return
 	DeviceSetAutoBoostedClocksEnabled(Device, EnableState) Return
 	DeviceSetClockOffsets(Device, ClockOffset) Return
@@ -645,29 +693,42 @@ type Interface interface {
 	DeviceSetGpcClkVfOffset(Device, int) Return
 	DeviceSetGpuLockedClocks(Device, uint32, uint32) Return
 	DeviceSetGpuOperationMode(Device, GpuOperationMode) Return
+	DeviceSetHostname_v1(Device, string) Return
 	DeviceSetMemClkVfOffset(Device, int) Return
+	DeviceSetMemoryLimits_v1(Device, string, uint64, uint64) Return
 	DeviceSetMemoryLockedClocks(Device, uint32, uint32) Return
 	DeviceSetMigMode(Device, int) (Return, Return)
 	DeviceSetNvLinkDeviceLowPowerThreshold(Device, *NvLinkPowerThres) Return
 	DeviceSetNvLinkUtilizationControl(Device, int, int, *NvLinkUtilizationControl, bool) Return
 	DeviceSetNvlinkBwMode(Device, *NvlinkSetBwMode) Return
+	DeviceSetNvlinkBwModeAsync_v1(Device, *NvlinkSetBwModeAsync_v1) Return
 	DeviceSetPersistenceMode(Device, EnableState) Return
 	DeviceSetPowerManagementLimit(Device, uint32) Return
 	DeviceSetPowerManagementLimit_v2(Device, *PowerValue_v2) Return
+	DeviceSetRusdSettings_v1(Device, RusdSettings_v1) Return
 	DeviceSetTemperatureThreshold(Device, TemperatureThresholds, int) Return
 	DeviceSetVgpuCapabilities(Device, DeviceVgpuCapability, EnableState) Return
 	DeviceSetVgpuHeterogeneousMode(Device, VgpuHeterogeneousMode) Return
 	DeviceSetVgpuSchedulerState(Device, *VgpuSchedulerSetState) Return
+	DeviceSetVgpuSchedulerState_v2(Device, *VgpuSchedulerState_v2) Return
 	DeviceSetVirtualizationMode(Device, GpuVirtualizationMode) Return
 	DeviceValidateInforom(Device) Return
+	DeviceVgpuForceGspUnload(Device) Return
 	DeviceWorkloadPowerProfileClearRequestedProfiles(Device, *WorkloadPowerProfileRequestedProfiles) Return
 	DeviceWorkloadPowerProfileGetCurrentProfiles(Device) (WorkloadPowerProfileCurrentProfiles, Return)
 	DeviceWorkloadPowerProfileGetProfilesInfo(Device) (WorkloadPowerProfileProfilesInfo, Return)
 	DeviceWorkloadPowerProfileSetRequestedProfiles(Device, *WorkloadPowerProfileRequestedProfiles) Return
+	DeviceWorkloadPowerProfileUpdateProfiles_v1(Device, PowerProfileOperation, []PowerProfileType) Return
 	ErrorString(Return) string
 	EventSetCreate() (EventSet, Return)
 	EventSetFree(EventSet) Return
+	EventSetGetContextCount_v1(EventSet) (GetContextCount_v1, Return)
+	EventSetGetContextData_v1(EventSet, GetContextData_v1) (GetContextData_v1, Return)
+	EventSetGetContextInfo_v1(EventSet, uint32) (GetContextInfo_v1, Return)
+	EventSetGetGpuOperationalEventContextLegacyXid_v1(EventSet, uint32) (uint32, Return)
+	EventSetRegisterGpuOperationalEvents_v1(EventSet, *GpuOperationalEventConfig_v1) Return
 	EventSetWait(EventSet, uint32) (EventData, Return)
+	EventSetWait_v3(EventSet, uint32) (EventSetWaitData_v3, Return)
 	Extensions() ExtendedInterface
 	GetExcludedDeviceCount() (int, Return)
 	GetExcludedDeviceInfoByIndex(int) (ExcludedDeviceInfo, Return)
@@ -698,10 +759,13 @@ type Interface interface {
 	GpuInstanceGetInfo(GpuInstance) (GpuInstanceInfo, Return)
 	GpuInstanceGetVgpuHeterogeneousMode(GpuInstance) (VgpuHeterogeneousMode, Return)
 	GpuInstanceGetVgpuSchedulerLog(GpuInstance) (VgpuSchedulerLogInfo, Return)
+	GpuInstanceGetVgpuSchedulerLog_v2(GpuInstance, VgpuSchedulerLogInfo_v2) (VgpuSchedulerLogInfo_v2, Return)
 	GpuInstanceGetVgpuSchedulerState(GpuInstance) (VgpuSchedulerStateInfo, Return)
+	GpuInstanceGetVgpuSchedulerState_v2(GpuInstance, VgpuSchedulerStateInfo_v2) (VgpuSchedulerStateInfo_v2, Return)
 	GpuInstanceGetVgpuTypeCreatablePlacements(GpuInstance) (VgpuCreatablePlacementInfo, Return)
 	GpuInstanceSetVgpuHeterogeneousMode(GpuInstance, *VgpuHeterogeneousMode) Return
 	GpuInstanceSetVgpuSchedulerState(GpuInstance, *VgpuSchedulerState) Return
+	GpuInstanceSetVgpuSchedulerState_v2(GpuInstance, *VgpuSchedulerState_v2) Return
 	Init() Return
 	InitWithFlags(uint32) Return
 	SetVgpuVersion(*VgpuVersion) Return
@@ -709,6 +773,7 @@ type Interface interface {
 	SystemEventSetCreate(*SystemEventSetCreateRequest) Return
 	SystemEventSetFree(*SystemEventSetFreeRequest) Return
 	SystemEventSetWait(*SystemEventSetWaitRequest) Return
+	SystemGetCPER_v1(*GetCPER_v1) Return
 	SystemGetConfComputeCapabilities() (ConfComputeSystemCaps, Return)
 	SystemGetConfComputeGpusReadyState() (uint32, Return)
 	SystemGetConfComputeKeyRotationThresholdInfo() (ConfComputeGetKeyRotationThresholdInfo, Return)
@@ -767,6 +832,7 @@ type Interface interface {
 	VgpuTypeGetFrameRateLimit(VgpuTypeId) (uint32, Return)
 	VgpuTypeGetFramebufferSize(VgpuTypeId) (uint64, Return)
 	VgpuTypeGetGpuInstanceProfileId(VgpuTypeId) (uint32, Return)
+	VgpuTypeGetID(VgpuTypeId) uint32
 	VgpuTypeGetLicense(VgpuTypeId) (string, Return)
 	VgpuTypeGetMaxInstances(Device, VgpuTypeId) (int, Return)
 	VgpuTypeGetMaxInstancesPerGpuInstance(*VgpuTypeMaxInstance) Return
@@ -792,14 +858,18 @@ type Device interface {
 	GetAccountingMode() (EnableState, Return)
 	GetAccountingPids() ([]int, Return)
 	GetAccountingStats(uint32) (AccountingStats, Return)
+	GetAccountingStats_v2(uint32) (AccountingStats_v2, Return)
 	GetActiveVgpus() ([]VgpuInstance, Return)
 	GetAdaptiveClockInfoStatus() (uint32, Return)
+	GetAdaptiveTgpModeInfo_v1() (AdaptiveTgpModeInfo_v1, Return)
 	GetAddressingMode() (DeviceAddressingMode, Return)
 	GetApplicationsClock(ClockType) (uint32, Return)
 	GetArchitecture() (DeviceArchitecture, Return)
 	GetAttributes() (DeviceAttributes, Return)
 	GetAutoBoostedClocksEnabled() (EnableState, EnableState, Return)
 	GetBAR1MemoryInfo() (BAR1Memory, Return)
+	GetBBXTimeData_v1() (BBXTimeData_v1, Return)
+	GetBankRemapperStatus_v1() (EccBankRemapperStatus_v1, Return)
 	GetBoardId() (uint32, Return)
 	GetBoardPartNumber() (string, Return)
 	GetBrand() (BrandType, Return)
@@ -856,6 +926,7 @@ type Device interface {
 	GetGpcClkVfOffset() (int, Return)
 	GetGpuFabricInfo() (GpuFabricInfo, Return)
 	GetGpuFabricInfoV() GpuFabricInfoHandler
+	GetGpuFabricInfo_v4() (GpuFabricInfo_v4, Return)
 	GetGpuInstanceById(int) (GpuInstance, Return)
 	GetGpuInstanceId() (int, Return)
 	GetGpuInstancePossiblePlacements(*GpuInstanceProfileInfo) ([]GpuInstancePlacement, Return)
@@ -871,6 +942,7 @@ type Device interface {
 	GetGspFirmwareMode() (bool, bool, Return)
 	GetGspFirmwareVersion() (string, Return)
 	GetHostVgpuMode() (HostVgpuMode, Return)
+	GetHostname_v1() (string, Return)
 	GetIndex() (int, Return)
 	GetInforomConfigurationChecksum() (uint32, Return)
 	GetInforomImageVersion() (string, Return)
@@ -892,6 +964,7 @@ type Device interface {
 	GetMemoryErrorCounter(MemoryErrorType, EccCounterType, MemoryLocation) (uint64, Return)
 	GetMemoryInfo() (Memory, Return)
 	GetMemoryInfo_v2() (Memory_v2, Return)
+	GetMemoryLimits_v1(string) (MemoryLimits_v1, Return)
 	GetMigDeviceHandleByIndex(int) (Device, Return)
 	GetMigMode() (int, int, Return)
 	GetMinMaxClockOfPState(ClockType, Pstates) (uint32, uint32, Return)
@@ -909,6 +982,7 @@ type Device interface {
 	GetNvLinkRemoteDeviceType(int) (IntNvLinkDeviceType, Return)
 	GetNvLinkRemotePciInfo(int) (PciInfo, Return)
 	GetNvLinkState(int) (EnableState, Return)
+	GetNvLinkTelemetrySamples_v1(NvlinkTelemetrySamples_v1) (NvlinkTelemetrySamples_v1, Return)
 	GetNvLinkUtilizationControl(int, int) (NvLinkUtilizationControl, Return)
 	GetNvLinkUtilizationCounter(int, int) (uint64, uint64, Return)
 	GetNvLinkVersion(int) (uint32, Return)
@@ -939,6 +1013,7 @@ type Device interface {
 	GetProcessUtilization(uint64) ([]ProcessUtilizationSample, Return)
 	GetProcessesUtilizationInfo() (ProcessesUtilizationInfo, Return)
 	GetRemappedRows() (int, int, bool, bool, Return)
+	GetRemappedRows_v2() (RemappedRowsInfo_v2, Return)
 	GetRepairStatus() (RepairStatus, Return)
 	GetRetiredPages(PageRetirementCause) ([]uint64, Return)
 	GetRetiredPagesPendingStatus() (EnableState, Return)
@@ -966,6 +1041,7 @@ type Device interface {
 	GetTotalEccErrors(MemoryErrorType, EccCounterType) (uint64, Return)
 	GetTotalEnergyConsumption() (uint64, Return)
 	GetUUID() (string, Return)
+	GetUnrepairableMemoryFlag_v1() (UnrepairableMemoryStatus_v1, Return)
 	GetUtilizationRates() (Utilization, Return)
 	GetVbiosVersion() (string, Return)
 	GetVgpuCapabilities(DeviceVgpuCapability) (bool, Return)
@@ -976,7 +1052,9 @@ type Device interface {
 	GetVgpuProcessesUtilizationInfo() (VgpuProcessesUtilizationInfo, Return)
 	GetVgpuSchedulerCapabilities() (VgpuSchedulerCapabilities, Return)
 	GetVgpuSchedulerLog() (VgpuSchedulerLog, Return)
+	GetVgpuSchedulerLog_v2(VgpuSchedulerLogInfo_v2) (VgpuSchedulerLogInfo_v2, Return)
 	GetVgpuSchedulerState() (VgpuSchedulerGetState, Return)
+	GetVgpuSchedulerState_v2(VgpuSchedulerStateInfo_v2) (VgpuSchedulerStateInfo_v2, Return)
 	GetVgpuTypeCreatablePlacements(VgpuTypeId) (VgpuPlacementList, Return)
 	GetVgpuTypeSupportedPlacements(VgpuTypeId) (VgpuPlacementList, Return)
 	GetVgpuUtilization(uint64) (ValueType, []VgpuInstanceUtilizationSample, Return)
@@ -990,9 +1068,11 @@ type Device interface {
 	GpmSetStreamingEnabled(uint32) Return
 	IsMigDeviceHandle() (bool, Return)
 	OnSameBoard(Device) (int, Return)
+	PerfMetricsGetSamples_v1() (PerfMetricsSamples_v1, Return)
 	PowerSmoothingActivatePresetProfile(*PowerSmoothingProfile) Return
 	PowerSmoothingSetState(*PowerSmoothingState) Return
 	PowerSmoothingUpdatePresetProfileParam(*PowerSmoothingProfile) Return
+	ReadPRMCounters_v1([]PRMCounterId, int) ([]PRMCounter_v1, Return)
 	ReadWritePRM_v1(*PRMTLV_v1) Return
 	RegisterEvents(uint64, EventSet) Return
 	ResetApplicationsClocks() Return
@@ -1002,6 +1082,7 @@ type Device interface {
 	ResetNvLinkUtilizationCounter(int, int) Return
 	SetAPIRestriction(RestrictedAPI, EnableState) Return
 	SetAccountingMode(EnableState) Return
+	SetAdaptiveTgpMode_v1(EnableState) Return
 	SetApplicationsClocks(uint32, uint32) Return
 	SetAutoBoostedClocksEnabled(EnableState) Return
 	SetClockOffsets(ClockOffset) Return
@@ -1018,26 +1099,33 @@ type Device interface {
 	SetGpcClkVfOffset(int) Return
 	SetGpuLockedClocks(uint32, uint32) Return
 	SetGpuOperationMode(GpuOperationMode) Return
+	SetHostname_v1(string) Return
 	SetMemClkVfOffset(int) Return
+	SetMemoryLimits_v1(string, uint64, uint64) Return
 	SetMemoryLockedClocks(uint32, uint32) Return
 	SetMigMode(int) (Return, Return)
 	SetNvLinkDeviceLowPowerThreshold(*NvLinkPowerThres) Return
 	SetNvLinkUtilizationControl(int, int, *NvLinkUtilizationControl, bool) Return
 	SetNvlinkBwMode(*NvlinkSetBwMode) Return
+	SetNvlinkBwModeAsync_v1(*NvlinkSetBwModeAsync_v1) Return
 	SetPersistenceMode(EnableState) Return
 	SetPowerManagementLimit(uint32) Return
 	SetPowerManagementLimit_v2(*PowerValue_v2) Return
+	SetRusdSettings_v1(RusdSettings_v1) Return
 	SetTemperatureThreshold(TemperatureThresholds, int) Return
 	SetVgpuCapabilities(DeviceVgpuCapability, EnableState) Return
 	SetVgpuHeterogeneousMode(VgpuHeterogeneousMode) Return
 	SetVgpuSchedulerState(*VgpuSchedulerSetState) Return
+	SetVgpuSchedulerState_v2(*VgpuSchedulerState_v2) Return
 	SetVirtualizationMode(GpuVirtualizationMode) Return
 	ValidateInforom() Return
+	VgpuForceGspUnload() Return
 	VgpuTypeGetMaxInstances(VgpuTypeId) (int, Return)
 	WorkloadPowerProfileClearRequestedProfiles(*WorkloadPowerProfileRequestedProfiles) Return
 	WorkloadPowerProfileGetCurrentProfiles() (WorkloadPowerProfileCurrentProfiles, Return)
 	WorkloadPowerProfileGetProfilesInfo() (WorkloadPowerProfileProfilesInfo, Return)
 	WorkloadPowerProfileSetRequestedProfiles(*WorkloadPowerProfileRequestedProfiles) Return
+	WorkloadPowerProfileUpdateProfiles_v1(PowerProfileOperation, []PowerProfileType) Return
 }
 
 // GpuInstance represents the interface for the nvmlGpuInstance type.
@@ -1058,10 +1146,13 @@ type GpuInstance interface {
 	GetInfo() (GpuInstanceInfo, Return)
 	GetVgpuHeterogeneousMode() (VgpuHeterogeneousMode, Return)
 	GetVgpuSchedulerLog() (VgpuSchedulerLogInfo, Return)
+	GetVgpuSchedulerLog_v2(VgpuSchedulerLogInfo_v2) (VgpuSchedulerLogInfo_v2, Return)
 	GetVgpuSchedulerState() (VgpuSchedulerStateInfo, Return)
+	GetVgpuSchedulerState_v2(VgpuSchedulerStateInfo_v2) (VgpuSchedulerStateInfo_v2, Return)
 	GetVgpuTypeCreatablePlacements() (VgpuCreatablePlacementInfo, Return)
 	SetVgpuHeterogeneousMode(*VgpuHeterogeneousMode) Return
 	SetVgpuSchedulerState(*VgpuSchedulerState) Return
+	SetVgpuSchedulerState_v2(*VgpuSchedulerState_v2) Return
 }
 
 // ComputeInstance represents the interface for the nvmlComputeInstance type.
@@ -1077,7 +1168,13 @@ type ComputeInstance interface {
 //go:generate moq -out mock/eventset.go -pkg mock . EventSet:EventSet
 type EventSet interface {
 	Free() Return
+	GetContextCount_v1() (GetContextCount_v1, Return)
+	GetContextData_v1(GetContextData_v1) (GetContextData_v1, Return)
+	GetContextInfo_v1(uint32) (GetContextInfo_v1, Return)
+	GetGpuOperationalEventContextLegacyXid_v1(uint32) (uint32, Return)
+	RegisterGpuOperationalEvents_v1(*GpuOperationalEventConfig_v1) Return
 	Wait(uint32) (EventData, Return)
+	Wait_v3(uint32) (EventSetWaitData_v3, Return)
 }
 
 // GpmSample represents the interface for the nvmlGpmSample type.
@@ -1144,6 +1241,7 @@ type VgpuTypeId interface {
 	GetFrameRateLimit() (uint32, Return)
 	GetFramebufferSize() (uint64, Return)
 	GetGpuInstanceProfileId() (uint32, Return)
+	GetID() uint32
 	GetLicense() (string, Return)
 	GetMaxInstances(Device) (int, Return)
 	GetMaxInstancesPerVm() (int, Return)
