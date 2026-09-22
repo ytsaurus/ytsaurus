@@ -444,7 +444,7 @@ def find(**kwargs):
 def add_find_parser(add_parser):
     parser = add_parser("find", yt.search)
     add_ypath_argument(parser, "path", hybrid=True)
-    parser.add_argument("--name", "-name", help="pattern of node name, use shell-style wildcards: *, ?, [seq], [!seq]")
+    parser.add_argument("--name", "-name", help="pattern of node name, use shell-style wildcards: ``*, ?, [seq], [!seq]``")
     add_type_argument(parser, "--type")
     parser.add_argument("--account")
     parser.add_argument("--owner")
@@ -1801,7 +1801,7 @@ def operation_id_args(parser, **kwargs):
 
 
 def _make_operation_id_or_alias_action(alias_dest):
-    """Create argparse Action that routes positional values starting with '*' to operation_alias."""
+    """Create argparse Action that routes positional values starting with ``*`` to operation_alias."""
     class _Action(Action):
         def __call__(self, parser, namespace, values, option_string=None):
             if values and isinstance(values, str) and values.startswith("*"):
@@ -1826,7 +1826,7 @@ def operation_id_or_alias_args(parser, dest="operation_id", alias_dest="operatio
     if dest != "operation":
         opt_kwargs["dest"] = dest
     add_argument(parser=group, name="--operation", help="operation id", **opt_kwargs)
-    group.add_argument("--operation-alias", dest=alias_dest, help="operation alias (e.g. *my_alias)")
+    group.add_argument("--operation-alias", dest=alias_dest, help="operation alias (e.g. ``*my_alias``)")
 
 
 def add_abort_op_parser(add_parser):
