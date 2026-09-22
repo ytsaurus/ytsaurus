@@ -33,6 +33,7 @@ IF (NOT OPENSOURCE)
 ENDIF()
 
 GO_TEST_SRCS(
+    encoder_test.go
     mutation_retrier_test.go
     proxy_set_test.go
     retrier_test.go

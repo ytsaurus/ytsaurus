@@ -832,11 +832,19 @@ func (e *Encoder) ReadTablePartition(
 	options *yt.ReadTablePartitionOptions,
 ) (r yt.TablePartitionReader, err error) {
 	var format any
-	if options != nil && options.Format != nil {
+	var tableSchema *schema.Schema
+	if options != nil {
 		format = options.Format
+		tableSchema = options.TableSchema
+		if tableSchema != nil {
+			if _, ok := format.(skiff.Format); !ok {
+				return nil, xerrors.Errorf("unexpected output format: %+v", format)
+			}
+		}
 	}
 	call := e.newCall(NewReadTablePartitionParams(cookie, options))
 	call.Format = format
+	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
 }
 
