@@ -77,11 +77,11 @@ public:
     const EQueryKind QueryKind;
     THost* const Host;
     TString Query;
-    TString CurrentUser;
-    TString CurrentAddress;
-    TString InitialUser;
-    TString InitialAddress;
-    TQueryId InitialQueryId;
+    std::string CurrentUser;
+    std::string CurrentAddress;
+    std::string InitialUser;
+    std::string InitialAddress;
+    std::string InitialQueryId;
     std::optional<TQueryId> ParentQueryId;
     //! Text of the initial query. Used for better debugging.
     std::optional<TString> InitialQuery;

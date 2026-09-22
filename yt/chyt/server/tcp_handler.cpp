@@ -66,22 +66,45 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
 
         void customizeContext(DB::ContextMutablePtr context) override
         {
-            if (context->getClientInfo().query_kind != DB::ClientInfo::QueryKind::SECONDARY_QUERY) {
-                // TODO(max42): support.
-                THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
+            TSecondaryQueryHeaderPtr header;
+            TQueryId queryId;
+            TTraceContextPtr traceContext;
+
+            switch (context->getClientInfo().query_kind) {
+                case DB::ClientInfo::QueryKind::NO_QUERY: {
+                    THROW_ERROR_EXCEPTION("Attempt to process an uninitialized query object");
+                    break;
+                }
+                case DB::ClientInfo::QueryKind::INITIAL_QUERY: {
+                    if (auto initialIdStr = context->getInitialQueryId(); initialIdStr.empty()) {
+                        queryId = TQueryId::Create();
+                        auto queryIdStr = ToString(queryId);
+                        context->setCurrentQueryId(queryIdStr);
+                        context->setInitialQueryId(queryIdStr);
+                    } else if (!TGuid::FromString(initialIdStr, &queryId)) {
+                        queryId = TQueryId::Create();
+                        context->setCurrentQueryId(ToString(queryId));
+                        // setCurrentQueryId overrides initial_query_id, so let's bring it back.
+                        context->setInitialQueryId(initialIdStr);
+                    }
+
+                    traceContext = New<TTraceContext>(TSpanContext{.TraceId = queryId}, "TcpHandler");
+                    break;
+                }
+                case DB::ClientInfo::QueryKind::SECONDARY_QUERY: {
+                    header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(context->getClientInfo().current_query_id));
+                    context->setCurrentQueryId(ToString(header->QueryId));
+                    queryId = header->QueryId;
+                    traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
+                    break;
+                }
             }
 
-            auto user = context->getClientInfo().initial_user;
-
-            context->setCurrentUserName(user);
-
-            auto header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(context->getClientInfo().current_query_id));
-            context->setCurrentQueryId(ToString(header->QueryId));
-
-            TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
             traceContext->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
             traceContext->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 
+            auto user = context->getClientInfo().initial_user;
+            context->setCurrentUserName(user);
             YT_LOG_DEBUG("Preparing new user (UserName: %v)", user);
             Host_->PrepareClickHouseUser(user);
             YT_LOG_DEBUG("User prepared");
@@ -89,7 +112,7 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             SetupHostContext(
                 Host_,
                 context,
-                header->QueryId,
+                queryId,
                 std::move(traceContext),
                 /*dataLensRequestId*/ std::nullopt,
                 /*yqlOperationId*/ std::nullopt,
