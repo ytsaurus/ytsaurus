@@ -637,9 +637,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
             if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
                 YT_TLOG_DEBUG("Job input is empty");
 
-                if (!previousJobCompetitionType) {
-                    CheckAndProcessOperationCompletedInScheduleJob();
-                }
+                CheckAndProcessOperationCompletedInScheduleJob();
 
                 return std::unexpected(EScheduleFailReason::EmptyInput);
             }
