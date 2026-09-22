@@ -676,7 +676,7 @@ void TJob::PrepareArtifact(
                         producer,
                         pipe)
                         .Apply(BIND([this, bypassCpuStartTime, this_ = MakeStrong(this)] {
-                            ArtifactStatistics_.FilesDownloadedAggrDuration +=
+                            ArtifactStatistics_.FilesDownloadCpuDuration +=
                                 GetCpuInstant() - bypassCpuStartTime;
                         }).Via(Invoker_)));
             } else if (artifact.CopyFile) {
@@ -700,7 +700,7 @@ void TJob::PrepareArtifact(
                         pipe,
                         preparedArtifact->GetLocation())
                         .Apply(BIND([this, copyCpuStartTime, compressedDataSize, this_ = MakeStrong(this)] {
-                            ArtifactStatistics_.FilesCopiedAggrDuration +=
+                            ArtifactStatistics_.FilesCopyCpuDuration +=
                                 GetCpuInstant() - copyCpuStartTime;
                             ArtifactStatistics_.FilesCopiedSize += compressedDataSize;
                         }).Via(Invoker_)));
@@ -2432,7 +2432,6 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             ArtifactsDownloadStartTime_ = TInstant::Now();
-            FilesDownloadStartTime_ = GetCpuInstant();
 
             auto artifactsFuture = DownloadArtifacts();
 
@@ -2508,9 +2507,6 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& erro
             ArtifactsFuture_ = OKFuture;
 
             ArtifactsDownloadedTime_ = TInstant::Now();
-            FilesDownloadedTime_ = GetCpuInstant();
-            YT_VERIFY(FilesDownloadStartTime_);
-            ArtifactStatistics_.FilesDownloadedDuration = *FilesDownloadedTime_ - *FilesDownloadStartTime_;
             PrepareWorkspace();
         });
 }
@@ -3672,8 +3668,8 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
             TCpuDuration importCpuDuration,
             i64 importSize)
         {
-            ArtifactStatistics_.LayersDownloadedAggrDuration += downloadCpuDuration;
-            ArtifactStatistics_.LayersImportedAggrDuration += importCpuDuration;
+            ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
+            ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
             ArtifactStatistics_.LayersImportedSize += importSize;
         }).Via(Invoker_),
     };
@@ -3734,7 +3730,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                         auto downloadCpuFinish = GetCpuInstant();
                         Invoker_->Invoke(BIND_NO_PROPAGATE(
                             [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish] {
-                                ArtifactStatistics_.FilesDownloadedAggrDuration +=
+                                ArtifactStatistics_.FilesDownloadCpuDuration +=
                                     downloadCpuFinish - downloadCpuStart;
                             }));
                     }
@@ -4172,29 +4168,23 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
         "/exec_agent/artifacts/layers_imported_size"_SP,
         ArtifactStatistics_.LayersImportedSize);
 
-    // Files: wall time (monotonic clock) of caching file artifacts (excludes cache-bypassed and virtual-sandbox files).
-    if (FilesDownloadedTime_) {
-        statistics->AddSample(
-            "/exec_agent/artifacts/files_downloaded_duration"_SP,
-            CpuDurationToDuration(ArtifactStatistics_.FilesDownloadedDuration).MilliSeconds());
-    }
-
-    // Files: sum of per-file download durations (cache miss + bypass). Files may be downloaded in parallel.
+    // Download durations; monotonic CPU clock is used to avoid NTP jumps.
+    // Files: sum of per-file download durations (cache miss + bypass).
     statistics->AddSample(
-        "/exec_agent/artifacts/files_downloaded_aggr_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.FilesDownloadedAggrDuration).MilliSeconds());
+        "/exec_agent/artifacts/files_downloaded_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesDownloadCpuDuration).MilliSeconds());
     // Files: sum of per-file copy durations (copy_file=true, copying from cache to sandbox).
     statistics->AddSample(
-        "/exec_agent/artifacts/files_copied_aggr_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.FilesCopiedAggrDuration).MilliSeconds());
-    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes Porto import.
+        "/exec_agent/artifacts/files_copied_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesCopyCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes porto import.
     statistics->AddSample(
-        "/exec_agent/artifacts/layers_downloaded_aggr_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.LayersDownloadedAggrDuration).MilliSeconds());
-    // Layers: sum of per-layer Porto import durations (ImportLayer).
+        "/exec_agent/artifacts/layers_downloaded_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersDownloadCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer porto import durations (ImportLayer).
     statistics->AddSample(
-        "/exec_agent/artifacts/layers_imported_aggr_duration"_SP,
-        CpuDurationToDuration(ArtifactStatistics_.LayersImportedAggrDuration).MilliSeconds());
+        "/exec_agent/artifacts/layers_import_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersImportCpuDuration).MilliSeconds());
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
