@@ -65,7 +65,7 @@ class HttpProxyTestBase(YTEnvSetup):
     DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
-            "death_age": 500,
+            "death_age": 2000,
             "cypress_timeout": 50,
         },
         "api": {
@@ -1996,14 +1996,6 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "build_snapshot_delay": 10000,
-        },
-    }
-
-    DELTA_HTTP_PROXY_CONFIG = {
-        "coordinator": {
-            "heartbeat_interval": 100,
-            "cypress_timeout": 50,
-            "death_age": 500,
         },
     }
 
