@@ -155,6 +155,7 @@ message TRspGetMountInfo
     reserved 12; // Deprecated
     optional int32 tablet_count = 13; // Queue tablet count for chaos replicated tables
     optional int32 serialization_type = 14 [default = 0]; // ETabletTransactionSerializationType [default = Coarse]
+    optional int32 commit_ordering = 15 [default = 0]; // NTransactionClient::ECommitOrdering [default = Weak]
 }
 
 ////////////////////////////////////////////////////////////////////////////////
