@@ -13,7 +13,6 @@
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
 #include <yt/yt/library/pipe_io/pipe.h>
-#include <yt/yt/library/pipe_io/pipe_io_dispatcher.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
@@ -26,8 +25,6 @@
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/folder/iterator.h>
 #include <util/folder/path.h>
@@ -66,19 +63,13 @@ TCoreResult::TCoreResult()
 
 TGpuCoreReader::TGpuCoreReader(const std::string& corePipePath)
     : Path_(corePipePath)
-{
-    Fd_ = HandleEintr(::open, corePipePath.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
-    if (Fd_ < 0) {
-        THROW_ERROR_EXCEPTION("Failed to open GPU core dump pipe")
-            .With("path", Path_)
-            .With(TError::FromSystem());
-    }
-}
+    , Reader_(TNamedPipe::FromPath(corePipePath)->CreateAsyncReader())
+{ }
 
 i64 TGpuCoreReader::GetBytesAvailable() const
 {
     int pipeSize;
-    if (::ioctl(Fd_, FIONREAD, &pipeSize) < 0) {
+    if (::ioctl(Reader_->GetHandle(), FIONREAD, &pipeSize) < 0) {
         THROW_ERROR_EXCEPTION("Fail to perform ioctl on GPU core dump pipe")
             .With("path", Path_)
             .With(TError::FromSystem());
@@ -87,9 +78,9 @@ i64 TGpuCoreReader::GetBytesAvailable() const
     return pipeSize;
 }
 
-IConnectionReaderPtr TGpuCoreReader::CreateAsyncReader()
+IConnectionReaderPtr TGpuCoreReader::IntoAsyncReader() &&
 {
-    return CreateInputConnectionFromFD(Fd_, Path_, TPipeIODispatcher::Get()->GetPoller(), MakeStrong(this));
+    return std::move(Reader_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,9 +189,17 @@ void TCoreWatcher::DoWatchCores()
         .With("CoreDirectoryPath", CoreDirectoryPath_);
 
     try {
-        for (const auto& file : TDirIterator(TString(CoreDirectoryPath_))) {
+        for (const auto& file : TDirIterator(TString(CoreDirectoryPath_), TDirIterator::TOptions().SetMaxLevel(1))) {
             auto fileName = TFsPath{file.fts_path}.GetName();
             if (GetFileExtension(fileName) == "pipe") {
+                if (!S_ISFIFO(file.fts_statp->st_mode)) {
+                    YT_TLOG_WARNING("Skipping invalid core pipe")
+                        .With("CorePipeFileName", fileName)
+                        .WithFormat("FileMode", "%o", file.fts_statp->st_mode)
+                        .With("StatErrno", file.fts_errno);
+                    continue;
+                }
+
                 auto name = GetFileNameWithoutExtension(fileName);
                 if (!SeenCoreNames_.contains(name)) {
                     YT_TLOG_INFO("New core pipe found")
@@ -218,6 +217,14 @@ void TCoreWatcher::DoWatchCores()
                 }
             } else if (fileName == CudaGpuCoreDumpPipeName) {
                 if (!SeenCoreNames_.contains(fileName)) {
+                    if (!S_ISFIFO(file.fts_statp->st_mode)) {
+                        YT_TLOG_WARNING("Skipping invalid GPU core dump pipe")
+                            .With("GpuCorePipeFileName", fileName)
+                            .WithFormat("FileMode", "%o", file.fts_statp->st_mode)
+                            .With("StatErrno", file.fts_errno);
+                        continue;
+                    }
+
                     YT_TLOG_DEBUG("GPU core dump pipe found")
                         .With("FileName", fileName);
 
@@ -238,10 +245,13 @@ void TCoreWatcher::DoWatchCores()
 
                         SeenCoreNames_.insert(fileName);
 
+                        auto coreReader = std::move(*GpuCoreReader_).IntoAsyncReader();
+                        GpuCoreReader_.Reset();
+
                         auto coreInfoFuture = BIND(
                             &TCoreWatcher::DoProcessGpuCore,
                             MakeStrong(this),
-                            GpuCoreReader_->CreateAsyncReader(),
+                            std::move(coreReader),
                             coreIndex)
                             .AsyncVia(IOInvoker_)
                             .Run();
