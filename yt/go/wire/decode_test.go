@@ -1333,3 +1333,11 @@ func TestDecoder_UnmarshalRowOptionalBoolPointer(t *testing.T) {
 		require.Nil(t, got.Active)
 	})
 }
+
+func TestDecodeUnmarshalerPriority(t *testing.T) {
+	nameTable, rows, err := Encode([]any{&textBeforeBinaryRow{}})
+	require.NoError(t, err)
+
+	var got textBeforeBinaryRow
+	require.NoError(t, NewDecoder(nameTable, nil).UnmarshalRow(rows[0], &got))
+}

@@ -766,12 +766,12 @@ func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 	// On the other hand TypeAny/TypeComposite is always YSON-encoded.
 	// In this case yson.Unmarshaler is preferable.
 	if value.Type == TypeBytes {
-		if u, ok := v.(encoding.BinaryUnmarshaler); ok {
-			return u.UnmarshalBinary(value.Bytes())
-		}
-
 		if u, ok := v.(encoding.TextUnmarshaler); ok {
 			return u.UnmarshalText(value.Bytes())
+		}
+
+		if u, ok := v.(encoding.BinaryUnmarshaler); ok {
+			return u.UnmarshalBinary(value.Bytes())
 		}
 	}
 
