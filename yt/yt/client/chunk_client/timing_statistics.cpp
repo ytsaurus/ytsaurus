@@ -1,8 +1,18 @@
 #include "timing_statistics.h"
 
-namespace NYT::NTableClient {
+#include <yt/yt/core/ytree/fluent.h>
+
+namespace NYT::NChunkClient {
+
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TDuration TTimingStatistics::GetTotalTime() const
+{
+    return WaitTime + ReadTime + IdleTime;
+}
 
 TTimingStatistics& operator+=(TTimingStatistics& lhs, const TTimingStatistics& rhs)
 {
@@ -14,6 +24,16 @@ TTimingStatistics& operator+=(TTimingStatistics& lhs, const TTimingStatistics& r
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TTimingStatistics& statistics, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("wait_time").Value(statistics.WaitTime)
+            .Item("read_time").Value(statistics.ReadTime)
+            .Item("idle_time").Value(statistics.IdleTime)
+        .EndMap();
+}
 
 void FormatValue(TStringBuilderBase* builder, const TTimingStatistics& statistics, TStringBuf /*spec*/)
 {
@@ -27,4 +47,4 @@ void FormatValue(TStringBuilderBase* builder, const TTimingStatistics& statistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NChunkClient

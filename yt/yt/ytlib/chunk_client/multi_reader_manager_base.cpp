@@ -100,9 +100,9 @@ TCodecStatistics TMultiReaderManagerBase::GetDecompressionStatistics() const
     return result;
 }
 
-NTableClient::TTimingStatistics TMultiReaderManagerBase::GetTimingStatistics() const
+TTimingStatistics TMultiReaderManagerBase::GetTimingStatistics() const
 {
-    NTableClient::TTimingStatistics result;
+    TTimingStatistics result;
     result.WaitTime = GetWaitTime();
     // Chunk readers do not provide Read().
     result.ReadTime = TDuration::Zero();

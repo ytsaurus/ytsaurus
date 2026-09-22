@@ -540,7 +540,6 @@ SRCS(
     table_client/table_columnar_statistics_cache.cpp
     table_client/table_read_spec.cpp
     table_client/timing_reader.cpp
-    table_client/timing_statistics.cpp
     table_client/versioned_block_reader.cpp
     table_client/versioned_block_writer.cpp
     table_client/versioned_chunk_reader.cpp

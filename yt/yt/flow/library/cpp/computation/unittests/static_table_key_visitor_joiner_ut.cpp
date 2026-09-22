@@ -488,6 +488,11 @@ public:
         return {};
     }
 
+    NApi::TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        return {};
+    }
+
     const TTableSchemaPtr& GetTableSchema() const override
     {
         return Schema_;

@@ -106,7 +106,7 @@ public:
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
-    NTableClient::TTimingStatistics GetTimingStatistics() const override
+    TTimingStatistics GetTimingStatistics() const override
     {
         return MultiReaderManager_->GetTimingStatistics();
     }
@@ -139,4 +139,3 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderMock)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-
