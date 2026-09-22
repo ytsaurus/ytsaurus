@@ -1696,11 +1696,13 @@ void TTask::AddSequentialInputSpec(
         TaskHost_->GetOperationType());
     auto* inputSpec = jobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
+    THashSet<TChunkId> seenHunkChunks;
     for (const auto& stripe : list->Stripes()) {
         AddChunksToInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
+            &seenHunkChunks,
             comparator,
             jobSpecExt);
     }
@@ -1723,6 +1725,7 @@ void TTask::AddParallelInputSpec(
         TaskHost_->GetInputManager(),
         TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
+    THashSet<TChunkId> seenHunkChunks;
     for (const auto& stripe : list->Stripes()) {
         auto* inputSpec = stripe->IsForeign()
             ? jobSpecExt->add_foreign_input_table_specs()
@@ -1731,6 +1734,7 @@ void TTask::AddParallelInputSpec(
             IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
+            &seenHunkChunks,
             comparator,
             jobSpecExt);
     }
@@ -1741,6 +1745,7 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
+    THashSet<TChunkId>* seenHunkChunks,
     TComparator comparator,
     TJobSpecExt* jobSpecExt)
 {
@@ -1787,6 +1792,28 @@ void TTask::AddChunksToInputSpec(
             if (directoryBuilder) {
                 auto replicas = chunkSlice->GetInputChunk()->GetReplicas();
                 directoryBuilder->Add(replicas);
+            }
+
+            const auto& hunkChunkRefsExt = chunkSlice->GetInputChunk()->HunkChunkRefsExt();
+            if (IsInput_ &&
+                hunkChunkRefsExt &&
+                TaskHost_->GetConfig()->EnableHunkChunkReplicaPrefetch &&
+                TaskHost_->GetOperationType() != EOperationType::RemoteCopy)
+            {
+                const auto& inputManager = TaskHost_->GetInputManager();
+                for (const auto& hunkChunkRef : hunkChunkRefsExt->refs()) {
+                    auto hunkChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+                    if (!seenHunkChunks->insert(hunkChunkId).second) {
+                        continue;
+                    }
+
+                    if (auto hunkChunk = inputManager->FindInputChunk(hunkChunkId)) {
+                        ToProto(inputSpec->add_hunk_chunk_specs(), hunkChunk);
+                        if (directoryBuilder) {
+                            directoryBuilder->Add(hunkChunk->GetReplicas());
+                        }
+                    }
+                }
             }
         }
     }

@@ -471,7 +471,18 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
         if (table->ClusterName != cluster->Name()) {
             continue;
         }
-        auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
+
+        if (chunkListContentType == EChunkListContentType::Hunk &&
+            Host_->GetOperationType() != EOperationType::RemoteCopy &&
+            (!table->Dynamic || !table->Schema->Filter(table->Path.GetColumns())->HasHunkColumns()))
+        {
+            continue;
+        }
+
+        // NB: Hunk chunk lists do not support read ranges.
+        auto ranges = chunkListContentType == EChunkListContentType::Hunk
+            ? std::vector<TReadRange>{TReadRange()}
+            : table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());
 
         // XXX(max42): does this ever happen?
         if (ranges.empty()) {
@@ -564,12 +575,23 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         }) != InputTables_.end();
     };
 
+    auto hasSelectedHunkColumns = [&] {
+        return AnyOf(InputTables_, [] (const auto& table) {
+            return table->Dynamic && table->Schema->Filter(table->Path.GetColumns())->HasHunkColumns();
+        });
+    };
+
     THashMap<TClusterName, TMasterChunkSpecFetcherPtr> hunkChunkSpecFetchers;
     std::vector<THashSet<TChunkId>> tableHunkChunks;
-    if (Host_->GetConfig()->EnableHunksRemoteCopy &&
-        Host_->GetOperationType() == EOperationType::RemoteCopy &&
-        hasHunkColumns())
-    {
+    // NB: Prefetched hunk chunks bypass the unavailable chunk strategy, so they are only fetched under Wait.
+    bool fetchHunkChunkSpecs =
+        hasHunkColumns() &&
+        (Host_->GetOperationType() == EOperationType::RemoteCopy
+            ? Host_->GetConfig()->EnableHunksRemoteCopy
+            : Host_->GetConfig()->EnableHunkChunkReplicaPrefetch &&
+                hasSelectedHunkColumns() &&
+                Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Wait);
+    if (fetchHunkChunkSpecs) {
         tableHunkChunks.resize(InputTables_.size());
         for (const auto& [clusterName, cluster] : Clusters_) {
             auto fetcher = CreateChunkSpecFetcher(cluster, EChunkListContentType::Hunk);
@@ -588,8 +610,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         yielder.TryYield();
 
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-        if (IsJournalChunkId(chunkId)) {
-            // TODO(babenko): This is only relevant for remote copy.
+        if (IsJournalChunkId(chunkId) && Host_->GetOperationType() == EOperationType::RemoteCopy) {
             THROW_ERROR_EXCEPTION("Journal hunk chunks are not supported yet");
         }
     };
@@ -607,6 +628,11 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         auto& table = InputTables_[tableIndex];
         auto& columnarStatisticsFetcher = columnarStatisticsFetchers[table->ClusterName];
         auto& chunkSliceSizeFetcher = chunkSliceSizeFetchers[table->ClusterName];
+
+        // NB: Hunk storage keeps hunks in journal chunks; their replicas are not prefetched.
+        if (FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()) == EChunkFormat::HunkJournal) {
+            return;
+        }
 
         auto inputChunk = New<TInputChunk>(
             chunkSpec,
@@ -638,7 +664,10 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 YT_VERIFY(std::ssize(tableHunkChunks) > tableIndex);
                 auto [it, inserted] = tableHunkChunks[tableIndex].insert(inputChunk->GetChunkId());
                 if (inserted) {
-                    table->HunkChunks.emplace_back(inputChunk);
+                    if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
+                        table->HunkChunks.emplace_back(inputChunk);
+                    }
+
                     RegisterInputChunk(inputChunk);
                 }
             } else {
@@ -651,8 +680,9 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             }
 
             bool shouldSkipChunkInFetchers =
-                inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy()) &&
-                Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+                (inputChunk->IsHunk() && Host_->GetOperationType() != EOperationType::RemoteCopy) ||
+                (inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy()) &&
+                    Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip);
 
             // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
             // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
@@ -1166,20 +1196,41 @@ void TInputManager::RegisterInputStripe(
     stripeDescriptor->Task = task;
     stripeDescriptor->Cookie = task->GetChunkPoolInput()->Add(stripe);
 
+    auto registerChunk = [&] (TChunkId chunkId) {
+        if (!visitedChunks.insert(chunkId).second) {
+            return false;
+        }
+
+        auto& chunkDescriptor = GetOrCrash(InputChunkMap_, chunkId);
+        chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+
+        if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            ++stripeDescriptor->WaitingChunkCount;
+        }
+
+        return true;
+    };
+
+    bool prefetchHunkChunks =
+        Host_->GetConfig()->EnableHunkChunkReplicaPrefetch &&
+        Host_->GetOperationType() != EOperationType::RemoteCopy;
     for (const auto& dataSlice : stripe->DataSlices()) {
         for (const auto& slice : dataSlice->ChunkSlices) {
             auto inputChunk = slice->GetInputChunk();
-            auto chunkId = inputChunk->GetChunkId();
-
-            if (!visitedChunks.insert(chunkId).second) {
+            if (!registerChunk(inputChunk->GetChunkId())) {
                 continue;
             }
 
-            auto& chunkDescriptor = GetOrCrash(InputChunkMap_, chunkId);
-            chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+            const auto& hunkChunkRefsExt = inputChunk->HunkChunkRefsExt();
+            if (!prefetchHunkChunks || !hunkChunkRefsExt) {
+                continue;
+            }
 
-            if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                ++stripeDescriptor->WaitingChunkCount;
+            for (const auto& hunkChunkRef : hunkChunkRefsExt->refs()) {
+                auto hunkChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+                if (InputChunkMap_.contains(hunkChunkId)) {
+                    registerChunk(hunkChunkId);
+                }
             }
         }
     }
@@ -1189,17 +1240,37 @@ void TInputManager::RegisterInputStripe(
     }
 }
 
-TInputChunkPtr TInputManager::GetInputChunk(NChunkClient::TChunkId chunkId, int chunkIndex) const
+TInputChunkPtr TInputManager::GetInputChunk(
+    TChunkId chunkId,
+    std::optional<int> chunkIndex) const
 {
-    const auto& inputChunks = GetOrCrash(InputChunkMap_, chunkId).InputChunks;
+    auto inputChunk = FindInputChunk(chunkId, chunkIndex);
+    YT_VERIFY(inputChunk);
+    return inputChunk;
+}
+
+TInputChunkPtr TInputManager::FindInputChunk(
+    TChunkId chunkId,
+    std::optional<int> chunkIndex) const
+{
+    const auto* chunkDescriptor = InputChunkMap_.FindPtr(chunkId);
+    if (!chunkDescriptor) {
+        return nullptr;
+    }
+
+    const auto& inputChunks = chunkDescriptor->InputChunks;
+    if (!chunkIndex) {
+        YT_VERIFY(!inputChunks.empty());
+        return inputChunks.front();
+    }
+
     auto chunkIt = std::find_if(
         inputChunks.begin(),
         inputChunks.end(),
         [&] (const TInputChunkPtr& inputChunk) -> bool {
             return inputChunk->GetChunkIndex() == chunkIndex;
         });
-    YT_VERIFY(chunkIt != inputChunks.end());
-    return *chunkIt;
+    return chunkIt == inputChunks.end() ? nullptr : *chunkIt;
 }
 
 void TInputManager::OnInputChunkBatchLocated(
