@@ -97,7 +97,7 @@ const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
+void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs);
 
 ////////////////////////////////////////////////////////////////////////////////

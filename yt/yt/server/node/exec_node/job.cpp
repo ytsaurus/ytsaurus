@@ -3246,16 +3246,20 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetRootVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto rootVolumeParams = FSSecretary_->GetRootVolumeParams(); rootVolumeParams) {
+            for (const auto& artifactKey : rootVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetGpuCheckVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto gpuVolumeParams = FSSecretary_->GetGpuCheckVolumeParams(); gpuVolumeParams) {
+            for (const auto& artifactKey : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+            }
         }
 
         for (const auto& nonRootVolumeParams : FSSecretary_->GetNonRootVolumeParams()) {
-            for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys) {
+            for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys.GetAll()) {
                 validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
             }
         }
@@ -3677,8 +3681,11 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
-    options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
+
+    options.DiskSpaceLimit = FSSecretary_->GetSandboxDiskSpace();
+    options.InodeLimit = FSSecretary_->GetSandboxInodeLimit();
+
+    options.RootVolumeParams = FSSecretary_->GetRootVolumeParams();
 
     options.VirtualSandboxData = FSSecretary_->GetVirtualSandboxData();
 

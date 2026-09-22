@@ -53,8 +53,7 @@ public:
     //! Apply disk quotas.
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
-        TUserSandboxOptions options,
-        bool hasRootVolume);
+        TUserSandboxOptions options);
 
     //! Inform slot location about non-root volumes to be used.
     void TakeIntoAccountNonRootVolumes(
@@ -279,7 +278,6 @@ private:
     void DoPrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
-        bool ignoreQuota,
         bool sandboxInsideNonRootVolume);
 
     void DoBuildSlotRootDirectory(int slotIndex);

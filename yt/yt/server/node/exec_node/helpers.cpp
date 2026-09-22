@@ -353,23 +353,26 @@ const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TSandboxNbdRootVolumeData* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
+void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd)
 {
-    nbd->Size = protoNbd.disk_request().storage_request_common_parameters().disk_space();
-    nbd->MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index());
+    nbd->DeviceSize = protoNbd.disk_request().storage_request_common_parameters().disk_space();
 
     const auto& nbdDisk = protoNbd.nbd();
+    TChunkNbdVolumeSpec chunkSpec;
+    chunkSpec.MediumIndex = static_cast<int>(protoNbd.disk_request().medium_index());
     if (nbdDisk.has_data_node_address()) {
-        nbd->DataNodeAddress = nbdDisk.data_node_address();
+        chunkSpec.DataNodeAddress = nbdDisk.data_node_address();
     }
 
-    nbd->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
-    nbd->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
-    nbd->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
-    nbd->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
-    nbd->MinDataNodeCount = nbdDisk.min_data_node_count();
-    nbd->MaxDataNodeCount = nbdDisk.max_data_node_count();
-    nbd->MultiplexingParallelism = nbdDisk.multiplexing_parallelism();
+    chunkSpec.DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    chunkSpec.MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    chunkSpec.DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
+    chunkSpec.DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
+    chunkSpec.MinDataNodeCount = nbdDisk.min_data_node_count();
+    chunkSpec.MaxDataNodeCount = nbdDisk.max_data_node_count();
+    chunkSpec.MultiplexingParallelism = nbdDisk.multiplexing_parallelism();
+
+    nbd->BackendSpec = std::move(chunkSpec);
 }
 
 void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs)

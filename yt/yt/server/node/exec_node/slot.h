@@ -62,8 +62,7 @@ struct IUserSlot
 
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options,
-        bool hasRootVolume = false) = 0;
+        const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,
@@ -107,10 +106,12 @@ struct IUserSlot
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<std::vector<TVolumeResultPtr>> PrepareNonRootVolumes(

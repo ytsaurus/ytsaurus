@@ -447,26 +447,25 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
 void TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
-    bool hasRootVolume,
-    bool sandboxInsideTmpfs)
+    bool sandboxInsideNonRootVolume)
 {
     ValidateEnabled();
 
     YT_TLOG_DEBUG("Preparing sandbox directories")
         .With("SlotIndex", slotIndex)
-        .With("SandboxInsideTmpfs", sandboxInsideTmpfs);
+        .With("SandboxInsideNonRootVolume", sandboxInsideNonRootVolume);
 
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !hasRootVolume;
+    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !options.RootVolumeParams;
 
-    if (hasRootVolume && options.EnableDiskQuota && options.DiskSpaceLimit) {
+    if (options.RootVolumeParams && options.EnableDiskQuota && options.RootVolumeParams->Size) {
         auto guard = WriterGuard(SlotsLock_);
         SlotsWithQuota_.insert(slotIndex);
     }
 
-    if (shouldApplyQuota && !sandboxInsideTmpfs) {
+    if (shouldApplyQuota && !sandboxInsideNonRootVolume) {
         try {
             auto properties = TJobDirectoryProperties {
                 .DiskSpaceLimit = options.DiskSpaceLimit,
@@ -552,8 +551,7 @@ TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
 
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
-    TUserSandboxOptions options,
-    bool hasRootVolume)
+    TUserSandboxOptions options)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
     auto sandboxInsideTmpfs = IsInsideTmpfs(slotIndex, sandboxPath);
@@ -565,7 +563,6 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
         slotIndex,
         options,
-        hasRootVolume,
         sandboxInsideTmpfs)
         .AsyncVia(invoker)
         .Run();
@@ -1331,6 +1328,10 @@ void TSlotLocation::UpdateDiskResources()
 
     YT_TLOG_DEBUG("Updating disk resources");
 
+    auto getEffectiveDiskSpaceLimit = [] (const TUserSandboxOptions& sandboxOptions) {
+        return sandboxOptions.RootVolumeParams ? sandboxOptions.RootVolumeParams->Size : sandboxOptions.DiskSpaceLimit;
+    };
+
     try {
         auto locationStatistics = GetDiskSpaceStatistics(Config_->Path);
         i64 diskLimit = locationStatistics.TotalSpace;
@@ -1393,10 +1394,12 @@ void TSlotLocation::UpdateDiskResources()
                 }
             }
 
+            std::optional<i64> diskSpaceLimit = getEffectiveDiskSpaceLimit(sandboxOptions);
+
             diskStatisticsPerSlot.insert(std::pair(
                 slotIndex,
                 TDiskStatistics{
-                    .Limit = sandboxOptions.DiskSpaceLimit,
+                    .Limit = diskSpaceLimit,
                     .Usage = slotDiskUsage,
                 }));
 
@@ -1406,10 +1409,10 @@ void TSlotLocation::UpdateDiskResources()
                 .With("Path", Config_->Path)
                 .With("SlotIndex", slotIndex)
                 .With("Usage", slotDiskUsage)
-                .With("Limit", sandboxOptions.DiskSpaceLimit)
+                .With("Limit", diskSpaceLimit)
                 .With("PathsInsideTmpfs", pathsInsideTmpfs);
-            if (sandboxOptions.DiskSpaceLimit) {
-                i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
+            if (diskSpaceLimit) {
+                i64 slotDiskLimit = *diskSpaceLimit;
                 diskUsage += slotDiskLimit;
                 reservedAvailableSpace += slotDiskLimit - slotDiskUsage;
                 if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
@@ -1442,7 +1445,8 @@ void TSlotLocation::UpdateDiskResources()
                 auto it = sandboxOptionsPerSlot.find(slotIndex);
                 if (it != sandboxOptionsPerSlot.end()) {
                     const auto& sandboxOptions = it->second;
-                    if (!sandboxOptions.DiskSpaceLimit) {
+                    std::optional<i64> diskSpaceLimit = getEffectiveDiskSpaceLimit(sandboxOptions);
+                    if (!diskSpaceLimit) {
                         reservedDiskSpace = GetOrCrash(diskStatisticsPerSlot, slotIndex).Usage;
                     }
                     // Otherwise reserved disk space is same as disk space limit of slot.
