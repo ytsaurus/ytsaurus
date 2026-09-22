@@ -1882,7 +1882,9 @@ class YTEnvSetup(object):
 
                 wait(lambda: yt_commands.select_rows(f"* from [{yt_sequoia.DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [], ignore_exceptions=True)
 
-                paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry"]
+                # NB: //sys/schemas links for object types added by a master update
+                # are mirrored to ground and are never removed.
+                paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry", "//sys/schemas"]
 
                 non_empty_tables = list(yt_sequoia.DESCRIPTORS.get_group("resolve_tables"))
 
