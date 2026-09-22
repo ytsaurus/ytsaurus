@@ -770,6 +770,15 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPushBasedShuffleManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("thread_count", &TThis::ThreadCount)
+        .Default(2)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
@@ -1380,6 +1389,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(2));
 
     registrar.Parameter("job_tracker", &TThis::JobTracker)
+        .DefaultNew();
+
+    registrar.Parameter("push_based_shuffle_manager", &TThis::PushBasedShuffleManager)
         .DefaultNew();
 
     registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)

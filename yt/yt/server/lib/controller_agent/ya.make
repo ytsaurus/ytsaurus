@@ -16,6 +16,7 @@ SRCS(
     network_project.cpp
 
     proto/job_tracker_service.proto
+    proto/push_based_shuffle_service.proto
 )
 
 PEERDIR(

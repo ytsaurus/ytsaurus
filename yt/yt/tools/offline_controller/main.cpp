@@ -106,6 +106,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void InterruptJob(
         TJobId /*jobId*/,
         EInterruptionReason /*reason*/,
