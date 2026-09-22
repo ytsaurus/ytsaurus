@@ -9,9 +9,12 @@
 #include <yt/yt/flow/library/cpp/tables/partition_states.h>
 #include <yt/yt/flow/library/cpp/tables/state.h>
 
+#include <yt/yt/flow/library/cpp/misc/destruction_context.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
 #include <yt/yt/flow/library/cpp/serializer/state.h>
+
+#include <utility>
 
 namespace NYT::NFlow {
 
@@ -107,6 +110,13 @@ NYsonSerializer::TStateMutation TRemoteState::FlushMutation()
 i64 TRemoteState::GetWeight() const
 {
     return TableState_->GetSize();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobStateCacheValue::Compress()
+{
+    TDestructionContextGuard::Add(std::exchange(State, {}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

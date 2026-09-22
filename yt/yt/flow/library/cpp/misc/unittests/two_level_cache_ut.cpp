@@ -6,7 +6,6 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 namespace NYT::NFlow::NCache {
 namespace {

@@ -77,10 +77,7 @@ struct TJobStateCacheValue
         , State(std::move(state))
     { }
 
-    void Compress() override
-    {
-        State = {};
-    }
+    void Compress() override;
 
     void Decompress() override
     { }

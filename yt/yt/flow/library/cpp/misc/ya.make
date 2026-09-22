@@ -8,6 +8,7 @@ SRCS(
     counter.cpp
     decayed_sum.cpp
     debug_build_warning.cpp
+    destruction_context.cpp
     deploy_url_provider.cpp
     identifier.cpp
     cow_tree.cpp
