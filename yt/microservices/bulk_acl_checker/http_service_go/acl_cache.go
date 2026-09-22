@@ -40,9 +40,10 @@ type ClusterACLDump struct {
 }
 
 type LRUCacheKey struct {
-	Version ypath.Path
-	Subject string
-	ACLHash string
+	Version    ypath.Path
+	Subject    string
+	Permission yt.Permission
+	ACLHash    string
 }
 
 type ACLCache struct {
@@ -193,33 +194,50 @@ func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster st
 	return
 }
 
-func DumpToACLDump(data any) (result *ACLDump, err error) {
-	result = new(ACLDump)
+func DumpToACLDump(data any) (*ACLDump, error) {
+	result := new(ACLDump)
 	list := data.([]any)
 	if list[0] != nil {
 		pathMap := list[0].(map[string]any)
 		result.Paths = make(ACLDumpMap)
 		for path, subdata := range pathMap {
-			result.Paths[path], err = DumpToACLDump(subdata)
+			child, err := DumpToACLDump(subdata)
 			if err != nil {
-				return
+				return nil, err
 			}
+			result.Paths[path] = child
 		}
 	}
-	if list[1] != nil {
-		aclMap := list[1].(map[string]any)
-		result.ACL = make(CompressedACL)
-		for indexStr, anySubjects := range aclMap {
-			index, err := strconv.Atoi(indexStr)
-			if err != nil {
-				return result, err
-			}
-			for _, subject := range anySubjects.([]any) {
-				result.ACL[index] = append(result.ACL[index], subject.(string))
-			}
+	readACL, err := dumpToCompressedACL(list[1])
+	if err != nil {
+		return nil, err
+	}
+	result.ReadACL = readACL
+	if len(list) > 2 {
+		writeACL, err := dumpToCompressedACL(list[2])
+		if err != nil {
+			return nil, err
+		}
+		result.WriteACL = writeACL
+	}
+	return result, nil
+}
+
+func dumpToCompressedACL(data any) (CompressedACL, error) {
+	if data == nil {
+		return nil, nil
+	}
+	result := make(CompressedACL)
+	for indexStr, anySubjects := range data.(map[string]any) {
+		index, err := strconv.Atoi(indexStr)
+		if err != nil {
+			return nil, err
+		}
+		for _, subject := range anySubjects.([]any) {
+			result[index] = append(result[index], subject.(string))
 		}
 	}
-	return
+	return result, nil
 }
 
 func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExportsPath ypath.Path, delay time.Duration) {

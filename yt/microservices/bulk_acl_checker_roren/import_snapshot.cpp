@@ -2,6 +2,8 @@
 
 #include <library/cpp/iterator/zip.h>
 
+#include <library/cpp/yt/containers/enum_indexed_array.h>
+
 #include <optional>
 
 #include <sstream>
@@ -37,6 +39,11 @@
 using namespace NYT;
 using namespace NRoren;
 
+DEFINE_ENUM(EAclPermission,
+    (Read)
+    (Write)
+);
+
 const THashMap<TString, NSecurityClient::ESecurityAction> STRING_TO_SECURITY_ACTION = {
     {"allow", NSecurityClient::ESecurityAction::Allow},
     {"deny", NSecurityClient::ESecurityAction::Deny},
@@ -47,6 +54,12 @@ const THashMap<TString, NSecurityClient::EAceInheritanceMode> STRING_TO_INHERITA
     {"object_and_descendants", NSecurityClient::EAceInheritanceMode::ObjectAndDescendants},
     {"descendants_only", NSecurityClient::EAceInheritanceMode::DescendantsOnly},
     {"immediate_descendants_only", NSecurityClient::EAceInheritanceMode::ImmediateDescendantsOnly},
+};
+
+const THashMap<TStringBuf, EAclPermission> STRING_TO_ACL_PERMISSION = {
+    {"read", EAclPermission::Read},
+    {"full_read", EAclPermission::Read},
+    {"write", EAclPermission::Write},
 };
 
 const std::vector<std::pair<NSecurityClient::ESecurityAction, NSecurityClient::EAceInheritanceMode>> INDEX_TO_ACL = {
@@ -111,17 +124,17 @@ std::optional<TAcl> StepAcl(const std::optional<TAcl>& acl)
         return std::nullopt;
     }
     const auto& aclValue = acl.value();
-    auto newReadAcl = DEFAULT_ACL;
+    auto childAcl = DEFAULT_ACL;
     for (const auto& [action, inheritanceModes] : aclValue) {
         for (const auto& [inheritanceMode, subjects] : inheritanceModes) {
             auto it = INHERITANCE_MODE_EVOLUTION.find(inheritanceMode);
             Y_ABORT_IF(it == INHERITANCE_MODE_EVOLUTION.end());
             if (it->second.has_value()) {
-                newReadAcl[action][it->second.value()].insert(subjects.begin(), subjects.end());
+                childAcl[action][it->second.value()].insert(subjects.begin(), subjects.end());
             }
         }
     }
-    return newReadAcl;
+    return childAcl;
 }
 
 // Merges ACLs. If A has ACEs (action, inheritanceMode, subjectsA={...}), B has ACEs (action, inheritanceMode, subjectsB={...}),
@@ -135,10 +148,10 @@ TAcl CombineAcl(const std::optional<TAcl>& aclA, const std::optional<TAcl>& aclB
         return CombineAcl(aclA, DEFAULT_ACL);
     }
     const auto& aclBValue = aclB.value();
-    auto newReadAcl = DEFAULT_ACL;
+    auto combinedAcl = DEFAULT_ACL;
     for (const auto& [action, inheritanceModes] : aclA.value()) {
         for (const auto& [inheritanceMode, subjects] : inheritanceModes) {
-            auto& newSubjects = newReadAcl[action][inheritanceMode];
+            auto& newSubjects = combinedAcl[action][inheritanceMode];
             newSubjects = subjects;
             auto actionIt = aclBValue.find(action);
             if (actionIt != aclBValue.end()) {
@@ -149,24 +162,35 @@ TAcl CombineAcl(const std::optional<TAcl>& aclA, const std::optional<TAcl>& aclB
             }
         }
     }
-    return newReadAcl;
+    return combinedAcl;
 }
 
-// Creates TAcl from TNode, taking only read|full_read permission.
-TAcl MapAcl(const TNode& acl)
+// Creates ACLs for supported permissions in a single pass, accounting for permission aliases.
+TEnumIndexedArray<EAclPermission, TAcl> MapAcl(const TNode& acl)
 {
-    auto readAcl = DEFAULT_ACL;
+    TEnumIndexedArray<EAclPermission, TAcl> permissionAcls;
+    for (auto& permissionAcl : permissionAcls) {
+        permissionAcl = DEFAULT_ACL;
+    }
     Y_ABORT_IF(!acl.IsList());
     for (const auto& ace : acl.AsList()) {
         Y_ABORT_IF(!ace.IsMap());
-        auto aceAsMap = ace.AsMap();
+        const auto& aceAsMap = ace.AsMap();
         auto permissions = aceAsMap.find("permissions");
         Y_ABORT_IF(permissions == aceAsMap.end());
         Y_ABORT_IF(!permissions->second.IsList());
-        auto& permissionsList = permissions->second.AsList();
-        if (Find(permissionsList.begin(), permissionsList.end(), TNode("read")) == permissionsList.end() &&
-            Find(permissionsList.begin(), permissionsList.end(), TNode("full_read")) == permissionsList.end())
-        {
+        TEnumIndexedArray<EAclPermission, bool> acePermissions;
+        for (const auto& node : permissions->second.AsList()) {
+            if (!node.IsString()) {
+                continue;
+            }
+            if (auto it = STRING_TO_ACL_PERMISSION.find(node.AsString()); it != STRING_TO_ACL_PERMISSION.end()) {
+                acePermissions[it->second] = true;
+            }
+        }
+        if (!AnyOf(acePermissions, [] (bool hasPermission) {
+            return hasPermission;
+        })) {
             continue;
         }
 
@@ -186,13 +210,18 @@ TAcl MapAcl(const TNode& acl)
         Y_ABORT_IF(subjects == aceAsMap.end());
         Y_ABORT_IF(!subjects->second.IsList());
 
-        auto& readAclSubjects = readAcl[aclActionIt->second][inheritanceModeIt->second];
-        for (const auto& node : subjects->second.AsList()) {
-            Y_ABORT_IF(!node.IsString());
-            readAclSubjects.insert(node.AsString());
+        for (EAclPermission permission : TEnumTraits<EAclPermission>::GetDomainValues()) {
+            if (!acePermissions[permission]) {
+                continue;
+            }
+            auto& aclSubjects = permissionAcls[permission][aclActionIt->second][inheritanceModeIt->second];
+            for (const auto& node : subjects->second.AsList()) {
+                Y_ABORT_IF(!node.IsString());
+                aclSubjects.insert(node.AsString());
+            }
         }
     }
-    return readAcl;
+    return permissionAcls;
 }
 
 // Map from index of pair (actions, inheritanceMode) to sorted vector of subjects.
@@ -200,13 +229,13 @@ using TAclDump = TMap<TString, std::vector<TString>>;
 
 // Converts TAcl to TAclDump. The inverse function to LoadAclFromDict.
 // Actually just merges keys [action][inheritanceMode] into one key [ACL_TO_INDEX[{action, inheritanceMode}]].
-TAclDump DumpAclToDict(const std::optional<TAcl>& readAcl)
+TAclDump DumpAclToDict(const std::optional<TAcl>& acl)
 {
-    if (!readAcl.has_value()) {
+    if (!acl.has_value()) {
         return DumpAclToDict(DEFAULT_ACL);
     }
     TAclDump dump;
-    for (const auto& [action, inheritanceModes] : readAcl.value()) {
+    for (const auto& [action, inheritanceModes] : acl.value()) {
         for (const auto& [inheritanceMode, subjects] : inheritanceModes) {
             if (!subjects.empty()) {
                 std::vector<TString> subjectsSorted(subjects.begin(), subjects.end());
@@ -221,13 +250,13 @@ TAclDump DumpAclToDict(const std::optional<TAcl>& readAcl)
 // Converts TAclDump to TAcl. The inverse function to DumpAclToDict.
 TAcl LoadAclFromDict(const TAclDump& dump)
 {
-    TAcl readAcl = DEFAULT_ACL;
+    TAcl acl = DEFAULT_ACL;
     for (const auto& [indexOfAcl, sortedSubjects] : dump) {
         const auto& [action, inheritanceMode] = INDEX_TO_ACL[FromString<size_t>(indexOfAcl)];
         THashSet<TString> subjects(sortedSubjects.begin(), sortedSubjects.end());
-        readAcl[action][inheritanceMode] = std::move(subjects);
+        acl[action][inheritanceMode] = std::move(subjects);
     }
-    return readAcl;
+    return acl;
 }
 
 TNode NodeFromTAclDump(const TAclDump& dump)
@@ -248,10 +277,9 @@ TNode NodeFromTAclDump(const TAclDump& dump)
 class TACLTrieNode
 {
 public:
-    TACLTrieNode(const TStringBuf path, const std::optional<TAcl>& acl = std::nullopt, TACLTrieNode* nonTrivialPredecessor = nullptr, size_t nonTrivialPredecessorDepth = 0)
+    TACLTrieNode(const TStringBuf path, TACLTrieNode* nonTrivialPredecessor = nullptr, size_t nonTrivialPredecessorDepth = 0)
         : Path_(path)
-        , Acl_(std::move(acl))
-        , AclPropagation_({Acl_})
+        , AclPropagation_({{EAclPermission::Read, {std::nullopt}}, {EAclPermission::Write, {std::nullopt}}})
         , NonTrivialPredecessor_(!nonTrivialPredecessor ? this : nonTrivialPredecessor)
         , NonTrivialPredecessorDepth_(!nonTrivialPredecessor ? 0 : nonTrivialPredecessorDepth)
     {
@@ -262,16 +290,17 @@ public:
         return NonTrivialPredecessor_ != this;
     }
 
-    std::optional<TAcl> GetAcl(size_t depth = 0)
+    std::optional<TAcl> GetAcl(EAclPermission permission, size_t depth = 0)
     {
         if (!IsTrivial()) {
             auto queryDepth = Min(depth, (size_t)2);
-            while (AclPropagation_.size() <= queryDepth) {
-                AclPropagation_.push_back(StepAcl(AclPropagation_.back()));
+            auto& propagation = AclPropagation_[permission];
+            while (propagation.size() <= queryDepth) {
+                propagation.push_back(StepAcl(propagation.back()));
             }
-            return AclPropagation_[queryDepth];
+            return propagation[queryDepth];
         }
-        return NonTrivialPredecessor_->GetAcl(depth + NonTrivialPredecessorDepth_);
+        return NonTrivialPredecessor_->GetAcl(permission, depth + NonTrivialPredecessorDepth_);
     }
 
     TString ChildPath(const TStringBuf part)
@@ -285,17 +314,16 @@ public:
         if (!Children_.contains(pathPart) && create) {
             Children_[pathPart] = MakeSimpleShared<TACLTrieNode>(
                 ChildPath(pathPart),
-                std::nullopt,
                 NonTrivialPredecessor_,
                 NonTrivialPredecessorDepth_ + 1);
         }
         return Children_.at(pathPart);
     }
 
-    void SetAcl(bool inheritAcl, const TAcl& acl)
+    void SetAcl(bool inheritAcl, const TAcl& readAcl, const TAcl& writeAcl)
     {
-        Acl_ = inheritAcl ? CombineAcl(GetAcl(), acl) : acl;
-        AclPropagation_ = {Acl_};
+        AclPropagation_[EAclPermission::Read] = {inheritAcl ? CombineAcl(GetAcl(EAclPermission::Read), readAcl) : readAcl};
+        AclPropagation_[EAclPermission::Write] = {inheritAcl ? CombineAcl(GetAcl(EAclPermission::Write), writeAcl) : writeAcl};
         NonTrivialPredecessor_ = this;
         NonTrivialPredecessorDepth_ = 0;
     }
@@ -311,11 +339,12 @@ public:
         }
         resultList.push_back(std::move(dataC));
 
-        auto aclDump = NodeFromTAclDump(DumpAclToDict(GetAcl()));
-        if (!IsTrivial()) {
-            resultList.push_back(std::move(aclDump));
-        } else {
-            resultList.push_back(TNode::CreateEntity());
+        for (EAclPermission permission : {EAclPermission::Read, EAclPermission::Write}) {
+            if (!IsTrivial()) {
+                resultList.push_back(NodeFromTAclDump(DumpAclToDict(GetAcl(permission))));
+            } else {
+                resultList.push_back(TNode::CreateEntity());
+            }
         }
         return result;
     }
@@ -323,8 +352,7 @@ public:
 private:
     TString Path_;
     THashMap<TString, TSimpleSharedPtr<TACLTrieNode>> Children_;
-    std::optional<TAcl> Acl_;
-    std::vector<std::optional<TAcl>> AclPropagation_;
+    TEnumIndexedArray<EAclPermission, std::vector<std::optional<TAcl>>> AclPropagation_;
     TACLTrieNode* NonTrivialPredecessor_;
     size_t NonTrivialPredecessorDepth_;
 };
@@ -339,14 +367,14 @@ public:
     {
     }
 
-    void SetAcl(const TStringBuf path, bool inheritAcl, const TAcl& acl)
+    void SetAcl(const TStringBuf path, bool inheritAcl, const TAcl& readAcl, const TAcl& writeAcl)
     {
         std::vector<TString> pathParts = StringSplitter(path).Split('/');
         TSimpleSharedPtr<TACLTrieNode> node = Root_;
         for (size_t i = 1; i < pathParts.size(); ++i) {
             node = node->GetChild(pathParts[i]);
         }
-        node->SetAcl(inheritAcl, acl);
+        node->SetAcl(inheritAcl, readAcl, writeAcl);
     }
 
     TNode Dump()
@@ -365,13 +393,15 @@ struct TRowAfterMap
     TString Group;
     bool InheritAcl;
     TString Path;
-    TAclDump Acl;
+    TAclDump ReadAcl;
+    TAclDump WriteAcl;
 
     Y_SAVELOAD_DEFINE(
         Group,
         InheritAcl,
         Path,
-        Acl);
+        ReadAcl,
+        WriteAcl);
 };
 
 std::vector<TRowAfterMap> GetSortedRows(const TInputPtr<TRowAfterMap>& rowIterator)
@@ -381,7 +411,7 @@ std::vector<TRowAfterMap> GetSortedRows(const TInputPtr<TRowAfterMap>& rowIterat
         rows.push_back(row);
     }
     Sort(rows.begin(), rows.end(), [](const TRowAfterMap& lhs, const TRowAfterMap& rhs) {
-        return std::tuple{lhs.Path, lhs.InheritAcl, lhs.Acl} < std::tuple{rhs.Path, rhs.InheritAcl, rhs.Acl};
+        return std::tuple{lhs.Path, lhs.InheritAcl, lhs.ReadAcl, lhs.WriteAcl} < std::tuple{rhs.Path, rhs.InheritAcl, rhs.ReadAcl, rhs.WriteAcl};
     });
     return rows;
 }
@@ -391,7 +421,7 @@ TACLTrie BuildTAclTrie(const TInputPtr<TRowAfterMap>& rowIterator)
     TACLTrie trie = TACLTrie();
     std::vector<TRowAfterMap> sortedRows = GetSortedRows(rowIterator);
     for (const auto& entry : sortedRows) {
-        trie.SetAcl(entry.Path, entry.InheritAcl, LoadAclFromDict(entry.Acl));
+        trie.SetAcl(entry.Path, entry.InheritAcl, LoadAclFromDict(entry.ReadAcl), LoadAclFromDict(entry.WriteAcl));
     }
     return trie;
 }
@@ -443,7 +473,9 @@ void MakeAclTreePipeline(
             result.InheritAcl = row.GetInheritAcl();
             result.Path = row.GetPath();
 
-            result.Acl = DumpAclToDict(MapAcl(aclNode));
+            auto acls = MapAcl(aclNode);
+            result.ReadAcl = DumpAclToDict(std::move(acls[EAclPermission::Read]));
+            result.WriteAcl = DumpAclToDict(std::move(acls[EAclPermission::Write]));
             output.Add(result);
         }
     })
