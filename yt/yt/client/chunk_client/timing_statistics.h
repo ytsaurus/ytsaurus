@@ -1,14 +1,14 @@
 #pragma once
 
-#include <yt/yt/client/table_client/private.h>
+#include "public.h"
+
+#include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/string/format.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(max42): consider moving this class to NChunkClient.
 
 struct TTimingStatistics
 {
@@ -18,14 +18,19 @@ struct TTimingStatistics
     TDuration ReadTime;
     //! Time of not waiting and not reading.
     TDuration IdleTime;
+
+    //! Returns the sum of all components.
+    TDuration GetTotalTime() const;
 };
 
 TTimingStatistics& operator+=(TTimingStatistics& lhs, const TTimingStatistics& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TTimingStatistics& statistics, NYson::IYsonConsumer* consumer);
+
 void FormatValue(TStringBuilderBase* builder, const TTimingStatistics& statistics, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NChunkClient

@@ -115,6 +115,17 @@ public:
         return UnderlyingReader_->GetDataStatistics();
     }
 
+    NApi::TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        auto timing = UnderlyingReader_->GetTimingStatistics();
+        // NB(achains): The adapter has no phases of its own,
+        // so its total time is the lifetime of the wrapped reader.
+        return NApi::TTableReaderTimingStatistics{
+            .DataReadTiming = timing,
+            .TotalTime = timing.GetTotalTime(),
+        };
+    }
+
     TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();

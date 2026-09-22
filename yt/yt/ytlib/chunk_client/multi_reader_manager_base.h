@@ -32,7 +32,7 @@ public:
 
     NProto::TDataStatistics GetDataStatistics() const override;
     TCodecStatistics GetDecompressionStatistics() const override;
-    NTableClient::TTimingStatistics GetTimingStatistics() const override;
+    TTimingStatistics GetTimingStatistics() const override;
 
     std::vector<TChunkId> GetFailedChunkIds() const override;
 

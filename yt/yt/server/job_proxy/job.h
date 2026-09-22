@@ -27,11 +27,10 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
-#include <yt/yt/ytlib/table_client/timing_statistics.h>
-
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/timing_statistics.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -177,7 +176,7 @@ struct IJob
         //! Per-output chunk writer statistics; this field is truncated when producing final job statistics,
         //! but the original statistics is sent as a separate protobuf field.
         std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;
-        NTableClient::TTimingStatistics TimingStatistics;
+        NChunkClient::TTimingStatistics TimingStatistics;
         std::vector<TWriterTimingStatistics> WriterTimingStatistics;
 
         struct TPipeStatistics
