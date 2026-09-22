@@ -67,6 +67,7 @@ target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/compact_unversioned_owning_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/cow_tree_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/debug_build_warning_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/destruction_context_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/linear_system_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/crash_recorder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/bipartite_map_ut.cpp

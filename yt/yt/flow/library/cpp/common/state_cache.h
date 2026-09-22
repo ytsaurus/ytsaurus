@@ -17,6 +17,8 @@ using TStateCacheKey = std::tuple<TJobId, std::optional<TKey>, std::string>;
 struct IStateCacheValue
     : public TRefCounted
 {
+    // Compresses the value; heavy storage detached during compression must be handed
+    // over to the current destruction context (see #NYT::NFlow::TDestructionContextGuard).
     virtual void Compress() = 0;
     virtual void Decompress() = 0;
     virtual i64 GetWeight() = 0;

@@ -12,6 +12,10 @@ namespace NYT::NFlow::NCache {
 // Exceptions from eviction callbacks are fatal. This includes #TCompressibleValue::Compress(),
 // #TCompressibleValue::GetWeight(), and hashing, copying or comparing #TKey.
 // Other cache operations may propagate exceptions to the caller.
+//
+// #TCompressibleValue::Compress() runs under cache locks; heavy storage detached
+// during compression must be handed over to the current destruction context
+// (see #NYT::NFlow::TDestructionContextGuard) instead of being destroyed in place.
 template <class TKey, class TCompressibleValue>
 class TTwoLevelCache
     : public TRefCounted
