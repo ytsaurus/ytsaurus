@@ -1708,6 +1708,77 @@ TEST_F(TPartitioning, SinkTopologyChangeWaitsForNonUintRangePivots)
         EPartitionState::Interrupting);
 }
 
+// A partition that goes fully idle after being split never produces pivots again; it must not
+// veto resharding of a sibling partition that is still loaded.
+TEST_F(TPartitioning, IdlePartitionDoesNotBlockReshardOfLoadedPartition)
+{
+    Prepare(
+        2,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ false,
+        /*withNonUintKey*/ true);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "desired_partition_count" = 2;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 1);
+    const auto initialPartitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+
+    SetFeedback(0, 0, 0, 0);
+    FlowView->Feedback->PartitionJobStatuses.at(initialPartitionId)
+        ->CurrentJobStatus->InputMetrics->Global.Pivots = {MakeKey(TStringBuf("m"))};
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 2);
+
+    // The partition whose lower bound is the universal minimum covers "< m" (the busy one); the
+    // other, starting at "m", covers ">= m".
+    std::optional<TPartitionId> lowPartitionId;
+    std::optional<TPartitionId> highPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != ComputationId || partition->State != EPartitionState::Executing) {
+            continue;
+        }
+        ASSERT_TRUE(partition->LowerKey);
+        if (*partition->LowerKey == MinKey()) {
+            lowPartitionId = partitionId;
+        } else {
+            highPartitionId = partitionId;
+        }
+    }
+    ASSERT_TRUE(lowPartitionId.has_value());
+    ASSERT_TRUE(highPartitionId.has_value());
+
+    // The low partition is still loaded and ready to split further (fresh pivot at "g"). The high
+    // partition is the formerly hot client that has now finished: no messages, no pivots, forever.
+    SetPartitionFeedback(*lowPartitionId, /*cpuUsage*/ 0, /*memUsage*/ 0, /*messagesPerSecond*/ 0, /*bytesPerSecond*/ 0);
+    FlowView->Feedback->PartitionJobStatuses.at(*lowPartitionId)
+        ->CurrentJobStatus->InputMetrics->Global.Pivots = {MakeKey(TStringBuf("g"))};
+    SetPartitionFeedback(*highPartitionId, /*cpuUsage*/ 0, /*memUsage*/ 0, /*messagesPerSecond*/ 0, /*bytesPerSecond*/ 0);
+
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "desired_partition_count" = 3;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+
+    // Before the fix, the idle high partition's missing pivots forever blocked this reshard.
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 3);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Directly exercises the peak-hold envelope used to damp partition-count reductions (YTFLOWSUPPORT-113):
