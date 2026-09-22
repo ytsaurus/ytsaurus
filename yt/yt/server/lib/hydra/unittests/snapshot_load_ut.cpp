@@ -190,6 +190,7 @@ TEST(TSnapshotLoadTest, ItWorks)
 
 TEST(TSnapshotLoadTest, FailsOnUnknownParts)
 {
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
     EXPECT_DEATH(RunSimpleSnapshotLoadTest("Part", "Part_"), /*regex*/ "Started skipping unknown automaton part .*Name: Part");
 }
 
