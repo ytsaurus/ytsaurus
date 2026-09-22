@@ -413,18 +413,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
         }
     }
 
-    {
-        TStringBuilder builder;
-        TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-
-        delimitedBuilder->AppendFormat("TargetObjectId: %v", GetVersionedId());
-
-        if (!ypathExt.target_path().empty()) {
-            delimitedBuilder->AppendFormat("RequestPathSuffix: %v", ypathExt.target_path());
-        }
-
-        context->SetRawRequestInfo(builder.Flush(), true);
-    }
+    context->AnnotateRequest(/*flush*/ false)
+        .With("TargetObjectId", GetVersionedId())
+        .WithIf(!ypathExt.target_path().empty(), "RequestPathSuffix", ypathExt.target_path());
 
     if (GetSuppressModificationTracking(requestHeader)) {
         // Reads of this value occur only in the same thread it was set in, thus

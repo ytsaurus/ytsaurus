@@ -17,7 +17,7 @@
 || `default_request_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1d`
  ||
-|| `alert_on_missing_request_info` | **Тип**: `bool`
+|| `alert_on_missing_request_annotation` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||
 || `alert_on_unset_request_timeout` | **Тип**: `bool`

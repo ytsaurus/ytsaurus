@@ -6059,11 +6059,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
     auto component = MaintenanceComponentFromProto(request->component());
     auto address = request->address();
 
-    TStringBuilder requestInfo;
-    requestInfo.AppendFormat("Component: %v, Address: %v",
-        component,
-        address);
-
     if (request->mine() && request->has_user()) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"user\" and \"mine\"");
     }
@@ -6073,31 +6068,30 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
 
     if (request->has_type()) {
         filter.Type = MaintenanceTypeFromProto(request->type());
-        requestInfo.AppendFormat(", Type: %v", filter.Type);
     }
 
     using TByUser = TMaintenanceFilter::TByUser;
     if (request->has_user()) {
-        auto user = request->user();
-        requestInfo.AppendFormat(", User: %v", user);
-        filter.User = user;
+        filter.User = request->user();
     } else if (request->mine()) {
         filter.User = TByUser::TMine{};
-        requestInfo.AppendString(", Mine: true");
     } else {
         filter.User = TByUser::TAll{};
     }
 
     // COMPAT(kvk1920): For compatibility with pre-24.2 RPC clients.
     auto supportsPerTargetResponse = request->supports_per_target_response();
-    requestInfo.AppendFormat(
-        ", SupportsPerTargetResponse: %v",
-        supportsPerTargetResponse);
 
     TRemoveMaintenanceOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRawRequestInfo(requestInfo.Flush(), /*incremental*/ false);
+    context->AnnotateRequest()
+        .With("Component", component)
+        .With("Address", address)
+        .WithIf(request->has_type(), "Type", YT_LAZY(*filter.Type))
+        .WithIf(request->has_user(), "User", request->user())
+        .WithIf(!request->has_user() && request->mine(), "Mine", true)
+        .With("SupportsPerTargetResponse", supportsPerTargetResponse);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

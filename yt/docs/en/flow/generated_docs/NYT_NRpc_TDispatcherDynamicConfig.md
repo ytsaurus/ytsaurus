@@ -11,7 +11,7 @@ Source: [yt/yt/core/rpc/config.h]({{source-root}}/yt/yt/core/rpc/config.h)
  ||
 || `heavy_pool_polling_period` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||
-|| `alert_on_missing_request_info` | **Type**: `std::optional<bool>`
+|| `alert_on_missing_request_annotation` | **Type**: `std::optional<bool>`
  ||
 || `send_tracing_baggage` | **Type**: `std::optional<bool>`
  ||

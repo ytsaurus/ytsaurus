@@ -2855,36 +2855,34 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     };
 }
 
-void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+NLogging::TLoggingTagList TSchedulingPolicy::BuildSchedulingAttributeTagsForNode(
     const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-    TNodeId nodeId,
-    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+    TNodeId nodeId) const
 {
     auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
-        return;
+        return {};
     }
 
-    delimitedBuilder->AppendFormat(
-        "SchedulingSegment: %v, RunningAllocationStatistics: %v",
-        nodeState->SchedulingSegment,
-        nodeState->RunningAllocationStatistics);
+    NLogging::TLoggingTagList tags;
+    tags
+        .Add("SchedulingSegment", nodeState->SchedulingSegment)
+        .Add("RunningAllocationStatistics", nodeState->RunningAllocationStatistics);
 
     const auto& statistics = DynamicPointerCast<TScheduleAllocationsStatisticsImpl>(schedulingHeartbeatContext->GetSchedulingStatistics());
     if (statistics) {
-        delimitedBuilder->AppendFormat(
-            "StartedAllocationsByPreemption: %v, PreemptibleInfo: {AllocationCount: %v, UsageDiscount: %v}, "
-            "SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
-            "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
-            statistics->ScheduledDuringPreemption,
-            statistics->PreemptibleAllocationCount,
-            statistics->ResourceUsageDiscount,
-            statistics->SsdPriorityPreemptionEnabled,
-            statistics->SsdPriorityPreemptionMedia,
-            statistics->FormatScheduleAllocationAttemptsCompact(),
-            statistics->FormatOperationCountByPreemptionPriorityCompact());
+        tags
+            .Add("StartedAllocationsByPreemption", statistics->ScheduledDuringPreemption)
+            .Add("PreemptibleAllocationCount", statistics->PreemptibleAllocationCount)
+            .Add("PreemptibleUsageDiscount", statistics->ResourceUsageDiscount)
+            .Add("SsdPriorityPreemptionEnabled", statistics->SsdPriorityPreemptionEnabled)
+            .Add("SsdPriorityPreemptionMedia", statistics->SsdPriorityPreemptionMedia)
+            .Add("ScheduleAllocationAttempts", statistics->FormatScheduleAllocationAttemptsCompact())
+            .Add("OperationCountByPreemptionPriority", statistics->FormatOperationCountByPreemptionPriorityCompact());
     }
+
+    return tags;
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesForNode(

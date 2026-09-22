@@ -579,11 +579,10 @@ public:
         const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     //! Diagnostics.
-    void BuildSchedulingAttributesStringForNode(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        NNodeTrackerClient::TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+        NNodeTrackerClient::TNodeId nodeId) const override;
     void BuildSchedulingAttributesForNode(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         NNodeTrackerClient::TNodeId nodeId,

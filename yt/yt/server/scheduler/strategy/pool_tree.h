@@ -82,10 +82,9 @@ struct IPoolTree
     virtual TStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
     virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const std::string& poolId) const = 0;
-    virtual void BuildSchedulingAttributesStringForNode(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
         const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        NNodeTrackerClient::TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
     virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,

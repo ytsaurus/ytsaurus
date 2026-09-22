@@ -154,9 +154,8 @@ struct INodeHeartbeatStrategyProxy
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
-    virtual void BuildSchedulingAttributesString(
-        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTags(
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const = 0;
 
     virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,

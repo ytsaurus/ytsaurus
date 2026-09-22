@@ -2967,16 +2967,14 @@ private:
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }
 
-    void BuildSchedulingAttributesStringForNode(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TNodeId nodeId,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        TNodeId nodeId) const override
     {
-        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(
+        return SchedulingPolicy_->BuildSchedulingAttributeTagsForNode(
             GetAtomicTreeSnapshot(),
             schedulingHeartbeatContext,
-            nodeId,
-            delimitedBuilder);
+            nodeId);
     }
 
     void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
