@@ -2554,6 +2554,7 @@ void TTablet::ReconfigureProfiling()
 {
     TableProfiler_ = TTabletProfilerManager::Get()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
+        Context_->GetDynamicConfig()->ProfilingTagExportMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
         Settings_.MountConfig->ProfilingTag,
@@ -3782,6 +3783,13 @@ void TTablet::OnDynamicConfigChanged(
 {
     for (const auto& [_, store] : StoreIdMap_) {
         store->OnDynamicConfigChanged(oldConfig, newConfig);
+    }
+
+    if (Settings_.MountConfig->ProfilingMode == EDynamicTableProfilingMode::Tag &&
+        oldConfig->ProfilingTagExportMode != newConfig->ProfilingTagExportMode)
+    {
+        ReconfigureProfiling();
+        ReconfigureHedgingManagerRegistry();
     }
 
     ReconfigureChunkFragmentReader(slot);

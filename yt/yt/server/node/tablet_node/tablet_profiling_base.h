@@ -37,6 +37,7 @@ public:
 
     TTableProfilerPtr CreateTableProfiler(
         EDynamicTableProfilingMode profilingMode,
+        EProfilingTagExportMode profilingTagExportMode,
         const std::string& tabletCellBundle,
         const NYPath::TYPath& tablePath,
         const std::string& tableTag,
@@ -58,6 +59,7 @@ private:
 
     using TProfilerKey = std::tuple<
         EDynamicTableProfilingMode, // profiling mode
+        EProfilingTagExportMode,    // profiling tag export mode
         std::string,                // bundle
         std::string,                // table path or tag
         std::string,                // account
