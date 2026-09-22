@@ -1,6 +1,6 @@
 from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, read_structured_log_single_entry, write_log_barrier
 
 from yt_commands import (
     list_jobs, ls, get, map, select_rows, set, print_debug, authors, sync_create_cells, wait, wait_no_assert, raises_yt_error,
@@ -717,6 +717,18 @@ class TestJobProxyJobApi(YTEnvSetup):
         orchid_path = f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time"
         return datetime.datetime.fromisoformat(get(orchid_path))
 
+    def _validate_progress_saved_event(self, job_id, from_barrier):
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        to_barrier = write_log_barrier(controller_agent_address)
+        event = read_structured_log_single_entry(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            row_filter=lambda event: event.get("event_type") == "progress_saved" and event.get("job_id") == job_id,
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+        )
+        assert event["allocation_id"] == get_allocation_id_from_job_id(job_id)
+        assert datetime.datetime.fromisoformat(event["preemptible_progress_start_time"]) == self.try_get_last_save_time(job_id)
+
     @authors("dann239")
     def test_grpc_disabled_by_default(self):
         socket_file, _ = self.run_job_proxy(
@@ -754,6 +766,8 @@ class TestJobProxyJobApi(YTEnvSetup):
         assert self.try_get_last_save_time(job_id) is None
         assert t0 < self.get_preemptible_progress_time(job_id) < t1
 
+        from_barrier = write_log_barrier(ls("//sys/controller_agents/instances")[0])
+
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
             "/JobApiService/OnProgressSaved",
@@ -766,6 +780,7 @@ class TestJobProxyJobApi(YTEnvSetup):
 
         assert t1 < self.try_get_last_save_time(job_id) < t2
         wait(lambda: self.try_get_last_save_time(job_id) == self.get_preemptible_progress_time(job_id))
+        self._validate_progress_saved_event(job_id, from_barrier)
 
     @authors("dann239")
     def test_progress_saved_http(self):
@@ -792,6 +807,8 @@ class TestJobProxyJobApi(YTEnvSetup):
         assert self.try_get_last_save_time(job_id) is None
         assert t0 < self.get_preemptible_progress_time(job_id) < t1
 
+        from_barrier = write_log_barrier(ls("//sys/controller_agents/instances")[0])
+
         # Since we're using a UDS, hostname can be whatever
         hostname = "foo.bar"
 
@@ -804,6 +821,7 @@ class TestJobProxyJobApi(YTEnvSetup):
 
         assert t1 < self.try_get_last_save_time(job_id) < t2
         wait(lambda: self.try_get_last_save_time(job_id) == self.get_preemptible_progress_time(job_id))
+        self._validate_progress_saved_event(job_id, from_barrier)
 
 
 class TestJobProxyMemoryProfiling(YTEnvSetup):
