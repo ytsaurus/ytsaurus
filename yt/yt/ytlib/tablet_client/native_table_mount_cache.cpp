@@ -373,6 +373,7 @@ private:
             tableInfo->NeedKeyEvaluation = primarySchema->HasMaterializedComputedColumns();
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
             tableInfo->SerializationType = FromProto<ETabletTransactionSerializationType>(rsp->serialization_type());
+            tableInfo->CommitOrdering = FromProto<NTransactionClient::ECommitOrdering>(rsp->commit_ordering());
             tableInfo->ReplicationCardId = FromProto<TReplicationCardId>(rsp->replication_card_id());
             tableInfo->PhysicalPath = PhysicalPath_;
 

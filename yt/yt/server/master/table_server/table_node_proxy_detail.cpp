@@ -2217,6 +2217,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
     response->set_serialization_type(ToProto(trunkTable->GetSerializationType()));
+    response->set_commit_ordering(ToProto(trunkTable->GetCommitOrdering()));
 
     THashSet<TTabletCell*> cells;
     for (auto tabletBase : trunkTable->Tablets()) {
