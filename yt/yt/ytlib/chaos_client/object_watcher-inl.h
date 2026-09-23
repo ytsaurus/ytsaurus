@@ -385,6 +385,30 @@ EObjectWatcherState TObjectWatcher<TObjectPtr, TWatcherInterface>::WatchObject(
 }
 
 template <class TObjectPtr, class TWatcherInterface>
+TObjectPtr TObjectWatcher<TObjectPtr, TWatcherInterface>::FindObject(TChaosObjectId objectId)
+{
+    auto migratedObjectsGuard = ReaderGuard(MigratedObjectsLock_);
+    if (MigratedObjects_.contains(objectId)) {
+        return nullptr;
+    }
+
+    auto deletedObjectsGuard = ReaderGuard(DeletedObjectsLock_);
+    if (DeletedObjects_.contains(objectId)) {
+        return nullptr;
+    }
+
+    auto entriesGuard = ReaderGuard(EntriesLock_);
+    auto it = WatchersByObjectId_.find(objectId);
+    if (it == WatchersByObjectId_.end()) {
+        return nullptr;
+    }
+
+    const auto& entry = it->second;
+    auto entryGuard = Guard(entry->Lock);
+    return entry->Object;
+}
+
+template <class TObjectPtr, class TWatcherInterface>
 bool TObjectWatcher<TObjectPtr, TWatcherInterface>::TryUnregisterObject(TChaosObjectId objectId)
 {
     auto writeGuard = WriterGuard(EntriesLock_);

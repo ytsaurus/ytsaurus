@@ -246,6 +246,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("replication_card_cache", &TThis::ReplicationCardCache)
         .Optional();
+    registrar.Parameter("chaos_lease_cache", &TThis::ChaosLeaseCache)
+        .Optional();
     registrar.Parameter("cluster_directory_synchronizer", &TThis::ClusterDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("medium_directory_synchronizer", &TThis::MediumDirectorySynchronizer)

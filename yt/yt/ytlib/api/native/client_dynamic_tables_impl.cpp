@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
+#include <yt/yt/ytlib/chaos_client/chaos_lease_serialization.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
@@ -72,6 +73,8 @@
 
 #include <yt/yt/client/api/chaos_lease.h>
 
+#include <yt/yt/client/chaos_client/chaos_lease.h>
+#include <yt/yt/client/chaos_client/chaos_lease_cache.h>
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
@@ -4100,6 +4103,34 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
 IChannelPtr TClient::GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind)
 {
     return GetNativeConnection()->GetChaosChannelByObjectIdOrThrow(chaosObjectId, peerKind);
+}
+
+TChaosLeasePtr TClient::DoGetChaosLease(
+    TChaosLeaseId chaosLeaseId,
+    const TGetChaosLeaseOptions& options)
+{
+    if (!options.BypassCache && Connection_->GetStaticConfig()->ChaosLeaseCache) {
+        return WaitForFast(Connection_->GetChaosLeaseCache()->GetChaosLease(chaosLeaseId))
+            .ValueOrThrow();
+    }
+
+    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+
+    auto req = proxy.GetChaosLease();
+    ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    auto chaosLease = New<TChaosLease>();
+    FromProto(chaosLease.Get(), *rsp);
+
+    YT_TLOG_DEBUG("Got chaos lease")
+        .With("ChaosLeaseId", chaosLeaseId);
+
+    return chaosLease;
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(
