@@ -4,10 +4,6 @@
 #include "gossip_value.h"
 #endif
 
-#include "bootstrap.h"
-#include "config.h"
-#include "config_manager.h"
-
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,11 +30,12 @@ TValue* TGossipValue<TValue>::Remote(NObjectClient::TCellTag cellTag)
 }
 
 template <class TValue>
-void TGossipValue<TValue>::Initialize(TBootstrap* bootstrap)
+void TGossipValue<TValue>::Initialize(
+    NObjectClient::TCellTag cellTag,
+    NObjectClient::TCellTag primaryCellTag,
+    const NObjectClient::TCellTagSet& secondaryCellTags,
+    bool allowMasterCellRemoval)
 {
-    auto cellTag = bootstrap->GetCellTag();
-    const auto& secondaryCellTags = bootstrap->GetSecondaryCellTags();
-
     if (secondaryCellTags.empty()) {
         SetLocalPtr(&Cluster());
     } else {
@@ -53,8 +50,8 @@ void TGossipValue<TValue>::Initialize(TBootstrap* bootstrap)
 
         for (auto it = multicellStatistics.begin(); it != multicellStatistics.end();) {
             auto masterCellTag = it->first;
-            if (!secondaryCellTags.contains(masterCellTag) && bootstrap->GetPrimaryCellTag() != masterCellTag) {
-                YT_VERIFY(bootstrap->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+            if (!secondaryCellTags.contains(masterCellTag) && primaryCellTag != masterCellTag) {
+                YT_VERIFY(allowMasterCellRemoval);
                 multicellStatistics.erase(it++);
             } else {
                 ++it;

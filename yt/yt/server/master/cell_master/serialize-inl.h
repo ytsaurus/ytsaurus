@@ -4,6 +4,8 @@
 #include "serialize.h"
 #endif
 
+#include "bootstrap.h"
+
 #include <yt/yt/core/misc/serialize.h>
 #include <library/cpp/yt/mpl/type_traits.h>
 
