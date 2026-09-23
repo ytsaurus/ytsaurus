@@ -60,7 +60,10 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
 
 TInstant TCypressNode::GetTouchTime(bool branchIsOk) const
 {
-    YT_VERIFY(branchIsOk || IsTrunk());
+    YT_LOG_ALERT_AND_THROW_UNLESS(
+        branchIsOk || IsTrunk(),
+        "Attempted to access the touch time of a branch (NodeId: %v)", GetVersionedId());
+
     return TouchTime_;
 }
 
