@@ -112,6 +112,3 @@ auto nodeId = NYT::NFlow::CreatePipelineNode(client, pipelinePath, options);
 - [Глоссарий: Pipeline](../../../flow/concepts/glossary.md#pipeline)
 - [Внутренние таблицы пайплайна](../../../flow/concepts/glossary.md#inner-pipeline-tables)
 - [Базовые правила выкатки пайплайна](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)
-{% if audience != "internal" %}
-- Опенсорс-пример bootstrap-скрипта: [`yt/yt/flow/examples/cpp/noop/yt_sync_mini`]({{source-root}}/yt/yt/flow/examples/cpp/noop/yt_sync_mini)
-{% endif %}

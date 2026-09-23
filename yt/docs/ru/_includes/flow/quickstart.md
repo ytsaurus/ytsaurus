@@ -1,188 +1,131 @@
 # Быстрый старт c {{product-name}} Flow
 
-Цель данного руководства &mdash; познакомить с инфраструктурой Flow на примере минималистичного пайплайна. В этом руководстве Вы:
+Цель данного руководства &mdash; запустить минималистичный пайплайн и познакомиться на нём с инфраструктурой Flow. Пайплайн запускается в {{product-name}} [vanilla-операции](../../user-guide/data-processing/operations/vanilla.md): контроллер и воркер работают джобами этой операции, поэтому отдельно деплоить их не нужно. Свой код тоже не понадобится &mdash; хватит готового бинаря `flow_server` и конфига пайплайна. В этом руководстве Вы:
 
-1. [Локально поднимете пайплайн в долгоживущем режиме для его изучения;](#start)
-1. [Изучите структуру проекта;](#structure)
-1. [Запустите полезные команды для работы с пайплайном.](#commands)
+1. [Запустите пайплайн тремя командами;](#start)
+1. [Выполните полезные команды для работы с пайплайном;](#commands)
+1. [Удалите пайплайн.](#remove)
 
 ## Основные компоненты пайплайна
 
 Архитектура одного пайплайна состоит из трёх основных компонентов:
+
 1. [Controller](../../flow/concepts/glossary.md#controller) &mdash; управляет жизненным циклом пайплайна;
 1. [Worker](../../flow/concepts/glossary.md#worker) &mdash; читает из источников, выполняет вычисления;
 1. {{product-name}} Cluster &mdash; хранит системные таблицы в директории пайплайна.
 
-Каждый пайплайн требует свой набор экземпляров Controller и Worker, рабочую директорию в [Cypress](../../user-guide/storage/cypress.md), набор системных динамических таблиц.
+Каждому пайплайну нужны свои экземпляры Controller и Worker, рабочая директория в [Cypress](../../user-guide/storage/cypress.md) и набор системных динамических таблиц.
 
 ## Пререквизиты
 
 Для работы вам понадобится:
+
 1. Виртуальная машина Linux x86\_64 для компиляции C++ проекта YT Flow (рекомендуется от 6 vCPU, 12 GB RAM, 120 GB SSD).
 1. Локальная копия [репозитория]({{source-root}}) (ниже используется `~/arcadia` как путь к ней).
 1. Установленная утилита `ya`.
-1. [YT token](../../user-guide/storage/auth.md) для кластера {{product-name}} с динамическими таблицами{% if audience == "internal" %} (см. [список кластеров](../../user-guide/dynamic-tables/clusters.md)){% endif %}, например {{flow-example-cluster}}.
+1. [YT token](../../user-guide/storage/auth.md) для кластера {{product-name}} с динамическими таблицами (см. [список кластеров](../../user-guide/dynamic-tables/clusters.md)), например {{flow-example-cluster}}, и CLI `{{yt-cli}}`.
 
 ## Запуск пайплайна {#start}
 
-Используйте готовую директорию для локального запуска с минималистичным NoOp пайплайном:
+### Конфиг пайплайна {#config}
 
-```bash
-$ cd ~/arcadia/yt/yt/flow/examples/cpp/noop
+[Конфиг раннера](../../flow/concepts/spec.md#runner-config) лежит в примере `yt/yt/flow/examples/cpp/noop/pipeline.yson`. Подставьте в нём свой кластер вместо `<cluster>` и логин вместо `<login>`:
 
-# Соберите проект.
-$ ya make
-
-# Скрипт запустит YT Flow компоненты (Controller, Worker) и пайплайн.
-# Скрипт создаст директорию //tmp/$(whoami)/pipelines/pipeline для системных объектов YT Flow.
-$ ./run_noop_pipeline.sh --cluster {{flow-example-cluster}} --path //tmp/$(whoami)/pipelines
+```yson
+{
+    "cluster_url" = "<cluster>";
+    "proxy_role" = #;
+    "path" = "//tmp/<login>/quickstart/pipeline";
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                    };
+                };
+            };
+        };
+    };
+    "vanilla" = {
+        "enable" = %true;
+        "pool" = "<login>";
+        "worker" = {"count" = 1};
+    };
+}
 ```
 
-## Структура проекта {#structure}
+Что здесь задано:
 
-Ниже представлен минимальный рабочий пример для ознакомления.
+* `cluster_url` и `proxy_role` &mdash; кластер {{product-name}}, на котором лежит пайплайн и запускается операция; `#` означает роль прокси по умолчанию.
+* `path` &mdash; путь к объекту pipeline в Cypress. Сам объект создаётся отдельной командой, см. [ниже](#run).
+* `spec` &mdash; [спецификация](../../flow/concepts/spec.md) пайплайна: граф из одной computation `reader`. Она читает источник `random` &mdash; `TRandomSource`, генератор случайных сообщений, &mdash; и никуда их не пишет. Реальный пайплайн вместо этого читает, например, [очередь](../../flow/connectors/queue.md), выполняет вычисления и пишет результат в sink.
+* `vanilla` &mdash; блок, который включает запуск в vanilla-операции:
+  * `pool` &mdash; пул планировщика. Если пула с таким именем нет, планировщик создаёт эфемерный пул без гарантий ресурсов: при нехватке ресурсов на кластере джобы пайплайна будут ждать или их вытеснят. Для экспериментов этого достаточно, для рабочего пайплайна нужен свой пул с гарантиями;
+  * `worker.count` &mdash; число джоб воркера. Контроллер по умолчанию запускается одной джобой, каждая джоба получает 6 CPU и 18 GiB памяти. Остальные параметры блока описаны в разделе [Запуск пайплайна в Vanilla-операции](../../flow/devops/vanilla/initial-deploy.md).
 
-{% if audience == "internal" %}
-
-```bash
-$ tree -L 2
-.
-├── README.md                  # Документация для run_noop_pipeline.sh.
-├── controller.config.yson     # Конфигурационный файл для Controller'а.
-├── worker.config.yson         # Конфигурационный файл для Worker'а.
-├── pipeline
-│   ├── main.cpp               # Код пайплайна: computation TNoopComputation и запуск в `int main`.
-│   ├── pipeline.yson          # Спецификация пайплайна (топология графа computations).
-│   └── ya.make
-└── yt_sync
-    ├── __main__.py            # Создаёт структуры в {{product-name}} необходимые для работы пайплайна.
-    ├── pipelines.py           # Опиcывает рабочую директорию "pipeline".
-    ├── stages.py              # Описывает {{product-name}} кластер, на котором пайплайн будет запущен.
-    └── ya.make
-```
-
-{% else %}
+### Команды запуска {#run}
 
 ```bash
-$ tree -L 2
-.
-├── README.md                  # Документация для run_noop_pipeline.sh.
-├── controller.config.yson     # Конфигурационный файл для Controller'а.
-├── worker.config.yson         # Конфигурационный файл для Worker'а.
-├── pipeline
-│   ├── main.cpp               # Код пайплайна: computation TNoopComputation и запуск в `int main`.
-│   ├── pipeline.yson          # Спецификация пайплайна (топология графа computations).
-│   └── ya.make
-└── yt_sync_mini
-    ├── __main__.py            # Создаёт структуры в {{product-name}} необходимые для работы пайплайна.
-    └── ya.make
+# 1. Соберите flow_server и yt_sync.
+$ cd ~/arcadia && ya make yt/yt/flow/bin/flow_server yt/yt/flow/examples/cpp/noop/yt_sync
+
+# 2. Создайте объект pipeline вместе с его системными таблицами.
+$ TEST_CLUSTER={{flow-example-cluster}} TEST_YT_PATH=//tmp/$(whoami)/quickstart \
+    ./yt/yt/flow/examples/cpp/noop/yt_sync/yt_sync --stage test --scenario ensure --parallel-factor 0 --commit
+
+# 3. Запустите пайплайн.
+$ YT_FLOW_WAIT=0 ./yt/yt/flow/bin/flow_server/flow_server \
+    --config yt/yt/flow/examples/cpp/noop/pipeline.yson
 ```
 
-{% endif %}
+[YtSync](../../flow/concepts/pipeline-object.md#yt-sync) создаёт [объект Pipeline](../../flow/concepts/pipeline-object.md) с именем `pipeline` в указанной директории и монтирует его [внутренние таблицы](../../flow/concepts/pipeline-object.md#internal_tables). Повторный запуск над уже существующим пайплайном ничего не меняет. Пайплайны и кластеры описаны в `pipelines.py` и `stages.py` рядом с утилитой; в своём проекте вы заводите такие же файлы под свои объекты.
 
-Что происходит в пайплайне:
-
-1. `TRandomSource` генерирует случайные сообщения;
-1. `TNoopComputation` читает их и отбрасывает.
-
-Последовательность запуска пайплайна (код незначительно упрощён относительно скрипта).
-
-Сначала создаётся Cypress-объект типа `pipeline` вместе с набором служебных динамических таблиц, необходимых для работы Flow (см. раздел [Объект Pipeline](../../flow/concepts/pipeline-object.md)).
-
-{% if audience == "internal" %}
-
-В Yandex-инфраструктуре это делает [YtSync](../../flow/concepts/pipeline-object.md#yt-sync):
-
-```bash
-$ TEST_CLUSTER={{flow-example-cluster}} TEST_YT_PATH=//tmp/$(whoami)/pipelines \
-    ./yt_sync/yt_sync --stage test --scenario ensure --parallel-factor 0 --commit
-```
-
-{% else %}
-
-В опенсорсе для этого используется готовый helper [yt_sync_mini](../../flow/concepts/pipeline-object.md#yt-sync-mini):
-
-```bash
-$ TEST_YT_CLUSTER={{flow-example-cluster}} TEST_YT_PATH=//tmp/$(whoami)/pipelines/pipeline \
-    ./yt_sync_mini/yt_sync_mini
-```
-
-{% endif %}
-
-Затем запускаются долгоживущие Controller и Worker, и Controller'у отправляется спецификация пайплайна:
-
-```bash
-# Запускаются долгоживущие Controller и Worker.
-$ YT_FLOW_MODE=Controller pipeline/pipeline --config controller.config.yson
-$ YT_FLOW_MODE=Worker pipeline/pipeline --config worker.config.yson
-
-# Отправка спецификации pipeline.yson на Controller.
-# Дожидается, пока пайплайн перейдёт в состояние Working.
-$ YT_FLOW_WAIT=0 pipeline/pipeline --config pipeline.yson
-```
-
-Структуру [внутренних таблиц](../../flow/concepts/pipeline-object.md#internal_tables), созданных вместе с объектом `pipeline`, можно найти тут:
-
-`{{yt-cli}} --proxy={{flow-example-cluster}} list //tmp/$(whoami)/pipelines/pipeline`
+`flow_server` с блоком `vanilla` в конфиге работает раннером: загружает свой бинарь в кеш кластера, создаёт vanilla-операцию с двумя задачами (controller и worker), устанавливает спецификацию и стартует пайплайн. С `YT_FLOW_WAIT=0` раннер завершается, как только пайплайн перейдёт в состояние `working`; без этой переменной он продолжает работать и печатает публичный лог контроллера. Прерывание раннера на операцию не влияет: она работает, пока вы её не отмените.
 
 ## Полезные команды {#commands}
 
 Проверяем, что пайплайн запущен:
 
 ```bash
-$ {{yt-cli}} --proxy {{flow-example-cluster}} flow get-pipeline-state --pipeline-path //tmp/$(whoami)/pipelines/pipeline
+$ {{yt-cli}} --proxy {{flow-example-cluster}} flow get-pipeline-state --pipeline-path //tmp/$(whoami)/quickstart/pipeline
 working
 ```
 
-Подробную информацию и статистику по пайплайну можно посмотреть следующими способами:
+Подробная информация и статистика по пайплайну:
 
 ```bash
-$ curl http://localhost:10002/orchid/job_tracker/jobs | {% if audience == "internal" %}ya tool {% endif %}jq
-$ {{yt-cli}} --proxy {{flow-example-cluster}} flow describe-pipeline --pipeline-path //tmp/$(whoami)/pipelines/pipeline
+$ {{yt-cli}} --proxy {{flow-example-cluster}} flow describe-pipeline --pipeline-path //tmp/$(whoami)/quickstart/pipeline
 ```
 
-Локально можно посмотреть логи Controller и Worker:
+Публичный лог контроллера:
 
 ```bash
-$ ls *.log
-controller.log  worker.log
+$ {{yt-cli}} --proxy {{flow-example-cluster}} flow show-logs --pipeline-path //tmp/$(whoami)/quickstart/pipeline
 ```
 
-{% if audience == "internal" %}Как работать с логами, можно посмотреть в разделе [Сырые логи контроллера и воркера](../../flow/devops/deploy/diagnostics/logs.md#raw-logs).{% endif %}
-
-Визуализация графа пайплайна:
+Текущая vanilla-операция пайплайна записана в атрибуте `@current_vanilla_operation` под alias'ом. Id операции по alias'у можно узнать так:
 
 ```bash
-$ cd ~/arcadia/yt/yt/flow/tools/draw_pipeline_graph
-
-$ ya run . -- --input {{flow-example-cluster}}://tmp/example/noop --ttl 1
+$ {{yt-cli}} --proxy {{flow-example-cluster}} get-operation --include-runtime --attribute id --operation-alias \
+    "$({{yt-cli}} --proxy {{flow-example-cluster}} get --format json //tmp/$(whoami)/quickstart/pipeline/@current_vanilla_operation/alias | tr -d '"')"
 ```
 
-На выходе будет создан .svg файл с изображением пайплайна. Файл можно открыть в браузере. О том, какую информацию можно получить из графа &mdash; можно почитать в README.md рядом с утилитой.
+Где искать логи контроллера и воркера, описано в разделе [Логи Vanilla-операции](../../flow/devops/vanilla/diagnostics/logs.md).
 
-![](../../flow/_images/flow_noop_pipeline.png =600x230){ .center }
+## Удаление пайплайна {#remove}
 
-## Запуск в YT vanilla-операции {#vanilla}
+Команды `stop-pipeline` и `pause-pipeline` останавливают пайплайн, но не операцию. Чтобы удалить пайплайн полностью, отмените операцию и удалите директорию пайплайна вместе с таблицами стейта:
 
-Если в пайплайне используется `TSimpleRunnerProgram` (как во всех примерах `examples/cpp/*`), его можно запустить в vanilla-операции, добавив блок `vanilla` в конфиг:
-
-```yson
-{
-    "cluster_url" = "{{flow-example-cluster}}";
-    "path" = "//tmp/example/pipeline";
-    "spec" = { ... };
-    "vanilla" = {
-        "enable" = %true;
-        "pool" = "research";
-        "worker" = {"count" = 4};
-    };
-}
+```bash
+$ {{yt-cli}} --proxy {{flow-example-cluster}} abort-op <operation-id>
+$ {{yt-cli}} --proxy {{flow-example-cluster}} remove -r //tmp/$(whoami)/quickstart
 ```
 
-Обязательные параметры: `worker.count`, `pool`. Остальные имеют разумные значения по умолчанию: контроллер — 1 джоба, каждая джоба (и контроллера, и воркера) получает 6 CPU и 18 GiB памяти, а порты внутри джобы фиксированные (`rpc_port = 10080`, `monitoring_port = 10081`, `companion.port = 10082`). При запуске бинарь сам создаст vanilla-операцию с двумя задачами (controller + worker), отправит пайплайн на исполнение и дождётся завершения.
-
-Полный список полей &mdash; в [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) (см. также [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig)), подробный разбор запуска &mdash; в разделе [Запуск пайплайна в Vanilla-операции](../../flow/devops/vanilla/initial-deploy.md).
+Id операции можно узнать командой [выше](#commands). Если `remove` сразу после отмены операции завершается ошибкой `Cannot take "exclusive" lock`, повторите команду через минуту (подробнее &mdash; в разделе [Полное удаление пайплайна](../../flow/devops/vanilla/pipeline-operations.md#remove)).
 
 ## Что дальше
 
-Для более глубокого погружения в фреймворк следуйте инструкциям раздела [С чего начать](../../flow/start.md).
+- [Запуск пайплайна в Vanilla-операции](../../flow/devops/vanilla/initial-deploy.md) &mdash; ресурсы, сетевой проект и запуск пайплайнов на Python, Java и Go.
+- [С чего начать](../../flow/start.md) &mdash; для более глубокого погружения в фреймворк.

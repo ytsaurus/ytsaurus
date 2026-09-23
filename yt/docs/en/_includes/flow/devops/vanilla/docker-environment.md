@@ -44,6 +44,21 @@ If the cluster DNS serves the jobs A records only (typical for Kubernetes), disa
 };
 ```
 
+## Reaching the cluster from outside {#external-access}
+
+If the cluster runs in Kubernetes, RPC proxy discovery returns their in-cluster addresses, which the runner cannot reach from outside. Turn discovery off and pass a proxy address reachable from outside (by default an RPC proxy listens on port 9013):
+
+```yson
+"clients_cache" = {
+    "default_connection" = {
+        "enable_proxy_discovery" = %false;
+        "proxy_addresses" = ["<external-rpc-proxy-address>:9013"];
+    };
+};
+```
+
+`cluster_url` still holds the HTTP proxy address reachable from inside the cluster: that is where the controller and the workers talk to it from their jobs.
+
 ## Building flow_server {#flow-server}
 
 Every pipeline except C++ needs the `flow_server` server binary. Build it from the [{{product-name}} repository](https://github.com/ytsaurus/ytsaurus):
