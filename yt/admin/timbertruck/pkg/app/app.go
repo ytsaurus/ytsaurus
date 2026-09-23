@@ -63,6 +63,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"slices"
 	"syscall"
@@ -124,6 +125,8 @@ type App interface {
 }
 
 var argv0Prefix = path.Base(os.Args[0]) + ":"
+
+const defaultGCPercent = 50
 
 func MustNewApp[UserConfigType any]() (app App, userConfig *UserConfigType) {
 	app, userConfig, err := NewApp[UserConfigType]()
@@ -320,6 +323,10 @@ func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 	app.metrics.Gauge("tt.application.mlock_bytes").Set(float64(lockedBytes))
 	app.metrics.Gauge("tt.application.mlock_failed_bytes").Set(float64(failedBytes))
 	app.logger.Info("File mappings mlock finished", "locked_bytes", lockedBytes, "failed_bytes", failedBytes, "error", mlockErr)
+
+	if os.Getenv("GOGC") == "" {
+		debug.SetGCPercent(defaultGCPercent)
+	}
 
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
 	cancelOnSignals(app.cancelFunc)
