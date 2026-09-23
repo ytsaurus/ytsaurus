@@ -23,6 +23,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NTransactionServer {
 
