@@ -1,8 +1,10 @@
 import pytest
 import re
 
+import yatest.common
+
 from yql_utils import get_supported_providers, is_xfail, is_skip_forceblocks, \
-    do_custom_query_check, is_with_final_result_issues, yql_binary_path
+    do_custom_query_check, is_with_final_result_issues, yql_binary_path, get_param
 
 from test_utils import get_config
 from test_file_common import run_file, run_file_no_cache
@@ -23,6 +25,9 @@ DQRUN_PATH = yql_binary_path('yt/yql/tools/dqrun_light/dqrun_light')
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     skip_if_non_trivial_gateway(what)
 
+    if get_param('SQL_FLAGS') and what == 'Plan':
+        pytest.skip('SKIP')
+
     config = get_config(suite, case, cfg, data_path=DATA_PATH)
     cfg_postprocess = add_table_clusters(suite, config)
     patch_cfg_file_path = patch_cfg_file(DATA_PATH, suite, config)
@@ -32,12 +37,15 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     xfail = is_xfail(config)
     langver = resolve_langver(config)
 
+    if what == 'Plan' and xfail:
+        pytest.skip('xfail is not supported in this mode')
+
     if force_blocks:
         if is_skip_forceblocks(config):
             pytest.skip('skip force blocks requested')
         if re.search(r"skip force_blocks", sql_query):
             pytest.skip('skip force blocks requested')
-    else:
+    elif what != 'Plan':
         if not xfail and ('ytfile can not' in sql_query or 'yt' not in get_supported_providers(config)):
             pytest.skip('yqlrun is not supported')
 
@@ -50,6 +58,9 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         extra_args=extra_args, data_path=DATA_PATH,
         cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path,
     )
+
+    if what == 'Plan':
+        return [yatest.common.canonical_file(res.plan_file)]
 
     if what == 'Results' or force_blocks:
         if not xfail:
