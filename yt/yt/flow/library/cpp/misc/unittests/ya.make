@@ -24,6 +24,7 @@ SRCS(
     prefetch_ut.cpp
     retryable_client_ut.cpp
     retryable_transaction_ut.cpp
+    self_signed_certificate_ut.cpp
     status_profiler_ut.cpp
     two_level_cache_ut.cpp
     weighted_random_ut.cpp
@@ -32,6 +33,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/testing/common
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/misc

@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -27,6 +29,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/generic/algorithm.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NFlow {
 
@@ -53,6 +57,8 @@ void TDirectControllerCommandsConfig::Register(TRegistrar registrar)
 
 namespace {
 
+const NLogging::TLogger Logger("FlowClient");
+
 //! The commands the runner sends while releasing a pipeline; only these bypass the RPC proxy.
 const THashSet<std::string> DirectCommands{
     "get-pipeline-state",
@@ -63,7 +69,7 @@ const THashSet<std::string> DirectCommands{
 
 TFuture<TFlowExecuteResult> DirectFlowExecute(
     const IClientPtr& client,
-    const IChannelFactoryPtr& channelFactory,
+    const IDirectControllerChannelsPtr& channels,
     const TYPath& pipelinePath,
     const std::string& command,
     const TYsonString& argument,
@@ -76,9 +82,10 @@ TFuture<TFlowExecuteResult> DirectFlowExecute(
     }
 
     return TControlTable::Read(client, YPathJoin(pipelinePath, FlowControlTableName), LeaderControllerKey)
-        .Apply(BIND([client, channelFactory, pipelinePath, command, argument, options] (const std::optional<TYsonString>& leaderInfo) {
+        .Apply(BIND([client, channels, pipelinePath, command, argument, options] (const std::optional<TYsonString>& leaderInfo) {
             // The controller publishes its node info to the leader row of the flow_control table.
-            auto address = leaderInfo ? ConvertTo<TNodeInfoPtr>(*leaderInfo)->RpcAddress : std::string();
+            auto leader = leaderInfo ? ConvertTo<TNodeInfoPtr>(*leaderInfo) : New<TNodeInfo>();
+            const auto& address = leader->RpcAddress;
             if (address.empty()) {
                 THROW_ERROR_EXCEPTION(
                     "Cannot discover pipeline controller of %v because no leader is published to the %v table. "
@@ -89,7 +96,7 @@ TFuture<TFlowExecuteResult> DirectFlowExecute(
 
             // The credentials of the client go to the controller: it authenticates the caller by them.
             auto channel = NAuth::CreateCredentialsInjectingChannel(
-                channelFactory->CreateChannel(address),
+                channels->GetChannel(*leader),
                 client->GetOptions());
 
             TControllerServiceProxy proxy(std::move(channel));
@@ -106,7 +113,8 @@ TFuture<TFlowExecuteResult> DirectFlowExecute(
             // The controller derives the user from the credentials; the field is not needed.
 
             return req->Invoke()
-                .Apply(BIND([pipelinePath, command, address] (const TControllerServiceProxy::TErrorOrRspFlowExecutePtr& rspOrError) {
+                .Apply(BIND([pipelinePath, command, address, certificateSha256 = leader->CertificateSha256] (
+                    const TControllerServiceProxy::TErrorOrRspFlowExecutePtr& rspOrError) {
                     if (rspOrError.GetCode() == NRpc::EErrorCode::TransportError) {
                         THROW_ERROR_EXCEPTION(
                             "Cannot connect to pipeline controller leader directly. "
@@ -114,6 +122,7 @@ TFuture<TFlowExecuteResult> DirectFlowExecute(
                             .With("flow_execute_command", command)
                             .With("pipeline_path", pipelinePath)
                             .With("pipeline_controller_leader_address", address)
+                            .With("pipeline_controller_leader_certificate_sha256", certificateSha256.value_or(""))
                             .With(rspOrError);
                     }
                     const auto& rsp = rspOrError.ValueOrThrow();
@@ -123,6 +132,72 @@ TFuture<TFlowExecuteResult> DirectFlowExecute(
                 }));
         }));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A leader that publishes its incarnation certificate is reached over TLS with that certificate
+//! pinned; a leader that publishes none, with the default bus config.
+class TDirectControllerChannels
+    : public IDirectControllerChannels
+{
+public:
+    IChannelPtr GetChannel(const TNodeInfo& leader) override
+    {
+        if (!leader.CertificatePem) {
+            // No certificate is published by a controller of an older binary or by one whose bus server
+            // TLS is configured explicitly: the default bus config connects to it without verification.
+            return PlainChannelFactory_->CreateChannel(leader.RpcAddress);
+        }
+
+        {
+            auto guard = Guard(Lock_);
+            if (PinnedCertificatePem_ == *leader.CertificatePem) {
+                return PinnedChannelFactory_->CreateChannel(leader.RpcAddress);
+            }
+        }
+
+        // The published certificate is the only trust anchor: nobody but the incarnation that published
+        // it holds its private key. It is a self-signed leaf, so the address is not checked against it.
+        auto certificateAuthority = New<NCrypto::TPemBlobConfig>();
+        certificateAuthority->Value = *leader.CertificatePem;
+        auto config = New<NYT::NBus::NTcp::TBusConfig>();
+        config->EncryptionMode = NYT::NBus::EEncryptionMode::Required;
+        config->VerificationMode = NYT::NBus::EVerificationMode::Ca;
+        config->CertificateAuthority = std::move(certificateAuthority);
+        auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(std::move(config)));
+
+        IChannelFactoryPtr previousChannelFactory;
+        {
+            auto guard = Guard(Lock_);
+            PinnedCertificatePem_ = *leader.CertificatePem;
+            previousChannelFactory = std::exchange(PinnedChannelFactory_, channelFactory);
+        }
+        // Null when this is the first pinned certificate.
+        std::optional<bool> previousChannelFactoryReleased;
+        if (previousChannelFactory) {
+            TWeakPtr<IChannelFactory> weakPreviousChannelFactory = previousChannelFactory;
+            previousChannelFactory.Reset();
+            previousChannelFactoryReleased = weakPreviousChannelFactory.IsExpired();
+        }
+        YT_TLOG_DEBUG("Pinned the certificate of a leader controller incarnation")
+            .With("Address", leader.RpcAddress)
+            .With("CertificateSha256", leader.CertificateSha256.value_or(""))
+            .With("PreviousChannelFactoryReleased", previousChannelFactoryReleased);
+        return channelFactory->CreateChannel(leader.RpcAddress);
+    }
+
+private:
+    const IChannelFactoryPtr PlainChannelFactory_ = CreateCachingChannelFactory(
+        NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::NTcp::TBusConfig>()));
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    //! The certificate of the last leader and the channels pinned to it. A leader restart rotates
+    //! the certificate, and the channels to the previous incarnation are dropped with their factory.
+    std::string PinnedCertificatePem_;
+    IChannelFactoryPtr PinnedChannelFactory_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,12 +231,17 @@ TGetFlowViewResult DecompressFlowView(const TGetFlowViewV2Result& compressed)
     return NYson::TYsonString(decompressed);
 }
 
+IDirectControllerChannelsPtr CreateDirectControllerChannels()
+{
+    return New<TDirectControllerChannels>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFlowExecuteTarget::TFlowExecuteTarget(IClientPtr client, TDirectControllerCommandsConfigPtr directControllerCommands)
     : Client(std::move(client))
     , DirectControllerCommands(std::move(directControllerCommands))
-    , ChannelFactory(IsDirect()
-            ? CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::NTcp::TBusConfig>()))
-            : nullptr)
+    , Channels(IsDirect() ? CreateDirectControllerChannels() : nullptr)
 { }
 
 bool TFlowExecuteTarget::IsDirect() const
@@ -190,7 +270,7 @@ NYson::TYsonString FlowExecute(
     }
     return NConcurrency::WaitFor(DirectFlowExecute(
         target.Client,
-        target.ChannelFactory,
+        target.Channels,
         pipelinePath,
         command,
         argument,

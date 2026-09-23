@@ -1,7 +1,9 @@
+import hashlib
 import json
 import os
 import pytest
 import re
+import ssl
 
 from copy import deepcopy
 
@@ -1221,6 +1223,77 @@ class FlowExecuteTestBase(FlowTestBase):
 
             self.client.start_pipeline(self.pipeline_path)
             self.wait_pipeline_state("working")
+
+    def _read_published_leader_controller(self):
+        """The leader node info the controller publishes to the fenced flow_control row."""
+        rows = list(
+            self.client.select_rows(f'[value] from [{self.pipeline_path}/flow_control] where key = "leader_controller"')
+        )
+        assert len(rows) == 1
+        return rows[0]["value"]
+
+    @pytest.mark.authors(["timoninmaxim"])
+    def test_controller_certificate_published(self):
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config()
+
+        def leader_certificate():
+            leader = self._read_published_leader_controller()
+            return leader.get("certificate_pem")
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            run_pipeline=False,
+            workers_count=1,
+            controllers_count=1,
+        ) as federation:
+            wait(lambda: leader_certificate() is not None, timeout=60)
+            leader = self._read_published_leader_controller()
+
+            # The fingerprint describes the published certificate.
+            pem = leader["certificate_pem"]
+            fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest().upper()
+            assert leader["certificate_sha256"] == fingerprint
+
+            # Only a controller generates a certificate: the node info of the worker has none.
+            controller_node_info = self.client.flow_execute(
+                self.pipeline_path, flow_command="get-controller-orchid", flow_argument={"path": "/node_info"}
+            )["value"]
+            assert controller_node_info["certificate_sha256"] == fingerprint
+
+            # The private key of the certificate stays in memory: the orchid config does not expose it.
+            controller_config = self.client.flow_execute(
+                self.pipeline_path, flow_command="get-controller-orchid", flow_argument={"path": "/config"}
+            )["value"]
+            assert "bus_server" in controller_config
+            assert "private_key" not in controller_config["bus_server"]
+            assert "PRIVATE KEY" not in json.dumps(controller_config)
+
+            def workers():
+                return self.client.flow_execute(
+                    self.pipeline_path, flow_command="get-flow-view", flow_argument={"path": "/state/workers"}
+                )
+
+            wait(lambda: len(workers()) == 1, timeout=60)
+            (worker,) = workers().keys()
+            worker_node_info = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="get-worker-orchid",
+                flow_argument={"worker": worker, "path": "/node_info"},
+            )["value"]
+            assert worker_node_info["incarnation_id"] != controller_node_info["incarnation_id"]
+            assert "certificate_pem" not in worker_node_info
+            assert "certificate_sha256" not in worker_node_info
+
+            # A new incarnation publishes a new certificate.
+            federation.controllers[0].restart()
+            wait(lambda: leader_certificate() not in (None, pem), timeout=120)
+            new_leader = self._read_published_leader_controller()
+            assert new_leader["incarnation_id"] != leader["incarnation_id"]
+            assert (
+                new_leader["certificate_sha256"]
+                == hashlib.sha256(ssl.PEM_cert_to_DER_cert(new_leader["certificate_pem"])).hexdigest().upper()
+            )
 
     @pytest.mark.authors(["timoninmaxim"])
     def test_mutating_commands_rejected_when_completed(self):

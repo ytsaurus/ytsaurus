@@ -189,6 +189,12 @@ private:
     TFlowNodeConfigPtr Config_;
     NYTree::INodePtr ConfigNode_;
     TNodeInfoPtr NodeInfo_;
+    //! Whether the config gives the bus server its own certificate and key; otherwise a controller
+    //! serves TLS with its incarnation certificate.
+    bool BusServerHasConfiguredTlsMaterial_ = false;
+    //! Equals #Config_->BusServer unless a controller adds its incarnation certificate, whose private
+    //! key must stay out of #Config_.
+    NBus::NTcp::TBusServerConfigPtr BusServerConfig_;
 
     TRichYPath PipelinePath_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
@@ -305,6 +311,11 @@ private:
         NodeInfo_ = GetNodeInfo(Config_, Logger());
         NNet::SetLocalHostName(NodeInfo_->Name);
 
+        BusServerHasConfiguredTlsMaterial_ = Config_->BusServer->CertificateChain && Config_->BusServer->PrivateKey;
+        BusServerConfig_ = Any(Mode_ & EFlowRunMode::Controller)
+            ? CreateBusServerConfigWithIncarnationCertificate(NodeInfo_.Get(), Config_->BusServer, Logger())
+            : Config_->BusServer;
+
         if (NodeInfo_->VcpuFactor.has_value()) {
             NProfiling::TResourceTracker::SetCpuToVCpuFactor(*NodeInfo_->VcpuFactor);
         }
@@ -357,7 +368,7 @@ private:
 
     void Prepare()
     {
-        BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
+        BusServer_ = NBus::NTcp::CreateBusServer(BusServerConfig_);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpPoller_ = CreateThreadPoolPoller(Config_->HttpPollerThreads, "HttpPoller");
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig(), HttpPoller_);
@@ -630,7 +641,7 @@ private:
             CommonYTConnector_,
             ControlQueue_,
             ParseSkipLeaderProxyConfirmation(),
-            /*busServerHasTlsMaterial*/ Config_->BusServer->CertificateChain && Config_->BusServer->PrivateKey);
+            /*busServerHasTlsMaterial*/ BusServerHasConfiguredTlsMaterial_);
 
         ControllerStatusProfiler_ = CreateStatusProfiler(
             ControlQueue_->GetInvoker(NController::EControlQueue::Default),

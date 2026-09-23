@@ -15,13 +15,18 @@
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/crypto/config.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/config.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/generic/algorithm.h>
 
@@ -487,6 +492,59 @@ std::optional<std::string> TryExtractDeploySnapshotId(const std::vector<TProcess
         }
     }
     return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSelfSignedCertificate GenerateIncarnationCertificate(const TNodeInfoBase& nodeInfo)
+{
+    // RPC addresses are formatted as "[<ip>]:<port>", see #NNet::FormatNetworkAddress().
+    auto host = NNet::GetServiceHostName(nodeInfo.RpcAddress);
+    host.SkipPrefix("[");
+    host.ChopSuffix("]");
+
+    TSelfSignedCertificateOptions options{
+        .CommonName = Format("yt-flow-%v", nodeInfo.IncarnationId),
+        .IPAddresses = {std::string(host)},
+    };
+    if (!nodeInfo.Name.empty() && !NNet::TNetworkAddress::TryParse(nodeInfo.Name).IsOK()) {
+        options.DnsNames.push_back(nodeInfo.Name);
+    }
+    return GenerateSelfSignedCertificate(options);
+}
+
+NBus::NTcp::TBusServerConfigPtr CreateBusServerConfigWithIncarnationCertificate(
+    TNodeInfo* nodeInfo,
+    const NBus::NTcp::TBusServerConfigPtr& busServerConfig,
+    const TLogger& logger)
+{
+    const TLogger& Logger = logger;
+
+    bool hasConfiguredTlsMaterial = busServerConfig->CertificateChain && busServerConfig->PrivateKey;
+    if (hasConfiguredTlsMaterial || busServerConfig->EncryptionMode == NBus::EEncryptionMode::Disabled) {
+        YT_TLOG_INFO("Incarnation certificate is not generated: the bus server TLS is configured explicitly")
+            .With("EncryptionMode", busServerConfig->EncryptionMode)
+            .With("HasConfiguredTlsMaterial", hasConfiguredTlsMaterial);
+        return busServerConfig;
+    }
+
+    auto certificate = GenerateIncarnationCertificate(*nodeInfo);
+    auto makePemBlob = [] (std::string value) {
+        auto blob = New<NCrypto::TPemBlobConfig>();
+        blob->Value = std::move(value);
+        return blob;
+    };
+    // The key lands in a copy: the node config is served through Orchid, so it must never hold it.
+    auto servingConfig = CloneYsonStruct(busServerConfig);
+    servingConfig->CertificateChain = makePemBlob(certificate.CertificatePem);
+    servingConfig->PrivateKey = makePemBlob(std::move(certificate.PrivateKeyPem));
+
+    nodeInfo->CertificatePem = std::move(certificate.CertificatePem);
+    nodeInfo->CertificateSha256 = std::move(certificate.CertificateSha256);
+    YT_TLOG_INFO("Bus server serves TLS with the incarnation certificate")
+        .With("CertificateSha256", *nodeInfo->CertificateSha256);
+
+    return servingConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
