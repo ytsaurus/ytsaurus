@@ -9,7 +9,6 @@
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
-#include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
@@ -149,8 +148,6 @@ using TSerializedTabletOwnerSettings = std::variant<
 >;
 
 extern const std::string DefaultTabletCellBundleName;
-
-extern const TTimeFormula DefaultTabletBalancerSchedule;
 
 constexpr i64 EdenStoreIdsSizeLimit = 100;
 
