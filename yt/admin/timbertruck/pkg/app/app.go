@@ -316,6 +316,11 @@ func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 		}
 	}
 
+	lockedBytes, failedBytes, mlockErr := lockFileMappings()
+	app.metrics.Gauge("tt.application.mlock_bytes").Set(float64(lockedBytes))
+	app.metrics.Gauge("tt.application.mlock_failed_bytes").Set(float64(failedBytes))
+	app.logger.Info("File mappings mlock finished", "locked_bytes", lockedBytes, "failed_bytes", failedBytes, "error", mlockErr)
+
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
 	cancelOnSignals(app.cancelFunc)
 
