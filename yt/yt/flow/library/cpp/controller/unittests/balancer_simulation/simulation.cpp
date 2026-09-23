@@ -288,11 +288,14 @@ void TSimulation::Publish()
     auto now = Now();
     auto& feedback = FlowView_->Feedback;
 
+    // worker index -> computation index -> the computation has partitions on the worker
+    std::vector<std::vector<bool>> used(Workers_.size(), std::vector<bool>(Scenario_.ComputationCount));
     for (const auto& partition : Partitions_) {
         if (partition.Worker.empty()) {
             feedback->PartitionJobStatuses.erase(partition.Id);
             continue;
         }
+        used[GetOrCrash(WorkerIndex_, partition.Worker)][partition.Computation] = true;
         auto status = New<TPartitionJobStatus>();
         status->CurrentJobStatus = New<TJobStatus>();
         status->CurrentJobStatus->StartTime = partition.StartTime;
@@ -302,28 +305,63 @@ void TSimulation::Publish()
         feedback->PartitionJobStatuses[partition.Id] = status;
     }
 
-    for (const auto& worker : Workers_) {
+    for (int w = 0; w < std::ssize(Workers_); ++w) {
+        auto& worker = Workers_[w];
         auto status = New<TWorkerStatus>();
         for (const auto& resourceId : worker.Preloaded) {
             status->PreloadedResourceStates[resourceId] = EPreloadedResourceState::Preloaded;
         }
-        // Same eight fields as TResourceStatus::Collect(); a window that has not filled
-        // yet stays nullopt and the balancer falls back to the shorter one.
         for (int c = 0; c < Scenario_.ComputationCount; ++c) {
-            const auto& q = worker.Queues[c];
-            auto resourceStatus = New<TWorkerResourceStatus>();
-            resourceStatus->QueueSize30s = q.Size.Average()[ThirtySecondWindow];
-            resourceStatus->QueueSize10m = q.Size.Average()[TenMinuteWindow];
-            resourceStatus->QueueGrowthRate30s = q.Size.GrowthRate()[ThirtySecondWindow];
-            resourceStatus->QueueGrowthRate10m = q.Size.GrowthRate()[TenMinuteWindow];
-            resourceStatus->QueuePushRate30s = q.Push.GetRate(ThirtySecondWindow, now);
-            resourceStatus->QueuePushRate10m = q.Push.GetRate(TenMinuteWindow, now);
-            resourceStatus->QueueFetchRate30s = q.Fetch.GetRate(ThirtySecondWindow, now);
-            resourceStatus->QueueFetchRate10m = q.Fetch.GetRate(TenMinuteWindow, now);
-            status->ResourceStatuses[Resources_[c]] = resourceStatus;
+            auto& q = worker.Queues[c];
+            auto resourceStatus = CollectResourceStatus(q, now);
+            if (used[w][c]) {
+                q.LastUsedStatus = resourceStatus;
+            } else {
+                resourceStatus = ReplaceUnusedResourceStatus(q, std::move(resourceStatus));
+            }
+            status->ResourceStatuses[Resources_[c]] = std::move(resourceStatus);
         }
         feedback->WorkerStatuses[worker.Address] = status;
     }
+}
+
+TWorkerResourceStatusPtr TSimulation::CollectResourceStatus(const TQueueStats& q, TInstant now)
+{
+    // Same eight fields as TResourceStatus::Collect(); a window that has not filled
+    // yet stays nullopt and the balancer falls back to the shorter one.
+    auto status = New<TWorkerResourceStatus>();
+    status->QueueSize30s = q.Size.Average()[ThirtySecondWindow];
+    status->QueueSize10m = q.Size.Average()[TenMinuteWindow];
+    status->QueueGrowthRate30s = q.Size.GrowthRate()[ThirtySecondWindow];
+    status->QueueGrowthRate10m = q.Size.GrowthRate()[TenMinuteWindow];
+    status->QueuePushRate30s = q.Push.GetRate(ThirtySecondWindow, now);
+    status->QueuePushRate10m = q.Push.GetRate(TenMinuteWindow, now);
+    status->QueueFetchRate30s = q.Fetch.GetRate(ThirtySecondWindow, now);
+    status->QueueFetchRate10m = q.Fetch.GetRate(TenMinuteWindow, now);
+    return status;
+}
+
+TWorkerResourceStatusPtr TSimulation::ReplaceUnusedResourceStatus(const TQueueStats& q, TWorkerResourceStatusPtr live) const
+{
+    switch (Scenario_.UnusedResourceStatus) {
+        case EUnusedResourceStatus::Live:
+            return live;
+        case EUnusedResourceStatus::Frozen:
+            return q.LastUsedStatus ? q.LastUsedStatus : live;
+        case EUnusedResourceStatus::Huge: {
+            auto status = New<TWorkerResourceStatus>();
+            status->QueueSize30s = 1e6;
+            status->QueueSize10m = 1e6;
+            status->QueueGrowthRate30s = 1e3;
+            status->QueueGrowthRate10m = 1e3;
+            status->QueuePushRate30s = 1e-9;
+            status->QueuePushRate10m = 1e-9;
+            status->QueueFetchRate30s = 1e-9;
+            status->QueueFetchRate10m = 1e-9;
+            return status;
+        }
+    }
+    YT_ABORT();
 }
 
 void TSimulation::RemoveJob(TPartitionModel& partition)
