@@ -45,7 +45,10 @@ def make_queue(modes=("sync", "sync", "async"), replicated_table_hunks=False):
         replicated_table_hunks=replicated_table_hunks,
     )
     queue.replicas = [
-        dict(plan, index=index, path=queue._replica_path(index))
+        dict(
+            plan, index=index, path=queue._replica_path(index),
+            trimmed_row_counts=[0, 0],
+        )
         for index, plan in enumerate(queue.replicas_plan)
     ]
     queue.mount_state.mount(None)
@@ -134,6 +137,13 @@ def test_creation_and_relink(client, replica_cell, erasure, source_hunks):
         assert created["erasure_codec"] == ("isa_reed_solomon_6_3" if erasure else "none")
     assert nodes[queue.path]["attributes"]["mount_config"]["preserve_tablet_index"]
     assert "preserve_tablet_index" not in nodes[queue.path]["attributes"]
+    assert "$cumulative_data_weight" not in {
+        column["name"] for column in nodes[queue.path]["attributes"]["schema"]
+    }
+    for replica in queue.replicas:
+        assert "$cumulative_data_weight" in {
+            column["name"] for column in nodes[replica["path"]]["attributes"]["schema"]
+        }
 
     def check_hunk_storage(storage_path):
         storage_attributes = nodes[storage_path]["attributes"]
@@ -390,14 +400,14 @@ def test_operation_input_replica_visibility(client, monkeypatch, replication):
             assert polls == [expected_path, expected_path]
 
 
-@pytest.mark.parametrize("problem", [None, "key", "value", "missing"])
+@pytest.mark.parametrize("problem", [None, "key", "value", "missing", "weight", "row_index"])
 @pytest.mark.parametrize("all_async", [False, True])
 def test_read_checks_async_replicas(client, monkeypatch, problem, all_async):
     modes = ("async", "async") if all_async else ("sync", "sync", "async")
     expected = [
-        [{"row_index": 0, "key": "a", "value": "first"},
-         {"row_index": 1, "key": "b", "value": "second"}],
-        [{"row_index": 0, "key": "c", "value": "third"}],
+        [{"row_index": 0, "key": "a", "value": "first", "cumulative_data_weight": 15},
+         {"row_index": 1, "key": "b", "value": "second", "cumulative_data_weight": 31}],
+        [{"row_index": 0, "key": "c", "value": "third", "cumulative_data_weight": 15}],
     ]
     rows = {}
     asynchronous = f"//test/queue_0.replica_{len(modes) - 1}"
@@ -410,18 +420,29 @@ def test_read_checks_async_replicas(client, monkeypatch, problem, all_async):
         queue.mount_state.mount(None)
         queue.written_row_count = [2, 1]
         queue.replicas = [
-            {"path": queue._replica_path(index), "mode": mode, "hunks": False}
+            {
+                "path": queue._replica_path(index), "mode": mode, "hunks": False,
+                "trimmed_row_counts": [0, 0],
+            }
             for index, mode in enumerate(modes)
         ]
         for replica in queue.replicas:
             path = replica["path"]
             rows[path] = copy.deepcopy(expected)
+            for tablet in rows[path]:
+                for row in tablet:
+                    row["$row_index"] = row.pop("row_index")
+                    row["$cumulative_data_weight"] = row.pop("cumulative_data_weight")
             polls[path] = 0
             if path == asynchronous:
                 if problem in ("key", "value"):
                     rows[path][1][0][problem] = "corrupted"
                 elif problem == "missing":
                     rows[path] = [[], []]
+                elif problem == "weight":
+                    rows[path][1][0]["$cumulative_data_weight"] += 1
+                elif problem == "row_index":
+                    rows[path][1][0]["$row_index"] += 1
 
     def get_tablet_infos(path, tablet_indexes):
         polls[path] += 1
@@ -438,8 +459,9 @@ def test_read_checks_async_replicas(client, monkeypatch, problem, all_async):
 
     def select_rows(query):
         tablet_index = int(re.search(r"where tablet_index = (\d+)", query)[1])
-        offset, limit = map(int, re.search(r"offset (\d+) limit (\d+)", query).groups())
-        return expected[tablet_index][offset:offset + limit]
+        start = int(re.search(r"row_index >= (\d+)", query)[1])
+        limit = int(re.search(r"limit (\d+)", query)[1])
+        return [row for row in expected[tablet_index] if row["row_index"] >= start][:limit]
 
     client.get_tablet_infos.side_effect = get_tablet_infos
     client.pull_queue.side_effect = pull_queue

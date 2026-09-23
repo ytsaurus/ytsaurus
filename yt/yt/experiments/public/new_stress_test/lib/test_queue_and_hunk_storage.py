@@ -1,10 +1,11 @@
 from .logger import logger
 
 import yt.wrapper as yt
+import yt.yson as yson
 
 from yt.wrapper.retries import run_with_retries
 
-from yt.common import YtError, wait
+from yt.common import YT_NULL_TRANSACTION_ID, YtError, wait
 from lib.schema import RandomStringGenerator
 
 from contextlib import contextmanager
@@ -168,6 +169,7 @@ def wait_for_hunk_storage_unmounts(tablets_by_storage):
 # stored in the linked hunk storage; smaller ones stay inline. Kept as a single
 # constant so every schema that should produce hunks agrees on the value.
 MAX_INLINE_HUNK_SIZE = 512
+DATA_TABLE_READ_BATCH_SIZE = 100
 DATA_TABLE_WRITE_BATCH_SIZE = 20_000
 
 HUNK_STORAGE_ERASURE_ATTRIBUTES = {
@@ -189,15 +191,6 @@ QUEUE_SCHEMA_NO_HUNKS = [
     {"name": "key", "type": "string"},
     {"name": "value", "type": "string"},
     {"name": "$cumulative_data_weight", "type": "int64"},
-]
-
-# Schema for queues created via alter_to_queue: no $cumulative_data_weight,
-# so altering an existing static table (which has key/value only) is a pure schema
-# relaxation. Static results are pre-created with strict=true so this alter is valid
-# (dynamic tables require strict=true, and alter cannot tighten strict).
-ALTERED_QUEUE_SCHEMA = [
-    {"name": "key", "type": "string"},
-    {"name": "value", "type": "string", "max_inline_hunk_size": MAX_INLINE_HUNK_SIZE},
 ]
 
 # Schema applied to the result of single-source operations that produce sorted output
@@ -223,12 +216,21 @@ QUEUE_DATA_SCHEMA = [
     {"name": "row_index", "type": "int64", "sort_order": "ascending"},
     {"name": "key", "type": "string"},
     {"name": "value", "type": "string"},
+    {"name": "cumulative_data_weight", "type": "int64"},
 ]
 
 STATIC_DATA_SCHEMA = [
     {"name": "key", "type": "string", "sort_order": "ascending"},
     {"name": "value", "type": "string", "sort_order": "ascending"},
 ]
+
+
+def _get_row_data_weight(row):
+    # Ordered rows count a row marker and the stored int64, excluding routing indices.
+    return 1 + 8 + sum(
+        len(row[column].encode("utf-8")) if isinstance(row[column], str) else len(row[column])
+        for column in ("key", "value")
+    )
 
 
 HISTORY_KINDS = (
@@ -287,17 +289,20 @@ class TableBase:
     def _create_static_data_table(self, data_path, rows):
         yt.create("table", data_path, attributes={"schema": STATIC_DATA_SCHEMA})
         if rows:
-            # Project to (key, value) — sources may carry extra columns
-            # (e.g. Queue.get_expected_rows includes row_index).
-            yt.write_table(data_path, [{"key": r["key"], "value": r["value"]} for r in rows])
+            yt.write_table(data_path, [
+                {
+                    "key": row["key"],
+                    "value": row["value"],
+                }
+                for row in rows
+            ])
 
-    def _validate_static_result(self, result_path, result_data_path, descr):
-        # Sort both sides in Python by (key, value): result_path preserves natural op
-        # output order, and result_data_path may carry queue-style sort (tablet_index,
-        # row_index) when the static was produced by Queue.alter_to_static (which
-        # reuses the queue's .data instead of rewriting it).
+    def _validate_static_result(self, result_path, result_data_path, descr, actual_rows=None):
+        # Static operation results may have a different row order.
+        if actual_rows is None:
+            actual_rows = yt.read_table(result_path)
         actual_rows = sorted(
-            yt.read_table(result_path),
+            actual_rows,
             key=lambda r: (r["key"], r["value"]),
         )
         expected_rows = sorted(
@@ -313,6 +318,9 @@ class TableBase:
         # Project to (key, value) so queue inputs (which carry $cumulative_data_weight)
         # match strict (key, value) result schemas. No-op for static inputs.
         return yt.TablePath(self.path, columns=["key", "value"])
+
+    def _get_operation_expected_rows(self, input_path):
+        return self.get_expected_rows()
 
     def _create_operation_output(self, path, schema):
         # Operation outputs may later become queues and link to the shared hunk storages.
@@ -330,20 +338,25 @@ class TableBase:
 
         logger.info(f"Running {op_kind} on {self.path} (result: {result_path}, new history: {_format_history(new_history)})")
 
-        # Read expected rows OUTSIDE the master tx — Queue.get_expected_rows uses
-        # select_rows (tablet tx), which does not compose with a master tx context.
-        expected_rows = sorted(
-            self.get_expected_rows(),
-            key=lambda r: (r["key"], r["value"]),
-        )
-
+        # _input_path() may choose a different replica each time; reuse one selection
+        # for the snapshot lock, expected rows, and operation.
+        input_path = self._input_path()
         with yt.Transaction():
+            # Keep the retained prefix stable while building expectations and fetching chunks.
+            yt.lock(str(input_path), mode="snapshot")
+            # Queue expectations read metadata under this snapshot, then use a null
+            # transaction context for shadow-table selects while keeping the lock held.
+            expected_rows = sorted(
+                self._get_operation_expected_rows(input_path),
+                key=lambda r: (r["key"], r["value"]),
+            )
+
             # Pre-create the result with an explicit strict schema. Operations on
             # dynamic inputs default to strict=false, which would later block
             # alter_to_queue (dynamic tables require strict=true and alter cannot
             # tighten strict).
             self._create_operation_output(result_path, output_schema)
-            run_op_fn(result_path)
+            run_op_fn(input_path, result_path)
             self._create_static_data_table(result_data_path, expected_rows)
 
         self._validate_static_result(result_path, result_data_path, f"{op_kind} result")
@@ -354,7 +367,7 @@ class TableBase:
         return self._run_op_and_register(
             "sort",
             SORTED_KV_SCHEMA,
-            lambda dst: yt.run_sort(self._input_path(), dst, sort_by=["key", "value"]),
+            lambda src, dst: yt.run_sort(src, dst, sort_by=["key", "value"]),
         )
 
     def _run_merge(self):
@@ -364,8 +377,8 @@ class TableBase:
         return self._run_op_and_register(
             "merge",
             UNSORTED_KV_SCHEMA,
-            lambda dst: yt.run_merge(
-                self._input_path(), dst,
+            lambda src, dst: yt.run_merge(
+                src, dst,
                 mode=mode,
                 spec={"combine_chunks": combine_chunks, "force_transform": force_transform},
             ),
@@ -375,10 +388,10 @@ class TableBase:
         return self._run_op_and_register(
             "map_reduce",
             KEY_SORTED_KV_SCHEMA,
-            lambda dst: yt.run_map_reduce(
+            lambda src, dst: yt.run_map_reduce(
                 mapper=None, reducer=simple_reducer,
                 reduce_by=["key"], sort_by=["key"],
-                source_table=self._input_path(), destination_table=dst,
+                source_table=src, destination_table=dst,
             ),
         )
 
@@ -387,9 +400,9 @@ class TableBase:
         return self._run_op_and_register(
             "map",
             UNSORTED_KV_SCHEMA,
-            lambda dst: yt.run_map(
+            lambda src, dst: yt.run_map(
                 simple_mapper,
-                source_table=self._input_path(), destination_table=dst,
+                source_table=src, destination_table=dst,
                 ordered=ordered,
             ),
         )
@@ -427,14 +440,17 @@ class TableBase:
         # Project both inputs to (key, value) — queue has $cumulative_data_weight, static does not.
         input_paths = [self._input_path(), other._input_path()]
 
-        # Read expected rows OUTSIDE the master tx — Queue.get_expected_rows uses
-        # select_rows (tablet tx), which does not compose with a master tx context.
-        expected_rows = sorted(
-            self.get_expected_rows() + other.get_expected_rows(),
-            key=lambda r: (r["key"], r["value"]),
-        )
-
         with yt.Transaction():
+            for input_path in input_paths:
+                yt.lock(str(input_path), mode="snapshot")
+            # Queue expectations read metadata under these snapshots, then use a null
+            # transaction context for shadow-table selects while keeping the locks held.
+            expected_rows = sorted(
+                self._get_operation_expected_rows(input_paths[0]) +
+                other._get_operation_expected_rows(input_paths[1]),
+                key=lambda r: (r["key"], r["value"]),
+            )
+
             self._create_operation_output(result_path, UNSORTED_KV_SCHEMA)
             yt.run_merge(
                 input_paths, result_path,
@@ -458,6 +474,8 @@ class Queue(TableBase):
         self.mount_state = MountState(tablet_count)
         self.tablet_count = tablet_count
         self.written_row_count = [0] * tablet_count
+        self.trimmed_row_counts = [0] * tablet_count
+        self.cumulative_data_weights = [0] * tablet_count
 
         # replicas_plan is None for plain queues, or a list of {"mode", "hunks"} plans.
         # For replicated queues, self.path is the replicated_table receiving writes;
@@ -517,9 +535,14 @@ class Queue(TableBase):
         source = self.replication_source
         source["erasure"] = erasure
         replicated_table_attributes = copy.deepcopy(attributes)
+        # Replicas generate their own system column; async replication must not write it.
+        source_schema = [
+            column for column in (QUEUE_SCHEMA if source["hunks"] else QUEUE_SCHEMA_NO_HUNKS)
+            if column["name"] != "$cumulative_data_weight"
+        ]
         replicated_table_attributes.update({
             "dynamic": True,
-            "schema": QUEUE_SCHEMA if source["hunks"] else QUEUE_SCHEMA_NO_HUNKS,
+            "schema": source_schema,
             "tablet_count": self.tablet_count,
             "in_memory_mode": "none",
         })
@@ -535,6 +558,7 @@ class Queue(TableBase):
         cell_tag = _get_external_cell_tag(self.path)
         if cell_tag is not None:
             attributes = dict(attributes, external_cell_tag=cell_tag)
+        self.replica_attributes = copy.deepcopy(attributes)
         if source["hunks"]:
             source["hunk_storage_name"] = f"{self.name}.hunk_storage"
             hunk_storage_id = self._create_table_hunk_storage(
@@ -542,54 +566,69 @@ class Queue(TableBase):
             yt.set(f"{self.path}/@hunk_storage_id", hunk_storage_id)
         yt.mount_table(self.path, sync=True)
 
-        assert self.cluster_name is not None
-        for index, plan in enumerate(self.replicas_plan):
-            replica_path = self._replica_path(index)
-            replica_id = yt.create("table_replica", attributes={
-                "table_path": self.path,
-                "cluster_name": self.cluster_name,
-                "replica_path": replica_path,
-                "mode": plan["mode"],
-                "enable_replicated_table_tracker": False,
-            })
+        for plan in self.replicas_plan:
+            self._create_replica(plan, erasure, [0] * self.tablet_count, [0] * self.tablet_count)
 
-            replica_attributes = copy.deepcopy(attributes)
-            replica_attributes.update({
-                "dynamic": True,
-                "enable_dynamic_store_read": True,
-                "upstream_replica_id": replica_id,
-                # Replicas of the same source can store values inline or in hunks.
-                "schema": QUEUE_SCHEMA if plan["hunks"] else QUEUE_SCHEMA_NO_HUNKS,
-                "tablet_count": self.tablet_count,
-            })
-            if erasure:
-                replica_attributes["erasure_codec"] = "isa_reed_solomon_6_3"
-
-            yt.create("table", replica_path, attributes=replica_attributes)
-            hunk_storage_name = None
-            if plan["hunks"]:
-                hunk_storage_path = self._replica_hunk_storage_path(index)
-                hunk_storage_name = hunk_storage_path.rsplit("/", 1)[-1]
-                hunk_storage_id = self._create_table_hunk_storage(
-                    replica_path, hunk_storage_path, erasure=erasure)
-                yt.set(f"{replica_path}/@hunk_storage_id", hunk_storage_id)
-
-            yt.mount_table(replica_path, sync=True)
-            yt.alter_table_replica(replica_id, enabled=True)
-
-            self.replicas.append({
-                "index": index,
-                "path": replica_path,
-                "replica_id": replica_id,
-                "mode": plan["mode"],
-                "hunks": plan["hunks"],
-                "erasure": erasure,
-                "hunk_storage_name": hunk_storage_name,
-            })
-
-        # The replicated table and all replicas were mounted synchronously above; reflect
-        # that in mount_state so write()/read() treat every tablet as sync-mounted.
         self.mount_state.mount(tablet_index=None)
+
+    def _create_replica(self, plan, erasure, start_row_indexes, cumulative_data_weights):
+        assert self.cluster_name is not None
+        index = len(self.replicas)
+        replica_path = self._replica_path(index)
+        replica_id = yt.create("table_replica", attributes={
+            "table_path": self.path,
+            "cluster_name": self.cluster_name,
+            "replica_path": replica_path,
+            "mode": plan["mode"],
+            "enable_replicated_table_tracker": False,
+            "start_replication_row_indexes": start_row_indexes,
+        })
+
+        replica_attributes = copy.deepcopy(self.replica_attributes)
+        replica_attributes.update({
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+            "upstream_replica_id": replica_id,
+            "schema": QUEUE_SCHEMA if plan["hunks"] else QUEUE_SCHEMA_NO_HUNKS,
+            "tablet_count": self.tablet_count,
+            "trimmed_row_counts": start_row_indexes,
+            "cumulative_data_weights": cumulative_data_weights,
+        })
+        if erasure:
+            replica_attributes["erasure_codec"] = "isa_reed_solomon_6_3"
+
+        yt.create("table", replica_path, attributes=replica_attributes)
+        hunk_storage_name = None
+        if plan["hunks"]:
+            hunk_storage_path = self._replica_hunk_storage_path(index)
+            hunk_storage_name = hunk_storage_path.rsplit("/", 1)[-1]
+            hunk_storage_id = self._create_table_hunk_storage(
+                replica_path, hunk_storage_path, erasure=erasure)
+            yt.set(f"{replica_path}/@hunk_storage_id", hunk_storage_id)
+
+        yt.mount_table(replica_path, sync=True)
+        yt.alter_table_replica(replica_id, enabled=True)
+
+        self.replicas.append({
+            "index": index,
+            "path": replica_path,
+            "replica_id": replica_id,
+            "mode": plan["mode"],
+            "hunks": plan["hunks"],
+            "erasure": erasure,
+            "hunk_storage_name": hunk_storage_name,
+            "trimmed_row_counts": list(start_row_indexes),
+        })
+
+    def add_replica(self, plan):
+        assert self.replicated
+        logger.info(
+            f"Adding replica to {self.path} (plan: {plan}, "
+            f"row indexes: {self.written_row_count}, weights: {self.cumulative_data_weights})")
+        self._create_replica(
+            plan, self.replication_source["erasure"],
+            list(self.written_row_count), list(self.cumulative_data_weights),
+        )
 
     def _input_path(self):
         path = self.path
@@ -604,6 +643,38 @@ class Queue(TableBase):
                 self._wait_for_written_rows(path, list(range(self.tablet_count)))
         return yt.TablePath(path, columns=["key", "value"])
 
+    def _get_trimmed_row_counts(self, path):
+        for replica in self.replicas:
+            if replica["path"] == str(path):
+                return replica["trimmed_row_counts"]
+        return self.trimmed_row_counts
+
+    def _get_retained_row_indexes(self, path):
+        trimmed_row_counts = self._get_trimmed_row_counts(path)
+        if not any(trimmed_row_counts):
+            return [0] * self.tablet_count
+
+        # The master trims whole chunks, so operations and static conversion can read
+        # trimmed rows in a partially trimmed chunk. Use chunk statistics to find the
+        # physically retained start instead of trimmed_row_counts.
+        chunk_list_id = yt.get(f"{path}/@chunk_list_id")
+        tablet_chunk_list_ids = yt.get(f"#{chunk_list_id}/@child_ids")
+        assert len(tablet_chunk_list_ids) == self.tablet_count
+        start_row_indexes = []
+        for index, tablet_chunk_list_id in enumerate(tablet_chunk_list_ids):
+            statistics = yt.get(f"#{tablet_chunk_list_id}/@statistics")
+            # Logical row count excludes unflushed rows, unlike written_row_count.
+            start = statistics["logical_row_count"] - statistics["row_count"]
+            assert 0 <= start <= trimmed_row_counts[index]
+            start_row_indexes.append(start)
+        return start_row_indexes
+
+    def _get_operation_expected_rows(self, input_path):
+        start_row_indexes = self._get_retained_row_indexes(input_path)
+        # Shadow-table selects cannot run in the input's master transaction.
+        with yt.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+            return self.get_expected_rows(start_row_indexes=start_row_indexes)
+
     def create_data_table(self):
         yt.create("table", self.data_path, attributes={
             "dynamic": True,
@@ -611,6 +682,18 @@ class Queue(TableBase):
             "schema": QUEUE_DATA_SCHEMA,
         })
         yt.mount_table(self.data_path, sync=True)
+
+    def initialize_cumulative_data_weights(self):
+        assert not self.mount_state.has_mounted_tablet()
+        chunk_list_id = yt.get(f"{self.path}/@chunk_list_id")
+        tablet_chunk_list_ids = yt.get(f"#{chunk_list_id}/@child_ids")
+        assert len(tablet_chunk_list_ids) == self.tablet_count
+        cumulative_data_weights = []
+        for tablet_chunk_list_id in tablet_chunk_list_ids:
+            statistics = yt.get(f"#{tablet_chunk_list_id}/@statistics")
+            cumulative_data_weights.append(
+                statistics["logical_data_weight"] + statistics["logical_hunk_data_weight"])
+        self.cumulative_data_weights = cumulative_data_weights
 
     def remove(self):
         logger.info(f"Removing queue {self.path}")
@@ -672,6 +755,8 @@ class Queue(TableBase):
         copy_queue = Queue(self.base_path, name, self.tablet_count, history=new_history)
         copy_queue.hunk_storage_name = self.hunk_storage_name
         copy_queue.written_row_count = copy.deepcopy(self.written_row_count)
+        copy_queue.trimmed_row_counts = list(self.trimmed_row_counts)
+        copy_queue.cumulative_data_weights = list(self.cumulative_data_weights)
 
         return copy_queue
 
@@ -692,6 +777,8 @@ class Queue(TableBase):
         moved_queue = Queue(self.base_path, name, self.tablet_count, history=new_history)
         moved_queue.hunk_storage_name = self.hunk_storage_name
         moved_queue.written_row_count = copy.deepcopy(self.written_row_count)
+        moved_queue.trimmed_row_counts = list(self.trimmed_row_counts)
+        moved_queue.cumulative_data_weights = list(self.cumulative_data_weights)
 
         return moved_queue
 
@@ -767,6 +854,7 @@ class Queue(TableBase):
             replica["mode"] == "sync" for replica in self.replicas)
 
         def _insert_rows():
+            cumulative_data_weights = list(self.cumulative_data_weights)
             with yt.Transaction(type="tablet"):
                 i = 0
                 while i < batch_size:
@@ -778,11 +866,19 @@ class Queue(TableBase):
                         key = RSG.generate(2)
                         value = RSG.generate(random.randint(cfg.write_min_row_size, cfg.write_max_row_size))
                         rows.append({"key": key, "value": value, "$tablet_index": tablet_index})
-                        data_rows.append({"key": key, "value": value, "tablet_index": tablet_index, "row_index": row_indices[i]})
+                        cumulative_data_weights[tablet_index] += _get_row_data_weight(rows[-1])
+                        data_rows.append({
+                            "key": key,
+                            "value": value,
+                            "tablet_index": tablet_index,
+                            "row_index": row_indices[i],
+                            "cumulative_data_weight": cumulative_data_weights[tablet_index],
+                        })
                         chunk_bytes_used += len(key) + len(value)
                         i += 1
                     yt.insert_rows(self.path, rows, require_sync_replica=require_sync_replica)
                     yt.insert_rows(self.data_path, data_rows)
+            self.cumulative_data_weights = cumulative_data_weights
 
         run_with_retries(
             _insert_rows,
@@ -838,17 +934,41 @@ class Queue(TableBase):
                     )
                 wait_for_tablet_state(self.path, mounted_tablet_indexes, state)
 
-    def get_expected_rows(self, tablet_index=None):
-        where_expr = ""
-        if tablet_index is not None:
-            where_expr = f"where tablet_index = {tablet_index}"
+    def trim(self, tablet_index, trimmed_row_count):
+        assert (self.trimmed_row_counts[tablet_index] <= trimmed_row_count <=
+                self.written_row_count[tablet_index])
+        logger.info(
+            f"Trimming queue {self.path} (tablet_index: {tablet_index}, "
+            f"trimmed_row_count: {trimmed_row_count})")
+        if self.replicated:
+            for replica in self.replicas:
+                self._wait_for_written_rows(replica["path"], [tablet_index])
+                if trimmed_row_count > replica["trimmed_row_counts"][tablet_index]:
+                    yt.trim_rows(replica["path"], tablet_index, trimmed_row_count)
+                    replica["trimmed_row_counts"][tablet_index] = trimmed_row_count
+        else:
+            yt.trim_rows(self.path, tablet_index, trimmed_row_count)
+        self.trimmed_row_counts[tablet_index] = trimmed_row_count
 
+    def _select_data_rows(self, tablet_index, start_row_index, limit):
+        return list(yt.select_rows(
+            f"select row_index, key, value, cumulative_data_weight from [{self.data_path}] "
+            f"where tablet_index = {tablet_index} and row_index >= {start_row_index} "
+            f"order by tablet_index, row_index limit {limit}"))
+
+    def get_expected_rows(self, tablet_index=None, start_row_indexes=None):
+        if start_row_indexes is None:
+            start_row_indexes = self.trimmed_row_counts
+        tablets = range(self.tablet_count) if tablet_index is None else [tablet_index]
         expected_rows = []
-        while True:
-            rows = list(yt.select_rows(f"select row_index, key, value from [{self.data_path}] {where_expr} order by tablet_index, row_index offset {len(expected_rows)} limit 100"))
-            if len(rows) == 0:
-                break
-            expected_rows += rows
+        for index in tablets:
+            next_row_index = start_row_indexes[index]
+            while True:
+                rows = self._select_data_rows(index, next_row_index, DATA_TABLE_READ_BATCH_SIZE)
+                if not rows:
+                    break
+                expected_rows.extend(rows)
+                next_row_index = rows[-1]["row_index"] + 1
 
         return expected_rows
 
@@ -875,6 +995,10 @@ class Queue(TableBase):
         new_history = _derive_history(self.history, "alter_to_static")
         logger.info(f"Altering queue {self.path} into static table {new_path} (new history: {_format_history(new_history)})")
 
+        self.unmount()
+        # Static conversion retains whole chunks, including partially trimmed prefixes.
+        start_row_indexes = self._get_retained_row_indexes(self.path)
+
         # Read expected rows from the .data table while it is still mounted.
         # The .data table is a *sorted* dynamic table (QUEUE_DATA_SCHEMA sorts by
         # tablet_index, row_index), and YT forbids altering a sorted table from
@@ -882,12 +1006,10 @@ class Queue(TableBase):
         # sorted"). So instead of altering the .data in place, we rebuild it below
         # as a freshly-created static table from these rows.
         expected_rows = sorted(
-            self.get_expected_rows(),
+            self.get_expected_rows(start_row_indexes=start_row_indexes),
             key=lambda r: (r["key"], r["value"]),
         )
 
-        # Unmount queue and its .data so dynamic stores are flushed into chunks.
-        self.unmount()
         yt.unmount_table(self.data_path, sync=True)
 
         # Hunk chunks may still be sealing after unmount; alter rejects unsealed.
@@ -908,13 +1030,15 @@ class Queue(TableBase):
 
         static_table = StaticTable(self.base_path, new_static_name, history=new_history)
         static_table._create_static_data_table(new_data_path, expected_rows)
-        static_table._validate_static_result(new_path, new_data_path, "alter_to_static result")
+        static_table._validate_static_result(
+            new_path, new_data_path, "alter_to_static result")
         return static_table
 
     def _read_table_and_check(self, path, spec):
         logger.info(f"Reading everything from {path}")
 
         cfg = spec.queue_and_hunk_storage
+        trimmed_row_counts = self._get_trimmed_row_counts(path)
 
         for tablet_index in range(self.tablet_count):
             if tablet_index in self.mount_state.get_unmounted_tablet_indexes(tablet_index, sync=True):
@@ -925,9 +1049,9 @@ class Queue(TableBase):
 
             # Stream the queue (pull_queue, ordered by row index) and the shadow .data
             # (select_rows, same row-index order) in lockstep pages instead of loading the
-            # whole tablet into Python. pull_queue caps each page by data weight, so peak
-            # memory stays bounded regardless of row size; the .data page is read at the
-            # same offset with a matching limit.
+            # whole tablet into Python. pull_queue caps each page by data weight.
+            next_row_index = trimmed_row_counts[tablet_index]
+            # Reading from zero also checks that the server skips the trimmed prefix.
             offset = 0
             while True:
                 actual_rows = list(yt.pull_queue(
@@ -936,17 +1060,32 @@ class Queue(TableBase):
                 if len(actual_rows) == 0:
                     break
 
-                expected_rows = list(yt.select_rows(
-                    f"select row_index, key, value from [{self.data_path}] "
-                    f"where tablet_index = {tablet_index} order by tablet_index, row_index "
-                    f"offset {offset} limit {len(actual_rows)}"))
+                expected_rows = self._select_data_rows(
+                    tablet_index, next_row_index, len(actual_rows))
 
                 if len(expected_rows) != len(actual_rows):
                     raise YtError(
                         f"Data table {self.data_path} contains {len(expected_rows)} rows for tablet "
-                        f"{tablet_index} at offset {offset} but {path} returned {len(actual_rows)} rows")
+                        f"{tablet_index} at row index {next_row_index} "
+                        f"but {path} returned {len(actual_rows)} rows")
 
                 for expected_row, actual_row in zip(expected_rows, actual_rows):
+                    expected_index = expected_row["row_index"]
+                    if actual_row.get("$row_index") != expected_index:
+                        raise YtError(
+                            f"Unexpected row index in {path}, tablet {tablet_index}: "
+                            f"expected {expected_index}, got {actual_row.get('$row_index')}")
+
+                    expected_weight = expected_row["cumulative_data_weight"]
+                    if isinstance(expected_weight, yson.YsonEntity):
+                        expected_weight = None
+                    if expected_weight is not None:
+                        actual_weight = actual_row.get("$cumulative_data_weight")
+                        if actual_weight != expected_weight:
+                            raise YtError(
+                                f"Unexpected cumulative data weight in {path}, tablet {tablet_index}, "
+                                f"row {expected_index}: expected {expected_weight}, got {actual_weight}")
+
                     if expected_row["value"] != actual_row["value"]:
                         raise YtError(
                             f"Unexpected value in {path}, tablet {tablet_index}, "
@@ -959,12 +1098,13 @@ class Queue(TableBase):
                             f"row {expected_row['row_index']}: expected {expected_row['key']!r}, "
                             f"got {actual_row['key']!r}")
 
-                offset += len(actual_rows)
+                next_row_index += len(actual_rows)
+                offset = next_row_index
 
-            if offset != written_row_count:
+            if next_row_index != written_row_count:
                 raise YtError(
-                    f"Read {offset} rows from {path}, tablet {tablet_index}, "
-                    f"but {written_row_count} rows were written")
+                    f"Read up to row index {next_row_index} in {path}, tablet {tablet_index}, "
+                    f"but expected {written_row_count}")
 
 
 class StaticTable(TableBase):
@@ -998,31 +1138,25 @@ class StaticTable(TableBase):
         new_path = f"{self.base_path}/{new_queue_name}"
         new_history = _derive_history(self.history, "alter_to_queue")
         logger.info(f"Altering static table {self.path} into queue {new_path} (new history: {_format_history(new_history)})")
-
         # Read rows from the static table itself (not its .data) so the row_index we
         # assign matches the order pull_queue will return after the alter — chunks are
         # immutable, so static read order == post-alter pull_queue order.
         rows = list(yt.read_table(self.path))
+        self._validate_static_result(self.path, self.data_path, "static table", actual_rows=rows)
         queue_data_rows = [
-            {"tablet_index": 0, "row_index": i, "key": r["key"], "value": r["value"]}
+            {
+                "tablet_index": 0,
+                "row_index": i,
+                "key": r["key"],
+                "value": r["value"],
+                # Static transformations do not preserve cumulative weight history.
+                "cumulative_data_weight": None,
+            }
             for i, r in enumerate(rows)
         ]
 
-        # Two cases depending on the static's lineage:
-        # (a) sorted output (sort/map_reduce) → schema has sort_order columns. We must
-        #     first drop sort_order (otherwise alter to dynamic infers sorted-dynamic,
-        #     which can't host an ordered queue), then alter to dynamic with
-        #     ALTERED_QUEUE_SCHEMA (key/value with max_inline_hunk_size).
-        # (b) unsorted static → either an unsorted op output (merge/map/merge_with,
-        #     schema UNSORTED_KV_SCHEMA with no hunk column) or Queue.alter_to_static
-        #     (schema may carry $cumulative_data_weight and already-hunked value). A
-        #     single alter dynamic=True suffices, BUT we must not silently inherit a
-        #     value column without max_inline_hunk_size — otherwise a later
-        #     hunk-storage link produces a queue with hunk_storage_id yet no hunks.
-        #     So preserve the existing schema (keeping $cumulative_data_weight) and
-        #     just ensure the value column is hunked. Adding max_inline_hunk_size is a
-        #     valid alter; only *resetting* it is forbidden, so the alter_to_static
-        #     lineage (already 512) is unaffected.
+        # Drop sort order before making an ordered table. Existing rows without the
+        # system column retain null; newly appended rows get cumulative weights.
         schema = yt.get(f"{self.path}/@schema")
         has_sort_order = any(col.get("sort_order") for col in schema)
 
@@ -1031,13 +1165,7 @@ class StaticTable(TableBase):
 
         if has_sort_order:
             yt.alter_table(new_path, schema=UNSORTED_KV_SCHEMA)
-            yt.alter_table(new_path, dynamic=True, schema=ALTERED_QUEUE_SCHEMA)
-        else:
-            hunked_schema = copy.deepcopy(schema)
-            for col in hunked_schema:
-                if col["name"] == "value":
-                    col["max_inline_hunk_size"] = MAX_INLINE_HUNK_SIZE
-            yt.alter_table(new_path, dynamic=True, schema=hunked_schema)
+        yt.alter_table(new_path, dynamic=True, schema=QUEUE_SCHEMA)
         yt.set(f"{new_path}/@enable_dynamic_store_read", True)
 
         queue = Queue(self.base_path, new_queue_name, tablet_count=1, history=new_history)
@@ -1045,6 +1173,7 @@ class StaticTable(TableBase):
         for offset in range(0, len(queue_data_rows), DATA_TABLE_WRITE_BATCH_SIZE):
             yt.insert_rows(queue.data_path, queue_data_rows[offset:offset + DATA_TABLE_WRITE_BATCH_SIZE])
         queue.written_row_count[0] = len(queue_data_rows)
+        queue.initialize_cumulative_data_weights()
 
         queue.mount()
 
@@ -1454,6 +1583,31 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             except YtError as err:
                 _check_read_error(queue, err)
 
+    def _trim():
+        for queue in queues.values():
+            if random.random() >= spec.queue_and_hunk_storage.trim_probability:
+                continue
+            for tablet_index in queue.mount_state.get_mounted_tablet_indexes(None, sync=True):
+                start = queue.trimmed_row_counts[tablet_index]
+                end = queue.written_row_count[tablet_index]
+                if start < end:
+                    queue.trim(tablet_index, random.randint(start + 1, end))
+
+    def _add_replicas():
+        cfg = spec.queue_and_hunk_storage
+        for queue in queues.values():
+            if not queue.replicated or not any(queue.written_row_count):
+                continue
+            if len(queue.replicas) >= cfg.replicated_max_replicas:
+                continue
+            if random.random() < cfg.add_replica_probability:
+                queue.add_replica(
+                    {
+                        "mode": "sync" if random.random() < cfg.replica_sync_probability else "async",
+                        "hunks": random.random() < cfg.replica_hunks_probability,
+                    },
+                )
+
     def _operations():
         for queue in list(queues.values()):
             try:
@@ -1659,6 +1813,7 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         _remount()
 
         for i in range(2):
+            _add_replicas()
             _write()
             _flush()
             _operations()
@@ -1666,4 +1821,5 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
             _merge_two_tables()
             _alter_to_queue()
             _alter_to_static()
+            _trim()
             _read()
