@@ -26,12 +26,14 @@ SRCS(
     retryable_client_spec.cpp
     retryable_client.cpp
     retryable_transaction.cpp
+    self_signed_certificate.cpp
     status_profiler.cpp
     weighted_random.cpp
 )
 
 PEERDIR(
     contrib/libs/eigen
+    contrib/libs/openssl
     library/cpp/build_info
     library/cpp/yt/error
     library/cpp/yt/memory

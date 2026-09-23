@@ -36,8 +36,9 @@ DEFINE_ENUM(ELeaderConfirmationResult,
 
 //! Classifies the outcome of the leadership confirmation through the RPC proxy. |confirmationError|
 //! is OK when the confirmation succeeded and is not inspected when the confirmation was skipped by
-//! the environment. |busServerHasTlsMaterial| tells whether the controller bus server holds both a
-//! certificate chain and a private key, without which it cannot serve TLS at all.
+//! the environment. |busServerHasTlsMaterial| tells whether the config gives the controller bus server
+//! both a certificate chain and a private key; the self-signed incarnation certificate the controller
+//! serves otherwise is not trusted by the cluster.
 ELeaderConfirmationResult ClassifyLeaderConfirmation(
     bool skipConfirmationFromEnv,
     const TError& confirmationError,

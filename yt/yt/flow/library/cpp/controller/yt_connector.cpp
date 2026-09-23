@@ -555,7 +555,7 @@ private:
             case ELeaderConfirmationResult::SkippedWithoutTlsMaterial:
                 YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
                     "Leadership confirmation through the RPC proxy is skipped; "
-                    "the cluster requires TLS to connect to this controller, but the controller bus server has no TLS certificate and key, "
+                    "the cluster requires TLS to connect to this controller, but the controller bus server has no TLS certificate the cluster trusts, "
                     "so only the runner reaches it, in direct mode "
                     "(runner config direct_controller_commands/enabled); "
                     "yt flow and the UI will not work")

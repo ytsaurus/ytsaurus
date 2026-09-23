@@ -316,6 +316,21 @@ DEFINE_REFCOUNTED_TYPE(TDirectControllerCommandsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Channels of the direct mode to the leader controller. A leader that publishes its incarnation
+//! certificate is reached over TLS with that certificate pinned.
+struct IDirectControllerChannels
+    : public virtual TRefCounted
+{
+    //! Returns a channel to |leader|, the node info published in the leader row of the flow_control table.
+    virtual NRpc::IChannelPtr GetChannel(const TNodeInfo& leader) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDirectControllerChannels)
+
+IDirectControllerChannelsPtr CreateDirectControllerChannels();
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Where the flow_execute commands go. Converts from a plain client, which keeps them on the
 //! RPC proxy path.
 struct TFlowExecuteTarget
@@ -329,7 +344,7 @@ struct TFlowExecuteTarget
 
     //! Channels to the leader controller; set in the direct mode only. Polling commands reuse
     //! the channel of the published leader instead of connecting anew.
-    NRpc::IChannelFactoryPtr ChannelFactory;
+    IDirectControllerChannelsPtr Channels;
 
     TFlowExecuteTarget(NApi::IClientPtr client, TDirectControllerCommandsConfigPtr directControllerCommands = nullptr);
 

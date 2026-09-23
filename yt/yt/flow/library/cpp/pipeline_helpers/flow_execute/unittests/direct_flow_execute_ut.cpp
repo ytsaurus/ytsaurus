@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/client/authentication.h>
 #include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 #include <yt/yt/flow/library/cpp/client/public.h>
+#include <yt/yt/flow/library/cpp/misc/self_signed_certificate.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -16,6 +17,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/crypto/config.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -190,6 +193,14 @@ protected:
         ExpectLeaderInfo(Format("{rpc_address=%Qv}", address));
     }
 
+    void ExpectPublishedLeader(const std::string& address, const TSelfSignedCertificate& certificate)
+    {
+        ExpectLeaderInfo(Format("{rpc_address=%Qv; certificate_pem=%Qv; certificate_sha256=%Qv}",
+            address,
+            certificate.CertificatePem,
+            certificate.CertificateSha256));
+    }
+
     TFlowExecuteTarget DirectTarget() const
     {
         return TFlowExecuteTarget(Client_, Config_);
@@ -295,6 +306,125 @@ TEST_F(TDirectFlowExecuteTest, ReportsUnreachableLeader)
     ExpectPublishedLeader(Format("localhost:%v", static_cast<ui16>(unusedPort)));
 
     EXPECT_THROW_WITH_SUBSTRING(Execute("get-pipeline-state"), "Cannot connect to pipeline controller leader directly");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCrypto::TPemBlobConfigPtr MakePemBlob(std::string value)
+{
+    auto blob = New<NCrypto::TPemBlobConfig>();
+    blob->Value = std::move(value);
+    return blob;
+}
+
+//! The controller serves TLS only, with its incarnation certificate: a plain TCP client cannot reach it.
+class TDirectFlowExecuteTlsTest
+    : public TDirectFlowExecuteTest
+{
+protected:
+    const NTesting::TPortHolder TlsPort_ = NTesting::GetFreePort();
+    const TSelfSignedCertificate Certificate_ = GenerateSelfSignedCertificate({
+        .CommonName = "yt-flow-controller-test",
+        .IPAddresses = {"127.0.0.1", "::1"},
+    });
+    IServerPtr TlsServer_;
+
+    void SetUp() override
+    {
+        TDirectFlowExecuteTest::SetUp();
+
+        StartTlsServer(Certificate_);
+    }
+
+    void TearDown() override
+    {
+        StopTlsServer();
+
+        TDirectFlowExecuteTest::TearDown();
+    }
+
+    void StartTlsServer(const TSelfSignedCertificate& certificate, IServicePtr service = nullptr)
+    {
+        auto config = NYT::NBus::NTcp::TBusServerConfig::CreateTcp(TlsPort_);
+        config->EncryptionMode = NYT::NBus::EEncryptionMode::Required;
+        config->CertificateChain = MakePemBlob(certificate.CertificatePem);
+        config->PrivateKey = MakePemBlob(certificate.PrivateKeyPem);
+        TlsServer_ = NRpc::NBus::CreateBusServer(NYT::NBus::NTcp::CreateBusServer(config));
+        TlsServer_->RegisterService(service ? std::move(service) : Service_);
+        TlsServer_->Start();
+    }
+
+    void StopTlsServer()
+    {
+        WaitFor(TlsServer_->Stop())
+            .ThrowOnError();
+    }
+
+    std::string GetTlsControllerAddress() const
+    {
+        return Format("localhost:%v", static_cast<ui16>(TlsPort_));
+    }
+};
+
+TEST_F(TDirectFlowExecuteTlsTest, PinsPublishedCertificate)
+{
+    ExpectPublishedLeader(GetTlsControllerAddress(), Certificate_);
+
+    auto state = FlowExecute(DirectTarget(), TYPath(PipelinePath), TGetPipelineStateArg());
+    EXPECT_EQ(state.PipelineState, EPipelineState::Working);
+
+    auto recorded = Service_->GetLastRequest();
+    EXPECT_EQ(recorded.User, "alice");
+    EXPECT_EQ(recorded.Token, "secret");
+}
+
+TEST_F(TDirectFlowExecuteTlsTest, FollowsCertificateRotationOnTheSameTarget)
+{
+    // The runner keeps one target through the release while the controller restarts on the same address.
+    auto target = DirectTarget();
+
+    ExpectPublishedLeader(GetTlsControllerAddress(), Certificate_);
+    EXPECT_EQ(FlowExecute(target, TYPath(PipelinePath), TGetPipelineStateArg()).PipelineState, EPipelineState::Working);
+
+    StopTlsServer();
+    auto rotated = GenerateSelfSignedCertificate({.CommonName = "yt-flow-controller-rotated"});
+    // The stopped server has stopped its services as well: the new incarnation brings its own.
+    auto rotatedService = New<TFakeControllerService>(Queue_->GetInvoker());
+    StartTlsServer(rotated, rotatedService);
+    ExpectPublishedLeader(GetTlsControllerAddress(), rotated);
+
+    // A channel pinned to the previous certificate would fail the handshake with the new incarnation.
+    EXPECT_EQ(FlowExecute(target, TYPath(PipelinePath), TGetPipelineStateArg()).PipelineState, EPipelineState::Working);
+    EXPECT_EQ(rotatedService->GetLastRequest().Command, "get-pipeline-state");
+}
+
+TEST_F(TDirectFlowExecuteTlsTest, RejectsControllerWithOtherCertificate)
+{
+    // Another incarnation's certificate is published: the controller behind the address cannot prove it.
+    auto other = GenerateSelfSignedCertificate({.CommonName = "yt-flow-controller-other"});
+    ExpectPublishedLeader(GetTlsControllerAddress(), other);
+
+    try {
+        Execute("get-pipeline-state");
+        GTEST_FAIL() << "The request was expected to fail";
+    } catch (const TErrorException& ex) {
+        EXPECT_THAT(ex.what(), ::testing::HasSubstr("Cannot connect to pipeline controller leader directly"));
+        EXPECT_TRUE(ex.Error().FindMatching(NYT::NBus::EErrorCode::SslError)) << ToString(ex.Error());
+        EXPECT_EQ(
+            ex.Error().Attributes().Get<std::string>("pipeline_controller_leader_certificate_sha256"),
+            other.CertificateSha256);
+    }
+    EXPECT_TRUE(Service_->GetLastRequest().Command.empty());
+}
+
+TEST_F(TDirectFlowExecuteTlsTest, NoVerificationWithoutPublishedCertificate)
+{
+    // A leader of an older binary publishes no certificate; the runner keeps the default bus config
+    // and connects to whatever serves the address.
+    ExpectPublishedLeader(GetTlsControllerAddress());
+
+    auto state = FlowExecute(DirectTarget(), TYPath(PipelinePath), TGetPipelineStateArg());
+    EXPECT_EQ(state.PipelineState, EPipelineState::Working);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
