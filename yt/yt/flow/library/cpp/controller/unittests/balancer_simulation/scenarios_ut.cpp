@@ -83,6 +83,15 @@ TScenario OneWorkerOverloaded()
     return scenario;
 }
 
+//! One worker holds 60% of every computation (72k against 32k). Expected: the worker is drained.
+TScenario OneWorkerHeavilyOverloaded()
+{
+    auto scenario = OneWorkerOverloaded();
+    scenario.Name = "OneWorkerHeavilyOverloaded";
+    scenario.InitialShares = {0.6, 0.1, 0.1, 0.1, 0.1};
+    return scenario;
+}
+
 std::vector<TScenario> Scenarios()
 {
     return {
@@ -90,6 +99,7 @@ std::vector<TScenario> Scenarios()
         ManyModelsColdStart(),
         DemandDipAfterPlacement(),
         OneWorkerOverloaded(),
+        OneWorkerHeavilyOverloaded(),
     };
 }
 
@@ -155,6 +165,97 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::ValuesIn(Scenarios()),
     [] (const ::testing::TestParamInfo<TScenario>& info) {
         return info.param.Name;
+    });
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The action at |index| if it belongs to |round|.
+std::string Describe(const std::vector<TMove>& moves, int index, int round)
+{
+    if (index >= std::ssize(moves) || moves[index].Step != round) {
+        return "no more moves";
+    }
+    const auto& move = moves[index];
+    return Format("partition %v from %Qv to %Qv", move.Partition, move.From, move.To);
+}
+
+std::string Describe(const std::vector<TPreloadEvent>& events, int index, int round)
+{
+    if (index >= std::ssize(events) || events[index].Step != round) {
+        return "no more preload actions";
+    }
+    const auto& event = events[index];
+    return Format("%v %v on %v", event.Add ? "Add" : "Del", event.Resource, event.Worker);
+}
+
+//! Compares two action logs ordered by round. Returns the first round where they differ and the
+//! index of the first different action, or std::nullopt when they are equal.
+template <class T, class TEqual>
+std::optional<std::pair<int, int>> FirstMismatch(const std::vector<T>& expected, const std::vector<T>& actual, TEqual equal)
+{
+    int common = std::min(std::ssize(expected), std::ssize(actual));
+    int index = 0;
+    while (index < common && equal(expected[index], actual[index])) {
+        ++index;
+    }
+    if (index == std::ssize(expected) && index == std::ssize(actual)) {
+        return std::nullopt;
+    }
+    int round = std::numeric_limits<int>::max();
+    if (index < std::ssize(expected)) {
+        round = std::min(round, expected[index].Step);
+    }
+    if (index < std::ssize(actual)) {
+        round = std::min(round, actual[index].Step);
+    }
+    return std::pair(round, index);
+}
+
+class TUnusedResourceStatusTest
+    : public ::testing::TestWithParam<std::tuple<TScenario, EUnusedResourceStatus>>
+{ };
+
+//! Statistics of a resource no job on the worker uses must not change the balancer's decisions.
+TEST_P(TUnusedResourceStatusTest, SameDecisions)
+{
+    const auto& [scenario, unusedResourceStatus] = GetParam();
+    TSimulation reference(scenario);
+    reference.Run();
+
+    auto replaced = scenario;
+    replaced.UnusedResourceStatus = unusedResourceStatus;
+    TSimulation simulation(replaced);
+    simulation.Run();
+
+    auto move = FirstMismatch(reference.Moves(), simulation.Moves(), [] (const TMove& lhs, const TMove& rhs) {
+        return std::tie(lhs.Step, lhs.Partition, lhs.From, lhs.To) == std::tie(rhs.Step, rhs.Partition, rhs.From, rhs.To);
+    });
+    if (move) {
+        auto [round, index] = *move;
+        ADD_FAILURE() << "moves differ in round " << round << ": "
+                      << Describe(reference.Moves(), index, round) << " without replacement, "
+                      << Describe(simulation.Moves(), index, round) << " with it";
+    }
+
+    auto preload = FirstMismatch(reference.PreloadEvents(), simulation.PreloadEvents(), [] (const TPreloadEvent& lhs, const TPreloadEvent& rhs) {
+        return std::tie(lhs.Step, lhs.Worker, lhs.Resource, lhs.Add) == std::tie(rhs.Step, rhs.Worker, rhs.Resource, rhs.Add);
+    });
+    if (preload) {
+        auto [round, index] = *preload;
+        ADD_FAILURE() << "preload actions differ in round " << round << ": "
+                      << Describe(reference.PreloadEvents(), index, round) << " without replacement, "
+                      << Describe(simulation.PreloadEvents(), index, round) << " with it";
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Scenarios,
+    TUnusedResourceStatusTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(Scenarios()),
+        ::testing::Values(EUnusedResourceStatus::Frozen, EUnusedResourceStatus::Huge)),
+    [] (const ::testing::TestParamInfo<std::tuple<TScenario, EUnusedResourceStatus>>& info) {
+        return Format("%v_%v", std::get<0>(info.param).Name, std::get<1>(info.param));
     });
 
 ////////////////////////////////////////////////////////////////////////////////

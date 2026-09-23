@@ -29,6 +29,10 @@ namespace NYT::NFlow::NBalancer::NTesting {
 //! BalancerSimulation logger into balancer_simulation.log next to the unittester logs;
 //! by timestamp they line up with the balancer's own log in unittester.debug.log.
 //!
+//! A scenario may replace what workers publish for a resource no partition on the worker uses
+//! (EUnusedResourceStatus); the worker model itself and the statistics of used resources stay as
+//! they are. The balancer must not act on such statistics, so the decisions must not change.
+//!
 //! Only the algorithm is simulated. Execution of the actions (job manager, async
 //! balancer) is covered by async_balancer_ut.cpp; the worker model is linear, so only
 //! the shape of the trajectory is meaningful, not absolute times.
@@ -36,6 +40,13 @@ namespace NYT::NFlow::NBalancer::NTesting {
 constexpr int StepSeconds = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! What workers publish for the resource of a computation that has no partitions on the worker.
+DEFINE_ENUM(EUnusedResourceStatus,
+    (Live)   // the statistics of the worker model
+    (Frozen) // what was published in the last round the computation had partitions on the worker; live until then
+    (Huge)   // a deep growing queue with no traffic
+);
 
 struct TScenario
 {
@@ -63,6 +74,8 @@ struct TScenario
     double PlanningHorizonSeconds = 0.;
     double ZeroQueueLatencySeconds = 0.;
     double RebalanceTargetDeviation = 0.;
+
+    EUnusedResourceStatus UnusedResourceStatus = EUnusedResourceStatus::Live;
 
     bool ExpectNoPreloadCancellationWhileLoading = false; // no preload Del while the model is loading
 
@@ -137,7 +150,7 @@ private:
     static constexpr int TenMinuteWindow = 1;
 
     //! Resource queue of one computation on one worker, tracked the way
-    //! TResourceStatus in common/resource_manager.cpp tracks it.
+    //! TResourceStatus in common/resource_status.cpp tracks it.
     struct TQueueStats
     {
         double Queue = 0.;
@@ -148,6 +161,8 @@ private:
         TEmaCounter<double, WindowCount> Push{{WindowDurations.begin(), WindowDurations.end()}};
         TEmaCounter<double, WindowCount> Fetch{{WindowDurations.begin(), WindowDurations.end()}};
         TMultiWindowEma<double, WindowCount, true> Size{WindowDurations};
+        // Published in the last round the computation had partitions on the worker.
+        TWorkerResourceStatusPtr LastUsedStatus;
     };
 
     struct TWorkerModel
@@ -215,6 +230,11 @@ private:
 
     //! Write what the balancer will observe this round into the TFlowView.
     void Publish();
+
+    static TWorkerResourceStatusPtr CollectResourceStatus(const TQueueStats& q, TInstant now);
+
+    //! What the worker publishes instead of |live| for a resource none of its partitions uses.
+    TWorkerResourceStatusPtr ReplaceUnusedResourceStatus(const TQueueStats& q, TWorkerResourceStatusPtr live) const;
 
     void RemoveJob(TPartitionModel& partition);
 
