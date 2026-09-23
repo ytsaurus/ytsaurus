@@ -208,6 +208,36 @@ TResourceBalanceContext CollectResourceContext(
         }
     }
 
+    // Flow resources in use on each worker: required by a job there, or a dependency of one.
+    // Jobs of every group count, the worker serves them all.
+    THashMap<TWorkerId, THashSet<TResourceId>> consumedResources;
+    for (const auto& [jobId, job] : layout->Jobs) {
+        auto partitionIt = layout->Partitions.find(job->PartitionId);
+        if (partitionIt == layout->Partitions.end()) {
+            continue;
+        }
+        auto& consumed = consumedResources[job->WorkerAddress];
+        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, partitionIt->second->ComputationId);
+        std::vector<TResourceId> pending;
+        for (const auto& [resourceId, resourceDescription] : computationSpec->RequiredResourceIds) {
+            pending.push_back(resourceId);
+        }
+        while (!pending.empty()) {
+            auto resourceId = std::move(pending.back());
+            pending.pop_back();
+            if (!consumed.insert(resourceId).second) {
+                continue;
+            }
+            auto specIt = pipelineSpec->Resources.find(resourceId);
+            if (specIt == pipelineSpec->Resources.end()) {
+                continue;
+            }
+            for (const auto& [dependencyId, dependencyDescription] : specIt->second->Dependencies) {
+                pending.push_back(dependencyId);
+            }
+        }
+    }
+
     // Ensure all workers in the group are present in context.Workers,
     // even if they have no feedback status yet, and collect their resource stats from feedback.
     for (const auto& [workerAddress, worker] : flowView->State->Workers) {
@@ -243,6 +273,15 @@ TResourceBalanceContext CollectResourceContext(
             // Such stale stats must not shape the worker's capacity estimate.
             if (!pipelineSpec->Resources.contains(resourceId)) {
                 YT_TLOG_DEBUG("ResourceQueue: Ignoring feedback of a resource missing from the spec")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
+            // The queue of a resource no job on the worker uses is a leftover of a departed
+            // computation, not load.
+            auto consumedIt = consumedResources.find(workerAddress);
+            if (consumedIt == consumedResources.end() || !consumedIt->second.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Ignoring feedback of a resource no job on the worker consumes")
                     .With("Worker", workerAddress)
                     .With("Resource", resourceId);
                 continue;
