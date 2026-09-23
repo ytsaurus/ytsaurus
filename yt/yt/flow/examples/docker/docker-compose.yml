@@ -5,9 +5,9 @@
 ## the entrypoint / environment to fulfil its specific role.
 ##
 ## Services:
-##   controller — noop_pipeline in Controller mode
+##   controller — flow_server in Controller mode
 ##   worker,
-##   worker2    — noop_pipeline in Worker mode
+##   worker2    — flow_server in Worker mode
 ##   aggr-rules — generates prometheus recording rules (host="Aggr" aggregates)
 ##   yt-sync    — one-shot: creates all required Cypress objects via yt_sync
 ##   runner     — one-shot: submits noop pipeline spec, then exits

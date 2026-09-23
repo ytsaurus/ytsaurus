@@ -110,6 +110,3 @@ If the pipeline uses [External State](../../../flow/concepts/stateful.md) (user 
 - [Glossary: Pipeline](../../../flow/concepts/glossary.md#pipeline)
 - [Pipeline internal tables](../../../flow/concepts/glossary.md#inner-pipeline-tables)
 - [Basic pipeline rollout rules](../../../flow/release/basic-rules.md)
-{% if audience != "internal" %}
-- Open-source bootstrap script example: [`yt/yt/flow/examples/cpp/noop/yt_sync_mini`]({{source-root}}/yt/yt/flow/examples/cpp/noop/yt_sync_mini)
-{% endif %}

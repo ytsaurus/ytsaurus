@@ -24,7 +24,7 @@ It contains two binaries:
 
 | Binary | Path | Purpose |
 |---|---|---|
-| `noop_pipeline` | `/usr/bin/noop_pipeline` | Serves all flow roles: Controller, Worker, and spec submitter |
+| `flow_server` | `/usr/bin/flow_server` | Serves all flow roles: Controller, Worker, and spec submitter |
 | `yt_sync` | `/usr/bin/yt_sync` | Creates required Cypress objects in YT (one-shot) |
 
 ## YT Cluster
@@ -82,9 +82,9 @@ its own entrypoint and environment:
 | Service | Entrypoint | Key env |
 |---|---|---|
 | `yt-sync` | `yt_sync --scenario ensure --stage test --commit` | `TEST_CLUSTER` |
-| `controller` | `noop_pipeline --config /tmp/config.yson` | `YT_FLOW_MODE=Controller`, `CONFIG_SRC=/app/ytflow/controller.yson` |
-| `worker` | `noop_pipeline --config /tmp/config.yson` | `YT_FLOW_MODE=Worker`, `CONFIG_SRC=/app/ytflow/worker.yson` |
-| `runner` | `noop_pipeline --config /tmp/config.yson` | `YT_FLOW_WAIT=0`, `CONFIG_SRC=/app/ytflow/pipeline.yson` |
+| `controller` | `flow_server --config /tmp/config.yson` | `YT_FLOW_MODE=Controller`, `CONFIG_SRC=/app/ytflow/controller.yson` |
+| `worker` | `flow_server --config /tmp/config.yson` | `YT_FLOW_MODE=Worker`, `CONFIG_SRC=/app/ytflow/worker.yson` |
+| `runner` | `flow_server --config /tmp/config.yson` | `YT_FLOW_WAIT=0`, `CONFIG_SRC=/app/ytflow/pipeline.yson` |
 
 ## Services
 

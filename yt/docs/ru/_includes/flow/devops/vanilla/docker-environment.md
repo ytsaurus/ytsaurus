@@ -44,6 +44,21 @@ Rich-пути в спеке (`<cluster=my-cluster>//path/to/queue`) и `cluster_
 };
 ```
 
+## Доступ к кластеру снаружи {#external-access}
+
+Если кластер развёрнут в Kubernetes, discovery RPC-прокси возвращает их внутренние адреса, которые недоступны раннеру снаружи кластера. Отключите discovery и укажите адрес прокси, доступный снаружи (по умолчанию RPC-прокси слушает порт 9013):
+
+```yson
+"clients_cache" = {
+    "default_connection" = {
+        "enable_proxy_discovery" = %false;
+        "proxy_addresses" = ["<внешний-адрес-rpc-прокси>:9013"];
+    };
+};
+```
+
+В `cluster_url` при этом задаётся адрес HTTP-прокси, доступный изнутри кластера: оттуда с ним работают контроллер и воркеры в джобах.
+
 ## Сборка flow_server {#flow-server}
 
 Всем пайплайнам, кроме C++, нужен серверный бинарь `flow_server`. Он собирается из [репозитория {{product-name}}](https://github.com/ytsaurus/ytsaurus):
