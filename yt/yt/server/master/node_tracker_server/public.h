@@ -57,6 +57,7 @@ DECLARE_MASTER_OBJECT_TYPE(THost)
 DECLARE_MASTER_OBJECT_TYPE(TNode)
 
 class TNodeDirectoryBuilder;
+struct TCellSlot;
 
 constexpr int MaxRackCount = 255;
 // NB: +1 is because of null rack.

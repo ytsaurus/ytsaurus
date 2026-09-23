@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -250,7 +252,7 @@ void TCellBase::UpdatePeerState(int peerId, EPeerState peerState)
     peer.LastSeenState = peerState;
 }
 
-TNode::TCellSlot* TCellBase::FindCellSlot(int peerId) const
+TCellSlot* TCellBase::FindCellSlot(int peerId) const
 {
     auto node = Peers_[peerId].Node;
     if (!node) {

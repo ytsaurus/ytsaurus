@@ -7,7 +7,6 @@
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/cell_master/gossip_value.h>
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -142,7 +141,7 @@ public:
     void UpdatePeerSeenTime(int peerId, TInstant when);
     void UpdatePeerState(int peerId, EPeerState peerState);
 
-    NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(int peerId) const;
+    NNodeTrackerServer::TCellSlot* FindCellSlot(int peerId) const;
 
     NHydra::EPeerState GetPeerState(int peerId) const;
 

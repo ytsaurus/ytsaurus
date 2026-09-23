@@ -1683,7 +1683,7 @@ private:
         for (int slotIndex = 0; slotIndex < request->cell_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = (*cellar)[slotIndex];
-            slot = TNode::TCellSlot();
+            slot = TCellSlot();
 
             const auto& slotInfo = request->cell_slots(slotIndex);
 
