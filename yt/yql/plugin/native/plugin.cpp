@@ -1418,6 +1418,7 @@ private:
 
         ExtProviderSpecific(
             dynamicConfig.GatewaysConfig,
+            StaticGatewaysConfig_,
             FuncRegistry_.Get(),
             dataProvidersInit,
             FileStorage_);

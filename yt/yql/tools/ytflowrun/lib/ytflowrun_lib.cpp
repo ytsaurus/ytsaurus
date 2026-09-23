@@ -6,6 +6,7 @@
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_provider.h>
 
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
+#include <yql/essentials/providers/common/proto/static_gateways_config.pb.h>
 
 namespace NYql {
 
@@ -31,6 +32,8 @@ IYtflowGateway::TPtr TYtflowRunTool::CreateYtflowGateway() {
         .FileStorage = GetFileStorage(),
         .Config = std::make_shared<
             NYql::TYtflowGatewayConfig>(GetRunOptions().GatewaysConfig->GetYtflow()),
+        .StaticConfig = std::make_shared<
+            NYql::TYtflowStaticGatewayConfig>(GetRunOptions().StaticGatewaysConfig->GetYtflow()),
     });
 }
 

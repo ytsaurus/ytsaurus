@@ -13,6 +13,9 @@ namespace NYql {
 class TYtflowGatewayConfig;
 using TYtflowGatewayConfigPtr = std::shared_ptr<TYtflowGatewayConfig>;
 
+class TYtflowStaticGatewayConfig;
+using TYtflowStaticGatewayConfigPtr = std::shared_ptr<TYtflowStaticGatewayConfig>;
+
 struct TYtflowServices
 {
     const NKikimr::NMiniKQL::IFunctionRegistry* FunctionRegistry = nullptr;
@@ -20,6 +23,7 @@ struct TYtflowServices
 
     TFileStoragePtr FileStorage;
     TYtflowGatewayConfigPtr Config;
+    TYtflowStaticGatewayConfigPtr StaticConfig;
 };
 
 IYtflowGateway::TPtr CreateYtflowGateway(const TYtflowServices& services);

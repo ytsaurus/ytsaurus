@@ -18,6 +18,7 @@
 #include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/providers/common/gateway/yql_provider_gateway.h>
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
+#include <yql/essentials/providers/common/proto/static_gateways_config.pb.h>
 #include <yql/essentials/providers/common/provider/yql_provider.h>
 
 #include <yt/yql/providers/ytflow/common/yql_ytflow_environment.h>
@@ -1212,8 +1213,14 @@ private:
 
         shellCommandOptions.Environment = environment;
 
+        YQL_ENSURE(
+            Services_.StaticConfig &&
+            Services_.StaticConfig->HasYtflowWorkerBin() &&
+            !Services_.StaticConfig->GetYtflowWorkerBin().empty(),
+            "Static Ytflow.YtflowWorkerBin must be configured to launch a worker");
+
         auto shellCommand = TShellCommand(
-            Services_.Config->GetYtflowWorkerBin(),
+            Services_.StaticConfig->GetYtflowWorkerBin(),
             {"--config", configFile.Name()},
             std::move(shellCommandOptions));
 
