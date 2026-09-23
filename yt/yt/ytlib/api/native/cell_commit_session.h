@@ -18,7 +18,6 @@ struct ICellCommitSession
     : public TRefCounted
 {
     virtual TTransactionSignatureGenerator* GetPrepareSignatureGenerator() = 0;
-    virtual TTransactionSignatureGenerator* GetCommitSignatureGenerator() = 0;
 
     virtual void RegisterAction(NTransactionClient::TTransactionActionData data) = 0;
     virtual bool HasRegisteredActions() const = 0;

@@ -313,9 +313,9 @@ protected:
     TFuture<void> WriteUnversionedRows(
         TTransactionId transactionId,
         std::vector<TUnversionedOwningRow> rows,
-        TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
-        TTransactionGeneration generation)
+        TTransactionSignature prepareSignature = -1,
+        TTransactionGeneration generation = 0,
+        bool lock = false)
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
@@ -323,16 +323,24 @@ protected:
             transactionId,
             rows = std::move(rows),
             prepareSignature,
-            commitSignature,
             generation,
             tabletCellWriteManager = TabletCellWriteManager(),
-            tabletSnapshot
+            tabletSnapshot,
+            lock
         ] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
-                writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                writer->WriteCommand(
+                    lock
+                        ? EWireProtocolCommand::WriteAndLockRow
+                        : EWireProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row);
+                if (lock) {
+                    TLockMask lockMask;
+                    lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
+                    writer->WriteLockMask(lockMask);
+                }
                 dataWeight += GetDataWeight(row);
             }
             auto wireData = writer->Finish();
@@ -352,7 +360,6 @@ protected:
                     .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
                     .TransactionTimeout = TDuration::Max(),
                     .PrepareSignature = prepareSignature,
-                    .CommitSignature = commitSignature,
                     .Generation = generation,
                     .RowCount = static_cast<int>(std::ssize(rows)),
                     .DataWeight = dataWeight,
@@ -371,32 +378,21 @@ protected:
             .Run();
     }
 
-    TFuture<void> WriteUnversionedRows(
-        TTransactionId transactionId,
-        std::vector<TUnversionedOwningRow> rows,
-        TTransactionSignature signature = -1,
-        TTransactionGeneration generation = 0)
-    {
-        return WriteUnversionedRows(
-            transactionId,
-            rows,
-            /*prepareSignature*/ signature,
-            /*commitSignature*/ signature,
-            generation);
-    }
-
     void WriteDelayedUnversionedRows(
         TTransactionId transactionId,
         std::vector<TUnversionedOwningRow> rows,
-        TTransactionSignature commitSignature)
+        bool approveCommit)
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         RunInAutomaton([&] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
-                writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                writer->WriteCommand(EWireProtocolCommand::WriteAndLockRow);
                 writer->WriteUnversionedRow(row);
+                TLockMask lockMask;
+                lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
+                writer->WriteLockMask(lockMask);
                 dataWeight += GetDataWeight(row);
             }
 
@@ -405,8 +401,7 @@ protected:
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             struct TTag {};
             request.set_compressed_data(ToString(MergeRefsToRef<TTag>(writer->Finish())));
-            request.set_commit_signature(commitSignature);
-            request.set_lockless(true);
+            request.set_approve_commit(approveCommit);
             request.set_row_count(rows.size());
             request.set_data_weight(dataWeight);
 
@@ -450,7 +445,6 @@ protected:
                     .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
                     .TransactionTimeout = TDuration::Max(),
                     .PrepareSignature = signature,
-                    .CommitSignature = signature,
                     .RowCount = static_cast<int>(std::ssize(rows)),
                     .DataWeight = dataWeight,
                     .Versioned = true,
@@ -469,12 +463,17 @@ protected:
             .Run();
     }
 
-    TFuture<void> PrepareTransactionCommit(TTransactionId transactionId, bool persistent, TTimestamp prepareTimestamp)
+    TFuture<void> PrepareTransactionCommit(
+        TTransactionId transactionId,
+        bool persistent,
+        TTimestamp prepareTimestamp,
+        int targetCommitApprovalCount = 0)
     {
         return TransactionSupervisor()->PrepareTransactionCommit(
             transactionId,
             persistent,
-            prepareTimestamp);
+            prepareTimestamp,
+            targetCommitApprovalCount);
     }
 
     TFuture<void> CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)

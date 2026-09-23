@@ -45,6 +45,18 @@ struct TTabletWriterPoolTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+DEFINE_ENUM(EWriteLockingMode,
+    (Lockless)
+    (Locked)
+    (Delayed)
+);
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletWriteManager
     : public ITabletWriteManager
 {
@@ -143,7 +155,10 @@ public:
                 .With("RowCount", writeRecord.RowCount);
         }
 
-        EnqueueTransactionWriteRecord(transaction, writeRecord, lockless);
+        EnqueueTransactionWriteRecord(
+            transaction,
+            writeRecord,
+            lockless ? EWriteLockingMode::Lockless : EWriteLockingMode::Locked);
     }
 
     void AtomicFollowerWriteRows(
@@ -158,7 +173,10 @@ public:
             LockRows(transaction, writeRecord);
         }
 
-        EnqueueTransactionWriteRecord(transaction, writeRecord, lockless);
+        EnqueueTransactionWriteRecord(
+            transaction,
+            writeRecord,
+            lockless ? EWriteLockingMode::Lockless : EWriteLockingMode::Locked);
     }
 
     void NonAtomicWriteRows(
@@ -197,17 +215,25 @@ public:
 
     void WriteDelayedRows(
         TTransaction* transaction,
-        const TTransactionWriteRecord& writeRecord,
-        bool lockless) override
+        const TTransactionWriteRecord& writeRecord) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
-        YT_VERIFY(lockless);
+
+        auto persistentState = transaction->GetPersistentState();
+        if (persistentState != ETransactionState::PersistentCommitPrepared && persistentState != ETransactionState::CommitPending) {
+            YT_TLOG_ALERT(
+                "Unexpected transaction state during delayed write; skipping")
+                .With(Tablet_->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transaction->GetId(), transaction->GetExternalizationToken()))
+                .With("TransientState", transaction->GetTransientState())
+                .With("PersistentState", transaction->GetPersistentState());
+        }
 
         EnqueueTransactionWriteRecord(
             transaction,
             writeRecord,
-            lockless);
+            EWriteLockingMode::Delayed);
     }
 
     void OnTransactionPrepared(TTransaction* transaction, bool persistent) override
@@ -295,6 +321,8 @@ public:
         auto writeLogState = GetOrCreateTransactionWriteLogState(transaction->GetId());
         YT_VERIFY(!std::exchange(writeLogState->SomeRowsCommitted, true));
 
+        writeLogState->BuildDelayedWriteMapping(Logger, transaction->GetId(), Tablet_);
+
         auto lockState = GetOrCreateTransactionLockState(transaction->GetId());
 
         YT_VERIFY(lockState->PrelockedRows.empty());
@@ -308,6 +336,7 @@ public:
         };
         updateProfileCounters(writeLogState->LocklessWriteLog);
         updateProfileCounters(writeLogState->LockedWriteLog);
+        updateProfileCounters(writeLogState->GetDelayedWriteLog());
 
         if (!NeedsSortedSharedWriteSerialization(transaction)) {
             CommitLockedRows(transaction);
@@ -452,7 +481,11 @@ public:
 
         rowRef.StoreManager->CommitPerRowsSerializedLockGroup(
             transaction,
-            command,
+            EnrichDelayedWriteCommand(
+                command,
+                Tablet_->GetPhysicalSchema()->GetKeyColumnCount(),
+                writeLogState->GetDelayedWriteMappingOrCrash(),
+                transaction->GetId()),
             rowRef,
             lockIndex,
             onAfterSnapshotLoaded);
@@ -722,6 +755,7 @@ public:
 
             IncreaseAccountedWriteLogMemory(writeLogState->LockedWriteLog.GetByteSize());
             IncreaseAccountedWriteLogMemory(writeLogState->LocklessWriteLog.GetByteSize());
+            IncreaseAccountedWriteLogMemory(writeLogState->GetDelayedWriteLog().GetByteSize());
         }
     }
 
@@ -748,6 +782,10 @@ public:
                 UpdateWriteRecordCounters(transaction, writeRecord);
             }
 
+            for (const auto& writeRecord : writeLogState->GetDelayedWriteLog()) {
+                UpdateWriteRecordCounters(transaction, writeRecord);
+            }
+
             if (writeLogState->RowsPrepared) {
                 PrepareLockedRows(transaction);
                 PrepareLocklessRows(transaction, /*persistent*/ true, /*snapshotLoading*/ true);
@@ -757,6 +795,10 @@ public:
             if (!writeLogState->SomeRowsCommitted) {
                 auto transactionState = transaction->GetPersistentState();
                 writeLogState->SomeRowsCommitted = transactionState == ETransactionState::Committed || transactionState == ETransactionState::Serialized;
+            }
+
+            if (writeLogState->SomeRowsCommitted) {
+                writeLogState->BuildDelayedWriteMapping(Logger, transactionId, Tablet_);
             }
         }
 
@@ -822,6 +864,21 @@ private:
         bool RowsPrepared = false;
         bool SomeRowsCommitted = false;
 
+        struct TDelayedWriteState
+        {
+            TTransactionWriteLog WriteLog;
+
+            // Contains key -> command for |WriteLog|. Becomes non-null after
+            // transaction commit and before serialization.
+            using TMapping = absl::flat_hash_map<
+                TUnversionedValueRange,
+                const TWireWriteCommand*,
+                TSortedDynamicRowKeyHash,
+                TSortedDynamicRowKeyEqualTo>;
+            std::optional<TMapping> Mapping;
+        };
+        std::unique_ptr<TDelayedWriteState> DelayedWriteState;
+
         void Save(TSaveContext& context) const
         {
             using NYT::Save;
@@ -842,14 +899,21 @@ private:
 
         TCallback<void(TSaveContext&)> AsyncSave()
         {
+            TTransactionWriteLog::TSnapshot delayedWriteLogSnapshot;
+            if (DelayedWriteState) {
+                delayedWriteLogSnapshot = DelayedWriteState->WriteLog.MakeSnapshot();
+            }
+
             return BIND([
                 locklessWriteLogSnapshot = LocklessWriteLog.MakeSnapshot(),
-                lockedWriteLogSnapshot = LockedWriteLog.MakeSnapshot()
+                lockedWriteLogSnapshot = LockedWriteLog.MakeSnapshot(),
+                delayedWriteLogSnapshot = std::move(delayedWriteLogSnapshot)
             ] (TSaveContext& context) {
                 using NYT::Save;
 
                 Save(context, locklessWriteLogSnapshot);
                 Save(context, lockedWriteLogSnapshot);
+                Save(context, delayedWriteLogSnapshot);
             });
         }
 
@@ -859,6 +923,100 @@ private:
 
             Load(context, LocklessWriteLog);
             Load(context, LockedWriteLog);
+
+            // COMPAT(kvk1920)
+            if (context.GetVersion() >= ETabletReign::DelayedWrite) {
+                TTransactionWriteLog delayedWriteLog;
+                Load(context, delayedWriteLog);
+                if (GetWriteLogRowCount(delayedWriteLog) != 0) {
+                    DelayedWriteState = std::make_unique<TDelayedWriteState>();
+                    DelayedWriteState->WriteLog = std::move(delayedWriteLog);
+                }
+            }
+        }
+
+        const TTransactionWriteLog& GetDelayedWriteLog() const
+        {
+            static const TTransactionWriteLog EmptyWriteLog;
+            return DelayedWriteState ? DelayedWriteState->WriteLog : EmptyWriteLog;
+        }
+
+        TTransactionWriteLog* GetOrCreateDelayedWriteLog()
+        {
+            if (!DelayedWriteState) {
+                DelayedWriteState = std::make_unique<TDelayedWriteState>();
+            }
+
+            return &DelayedWriteState->WriteLog;
+        }
+
+        // Crashes if delayed write mapping still hasn't been built. May return
+        // |nullptr| if delayed write was not used for this transaction.
+        const TDelayedWriteState::TMapping* GetDelayedWriteMappingOrCrash() const
+        {
+            YT_VERIFY(SomeRowsCommitted);
+
+            return DelayedWriteState ? &GetOrCrash(DelayedWriteState->Mapping) : nullptr;
+        }
+
+        void BuildDelayedWriteMapping(
+            const NLogging::TLogger& Logger,
+            TTransactionId transactionId,
+            TTablet* tablet)
+        {
+            YT_VERIFY(SomeRowsCommitted);
+
+            if (!DelayedWriteState) {
+                return;
+            }
+
+            YT_VERIFY(!DelayedWriteState->Mapping);
+
+            auto rowCount = GetWriteLogRowCount(DelayedWriteState->WriteLog);
+
+            auto& mapping = DelayedWriteState->Mapping.emplace(
+                rowCount,
+                TSortedDynamicRowKeyHash{},
+                TSortedDynamicRowKeyEqualTo(&tablet->GetRowKeyComparer()));
+
+            auto keyColumnCount = tablet->GetPhysicalSchema()->GetKeyColumnCount();
+
+            auto logAlertUnexpectedDelayedWriteCommand = [&] (TUnversionedRow row) {
+                YT_TLOG_ALERT("Unexpected command in delayed write; skipping")
+                    .With(tablet->GetLoggingTags())
+                    .With("TransactionId", transactionId)
+                    .With("Row", row);
+            };
+
+            for (const auto& batch : DelayedWriteState->WriteLog) {
+                for (const auto& commandVariant : batch.WriteCommands.Commands()) {
+                    Visit(commandVariant,
+                        [&] (const TWriteAndLockRowCommand& command) {
+                            const auto& row = command.Row;
+                            auto key = row.FirstNElements(keyColumnCount);
+                            if (!mapping.emplace(key, &commandVariant).second) {
+                                YT_TLOG_ALERT("Duplicate delayed write; skipping")
+                                    .With(tablet->GetLoggingTags())
+                                    .With("Key", key)
+                                    .With("TransactionId", transactionId);
+                            }
+                        },
+                        [&] (const TWriteRowCommand& command) {
+                            logAlertUnexpectedDelayedWriteCommand(command.Row);
+                        },
+                        [&] (const TDeleteRowCommand& command) {
+                            logAlertUnexpectedDelayedWriteCommand(command.Row);
+                        },
+                        [&] (const TVersionedWriteRowCommand& command) {
+                            logAlertUnexpectedDelayedWriteCommand(command.UnversionedRow);
+                        });
+                }
+            }
+
+            YT_TLOG_DEBUG("Delayed write mapping built")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", transactionId)
+                .With("MappingSize", mapping.size());
         }
     };
     using TTransactionWriteLogStatePtr = TIntrusivePtr<TTransactionWriteLogState>;
@@ -1022,13 +1180,23 @@ private:
     void EnqueueTransactionWriteRecord(
         TTransaction* transaction,
         const TTransactionWriteRecord& writeRecord,
-        bool lockless)
+        EWriteLockingMode writeLockingMode)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto writeLogState = GetOrCreateTransactionWriteLogState(transaction->GetId());
-        auto* writeLog = lockless ? &writeLogState->LocklessWriteLog : &writeLogState->LockedWriteLog;
+        auto* writeLog = [&] () -> TTransactionWriteLog* {
+            switch (writeLockingMode) {
+                case EWriteLockingMode::Lockless:
+                    return &writeLogState->LocklessWriteLog;
+                case EWriteLockingMode::Locked:
+                    return &writeLogState->LockedWriteLog;
+                case EWriteLockingMode::Delayed:
+                    return writeLogState->GetOrCreateDelayedWriteLog();
+            }
+            YT_ABORT();
+        }();
 
         {
             auto guard = TWriteLogMemoryAccountingGuard(
@@ -1044,7 +1212,7 @@ private:
             .With("TransactionId", transaction->GetId())
             .With("Size", writeRecord.DataWeight)
             .With("RowCount", writeRecord.RowCount)
-            .With("Lockless", lockless);
+            .With("WriteLockingMode", writeLockingMode);
     }
 
     void DropTransactionWriteLog(
@@ -1073,14 +1241,19 @@ private:
         auto writeLogState = GetOrCreateTransactionWriteLogState(transaction->GetId());
         auto lockedRowCount = GetWriteLogRowCount(writeLogState->LockedWriteLog);
         auto locklessRowCount = GetWriteLogRowCount(writeLogState->LocklessWriteLog);
+        auto delayedRowCount = GetWriteLogRowCount(writeLogState->GetDelayedWriteLog());
 
-        YT_TLOG_DEBUG_IF(lockedRowCount > 0 || locklessRowCount > 0, "Dropping transaction write logs")
+        YT_TLOG_DEBUG_IF(lockedRowCount > 0 || locklessRowCount > 0 || delayedRowCount > 0, "Dropping transaction write logs")
             .With("TransactionId", transaction->GetId())
             .With("LockedRowCount", lockedRowCount)
-            .With("LocklessRowCount", locklessRowCount);
+            .With("LocklessRowCount", locklessRowCount)
+            .With("DelayedRowCount", delayedRowCount);
 
         DropTransactionWriteLog(transaction, &writeLogState->LockedWriteLog);
         DropTransactionWriteLog(transaction, &writeLogState->LocklessWriteLog);
+        if (writeLogState->DelayedWriteState) {
+            DropTransactionWriteLog(transaction, &writeLogState->DelayedWriteState->WriteLog);
+        }
     }
 
     void PrepareLocklessRows(TTransaction* transaction, bool persistent, bool snapshotLoading = false)
@@ -1430,6 +1603,9 @@ private:
 
         TEnumeratingWriteLogReader reader(writeLog);
 
+        const auto* delayedWriteMapping = writeLogState->GetDelayedWriteMappingOrCrash();
+        auto keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
+
         for (int index = 0; index < std::ssize(lockedRows); ++index) {
             const auto& rowRef = lockedRows[index];
             const auto& [command, writeLogIndex] = reader.NextCommand();
@@ -1440,7 +1616,7 @@ private:
 
             rowRef.StoreManager->StartSerializingRow(
                 transaction,
-                command,
+                EnrichDelayedWriteCommand(command, keyColumnCount, delayedWriteMapping, transaction->GetId()),
                 rowRef,
                 writeLogIndex,
                 onAfterSnapshotLoaded);
@@ -1473,6 +1649,9 @@ private:
 
         auto reader = TEnumeratingWriteLogReader(writeLog);
 
+        const auto* delayedWriteMapping = writeLogState->GetDelayedWriteMappingOrCrash();
+        auto keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
+
         for (int index = 0; index < std::ssize(lockedRows); ++index) {
             const auto& rowRef = lockedRows[index];
 
@@ -1483,7 +1662,14 @@ private:
                 continue;
             }
 
-            rowRef.StoreManager->CommitRow(transaction, command, rowRef);
+            rowRef.StoreManager->CommitRow(
+                transaction,
+                EnrichDelayedWriteCommand(
+                    command,
+                    keyColumnCount,
+                    delayedWriteMapping,
+                    transaction->GetId()),
+                rowRef);
 
             auto* tablet = rowRef.StoreManager->GetTablet();
             Host_->OnTabletRowUnlocked(tablet);
@@ -1767,6 +1953,45 @@ private:
         }
 
         return {};
+    }
+
+    const TWireWriteCommand& EnrichDelayedWriteCommand(
+        const TWireWriteCommand& command,
+        int keyColumnCount,
+        const TTransactionWriteLogState::TDelayedWriteState::TMapping* mapping,
+        TTransactionId transactionId)
+    {
+        if (!mapping) {
+            return command;
+        }
+
+        auto* writeAndLock = std::get_if<TWriteAndLockRowCommand>(&command);
+        if (!writeAndLock) {
+            return command;
+        }
+
+        auto key = writeAndLock->Row.FirstNElements(keyColumnCount);
+        auto it = mapping->find(key);
+        if (it == mapping->end()) {
+            // NB: Not every WriteAndLock command is a delayed write.
+            return command;
+        }
+
+        const auto& datalessLockMask = writeAndLock->LockMask;
+        const auto& delayedLockMask = std::get<TWriteAndLockRowCommand>(*it->second).LockMask;
+        if (datalessLockMask != delayedLockMask) {
+            YT_TLOG_ALERT("Delayed write command has inconsistent lock mask; skipping")
+                .With(Tablet_->GetLoggingTags())
+                .With("TransactionId", transactionId)
+                .With("Key", key)
+                .With("DatalessLockMaskSize", datalessLockMask.GetSize())
+                .With("DelayedLockMaskSize", delayedLockMask.GetSize())
+                .With("DatalessLockMask", datalessLockMask)
+                .With("DelayedLockMask", delayedLockMask);
+            return command;
+        }
+
+        return *it->second;
     }
 };
 

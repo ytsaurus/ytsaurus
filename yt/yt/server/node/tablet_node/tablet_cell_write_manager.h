@@ -68,7 +68,6 @@ struct TTabletCellWriteParams
     TTimestamp TransactionStartTimestamp;
     TDuration TransactionTimeout;
     TTransactionSignature PrepareSignature = NTransactionClient::InitialTransactionSignature;
-    TTransactionSignature CommitSignature = NTransactionClient::InitialTransactionSignature;
     TTransactionGeneration Generation = NTransactionClient::InitialTransactionGeneration;
     int RowCount = 0;
     i64 DataWeight = 0;
