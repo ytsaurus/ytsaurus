@@ -117,6 +117,24 @@ func (a *Agent) updateACLs() error {
 	return nil
 }
 
+func getOpletAlias(op OperationStatus, family string) (string, bool) {
+	if op.BriefSpec == nil {
+		return "", false
+	}
+	opAlias, ok := op.BriefSpec["alias"]
+	if !ok {
+		return "", false
+	}
+	alias, ok := opAlias.(string)
+	if !ok || len(alias) == 0 {
+		return "", false
+	}
+	alias = alias[1:]
+	// Keep finding oplets after switching use_family_prefix_in_op_alias to false.
+	alias = strings.TrimPrefix(alias, family+strawberry.OpAliasFamilyDelimiter)
+	return alias, true
+}
+
 func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
@@ -126,23 +144,28 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	l.Info("processing running operations")
 	toAbort := make([]yt.OperationID, 0)
 	foundAliases := make(map[string]bool)
+	crashedJobs := make([]crashedJobBatchEntry, 0, len(runningOps))
 	for _, op := range runningOps {
+		alias, hasAlias := getOpletAlias(op, family)
+		if len(op.CrashedJobs) > 0 {
+			crashedJobs = append(crashedJobs, crashedJobBatchEntry{
+				operationID: op.ID,
+				opletAlias:  alias,
+				jobIDs:      op.CrashedJobs,
+			})
+		}
+
 		if op.BriefSpec == nil {
 			// This may happen on early stages of operation lifetime.
 			continue
 		}
 
-		opAlias, ok := op.BriefSpec["alias"]
-		if !ok {
+		if !hasAlias {
 			l.Debug("operation misses alias (how is that possible?), aborting it",
 				log.String("operation_id", op.ID.String()))
 			toAbort = append(toAbort, op.ID)
 			continue
 		}
-		alias := opAlias.(string)[1:]
-
-		// So that oplets are found even after switching use_family_prefix_in_op_alias -> false.
-		alias = strings.TrimPrefix(alias, family+strawberry.OpAliasFamilyDelimiter)
 
 		oplet, ok := a.aliasToOp[alias]
 		if !ok {
@@ -185,6 +208,7 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 			}
 		}
 	}
+	crashedJobCounts := a.cjMonitor.registerCrashedJobs(crashedJobs)
 
 	abortCh := make(chan yt.OperationID, len(toAbort))
 	checkCh := make(chan *strawberry.Oplet, len(a.aliasToOp)-len(foundAliases))
@@ -222,7 +246,9 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	close(abortCh)
 
 	checkedCnt := 0
+	opletAliases := make(map[string]struct{}, len(a.aliasToOp))
 	for alias, oplet := range a.aliasToOp {
+		opletAliases[alias] = struct{}{}
 		wasProcessed := foundAliases[alias]
 		if wasProcessed || !oplet.UpToDateWithCypress() || !oplet.HasYTOperation() {
 			continue
@@ -233,6 +259,7 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 	close(checkCh)
 
 	wg.Wait()
+	a.metrics.SetCrashedJobCounts(opletAliases, crashedJobCounts)
 
 	l.Info("finished processing running operations",
 		log.Duration("elapsed_time", time.Since(startedAt)),
@@ -484,8 +511,6 @@ func (a *Agent) background() {
 				a.healthState.SetTrackOpsState(event.Error)
 				continue
 			}
-
-			a.cjMonitor.registerCrashedJobs(event.Operations)
 
 			if err := a.processRunningOperations(event.Operations); err != nil {
 				err = yterrors.Err("failed to process running operations", err)
