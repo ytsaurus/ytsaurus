@@ -728,11 +728,15 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     }
 
     YT_VERIFY(inflight->InflightMetrics->Count >= 0);
+    AdjustInflight(inflight);
     YT_TLOG_INFO("Built source inflight")
         .With("Inflight", NYson::ConvertToYsonString(inflight, NYson::EYsonFormat::Text))
         .With("State", NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text));
     return inflight;
 }
+
+void TOrderedSourceBase::AdjustInflight(const TInflightStreamTraverseDataPtr& /*inflight*/)
+{ }
 
 std::optional<TSystemTimestamp> TOrderedSourceBase::GetPersistedEventWatermark()
 {

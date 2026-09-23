@@ -55,6 +55,9 @@ void TTableSourceParameters::Register(TRegistrar registrar)
     registrar.Parameter("system_timestamp_locator", &TThis::SystemTimestampLocator)
         .DefaultNew();
 
+    registrar.Parameter("use_planned_timestamps", &TThis::UsePlannedTimestamps)
+        .Default(false);
+
     registrar.Parameter("ignore_symlinks", &TThis::IgnoreSymlinks)
         .Default(false);
 
@@ -158,6 +161,9 @@ void TDynamicTableSourcePartitionSpec::Register(TRegistrar registrar)
     registrar.Parameter("event_timestamp", &TThis::EventTimestamp)
         .Default();
     registrar.Parameter("system_timestamp", &TThis::SystemTimestamp)
+        .Default();
+
+    registrar.Parameter("planned_timestamp", &TThis::PlannedTimestamp)
         .Default();
 
     registrar.Parameter("rows_per_second", &TThis::RowsPerSecond)

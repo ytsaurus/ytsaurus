@@ -8,6 +8,12 @@ Static tables are a special type of source. They don’t have [partitions](../..
 
 Because of this, the main challenge with this source lies in the [controller](../../../flow/concepts/glossary.md#controller), which needs to figure out which tables to read, which timestamps ([SystemTimestamp](../../../flow/concepts/glossary.md#timestamps-and-watermarks), [EventTimestamp](../../../flow/concepts/glossary.md#timestamps-and-watermarks)) to choose for them, what to do if a table unexpectedly disappears, and so on.
 
+### Planned read timestamps {#planned-timestamps}
+
+Set `use_planned_timestamps = %true` in the source's static parameters to set both `SystemTimestamp` and `EventTimestamp` to the planned start of each row range. The timestamp is proportional to the fraction of rows already assigned for reading. The controller fixes the start time and total read duration when it starts a table, using the current read limits. Process restarts preserve the schedule. Switching replicas, returning to a replica, or rereading a table replans the remaining ranges from the current time and read limits, preserving the existing rereading behavior. Timestamps may be in the future.
+
+Minimum timestamps track unfinished ranges, including those not yet distributed. The option is disabled by default. Enabling or disabling it takes effect from the next table. After disabling the option, the next table uses locator timestamps again. Messages with timestamps below the published watermark are considered late; this is expected.
+
 ### Source settings
 
 Source class: `NYT::NFlow::NStaticTableConnector::TSource`.
