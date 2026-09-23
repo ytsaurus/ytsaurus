@@ -17,6 +17,9 @@ type AgentMetrics struct {
 	opletCount       metrics.IntGauge
 	brokenOpletCount metrics.IntGauge
 	failedOpletCount metrics.IntGauge
+	crashedJobCount  metrics.GaugeVec
+
+	crashedJobAliases map[string]struct{}
 
 	lastPassDuration  metrics.Gauge
 	opletPassDuration metrics.Timer
@@ -45,6 +48,8 @@ func NewAgentMetrics(r metrics.Registry, config *MetricsConfig) *AgentMetrics {
 		opletCount:              r.IntGauge("oplet_count"),
 		brokenOpletCount:        r.IntGauge("broken_oplet_count"),
 		failedOpletCount:        r.IntGauge("failed_oplet_count"),
+		crashedJobCount:         r.GaugeVec("crashed_job_count", []string{"alias"}),
+		crashedJobAliases:       make(map[string]struct{}),
 		lastPassDuration:        r.Gauge("last_pass_duration_seconds"),
 		opletPassDuration:       r.DurationHistogram("oplet_pass_duration_seconds", config.OpletPassDurationHistogram.buckets()),
 		passErrorCount:          r.Counter("pass_error_count"),
@@ -183,6 +188,29 @@ func (m *AgentMetrics) SetFailedOpletCount(count int) {
 	m.failedOpletCount.Set(int64(count))
 }
 
+func (m *AgentMetrics) SetCrashedJobCounts(aliases map[string]struct{}, counts map[string]int) {
+	if m == nil {
+		return
+	}
+
+	for alias := range m.crashedJobAliases {
+		_, hasAlias := aliases[alias]
+		_, hasCount := counts[alias]
+		if !hasAlias || !hasCount {
+			m.crashedJobCount.With(map[string]string{"alias": alias}).Set(0)
+			delete(m.crashedJobAliases, alias)
+		}
+	}
+
+	for alias, count := range counts {
+		if _, ok := aliases[alias]; !ok {
+			continue
+		}
+		m.crashedJobCount.With(map[string]string{"alias": alias}).Set(float64(count))
+		m.crashedJobAliases[alias] = struct{}{}
+	}
+}
+
 func (m *AgentMetrics) RecordPassDuration(d time.Duration) {
 	if m == nil {
 		return
@@ -217,6 +245,8 @@ func (m *AgentMetrics) Reset() {
 	m.SetOpletCount(0)
 	m.SetBrokenOpletCount(0)
 	m.SetFailedOpletCount(0)
+	m.crashedJobCount.Reset()
+	m.crashedJobAliases = make(map[string]struct{})
 	for _, vector := range m.controllerMetricVectors {
 		vector.gauge.Reset()
 	}
