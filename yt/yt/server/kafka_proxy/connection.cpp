@@ -34,13 +34,13 @@ public:
         TProxyBootstrapConfigPtr config,
         NNet::IConnectionPtr connection,
         IInvokerPtr invoker,
-        TRequestHandler requestHandler,
+        TRequestCallback requesCallback,
         TFailHandler failHandler)
         : ConnectionId_(TConnectionId::Create())
         , Config_(std::move(config))
         , Connection_(std::move(connection))
         , Invoker_(CreateSerializedInvoker(std::move(invoker), "kafka_proxy_connection"))
-        , RequestHandler_(std::move(requestHandler))
+        , RequesCallback_(std::move(requesCallback))
         , FailHandler_(std::move(failHandler))
         , PacketEncoder_(GetKafkaPacketTranscoderFactory()->CreateEncoder(
             KafkaProxyLogger()))
@@ -94,7 +94,7 @@ private:
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
-    const TRequestHandler RequestHandler_;
+    const TRequestCallback RequesCallback_;
     const TFailHandler FailHandler_;
 
     const std::unique_ptr<IPacketEncoder> PacketEncoder_;
@@ -152,7 +152,7 @@ private:
 
         if (PacketDecoder_->IsFinished()) {
             auto message = PacketDecoder_->GrabMessage();
-            RequestHandler_(MakeStrong(this), message);
+            RequesCallback_(MakeStrong(this), message);
 
             PacketDecoder_->Restart();
         }
@@ -209,14 +209,14 @@ IConnectionPtr CreateConnection(
     TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
-    TRequestHandler requestHandler,
+    TRequestCallback requesCallback,
     TFailHandler failHandler)
 {
     return New<TConnection>(
         std::move(config),
         std::move(connection),
         std::move(invoker),
-        std::move(requestHandler),
+        std::move(requesCallback),
         std::move(failHandler));
 }
 

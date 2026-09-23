@@ -1,16 +1,15 @@
 #include "helpers.h"
 
-#include <yt/yt/client/queue_client/queue_rowset.h>
-
 #include <yt/yt/client/complex_types/yson_format_conversion.h>
+
+#include <yt/yt/client/queue_client/queue_rowset.h>
+#include <yt/yt/client/queue_client/queue_rowset.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-
-#include <yt/yt/client/queue_client/queue_rowset.h>
 
 #include <yt/yt/core/misc/blob_output.h>
 
@@ -56,16 +55,22 @@ bool IsKafkaQueue(const TTableSchemaPtr& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
+TErrorOr<TRecordBatch> ConvertKafkaQueueRowsToRecordBatch(
     const IQueueRowsetPtr& rowset)
 {
     auto nameTable = rowset->GetNameTable();
     auto keyColumnId = nameTable->FindId("key");
+    YT_VERIFY(keyColumnId.has_value());
     auto valueColumnId = nameTable->FindId("value");
+    YT_VERIFY(valueColumnId.has_value());
+
+    auto rowIndexColumnId = nameTable->FindId(RowIndexColumnName);
+    YT_VERIFY(rowIndexColumnId.has_value());
+
     auto timestampColumnId = nameTable->FindId(TimestampColumnName);
-    YT_VERIFY(keyColumnId && valueColumnId);
 
     auto rows = rowset->GetRows();
+    YT_VERIFY(!rows.empty());
 
     TRecordBatch recordBatch;
     recordBatch.MagicByte = 2;
@@ -77,15 +82,26 @@ TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
     std::optional<i64> firstTimestamp;
     std::optional<i64> maxTimestamp;
 
-    for (auto [offset, row] : Enumerate(rows)) {
+    for (const auto& row : rows) {
         std::optional<i64> rowTimestamp;
         if (!row) {
             records.emplace_back();
         } else {
             // TODO(nadya73): Handle nulls.
+            auto offsetValue = row[*rowIndexColumnId];
+            YT_VERIFY(offsetValue.Type == EValueType::Int64);
+            auto key = row[*keyColumnId];
+            if (key.Type != EValueType::Null && key.Type != EValueType::String) {
+                return TError("Row with offset %Qv has key that is not a string", offsetValue.Data.Uint64);
+            }
+            auto value = row[*valueColumnId];
+            if (value.Type != EValueType::Null && value.Type != EValueType::String) {
+                return TError("Row with offset %Qv has value that is not a string", offsetValue.Data.Uint64);
+            }
             records.push_back({
-                .Key = row[*keyColumnId].AsString(),
-                .Value = row[*valueColumnId].AsString(),
+                .OffsetDelta = static_cast<i32>(offsetValue.Data.Uint64 - recordBatch.BaseOffset),
+                .Key = key.Type == EValueType::Null ? std::nullopt : std::make_optional(key.AsString()),
+                .Value = value.Type == EValueType::Null ? std::nullopt : std::make_optional(value.AsString()),
             });
             if (timestampColumnId) {
                 rowTimestamp = row[*timestampColumnId].Data.Uint64 / 1'000;  // Convert to milliseconds.
@@ -96,13 +112,12 @@ TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
                 maxTimestamp = std::max(maxTimestamp.value_or(0), *rowTimestamp);
             }
         }
-        records.back().OffsetDelta = static_cast<i32>(offset);
         if (rowTimestamp && firstTimestamp) {
             records.back().TimestampDelta = *rowTimestamp - *firstTimestamp;
         }
     }
 
-    recordBatch.LastOffsetDelta = records.size();
+    recordBatch.LastOffsetDelta = records.back().OffsetDelta;
 
     if (firstTimestamp) {
         recordBatch.FirstTimestamp = *firstTimestamp;
@@ -114,7 +129,7 @@ TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
     return recordBatch;
 }
 
-TRecordBatch ConvertGenericQueueRowsToRecordBatch(
+TErrorOr<TRecordBatch> ConvertGenericQueueRowsToRecordBatch(
     const IQueueRowsetPtr& rowset)
 {
     TRecordBatch recordBatch;
@@ -123,6 +138,9 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
 
     auto nameTable = rowset->GetNameTable();
     auto schema = rowset->GetSchema();
+
+    auto rowIndexColumnId = nameTable->FindId(RowIndexColumnName);
+    YT_VERIFY(rowIndexColumnId.has_value());
 
     THashMap<int, TYsonServerToClientConverter> columnConverters;
     for (const auto& column : schema->Columns()) {
@@ -136,6 +154,7 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
     }
 
     auto rows = rowset->GetRows();
+    YT_VERIFY(!rows.empty());
     recordBatch.BaseOffset = rowset->GetStartOffset();
 
     TBlobOutput blobOutput;
@@ -151,7 +170,7 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
     std::optional<i64> maxTimestamp;
 
     int columnCount = schema->GetColumnCount();
-    for (auto [offset, row] : Enumerate(rows)) {
+    for (auto row : rows) {
         std::optional<i64> rowTimestamp;
 
         if (!row) {
@@ -228,8 +247,10 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
         writer.Flush();
         auto buffer = blobOutput.Flush();
 
+        auto offsetValue = row[*rowIndexColumnId];
+        YT_VERIFY(offsetValue.Type == EValueType::Int64);
         TRecord record{
-            .OffsetDelta = static_cast<i32>(offset),
+            .OffsetDelta = static_cast<i32>(offsetValue.Data.Int64 - recordBatch.BaseOffset),
             .Value = TString(buffer.data(), buffer.size()),
         };
         if (rowTimestamp && firstTimestamp) {
@@ -239,7 +260,8 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
         records.push_back(std::move(record));
     }
 
-    recordBatch.LastOffsetDelta = records.size();
+    recordBatch.LastOffsetDelta = records.back().OffsetDelta;
+
     if (firstTimestamp) {
         recordBatch.FirstTimestamp = *firstTimestamp;
     }
@@ -256,7 +278,7 @@ TRecordBatch ConvertGenericQueueRowsToRecordBatch(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRecordBatch ConvertQueueRowsToRecordBatch(
+TErrorOr<TRecordBatch> ConvertQueueRowsToRecordBatch(
     const IQueueRowsetPtr& rowset)
 {
     if (IsKafkaQueue(rowset->GetSchema())) {

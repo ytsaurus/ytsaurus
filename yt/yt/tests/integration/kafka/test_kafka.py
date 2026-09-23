@@ -1,12 +1,11 @@
-from yt_env_setup import (
-    YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE)
+from yt_env_setup import YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE, with_additional_threads
 
 from yt_queue_agent_test_base import TestQueueAgentBase
 
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
-    make_ace, select_rows, sync_unmount_table, wait, exists)
+    make_ace, select_rows, sync_unmount_table, wait, exists, print_debug)
 
 import yt.yson
 
@@ -23,12 +22,19 @@ import logging
 import pytest
 import time
 
+
 ##################################################################
 
 
 class KafkaMessageHelper:
     def __init__(self, kafka_message):
         self.kafka_message = kafka_message
+
+    def parse(self) -> tuple[str | None, str | dict]:
+        if self.kafka_message.key() is None:
+            return None, yt.yson.loads(self.kafka_message.value())
+
+        return self.kafka_message.key().decode("utf-8"), self.kafka_message.value().decode("utf-8")
 
     def assert_matching(self, expected_key: str | bytes, expected_value: dict | str | bytes, is_kafka_message: bool, checked_sys_fields: list[str] | None = None):
         if isinstance(expected_key, str):
@@ -45,8 +51,7 @@ class KafkaMessageHelper:
             assert self.kafka_message.value() == expected_value
         else:
             assert isinstance(expected_value, dict), "type of \"expected_value\" should be \"dict\" if \"is_kafka_message\" is False"
-
-            kafka_value = yt.yson.loads(self.kafka_message.value())
+            _, kafka_value = self.parse()
 
             fields = builtins.set(kafka_value.keys()) | builtins.set(expected_value.keys())
             filtered_fields = {field for field in fields if not field.startswith("$") or field in checked_sys_fields}
@@ -75,6 +80,35 @@ def _fail_on_error(err, msg):
 
 def _check_error(code, err, msg):
     assert isinstance(err, KafkaError) and err.code() == code
+
+
+def get_producer_config(address: str, token: str) -> dict:
+    return {
+        "bootstrap.servers": address,
+        "security.protocol": "SASL_PLAINTEXT",
+        "sasl.mechanisms": "OAUTHBEARER",
+        "oauth_cb": functools.partial(_get_token, token),
+        "client.id": "1234567",
+        "debug": "all",
+    }
+
+
+def get_consumer_config(address: str, token: str, consumer_path: str, sasl_mechanism: str = "PLAIN", client_id: str = "1234567", username: str = "u") -> dict:
+    consumer_config = {
+        "bootstrap.servers": address,
+        "security.protocol": "SASL_PLAINTEXT",
+        "sasl.mechanisms": sasl_mechanism,
+        "client.id": client_id,
+        "group.id": consumer_path,
+        "debug": "all",
+    }
+    if sasl_mechanism == "OAUTHBEARER":
+        consumer_config["oauth_cb"] = functools.partial(_get_token, token)
+    elif sasl_mechanism == "PLAIN":
+        consumer_config["sasl.username"] = "u"
+        consumer_config["sasl.password"] = token
+
+    return consumer_config
 
 
 class KafkaProxyBase(TestQueueAgentBase, YTEnvSetup):
@@ -133,23 +167,7 @@ class KafkaProxyBase(TestQueueAgentBase, YTEnvSetup):
 
     def _consume_messages(self, queue_path, consumer_path, token, message_count=3, sasl_mechanism="OAUTHBEARER", assign_partitions=None):
         address = self.Env.get_kafka_proxy_address()
-
-        consumer_config = {
-            "bootstrap.servers": address,
-            "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": sasl_mechanism,
-            "client.id": "1234567",
-            "group.id": consumer_path,
-            "debug": "all",
-        }
-
-        if sasl_mechanism == "OAUTHBEARER":
-            consumer_config["oauth_cb"] = functools.partial(_get_token, token)
-        elif sasl_mechanism == "PLAIN":
-            consumer_config["sasl.username"] = "u"
-            consumer_config["sasl.password"] = token
-
-        c = Consumer(consumer_config)
+        c = Consumer(get_consumer_config(address, token, consumer_path, sasl_mechanism))
 
         if assign_partitions:
             c.assign([TopicPartition(queue_path, partition_index) for partition_index in assign_partitions])
@@ -316,15 +334,7 @@ class TestKafkaProxy(KafkaProxyBase):
         TestKafkaProxy._create_kafka_queue(queue_path, tablet_count=3)
 
         address = self.Env.get_kafka_proxy_address()
-        producer_config = {
-            "bootstrap.servers": address,
-            "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "oauth_cb": functools.partial(_get_token, token),
-            "client.id": "1234567",
-            "debug": "all",
-        }
-        p = Producer(producer_config)
+        p = Producer(get_producer_config(address, token))
 
         serializer = StringSerializer('utf_8')
 
@@ -476,15 +486,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
         consumers = []
         for consumer_id in range(consumer_count):
-            consumer_config = {
-                "bootstrap.servers": address,
-                "security.protocol": "SASL_PLAINTEXT",
-                "sasl.mechanisms": "PLAIN",
-                "client.id": f"consumer-{consumer_id}",
-                "group.id": consumer_path,
-                "debug": "all",
-                "sasl.username": "u",
-                "sasl.password": token,
+            consumer_config = get_consumer_config(address, token, consumer_path, client_id=f"consumer-{consumer_id}") | {
                 "partition.assignment.strategy": "range",
                 "heartbeat.interval.ms": 150,
             }
@@ -543,15 +545,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
         # Create more consumers.
         for consumer_id in range(consumer_count, consumer_count * 2):
-            consumer_config = {
-                "bootstrap.servers": address,
-                "security.protocol": "SASL_PLAINTEXT",
-                "sasl.mechanisms": "PLAIN",
-                "client.id": f"consumer-{consumer_id}",
-                "group.id": consumer_path,
-                "debug": "all",
-                "sasl.username": "u",
-                "sasl.password": token,
+            consumer_config = get_consumer_config(address, token, consumer_path, client_id=f"consumer-{consumer_id}") | {
                 "partition.assignment.strategy": "range",
                 "heartbeat.interval.ms": 300,
             }
@@ -699,3 +693,104 @@ class TestKafkaProxy(KafkaProxyBase):
 
         wait(lambda: get("//tmp/queue/foo/@tablet_count_by_state/mounted") == 2)
         wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)
+
+    @authors("panesher")
+    @with_additional_threads
+    @pytest.mark.parametrize("partitions_count", [1, 5])
+    @pytest.mark.parametrize("is_kafka_queue", [True, False])
+    def test_producer_consumer_parallel(self, partitions_count, is_kafka_queue):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+        consumer_path = "primary://tmp/consumer"
+
+        if is_kafka_queue:
+            TestKafkaProxy._create_kafka_queue(queue_path, tablet_count=partitions_count)
+        else:
+            TestKafkaProxy._create_queue(queue_path, tablet_count=partitions_count)
+
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        address = self.Env.get_kafka_proxy_address()
+        rows_count = 100
+
+        received_messages = []
+        errors = []
+
+        def consumer_func():
+            c = Consumer(get_consumer_config(address, token, consumer_path))
+            c.subscribe([queue_path])
+
+            # Wait for messages with a timeout
+            i = 0
+            while len(received_messages) < rows_count:
+                msg = c.poll(1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    errors.append(msg.error())
+                    break
+
+                key, value = KafkaMessageHelper(msg).parse()
+                received_messages.append((key, value))
+
+                # NB(panesher): We can't garantee order for multiple partitions.
+                if partitions_count == 1:
+                    if is_kafka_queue:
+                        if key != f"key_{i}" or value != f"value_{i}":
+                            break
+                    else:
+                        if key is not None or value != {"surname": f"foo-{i}", "number": i}:
+                            break
+
+                i += 1
+
+            c.close()
+
+        consumer_thread = self.spawn_additional_thread(target=consumer_func, name="consumer_thread")
+
+        written_messages = []
+        if is_kafka_queue:
+            p = Producer(get_producer_config(address, token))
+            serializer = StringSerializer('utf_8')
+
+            for i in range(rows_count):
+                written_messages.append((f"key_{i}", f"value_{i}"))
+                p.produce(
+                    topic=queue_path,
+                    partition=i % partitions_count,
+                    key=serializer(f"key_{i}"),
+                    value=serializer(f"value_{i}"),
+                    on_delivery=_fail_on_error)
+                p.poll(0)
+                p.flush()
+                if i % 30 == 0:
+                    time.sleep(0.1)
+        else:
+            for i in range(rows_count):
+                written_messages.append((None, {"surname": f"foo-{i}", "number": i}))
+                insert_rows(queue_path, [
+                    {"surname": f"foo-{i}", "number": i},
+                ])
+                if i % 30 == 0:
+                    time.sleep(0.1)
+
+        consumer_thread.join()
+
+        assert len(errors) == 0
+
+        if partitions_count > 1:
+            if is_kafka_queue:
+                received_messages.sort(key=lambda kv: int(kv[0].split("_")[1]))
+            else:
+                received_messages.sort(key=lambda kv: int(kv[1]["number"]))
+
+        print_debug("received_messages: ", received_messages)
+
+        assert len(received_messages) == len(written_messages) == rows_count
+        for i, (kv, expected_kv) in enumerate(zip(received_messages, written_messages)):
+            assert kv == expected_kv, f"Key value is missing: index '{i}' value: '{expected_kv}'"
