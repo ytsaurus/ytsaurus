@@ -4771,11 +4771,18 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("No such transaction .*"):
             get(f"#{object_id}", tx=tx)
 
-    @authors("kivedernikov")
+    @authors("h0pless")
     def test_touch_time_without_expiration_timeout(self):
-        create("table", "//tmp/t")
+        path = "//tmp/node"
+        create("map_node", path)
+
         with raises_yt_error("Attribute .* is not found"):
-            get("//tmp/t/@touch_time")
+            get(f"{path}/@touch_time")
+
+        tx = start_transaction()
+        lock(path, tx=tx)
+        with raises_yt_error("Attribute .* is not found"):
+            get(f"{path}/@touch_time", tx=tx)
 
     @authors("kivedernikov")
     @pytest.mark.parametrize(
