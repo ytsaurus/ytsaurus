@@ -14,6 +14,7 @@ ENDIF()
 
 SRCS(
     containers_ut.cpp
+    porto_helpers_ut.cpp
     process_ut.cpp
 )
 

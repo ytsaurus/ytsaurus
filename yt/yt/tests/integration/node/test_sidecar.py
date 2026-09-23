@@ -207,6 +207,32 @@ class SidecarVanillaBase(YTEnvSetup):
                 },
             )
 
+    @authors("krasovav")
+    @pytest.mark.parametrize(
+        "sidecar_name",
+        ["../../container", "/../container", "..", ".", "foo/bar", "/foo", "foo/"],
+    )
+    def test_fail_invalid_sidecar_name(self, sidecar_name):
+        with raises_yt_error("Invalid sidecar name"):
+            vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": "ls",
+                            "docker_image": self.get_docker_image(),
+                            "sidecars": {
+                                sidecar_name: {
+                                    "command": "ls",
+                                    "docker_image": self.get_docker_image(),
+                                }
+                            },
+                        },
+                    },
+                },
+            )
+
     @authors("pavel-bash")
     def test_multiple_sidecars(self):
         """

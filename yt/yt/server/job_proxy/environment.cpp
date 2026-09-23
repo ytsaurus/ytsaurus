@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
 #include <yt/yt/library/containers/public.h>
 
 #include <util/system/fs.h>
@@ -784,6 +785,8 @@ public:
         futures.reserve(jobSpecExt.user_job_spec().sidecars().size());
         RunningSidecars_.reserve(jobSpecExt.user_job_spec().sidecars().size());
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+            ValidatePortoContainerNameComponent(name);
+
             auto sidecarSpec = New<TSidecarJobSpec>();
             FromProto(sidecarSpec.Get(), sidecar);
 
