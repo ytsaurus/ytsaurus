@@ -6,12 +6,13 @@
 namespace NYT::NTabletNode {
 
 using namespace NProfiling;
+using namespace NYPath;
 
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath SanitizeDigitsInYPath(const NYPath::TYPath& path)
+TYPath SanitizeDigitsInYPath(const TYPath& path)
 {
     auto pathCopy = path;
     for (auto& c : pathCopy) {
@@ -20,6 +21,34 @@ NYPath::TYPath SanitizeDigitsInYPath(const NYPath::TYPath& path)
         }
     }
     return pathCopy;
+}
+
+TYPath GetTablePathFromProfilingTag(const std::string& tableTag)
+{
+    return "tag:" + tableTag;
+}
+
+void AddTableProfilingTags(
+    TTagSet* tagSet,
+    EProfilingTagExportMode profilingTagExportMode,
+    const std::string& tableTag)
+{
+    auto tablePath = GetTablePathFromProfilingTag(tableTag);
+
+    switch (profilingTagExportMode) {
+        case EProfilingTagExportMode::TableTag:
+            tagSet->AddTag({"table_tag", tableTag}, -1);
+            break;
+
+        case EProfilingTagExportMode::Both:
+            tagSet->AddTag({"table_tag", tableTag}, -1);
+            tagSet->AddExtensionTag({"table_path", tablePath}, -1);
+            break;
+
+        case EProfilingTagExportMode::TablePath:
+            tagSet->AddTag({"table_path", tablePath}, -1);
+            break;
+    }
 }
 
 } // namespace
@@ -37,6 +66,7 @@ TTabletProfilerManager* TTabletProfilerManager::Get()
 
 TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
+    EProfilingTagExportMode profilingTagExportMode,
     const std::string& bundle,
     const NYPath::TYPath& tablePath,
     const std::string& tableTag,
@@ -47,27 +77,47 @@ TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
 {
     auto guard = Guard(Lock_);
 
+    auto profilingTagExportModeKey = profilingMode == EDynamicTableProfilingMode::Tag
+        ? profilingTagExportMode
+        : EProfilingTagExportMode::TableTag;
+
+    auto constructProfilerKey = [&] (const std::string& tableIdentity) {
+        return TProfilerKey{
+            profilingMode,
+            profilingTagExportModeKey,
+            bundle,
+            tableIdentity,
+            account,
+            medium,
+            schemaId,
+        };
+    };
+
     TProfilerKey key;
     switch (profilingMode) {
         case EDynamicTableProfilingMode::Path:
-            key = {profilingMode, bundle, std::string(tablePath), account, medium, schemaId};
+            key = constructProfilerKey(tablePath);
             AllTables_.insert(tablePath);
             ConsumedTableTags_.Update(AllTables_.size());
             break;
 
         case EDynamicTableProfilingMode::Tag:
-            key = {profilingMode, bundle, tableTag, account, medium, schemaId};
+            key = constructProfilerKey(tableTag);
+            if (profilingTagExportMode != EProfilingTagExportMode::TableTag) {
+                AllTables_.insert(GetTablePathFromProfilingTag(tableTag));
+                ConsumedTableTags_.Update(AllTables_.size());
+            }
             break;
 
         case EDynamicTableProfilingMode::PathLetters:
-            key = {profilingMode, bundle, std::string(SanitizeDigitsInYPath(tablePath)), account, medium, schemaId};
+            key = constructProfilerKey(SanitizeDigitsInYPath(tablePath));
             AllTables_.insert(SanitizeDigitsInYPath(tablePath));
             ConsumedTableTags_.Update(AllTables_.size());
             break;
 
         case EDynamicTableProfilingMode::Disabled:
         default:
-            key = {profilingMode, bundle, "", account, medium, schemaId};
+            key = constructProfilerKey("");
             break;
     }
 
@@ -96,7 +146,7 @@ TTableProfilerPtr TTabletProfilerManager::CreateTableProfiler(
             break;
 
         case EDynamicTableProfilingMode::Tag:
-            tableTagSet.AddTag({"table_tag", tableTag}, -1);
+            AddTableProfilingTags(&tableTagSet, profilingTagExportMode, tableTag);
 
             mediumTagSet = tableTagSet;
             mediumTagSet.AddTagWithChild({"medium", medium}, -1);

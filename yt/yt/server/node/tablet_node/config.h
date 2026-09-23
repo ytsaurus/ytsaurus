@@ -758,6 +758,11 @@ struct TTabletNodeDynamicConfig
     TDuration FullStructuredTabletHeartbeatPeriod;
     TDuration IncrementalStructuredTabletHeartbeatPeriod;
 
+    // COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+    // Controls the exported label of tables with profiling_mode=tag:
+    // "table_tag", "table_path" or both.
+    EProfilingTagExportMode ProfilingTagExportMode;
+
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;

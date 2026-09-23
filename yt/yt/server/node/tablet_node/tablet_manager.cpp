@@ -5795,8 +5795,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        bool profilingTagExportModeChanged =
+            oldConfig->ProfilingTagExportMode != newConfig->ProfilingTagExportMode;
+
         for (auto& [_, tablet] : Tablets()) {
             tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
+
+            if (profilingTagExportModeChanged &&
+                tablet->GetSettings().MountConfig->ProfilingMode == EDynamicTableProfilingMode::Tag)
+            {
+                // Tablet profiling is performed via the snapshot, so publish the updated profiler.
+                UpdateTabletSnapshot(tablet);
+            }
         }
 
         const auto& storeCompactorConfig = newConfig->StoreCompactor;

@@ -738,6 +738,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("incremental_structured_tablet_heartbeat_period", &TThis::IncrementalStructuredTabletHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
 
+    registrar.Parameter("profiling_tag_export_mode", &TThis::ProfilingTagExportMode)
+        .Default(EProfilingTagExportMode::TableTag);
+
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
