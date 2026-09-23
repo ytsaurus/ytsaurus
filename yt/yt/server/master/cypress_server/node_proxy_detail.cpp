@@ -938,7 +938,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::TouchTime:
-            if (!node->GetTouchTime()) {
+            if (!node->IsTrunk() || !node->GetTouchTime()) {
                 break;
             }
 
@@ -946,7 +946,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 .Value(node->GetTouchTime());
             return true;
 
-        case EInternedAttributeKey::ExpirationTimeUser : {
+        case EInternedAttributeKey::ExpirationTimeUser: {
             auto optionalExpirationTimeUser = node->GetExpirationTimeUser();
             if (!optionalExpirationTimeUser) {
                 break;
