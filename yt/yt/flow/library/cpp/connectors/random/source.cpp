@@ -5,6 +5,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <util/generic/xrange.h>
+#include <util/random/fast.h>
 
 #include <cstring>
 
@@ -15,6 +16,20 @@ namespace NYT::NFlow {
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TFingerprint ComputeSeedFingerprint(const TSourceContextPtr& context)
+{
+    YT_VERIFY(context->SourceKey);
+    return FarmFingerprint(
+        FarmFingerprint(TStringBuf(context->PipelinePath.GetPath())),
+        GetFarmFingerprint(context->SourceKey.Underlying().Get()));
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +45,7 @@ TRandomSource::TRandomSource(
             }))
     , KeyId_(Schema_->GetColumnIndexOrThrow("key"))
     , DataId_(Schema_->GetColumnIndexOrThrow("data"))
+    , SeedFingerprint_(ComputeSeedFingerprint(GetContext()))
     , Generator_(0)
 {
     UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = IntToOffset(0)});
@@ -89,9 +105,7 @@ TFuture<std::vector<TRandomSource::TRecord>> TRandomSource::DoReadNextBatch(cons
         }
     }
 
-    std::poisson_distribution<i64> messageSizeDistribution(params.MessageSizeMean);
     std::poisson_distribution<i64> messageCountDistribution(params.MessageCountMean);
-    std::poisson_distribution<i64> keyDistribution(params.MessageKeyRange);
 
     i64 bytes = 0;
     i64 count = std::min<i64>(settings->MaxRowsPerBatch, messageCountDistribution(Generator_));
@@ -101,17 +115,24 @@ TFuture<std::vector<TRandomSource::TRecord>> TRandomSource::DoReadNextBatch(cons
     auto now = TSystemTimestamp(TInstant::Now().Seconds());
 
     for (i64 i = 0; i < count && bytes < settings->MaxBytesPerBatch && (!offsetLimit || nextOffset < *offsetLimit); ++i) {
+        // The record content is a pure function of the pipeline path, the partition and the offset: message ids
+        // derive from the offset, and a Swift source computation re-reads the offset after a restart expecting
+        // the same record. The pipeline path keeps the streams of different pipelines apart.
+        TFastRng64 recordGenerator(FarmFingerprint(SeedFingerprint_, nextOffset));
+        std::poisson_distribution<i64> messageSizeDistribution(params.MessageSizeMean);
+        std::poisson_distribution<i64> keyDistribution(params.MessageKeyRange);
+
         // Clamp message size, it must be strictly limited.
-        const i64 strLen = std::min<i64>(messageSizeDistribution(Generator_), params.MessageSizeMean * 10);
+        const i64 strLen = std::min<i64>(messageSizeDistribution(recordGenerator), params.MessageSizeMean * 10);
         auto randomString = std::string(strLen + 3, 0);
         char* p = randomString.data();
         for (i64 j = 0; j < strLen; j += 4) {
-            ui32 r = Generator_() | 0x01010101u;
+            ui32 r = recordGenerator() | 0x01010101u;
             std::memcpy(p + j, &r, 4);
         }
         randomString.resize(strLen);
 
-        auto randomKey = ToString(keyDistribution(Generator_));
+        auto randomKey = ToString(keyDistribution(recordGenerator));
 
         auto payload = TPayload(TPayload::TUnderlying(
             Schema_->GetColumnCount(),

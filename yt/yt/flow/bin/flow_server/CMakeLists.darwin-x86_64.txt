@@ -38,6 +38,7 @@ target_link_libraries(flow_server PUBLIC
   library-cpp-computation
   flow-extensions-http
   cpp-connectors-queue
+  cpp-connectors-random
   cpp-connectors-servicelog
   cpp-connectors-sorted_dynamic_table
   cpp-connectors-static_table

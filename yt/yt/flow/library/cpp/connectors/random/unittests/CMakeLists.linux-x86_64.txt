@@ -40,6 +40,7 @@ target_link_libraries(yt-flow-library-cpp-connectors-random-unittests PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   cpp-connectors-random
+  common-unittests-mock
 )
 
 target_allocator(yt-flow-library-cpp-connectors-random-unittests
@@ -60,6 +61,7 @@ target_link_options(yt-flow-library-cpp-connectors-random-unittests PRIVATE
 
 target_sources(yt-flow-library-cpp-connectors-random-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/random/unittests/registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/random/unittests/source_ut.cpp
 )
 
 
