@@ -294,6 +294,12 @@ def test_operation_output_preserves_cell_when_converted_to_queue(client, operati
         table_path, attribute = path.split("/@")
         if attribute == "schema":
             return nodes[table_path]["schema"]
+        if attribute == "chunk_list_id":
+            return "root"
+        if path == "#root/@child_ids":
+            return ["tablet"]
+        if path == "#tablet/@statistics":
+            return {"logical_data_weight": 0, "logical_hunk_data_weight": 0}
         assert attribute == ""
         assert attributes == ["external_cell_tag"]
         cell = nodes[table_path]["cell"]

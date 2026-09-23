@@ -2,7 +2,6 @@ from .logger import logger
 from lib.schema import RandomStringGenerator
 
 import yt.wrapper as yt
-import yt.yson as yson
 
 from yt.wrapper.retries import run_with_retries
 
@@ -306,7 +305,7 @@ class Queue:
         # hunk_storage_id as a nullable attribute.
         return (
             yt.exists(hunk_storage_id_attribute) and
-            yt.get(hunk_storage_id_attribute) != yson.YsonEntity()
+            yt.get(hunk_storage_id_attribute) != "0-0-0-0"
         )
 
     def _ensure_hunk_storage(self):

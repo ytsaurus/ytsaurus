@@ -259,19 +259,22 @@ spec_template = {
         # Chance to create a replicated queue (replicated_table plus replica tables).
         # The source and each replica independently choose whether to use their own hunk
         # storage. Each replica also independently chooses sync/async mode.
-        # Replicated queues support operations over replicas and private-storage relinking;
+        # Replicated queues support trims, replica addition, operations and storage relinking;
         # queue-level copy/move/alter and mount/flush chaos skip them.
         "create_replicated_probability": 0.3,
         "replicated_min_replicas": 1,
+        # Also caps the replica count after additions during the run.
         "replicated_max_replicas": 3,
         "replicated_table_hunks_probability": 0.5,
         "replica_sync_probability": 0.5,
         "replica_hunks_probability": 0.5,
+        "add_replica_probability": 0.1,
         "create_probability": 0.2,
         "copy_probability": 0.3,
         "move_probability": 0.3,
         "remove_probability": 0.2,
         "flush_probability": 0.5,
+        "trim_probability": 0.1,
         "run_map_probability": 0.2,
         "run_sort_probability": 0.2,
         "run_map_reduce_probability": 0.2,
@@ -286,7 +289,7 @@ spec_template = {
         "read_probability": 0.3,
         "write_min_batch_size": 1,
         "write_max_batch_size": 100,
-        "write_min_row_size": 512,
+        "write_min_row_size": 0,
         "write_max_row_size": 2048,
         # Retry only brief transient write failures. When mount-chaos deliberately leaves a
         # queue or its hunk storage unmounted, the test makes exactly one attempt and handles
