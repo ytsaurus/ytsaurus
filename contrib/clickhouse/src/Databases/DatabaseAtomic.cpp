@@ -66,6 +66,11 @@ DatabaseAtomic::DatabaseAtomic(String name_, String metadata_path_, UUID uuid, C
 {
 }
 
+bool DatabaseAtomic::supportsAtomicTableReplacement() const
+{
+    return true;
+}
+
 void DatabaseAtomic::createDirectories()
 {
     std::lock_guard lock(mutex);
