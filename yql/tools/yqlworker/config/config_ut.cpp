@@ -18,6 +18,7 @@ Y_UNIT_TEST_SUITE(TConfigTest)
             "w.Executor.LoadUdfsDir=/some/path/to/udfs",
             "w.Executor.LoadUdfFiles=udf1,udf2",
             "w.Executor.LoadUdfFiles=udf3",
+            "w.Executor.SparkParserPort=31725",
 
             "fs.MaxFiles=300",
             "fs.MaxSizeMb=512",
@@ -53,6 +54,7 @@ Y_UNIT_TEST_SUITE(TConfigTest)
         UNIT_ASSERT_STRINGS_EQUAL(udfsPaths.Get(0), "udf1");
         UNIT_ASSERT_STRINGS_EQUAL(udfsPaths.Get(1), "udf2");
         UNIT_ASSERT_STRINGS_EQUAL(udfsPaths.Get(2), "udf3");
+        UNIT_ASSERT_EQUAL(w.GetExecutor().GetSparkParserPort(), 31725);
 
         // (2) file storage config
         const auto& fs = config.FileStorage;
