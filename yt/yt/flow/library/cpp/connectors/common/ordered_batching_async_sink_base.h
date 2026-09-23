@@ -62,6 +62,8 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
+    std::deque<TMessageId> GetPendingBatchBoundsSnapshot();
+
 private:
     using TBatch = std::vector<TOutputMessageConstPtr>;
 

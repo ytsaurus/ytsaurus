@@ -56,6 +56,12 @@ void TOrderedBatchingAsyncSinkBase::Init(IInitContextPtr initContext)
     DoInit(State_->ProducerId);
 }
 
+std::deque<TMessageId> TOrderedBatchingAsyncSinkBase::GetPendingBatchBoundsSnapshot()
+{
+    auto guard = Guard(Lock_);
+    return State_->BatchBounds;
+}
+
 void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
     const auto byteSize = message->ByteSize;
@@ -67,7 +73,6 @@ void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& mes
         .With("ByteSize", byteSize);
     auto guard = Guard(Lock_);
     if (message->MessageId <= State_->MaxPersistedMessageId) {
-        // Already persisted — call callback immediately.
         onDistributed();
         return;
     }
