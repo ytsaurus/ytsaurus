@@ -211,7 +211,32 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 61.
+// Declares a satellite table keyed by the object, an attribute id and a map key.
+// The order of |attributes| is significant: an attribute's zero-based position is its persisted
+// attribute id. Reordering or removing attributes is a breaking on-disk change. Appending is safe
+// only while the appended attribute's value type matches the table's: a differing type collapses
+// the shared |value| column to "any" and orphans the rows written with the typed encoding.
+message TSatelliteTable
+{
+    message TSatelliteAttribute
+    {
+        oneof state {
+            string path = 1;
+            bool deprecated = 2;
+        }
+    }
+
+    // Table name suffix.
+    optional string name = 1;
+    // Ordered list of attribute paths stored in this table. Position induces the attribute id.
+    repeated TSatelliteAttribute attributes = 2;
+    optional string values_data_group = 3;
+
+    // Instructs a satellite table to allow heterogeneous attributes even for attributes, now having a common type.
+    optional bool merge_types = 4;
+}
+
+// Next field number 62.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -317,6 +342,9 @@ message TObjectTypeOption
 
     // Migrations changing underlying storage of attribute. E.g. moving "/spec/age" from [spec.etc] to [spec.age].
     repeated TLocalAttributeMigration local_attribute_migrations = 53;
+
+    // Satellite tables storing out-of-row map attributes for this object type.
+    repeated TSatelliteTable satellite_tables = 61;
 
     // meta.account_id column was mistakenly added to some ORM's.
     optional bool remove_legacy_meta_account_id = 47;
