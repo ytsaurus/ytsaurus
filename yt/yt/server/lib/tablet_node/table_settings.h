@@ -218,6 +218,9 @@ struct TRawTableSettings
     TTableSettings BuildEffectiveSettings(
         std::vector<TError>* errors,
         std::vector<std::string>* malformedExperimentNames) const;
+
+    // COMPAT(ifsmirnov): ETabletReign::RawIOConfigNodes
+    void MaterializeProvidedConfigs(std::vector<TError>* errors);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
