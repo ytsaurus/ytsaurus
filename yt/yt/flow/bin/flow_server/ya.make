@@ -19,6 +19,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/extensions/http
     yt/yt/flow/library/cpp/connectors/queue
+    yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/connectors/servicelog
     yt/yt/flow/library/cpp/connectors/sorted_dynamic_table
     yt/yt/flow/library/cpp/connectors/static_table

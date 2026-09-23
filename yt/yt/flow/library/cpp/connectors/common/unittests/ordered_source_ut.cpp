@@ -5,6 +5,7 @@
 
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/source_context.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -336,21 +337,7 @@ public:
     {
         ActionQueue = New<TActionQueue>();
 
-        SourceContext = New<TSourceContext>();
-
-        SourceContext->SerializedInvoker = ActionQueue->GetInvoker();
-
-        SourceContext->Partition = ConvertTo<TPartitionPtr>(NYson::TYsonString(TStringBuf(R"""({
-            "partition_id" = "48946f5e-ac1b2be7-4babe692-8af11700";
-            "computation_id" = "48946f5e-ac1b2be7-4babe692-8af11700";
-            "parameters" = {};
-            "state_epoch" = 0;
-            "state_timestamp" = "2020-01-01T00:00:00Z";
-        })""")));
-
-        SourceContext->Logger = NLogging::TLogger("Test");
-        SourceContext->StatusProfiler = CreateSyncStatusProfiler();
-
+        SourceContext = CreateTestSourceContext(ActionQueue->GetInvoker());
         SourceContext->TimeProvider = New<TTestTimeProvider>();
 
         SourceSpec = ConvertTo<TSourceSpecPtr>(NYson::TYsonString(TStringBuf(R"""({

@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     authenticator.cpp
+    source_context.cpp
     state.cpp
 )
 
