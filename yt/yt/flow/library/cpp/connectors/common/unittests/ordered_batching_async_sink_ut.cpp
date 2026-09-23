@@ -46,6 +46,7 @@ class TTestSink
 {
 public:
     using TSinkController = TTestSinkController;
+    using TOrderedBatchingAsyncSinkBase::GetPendingBatchBoundsSnapshot;
 
     TTestSink(
         TSinkContextPtr context,
@@ -153,8 +154,7 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         expectedIds.push_back(id);
     }
 
-    // Helper: distribute a message and return a flag that flips when the callback fires.
-    auto distributeWithFlag = [&] (auto sink, const TOutputMessageConstPtr& message) {
+    auto distributeAndTrackCallback = [&] (auto sink, const TOutputMessageConstPtr& message) {
         auto fired = std::make_shared<std::atomic<bool>>(false);
         auto tracker = TDistributingTracker([fired] {
             fired->store(true);
@@ -164,18 +164,21 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         return fired;
     };
 
-    // Failed worker.
     {
         auto failedSink = New<TTestSink>(context, dynamicSinkContext, queue);
         failedSink->Init(stateManager->CreateContext());
 
         std::vector<std::shared_ptr<std::atomic<bool>>> firedFlags;
 
-        // Persisted epoch.
         for (int i : xrange(messagesCount.BeforeFailPersisted)) {
-            firedFlags.push_back(distributeWithFlag(failedSink, messages.at(i)));
+            firedFlags.push_back(distributeAndTrackCallback(failedSink, messages.at(i)));
         }
         doSync(failedSink);
+        const auto expectedBounds = failedSink->GetPendingBatchBoundsSnapshot();
+        ASSERT_FALSE(expectedBounds.empty());
+        auto detachedBounds = failedSink->GetPendingBatchBoundsSnapshot();
+        detachedBounds.clear();
+        EXPECT_EQ(failedSink->GetPendingBatchBoundsSnapshot(), expectedBounds);
         EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
         failedSink->Commit();
         expectedQueueSize += getBatchCount(messagesCount.BeforeFailPersisted);
@@ -184,7 +187,6 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
             EXPECT_FALSE(fired->load());
         }
 
-        // Empty epochs.
         doSync(failedSink);
         failedSink->Commit();
         for (const auto& fired : firedFlags) {
@@ -195,9 +197,8 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         doSync(failedSink);
         failedSink->Commit();
 
-        // Not persisted epoch.
         for (int i : xrange(messagesCount.BeforeFailPersisted, messagesCount.BeforeFail)) {
-            firedFlags.push_back(distributeWithFlag(failedSink, messages.at(i)));
+            firedFlags.push_back(distributeAndTrackCallback(failedSink, messages.at(i)));
         }
         doSync(failedSink);
         EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
@@ -209,16 +210,13 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         }
     }
 
-    // New worker.
     {
         auto sink = New<TTestSink>(context, dynamicSinkContext, queue);
         sink->Init(stateManager->CreateContext());
         std::vector<std::shared_ptr<std::atomic<bool>>> firedFlags;
 
-        // The first recovery epoch ends before the old batch boundary. The sink
-        // must keep the partial batch until message 14 arrives in a later epoch.
         for (auto i : xrange(messagesCount.BeforeFailPersisted, messagesCount.BeforeFailPersisted + 2)) {
-            firedFlags.push_back(distributeWithFlag(sink, messages.at(i)));
+            firedFlags.push_back(distributeAndTrackCallback(sink, messages.at(i)));
         }
         doSync(sink);
         EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
@@ -229,7 +227,7 @@ TEST(TOrderedBatchingAsyncSinkTest, Recovery)
         }
 
         for (auto i : xrange(messagesCount.BeforeFailPersisted + 2, messagesCount.Total)) {
-            firedFlags.push_back(distributeWithFlag(sink, messages.at(i)));
+            firedFlags.push_back(distributeAndTrackCallback(sink, messages.at(i)));
         }
         doSync(sink);
         EXPECT_EQ(std::ssize(*queue), expectedQueueSize);
@@ -347,13 +345,11 @@ TEST(TOrderedBatchingAsyncSinkTest, FailsEpochOnDistributeError)
         sink->Commit();
         ASSERT_EQ(std::ssize(*promises), 2);
 
-        // In-flight write does not fail the epoch yet.
         EXPECT_NO_THROW(doSync(sink));
 
         (*promises)[0].Set(TError("injected distribute failure"));
         (*promises)[1].Set();
 
-        // Failed batch must not be persisted, even if a later batch succeeded.
         EXPECT_THROW_WITH_SUBSTRING(sink->Sync(nullptr), "Async sink distribute failed");
         EXPECT_THROW_WITH_SUBSTRING(sink->Sync(nullptr), "seq_no");
     }
