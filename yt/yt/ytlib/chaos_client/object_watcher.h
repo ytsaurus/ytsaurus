@@ -78,6 +78,9 @@ struct IObjectWatcher
         IObjectWatcherCallbacksPtr<TObjectPtr> callbacks,
         bool allowUnregistered = false) = 0;
 
+    //! Returns the last observed object without a freshness guarantee.
+    virtual TObjectPtr FindObject(TChaosObjectId objectId) = 0;
+
     virtual bool TryUnregisterObject(TChaosObjectId objectId) = 0;
     virtual TInstant GetLastSeenWatchersTime(TChaosObjectId objectId) = 0;
 
@@ -127,6 +130,8 @@ public:
         NTransactionClient::TTimestamp cacheTimestamp,
         IObjectWatcherCallbacksPtr<TObjectPtr> callbacks,
         bool allowUnregistered) override;
+
+    TObjectPtr FindObject(TChaosObjectId objectId) override;
 
     bool TryUnregisterObject(TChaosObjectId objectId) override;
     TInstant GetLastSeenWatchersTime(TChaosObjectId objectId) override;
