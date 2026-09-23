@@ -149,17 +149,8 @@ protected:
 
     TChunkStorePtr ChunkStore_;
 
-    void Start()
+    void InitializeChunkStore()
     {
-        auto locationConfig = New<TStoreLocationConfig>();
-        locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
-        locationConfig->Postprocess();
-
-        Config_->StoreLocations.push_back(locationConfig);
-        Config_->Postprocess();
-
-        DynamicConfig_->Postprocess();
-
         ChunkStore_ = New<TChunkStore>(
             Config_,
             DynamicConfigManager_,
@@ -175,6 +166,20 @@ protected:
             .ThrowOnError();
     }
 
+    void Start()
+    {
+        auto locationConfig = New<TStoreLocationConfig>();
+        locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
+        locationConfig->Postprocess();
+
+        Config_->StoreLocations.push_back(locationConfig);
+        Config_->Postprocess();
+
+        DynamicConfig_->Postprocess();
+
+        InitializeChunkStore();
+    }
+
     void Stop()
     {
         WaitFor(BIND([&] {
@@ -183,6 +188,12 @@ protected:
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
             .ThrowOnError();
+    }
+
+    void Restart()
+    {
+        Stop();
+        InitializeChunkStore();
     }
 
     void SetUp() override
@@ -225,13 +236,7 @@ TEST_F(TJournalTest, SealReplicaAfterRecoveringOrphanedSeal)
 
     // An interrupted replica deletion left only the seal on disk.
     TFile(TString(location->GetChunkPath(descriptor.Id) + "." + SealedFlagExtension), CreateNew).Close();
-    WaitFor(BIND([&] {
-        ChunkStore_->Shutdown();
-        ChunkStore_->Initialize();
-    })
-        .AsyncVia(ActionQueue_->GetInvoker())
-        .Run())
-        .ThrowOnError();
+    Restart();
 
     location = ChunkStore_->Locations().front();
     auto journalManager = location->GetJournalManager();
