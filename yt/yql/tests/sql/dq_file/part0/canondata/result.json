@@ -608,6 +608,13 @@
             "uri": "https://{canondata_backend}/1773845/12d9f2d57ff15b8f0398a253d589f0ab33f5311d/resource.tar.gz#test.test_udf-regexp_udf--Plan_/plan.txt"
         }
     ],
+    "test.test[view-yqlselect_view--Plan]": [
+        {
+            "checksum": "f6f2ddc94c20493d6b90595a3bd443aa",
+            "size": 17568,
+            "uri": "https://{canondata_backend}/1917492/d2a45f7c9c40f50d99a81bf62515fdd74e40dc1d/resource.tar.gz#test.test_view-yqlselect_view--Plan_/plan.txt"
+        }
+    ],
     "test.test[weak_field-optimize_weak_fields_filter_combine--Plan]": [
         {
             "checksum": "44357a97076562ed7eaa5db28bb6cc94",
