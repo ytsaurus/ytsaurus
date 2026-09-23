@@ -6,7 +6,7 @@ LICENSE(Apache-2.0 WITH LLVM-exception)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(23.1.0)
+VERSION(23.1.1)
 
 NO_COMPILER_WARNINGS()
 
