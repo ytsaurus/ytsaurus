@@ -36,7 +36,6 @@ public:
             useUniformPrepareSignatures
                 ? std::make_unique<TUniformSignatureGenerator>()
                 : std::make_unique<TTransactionSignatureGenerator>(FinalTransactionSignature))
-        , CommitSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
         , Logger(logger.WithTag("CellId", cellId))
     { }
 
@@ -45,16 +44,10 @@ public:
         return PrepareSignatureGenerator_.get();
     }
 
-    TTransactionSignatureGenerator* GetCommitSignatureGenerator() override
-    {
-        return &CommitSignatureGenerator_;
-    }
-
     void RegisterAction(NTransactionClient::TTransactionActionData data) override
     {
         if (Actions_.empty()) {
             PrepareSignatureGenerator_->RegisterRequest();
-            CommitSignatureGenerator_.RegisterRequest();
         }
         Actions_.push_back(data);
     }
@@ -123,7 +116,6 @@ private:
     const TCellId CellId_;
 
     std::unique_ptr<TTransactionSignatureGenerator> PrepareSignatureGenerator_;
-    TTransactionSignatureGenerator CommitSignatureGenerator_;
 
     const TLogger Logger;
 
@@ -140,7 +132,6 @@ private:
         req->set_transaction_start_timestamp(ToProto(owner->GetStartTimestamp()));
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
         req->set_prepare_signature(PrepareSignatureGenerator_->GenerateSignature());
-        req->set_commit_signature(CommitSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }

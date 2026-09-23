@@ -183,6 +183,7 @@ public:
                 transactionId,
                 /*participantCellIds*/ {},
                 /*expectedPrepareSignatures*/ {},
+                /*targetCommitApprovalCounts*/ {},
                 /*prepareOnlyParticipantCellIds*/ {},
                 /*cellIdsToSyncWithBeforePrepare*/ {},
                 /*force2PC*/ false,
@@ -388,7 +389,8 @@ private:
                     cellIdsToSyncWith = commit->CellIdsToSyncWithBeforePrepare(),
                     identity = commit->AuthenticationIdentity(),
                     strongOrderingTags = commit->GetStrongOrderingTagsForCell(CellId_),
-                    expectedPrepareSignature
+                    expectedPrepareSignature,
+                    targetCommitApprovalCount = GetOrDefault(commit->TargetCommitApprovalCounts(), CellId_, 0)
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
@@ -403,7 +405,8 @@ private:
                         std::move(strongOrderingTags),
                         cellIdsToSyncWith,
                         identity,
-                        expectedPrepareSignature);
+                        expectedPrepareSignature,
+                        targetCommitApprovalCount);
                 });
         }
 
@@ -856,6 +859,14 @@ private:
                 .With("ParticipantCount", participantCellIds.size())
                 .With("SignatureCount", expectedPrepareSignatures.Participants.size());
 
+            TTransactionCommitApprovalCounts targetCommitApprovalCounts;
+            targetCommitApprovalCounts.reserve(request->commit_approval_infos_size());
+            for (const auto& info : request->commit_approval_infos()) {
+                targetCommitApprovalCounts.emplace(
+                    FromProto<TCellId>(info.cell_id()),
+                    info.target_commit_approval_count());
+            }
+
             YT_VERIFY(GetPrerequisiteTransactionIds(context->GetRequestHeader()).empty());
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
@@ -893,7 +904,8 @@ private:
                 .With("MaxAllowedCommitTimestamp", maxAllowedCommitTimestamp)
                 .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100))
                 .With("CoordinatorExpectedPrepareSignature", expectedPrepareSignatures.Coordinator)
-                .With("ParticipantExpectedPrepareSignatures", expectedPrepareSignatures.Participants);
+                .With("ParticipantExpectedPrepareSignatures", expectedPrepareSignatures.Participants)
+                .With("TargetCommitApprovalCounts", targetCommitApprovalCounts);
 
             // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
             if (owner->TransactionManager_->CommitTransaction(context)) {
@@ -925,7 +937,8 @@ private:
                 asyncResponseMessage = owner->CoordinatorCommitTransaction(
                     transactionId,
                     participantCellIds,
-                    expectedPrepareSignatures,
+                    std::move(expectedPrepareSignatures),
+                    std::move(targetCommitApprovalCounts),
                     prepareOnlyParticipantCellIds,
                     cellIdsToSyncWithBeforePrepare,
                     force2PC,
@@ -945,12 +958,14 @@ private:
                         =,
                         owner = std::move(owner),
                         strongOrderingTags = std::move(strongOrderingTags),
-                        expectedPrepareSignatures = std::move(expectedPrepareSignatures)
+                        expectedPrepareSignatures = std::move(expectedPrepareSignatures),
+                        targetCommitApprovalCounts = std::move(targetCommitApprovalCounts)
                     ] () mutable {
                         return owner->CoordinatorCommitTransaction(
                             transactionId,
                             participantCellIds,
                             std::move(expectedPrepareSignatures),
+                            std::move(targetCommitApprovalCounts),
                             prepareOnlyParticipantCellIds,
                             cellIdsToSyncWithBeforePrepare,
                             force2PC,
@@ -1102,13 +1117,15 @@ private:
             auto expectedPrepareSignature = request->has_expected_prepare_signature()
                 ? FromProto<TTransactionSignature>(request->expected_prepare_signature())
                 : FinalTransactionSignature;
+            auto targetCommitApprovalCount = request->target_commit_approval_count();
 
             context->AnnotateRequest()
                 .With("TransactionId", transactionId)
                 .WithFormat("PrepareTimestamp", "%v@%v", prepareTimestamp, prepareTimestampClusterTag)
                 .With("CellIdsToSyncWith", cellIdsToSyncWith)
                 .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100))
-                .With("ExpectedPrepareSignature", expectedPrepareSignature);
+                .With("ExpectedPrepareSignature", expectedPrepareSignature)
+                .With("target_commit_approval_count", targetCommitApprovalCount);
 
             auto owner = GetOwnerOrThrow();
             if (owner->HydraManager_->IsEnteringReadOnlyMode() && !strongOrderingTags.empty()) {
@@ -1124,6 +1141,7 @@ private:
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
             ToProto(hydraRequest.mutable_strong_ordering_tags(), strongOrderingTags);
             hydraRequest.set_expected_prepare_signature(expectedPrepareSignature);
+            hydraRequest.set_target_commit_approval_count(targetCommitApprovalCount);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
@@ -1405,6 +1423,7 @@ private:
         TTransactionId transactionId,
         std::vector<TCellId> participantCellIds,
         TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        TTransactionCommitApprovalCounts targetCommitApprovalCounts,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool force2PC,
@@ -1430,6 +1449,7 @@ private:
             transactionId,
             mutationId,
             std::move(expectedPrepareSignatures),
+            std::move(targetCommitApprovalCounts),
             std::move(participantCellIds),
             std::move(prepareOnlyParticipantCellIds),
             std::move(cellIdsToSyncWithBeforePrepare),
@@ -1474,6 +1494,7 @@ private:
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = SelfClockClusterTag_,
                 .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
+                .TargetCommitApprovalCount = GetOrDefault(commit->TargetCommitApprovalCounts(), SelfCellId_, 0),
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
@@ -1530,10 +1551,18 @@ private:
         request.set_coordinator_commit_mode(ToProto(commit->GetCoordinatorCommitMode()));
         request.set_coordinator_prepare_mode(ToProto(commit->GetCoordinatorPrepareMode()));
 
+        request.mutable_strong_ordering_tags_map()->Reserve(commit->StrongOrderingTags().size());
         for (const auto& [cellId, tags] : commit->StrongOrderingTags()) {
             auto* entry = request.add_strong_ordering_tags_map();
             ToProto(entry->mutable_cell_id(), cellId);
             ToProto(entry->mutable_strong_ordering_tags(), tags);
+        }
+
+        request.mutable_commit_approval_infos()->Reserve(commit->TargetCommitApprovalCounts().size());
+        for (const auto& [cellId, targetCommitApprovalCount] : commit->TargetCommitApprovalCounts()) {
+            auto* entry = request.add_commit_approval_infos();
+            ToProto(entry->mutable_cell_id(), cellId);
+            entry->set_target_commit_approval_count(targetCommitApprovalCount);
         }
 
         request.set_prepare_timestamp(ToProto(prepareTimestamp));
@@ -1729,6 +1758,7 @@ private:
                 transactionId,
                 mutationId,
                 /*expectedPrepareSignatures*/ TExpectedTransactionSignatureInfo{ .Coordinator = expectedPrepareSignature },
+                /*targetCommitApprovalCounts*/ {},
                 /*participantCellIds*/ {},
                 /*prepareOnlyParticipantCellIds*/ {},
                 /*cellIdsToSyncWithBeforePrepare*/ {},
@@ -1781,6 +1811,12 @@ private:
             .With("ParticipantCount", participantCellIds.size())
             .With("SignatureCount", expectedPrepareSignatures.Participants.size());
 
+        TTransactionCommitApprovalCounts targetCommitApprovalCounts;
+        targetCommitApprovalCounts.reserve(request->commit_approval_infos_size());
+        for (const auto& entry : request->commit_approval_infos()) {
+            targetCommitApprovalCounts.emplace(FromProto<TCellId>(entry.cell_id()), entry.target_commit_approval_count());
+        }
+
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
@@ -1810,6 +1846,7 @@ private:
                 mutationId,
                 participantCellIds,
                 expectedPrepareSignatures,
+                targetCommitApprovalCounts,
                 prepareOnlyParticipantCellIds,
                 cellIdsToSyncWithBeforePrepare,
                 true,
@@ -2127,6 +2164,7 @@ private:
         auto expectedPrepareSignature = request->has_expected_prepare_signature()
             ? request->expected_prepare_signature()
             : FinalTransactionSignature;
+        auto targetCommitApprovalCount = request->target_commit_approval_count();
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -2147,6 +2185,7 @@ private:
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = prepareTimestampClusterTag,
                 .ExpectedPrepareSignature = expectedPrepareSignature,
+                .TargetCommitApprovalCount = targetCommitApprovalCount,
             };
             // PrepareTransactionCommit validates that transaction is Active and throws if it is not.
             TransactionManager_->PrepareTransactionCommit(
@@ -2419,6 +2458,7 @@ private:
         TTransactionId transactionId,
         TMutationId mutationId,
         TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        TTransactionCommitApprovalCounts targetCommitApprovalCounts,
         std::vector<TCellId> participantCellIds,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
@@ -2436,6 +2476,7 @@ private:
             mutationId,
             std::move(participantCellIds),
             std::move(expectedPrepareSignatures),
+            std::move(targetCommitApprovalCounts),
             std::move(prepareOnlyParticipantCellIds),
             std::move(cellIdsToSyncWithBeforePrepare),
             distributed,
@@ -2454,6 +2495,7 @@ private:
         TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
         TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        TTransactionCommitApprovalCounts targetCommitApprovalCounts,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
@@ -2480,6 +2522,7 @@ private:
                 mutationId,
                 std::move(participantCellIds),
                 std::move(expectedPrepareSignatures),
+                std::move(targetCommitApprovalCounts),
                 std::move(prepareOnlyParticipantCellIds),
                 std::move(cellIdsToSyncWithBeforePrepare),
                 distributed,
@@ -2570,6 +2613,7 @@ private:
                 .PrepareTimestamp = commit->PrepareTimestamp(),
                 .PrepareTimestampClusterTag = commit->PrepareTimestampClusterTag(),
                 .ExpectedPrepareSignature = commit->ExpectedPrepareSignatures().Coordinator,
+                .TargetCommitApprovalCount = GetOrDefault(commit->TargetCommitApprovalCounts(), SelfCellId_, 0),
             };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,

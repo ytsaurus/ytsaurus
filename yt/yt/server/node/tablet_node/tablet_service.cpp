@@ -102,6 +102,7 @@ public:
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
+        DeclareServerFeature(ETabletServiceFeatures::DelayedWrite);
     }
 
     void InitializeRefCounted()
@@ -163,8 +164,6 @@ private:
             .TransactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp()),
             .TransactionTimeout = FromProto<TDuration>(request->transaction_timeout()),
             .PrepareSignature = request->prepare_signature(),
-            // COMPAT(gritukan)
-            .CommitSignature = request->has_commit_signature() ? request->commit_signature() : request->prepare_signature(),
             .Generation = request->generation(),
             .RowCount = request->row_count(),
             .DataWeight = request->data_weight(),
@@ -190,7 +189,6 @@ private:
             .With("Atomicity", atomicity)
             .With("Durability", durability)
             .WithFormat("PrepareSignature", "%x", params.PrepareSignature)
-            .WithFormat("CommitSignature", "%x", params.CommitSignature)
             .WithFormat("Generation", "%x", params.Generation)
             .With("RowCount", params.RowCount)
             .With("DataWeight", params.DataWeight)
@@ -385,17 +383,13 @@ private:
         auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
-        auto commitSignature = request->has_commit_signature()
-            ? request->commit_signature()
-            : prepareSignature;
 
         context->AnnotateRequest()
             .With("TransactionId", transactionId)
             .With("TransactionStartTimestamp", transactionStartTimestamp)
             .With("TransactionTimeout", transactionTimeout)
             .With("ActionCount", request->actions_size())
-            .WithFormat("PrepareSignature", "%x", prepareSignature)
-            .WithFormat("CommitSignature", "%x", commitSignature);
+            .WithFormat("PrepareSignature", "%x", prepareSignature);
 
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto future = transactionManager->RegisterTransactionActions(
@@ -403,7 +397,6 @@ private:
             transactionStartTimestamp,
             transactionTimeout,
             prepareSignature,
-            commitSignature,
             std::move(*request->mutable_actions()));
 
         context->ReplyFrom(std::move(future));

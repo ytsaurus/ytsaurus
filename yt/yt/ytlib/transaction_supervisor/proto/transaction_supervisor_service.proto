@@ -12,6 +12,12 @@ message TStrongOrderingTags
     repeated string strong_ordering_tags = 2;
 }
 
+message TCommitApprovalInfo
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 target_commit_approval_count = 2;
+}
+
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -30,6 +36,7 @@ message TReqCommitTransaction
     repeated TStrongOrderingTags strong_ordering_tags_map = 14;
     repeated uint32 expected_prepare_signatures = 15;
     optional uint32 coordinator_expected_prepare_signature = 16;
+    repeated TCommitApprovalInfo commit_approval_infos = 17;
 }
 
 message TRspCommitTransaction

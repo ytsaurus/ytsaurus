@@ -14,6 +14,7 @@ message TReqPrepareTransaction
     reserved 5;
     repeated string strong_ordering_tags = 6;
     optional uint32 expected_prepare_signature = 7;
+    optional int32 target_commit_approval_count = 8;
 }
 
 message TRspPrepareTransaction

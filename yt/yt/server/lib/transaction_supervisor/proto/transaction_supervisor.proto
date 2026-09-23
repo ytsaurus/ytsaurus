@@ -38,6 +38,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     repeated NTransactionSupervisor.TStrongOrderingTags strong_ordering_tags_map = 16;
     repeated uint32 expected_prepare_signatures = 17;
     optional uint32 coordinator_expected_prepare_signature = 18;
+    repeated NTransactionSupervisor.TCommitApprovalInfo commit_approval_infos = 19;
 
     // Safe to use after 26.3.
     reserved 15;
@@ -78,6 +79,7 @@ message TReqParticipantPrepareTransaction
     required string user_tag = 4;
     repeated string strong_ordering_tags = 7;
     optional uint32 expected_prepare_signature = 8;
+    optional int32 target_commit_approval_count = 9;
 
     // Safe to use after 26.3.
     reserved 6;

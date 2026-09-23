@@ -66,6 +66,13 @@ bool TSortedDynamicRowKeyEqualTo::operator()(
     return (*RowKeyComparer_)(lhsSchemafulRow.Row, rhsSchemafulRow.Row) == 0;
 }
 
+bool TSortedDynamicRowKeyEqualTo::operator()(
+    const TUnversionedValueRange& lhs,
+    const TUnversionedValueRange& rhs) const
+{
+    return (*RowKeyComparer_)(lhs, rhs) == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
