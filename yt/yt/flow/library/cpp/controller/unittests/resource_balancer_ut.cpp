@@ -1489,6 +1489,198 @@ TEST_F(TResourceBalancerTest, PackedComputationsSpreadToIdleWorkers)
     }
 }
 
+//! A worker keeps reporting the queue of a resource after the last partition of its computation
+//! left it (only the 30 s gauge, rates decayed, 10 m window empty). No job on the worker consumes
+//! that resource, so the queue must not count as the worker's load: the worker still takes its
+//! share of a packed computation.
+TEST_F(TResourceBalancerTest, LeftoverQueueOfDepartedComputationIsIgnored)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+
+    SetResourceSpec(res1, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(res2, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+
+    const std::vector<TWorkerId> loaded = {"worker1", "worker2"};
+    const std::vector<TWorkerId> idle = {"worker3", "worker4", "worker5"};
+    for (const auto& w : loaded) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+        SetPreloadCompleted(FlowView, w, res1);
+        SetPreloadCompleted(FlowView, w, res2);
+    }
+    SetPreloadCompleted(FlowView, "worker1", res1);
+    SetPreloadCompleted(FlowView, "worker2", res2);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker2");
+    }
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    // worker3 has no partitions of comp2 but still reports the queue res2 had when they left.
+    auto leftover = New<TWorkerResourceStatus>();
+    leftover->QueueSize30s = 16868.0;
+    leftover->QueuePushRate30s = 1e-90;
+    leftover->QueueFetchRate30s = 1e-90;
+    leftover->QueueGrowthRate30s = 0.0;
+    FlowView->Feedback->WorkerStatuses["worker3"]->ResourceStatuses[res2] = leftover;
+
+    auto result = RunBalancer();
+
+    THashMap<TWorkerId, int> received;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        ++received[workerAddress];
+    }
+    for (const auto& w : idle) {
+        EXPECT_GT(received[w], 0) << w;
+    }
+}
+
+//! A worker of two groups runs a job of the other group with a real backlog. Balancing this
+//! group must still count that queue as the worker's load and keep the spread off it.
+TEST_F(TResourceBalancerTest, LiveQueueOfAnotherGroupsJobIsCounted)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto compOther = MakeComputationId("comp_other");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+    auto resOther = MakeResourceId("res_other");
+    auto otherGroup = MakeWorkerGroup("other");
+
+    SetResourceSpec(res1, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(res2, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(resOther, MakeResourceSpec());
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+    SetComputationSpec(compOther, MakeComputationSpec(otherGroup, {resOther}));
+
+    const std::vector<TWorkerId> loaded = {"worker1", "worker2"};
+    const std::vector<TWorkerId> idle = {"worker3", "worker4", "worker5"};
+    for (const auto& w : loaded) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+        SetPreloadCompleted(FlowView, w, res1);
+        SetPreloadCompleted(FlowView, w, res2);
+    }
+    SetPreloadCompleted(FlowView, "worker1", res1);
+    SetPreloadCompleted(FlowView, "worker2", res2);
+    FlowView->State->Workers["worker3"]->Groups.push_back(otherGroup);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker2");
+    }
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    // The other group's job on worker3 is saturated: a standing backlog far above the others.
+    AddPartition(FlowView, MakePartitionId(21), compOther, /*rps=*/100.0, "worker3");
+    SetWorkerResourceStatus(FlowView, "worker3", resOther,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/16868.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    THashMap<TWorkerId, int> received;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        ++received[workerAddress];
+    }
+    EXPECT_EQ(received["worker3"], 0);
+    EXPECT_GT(received["worker4"], 0);
+    EXPECT_GT(received["worker5"], 0);
+}
+
+//! A job consumes a resource through a dependency of the resource it requires. That queue is
+//! the worker's load too: with it as deep as everyone else's there is nothing to equalize.
+TEST_F(TResourceBalancerTest, LiveQueueOfDependencyIsCounted)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto comp3 = MakeComputationId("comp3");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+    auto resParent = MakeResourceId("res_parent");
+    auto resDependency = MakeResourceId("res_dependency");
+
+    SetResourceSpec(res1, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(res2, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(resDependency, MakeResourceSpec());
+    auto parentSpec = MakeResourceSpec();
+    parentSpec->Dependencies[resDependency] = New<TResourceDescription>();
+    SetResourceSpec(resParent, parentSpec);
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+    SetComputationSpec(comp3, MakeComputationSpec(Group, {resParent}));
+
+    for (const auto& w : {"worker1", "worker2", "worker3"}) {
+        AddWorker(FlowView, w, Group);
+        SetPreloadCompleted(FlowView, w, res1);
+        SetPreloadCompleted(FlowView, w, res2);
+    }
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker2");
+    }
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    // comp3 on worker3 is light and keeps up on the resource it requires, but the dependency
+    // behind it holds a standing queue as deep as the loaded workers' ones.
+    AddPartition(FlowView, MakePartitionId(21), comp3, /*rps=*/20.0, "worker3");
+    SetWorkerResourceStatus(FlowView, "worker3", resParent,
+        /*putRate=*/20.0,
+        /*fetchRate=*/20.0,
+        /*queueSize=*/0.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker3", resDependency,
+        /*putRate=*/20.0,
+        /*fetchRate=*/20.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetAddActions(result).empty());
+}
+
 //! Step 8 tie-break: idle workers all project to queue 0, so ties break by load/capacity and the
 //! moves round-robin across them instead of saturating the first one found; the source keeps its
 //! even share.
