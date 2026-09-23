@@ -128,7 +128,7 @@ protected:
         if (IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)) {
             // Any non-any and non-null value convert to YSON.
             buffer += WriteYson(buffer, unversionedValue);
-        } else {
+        } else if (unversionedValue.Length > 0) {
             std::memcpy(
                 buffer,
                 unversionedValue.Data.String,
@@ -172,10 +172,13 @@ protected:
             ids.push_back(id);
 
             if (id > dictionarySize) {
-                std::memcpy(
-                    dictionaryData.Begin() + dictionaryOffset,
-                    value.data(),
-                    value.length());
+                YT_VERIFY(dictionaryOffset + value.length() <= dictionaryData.Size());
+                if (!value.empty()) {
+                    std::memcpy(
+                        dictionaryData.Begin() + dictionaryOffset,
+                        value.data(),
+                        value.length());
+                }
                 dictionaryOffset += value.length();
                 dictionaryOffsets.push_back(dictionaryOffset);
                 ++dictionarySize;
@@ -183,6 +186,9 @@ protected:
         }
 
         YT_VERIFY(dictionaryOffset == DictionaryByteSize_);
+        YT_VERIFY(dictionarySize == Dictionary_.size());
+        YT_VERIFY(dictionaryOffsets.size() == dictionarySize);
+        YT_VERIFY(ids.size() == Values_.size());
 
         rawBlobMeta->Direct = false;
 
@@ -205,6 +211,9 @@ protected:
     void DumpDirectValues(TSegmentInfo* segmentInfo, TSharedRef nullBitmap, NColumnarChunkFormat::TBlobMeta* rawBlobMeta)
     {
         auto offsets = GetDirectDenseOffsets();
+
+        YT_VERIFY(offsets.size() == Values_.size());
+        YT_VERIFY(offsets.empty() || offsets.back() == DirectBuffer_->GetSize());
 
         // Save offsets as diff from expected.
         auto [expectedLength, maxDiff] = PrepareDiffFromExpected(&offsets);
@@ -331,6 +340,9 @@ private:
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;
+
+        YT_VERIFY(ValuesPerRow_.back() == Values_.size());
+        YT_VERIFY(NullBitmap_.GetBitSize() == Values_.size());
 
         DumpVersionedData(&segmentInfo, &rawMeta);
 
@@ -491,6 +503,8 @@ private:
             nullBitmap.Append(this->IsValueNull(value));
         }
 
+        YT_VERIFY(nullBitmap.GetBitSize() == Values_.size());
+
         return nullBitmap.Flush<TSegmentWriterTag>();
     }
 
@@ -498,23 +512,29 @@ private:
     {
         auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, {.InitializeStorage = false});
         std::vector<ui32> offsets;
-        offsets.reserve(Dictionary_.size());
+        offsets.reserve(RleRowIndexes_.size());
 
         TBitmapOutput nullBitmap(RleRowIndexes_.size());
 
         ui32 stringOffset = 0;
         for (auto rowIndex : RleRowIndexes_) {
+            YT_VERIFY(rowIndex < Values_.size());
             auto value = Values_[rowIndex];
             nullBitmap.Append(this->IsValueNull(value));
-            std::memcpy(
-                stringData.Begin() + stringOffset,
-                value.data(),
-                value.length());
+            YT_VERIFY(stringOffset + value.length() <= stringData.Size());
+            if (!value.empty()) {
+                std::memcpy(
+                    stringData.Begin() + stringOffset,
+                    value.data(),
+                    value.length());
+            }
             stringOffset += value.length();
             offsets.push_back(stringOffset);
         }
 
         YT_VERIFY(stringOffset == DirectRleSize_);
+        YT_VERIFY(offsets.size() == RleRowIndexes_.size());
+        YT_VERIFY(nullBitmap.GetBitSize() == RleRowIndexes_.size());
 
         rawBlobMeta->Direct = true;
 
@@ -550,8 +570,11 @@ private:
 
         ui32 dictionaryOffset = 0;
         ui32 dictionarySize = 0;
+        i64 directRleSize = 0;
         for (auto rowIndex : RleRowIndexes_) {
+            YT_VERIFY(rowIndex < Values_.size());
             auto value = Values_[rowIndex];
+            directRleSize += value.length();
             if (this->IsValueNull(value)) {
                 ids.push_back(0);
                 continue;
@@ -561,15 +584,24 @@ private:
             ids.push_back(id);
 
             if (id > dictionarySize) {
-                std::memcpy(
-                    dictionaryData.Begin() + dictionaryOffset,
-                    value.data(),
-                    value.length());
+                YT_VERIFY(dictionaryOffset + value.length() <= dictionaryData.Size());
+                if (!value.empty()) {
+                    std::memcpy(
+                        dictionaryData.Begin() + dictionaryOffset,
+                        value.data(),
+                        value.length());
+                }
                 dictionaryOffset += value.length();
                 offsets.push_back(dictionaryOffset);
                 ++dictionarySize;
             }
         }
+
+        YT_VERIFY(dictionaryOffset == DictionaryByteSize_);
+        YT_VERIFY(dictionarySize == Dictionary_.size());
+        YT_VERIFY(offsets.size() == dictionarySize);
+        YT_VERIFY(ids.size() == RleRowIndexes_.size());
+        YT_VERIFY(directRleSize == DirectRleSize_);
 
         // 1. Row indexes.
         segmentInfo->Data.push_back(BitpackVector(TRange(RleRowIndexes_), RleRowIndexes_.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
