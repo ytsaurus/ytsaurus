@@ -109,6 +109,12 @@ public:
         return YQL_PROFILE_BIND_VAL(future, profileScope);
     }
 
+    TFuture<TUnlockTablesResult> UnlockTables(TUnlockTablesOptions&& options) final {
+        auto profileScope = YQL_PROFILE_FUNC_VAL(TRACE);
+        auto future = Slave_->UnlockTables(std::move(options));
+        return YQL_PROFILE_BIND_VAL(future, profileScope);
+    }
+
     TFuture<TDropTrackablesResult> DropTrackables(TDropTrackablesOptions&& options) final {
         auto profileScope = YQL_PROFILE_FUNC_VAL(TRACE);
         auto future = Slave_->DropTrackables(std::move(options));
