@@ -23,6 +23,8 @@
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/table_reader.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -123,7 +125,7 @@ protected:
         }
     }
 
-    TDynamicSourceContextPtr MakeDynamicContext(TDuration readTimeout, i64 lowerRowIndex)
+    TDynamicSourceContextPtr MakeDynamicContext(TDuration readTimeout, i64 lowerRowIndex, std::optional<TSystemTimestamp> plannedTimestamp = {})
     {
         TRichYPath partitionTable("//table");
         partitionTable.SetCluster("test");
@@ -147,6 +149,13 @@ protected:
             ->AsMap();
         // clang-format on
 
+        if (plannedTimestamp) {
+            dynamicPartitionSpec->AddChild("planned_timestamp", ConvertToNode(*plannedTimestamp));
+            dynamicPartitionSpec->RemoveChild("system_timestamp");
+            dynamicPartitionSpec->AddChild("system_timestamp", ConvertToNode(*plannedTimestamp));
+            dynamicPartitionSpec->RemoveChild("event_timestamp");
+            dynamicPartitionSpec->AddChild("event_timestamp", ConvertToNode(*plannedTimestamp));
+        }
         auto dynamicContext = New<TDynamicSourceContext>();
         dynamicContext->DynamicSourceSpec = dynamicSourceSpec;
         dynamicContext->DynamicPartitionSpec = dynamicPartitionSpec;
@@ -169,7 +178,7 @@ protected:
         return client;
     }
 
-    TIntrusivePtr<TSource> MakeSource(const NApi::IClientPtr& client, TDuration readTimeout)
+    TIntrusivePtr<TSource> MakeSource(const NApi::IClientPtr& client, TDuration readTimeout, std::optional<TSystemTimestamp> plannedTimestamp = {})
     {
         TRichYPath table("//table");
         table.SetCluster("test");
@@ -196,7 +205,7 @@ protected:
         context->StatusProfiler = StatusProfiler_;
         context->TimeProvider = New<TFakeTimeProvider>();
 
-        auto source = New<TSource>(std::move(context), MakeDynamicContext(readTimeout, 0));
+        auto source = New<TSource>(std::move(context), MakeDynamicContext(readTimeout, 0, plannedTimestamp));
         RunInInvoker([&] {
             source->Init(StateManager_->CreateContext(Format("source_%v", Sources_.size())));
         });
@@ -552,6 +561,572 @@ TEST(TStaticTableSourceTest, DoDistributingSimple)
     ASSERT_EQ(distributingTable->DistributingRanges.size(), 3u);
     EXPECT_EQ(distributingTable->DistributingRanges.at(TRangeId(42000)), (std::pair<i64, i64>(10000, 12000)));
     EXPECT_EQ(distributingTable->DistributedRows, 12000);
+}
+
+TEST(TStaticTableSourceTest, PlannedRangeTimestampsSurviveRestartAndRateChanges)
+{
+    auto table = MakeTable("cluster", "current", "#10", 100);
+    table->RowCount = 600;
+    table->ByteSize = 600;
+    auto parameters = New<TDynamicTableSourceParameters>();
+    parameters->DesiredTableProcessTime = TDuration::Seconds(30);
+    parameters->DesiredPartitionRowsPerSecond = 10;
+    parameters->DesiredPartitionProcessTime = TDuration::Seconds(10);
+    TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(1000));
+
+    EXPECT_EQ(table->PlannedReadDuration, TDuration::Seconds(30));
+    EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(table, TSystemTimestamp(1000)), TSystemTimestamp(1000));
+
+    auto specs = TSourceController::DoDistributing(parameters, 10, {}, table, MakeRangeIdGenerator(1));
+    ASSERT_EQ(specs.size(), 2u);
+    for (const auto& [id, node] : specs) {
+        auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(node);
+        auto expected = TSystemTimestamp(1000 + GetRowIndexRange(spec->Table).first / 20);
+        EXPECT_EQ(spec->SystemTimestamp, expected);
+        EXPECT_EQ(spec->EventTimestamp, expected);
+        EXPECT_EQ(spec->PlannedTimestamp, expected);
+    }
+    EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(table, TSystemTimestamp(1000)), TSystemTimestamp(1010));
+
+    table = ConvertTo<TSourceControllerTablePtr>(ConvertToYsonString(table));
+    parameters->MaxRowsPerSecond = 10;
+    TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(2000));
+    EXPECT_EQ(table->PlannedStartTime, TInstant::Seconds(1000));
+
+    table->DistributingRanges.clear();
+    specs = TSourceController::DoDistributing(parameters, 10, {}, table, MakeRangeIdGenerator(3));
+    ASSERT_EQ(specs.size(), 1u);
+    auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(3)));
+    EXPECT_EQ(GetRowIndexRange(spec->Table), (std::pair<i64, i64>(200, 300)));
+    EXPECT_EQ(spec->PlannedTimestamp, TSystemTimestamp(1010));
+    EXPECT_EQ(spec->EventTimestamp, TSystemTimestamp(1010));
+    EXPECT_EQ(spec->SystemTimestamp, TSystemTimestamp(1010));
+
+    table->SkipRemainingRows();
+    specs = TSourceController::DoDistributing(parameters, 10, {}, table, MakeRangeIdGenerator(4));
+    spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(3)));
+    EXPECT_EQ(spec->PlannedTimestamp, TSystemTimestamp(1010));
+    EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(table, TSystemTimestamp(2000)), TSystemTimestamp(2000));
+}
+
+TEST(TStaticTableSourceTest, PlannedTimestampIsProportionalToDistributedRows)
+{
+    auto table = MakeTable("cluster", "current", "#10", 100);
+    table->RowCount = 450;
+    table->ByteSize = 450;
+    auto parameters = New<TDynamicTableSourceParameters>();
+    parameters->DesiredTableProcessTime = TDuration::Seconds(20);
+    parameters->DesiredPartitionRowsPerSecond = 10;
+    parameters->DesiredPartitionProcessTime = TDuration::Seconds(10);
+    TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(1000));
+    EXPECT_EQ(table->PlannedReadDuration, TDuration::Seconds(20));
+    EXPECT_EQ(table->GetPlannedTimestamp(0), TSystemTimestamp(1000));
+    EXPECT_EQ(table->GetPlannedTimestamp(299), TSystemTimestamp(1013));
+    EXPECT_EQ(table->GetPlannedTimestamp(300), TSystemTimestamp(1013));
+    EXPECT_EQ(table->GetPlannedTimestamp(449), TSystemTimestamp(1019));
+
+    auto replica = MakeTable("other", "current", "#20", 100);
+    replica->RowCount = table->RowCount;
+    auto failedOver = TSourceController::MakeFailoverTable(table, replica, /*resumeFrom*/ nullptr, TInstant::Seconds(2000), parameters);
+    ASSERT_TRUE(failedOver->PlannedStartTime);
+    EXPECT_EQ(failedOver->GetPlannedTimestamp(300), TSystemTimestamp(2013));
+}
+
+TEST(TStaticTableSourceTest, RereadStartsAtCurrentTime)
+{
+    for (const auto& cluster : {"primary", "replica"}) {
+        for (auto now : {1200, 2000}) {
+            auto table = MakeTable("primary", "current", "#10", 100);
+            table->RowCount = 600;
+            table->PlannedStartTime = TInstant::Seconds(1000);
+            table->PlannedReadDuration = TDuration::Seconds(600);
+            table->DistributedRows = 300;
+            table->DistributingRanges[TRangeId(1)] = {200, 300};
+            table->PlannedRangeTimestamps[TRangeId(1)] = TSystemTimestamp(1200);
+            auto serving = MakeTable(cluster, "current", "#20", 100);
+            serving->RowCount = 600;
+
+            auto parameters = New<TDynamicTableSourceParameters>();
+            parameters->DesiredTableProcessTime = TDuration::Seconds(600);
+            auto restarted = TSourceController::MakeFailoverTable(table, serving, /*resumeFrom*/ nullptr, TInstant::Seconds(now), parameters);
+            EXPECT_EQ(restarted->DistributedRows, 0);
+            EXPECT_TRUE(restarted->PlannedRangeTimestamps.empty());
+            EXPECT_EQ(restarted->PlannedStartTime, TInstant::Seconds(now));
+            EXPECT_EQ(restarted->PlannedReadDuration, table->PlannedReadDuration);
+            EXPECT_EQ(table->PlannedStartTime, TInstant::Seconds(1000));
+
+            restarted = ConvertTo<TSourceControllerTablePtr>(ConvertToYsonString(restarted));
+            auto specs = TSourceController::DoDistributing(New<TDynamicTableSourceParameters>(), 10, {}, restarted, MakeRangeIdGenerator(2));
+            auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(2)));
+            EXPECT_EQ(spec->PlannedTimestamp, TSystemTimestamp(now));
+            EXPECT_EQ(spec->SystemTimestamp, spec->PlannedTimestamp);
+            EXPECT_EQ(spec->EventTimestamp, spec->PlannedTimestamp);
+        }
+    }
+}
+
+TEST(TStaticTableSourceTest, ResumedReplicaReplansAllRemainingRanges)
+{
+    auto current = MakeTable("primary", "current", "#10", 100);
+    current->RowCount = 600;
+    current->PlannedStartTime = TInstant::Seconds(1000);
+    current->PlannedReadDuration = TDuration::Seconds(600);
+    current->DistributedRows = 300;
+    auto stashed = MakeTable("replica", "current", "#20", 100);
+    stashed->RowCount = 600;
+    stashed->PlannedStartTime = TInstant::Seconds(1000);
+    stashed->PlannedReadDuration = TDuration::Seconds(600);
+    stashed->DistributedRows = 100;
+    stashed->DistributingRanges[TRangeId(1)] = {0, 100};
+    stashed->PlannedRangeTimestamps[TRangeId(1)] = TSystemTimestamp(1000);
+
+    auto parameters = New<TDynamicTableSourceParameters>();
+    parameters->DesiredTableProcessTime = TDuration::Seconds(600);
+    auto resumed = TSourceController::MakeFailoverTable(current, stashed, stashed, TInstant::Seconds(1200), parameters);
+    EXPECT_EQ(resumed->DistributedRows, 100);
+    EXPECT_EQ(resumed->GetPlannedTimestamp(100), TSystemTimestamp(1300));
+    EXPECT_EQ(stashed->PlannedStartTime, TInstant::Seconds(1000));
+    auto specs = TSourceController::DoDistributing(parameters, 10, {}, resumed, MakeRangeIdGenerator(2));
+    auto oldSpec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(1)));
+    EXPECT_EQ(oldSpec->PlannedTimestamp, TSystemTimestamp(1200));
+
+    resumed->DistributingRanges.erase(TRangeId(1));
+    resumed->PlannedRangeTimestamps.erase(TRangeId(1));
+    specs = TSourceController::DoDistributing(parameters, 10, {}, resumed, MakeRangeIdGenerator(3));
+    auto newSpec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(3)));
+    EXPECT_EQ(newSpec->PlannedTimestamp, TSystemTimestamp(1300));
+}
+
+TEST(TStaticTableSourceTest, ResumedReplicaPlanSkipsCompletedGapsAndUsesCurrentRate)
+{
+    auto current = MakeTable("primary", "current", "#10", 100);
+    current->RowCount = 1000;
+    current->PlannedStartTime = TInstant::Seconds(1000);
+    current->PlannedReadDuration = TDuration::Seconds(1000);
+    auto stashed = CloneYsonStruct(current);
+    stashed->Path.SetCluster("replica");
+    stashed->DistributedRows = 800;
+    stashed->DistributingRanges[TRangeId(2)] = {100, 200};
+    stashed->DistributingRanges[TRangeId(1)] = {600, 800};
+    stashed->PlannedRangeTimestamps[TRangeId(2)] = TSystemTimestamp(1100);
+    stashed->PlannedRangeTimestamps[TRangeId(1)] = TSystemTimestamp(1600);
+
+    auto parameters = New<TDynamicTableSourceParameters>();
+    parameters->DesiredTableProcessTime = TDuration::Seconds(100);
+    parameters->MaxRowsPerSecond = 2;
+    auto resumed = TSourceController::MakeFailoverTable(current, stashed, stashed, TInstant::Seconds(2000), parameters);
+    EXPECT_EQ(resumed->DistributedRows, stashed->DistributedRows);
+    EXPECT_EQ(resumed->DistributingRanges, stashed->DistributingRanges);
+    EXPECT_EQ(resumed->PlannedProcessedRows, 500);
+    EXPECT_EQ(GetOrCrash(resumed->PlannedRangeTimestamps, TRangeId(2)), TSystemTimestamp(2000));
+    EXPECT_EQ(GetOrCrash(resumed->PlannedRangeTimestamps, TRangeId(1)), TSystemTimestamp(2050));
+    EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(resumed, TSystemTimestamp(2000)), TSystemTimestamp(2150));
+
+    resumed = ConvertTo<TSourceControllerTablePtr>(ConvertToYsonString(resumed));
+    TSourceController::InitializePlannedTimestamps(parameters, resumed, TInstant::Seconds(3000));
+    EXPECT_EQ(resumed->PlannedStartTime, TInstant::Seconds(2000));
+    EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(resumed, TSystemTimestamp(3000)), TSystemTimestamp(2150));
+    resumed->DistributingRanges.clear();
+    resumed->PlannedRangeTimestamps.clear();
+    auto specs = TSourceController::DoDistributing(parameters, 2, {}, resumed, MakeRangeIdGenerator(3));
+    auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(3)));
+    EXPECT_EQ(GetRowIndexRange(spec->Table).first, 800);
+    EXPECT_EQ(spec->SystemTimestamp, TSystemTimestamp(2150));
+    EXPECT_EQ(spec->EventTimestamp, TSystemTimestamp(2150));
+}
+
+TEST(TStaticTableSourceTest, DoesNotReplanAlreadyDistributedLegacyTable)
+{
+    auto table = MakeTable("cluster", "current", "#10", 100);
+    table->RowCount = 100;
+    table->DistributedRows = 1;
+    TSourceController::InitializePlannedTimestamps(New<TDynamicTableSourceParameters>(), table, TInstant::Seconds(1000));
+    EXPECT_FALSE(table->PlannedStartTime);
+}
+
+TEST(TStaticTableSourceTest, LegacyReplicaFailoverDoesNotStartNewLogicalTable)
+{
+    auto primary = MakeTable("primary", "current", "#10", 100);
+    primary->RowCount = 600;
+    primary->ByteSize = 600;
+    primary->DistributedRows = 100;
+    primary->DistributingRanges[TRangeId(1)] = {0, 100};
+    auto replica = MakeTable("replica", "current", "#20", 100);
+    replica->RowCount = 600;
+    replica->ByteSize = 600;
+    auto parameters = New<TDynamicTableSourceParameters>();
+    auto startPlan = [&] (const TSourceControllerTablePtr& table) {
+        TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(1000));
+    };
+    auto state = New<TSourceControllerState>();
+    state->DistributingTable = primary;
+    state->DistributionFinished = false;
+
+    TSourceController::UpdateControllerState(state.Get(), {primary}, NLogging::TLogger(), EMigrationMode::V2, startPlan);
+    auto failover = TSourceController::MakeFailoverTable(primary, replica, nullptr, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
+    state->DistributingTable = failover;
+    EXPECT_EQ(failover->DistributedRows, 0);
+    TSourceController::UpdateControllerState(state.Get(), {failover}, NLogging::TLogger(), EMigrationMode::V2, startPlan);
+    EXPECT_FALSE(failover->PlannedStartTime);
+
+    auto resumed = TSourceController::MakeFailoverTable(failover, primary, primary, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
+    state->DistributingTable = resumed;
+    TSourceController::UpdateControllerState(state.Get(), {resumed}, NLogging::TLogger(), EMigrationMode::V2, startPlan);
+    auto specs = TSourceController::DoDistributing(parameters, 100, {}, resumed, MakeRangeIdGenerator(2));
+    auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(1)));
+    EXPECT_FALSE(spec->PlannedTimestamp);
+    EXPECT_EQ(spec->SystemTimestamp, primary->SystemTimestamp);
+    EXPECT_EQ(spec->EventTimestamp, primary->EventTimestamp);
+
+    resumed->SkipRemainingRows();
+    resumed->DistributingRanges.clear();
+    state->DistributionFinished = true;
+    auto next = MakeTable("primary", "next", "#30", 200);
+    next->RowCount = 600;
+    next->ByteSize = 600;
+    TSourceController::UpdateControllerState(state.Get(), {resumed, next}, NLogging::TLogger(), EMigrationMode::V2, startPlan);
+    ASSERT_TRUE(state->DistributingTable->PlannedStartTime);
+    EXPECT_EQ(state->DistributingTable->GetPlannedTimestamp(0), TSystemTimestamp(1000));
+}
+
+TEST(TStaticTableSourceTest, PlannedTimestampModeChangesOnlyForNewTables)
+{
+    for (bool initiallyEnabled : {false, true}) {
+        auto parameters = New<TDynamicTableSourceParameters>();
+        parameters->DesiredTableProcessTime = TDuration::Seconds(30);
+        parameters->DesiredPartitionRowsPerSecond = 10;
+        parameters->DesiredPartitionProcessTime = TDuration::Seconds(10);
+        bool enabled = initiallyEnabled;
+        auto onTableStarted = [&] (const TSourceControllerTablePtr& table) {
+            if (enabled) {
+                TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(1000));
+            }
+        };
+        auto state = New<TSourceControllerState>();
+        state->DistributionFinished = true;
+        auto table = MakeTable("primary", "first", "#10", 100);
+        table->RowCount = 600;
+        table->ByteSize = 600;
+        TSourceController::UpdateControllerState(state.Get(), {table}, NLogging::TLogger(), EMigrationMode::V2, onTableStarted);
+        auto specs = TSourceController::DoDistributing(parameters, 10, {}, table, MakeRangeIdGenerator(1));
+        ASSERT_EQ(specs.size(), 2u);
+
+        enabled = !enabled;
+        state = ConvertTo<TSourceControllerStatePtr>(ConvertToYsonString(state));
+        table = state->DistributingTable;
+        TSourceController::UpdateControllerState(state.Get(), {table}, NLogging::TLogger(), EMigrationMode::V2, onTableStarted);
+        EXPECT_EQ(table->PlannedStartTime.has_value(), initiallyEnabled);
+        table->DistributingRanges.erase(TRangeId(1));
+        table->PlannedRangeTimestamps.erase(TRangeId(1));
+        specs = TSourceController::DoDistributing(parameters, 10, {}, table, MakeRangeIdGenerator(3));
+        for (const auto& [id, node] : specs) {
+            auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(node);
+            EXPECT_EQ(spec->PlannedTimestamp.has_value(), initiallyEnabled);
+            auto expected = initiallyEnabled
+                ? TSystemTimestamp(1000 + GetRowIndexRange(spec->Table).first / 20)
+                : table->SystemTimestamp;
+            EXPECT_EQ(spec->SystemTimestamp, expected);
+            EXPECT_EQ(spec->EventTimestamp, initiallyEnabled ? expected : table->EventTimestamp);
+        }
+        auto previousPlannedTimestamp = TSourceController::GetFuturePlannedTimestamp(table, TSystemTimestamp(2000));
+        if (initiallyEnabled) {
+            EXPECT_EQ(previousPlannedTimestamp, TSystemTimestamp(1015));
+        }
+
+        auto replica = MakeTable("replica", "first", "#20", 100);
+        replica->RowCount = table->RowCount;
+        replica->ByteSize = table->ByteSize;
+        auto failover = TSourceController::MakeFailoverTable(table, replica, /*resumeFrom*/ nullptr, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
+        EXPECT_EQ(failover->PlannedStartTime.has_value(), initiallyEnabled);
+        if (initiallyEnabled) {
+            EXPECT_EQ(failover->PlannedStartTime, TInstant::Seconds(2000));
+        }
+        auto resumed = TSourceController::MakeFailoverTable(failover, table, table, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
+        EXPECT_EQ(resumed->DistributingRanges, table->DistributingRanges);
+        if (initiallyEnabled) {
+            for (const auto& [id, timestamp] : resumed->PlannedRangeTimestamps) {
+                EXPECT_GE(timestamp, TSystemTimestamp(2000));
+            }
+        }
+
+        table->SkipRemainingRows();
+        table->DistributingRanges.clear();
+        table->PlannedRangeTimestamps.clear();
+        state->DistributionFinished = true;
+        auto next = MakeTable("primary", "next", "#30", 200);
+        next->RowCount = 600;
+        next->ByteSize = 600;
+        TSourceController::UpdateControllerState(state.Get(), {table, next}, NLogging::TLogger(), EMigrationMode::V2, onTableStarted);
+        EXPECT_EQ(state->DistributingTable, next);
+        EXPECT_EQ(state->DistributingTable->PlannedStartTime.has_value(), enabled);
+        if (!enabled) {
+            specs = TSourceController::DoDistributing(parameters, 10, {}, next, MakeRangeIdGenerator(10));
+            ASSERT_FALSE(specs.empty());
+            for (const auto& [id, node] : specs) {
+                auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(node);
+                EXPECT_FALSE(spec->PlannedTimestamp);
+                EXPECT_EQ(spec->SystemTimestamp, next->SystemTimestamp);
+                EXPECT_EQ(spec->EventTimestamp, next->EventTimestamp);
+                EXPECT_LT(spec->SystemTimestamp, previousPlannedTimestamp);
+                EXPECT_LT(spec->EventTimestamp, previousPlannedTimestamp);
+            }
+        }
+    }
+}
+
+TEST(TStaticTableSourceTest, NextTableStartsAtCurrentTime)
+{
+    for (auto now : {1050, 1200}) {
+        auto previous = MakeTable("primary", "previous", "#10", 100);
+        previous->RowCount = 1000;
+        previous->DistributedRows = 1000;
+        previous->PlannedStartTime = TInstant::Seconds(1000);
+        previous->PlannedReadDuration = TDuration::Seconds(100);
+        auto state = New<TSourceControllerState>();
+        state->DistributingTable = previous;
+        state->DistributionFinished = true;
+        state = ConvertTo<TSourceControllerStatePtr>(ConvertToYsonString(state));
+        auto next = MakeTable("primary", "next", "#20", 200);
+        next->RowCount = 1000;
+        auto parameters = New<TDynamicTableSourceParameters>();
+        TSourceController::UpdateControllerState(
+            state.Get(),
+            {next},
+            NLogging::TLogger(),
+            EMigrationMode::V2,
+            [&] (const TSourceControllerTablePtr& table) {
+                TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(now));
+            });
+
+        ASSERT_EQ(state->DistributingTable, next);
+        auto expected = TSystemTimestamp(now);
+        EXPECT_EQ(TSourceController::GetFuturePlannedTimestamp(next, TSystemTimestamp(now)), expected);
+        auto specs = TSourceController::DoDistributing(parameters, 10, {}, next, MakeRangeIdGenerator(1));
+        auto spec = ConvertTo<TDynamicTableSourcePartitionSpecPtr>(GetOrCrash(specs, TRangeId(1)));
+        EXPECT_EQ(spec->PlannedTimestamp, expected);
+        EXPECT_EQ(spec->SystemTimestamp, expected);
+        EXPECT_EQ(spec->EventTimestamp, expected);
+    }
+}
+
+TEST(TStaticTableSourceTest, FailedPlannedTimestampInitializationDoesNotStartTable)
+{
+    auto state = New<TSourceControllerState>();
+    state->DistributionFinished = true;
+    auto previous = state->DistributingTable;
+    auto table = MakeTable("primary", "next", "#10", 100);
+    table->RowCount = 100;
+    table->ByteSize = 100;
+    EXPECT_THROW(TSourceController::UpdateControllerState(
+        state.Get(),
+        {table},
+        NLogging::TLogger(),
+        EMigrationMode::V2,
+        [] (const TSourceControllerTablePtr&) {
+            THROW_ERROR_EXCEPTION("Timestamp provider failed");
+        }),
+        std::exception);
+    EXPECT_EQ(state->DistributingTable, previous);
+    EXPECT_TRUE(state->DistributionFinished);
+    TSourceController::UpdateControllerState(
+        state.Get(),
+        {table},
+        NLogging::TLogger(),
+        EMigrationMode::V2,
+        [] (const TSourceControllerTablePtr& next) {
+            TSourceController::InitializePlannedTimestamps(New<TDynamicTableSourceParameters>(), next, TInstant::Seconds(1000));
+        });
+    ASSERT_TRUE(state->DistributingTable->PlannedStartTime);
+    EXPECT_EQ(state->DistributingTable->GetPlannedTimestamp(0), TSystemTimestamp(1000));
+}
+
+TEST(TStaticTableSourceTest, InvalidPlannedReadRateDoesNotPublishTable)
+{
+    for (bool zeroRate : {false, true}) {
+        auto state = New<TSourceControllerState>();
+        state->DistributionFinished = true;
+        auto previous = state->DistributingTable;
+        auto next = MakeTable("primary", "next", "#10", 100);
+        next->RowCount = 1;
+        auto parameters = New<TDynamicTableSourceParameters>();
+        if (zeroRate) {
+            parameters->MaxRowsPerSecond = 0;
+        } else {
+            parameters->DesiredTableProcessTime = TDuration::Zero();
+        }
+        EXPECT_THROW_WITH_SUBSTRING(
+            TSourceController::UpdateControllerState(
+                state.Get(),
+                {next},
+                NLogging::TLogger(),
+                EMigrationMode::V2,
+                [&] (const TSourceControllerTablePtr& table) {
+                    TSourceController::InitializePlannedTimestamps(parameters, table, TInstant::Seconds(1000));
+                }),
+            zeroRate ? "Planned read rate must be positive" : "Planned read duration must be positive");
+        EXPECT_EQ(state->DistributingTable, previous);
+        EXPECT_TRUE(state->DistributionFinished);
+        EXPECT_FALSE(next->PlannedStartTime);
+    }
+}
+
+TEST(TStaticTableSourceTest, ControllerPublishesPlannedFutureWatermarksFromRestoredState)
+{
+    auto actionQueue = New<TActionQueue>("StaticTableControllerTest");
+    for (bool empty : {false, true}) {
+        auto stateManager = New<TStateManagerMock>();
+        auto state = New<TSourceControllerState>();
+        state->Inited = !empty;
+        auto table = state->DistributingTable;
+        if (!empty) {
+            table->RowCount = 100;
+            table->DistributedRows = 40;
+            table->PlannedStartTime = TInstant::Seconds(1000);
+            table->PlannedReadDuration = TDuration::Seconds(100);
+            table->SystemTimestamp = TSystemTimestamp(100);
+            table->EventTimestamp = TSystemTimestamp(200);
+        }
+        stateManager->Set("/v0", ConvertToYsonString(state));
+        auto context = New<TSourceControllerContext>();
+        context->SourceSpec = New<TSourceSpec>();
+        context->SourceSpec->SourceClassName = TypeName<TSource>();
+        // clang-format off
+        context->SourceSpec->Parameters = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("tables").BeginList().EndList()
+                .Item("use_planned_timestamps").Value(true)
+            .EndMap()
+            ->AsMap();
+        // clang-format on
+        context->TimeProvider = New<TFakeTimeProvider>();
+        context->StatusProfiler = CreateSyncStatusProfiler();
+        auto dynamicContext = New<TDynamicSourceControllerContext>();
+        dynamicContext->DynamicSourceSpec = New<TDynamicSourceSpec>();
+        auto controller = New<TSourceController>(context, dynamicContext);
+        WaitFor(BIND([&] {
+            controller->Init(stateManager->CreateContext());
+            auto traverse = controller->GetFutureKeysStreamTraverseData();
+            ASSERT_TRUE(traverse);
+            auto expected = TSystemTimestamp(empty ? 1 : 1040);
+            EXPECT_EQ((*traverse)->SystemWatermark, expected);
+            EXPECT_EQ((*traverse)->EventWatermark, expected);
+        }).AsyncVia(actionQueue->GetInvoker())
+                .Run())
+            .ThrowOnError();
+    }
+}
+
+TEST_F(TStaticTableSourceReaderTest, PlannedInflightIncludesUnreadAndUnpersistedRows)
+{
+    auto client = MakeClient({MakeFuture(MakeTableReader({10, 11, 12}, OKFuture))});
+    auto source = MakeSource(client, TDuration::Minutes(1), TSystemTimestamp(1000));
+    RunInInvoker([&] {
+        auto inflight = source->BuildInflight();
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(1000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(1000));
+        EXPECT_FALSE(inflight->Empty);
+    });
+
+    std::vector<ISource::TMessageBatch> batches;
+    for (int attempt = 0; attempt < 3 && batches.empty(); ++attempt) {
+        batches = RunInInvoker([&] {
+            return WaitFor(source->GetNextBatch(BatcherSettings_)).ValueOrThrow();
+        });
+    }
+    ASSERT_EQ(batches.size(), 3u);
+    RunInInvoker([&] {
+        for (const auto& batch : batches) {
+            for (const auto& message : batch.Messages) {
+                EXPECT_EQ(message->SystemTimestamp, TSystemTimestamp(1000));
+                EXPECT_EQ(message->EventTimestamp, TSystemTimestamp(1000));
+            }
+            source->MarkPublished(batch.Cookie);
+        }
+        auto inflight = source->BuildInflight();
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(1000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(1000));
+        for (const auto& batch : batches) {
+            source->MarkPersisted(batch.Cookie);
+        }
+        source->Sync();
+        source->Commit();
+        inflight = source->BuildInflight();
+        EXPECT_TRUE(inflight->Empty);
+        EXPECT_FALSE(inflight->MinSystemTimestamp);
+        EXPECT_FALSE(inflight->MinEventTimestamp);
+    });
+}
+
+TEST_F(TStaticTableSourceReaderTest, ReconfiguredPlannedTimestampIsUsedForUnreadRows)
+{
+    auto client = MakeClient({MakeFuture(MakeTableReader({10, 11, 12}, OKFuture))});
+    auto source = MakeSource(client, TDuration::Minutes(1), TSystemTimestamp(1000));
+    RunInInvoker([&] {
+        source->Reconfigure(MakeDynamicContext(TDuration::Minutes(1), 0, TSystemTimestamp(1000)));
+        source->Reconfigure(MakeDynamicContext(TDuration::Minutes(1), 0, TSystemTimestamp(2000)));
+        auto inflight = source->BuildInflight();
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(2000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(2000));
+    });
+
+    std::vector<ISource::TMessageBatch> batches;
+    for (int attempt = 0; attempt < 3 && batches.empty(); ++attempt) {
+        batches = RunInInvoker([&] {
+            return WaitFor(source->GetNextBatch(BatcherSettings_)).ValueOrThrow();
+        });
+    }
+    ASSERT_EQ(batches.size(), 3u);
+    for (const auto& batch : batches) {
+        for (const auto& message : batch.Messages) {
+            EXPECT_EQ(message->SystemTimestamp, TSystemTimestamp(2000));
+            EXPECT_EQ(message->EventTimestamp, TSystemTimestamp(2000));
+        }
+    }
+    EXPECT_THAT(ReaderStarts_, ElementsAre(0));
+}
+
+TEST_F(TStaticTableSourceReaderTest, ReplannedInflightRetainsUnpersistedBatchTimestamps)
+{
+    auto client = MakeClient({MakeFuture(MakeTableReader({10, 11, 12}, OKFuture))});
+    auto source = MakeSource(client, TDuration::Minutes(1), TSystemTimestamp(1000));
+    BatcherSettings_->MaxRowsPerBatch = TSize(1);
+    auto readBatch = [&] {
+        std::vector<ISource::TMessageBatch> batches;
+        for (int attempt = 0; attempt < 3 && batches.empty(); ++attempt) {
+            batches = RunInInvoker([&] {
+                return WaitFor(source->GetNextBatch(BatcherSettings_)).ValueOrThrow();
+            });
+        }
+        return batches;
+    };
+    auto oldBatches = readBatch();
+    ASSERT_EQ(oldBatches.size(), 1u);
+    RunInInvoker([&] {
+        source->Reconfigure(MakeDynamicContext(TDuration::Minutes(1), 0, TSystemTimestamp(2000)));
+        auto inflight = source->BuildInflight();
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(1000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(1000));
+        source->MarkPublished(oldBatches.front().Cookie);
+    });
+    auto newBatches = readBatch();
+    ASSERT_EQ(newBatches.size(), 1u);
+    EXPECT_EQ(newBatches.front().Messages.front()->EventTimestamp, TSystemTimestamp(2000));
+    RunInInvoker([&] {
+        source->MarkPublished(newBatches.front().Cookie);
+        source->MarkPersisted(newBatches.front().Cookie);
+        auto inflight = source->BuildInflight();
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(1000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(1000));
+
+        source->MarkPersisted(oldBatches.front().Cookie);
+        source->Sync();
+        source->Commit();
+        inflight = source->BuildInflight();
+        EXPECT_FALSE(inflight->Empty);
+        EXPECT_EQ(inflight->MinSystemTimestamp, TSystemTimestamp(2000));
+        EXPECT_EQ(inflight->MinEventTimestamp, TSystemTimestamp(2000));
+    });
+    EXPECT_THAT(ReaderStarts_, ElementsAre(0));
 }
 
 TEST(TStaticTableSourceTest, ActiveTableAdvancesEventWatermarkWithoutDelay)
@@ -1932,7 +2507,7 @@ TEST(TMultiClusterFailoverTableTest, FreshStartOnServingCluster)
 
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100, /*era*/ 9);
 
-    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr);
+    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     EXPECT_EQ(result->DistributedRows, 0);
     EXPECT_TRUE(result->DistributingRanges.empty());
@@ -1955,7 +2530,7 @@ TEST(TMultiClusterFailoverTableTest, ResumesStashedProgress)
     current->EventOrdinal = 1;
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100, /*era*/ 9);
 
-    auto result = TSourceController::MakeFailoverTable(current, serving, resumeFrom);
+    auto result = TSourceController::MakeFailoverTable(current, serving, resumeFrom, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     EXPECT_EQ(result->DistributedRows, 60);
     ASSERT_TRUE(result->DistributingRanges.contains(TRangeId(9)));
@@ -1974,7 +2549,7 @@ TEST(TMultiClusterFailoverTableTest, SystemTimestampDoesNotRegress)
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
     serving->SystemTimestamp = TSystemTimestamp(100);
 
-    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr);
+    auto result = TSourceController::MakeFailoverTable(current, serving, /*resumeFrom*/ nullptr, TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     EXPECT_EQ(result->SystemTimestamp, TSystemTimestamp(500));
     EXPECT_EQ(*result->Path.GetCluster(), "cluster-b");
@@ -1991,7 +2566,9 @@ TEST(TMultiClusterDecideFailoverTest, NoSwapWhenNothingServesTheTable)
         current,
         /*servingReplica*/ nullptr,
         TStash{},
-        NLogging::TLogger())
+        NLogging::TLogger(),
+        TInstant::Seconds(2000),
+        New<TDynamicTableSourceParameters>())
             .has_value());
 }
 
@@ -1999,7 +2576,7 @@ TEST(TMultiClusterDecideFailoverTest, NoSwapWhenActiveClusterStillServes)
 {
     auto current = MakeTable("cluster-a", "t", "#id-a", 200);
     auto serving = MakeTable("cluster-a", "t", "#id-a", 200);
-    EXPECT_FALSE(TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger()).has_value());
+    EXPECT_FALSE(TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger(), TInstant::Seconds(2000), New<TDynamicTableSourceParameters>()).has_value());
 }
 
 TEST(TMultiClusterDecideFailoverTest, FreshFailoverWhenNoStashForTargetCluster)
@@ -2008,7 +2585,7 @@ TEST(TMultiClusterDecideFailoverTest, FreshFailoverWhenNoStashForTargetCluster)
     current->DistributedRows = 40;
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
 
-    auto decision = TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger());
+    auto decision = TSourceController::DecideFailover(current, serving, TStash{}, NLogging::TLogger(), TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     // No stash for the target cluster → start from scratch; logical identity (Era) preserved.
     ASSERT_TRUE(decision.has_value());
@@ -2030,7 +2607,7 @@ TEST(TMultiClusterDecideFailoverTest, ResumesFromStashForTargetCluster)
 
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
 
-    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger(), TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     ASSERT_TRUE(decision.has_value());
     EXPECT_EQ(decision->StashedCluster, "cluster-a");
@@ -2052,7 +2629,7 @@ TEST(TMultiClusterDecideFailoverTest, RereadsWhenStashIdDiffers)
 
     auto serving = MakeTable("cluster-b", "t", "#id-b-new", 200, /*rowCount*/ 100);
 
-    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger(), TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     ASSERT_TRUE(decision.has_value());
     EXPECT_EQ(decision->NewTable->DistributedRows, 0);
@@ -2067,7 +2644,7 @@ TEST(TMultiClusterDecideFailoverTest, IgnoresStashOfUnrelatedCluster)
 
     auto serving = MakeTable("cluster-b", "t", "#id-b", 200, /*rowCount*/ 100);
 
-    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger());
+    auto decision = TSourceController::DecideFailover(current, serving, stash, NLogging::TLogger(), TInstant::Seconds(2000), New<TDynamicTableSourceParameters>());
 
     // The cluster-c stash is irrelevant when failing over to cluster-b.
     ASSERT_TRUE(decision.has_value());

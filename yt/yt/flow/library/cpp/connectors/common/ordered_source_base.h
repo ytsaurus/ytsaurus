@@ -196,6 +196,8 @@ protected:
     // By default it looks at GetParameters()->Finite, but it can be overriden for cases when partitions is limited by their nature.
     virtual bool IsFinite();
 
+    virtual void AdjustInflight(const TInflightStreamTraverseDataPtr& inflight);
+
     // To call from heirs.
 
     // Provide partition info from queue broker. Thread-safe.

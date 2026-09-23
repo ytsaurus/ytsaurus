@@ -20,6 +20,9 @@ By default, takes the timestamp from the table name. This time corresponds to th
 || `system_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Default value**: `{'attribute': 'creation_time'}`
 By default, takes the timestamp from the table creation time. This time corresponds to when the data is written to the source. That is, the moment when the pipeline can see this data and start reading. This time is forwarded to the SystemTimestamp of messages. ||
+|| `use_planned_timestamps` | **Type**: `bool`
+**Default value**: `false`
+Use the persisted planned start time of each row range for both input message timestamps. The plan is fixed when the controller starts a table and survives restarts and rate changes. Timestamp locators still determine table discovery and ordering. Disabled by default. ||
 || `ignore_symlinks` | **Type**: `bool`
 **Default value**: `false`
 A flag that allows ignoring symlinks inside the table folder. ||

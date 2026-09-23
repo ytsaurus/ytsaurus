@@ -103,6 +103,8 @@ public:
         TDuration readTimeout);
 
 private:
+    void AdjustInflight(const TInflightStreamTraverseDataPtr& inflight) final;
+
     void DoInit() final;
     void DoTerminate() final;
 
@@ -132,6 +134,7 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler_;
 
     std::atomic<i64> PersistedOffsetExclusive_;
+    std::vector<std::pair<i64, TSystemTimestamp>> PendingPlannedTimestamps_;
     TFuture<NApi::ITableReaderPtr> ReaderFuture_;
     i64 CurrentOffset_ = 0;
 
@@ -158,9 +161,16 @@ struct TSourceControllerTable
     // Position of this table's directory name within its (Era, EventTimestamp) group.
     i64 EventOrdinal{};
 
+    std::optional<TInstant> PlannedStartTime;
+    TDuration PlannedReadDuration;
+    i64 PlannedProcessedRows{};
+    THashMap<TRangeId, TSystemTimestamp> PlannedRangeTimestamps;
+
     i64 DistributedRows{};
 
     THashMap<TRangeId, std::pair<i64, i64>> DistributingRanges; // rangeId -> (rangeBegin, rangeEnd).
+
+    TSystemTimestamp GetPlannedTimestamp(i64 rowIndex) const;
 
     i64 GetNotDistributedRows() const;
 
@@ -298,6 +308,20 @@ public:
         bool isIdle,
         const std::optional<TDuration>& idleWatermarkDelay);
 
+    static void InitializePlannedTimestamps(
+        const TDynamicTableSourceParametersPtr& dynamicParameters,
+        const TSourceControllerTablePtr& table,
+        TInstant now);
+
+    static void ReplanRemainingReads(
+        const TDynamicTableSourceParametersPtr& dynamicParameters,
+        const TSourceControllerTablePtr& table,
+        TInstant now);
+
+    static TSystemTimestamp GetFuturePlannedTimestamp(
+        const TSourceControllerTablePtr& table,
+        TSystemTimestamp now);
+
     static double GetDesiredRowsPerSecond(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
         const TSourceControllerTablePtr& distributingTable);
@@ -383,7 +407,8 @@ public:
         TSourceControllerState* state,
         const std::vector<TSourceControllerTablePtr>& tables,
         const NLogging::TLogger& publicLogger,
-        EMigrationMode mode = EMigrationMode::V2);
+        EMigrationMode mode = EMigrationMode::V2,
+        std::function<void(const TSourceControllerTablePtr&)> onTableStarted = {});
 
     static bool ApplyRestartInstantLogic(
         TSourceControllerState* state,
@@ -420,13 +445,17 @@ public:
     static TSourceControllerTablePtr MakeFailoverTable(
         const TSourceControllerTablePtr& current,
         const TSourceControllerTablePtr& serving,
-        const TSourceControllerTablePtr& resumeFrom);
+        const TSourceControllerTablePtr& resumeFrom,
+        TInstant now,
+        const TDynamicTableSourceParametersPtr& dynamicParameters);
 
     static std::optional<TFailoverDecision> DecideFailover(
         const TSourceControllerTablePtr& current,
         const TSourceControllerTablePtr& servingReplica,
         const THashMap<std::string, TSourceControllerTablePtr>& stash,
-        const NLogging::TLogger& publicLogger);
+        const NLogging::TLogger& publicLogger,
+        TInstant now,
+        const TDynamicTableSourceParametersPtr& dynamicParameters);
 
     static void StashRangesForCleanup(
         TSourceControllerState* state,

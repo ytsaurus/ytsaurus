@@ -110,9 +110,7 @@ class StrictOptionalTableInfo:
                 )
             )
         self.expected_output = [
-            {"data": row.data.data, "event_time": create_time}
-            for row in self.input_data
-            if row.data is not None
+            {"data": row.data.data, "event_time": create_time} for row in self.input_data if row.data is not None
         ]
 
 
@@ -135,7 +133,9 @@ class StrictYsonTableInfo:
                     ),
                 }
             )
-        self.expected_output = [{"data": yt.yson.loads(row["data"]).get("data"), "event_time": create_time} for row in self.input_data]
+        self.expected_output = [
+            {"data": yt.yson.loads(row["data"]).get("data"), "event_time": create_time} for row in self.input_data
+        ]
 
 
 class WeakOptionalTableInfo:
@@ -150,14 +150,15 @@ class WeakOptionalTableInfo:
                 "null_first": i % 2 == 0,
                 "all_null": True,
             }[null_pattern]
-            self.input_data.append({
-                "data": None if is_null else f"payload_{alias}_{i:05}",
-            })
+            self.input_data.append(
+                {
+                    "data": None if is_null else f"payload_{alias}_{i:05}",
+                }
+            )
         self.expected_output = [
-            {"data": row["data"], "event_time": create_time}
-            for row in self.input_data
-            if row["data"] is not None
+            {"data": row["data"], "event_time": create_time} for row in self.input_data if row["data"] is not None
         ]
+
 
 ##################################################################
 
@@ -171,8 +172,12 @@ class Test(FlowTestBase):
         self.client.create("map_node", self.input_dir)
         self.first_input_table = TableInfo("first", int(1.5e9), EVENT_COUNT, self.input_dir)
         self.second_input_table = TableInfo("second", int(1.6e9), EVENT_COUNT, self.input_dir)
-        self.strict_composite_input_table = StrictCompositeTableInfo("strict_composite", int(1.5e9), EVENT_COUNT, self.input_dir)
-        self.weak_composite_input_table = WeakCompositeTableInfo("weak_composite", int(1.5e9), EVENT_COUNT, self.input_dir)
+        self.strict_composite_input_table = StrictCompositeTableInfo(
+            "strict_composite", int(1.5e9), EVENT_COUNT, self.input_dir
+        )
+        self.weak_composite_input_table = WeakCompositeTableInfo(
+            "weak_composite", int(1.5e9), EVENT_COUNT, self.input_dir
+        )
         self.output_queue = self.work_yt_path + "/output_queue"
 
     def get_output(self):
@@ -214,6 +219,7 @@ class Test(FlowTestBase):
         finite: bool = True,
         desired_table_process_time: datetime.timedelta = datetime.timedelta(seconds=1),
         add_bad_source: bool = False,
+        use_planned_timestamps: bool = False,
     ):
         config_path, sink_computation = {
             "swift": (PIPELINE_SWIFT_CONFIG_PATH, "reader"),
@@ -223,6 +229,7 @@ class Test(FlowTestBase):
 
         source_parameters = pipeline_config["spec"]["computations"]["reader"]["source_streams"]["table"]["parameters"]
         source_parameters["finite"] = finite
+        source_parameters["use_planned_timestamps"] = use_planned_timestamps
         if process_directory:
             source_parameters["tables_path"] = f"<cluster=primary>{self.input_dir}"
         else:
@@ -242,6 +249,15 @@ class Test(FlowTestBase):
                 "desired_table_process_time": desired_table_process_time.total_seconds() * 1000,
             }
         )
+
+        if use_planned_timestamps:
+            pipeline_config["dynamic_spec"]["computations"]["reader"]["source_streams"]["table"]["parameters"].update(
+                {
+                    "desired_partition_rows_per_second": EVENT_COUNT / 8,
+                    "desired_partition_process_time": 2000,
+                    "max_partition_count": 2,
+                }
+            )
 
         reader_empty_spec = pipeline_config["spec"]["computations"].get("reader_empty")
         if reader_empty_spec:
@@ -285,16 +301,40 @@ class Test(FlowTestBase):
             assert len(list(self.client.select_rows(f"* FROM [{self.pipeline_path}/states] LIMIT 10000"))) == 0
 
             def check_partitions_cleaned():
-                rows = list(self.client.select_rows(
-                    f"* FROM [{self.pipeline_path}/flow_state] "
-                    'WHERE state_name = "layout_partitions" AND value IS NOT NULL '
-                    "LIMIT 10000"
-                ))
+                rows = list(
+                    self.client.select_rows(
+                        f"* FROM [{self.pipeline_path}/flow_state] "
+                        'WHERE state_name = "layout_partitions" AND value IS NOT NULL '
+                        "LIMIT 10000"
+                    )
+                )
                 return len(rows) == 0
 
             # Partitions of source computation must be cleaned and partitions of transform must not.
             if pipeline_type != "transform":
                 wait(check_partitions_cleaned, timeout=180)
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("pipeline_type", ["swift", "transform"])
+    def test_planned_timestamps(self, pipeline_type):
+        run_yt_sync("primary", self.work_yt_path)
+        self.prepare_input_table(self.first_input_table)
+        pipeline_config_path = self.prepare_pipeline_config(
+            pipeline_type=pipeline_type,
+            use_planned_timestamps=True,
+            desired_table_process_time=datetime.timedelta(seconds=4),
+        )
+        before_start = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+        with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}):
+            self.wait_pipeline_state("completed", timeout=180)
+            output = self.get_output()
+            assert [row["data"] for row in output] == [row["data"] for row in self.first_input_table.expected_output]
+            start = output[0]["event_time"]
+            assert start >= before_start
+            rows_per_range = EVENT_COUNT // 4
+            assert [row["event_time"] for row in output] == [
+                start + index // rows_per_range for index in range(EVENT_COUNT)
+            ]
 
     @pytest.mark.authors(["pechatnov"])
     def test_two_input_tables(self):
