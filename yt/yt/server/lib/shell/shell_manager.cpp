@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_helpers.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
@@ -331,6 +332,8 @@ public:
     IShellPtr MakeShell(std::unique_ptr<TShellOptions> options, const TJobShellDescriptor& jobShellDescriptor) override
     {
         options->EnableJobShellSeccopm = EnableJobShellSeccopm;
+
+        ValidatePortoContainerSubpath(jobShellDescriptor.Subcontainer);
 
         auto subcontainerName = (RootInstance_ ? RootInstance_->GetName() : "") + jobShellDescriptor.Subcontainer;
         options->ContainerName = Format("%v/js-%v", subcontainerName, options->Index);

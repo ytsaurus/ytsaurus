@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
@@ -643,6 +645,10 @@ void TJobShell::Register(TRegistrar registrar)
 
     registrar.Parameter("owners", &TThis::Owners)
         .Default();
+
+    registrar.Postprocessor([] (TJobShell* jobShell) {
+        NContainers::ValidatePortoContainerSubpath(jobShell->Subcontainer);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1528,6 +1534,13 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
         for (const auto& [variableName, _] : spec->Environment) {
             NControllerAgent::ValidateEnvironmentVariableName(variableName);
+        }
+
+        for (const auto& [sidecarName, _] : spec->Sidecars) {
+            if (auto error = NContainers::CheckPortoContainerNameComponent(sidecarName); !error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Invalid sidecar name %Qv in option \"sidecars\"", sidecarName)
+                    .With(std::move(error));
+            }
         }
 
         // If you want to perform any actions on the volumes, it’s best to do them in the ValidateAndEnrichVolumeSpec function.

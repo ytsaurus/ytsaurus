@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -154,6 +156,8 @@ private:
         context->AnnotateRequest()
             .With("JobId", jobId)
             .With("Subcontainer", subcontainer);
+
+        NContainers::ValidatePortoContainerSubpath(subcontainer);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto pollShellResponse = job->PollJobShell(jobShellDescriptor, parameters);
