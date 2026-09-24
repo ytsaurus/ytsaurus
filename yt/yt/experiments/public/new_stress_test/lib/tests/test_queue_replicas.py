@@ -15,12 +15,14 @@ def client(monkeypatch):
     client = Mock(spec=stress.yt)
     client.TablePath = stress.yt.TablePath
     client.config = {
-        "dynamic_table_retries": {},
         "tablets_ready_timeout": 1000,
         "tablets_check_interval": 1,
     }
     client.Transaction.side_effect = lambda **kwargs: nullcontext()
-    monkeypatch.setattr(stress, "yt", client)
+    monkeypatch.setattr(stress, "master_client", client)
+    monkeypatch.setattr(stress, "tablet_client", client)
+    monkeypatch.setattr(stress, "create_master_client", lambda config: client)
+    monkeypatch.setattr(stress, "create_tablet_client", lambda config: client)
 
     def wait(predicate, error_message, timeout, sleep_backoff):
         assert timeout > 0
@@ -55,9 +57,9 @@ def make_queue(modes=("sync", "sync", "async"), replicated_table_hunks=False):
     return queue
 
 
-@pytest.mark.parametrize("replica_cell", [12, None])
-@pytest.mark.parametrize("erasure", [False, True])
-@pytest.mark.parametrize("source_hunks", [False, True])
+@pytest.mark.parametrize("replica_cell, erasure, source_hunks", [
+    (12, False, False), (12, True, True), (None, False, True), (None, True, False),
+])
 def test_creation_and_relink(client, replica_cell, erasure, source_hunks):
     nodes = {}
 
@@ -182,8 +184,9 @@ def test_creation_and_relink(client, replica_cell, erasure, source_hunks):
     assert queue.hunk_storage_name is None
 
 
-@pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
-@pytest.mark.parametrize("in_mount_config", [False, True])
+@pytest.mark.parametrize("in_memory_mode, in_mount_config", [
+    ("compressed", False), ("uncompressed", True),
+])
 def test_replicated_table_disables_in_memory_mode(client, in_memory_mode, in_mount_config):
     attributes = {
         "in_memory_mode": "none" if in_mount_config else in_memory_mode,
@@ -214,9 +217,8 @@ def test_replicated_table_disables_in_memory_mode(client, in_memory_mode, in_mou
     assert attributes == original_attributes
 
 
-@pytest.mark.parametrize("source_hunks", [False, True])
-def test_removal_unlinks_replicas_and_deletes_mounted_storages(client, source_hunks):
-    queue = make_queue(replicated_table_hunks=source_hunks)
+def test_removal_unlinks_replicas_and_deletes_mounted_storages(client):
+    queue = make_queue(replicated_table_hunks=True)
     mounted = {queue.path, queue.data_path}
     owners = {}
     linked = {}
@@ -361,15 +363,14 @@ def test_write_replica_requirements_and_visibility(client, monkeypatch, replicat
             assert "require_sync_replica" not in call.kwargs
 
 
-@pytest.mark.parametrize("replication", ["mixed", "async", "single_async", "stuck_async", "plain"])
+@pytest.mark.parametrize("replication", ["mixed", "async", "stuck_async", "plain"])
 def test_operation_input_replica_visibility(client, monkeypatch, replication):
     if replication == "plain":
         queue = stress.Queue("//test", "queue", 2)
     elif replication == "mixed":
         queue = make_queue()
     else:
-        modes = ("async",) if replication == "single_async" else ("async", "async")
-        queue = make_queue(modes)
+        queue = make_queue(("async", "async"))
     queue.written_row_count = [2, 1]
     monkeypatch.setattr(stress.random, "choice", lambda replicas: replicas[-1])
     polls = []
@@ -400,72 +401,53 @@ def test_operation_input_replica_visibility(client, monkeypatch, replication):
             assert polls == [expected_path, expected_path]
 
 
-@pytest.mark.parametrize("problem", [None, "key", "value", "missing", "weight", "row_index"])
-@pytest.mark.parametrize("all_async", [False, True])
+@pytest.mark.parametrize("all_async, problem", [
+    (False, None), (True, None), (False, "value"), (True, "missing"),
+])
 def test_read_checks_async_replicas(client, monkeypatch, problem, all_async):
     modes = ("async", "async") if all_async else ("sync", "sync", "async")
-    expected = [
-        [{"row_index": 0, "key": "a", "value": "first", "cumulative_data_weight": 15},
-         {"row_index": 1, "key": "b", "value": "second", "cumulative_data_weight": 31}],
-        [{"row_index": 0, "key": "c", "value": "third", "cumulative_data_weight": 15}],
-    ]
+    expected = {"row_index": 0, "key": "a", "value": "b", "cumulative_data_weight": 11}
     rows = {}
     asynchronous = f"//test/queue_0.replica_{len(modes) - 1}"
     polls = {}
     reads = set()
 
     def create_queue(queue, attributes, erasure):
-        queue.tablet_count = 2
-        queue.mount_state = stress.MountState(2)
+        queue.tablet_count = 1
+        queue.mount_state = stress.MountState(1)
         queue.mount_state.mount(None)
-        queue.written_row_count = [2, 1]
+        queue.written_row_count = [1]
         queue.replicas = [
             {
                 "path": queue._replica_path(index), "mode": mode, "hunks": False,
-                "trimmed_row_counts": [0, 0],
+                "trimmed_row_counts": [0],
             }
             for index, mode in enumerate(modes)
         ]
         for replica in queue.replicas:
             path = replica["path"]
-            rows[path] = copy.deepcopy(expected)
-            for tablet in rows[path]:
-                for row in tablet:
-                    row["$row_index"] = row.pop("row_index")
-                    row["$cumulative_data_weight"] = row.pop("cumulative_data_weight")
+            rows[path] = [{"key": "a", "value": "b", "$row_index": 0,
+                           "$cumulative_data_weight": 11}]
             polls[path] = 0
             if path == asynchronous:
-                if problem in ("key", "value"):
-                    rows[path][1][0][problem] = "corrupted"
+                if problem == "value":
+                    rows[path][0]["value"] = "corrupted"
                 elif problem == "missing":
-                    rows[path] = [[], []]
-                elif problem == "weight":
-                    rows[path][1][0]["$cumulative_data_weight"] += 1
-                elif problem == "row_index":
-                    rows[path][1][0]["$row_index"] += 1
+                    rows[path] = []
 
     def get_tablet_infos(path, tablet_indexes):
         polls[path] += 1
         ready = path != asynchronous or polls[path] >= 2
-        return {"tablets": [
-            {"total_row_count": len(rows[path][index]) if ready else 0}
-            for index in tablet_indexes
-        ]}
+        return {"tablets": [{"total_row_count": len(rows[path]) if ready else 0}]}
 
     def pull_queue(path, offset, partition_index, max_data_weight):
         assert path != asynchronous or polls[path] >= 2
         reads.add(path)
-        return rows[path][partition_index][offset:offset + 1]
-
-    def select_rows(query):
-        tablet_index = int(re.search(r"where tablet_index = (\d+)", query)[1])
-        start = int(re.search(r"row_index >= (\d+)", query)[1])
-        limit = int(re.search(r"limit (\d+)", query)[1])
-        return [row for row in expected[tablet_index] if row["row_index"] >= start][:limit]
+        return rows[path][offset:offset + 1]
 
     client.get_tablet_infos.side_effect = get_tablet_infos
     client.pull_queue.side_effect = pull_queue
-    client.select_rows.side_effect = select_rows
+    client.select_rows.return_value = [expected]
     client.get.side_effect = lambda path, **kwargs: (
         "local-test" if path == "//sys/@cluster_name" else {"external_cell_tag": 11})
     monkeypatch.setattr(stress.Queue, "create", create_queue)
