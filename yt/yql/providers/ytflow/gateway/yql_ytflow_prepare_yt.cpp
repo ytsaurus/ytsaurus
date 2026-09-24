@@ -407,20 +407,46 @@ public:
     TOutputTablesAction()
     { }
 
+    struct TOutputTable
+    {
+        TString Cluster;
+        TString Path;
+        bool DoesExist;
+        bool Truncate;
+        TVector<TString> KeyColumns;
+        NYT::NTableClient::TTableSchemaPtr Schema;
+    };
+
     void Init(TExprNode::TPtr node, TContext& prepareCtx) override
     {
         TYtMixin::Init(prepareCtx);
 
         VisitPersistentSinkSettings(node, prepareCtx, [this, &prepareCtx](const ::google::protobuf::Any& sinkSettings) {
-            if (sinkSettings.Is<NProto::TQYTSinkMessage>()) {
-                auto& settings = QYTSinkSettings.emplace_back();
+            if (sinkSettings.Is<NProto::TYtQueueSinkMessage>()) {
+                NProto::TYtQueueSinkMessage settings;
                 sinkSettings.UnpackTo(&settings);
 
-                auto* rowType = ::NYql::NCommon::ParseTypeFromYson(
-                    TStringBuf(settings.GetRowType()), prepareCtx.ExprContext);
+                OutputTables.push_back({
+                    .Cluster = settings.GetCluster(),
+                    .Path = settings.GetPath(),
+                    .DoesExist = settings.GetDoesExist(),
+                    .Truncate = settings.GetTruncate(),
+                    .Schema = BuildTableSchema(::NYql::NCommon::ParseTypeFromYson(
+                        TStringBuf(settings.GetRowType()), prepareCtx.ExprContext)),
+                });
+            } else if (sinkSettings.Is<NProto::TYtSortedTableSinkMessage>()) {
+                NProto::TYtSortedTableSinkMessage settings;
+                sinkSettings.UnpackTo(&settings);
 
-                auto tableSchema = BuildTableSchema(rowType);
-                QYTSinkSchemas.push_back(std::move(tableSchema));
+                OutputTables.push_back({
+                    .Cluster = settings.GetCluster(),
+                    .Path = settings.GetPath(),
+                    .DoesExist = settings.GetDoesExist(),
+                    .Truncate = settings.GetTruncate(),
+                    .KeyColumns = {settings.GetKeyColumns().begin(), settings.GetKeyColumns().end()},
+                    .Schema = BuildTableSchema(::NYql::NCommon::ParseTypeFromYson(
+                        TStringBuf(settings.GetRowType()), prepareCtx.ExprContext)),
+                });
             }
         });
     }
@@ -434,7 +460,7 @@ public:
         YQL_CLOG(INFO, ProviderYtflow)
             << "Preparing output tables...";
 
-        for (ssize_t index = 0; index < std::ssize(QYTSinkSettings); ++index) {
+        for (ssize_t index = 0; index < std::ssize(OutputTables); ++index) {
             auto future = BIND(
                 &TOutputTablesAction::PrepareYtOutputTable,
                 NYT::MakeStrong(this),
@@ -464,27 +490,25 @@ private:
     {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
-        const auto& settings = QYTSinkSettings[sinkIndex];
-
-        TVector<TString> keyColumns(
-            settings.GetKeyColumns().begin(), settings.GetKeyColumns().end());
+        const auto& settings = OutputTables[sinkIndex];
+        const auto& keyColumns = settings.KeyColumns;
 
         const TStringBuf tableKind = keyColumns ? "sorted" : "ordered";
 
         YQL_CLOG(INFO, ProviderYtflow)
-            << "Preparing output yt " << tableKind << " table " << settings.GetPath()
+            << "Preparing output yt " << tableKind << " table " << settings.Path
             << " ...";
 
-        if (settings.GetDoesExist() && !settings.GetTruncate()) {
+        if (settings.DoesExist && !settings.Truncate) {
             YQL_CLOG(INFO, ProviderYtflow)
-                << "Skipped prepare of output yt " << tableKind << " table " << settings.GetPath();
+                << "Skipped prepare of output yt " << tableKind << " table " << settings.Path;
 
             auto client = GetClient(
-                ConfigClusters->GetRealName(settings.GetCluster()),
-                GetAuth(settings.GetCluster()));
+                ConfigClusters->GetRealName(settings.Cluster),
+                GetAuth(settings.Cluster));
 
             auto path = ::NYql::NYtflow::NPrivate::CanonizeYtPath(
-                settings.GetPath(), *GetConfig());
+                settings.Path, *GetConfig());
 
             return EnsureYtTableMounted(
                 path,
@@ -494,8 +518,8 @@ private:
         }
 
         auto schema = keyColumns
-            ? ConvertToSortedTableCreateSchema(QYTSinkSchemas[sinkIndex], keyColumns)
-            : ConvertToQueueCreateSchema(QYTSinkSchemas[sinkIndex]);
+            ? ConvertToSortedTableCreateSchema(settings.Schema, keyColumns)
+            : ConvertToQueueCreateSchema(settings.Schema);
 
         auto attributes = NYT::NYTree::CreateEphemeralAttributes();
         attributes->Set("dynamic", true);
@@ -514,10 +538,10 @@ private:
 
         return CreateYtNode(
             NYT::NObjectClient::EObjectType::Table,
-            settings.GetPath(),
+            settings.Path,
             std::move(attributes),
             NYT::NYTree::CreateEphemeralAttributes(),
-            settings.GetCluster(),
+            settings.Cluster,
             *GetConfig(),
             /*force*/ true,
             NYql::NLog::CurrentLogContextPath(),
@@ -532,13 +556,12 @@ private:
                 YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
                 YQL_CLOG(INFO, ProviderYtflow)
-                    << "Prepared output yt " << tableKind << " table " << settings.GetPath();
+                    << "Prepared output yt " << tableKind << " table " << settings.Path;
             }).AsyncVia(invoker));
     }
 
 private:
-    TVector<NProto::TQYTSinkMessage> QYTSinkSettings;
-    TVector<NYT::NTableClient::TTableSchemaPtr> QYTSinkSchemas;
+    TVector<TOutputTable> OutputTables;
 };
 
 TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> BuildYqlPipelineTableAttributes(
@@ -693,8 +716,8 @@ public:
         TYtMixin::Init(prepareCtx);
 
         VisitPersistentSourceSettings(node, prepareCtx, [this](const ::google::protobuf::Any& sourceSettings) {
-            if (sourceSettings.Is<NProto::TQYTSourceMessage>()) {
-                auto& settings = QYTSourceSettings.emplace_back();
+            if (sourceSettings.Is<NProto::TYtQueueSourceMessage>()) {
+                auto& settings = YtQueueSourceSettings.emplace_back();
                 sourceSettings.UnpackTo(&settings);
             }
         });
@@ -773,7 +796,7 @@ public:
         ] {
             TVector<NYT::TFuture<void>> futures;
 
-            for (ssize_t index = 0; index < std::ssize(QYTSourceSettings); ++index) {
+            for (ssize_t index = 0; index < std::ssize(YtQueueSourceSettings); ++index) {
                 auto future = BIND(
                     &TYtConsumersAction::RegisterYtConsumer,
                     NYT::MakeStrong(this),
@@ -801,7 +824,7 @@ private:
     {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
-        const auto& settings = QYTSourceSettings[sourceIndex];
+        const auto& settings = YtQueueSourceSettings[sourceIndex];
 
         auto cluster = settings.GetCluster();
         auto clusterRealName = ConfigClusters->GetRealName(cluster);
@@ -872,7 +895,7 @@ private:
     }
 
 private:
-    TVector<NProto::TQYTSourceMessage> QYTSourceSettings;
+    TVector<NProto::TYtQueueSourceMessage> YtQueueSourceSettings;
 };
 
 class TYtProducersAction
@@ -883,13 +906,32 @@ public:
     TYtProducersAction()
     { }
 
-    void Init(TExprNode::TPtr /*node*/, TContext& prepareCtx) override
+    void Init(TExprNode::TPtr node, TContext& prepareCtx) override
     {
         TYtMixin::Init(prepareCtx);
+
+        VisitPersistentSinkSettings(node, prepareCtx, [this](const ::google::protobuf::Any& sinkSettings) {
+            if (!sinkSettings.Is<NProto::TYtQueueSinkMessage>()) {
+                return;
+            }
+
+            NProto::TYtQueueSinkMessage settings;
+            sinkSettings.UnpackTo(&settings);
+            if (ConfigClusters->GetRealName(settings.GetCluster()) !=
+                ::NYql::NYtflow::NPrivate::ResolvePipelineClusterName(
+                    *GetConfig(), *ConfigClusters))
+            {
+                AsyncQueueCluster = settings.GetCluster();
+            }
+        });
     }
 
     NYT::TFuture<void> Run(NYT::IInvokerPtr invoker) override
     {
+        if (!AsyncQueueCluster) {
+            return NYT::OKFuture;
+        }
+
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
         YQL_CLOG(INFO, ProviderYtflow)
@@ -901,8 +943,9 @@ public:
             =,
             this,
             this_ = NYT::MakeStrong(this),
-            path = GetYtProducerPath(),
-            cluster = GetCluster(),
+            path = ::NYql::NYtflow::NPrivate::CanonizeYtRichPath(
+                GetYtProducerPath(), *GetConfig()).GetPath(),
+            cluster = *AsyncQueueCluster,
             config = GetConfig()
         ]() mutable {
             return CreateYtNode(
@@ -967,7 +1010,7 @@ public:
     }
 
 private:
-    IYtflowGateway::TRunOptions RunOptions;
+    std::optional<TString> AsyncQueueCluster;
 };
 
 } // namespace NYql::NYtflow::NPrepare::NPrivate
