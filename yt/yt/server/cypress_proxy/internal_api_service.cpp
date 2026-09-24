@@ -49,11 +49,11 @@ private:
     {
         THROW_ERROR_EXCEPTION_UNLESS(request->has_cell_tag(), "External master cell tag is required");
         auto externalCellTag = FromProto<TCellTag>(request->cell_tag());
-        context->SetRequestInfo("ExternalCellTag: %v, TableCount: %v, FetchBalancingAttributes: %v, FetchStatistics: %v",
-            externalCellTag,
-            request->table_ids_size(),
-            request->fetch_balancing_attributes(),
-            request->fetch_statistics());
+        context->AnnotateRequest()
+            .With("ExternalCellTag", externalCellTag)
+            .With("TableCount", request->table_ids_size())
+            .With("FetchBalancingAttributes", request->fetch_balancing_attributes())
+            .With("FetchStatistics", request->fetch_statistics());
 
         TMasterTabletServiceProxy proxy(Bootstrap_->GetNativeConnection()->GetMasterChannelOrThrow(
             EMasterChannelKind::Follower,
@@ -68,7 +68,8 @@ private:
         auto nativeResponse = WaitFor(nativeRequest->Invoke())
             .ValueOrThrow();
         response->Swap(nativeResponse.Get());
-        context->SetResponseInfo("TableCount: %v", response->tables_size());
+        context->AnnotateResponse()
+            .With("TableCount", response->tables_size());
         context->Reply();
     }
 };
