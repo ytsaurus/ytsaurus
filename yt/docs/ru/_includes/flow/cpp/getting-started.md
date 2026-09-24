@@ -38,11 +38,11 @@ YT_FLOW_DEFINE_YSON_MESSAGE(TWordMessage);
 
 ### 2. Определите стейт {#define-state}
 
-Если [компьютейшен](../../../flow/concepts/glossary.md#stream-and-computation) работает со [стейтом](../../../flow/concepts/glossary.md#state), определите класс-наследник от `TStateBase`:
+Если [компьютейшен](../../../flow/concepts/glossary.md#stream-and-computation) работает со [стейтом](../../../flow/concepts/glossary.md#state), определите класс-наследник от `NYTree::TYsonStruct`:
 
 ```cpp
 struct TWordCountState
-    : public TStateBase
+    : public NYTree::TYsonStruct
 {
     i64 Count{};
 

@@ -10,7 +10,7 @@ Stateful computations accumulate an [internal state](../../../flow/concepts/glos
 
 Standard timers (see [Timers](../../../flow/concepts/timers.md)) aren’t suitable here. You must register them for each key in advance, but the set of keys can grow without an explicit “new key appeared” event. For example, keys may arrive only via state stores, not through a message stream.
 
-A key-visitor stream solves this problem. A background task in the worker periodically scans the entire state of a partition and emits a `TVisit` message for each key into a special internal stream. The process function subscribes to this stream via `ProcessVisit` / `process_visit` and decides how to handle its state, just like it would for a regular incoming message.
+A key-visitor stream solves this problem. A background task in the worker periodically scans the entire state of a partition and emits a `TVisit` message for each key into a special internal stream. The process function subscribes to this stream via `ProcessVisit` (C++) or `on_visit` / `OnVisit` / `onVisit` (Python / Go / Java) and decides how to handle its state, just like it would for a regular incoming message.
 
 ## How it works {#how-it-works}
 
