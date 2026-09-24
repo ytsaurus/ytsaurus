@@ -29,6 +29,7 @@ namespace {
 struct TFileProviderDiscoveryState
     : public TYsonStruct
 {
+    IMapNodePtr ResourceSpec;
     IMapNodePtr FileProviders;
     IMapNodePtr DynamicFileProviders;
     THashMap<TFileProviderId, TFileProviderRevisionPtr> Revisions;
@@ -42,6 +43,8 @@ struct TFileProviderDiscoveryState
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("resource_spec", &TThis::ResourceSpec)
+            .Default();
         registrar.Parameter("file_providers", &TThis::FileProviders)
             .Default();
         registrar.Parameter("dynamic_file_providers", &TThis::DynamicFileProviders)
@@ -211,8 +214,12 @@ public:
         if (initContext) {
             initContext->InitClient<TFileProviderDiscoveryState>(State_, "v0");
 
+            auto resourceSpec = ConvertToNode(Context_->ResourceSpec)->AsMap();
+            const auto staticSpecMatches = State_->ResourceSpec &&
+                AreNodesEqual(State_->ResourceSpec, resourceSpec);
+            State_->ResourceSpec = std::move(resourceSpec);
             auto fileProviders = ConvertToNode(Context_->ResourceSpec->FileProviders)->AsMap();
-            if (State_->FileProviders &&
+            if (staticSpecMatches && State_->FileProviders &&
                 State_->DynamicFileProviders &&
                 AreNodesEqual(State_->FileProviders, fileProviders) &&
                 AreNodesEqual(State_->DynamicFileProviders, DynamicFileProviders_))
@@ -241,7 +248,7 @@ public:
                 KnownFileSnapshots_ = State_->KnownFileSnapshots;
                 auto activeFileSnapshot = FindKnownFileSnapshot(State_->ActiveFileSnapshotId);
                 auto preparingFileSnapshot = FindKnownFileSnapshot(State_->PreparingFileSnapshotId);
-                if (ArePersistedFileSnapshotsCompatible(activeFileSnapshot, preparingFileSnapshot)) {
+                if (staticSpecMatches && ArePersistedFileSnapshotsCompatible(activeFileSnapshot, preparingFileSnapshot)) {
                     ActiveFileSnapshot_ = std::move(activeFileSnapshot);
                     PreparingFileSnapshot_ = std::move(preparingFileSnapshot);
                     LastFileSnapshotCreationTime_ = State_->LastFileSnapshotCreationTime;
