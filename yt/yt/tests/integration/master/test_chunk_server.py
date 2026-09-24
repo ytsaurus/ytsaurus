@@ -2058,6 +2058,51 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "13": {"roles": ["chunk_host"]},
     }
 
+    @authors("danilalexeev")
+    def test_cluster_statistics_reach_all_secondary_cells(self):
+        drivers = [get_driver(index) for index in range(self.NUM_SECONDARY_MASTER_CELLS + 1)]
+        statistic_path = "//sys/@lost_vital_chunk_count"
+
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
+
+        chunk_ids = {}
+        for cell_tag in (11, 12):
+            path = f"//tmp/missing_chunk_{cell_tag}"
+            create("table", path, attributes={
+                "external_cell_tag": cell_tag,
+                "replication_factor": 3,
+            })
+            write_table(path, {"key": "value"})
+            chunk_id = get_singular_chunk_id(path)
+            assert get(f"#{chunk_id}/@vital")
+            assert not get(f"#{chunk_id}/@historically_non_vital")
+            chunk_ids[cell_tag] = chunk_id
+        nodes = ls("//sys/cluster_nodes")
+
+        def all_cells_report_missing_chunks():
+            expected_count = sum(
+                get("//sys/local_lost_vital_chunks/@count", driver=driver)
+                for driver in drivers
+            )
+            return expected_count > 0 and all(
+                get(statistic_path, driver=driver) == expected_count
+                for driver in drivers
+            )
+
+        try:
+            set_nodes_banned(nodes, True)
+            wait(lambda: all(
+                chunk_id in ls("//sys/local_lost_vital_chunks", driver=drivers[cell_tag - 10])
+                for cell_tag, chunk_id in chunk_ids.items()
+            ))
+            # Cells 12 and 13 receive aggregate statistics; node host 11
+            # recomputes the total, including its own missing chunk.
+            wait(all_cells_report_missing_chunks)
+        finally:
+            set_nodes_banned(nodes, False)
+
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
+
 
 class TestChunkServerSequoia(TestChunkServerMulticell):
     ENABLE_MULTIDAEMON = True

@@ -1439,31 +1439,39 @@ public:
         addToObjectRevisions("consumers", chaosManager->GetQueueConsumers());
         addToObjectRevisions("producers", chaosManager->GetQueueProducers());
 
-        if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
+        if (multicellManager->IsPrimaryMaster()) {
+            auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
+            nodeHostCellTags.erase(multicellManager->GetCellTag());
+
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
-            for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
-                if (multicellManager->GetCellTag() != cellTag) {
-                    YT_TLOG_DEBUG("Requesting queue agent objects from secondary cell")
-                        .With("CellTag", cellTag);
-                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-                        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
-                    auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
-                    // TODO(kvk1920): don't use "root" user here.
-                    asyncResults.push_back(proxy.Execute(req));
-                }
+            asyncResults.reserve(nodeHostCellTags.size());
+            for (auto cellTag : nodeHostCellTags) {
+                YT_TLOG_DEBUG("Requesting queue agent objects from secondary cell")
+                    .With("CellTag", cellTag);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                    multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+                auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
+                // TODO(kvk1920): don't use "root" user here.
+                asyncResults.push_back(proxy.Execute(req));
             }
-            return AllSucceeded(std::move(asyncResults)).Apply(BIND([objectRevisions] (const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable {
-                for (const auto& rsp : responses) {
-                    auto objects = ConvertTo<TObjectRevisionMap>(TYsonString{rsp->value()});
-                    for (const auto& [key, items] : objects) {
-                        objectRevisions[key].insert(items.begin(), items.end());
-                    }
-                }
-                return ConvertToYsonString(objectRevisions);
-            }));
-        } else {
-            return MakeFuture(ConvertToYsonString(objectRevisions));
+
+            if (!asyncResults.empty()) {
+                return AllSucceeded(std::move(asyncResults))
+                    .Apply(BIND([objectRevisions = std::move(objectRevisions)] (
+                        const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable
+                    {
+                        for (const auto& rsp : responses) {
+                            auto objects = ConvertTo<TObjectRevisionMap>(TYsonString{rsp->value()});
+                            for (const auto& [key, items] : objects) {
+                                objectRevisions[key].insert(items.begin(), items.end());
+                            }
+                        }
+                        return ConvertToYsonString(objectRevisions);
+                    }));
+            }
         }
+
+        return MakeFuture(ConvertToYsonString(objectRevisions));
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationCreated);
