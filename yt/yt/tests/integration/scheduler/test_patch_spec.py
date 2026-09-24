@@ -13,10 +13,13 @@ from yt_commands import (
     patch_op_spec,
     raises_yt_error,
     read_table,
+    release_breakpoint,
     run_sleeping_vanilla,
     run_test_vanilla,
     update_controller_agent_config,
     wait,
+    wait_breakpoint,
+    with_breakpoint,
     write_table,
 )
 
@@ -74,6 +77,54 @@ class TestPatchSpec(YTEnvSetup):
                 }
             ],
         )
+
+
+class TestPatchSpecWithDiskSpace(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("krasovav")
+    @pytest.mark.timeout(180)
+    def test_patch_job_count_with_disk_space(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "volumes": {
+                    "disk": {
+                        "disk_request": {
+                            "type": "tmpfs",
+                            "disk_space": 100 * 1024 * 1024,
+                        },
+                    }
+                },
+                "job_volume_mounts": [
+                    {"volume_id": "disk", "mount_path": "/sandbox"}
+                ],
+            },
+        )
+
+        wait_breakpoint(job_count=1)
+
+        patch_op_spec(
+            op.id,
+            patches=[
+                {
+                    "path": "/tasks/task/job_count",
+                    "value": 2,
+                },
+            ],
+        )
+
+        wait_breakpoint(job_count=2)
+
+        release_breakpoint()
+        op.track()
+
+        assert op.get_job_count("completed") == 2
 
 
 class TestUpdateProtocolBase(YTEnvSetup):
