@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "service_proxy.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
@@ -16,9 +15,18 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/core/concurrency/serialized_invoker.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
+
 #include <util/random/random.h>
+
+#include <optional>
+#include <utility>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -30,6 +38,9 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NYson;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 using NApi::NNative::IClientPtr;
 
@@ -45,6 +56,35 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Session state machine. Entering Closed raises the terminal alternative, so exactly
+//! one is raised no matter which path ends the session.
+/*!
+ *    +---------+
+ *    | Created |
+ *    +---------+
+ *         | StartSession()
+ *         v
+ *    +----------+
+ *    | Starting | --- start failure ---------------->|  raise CloseFailed
+ *    +----------+                                    |
+ *         | ping executor started                    |
+ *         v                                          |
+ *    +---------+ --.                                 |
+ *    | Running |   | ping response -> raise InFlight |
+ *    +---------+ <-'                                 |
+ *         |  '--- ping lost / max failures --------->|  raise CloseFailed
+ *         | Close()                                  |
+ *         v                                          |
+ *    +---------+ --.                                 |
+ *    | Closing |   | ping response -> raise InFlight |
+ *    +---------+ <-'  at most once                   |
+ *         '--- FinishSession replied --------------->|  raise Final or CloseFailed
+ *                                                    |
+ *                                                    v
+ *                                               +--------+
+ *                                               | Closed |
+ *                                               +--------+
+ */
 DEFINE_ENUM(EControllerState,
     (Created)
     (Starting)
@@ -71,7 +111,7 @@ public:
         , TransactionId_(transactionId)
         , WriterOptions_(std::move(writerOptions))
         , WriterConfig_(std::move(writerConfig))
-        , Invoker_(std::move(invoker))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(DistributedChunkSessionLogger().WithTag("TransactionId", TransactionId_))
     { }
 
@@ -92,11 +132,10 @@ public:
                 MakeStrong(this))
                 .AsyncVia(Invoker_))
             .Apply(BIND(
-                &TDistributedChunkSessionController::InitializePingExecutor,
-                MakeStrong(this)))
-            .Apply(BIND(
-                &TDistributedChunkSessionController::HandleStartResult,
-                MakeStrong(this)));
+                &TDistributedChunkSessionController::OnSessionStarted,
+                MakeStrong(this))
+                .AsyncVia(Invoker_))
+            .ToUncancelable();
     }
 
     TFuture<void> Close() final
@@ -104,27 +143,40 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CloseSession();
-        return ClosedPromise_.ToFuture().ToUncancelable();
+        return ClosedFuture_;
     }
 
     TFuture<void> GetClosedFuture() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ClosedPromise_.ToFuture().ToUncancelable();
+        return ClosedFuture_;
     }
 
     TSessionId GetSessionId() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto state = State_.load();
-        YT_TLOG_FATAL_IF(
-            state != EControllerState::Running && state != EControllerState::Closed,
-            "Unexpected controller state")
-            .With("State", state);
+        return SessionId_.Load();
+    }
 
-        return SessionId_;
+    //! NB: The terminal alternative may be raised before the pool subscribes, since pings
+    //! start while StartSession() is still resolving. TerminalProgressUpdated_ replays it
+    //! to late subscribers, so it is delivered exactly once either way.
+    void SubscribeProgressUpdated(const TCallback<TSessionProgressUpdatedSignature>& callback) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        InFlightProgressUpdated_.Subscribe(callback);
+        TerminalProgressUpdated_.Subscribe(callback);
+    }
+
+    void UnsubscribeProgressUpdated(const TCallback<TSessionProgressUpdatedSignature>& callback) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        InFlightProgressUpdated_.Unsubscribe(callback);
+        TerminalProgressUpdated_.Unsubscribe(callback);
     }
 
 private:
@@ -142,15 +194,20 @@ private:
     std::atomic<EControllerState> State_ = EControllerState::Created;
 
     TPeriodicExecutorPtr SessionPingExecutor_;
-    TChunkReplicaWithMediumList ChunkReplicas_;
 
-    TSessionId SessionId_;
+    NThreading::TAtomicObject<TSessionId> SessionId_;
     TChunkReplicaWithMediumList Targets_;
 
     TNodeDescriptor SequencerDescriptor_;
     IChannelPtr SequencerChannel_;
 
     const TPromise<void> ClosedPromise_ = NewPromise<void>();
+    const TFuture<void> ClosedFuture_ = ClosedPromise_.ToFuture().ToUncancelable();
+
+    std::optional<TDistributedChunkSessionProgress> Progress_;
+
+    TCallbackList<TSessionProgressUpdatedSignature> InFlightProgressUpdated_;
+    TSingleShotCallbackList<TSessionProgressUpdatedSignature> TerminalProgressUpdated_;
 
     int ConsecutivePingFailures_ = 0;
 
@@ -183,16 +240,18 @@ private:
 
     TFuture<void> StartRemoteSession(TSessionId sessionId)
     {
-        SessionId_ = sessionId;
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        SessionId_.Store(sessionId);
         YT_TLOG_INFO("Chunk created")
-            .With("ChunkId", SessionId_);
+            .With("ChunkId", sessionId);
 
         // TODO(apollo1321): AllocateWriteTargets uses WaitFor internally, which contradicts
         // the no-WaitFor design of this file. Write targets allocation should also be batched
         // to reduce master workload. Both should be fixed via a distributed chunk session pool.
         Targets_ = AllocateWriteTargets(
             Client_,
-            SessionId_,
+            sessionId,
             /*desiredTargetCount*/ WriterOptions_->ReplicationFactor,
             /*minTargetCount*/ WriterOptions_->ReplicationFactor,
             /*replicationFactorOverride*/ {},
@@ -215,7 +274,7 @@ private:
         TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.StartSession();
         req->SetTimeout(Config_->NodeRpcTimeout);
-        ToProto(req->mutable_session_id(), SessionId_);
+        ToProto(req->mutable_session_id(), sessionId);
         req->set_session_timeout(ToProto(Config_->SessionTimeout));
         ToProto(req->mutable_chunk_replicas(), Targets_);
         req->set_journal_chunk_writer_options(ToProto(ConvertToYsonString(WriterOptions_)));
@@ -224,42 +283,50 @@ private:
         return req->Invoke().AsVoid();
     }
 
-    TStartedSessionInfo InitializePingExecutor(const TError& error)
+    TStartedSessionInfo OnSessionStarted(const TError& startError)
     {
-        error.ThrowOnError();
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
-        SessionPingExecutor_ = New<TPeriodicExecutor>(
-            Invoker_,
-            BIND_NO_PROPAGATE(&TDistributedChunkSessionController::SendSequencerPing, MakeWeak(this)),
-            Config_->SessionPingPeriod);
+        // NB: Every failure has to be observed while the controller is still starting,
+        // since a session left in that state neither terminates nor accepts Close().
+        auto startedSessionOrError = [&] () -> TErrorOr<TStartedSessionInfo> {
+            try {
+                startError.ThrowOnError();
 
-        SessionPingExecutor_->Start();
+                TStartedSessionInfo startedSession{
+                    .SessionId = SessionId_.Load(),
+                    .SequencerNode = SequencerDescriptor_,
+                    .Replicas = Targets_,
+                };
 
-        TransitionState(EControllerState::Starting, EControllerState::Running);
+                SessionPingExecutor_ = New<TPeriodicExecutor>(
+                    Invoker_,
+                    BIND_NO_PROPAGATE(&TDistributedChunkSessionController::SendSequencerPing, MakeWeak(this)),
+                    Config_->SessionPingPeriod);
+                SessionPingExecutor_->Start();
 
-        return TStartedSessionInfo{
-            .SessionId = SessionId_,
-            .SequencerNode = SequencerDescriptor_,
-            .Replicas = Targets_,
-        };
-    }
+                TransitionState(EControllerState::Starting, EControllerState::Running);
 
-    TStartedSessionInfo HandleStartResult(const TErrorOr<TStartedSessionInfo>& startedSessionOrError)
-    {
+                return startedSession;
+            } catch (const std::exception& ex) {
+                return TError(ex);
+            }
+        }();
+
         if (!startedSessionOrError.IsOK()) {
-            const auto& error = static_cast<const TError&>(startedSessionOrError);
+            const TError& error = startedSessionOrError;
             YT_TLOG_DEBUG("Failed to start session")
                 .With(error);
-            TransitionState(EControllerState::Starting, EControllerState::Closed);
+            YT_VERIFY(TryTerminate(EControllerState::Starting, error));
             ClosedPromise_.Set(error);
         }
 
         return startedSessionOrError.ValueOrThrow();
     }
 
-    void SendSequencerPing()
+    void SendSequencerPing() noexcept
     {
-        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
         YT_TLOG_DEBUG("Sending sequencer ping")
             .With("Address", SequencerDescriptor_.GetDefaultAddress());
@@ -267,70 +334,129 @@ private:
         TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.PingSession();
         req->SetTimeout(Config_->NodeRpcTimeout);
-        ToProto(req->mutable_session_id(), SessionId_);
+        ToProto(req->mutable_session_id(), SessionId_.Load());
 
         req->Invoke()
-            .AsVoid()
             .Subscribe(BIND(
                 &TDistributedChunkSessionController::OnSequencerPingResponse,
                 MakeWeak(this))
                 .Via(Invoker_));
     }
 
-    void OnSequencerPingResponse(const TError& error)
+    void OnSequencerPingResponse(
+        const TDistributedChunkSessionServiceProxy::TErrorOrRspPingSessionPtr& responseOrError) noexcept
     {
-        if (error.IsOK()) {
-            YT_TLOG_DEBUG("Successfully pinged session");
-            ConsecutivePingFailures_ = 0;
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        // NB: The ping executor is stopped asynchronously, so responses may still arrive
+        // after the session started closing. The finish response is its last word.
+        auto state = State_.load();
+        if (state != EControllerState::Running) {
+            YT_TLOG_DEBUG("Ignoring ping response of a non-running session")
+                .With("State", state);
             return;
         }
 
-        if (error.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
-            YT_TLOG_DEBUG("Session has been lost or expired, finishing controller")
+        if (!responseOrError.IsOK()) {
+            const TError& error = responseOrError;
+
+            if (error.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
+                YT_TLOG_DEBUG("Session has been lost or expired, finishing controller")
+                    .With(error);
+
+                CloseWithError(error);
+                return;
+            }
+
+            ++ConsecutivePingFailures_;
+            YT_TLOG_DEBUG("Session ping failed")
+                .With("ConsecutivePingFailures", ConsecutivePingFailures_)
+                .With("MaxConsecutivePingFailures", Config_->MaxConsecutivePingFailures)
                 .With(error);
 
-            CloseWithError(error);
+            if (ConsecutivePingFailures_ >= Config_->MaxConsecutivePingFailures) {
+                YT_TLOG_DEBUG("Too many consecutive ping failures, finishing controller")
+                    .With(error);
+
+                CloseWithError(error.Wrap("Too many consecutive ping failures"));
+            }
             return;
         }
 
-        ++ConsecutivePingFailures_;
-        YT_TLOG_DEBUG("Session ping failed")
-            .With("ConsecutivePingFailures", ConsecutivePingFailures_)
-            .With("MaxConsecutivePingFailures", Config_->MaxConsecutivePingFailures)
-            .With(error);
+        const auto& response = responseOrError.Value();
 
-        if (ConsecutivePingFailures_ >= Config_->MaxConsecutivePingFailures) {
-            YT_TLOG_DEBUG("Too many consecutive ping failures, finishing controller")
-                .With(error);
+        bool progressUpdated = false;
+        // COMPAT(apollo1321): A pre-26.2 sequencer reports no progress. Progress_ has to
+        // stay empty, since an engaged zero value would be published as an exact terminal
+        // result and suppress the master-seal fallback.
+        if (response->has_progress()) {
+            auto progressUpdatedOrError = TryUpdateProgress(
+                FromProto<TDistributedChunkSessionProgress>(response->progress()),
+                /*isFinal*/ false);
+            if (!progressUpdatedOrError.IsOK()) {
+                CloseWithError(progressUpdatedOrError);
+                return;
+            }
 
-            CloseWithError(error.Wrap("Too many consecutive ping failures"));
+            progressUpdated = progressUpdatedOrError.Value();
+        }
+
+        YT_TLOG_DEBUG("Successfully pinged session");
+        ConsecutivePingFailures_ = 0;
+
+        // NB: Subscribers run inline here and must not throw.
+        if (progressUpdated) {
+            InFlightProgressUpdated_.Fire(TSessionInFlightProgress(*Progress_));
         }
     }
 
     void CloseWithError(const TError& error)
     {
-        auto expected = EControllerState::Running;
-        if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
-            ClosedPromise_.SetFrom(
-                StopPingExecutor().Apply(BIND([error] {
-                    return MakeFuture(error);
-                })));
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        if (!TryTerminate(EControllerState::Running, error)) {
+            return;
         }
+
+        ClosedPromise_.SetFrom(
+            StopPingExecutor().Apply(BIND([error] {
+                return MakeFuture(error);
+            })));
+    }
+
+    //! Returns false when the move to the terminal state was lost to a concurrent one.
+    bool TryTerminate(EControllerState from, const TError& error)
+    {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        if (TryTransitionState(from, EControllerState::Closed) != from) {
+            return false;
+        }
+
+        TerminalProgressUpdated_.Fire(error.IsOK()
+            ? TControllerSessionProgress(TSessionFinalProgress(Progress_))
+            : TControllerSessionProgress(TSessionCloseFailed(error)));
+
+        // NB: No in-flight update can follow the terminal one, so the subscribers are
+        // released rather than held until the controller dies.
+        InFlightProgressUpdated_.Clear();
+
+        return true;
     }
 
     void CloseSession()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto expected = EControllerState::Running;
-        if (!State_.compare_exchange_strong(expected, EControllerState::Closing)) {
+        auto actual = TryTransitionState(EControllerState::Running, EControllerState::Closing);
+        if (actual != EControllerState::Running) {
             YT_TLOG_DEBUG("Session is not running")
-                .With("State", expected);
+                .With("State", actual);
 
             YT_TLOG_FATAL_IF(
-                expected != EControllerState::Closing && expected != EControllerState::Closed,
-                "Unexpected controller state")
-                .With("State", expected);
+                actual != EControllerState::Closing && actual != EControllerState::Closed,
+                "Session is closed before it has started")
+                .With("State", actual);
             return;
         }
 
@@ -339,23 +465,32 @@ private:
         TDistributedChunkSessionServiceProxy proxy(SequencerChannel_);
         auto req = proxy.FinishSession();
         req->SetTimeout(Config_->NodeRpcTimeout);
-        ToProto(req->mutable_session_id(), SessionId_);
+        ToProto(req->mutable_session_id(), SessionId_.Load());
 
         ClosedPromise_.SetFrom(
             req->Invoke()
-                .AsVoid()
-                .AsUnique()
                 .Apply(BIND(
                     &TDistributedChunkSessionController::OnSessionFinished,
-                    MakeStrong(this)))
-                .AsUnique()
-                .Apply(BIND(
-                    &TDistributedChunkSessionController::OnPingExecutorStopped,
-                    MakeStrong(this))));
+                    MakeStrong(this))
+                    .AsyncVia(Invoker_)));
     }
 
-    TUniqueFuture<void> OnSessionFinished(TError&& error)
+    //! Runs on both the success and the failure path: the ping executor must be stopped
+    //! and the state transitioned even when the finish RPC or progress publication failed.
+    TFuture<void> OnSessionFinished(
+        const TDistributedChunkSessionServiceProxy::TErrorOrRspFinishSessionPtr& responseOrError)
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        TError error = responseOrError;
+        // COMPAT(apollo1321): Otherwise the sequencer is pre-26.2 and Progress_ stays
+        // empty, which terminates the session without any logical counters.
+        if (error.IsOK() && responseOrError.Value()->has_progress()) {
+            error = TryUpdateProgress(
+                FromProto<TDistributedChunkSessionProgress>(responseOrError.Value()->progress()),
+                /*isFinal*/ true);
+        }
+
         if (error.IsOK()) {
             YT_TLOG_DEBUG("Successfully closed session");
         } else {
@@ -363,33 +498,84 @@ private:
                 .With(error);
         }
 
+        YT_VERIFY(TryTerminate(EControllerState::Closing, error));
+
         return StopPingExecutor().Apply(BIND([error] {
-            return MakeFuture(error);
-        })).AsUnique();
+            error.ThrowOnError();
+        }));
     }
 
-    void OnPingExecutorStopped(TError&& finishError)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        TransitionState(EControllerState::Closing, EControllerState::Closed);
-
-        finishError.ThrowOnError();
-    }
-
-    TUniqueFuture<void> StopPingExecutor()
+    TFuture<void> StopPingExecutor()
     {
         return SessionPingExecutor_->Stop()
             .Apply(BIND([Logger = Logger] (const TError& error) {
                 YT_TLOG_FATAL_IF(!error.IsOK(), "Unexpected failure during session ping executor stopping")
                     .With(error);
-            }))
-            .AsUnique();
+            }));
     }
 
-    void TransitionState(EControllerState from, EControllerState to)
+    //! A sequencer reporting impossible progress is a bug, so the caller fails the session
+    //! instead of retrying against a peer that will keep sending the same thing.
+    TError OnBrokenProgress(TError error)
     {
-        auto actual = State_.exchange(to);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        YT_TLOG_ALERT("Sequencer reported broken session progress")
+            .With(error);
+
+        return error;
+    }
+
+    //! Returns whether the progress advanced.
+    TErrorOr<bool> TryUpdateProgress(const TDistributedChunkSessionProgress& progress, bool isFinal)
+    {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
+        auto state = State_.load();
+        YT_VERIFY(state == EControllerState::Running || state == EControllerState::Closing);
+
+        if (!IsNonnegative(progress)) {
+            return OnBrokenProgress(
+                TError("Distributed chunk session progress must be nonnegative")
+                    .With("progress", progress));
+        }
+
+        if (Progress_ && IsComponentwiseLessOrEqual(progress, *Progress_)) {
+            // NB: A ping may trail confirmed progress, since responses can arrive out of
+            // order, but the single final response is the sequencer's last word.
+            if (isFinal && progress != *Progress_) {
+                return OnBrokenProgress(
+                    TError("Final distributed chunk session progress is behind "
+                        "previously confirmed progress")
+                        .With("confirmed_progress", *Progress_)
+                        .With("final_progress", progress));
+            }
+            return false;
+        }
+
+        if (Progress_ && !IsComponentwiseLessOrEqual(*Progress_, progress)) {
+            return OnBrokenProgress(
+                TError("Distributed chunk session progress counters changed inconsistently")
+                    .With("current_progress", *Progress_)
+                    .With("new_progress", progress));
+        }
+
+        Progress_ = progress;
+        YT_TLOG_DEBUG("Session progress updated")
+            .With("Progress", progress);
+        return true;
+    }
+
+    //! The single writer of State_. Returns the state it actually observed.
+    EControllerState TryTransitionState(EControllerState from, EControllerState to) noexcept
+    {
+        State_.compare_exchange_strong(from, to);
+        return from;
+    }
+
+    void TransitionState(EControllerState from, EControllerState to) noexcept
+    {
+        auto actual = TryTransitionState(from, to);
         YT_TLOG_FATAL_IF(actual != from, "Unexpected controller state")
             .With("ExpectedState", from)
             .With("ActualState", actual)

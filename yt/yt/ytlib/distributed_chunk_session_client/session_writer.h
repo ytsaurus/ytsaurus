@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "statistics.h"
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -13,7 +14,9 @@ namespace NYT::NDistributedChunkSessionClient {
 struct IDistributedChunkWriter
     : virtual public TRefCounted
 {
-    virtual TFuture<void> WriteRecord(TSharedRef record) = 0;
+    virtual TFuture<void> WriteRecord(
+        TSharedRef record,
+        TDistributedChunkSessionWriteStatistics statistics) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkWriter)

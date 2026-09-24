@@ -281,7 +281,8 @@ protected:
             Transaction_->GetId(),
             WriterOptions_,
             WriterConfig_,
-            ActionQueue_->GetInvoker());
+            ActionQueue_->GetInvoker(),
+            /*sealMonitor*/ nullptr);
 
         auto provider = CreateDirectPartitionWriteSessionProvider(
             ctx.Pool,
@@ -331,7 +332,8 @@ protected:
             Transaction_->GetId(),
             WriterOptions_,
             WriterConfig_,
-            ActionQueue_->GetInvoker());
+            ActionQueue_->GetInvoker(),
+            /*sealMonitor*/ nullptr);
 
         auto provider = CreateDirectPartitionWriteSessionProvider(
             ctx.Pool,

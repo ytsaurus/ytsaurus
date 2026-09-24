@@ -2,13 +2,39 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/proto/session_service.pb.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/string/string_builder.h>
 
 #include <ostream>
 
 namespace NYT::NDistributedChunkSessionClient {
 
+using namespace NYson;
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsNonnegative(const TDistributedChunkSessionProgress& progress)
+{
+    return IsComponentwiseLessOrEqual(TDistributedChunkSessionProgress{}, progress);
+}
+
+bool IsNonnegative(const TSessionSealSummary& summary)
+{
+    return summary.RecordCount >= 0 && summary.PhysicalCompressedDataSize >= 0;
+}
+
+bool IsComponentwiseLessOrEqual(
+    const TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs)
+{
+    return lhs.DataWeight <= rhs.DataWeight &&
+        lhs.CompressedDataSize <= rhs.CompressedDataSize &&
+        lhs.UncompressedDataSize <= rhs.UncompressedDataSize &&
+        lhs.RecordCount <= rhs.RecordCount &&
+        lhs.RowCount <= rhs.RowCount;
+}
 
 void FormatValue(
     TStringBuilderBase* builder,
@@ -24,12 +50,31 @@ void FormatValue(
         progress.RowCount);
 }
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSessionSealSummary& summary,
+    TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{RecordCount: %v, PhysicalCompressedDataSize: %v}",
+        summary.RecordCount,
+        summary.PhysicalCompressedDataSize);
+}
 void PrintTo(
     const TDistributedChunkSessionProgress& progress,
     std::ostream* os)
 {
     TStringBuilder builder;
     FormatValue(&builder, progress, /*spec*/ {});
+    *os << builder.Flush();
+}
+
+void PrintTo(
+    const TSessionSealSummary& summary,
+    std::ostream* os)
+{
+    TStringBuilder builder;
+    FormatValue(&builder, summary, /*spec*/ {});
     *os << builder.Flush();
 }
 
@@ -73,6 +118,20 @@ void FromProto(
     progress->UncompressedDataSize = protoProgress.uncompressed_data_size();
     progress->RecordCount = protoProgress.record_count();
     progress->RowCount = protoProgress.row_count();
+}
+
+void Serialize(
+    const TDistributedChunkSessionProgress& progress,
+    IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("data_weight").Value(progress.DataWeight)
+            .Item("compressed_data_size").Value(progress.CompressedDataSize)
+            .Item("uncompressed_data_size").Value(progress.UncompressedDataSize)
+            .Item("record_count").Value(progress.RecordCount)
+            .Item("row_count").Value(progress.RowCount)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
