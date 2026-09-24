@@ -2,12 +2,16 @@ package NYT.NExecNode.NProto;
 
 import "yt/server/lib/job_agent/proto/job_profile.proto";
 
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+
 import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/misc/proto/signature.proto";
 import "yt_proto/yt/client/misc/proto/workload.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -186,6 +190,21 @@ message TJobProxyResources
     required int64 memory = 1;
     required double cpu = 2;
     required int32 network = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetShuffleWriteSession
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int32 partition_index = 2;
+    optional NYT.NChunkClient.NProto.TSessionId excluded_session_id = 3;
+}
+
+message TRspGetShuffleWriteSession
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

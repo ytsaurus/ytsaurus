@@ -96,6 +96,13 @@ public:
                 readers.push_back(reader);
             }
 
+            if (MergeJobSpecExt_.has_push_based_shuffle_valid_task_job_indexes()) {
+                return CreatePushBasedShuffleMergingReader(
+                    readers,
+                    MergeJobSpecExt_.push_based_shuffle_valid_task_job_indexes(),
+                    sortColumns);
+            }
+
             auto sortComparator = GetComparator(sortColumns);
             return CreateSortedMergingReader(
                 readers,
