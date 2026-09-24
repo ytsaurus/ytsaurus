@@ -1,0 +1,32 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation";
+                "output_stream_ids" = [];
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {
+                            "finite" = %false;
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "main_class" = "tech.ytsaurus.flow.examples.noop.PipelineMain";
+                };
+            };
+        };
+    };
+}

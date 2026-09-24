@@ -3920,6 +3920,7 @@
   "yt/yt/flow/examples/go/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/flow/examples/go/go.sum",
   "yt/yt/flow/examples/java/async_request/async_request/build.gradle.kts":"",
   "yt/yt/flow/examples/java/external_state_join/external_state_join/build.gradle.kts":"",
+  "yt/yt/flow/examples/java/noop/noop/build.gradle.kts":"",
   "yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/build.gradle.kts":"",
   "yt/yt/flow/examples/java/shuffle/shuffle/build.gradle.kts":"",
   "yt/yt/flow/examples/java/static_table_join/static_table_join/build.gradle.kts":"",
