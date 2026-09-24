@@ -4,6 +4,7 @@
 
 #include "cypress_transaction_service.h"
 #include "dynamic_config_manager.h"
+#include "internal_api_service.h"
 #include "master_connector.h"
 #include "object_service.h"
 #include "ban_service.h"
@@ -353,6 +354,7 @@ private:
         BanService_ = CreateBanService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
+        RpcServer_->RegisterService(CreateInternalApiService(this));
         RpcServer_->RegisterService(BanService_->GetService());
     }
 
