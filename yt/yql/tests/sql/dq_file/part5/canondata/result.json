@@ -216,6 +216,13 @@
             "uri": "https://{canondata_backend}/1942173/81330cdba408bd24d7e775e62d1e3d8cf4b25a8f/resource.tar.gz#test.test_insert-replace_inferred_op--Plan_/plan.txt"
         }
     ],
+    "test.test[insert-user_attributes_write_simple--Plan]": [
+        {
+            "checksum": "040e30265f8535b3b78f7c37f70203db",
+            "size": 4647,
+            "uri": "https://{canondata_backend}/1599023/8dc9bc62d797e1525e5fa82754dfef154e386663/resource.tar.gz#test.test_insert-user_attributes_write_simple--Plan_/plan.txt"
+        }
+    ],
     "test.test[insert-yql-20257-default.txt-Plan]": [
         {
             "checksum": "38d647ead4e64db6999278ad22ff4e34",
