@@ -448,6 +448,8 @@ struct TConnectionDynamicConfig
 
     bool EnableReshardWithSlicingByDefault;
 
+    bool UseCypressProxyForTwoPhaseTableOperations;
+
     i64 GetJobTraceBatchSize;
 
     //! Enable base ACO check when validating operation access.

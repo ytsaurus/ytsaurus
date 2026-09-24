@@ -1321,16 +1321,14 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
 
-    template <class TReq>
+    template <CTwoPhaseTableRequest TRequest>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
         TStringBuf action,
-        TReq* req);
+        TRequest request,
+        const TMutatingOptions& options);
 
     NTabletClient::NProto::TReqReshard MakeReshardRequest(
-        const TReshardTableOptions& options);
-    NTableClient::TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
-        const NYPath::TYPath& path,
         const TReshardTableOptions& options);
 
     std::vector<NTableClient::TLegacyOwningKey> PickUniformPivotKeys(
