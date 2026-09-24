@@ -65,7 +65,7 @@ Name | Value | Clarification
 
 Let's assume that we have a table with the _user_name_ key column (string), the _age_ column (uint64), and the _balance_ aggregate column (int64). The extended schema will then look like this:
 
-```
+```yson
 {name="user_name"; type=string; sort_order=ascending}
 {name="$change_type"; type=uint64; required=%true}
 {name="$value:age"; type=uint64}
@@ -75,7 +75,7 @@ Let's assume that we have a table with the _user_name_ key column (string), the 
 ```
 
 Then to delete the string, you need the following write
-```
+```yson
 {
   "user_name"="vasya";
   "$change_type"=1; // delete
@@ -84,7 +84,7 @@ Then to delete the string, you need the following write
 
 And to update the balance (and maintain the age), you need the following write
 
-```
+```yson
 {
   "user_name"="vasya";
   "$change_type"=0; // write

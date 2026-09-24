@@ -195,7 +195,7 @@ FROM (<list-expression-1> AS <alias-1>, <list-expression-2> AS <alias-2>, ...)
 #### Примеры
 
 Данные:
-```
+```yson
 a=1; b=[1;2;3]; c=[x;y;z]
 ```
 
@@ -205,7 +205,7 @@ SELECT t.a AS a, (SELECT b, c FROM (t.b AS b, t.c AS c) WHERE b > 1) AS nested F
 ```
 
 Результат:
-```
+```yson
 a=1; nested=[[2;y];[3;z]]
 ```
 
@@ -861,7 +861,7 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 ### Команда explain-query { #explain_query }
 Для отладки запроса можно использовать команду explain. Команда выдает результат в структурированном виде.
 Пример:
-```
+```yson
 {
     "udf_registry_path" = "//sys/udfs";
     "query" = {

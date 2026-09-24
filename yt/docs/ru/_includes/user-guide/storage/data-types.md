@@ -85,15 +85,15 @@ YSON-словарь всегда имеет ключ `type_name`, в котор�
 
 Примеры в схеме:
 
-```
+```yson
 type_v3=utf8
 ```
 
-```
+```yson
 type_v3=bool
 ```
 
-```
+```yson
 type_v3=yson
 ```
 
@@ -156,7 +156,7 @@ Tипы `tz_timestamp64`, `tz_datetime64`, `tz_date32`, `tz_timestamp`, `tz_date
 
 Пример в схеме:
 
-```
+```yson
 type_v3={
     type_name=decimal;
     precision=10;
@@ -227,14 +227,14 @@ type_v3={
 
 Примеры в схеме:
 
-```
+```yson
 type_v3={
   type_name=optional;
   item=string;
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=optional;
   item={
@@ -255,14 +255,14 @@ type_v3={
 
 Примеры в схеме:
 
-```
+```yson
 type_v3={
   type_name=list;
   item=string;
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=list;
   item={
@@ -285,7 +285,7 @@ type_v3={
 
 Примеры в схеме:
 
-```
+```yson
 type_v3={
   type_name=struct;
   members=[
@@ -316,7 +316,7 @@ type_v3={
 
 Пример в схеме:
 
-```
+```yson
 type_v3={
   type_name=tuple;
   elements=[
@@ -350,7 +350,7 @@ type_v3={
 
 Пример в схеме:
 
-```
+```yson
 type_v3={
   type_name=variant;
   members=[
@@ -366,7 +366,7 @@ type_v3={
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=variant;
   elements=[
@@ -397,7 +397,7 @@ type_v3={
 
 Пример в схеме:
 
-```
+```yson
 type_v3={
   type_name=dict;
   key=int64;
@@ -423,7 +423,7 @@ type_v3={
 
 Веб-интерфейс может показывать изображения и воспроизводить аудио при просмотре таблицы или результата YQL-запроса в Query Tracker. Для этого задайте колонке тип `tagged<string>` через `type_v3`, а в поле `tag` укажите медиатег:
 
-```
+```yson
 type_v3={
   type_name=tagged;
   tag="image/svg";
@@ -597,25 +597,25 @@ type_v3={
 
 Примеры значений, тип `optional<int64>`:
 
-```
+```yson
 #
 ```
 
-```
+```yson
 -42
 ```
 
 Примеры значений, тип `optional<optional<int64>>`:
 
-```
+```yson
 #
 ```
 
-```
+```yson
 [ # ]
 ```
 
-```
+```yson
 [ -42 ]
 ```
 
@@ -625,11 +625,11 @@ type_v3={
 
 Примеры значений, тип `list<int64>`:
 
-```
+```yson
 []
 ```
 
-```
+```yson
 [42; -1;]
 ```
 
@@ -646,11 +646,11 @@ type_v3={
 
 Примеры значений, тип `struct<Foo:int64;Bar:optional<utf8>>`:
 
-```
+```yson
 {Foo=42;Bar=#;}
 ```
 
-```
+```yson
 {Foo=-5;Bar="minus five";}
 ```
 
@@ -664,12 +664,12 @@ type_v3={
 
 Примеры значений, тип `struct<Foo:int64;Bar:optional<utf8>>`:
 
-```
+```yson
 [42; #;]
 [42]
 ```
 
-```
+```yson
 [-5;"minus five";]
 ```
 
@@ -679,11 +679,11 @@ type_v3={
 
 Примеры значений, тип `tuple<int64;optional<utf8>>`:
 
-```
+```yson
 [42; #;]
 ```
 
-```
+```yson
 [-5;"minus five";]
 ```
 
@@ -698,15 +698,15 @@ type_v3={
 
 Примеры значений, тип `variant<int64;optional<utf8>>`:
 
-```
+```yson
 [0; 42]
 ```
 
-```
+```yson
 [1; #]
 ```
 
-```
+```yson
 [1; "foo bar";]
 ```
 
@@ -723,15 +723,15 @@ type_v3={
 
 Примеры значений, тип `variant<Foo:int64;Bar:optional<utf8>>`:
 
-```
+```yson
 [Foo; 42]
 ```
 
-```
+```yson
 [Bar; #]
 ```
 
-```
+```yson
 [Bar; "foo bar";]
 ```
 
@@ -746,15 +746,15 @@ type_v3={
 
 Примеры значений, тип `variant<Foo:int64;Bar:optional<utf8>>`:
 
-```
+```yson
 [0; 42]
 ```
 
-```
+```yson
 [1; #]
 ```
 
-```
+```yson
 [1; "foo bar";]
 ```
 
@@ -764,11 +764,11 @@ type_v3={
 
 Примеры значений типа `dict<int32;string>`:
 
-```
+```yson
 [[1;"one"];[4;"four"]]
 ```
 
-```
+```yson
 []
 ```
 
@@ -786,7 +786,7 @@ type_v3={
 
 Примеры значений типа `dict<string;int32>`:
 
-```
+```yson
 [["one";1];["four";4]]
 ```
 
@@ -798,7 +798,7 @@ type_v3={
 
 Примеры значений типа `dict<string;int32>`:
 
-```
+```yson
 {one=1; four=4}
 ```
 

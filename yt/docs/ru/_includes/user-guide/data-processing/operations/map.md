@@ -44,7 +44,7 @@ Ordered-версия Map операции обладает свойством д
 
 ## Пример спецификации
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   job_count = 100;

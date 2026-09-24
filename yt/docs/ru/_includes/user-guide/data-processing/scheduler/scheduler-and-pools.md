@@ -37,7 +37,7 @@
 
 Пример настройки для запуска операции в двух деревьях с указанием пула в одном из них:
 
-```
+```yson
 pool_trees = [{{pool-tree}}; cloud];
 scheduling_options_per_pool_tree = {
     {{pool-tree}} = {

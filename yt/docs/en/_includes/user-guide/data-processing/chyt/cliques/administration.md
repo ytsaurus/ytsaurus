@@ -17,7 +17,7 @@ First, when accepting a query, the clique checks that the user under which the q
 
 For example, if an ACL of the following form was specified when the operation was started:
 
-```
+```yson
 acl = [
     {
         subjects = [user1; user2];

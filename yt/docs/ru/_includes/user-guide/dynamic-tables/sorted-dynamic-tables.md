@@ -206,7 +206,7 @@ yt set //table/@forced_compaction_revision 1; yt remount-table //table
 - Установить на таблице атрибут `@custom_runtime_data`.
 
 Атрибут `custom_runtime_data` должен иметь вид:
-```
+```yson
 {
     "watermark" = {
         "column_name" = "<имя колонки>";

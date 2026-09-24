@@ -39,7 +39,7 @@ By default, `partition_count` and `partition_job_count` are calculated automatic
 
 Example of a Sort operation's specification:
 
-```yaml
+```yson
 {
   data_size_per_partition_job = 1000000;
   sort_by = ["key"; "subkey" ];

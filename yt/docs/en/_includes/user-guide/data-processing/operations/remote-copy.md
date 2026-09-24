@@ -24,7 +24,7 @@ The RemoteCopy operation supports the following additional options (default valu
 
 ## Example specification
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   network_name = "fastbone";

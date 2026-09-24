@@ -37,7 +37,7 @@ The {{product-name}} part of the instance configuration resides in the `yt_confi
 - `settings`: CHYT‑specific default query [settings](../../../../../user-guide/data-processing/chyt/reference/settings.md). Changing the setting in this section changes the default value for this setting for all queries in the clique.
 - `table_writer`: [Table Writer configuration](../../../../../user-guide/storage/io-configuration.md#table_writer).
 - `table_attribute_cache`: Table attribute cache configuration. This cache significantly improves the responsiveness of CHYT, though at the moment it may lead to non‑consistent reads (when data has already appeared in the table, but CHYT does not see it yet). To disable this cache, use the following configuration:
-  ```
+  ```yson
   {read_from=follower;expire_after_successful_update_time=0;expire_after_failed_update_time=0;refresh_time=0;expire_after_access_time=0}
   ```
 - `create_table_default_attributes` [`{optimize_for = scan}`]: The default attributes with which tables will be created during `CREATE` queries in CHYT.
@@ -98,7 +98,7 @@ Below is an example of converting an artificial XML configuration into a YSON co
 <baz>hi!</baz>
 ```
 
-```json
+```yson
 {
     foo = 42;
     bar = "qwe";
@@ -149,7 +149,7 @@ select dictGet('OS', 'OS', toUInt64(38)) as os_name,
 
 Below is an example of a complete configuration that can be set by the `set-speclet` command.
 
-```json
+```yson
 {
     instance_count = 1;
     query_settings = {
