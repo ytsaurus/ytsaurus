@@ -63,6 +63,7 @@ ISortReaderPtr CreateSortReader(
     int readQuorum,
     NTableClient::TComparator comparator,
     TSortReaderMode mode,
+    TClosure onInputFetched,
     IInvokerPtr invoker,
     IInvokerPtr sortInvoker);
 
