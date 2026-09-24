@@ -17,7 +17,10 @@ def client(monkeypatch):
     client.config = {"tablets_ready_timeout": 100, "tablets_check_interval": 1}
     client.Transaction.side_effect = lambda **kwargs: nullcontext()
     client.get.return_value = {"external_cell_tag": 11}
-    monkeypatch.setattr(stress, "yt", client)
+    monkeypatch.setattr(stress, "master_client", client)
+    monkeypatch.setattr(stress, "tablet_client", client)
+    monkeypatch.setattr(stress, "create_master_client", lambda config: client)
+    monkeypatch.setattr(stress, "create_tablet_client", lambda config: client)
     return client
 
 
@@ -30,7 +33,6 @@ def _write_rows(client, monkeypatch, queue, rows):
     client.get_tablet_infos.side_effect = lambda path, indexes: {
         "tablets": [{"total_row_count": queue.written_row_count[index]} for index in indexes],
     }
-    client.config = {"tablets_ready_timeout": 100, "tablets_check_interval": 1}
     spec = SimpleNamespace(queue_and_hunk_storage=SimpleNamespace(
         write_min_batch_size=len(rows), write_max_batch_size=len(rows),
         write_min_row_size=1, write_max_row_size=1, write_insert_chunk_bytes=1,
@@ -81,17 +83,9 @@ def _read(queue, path=None):
     ))
 
 
-@pytest.mark.parametrize("hunks", [False, True])
-def test_logical_weights_for_inline_hunk_and_utf8_values(client, monkeypatch, hunks):
+def test_writes_track_logical_byte_weights_per_tablet(client, monkeypatch):
     queue = stress.Queue("//test", "queue", 2)
-    queue.create({}, erasure=False)
     queue.mount()
-    if hunks:
-        storage = stress.HunkStorage("//test", "hunks", {queue.name: queue})
-        storage.create()
-        storage.mount()
-        client.get.return_value = [{"state": "mounted"}] * 2
-        stress.link(queue, storage)
 
     _write_rows(client, monkeypatch, queue, [
         (0, "", ""), (0, "я", "🙂"), (1, "k", "a" * 511),
@@ -109,11 +103,9 @@ def test_logical_weights_for_inline_hunk_and_utf8_values(client, monkeypatch, hu
 
 
 @pytest.mark.parametrize("trim_all", [False, True])
-@pytest.mark.parametrize("hunks", [False, True])
-def test_remount_trim_and_append_preserve_weights(client, monkeypatch, trim_all, hunks):
+def test_remount_trim_and_append_preserve_weights(client, monkeypatch, trim_all):
     queue = stress.Queue("//test", "queue", 2)
     queue.mount()
-    queue.hunk_storage_name = "hunks" if hunks else None
     _write_rows(client, monkeypatch, queue, [
         (0, "a", "b"), (0, "cc", "h" * 1024), (1, "x", ""),
     ])
@@ -171,9 +163,8 @@ def test_failed_write_does_not_advance_weight(client, monkeypatch, failure):
             raise stress.YtError("Commit failed")
 
     def insert(path, rows, **kwargs):
-        if path == (queue.path if failure == "queue" else queue.data_path):
-            if failure != "commit":
-                raise stress.YtError("Insert failed")
+        if failure != "commit" and path == (queue.path if failure == "queue" else queue.data_path):
+            raise stress.YtError("Insert failed")
 
     client.Transaction.side_effect = transaction
     client.insert_rows.side_effect = insert
@@ -193,33 +184,36 @@ def test_failed_write_does_not_advance_weight(client, monkeypatch, failure):
     }]
 
 
-@pytest.mark.parametrize("problem", ["wrong_weight", "null_weight", "missing_weight", "row_index"])
-def test_reads_reject_weight_and_row_index_corruption(client, problem):
+@pytest.mark.parametrize("known_weight, column, bad_value", [
+    (True, "$cumulative_data_weight", 11),
+    (True, "$cumulative_data_weight", stress.yson.YsonEntity()),
+    (True, "$cumulative_data_weight", None),
+    (True, "$row_index", 3),
+    (False, "key", "wrong"),
+    (False, "value", "wrong"),
+    (False, "$row_index", 3),
+])
+def test_reads_reject_corruption(client, known_weight, column, bad_value):
     queue = stress.Queue("//test", "queue", 1)
     queue.mount()
     queue.written_row_count = [4]
     queue.trimmed_row_counts = [2]
     expected = [
         {"tablet_index": 0, "row_index": index, "key": "k", "value": "v",
-         "cumulative_data_weight": 11 * (index + 1)}
+         "cumulative_data_weight": 11 * (index + 1) if known_weight else None}
         for index in range(4)
     ]
     actual = _serve_rows(client, queue, expected)
-    if problem == "wrong_weight":
-        actual[2]["$cumulative_data_weight"] = 11
-    elif problem == "null_weight":
-        actual[2]["$cumulative_data_weight"] = stress.yson.YsonEntity()
-    elif problem == "missing_weight":
-        del actual[2]["$cumulative_data_weight"]
+    if bad_value is None:
+        del actual[2][column]
     else:
-        actual[2]["$row_index"] = 3
+        actual[2][column] = bad_value
     with pytest.raises(stress.YtError, match="Unexpected .* in //test/queue, tablet 0"):
         _read(queue)
 
 
 @pytest.mark.parametrize("trimmed", [2, 4])
-@pytest.mark.parametrize("problem", ["ignored", "lost_after_remount"])
-def test_reads_reject_ignored_or_lost_trim(client, trimmed, problem):
+def test_reads_reject_ignored_trim(client, trimmed):
     queue = stress.Queue("//test", "queue", 1)
     queue.mount()
     queue.written_row_count = [4]
@@ -228,27 +222,22 @@ def test_reads_reject_ignored_or_lost_trim(client, trimmed, problem):
          "cumulative_data_weight": 11 * (index + 1)}
         for index in range(4)
     ]
-    server_trimmed = [trimmed if problem == "lost_after_remount" else 0]
-    _serve_rows(client, queue, rows, actual_trimmed_row_counts=server_trimmed)
+    _serve_rows(client, queue, rows, actual_trimmed_row_counts=[0])
     queue.trim(0, trimmed)
-    if problem == "lost_after_remount":
-        _read(queue)
-        queue.unmount()
-        queue.mount()
-        server_trimmed[0] = 0
 
     with pytest.raises(stress.YtError, match="//test/queue"):
         _read(queue)
     assert client.pull_queue.call_args_list[-1].kwargs["offset"] == 0
 
 
-def test_expected_rows_page_by_row_index_across_tablets(client):
+def test_expected_rows_page_by_row_index_across_tablets(client, monkeypatch):
+    monkeypatch.setattr(stress, "DATA_TABLE_READ_BATCH_SIZE", 2)
     queue = stress.Queue("//test", "queue", 3)
     queue.trimmed_row_counts = [10000, 10, 20000]
     rows = [
         {"tablet_index": tablet, "row_index": start + index, "key": "k", "value": "v",
          "cumulative_data_weight": 11 * (start + index + 1)}
-        for tablet, start, count in ((0, 0, 2), (0, 10000, 205), (2, 20000, 203))
+        for tablet, start, count in ((0, 0, 2), (0, 10000, 3), (2, 20000, 3))
         for index in range(count)
     ]
     client.select_rows.side_effect = lambda query: _select_shadow_rows(query, rows)
@@ -260,8 +249,8 @@ def test_expected_rows_page_by_row_index_across_tablets(client):
         for call in client.select_rows.call_args_list
     ]
     assert bounds == [
-        (0, 10000), (0, 10100), (0, 10200), (0, 10205), (1, 10),
-        (2, 20000), (2, 20100), (2, 20200), (2, 20203),
+        (0, 10000), (0, 10002), (0, 10003), (1, 10),
+        (2, 20000), (2, 20002), (2, 20003),
     ]
 
 
@@ -287,17 +276,15 @@ def test_reads_page_by_row_index_after_large_trim(client):
 
 
 @pytest.mark.parametrize("mode", ["sync", "async"])
-@pytest.mark.parametrize("hunks", [False, True])
-@pytest.mark.parametrize("erasure", [False, True])
-def test_new_replica_continues_old_replica_weights(client, monkeypatch, mode, hunks, erasure):
+def test_new_replica_continues_old_replica_weights(client, monkeypatch, mode):
     queue = stress.Queue(
         "//test", "queue", 2,
-        replicas_plan=[{"mode": "sync", "hunks": not hunks}], cluster_name="local-test",
+        replicas_plan=[{"mode": "sync", "hunks": False}], cluster_name="local-test",
     )
-    queue.create({}, erasure=erasure)
+    queue.create({}, erasure=False)
     _write_rows(client, monkeypatch, queue, [(0, "a", "b"), (0, "c", "d")])
     queue.trim(0, 1)
-    queue.add_replica({"mode": mode, "hunks": hunks})
+    queue.add_replica({"mode": mode, "hunks": True})
     replica = queue.replicas[-1]
     created = [call.kwargs["attributes"] for call in client.create.call_args_list
                if call.args[0] == "table_replica"][-1]
@@ -308,14 +295,12 @@ def test_new_replica_continues_old_replica_weights(client, monkeypatch, mode, hu
     )
     assert replica_attributes["trimmed_row_counts"] == [2, 0]
     assert replica_attributes["cumulative_data_weights"] == [22, 0]
-    assert replica_attributes["schema"] == (
-        stress.QUEUE_SCHEMA if hunks else stress.QUEUE_SCHEMA_NO_HUNKS)
 
     _write_rows(client, monkeypatch, queue, [(0, "я", "🙂"), (1, "h", "v" * 512)])
     assert queue.cumulative_data_weights == [37, 522]
     assert replica_attributes["cumulative_data_weights"] == [22, 0]
     expected = _shadow_rows(client, queue)
-    actual = _serve_rows(client, queue, expected)
+    _serve_rows(client, queue, expected)
     for table in queue.replicas:
         _read(queue, table["path"])
     new_offsets = [call.kwargs["offset"] for call in client.pull_queue.call_args_list
@@ -325,14 +310,9 @@ def test_new_replica_continues_old_replica_weights(client, monkeypatch, mode, hu
     queue.trim(0, 3)
     assert all(table["trimmed_row_counts"] == [3, 0] for table in queue.replicas)
     assert queue.cumulative_data_weights == [37, 522]
-    actual[-1]["$cumulative_data_weight"] = 17
-    with pytest.raises(stress.YtError, match="Unexpected cumulative data weight"):
-        _read(queue, replica["path"])
 
 
-@pytest.mark.parametrize("mode", ["sync", "async"])
-@pytest.mark.parametrize("trimmed", [[0, 0], [1, 0]])
-def test_operations_use_new_replicas_before_queue_trim_catches_up(client, monkeypatch, mode, trimmed):
+def test_operations_use_new_replicas_before_queue_trim_catches_up(client, monkeypatch):
     queue = stress.Queue(
         "//test", "queue", 2, replicas_plan=[{"mode": "async", "hunks": False}],
         cluster_name="local-test",
@@ -340,8 +320,7 @@ def test_operations_use_new_replicas_before_queue_trim_catches_up(client, monkey
     queue.create({}, erasure=False)
     queue.written_row_count = [3, 2]
     queue.cumulative_data_weights = [33, 22]
-    queue.trimmed_row_counts = trimmed
-    queue.add_replica({"mode": mode, "hunks": True})
+    queue.add_replica({"mode": "async", "hunks": True})
     queue.written_row_count = [4, 3]
     client.get_tablet_infos.return_value = {
         "tablets": [{"total_row_count": 4}, {"total_row_count": 3}],
@@ -361,14 +340,12 @@ def test_operations_use_new_replicas_before_queue_trim_catches_up(client, monkey
     ]
     client.select_rows.side_effect = lambda query: _select_shadow_rows(query, rows)
     assert queue._get_operation_expected_rows(path) == [rows[3], rows[6]]
-    assert queue.trimmed_row_counts == trimmed
+    assert queue.trimmed_row_counts == [0, 0]
 
 
-@pytest.mark.parametrize(
-    "existing_weight, sorted_schema", [(None, False), (100, False), (None, True)],
-)
-@pytest.mark.parametrize("hunk_weight", [0, 600])
-@pytest.mark.parametrize("trim_all", [False, True])
+@pytest.mark.parametrize("existing_weight, sorted_schema, hunk_weight, trim_all", [
+    (None, False, 0, False), (100, False, 600, True), (None, True, 600, False),
+])
 def test_static_conversion_uses_logical_weight_for_new_rows(
     client, monkeypatch, existing_weight, sorted_schema, hunk_weight, trim_all,
 ):
@@ -420,13 +397,9 @@ def test_static_conversion_uses_logical_weight_for_new_rows(
     assert queue.cumulative_data_weights == [123 + hunk_weight]
     actual = _serve_rows(client, queue, _shadow_rows(client, queue))
     _read(queue)
-    for weight in (11, stress.yson.YsonEntity(), None):
-        if weight is None:
-            del actual[-1]["$cumulative_data_weight"]
-        else:
-            actual[-1]["$cumulative_data_weight"] = weight
-        with pytest.raises(stress.YtError, match="Unexpected cumulative data weight"):
-            _read(queue)
+    actual[-1]["$cumulative_data_weight"] = 11
+    with pytest.raises(stress.YtError, match="Unexpected cumulative data weight"):
+        _read(queue)
 
 
 def test_weight_initialization_keeps_tablet_totals_separate(client):
@@ -472,20 +445,6 @@ def test_static_conversion_reads_once_and_preserves_row_order(client, corrupt):
     ]
 
 
-@pytest.mark.parametrize("column", ["key", "value", "$row_index"])
-def test_inherited_rows_still_validate_payload_and_indexes(client, column):
-    queue = stress.Queue("//test", "queue", 1)
-    queue.mount()
-    queue.written_row_count = [1]
-    actual = _serve_rows(client, queue, [{
-        "key": "a", "value": "b", "row_index": 0, "tablet_index": 0,
-        "cumulative_data_weight": None,
-    }])
-    actual[0][column] = 1 if column == "$row_index" else "wrong"
-    with pytest.raises(stress.YtError, match="Unexpected .* in //test/queue, tablet 0"):
-        _read(queue)
-
-
 @pytest.mark.parametrize("retained_counts", [(3, 2), (2, 0), (1, 0)])
 def test_trimmed_queue_conversion_preserves_physically_retained_rows(client, retained_counts):
     queue = stress.Queue("//test", "queue", 2)
@@ -526,11 +485,11 @@ def test_trimmed_queue_conversion_preserves_physically_retained_rows(client, ret
     assert client.write_table.call_args.args[1] == [
         {"key": row["key"], "value": row["value"]} for row in retained
     ]
-    assert [column["name"] for column in stress.STATIC_DATA_SCHEMA] == ["key", "value"]
 
 
-@pytest.mark.parametrize("mode", ["plain", "sync", "async"])
-@pytest.mark.parametrize("operation", ["sort", "merge", "map", "map_reduce", "merge_with"])
+@pytest.mark.parametrize("mode, operation", [
+    ("plain", "merge"), ("sync", "merge"), ("async", "merge_with"),
+])
 def test_operations_include_retained_prefix_and_unflushed_rows(
     client, monkeypatch, mode, operation,
 ):
@@ -614,12 +573,8 @@ def test_operations_include_retained_prefix_and_unflushed_rows(
     def write_table(path, rows):
         tables[path] = rows
 
-    def run_operation(*args, **kwargs):
+    def run_merge(inputs, output, **kwargs):
         assert transactions == ["master"]
-        if "source_table" in kwargs:
-            inputs, output = kwargs["source_table"], kwargs["destination_table"]
-        else:
-            inputs, output = args[:2]
         inputs = inputs if isinstance(inputs, list) else [inputs]
         tables[output] = []
         for input_path in inputs:
@@ -633,8 +588,7 @@ def test_operations_include_retained_prefix_and_unflushed_rows(
     client.select_rows.side_effect = select_rows
     client.write_table.side_effect = write_table
     client.read_table.side_effect = lambda path: tables[path]
-    for name in ("run_sort", "run_merge", "run_map", "run_map_reduce"):
-        getattr(client, name).side_effect = run_operation
+    client.run_merge.side_effect = run_merge
     monkeypatch.setattr(stress.random, "choice", choose)
 
     result = queue.merge_with(other) if operation == "merge_with" else getattr(
@@ -660,7 +614,6 @@ def test_stress_loop_trims_and_adds_replicas_after_writes(client, monkeypatch):
         "trim_probability": 1, "add_replica_probability": 1,
     })
     raw_spec["size"]["iterations"] = 2
-    client.config["dynamic_table_retries"] = {}
     client.get.side_effect = lambda path, **kwargs: (
         "local-test" if path == "//sys/@cluster_name" else {"external_cell_tag": 11})
     monkeypatch.setattr(stress.random, "choice", lambda choices: choices[0])

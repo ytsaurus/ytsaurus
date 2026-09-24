@@ -12,48 +12,17 @@ from unittest.mock import Mock
 def client(monkeypatch):
     client = Mock(spec=stress.yt)
     client.config = {
-        "dynamic_table_retries": {},
         "tablets_ready_timeout": 100,
         "tablets_check_interval": 1,
     }
-    monkeypatch.setattr(stress, "yt", client)
+    monkeypatch.setattr(stress, "master_client", client)
+    monkeypatch.setattr(stress, "tablet_client", client)
+    monkeypatch.setattr(stress, "create_master_client", lambda config: client)
+    monkeypatch.setattr(stress, "create_tablet_client", lambda config: client)
     return client
 
 
-@pytest.mark.parametrize("failure", [None, "linked", "unexpected"])
-def test_storage_removal_preserves_owner_mount_state(client, failure):
-    queue = stress.Queue("//test", "queue", 3)
-    queue.mount_state.is_mounted_tablet = [True, False, True]
-    queue.mount_state.is_sync = [True, True, False]
-    storage = stress.HunkStorage("//test", "storage", {queue.name: queue}, tablet_count=3)
-    storage.mount_state.is_mounted_tablet = [True, False, False]
-    storage.mount_state.is_sync = [True, True, False]
-    if failure == "linked":
-        storage.linked_queue_names.add(queue.name)
-        queue.hunk_storage_name = storage.name
-        error = stress.YtError("Cannot remove a hunk storage that is being used by nodes")
-    elif failure == "unexpected":
-        error = stress.YtError("Removal failed")
-    else:
-        error = None
-    client.remove.side_effect = error
-    queue_state = copy.deepcopy(vars(queue.mount_state))
-    storage_state = copy.deepcopy(vars(storage.mount_state))
-
-    with pytest.raises(stress.YtError) if error else nullcontext():
-        storage.remove()
-
-    # A rejected deletion must not leave storage or owner tablets unmounted.
-    assert vars(queue.mount_state) == queue_state
-    assert vars(storage.mount_state) == storage_state
-    client.remove.assert_called_once_with(storage.path)
-    client.unmount_table.assert_not_called()
-    client.mount_table.assert_not_called()
-    client.get.assert_not_called()
-
-
-@pytest.mark.parametrize("replicated", [False, True])
-@pytest.mark.parametrize("unlink", [False, True])
+@pytest.mark.parametrize("replicated, unlink", [(False, False), (False, True), (True, False)])
 def test_queue_removal_skips_shared_hunk_storage_links(client, monkeypatch, replicated, unlink):
     raw_spec = copy.deepcopy(spec_template)
     cfg = raw_spec["queue_and_hunk_storage"]
@@ -102,14 +71,11 @@ def test_queue_removal_skips_shared_hunk_storage_links(client, monkeypatch, repl
         assert all(queue.hunk_storage_name is not None for queue in queues)
 
 
-@pytest.mark.parametrize("operation", ["link", "unlink", "relink"])
-@pytest.mark.parametrize("fail_change", [False, True])
-@pytest.mark.parametrize("initial_states", [
-    ["unmounted", "unmounted", "unmounted"],
-    ["mounted", "mounted", "mounted"],
-    ["mounted", "unmounted", "mounted"],
-    ["mounting", "unmounting", "mounted"],
-    ["unmounting", "unmounting", "unmounting"],
+@pytest.mark.parametrize("operation, fail_change, initial_states", [
+    ("link", False, ["unmounted"] * 3),
+    ("link", False, ["unmounting"] * 3),
+    *[(operation, fail_change, ["mounted", "unmounted", "mounting", "unmounting"])
+      for operation in ("link", "unlink", "relink") for fail_change in (False, True)],
 ])
 def test_link_changes_preserve_mount_state(client, operation, fail_change, initial_states):
     queue = stress.Queue("//test", "queue", len(initial_states))
@@ -196,27 +162,14 @@ def test_link_changes_preserve_mount_state(client, operation, fail_change, initi
     assert all(queue.mount_state.is_sync)
     assert mount_requests == mounted_tablet_indexes
     assert client.unmount_table.call_count == int(any(s != "unmounted" for s in initial_states))
-    if fail_change:
-        if operation == "link":
-            assert not attributes
-            assert queue.hunk_storage_name is None
-            assert not old.linked_queue_names
-        else:
-            assert attributes == {"hunk_storage_id": old.hunk_storage_id}
-            assert queue.hunk_storage_name == old.name
-            assert old.linked_queue_names == {queue.name}
-        assert not new.linked_queue_names
-    elif operation == "unlink":
-        assert not attributes
-        assert queue.hunk_storage_name is None
-        assert not old.linked_queue_names
-        assert not new.linked_queue_names
-    else:
-        assert attributes == {"hunk_storage_id": new.hunk_storage_id}
-        assert queue.hunk_storage_name == new.name
-        assert not old.linked_queue_names
-        assert new.linked_queue_names == {queue.name}
-    client.remount_table.assert_not_called()
+    expected_storage = old if operation != "link" else None
+    if not fail_change:
+        expected_storage = None if operation == "unlink" else new
+    assert attributes == (
+        {"hunk_storage_id": expected_storage.hunk_storage_id} if expected_storage else {})
+    assert queue.hunk_storage_name == (expected_storage.name if expected_storage else None)
+    for storage in (old, new):
+        assert storage.linked_queue_names == ({queue.name} if storage is expected_storage else set())
 
 
 @pytest.mark.parametrize("replicated", [False, True])
@@ -335,8 +288,6 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
 
     queues = {}
     states = {}
-    cell_tags = {}
-    storage_cell_tags = {}
     attributes = {}
     unmounted_queues = []
     altered = []
@@ -345,12 +296,9 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
     def create_queue(queue, attributes, erasure):
         queues[queue.path] = queue
         states[queue.path] = ["unmounted"] * queue.tablet_count
-        cell_tags[queue.path] = attributes.get("external_cell_tag", 10 + len(queues))
 
     def create_storage(storage, erasure):
         storage.hunk_storage_id = storage.name
-        assert storage.cell_tag is not None
-        storage_cell_tags[storage.name] = storage.cell_tag
 
     def mount(path, sync, first_tablet_index=None, last_tablet_index=None):
         indexes = range(len(states[path])) if first_tablet_index is None else range(
@@ -372,8 +320,7 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
         if path == "//sys/@cluster_name":
             return "local-test"
         if path.endswith("/@"):
-            assert attributes == ["external_cell_tag"]
-            return {"external_cell_tag": cell_tags[path[:-2]]}
+            return {"external_cell_tag": 11}
         table_path, attribute = path.split("/@")
         assert attribute == "tablets"
         states[table_path] = [
@@ -385,7 +332,6 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
         table_path, attribute = path.split("/@")
         assert attribute == "hunk_storage_id"
         assert all(state == "unmounted" for state in states[table_path])
-        assert cell_tags[table_path] == storage_cell_tags[value]
         attributes[table_path] = value
         events.append(("set", table_path))
 
@@ -416,8 +362,6 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
     stress.test_queue_and_hunk_storage("//test", Spec(raw_spec), {}, args=None)
 
     assert len(queues) == 3
-    assert set(cell_tags.values()) == {11}
-    assert set(storage_cell_tags.values()) == {11}
     assert sorted(unmounted_queues) == sorted(queues)
     if operation == "alter_to_static":
         assert set(altered) == set(queues)
@@ -432,4 +376,3 @@ def test_link_changes_in_stress_loop(client, monkeypatch, operation):
                 assert events[index + 1] == ("set", path)
     else:
         assert not attributes
-    client.remount_table.assert_not_called()

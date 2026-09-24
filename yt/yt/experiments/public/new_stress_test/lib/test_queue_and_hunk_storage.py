@@ -4,6 +4,7 @@ import yt.wrapper as yt
 import yt.yson as yson
 
 from yt.wrapper.retries import run_with_retries
+from yt.wrapper.config import get_config
 
 from yt.common import YT_NULL_TRANSACTION_ID, YtError, wait
 from lib.schema import RandomStringGenerator
@@ -16,9 +17,64 @@ import random
 
 RSG = RandomStringGenerator()
 
+# Durations below are in milliseconds, as expected by the client configuration.
+MASTER_REQUEST_TIMEOUT = 5 * 60 * 1000
+MASTER_RETRY_TIMEOUT = 5 * 60 * 1000
+MASTER_TRANSACTION_TIMEOUT = 2 * MASTER_RETRY_TIMEOUT
+
+TABLET_RETRY_TIMEOUT = 3 * 60 * 1000
+TABLET_READY_TIMEOUT = 4 * 60 * 1000
+TABLET_RETRY_BACKOFF = 0.1
+
+HUNK_CHUNK_SEAL_TIMEOUT = 5 * 60 * 1000
+HUNK_CHUNK_SEAL_CHECK_PERIOD = 1000
+
+# Initialized for each run; tablet requests must not inherit the master outage budget.
+master_client = None
+tablet_client = None
+
+
+def create_master_client(config):
+    config = copy.deepcopy(config)
+    config["backend"] = "rpc"
+    config["driver_config"] = {
+        **(config.get("driver_config") or {}),
+        "enable_retries": True,
+        # RPC transaction pings use this, not the Python Transaction.ping_timeout.
+        "rpc_timeout": MASTER_REQUEST_TIMEOUT,
+        "retrying_channel": {
+            "retry_timeout": MASTER_RETRY_TIMEOUT,
+            # Let the deadline, rather than the default ten attempts, bound retries.
+            "retry_attempts": MASTER_RETRY_TIMEOUT // 1000 + 1,
+        },
+    }
+    config["proxy"]["retries"]["total_timeout"] = MASTER_RETRY_TIMEOUT
+    # RPC retries already handle transport errors. These master-specific errors
+    # can also arrive without a nested transport error during master recovery.
+    config["proxy"]["retries"]["additional_retriable_error_codes"].extend([
+        218,  # MasterDisconnected
+        712,  # MasterCommunicationFailed
+    ])
+    # The default ping period is lifetime / 3. Leave room for that gap followed
+    # by a full master outage, including in transactions opened by read/write_table.
+    config["transaction_timeout"] = MASTER_TRANSACTION_TIMEOUT
+    config["tablets_ready_timeout"] += MASTER_RETRY_TIMEOUT
+    return yt.YtClient(config=config)
+
+
+def create_tablet_client(config):
+    config = copy.deepcopy(config)
+    config["backend"] = "rpc"
+    config["driver_config"] = {"enable_retries": True}
+    config["dynamic_table_retries"]["backoff"] = {
+        "policy": "constant_time", "constant_time": TABLET_RETRY_BACKOFF}
+    config["dynamic_table_retries"]["total_timeout"] = TABLET_RETRY_TIMEOUT
+    config["tablets_ready_timeout"] = TABLET_READY_TIMEOUT
+    return yt.YtClient(config=config)
+
 
 def _get_external_cell_tag(path):
-    return yt.get(f"{path}/@", attributes=["external_cell_tag"]).get("external_cell_tag")
+    return master_client.get(f"{path}/@", attributes=["external_cell_tag"]).get("external_cell_tag")
 
 
 def simple_mapper(input_row):
@@ -102,18 +158,19 @@ def wait_for_pending_unmounts(obj, tablet_index):
         obj.wait_for_unmount(pending_tablet_indexes)
 
 
-def wait_for_tablet_condition(predicate, error_message):
+def wait_for_tablet_condition(predicate, error_message, client):
+    config = client.config
     wait(
         predicate,
         error_message=error_message,
-        timeout=yt.config["tablets_ready_timeout"] / 1000,
-        sleep_backoff=yt.config["tablets_check_interval"] / 1000,
+        timeout=config["tablets_ready_timeout"] / 1000,
+        sleep_backoff=config["tablets_check_interval"] / 1000,
     )
 
 
 def wait_for_tablet_state(path, tablet_indexes, state):
     def _tablets_ready():
-        tablets = yt.get(f"{path}/@tablets")
+        tablets = master_client.get(f"{path}/@tablets")
         return all(
             tablets[tablet_index]["state"] == state
             for tablet_index in tablet_indexes
@@ -122,6 +179,7 @@ def wait_for_tablet_state(path, tablet_indexes, state):
     wait_for_tablet_condition(
         _tablets_ready,
         error_message=f"Tablets of {path} did not become {state}",
+        client=master_client,
     )
 
 
@@ -148,7 +206,7 @@ def wait_for_hunk_storage_unmounts(tablets_by_storage):
 
     def _unmounted():
         for storage, tablet_indexes in list(pending.items()):
-            tablets = yt.get(f"{storage.path}/@tablets")
+            tablets = master_client.get(f"{storage.path}/@tablets")
             tablets = [tablets[index] for index in tablet_indexes]
             storage._async_unmount_locking_queue_tablets(tablets)
             if all(tablet["state"] == "unmounted" for tablet in tablets):
@@ -162,6 +220,7 @@ def wait_for_hunk_storage_unmounts(tablets_by_storage):
     wait_for_tablet_condition(
         _unmounted,
         error_message=f"Tablets of hunk storages {paths} did not become unmounted",
+        client=master_client,
     )
 
 
@@ -287,9 +346,9 @@ class TableBase:
                 raise YtError(f"Row with key '{expected_row['key']}' was expected in the {rows_descr} {table_path} but key '{actual_row['key']}' was read")
 
     def _create_static_data_table(self, data_path, rows):
-        yt.create("table", data_path, attributes={"schema": STATIC_DATA_SCHEMA})
+        master_client.create("table", data_path, attributes={"schema": STATIC_DATA_SCHEMA})
         if rows:
-            yt.write_table(data_path, [
+            master_client.write_table(data_path, [
                 {
                     "key": row["key"],
                     "value": row["value"],
@@ -300,13 +359,13 @@ class TableBase:
     def _validate_static_result(self, result_path, result_data_path, descr, actual_rows=None):
         # Static operation results may have a different row order.
         if actual_rows is None:
-            actual_rows = yt.read_table(result_path)
+            actual_rows = master_client.read_table(result_path)
         actual_rows = sorted(
             actual_rows,
             key=lambda r: (r["key"], r["value"]),
         )
         expected_rows = sorted(
-            yt.read_table(result_data_path),
+            master_client.read_table(result_data_path),
             key=lambda r: (r["key"], r["value"]),
         )
         self._check_rows(expected_rows, actual_rows, result_path, descr)
@@ -317,7 +376,7 @@ class TableBase:
     def _input_path(self):
         # Project to (key, value) so queue inputs (which carry $cumulative_data_weight)
         # match strict (key, value) result schemas. No-op for static inputs.
-        return yt.TablePath(self.path, columns=["key", "value"])
+        return master_client.TablePath(self.path, columns=["key", "value"])
 
     def _get_operation_expected_rows(self, input_path):
         return self.get_expected_rows()
@@ -328,7 +387,7 @@ class TableBase:
         cell_tag = _get_external_cell_tag(self.path)
         if cell_tag is not None:
             attributes["external_cell_tag"] = cell_tag
-        yt.create("table", path, attributes=attributes)
+        master_client.create("table", path, attributes=attributes)
 
     def _run_op_and_register(self, op_kind, output_schema, run_op_fn):
         result_name = self._next_result_name(op_kind)
@@ -341,9 +400,9 @@ class TableBase:
         # _input_path() may choose a different replica each time; reuse one selection
         # for the snapshot lock, expected rows, and operation.
         input_path = self._input_path()
-        with yt.Transaction():
+        with master_client.Transaction():
             # Keep the retained prefix stable while building expectations and fetching chunks.
-            yt.lock(str(input_path), mode="snapshot")
+            master_client.lock(str(input_path), mode="snapshot")
             # Queue expectations read metadata under this snapshot, then use a null
             # transaction context for shadow-table selects while keeping the lock held.
             expected_rows = sorted(
@@ -367,7 +426,7 @@ class TableBase:
         return self._run_op_and_register(
             "sort",
             SORTED_KV_SCHEMA,
-            lambda src, dst: yt.run_sort(src, dst, sort_by=["key", "value"]),
+            lambda src, dst: master_client.run_sort(src, dst, sort_by=["key", "value"]),
         )
 
     def _run_merge(self):
@@ -377,7 +436,7 @@ class TableBase:
         return self._run_op_and_register(
             "merge",
             UNSORTED_KV_SCHEMA,
-            lambda src, dst: yt.run_merge(
+            lambda src, dst: master_client.run_merge(
                 src, dst,
                 mode=mode,
                 spec={"combine_chunks": combine_chunks, "force_transform": force_transform},
@@ -388,7 +447,7 @@ class TableBase:
         return self._run_op_and_register(
             "map_reduce",
             KEY_SORTED_KV_SCHEMA,
-            lambda src, dst: yt.run_map_reduce(
+            lambda src, dst: master_client.run_map_reduce(
                 mapper=None, reducer=simple_reducer,
                 reduce_by=["key"], sort_by=["key"],
                 source_table=src, destination_table=dst,
@@ -400,7 +459,7 @@ class TableBase:
         return self._run_op_and_register(
             "map",
             UNSORTED_KV_SCHEMA,
-            lambda src, dst: yt.run_map(
+            lambda src, dst: master_client.run_map(
                 simple_mapper,
                 source_table=src, destination_table=dst,
                 ordered=ordered,
@@ -440,9 +499,9 @@ class TableBase:
         # Project both inputs to (key, value) — queue has $cumulative_data_weight, static does not.
         input_paths = [self._input_path(), other._input_path()]
 
-        with yt.Transaction():
+        with master_client.Transaction():
             for input_path in input_paths:
-                yt.lock(str(input_path), mode="snapshot")
+                master_client.lock(str(input_path), mode="snapshot")
             # Queue expectations read metadata under these snapshots, then use a null
             # transaction context for shadow-table selects while keeping the locks held.
             expected_rows = sorted(
@@ -452,7 +511,7 @@ class TableBase:
             )
 
             self._create_operation_output(result_path, UNSORTED_KV_SCHEMA)
-            yt.run_merge(
+            master_client.run_merge(
                 input_paths, result_path,
                 mode=mode,
                 spec={"combine_chunks": combine_chunks, "force_transform": force_transform},
@@ -505,7 +564,7 @@ class Queue(TableBase):
                 attributes["erasure_codec"] = "isa_reed_solomon_6_3"
 
             logger.info(f"Creating queue {self.path}")
-            yt.create("table", self.path, attributes=attributes)
+            master_client.create("table", self.path, attributes=attributes)
 
         self.create_data_table()
 
@@ -524,8 +583,9 @@ class Queue(TableBase):
             attributes["external_cell_tag"] = cell_tag
 
         logger.info(f"Creating hunk storage {hunk_storage_path} for table {table_path}")
-        hunk_storage_id = yt.create("hunk_storage", hunk_storage_path, attributes=attributes)
-        yt.mount_table(hunk_storage_path, sync=True)
+        hunk_storage_id = master_client.create(
+            "hunk_storage", hunk_storage_path, attributes=attributes)
+        master_client.mount_table(hunk_storage_path, sync=True)
         return hunk_storage_id
 
     def _create_replicated(self, attributes, erasure):
@@ -554,7 +614,7 @@ class Queue(TableBase):
         mount_config["preserve_tablet_index"] = True
         if erasure:
             replicated_table_attributes["erasure_codec"] = "isa_reed_solomon_6_3"
-        yt.create("replicated_table", self.path, attributes=replicated_table_attributes)
+        master_client.create("replicated_table", self.path, attributes=replicated_table_attributes)
         cell_tag = _get_external_cell_tag(self.path)
         if cell_tag is not None:
             attributes = dict(attributes, external_cell_tag=cell_tag)
@@ -563,8 +623,8 @@ class Queue(TableBase):
             source["hunk_storage_name"] = f"{self.name}.hunk_storage"
             hunk_storage_id = self._create_table_hunk_storage(
                 self.path, f"{self.path}.hunk_storage", erasure=erasure)
-            yt.set(f"{self.path}/@hunk_storage_id", hunk_storage_id)
-        yt.mount_table(self.path, sync=True)
+            master_client.set(f"{self.path}/@hunk_storage_id", hunk_storage_id)
+        master_client.mount_table(self.path, sync=True)
 
         for plan in self.replicas_plan:
             self._create_replica(plan, erasure, [0] * self.tablet_count, [0] * self.tablet_count)
@@ -575,7 +635,7 @@ class Queue(TableBase):
         assert self.cluster_name is not None
         index = len(self.replicas)
         replica_path = self._replica_path(index)
-        replica_id = yt.create("table_replica", attributes={
+        replica_id = master_client.create("table_replica", attributes={
             "table_path": self.path,
             "cluster_name": self.cluster_name,
             "replica_path": replica_path,
@@ -597,17 +657,17 @@ class Queue(TableBase):
         if erasure:
             replica_attributes["erasure_codec"] = "isa_reed_solomon_6_3"
 
-        yt.create("table", replica_path, attributes=replica_attributes)
+        master_client.create("table", replica_path, attributes=replica_attributes)
         hunk_storage_name = None
         if plan["hunks"]:
             hunk_storage_path = self._replica_hunk_storage_path(index)
             hunk_storage_name = hunk_storage_path.rsplit("/", 1)[-1]
             hunk_storage_id = self._create_table_hunk_storage(
                 replica_path, hunk_storage_path, erasure=erasure)
-            yt.set(f"{replica_path}/@hunk_storage_id", hunk_storage_id)
+            master_client.set(f"{replica_path}/@hunk_storage_id", hunk_storage_id)
 
-        yt.mount_table(replica_path, sync=True)
-        yt.alter_table_replica(replica_id, enabled=True)
+        master_client.mount_table(replica_path, sync=True)
+        master_client.alter_table_replica(replica_id, enabled=True)
 
         self.replicas.append({
             "index": index,
@@ -641,7 +701,7 @@ class Queue(TableBase):
             path = replica["path"]
             if replica["mode"] == "async":
                 self._wait_for_written_rows(path, list(range(self.tablet_count)))
-        return yt.TablePath(path, columns=["key", "value"])
+        return master_client.TablePath(path, columns=["key", "value"])
 
     def _get_trimmed_row_counts(self, path):
         for replica in self.replicas:
@@ -657,12 +717,12 @@ class Queue(TableBase):
         # The master trims whole chunks, so operations and static conversion can read
         # trimmed rows in a partially trimmed chunk. Use chunk statistics to find the
         # physically retained start instead of trimmed_row_counts.
-        chunk_list_id = yt.get(f"{path}/@chunk_list_id")
-        tablet_chunk_list_ids = yt.get(f"#{chunk_list_id}/@child_ids")
+        chunk_list_id = master_client.get(f"{path}/@chunk_list_id")
+        tablet_chunk_list_ids = master_client.get(f"#{chunk_list_id}/@child_ids")
         assert len(tablet_chunk_list_ids) == self.tablet_count
         start_row_indexes = []
         for index, tablet_chunk_list_id in enumerate(tablet_chunk_list_ids):
-            statistics = yt.get(f"#{tablet_chunk_list_id}/@statistics")
+            statistics = master_client.get(f"#{tablet_chunk_list_id}/@statistics")
             # Logical row count excludes unflushed rows, unlike written_row_count.
             start = statistics["logical_row_count"] - statistics["row_count"]
             assert 0 <= start <= trimmed_row_counts[index]
@@ -672,25 +732,25 @@ class Queue(TableBase):
     def _get_operation_expected_rows(self, input_path):
         start_row_indexes = self._get_retained_row_indexes(input_path)
         # Shadow-table selects cannot run in the input's master transaction.
-        with yt.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+        with tablet_client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
             return self.get_expected_rows(start_row_indexes=start_row_indexes)
 
     def create_data_table(self):
-        yt.create("table", self.data_path, attributes={
+        master_client.create("table", self.data_path, attributes={
             "dynamic": True,
             "enable_dynamic_store_read": True,
             "schema": QUEUE_DATA_SCHEMA,
         })
-        yt.mount_table(self.data_path, sync=True)
+        master_client.mount_table(self.data_path, sync=True)
 
     def initialize_cumulative_data_weights(self):
         assert not self.mount_state.has_mounted_tablet()
-        chunk_list_id = yt.get(f"{self.path}/@chunk_list_id")
-        tablet_chunk_list_ids = yt.get(f"#{chunk_list_id}/@child_ids")
+        chunk_list_id = master_client.get(f"{self.path}/@chunk_list_id")
+        tablet_chunk_list_ids = master_client.get(f"#{chunk_list_id}/@child_ids")
         assert len(tablet_chunk_list_ids) == self.tablet_count
         cumulative_data_weights = []
         for tablet_chunk_list_id in tablet_chunk_list_ids:
-            statistics = yt.get(f"#{tablet_chunk_list_id}/@statistics")
+            statistics = master_client.get(f"#{tablet_chunk_list_id}/@statistics")
             cumulative_data_weights.append(
                 statistics["logical_data_weight"] + statistics["logical_hunk_data_weight"])
         self.cumulative_data_weights = cumulative_data_weights
@@ -701,19 +761,19 @@ class Queue(TableBase):
             self._remove_replicated()
         else:
             self.unmount()
-            yt.remove(self.path)
-        yt.unmount_table(self.data_path, sync=True)
-        yt.remove(self.data_path)
+            master_client.remove(self.path)
+        master_client.unmount_table(self.data_path, sync=True)
+        master_client.remove(self.data_path)
 
     def _remove_replicated(self):
         # Drop replicas before the source, which owns their table_replica objects.
         for table in [*self.replicas, self.replication_source]:
-            yt.unmount_table(table["path"], sync=True)
+            master_client.unmount_table(table["path"], sync=True)
             if table["hunk_storage_name"]:
-                yt.remove(f"{table['path']}/@hunk_storage_id")
-            yt.remove(table["path"])
+                master_client.remove(f"{table['path']}/@hunk_storage_id")
+            master_client.remove(table["path"])
             if table["hunk_storage_name"]:
-                yt.remove(f"{self.base_path}/{table['hunk_storage_name']}")
+                master_client.remove(f"{self.base_path}/{table['hunk_storage_name']}")
 
     def relink_table_hunk_storage(self, table):
         old_path = f"{self.base_path}/{table['hunk_storage_name']}"
@@ -722,15 +782,15 @@ class Queue(TableBase):
         logger.info(f"Relinking table {table['path']} hunk storage -> {new_path}")
         new_hunk_storage_id = self._create_table_hunk_storage(
             table["path"], new_path, erasure=table["erasure"])
-        yt.unmount_table(table["path"], sync=True)
-        yt.set(f"{table['path']}/@hunk_storage_id", new_hunk_storage_id)
+        master_client.unmount_table(table["path"], sync=True)
+        master_client.set(f"{table['path']}/@hunk_storage_id", new_hunk_storage_id)
         table["hunk_storage_name"] = new_path.rsplit("/", 1)[-1]
         # The unmount flushed the table; its chunks keep references to the old hunk chunks.
-        yt.remove(old_path)
-        yt.mount_table(table["path"], sync=True)
+        master_client.remove(old_path)
+        master_client.mount_table(table["path"], sync=True)
 
     def copy(self, name):
-        # Replicated queues are not copied: a yt.copy of a replica keeps its immutable
+        # Replicated queues are not copied: a master_client.copy of a replica keeps its immutable
         # @upstream_replica_id (so it stays a non-writable replica), and rebuilding a plain
         # queue by replaying the shadow would exercise no copy machinery at all. Instead we
         # run map/merge/sort operations over a replica into separate outputs (see run_operations
@@ -744,13 +804,13 @@ class Queue(TableBase):
 
         if self.mount_state.has_mounted_tablet():
             self.unmount()
-        yt.copy(self.path, copy_path)
+        master_client.copy(self.path, copy_path)
 
         copied_data_path = f"{self.base_path}/{name}.data"
-        yt.unmount_table(self.data_path, sync=True)
-        yt.copy(self.data_path, copied_data_path)
-        yt.mount_table(self.data_path, sync=True)
-        yt.mount_table(copied_data_path, sync=True)
+        master_client.unmount_table(self.data_path, sync=True)
+        master_client.copy(self.data_path, copied_data_path)
+        master_client.mount_table(self.data_path, sync=True)
+        master_client.mount_table(copied_data_path, sync=True)
 
         copy_queue = Queue(self.base_path, name, self.tablet_count, history=new_history)
         copy_queue.hunk_storage_name = self.hunk_storage_name
@@ -767,12 +827,12 @@ class Queue(TableBase):
 
         if self.mount_state.has_mounted_tablet():
             self.unmount()
-        yt.move(self.path, new_path)
+        master_client.move(self.path, new_path)
 
         moved_data_path = f"{self.base_path}/{name}.data"
-        yt.unmount_table(self.data_path, sync=True)
-        yt.move(self.data_path, moved_data_path)
-        yt.mount_table(moved_data_path, sync=True)
+        master_client.unmount_table(self.data_path, sync=True)
+        master_client.move(self.data_path, moved_data_path)
+        master_client.mount_table(moved_data_path, sync=True)
 
         moved_queue = Queue(self.base_path, name, self.tablet_count, history=new_history)
         moved_queue.hunk_storage_name = self.hunk_storage_name
@@ -788,9 +848,11 @@ class Queue(TableBase):
         wait_for_pending_unmounts(self, tablet_index)
 
         if tablet_index is not None:
-            yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            master_client.mount_table(
+                self.path, first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index, sync=sync)
         else:
-            yt.mount_table(self.path, sync=sync)
+            master_client.mount_table(self.path, sync=sync)
 
         self.mount_state.mount(tablet_index, sync=sync)
 
@@ -800,9 +862,11 @@ class Queue(TableBase):
         wait_for_pending_mounts(self, tablet_index)
 
         if tablet_index is not None:
-            yt.unmount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            master_client.unmount_table(
+                self.path, first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index, sync=sync)
         else:
-            yt.unmount_table(self.path, sync=sync)
+            master_client.unmount_table(self.path, sync=sync)
 
         self.mount_state.unmount(tablet_index, sync=sync)
 
@@ -855,7 +919,7 @@ class Queue(TableBase):
 
         def _insert_rows():
             cumulative_data_weights = list(self.cumulative_data_weights)
-            with yt.Transaction(type="tablet"):
+            with tablet_client.Transaction(type="tablet"):
                 i = 0
                 while i < batch_size:
                     rows = []
@@ -876,15 +940,14 @@ class Queue(TableBase):
                         })
                         chunk_bytes_used += len(key) + len(value)
                         i += 1
-                    yt.insert_rows(self.path, rows, require_sync_replica=require_sync_replica)
-                    yt.insert_rows(self.data_path, data_rows)
+                    tablet_client.insert_rows(self.path, rows, require_sync_replica=require_sync_replica)
+                    tablet_client.insert_rows(self.data_path, data_rows)
             self.cumulative_data_weights = cumulative_data_weights
 
         run_with_retries(
             _insert_rows,
             retry_count=retry_count,
-            backoff=0.1,
-            backoff_config={"policy": "constant_time", "constant_time": 0.1},
+            backoff_config={"policy": "constant_time", "constant_time": TABLET_RETRY_BACKOFF},
             except_action=lambda ex: logger.error(
                 f"Exception during insert, try to retry: {ex.simplify()}"))
 
@@ -900,7 +963,7 @@ class Queue(TableBase):
 
     def _wait_for_written_rows(self, path, tablet_indexes):
         def check_written():
-            tablet_infos = yt.get_tablet_infos(path, tablet_indexes)["tablets"]
+            tablet_infos = tablet_client.get_tablet_infos(path, tablet_indexes)["tablets"]
             for offset, tablet_index in enumerate(tablet_indexes):
                 if tablet_infos[offset]["total_row_count"] != self.written_row_count[tablet_index]:
                     return False
@@ -911,6 +974,7 @@ class Queue(TableBase):
             check_written,
             error_message=(f"Table {path} has unexpected written row count "
                            f"(expected: {self.written_row_count})"),
+            client=tablet_client,
         )
 
     def flush(self):
@@ -922,8 +986,8 @@ class Queue(TableBase):
                 tablet_index=None, sync=True)
 
             for command, state in (
-                (yt.freeze_table, "frozen"),
-                (yt.unfreeze_table, "mounted"),
+                (master_client.freeze_table, "frozen"),
+                (master_client.unfreeze_table, "mounted"),
             ):
                 for tablet_index in mounted_tablet_indexes:
                     command(
@@ -944,14 +1008,14 @@ class Queue(TableBase):
             for replica in self.replicas:
                 self._wait_for_written_rows(replica["path"], [tablet_index])
                 if trimmed_row_count > replica["trimmed_row_counts"][tablet_index]:
-                    yt.trim_rows(replica["path"], tablet_index, trimmed_row_count)
+                    tablet_client.trim_rows(replica["path"], tablet_index, trimmed_row_count)
                     replica["trimmed_row_counts"][tablet_index] = trimmed_row_count
         else:
-            yt.trim_rows(self.path, tablet_index, trimmed_row_count)
+            tablet_client.trim_rows(self.path, tablet_index, trimmed_row_count)
         self.trimmed_row_counts[tablet_index] = trimmed_row_count
 
     def _select_data_rows(self, tablet_index, start_row_index, limit):
-        return list(yt.select_rows(
+        return list(tablet_client.select_rows(
             f"select row_index, key, value, cumulative_data_weight from [{self.data_path}] "
             f"where tablet_index = {tablet_index} and row_index >= {start_row_index} "
             f"order by tablet_index, row_index limit {limit}"))
@@ -975,18 +1039,18 @@ class Queue(TableBase):
     def _wait_hunk_chunks_sealed(self):
         # alter_table(dynamic=False) requires every referenced hunk chunk to be sealed.
         # After unmount, sealing may still be in flight — poll until done.
-        chunk_ids = yt.get(f"{self.path}/@chunk_ids")
+        chunk_ids = master_client.get(f"{self.path}/@chunk_ids")
         hunk_chunk_ids = [
             cid for cid in chunk_ids
-            if yt.get(f"#{cid}/@chunk_type") != "table"
+            if master_client.get(f"#{cid}/@chunk_type") != "table"
         ]
         if not hunk_chunk_ids:
             return
         wait(
-            lambda: all(yt.get(f"#{cid}/@sealed") for cid in hunk_chunk_ids),
+            lambda: all(master_client.get(f"#{cid}/@sealed") for cid in hunk_chunk_ids),
             error_message=f"Hunk chunks of {self.path} did not become sealed",
-            timeout=300,
-            sleep_backoff=1,
+            timeout=(HUNK_CHUNK_SEAL_TIMEOUT + MASTER_RETRY_TIMEOUT) / 1000,
+            sleep_backoff=HUNK_CHUNK_SEAL_CHECK_PERIOD / 1000,
         )
 
     def alter_to_static(self, new_static_name):
@@ -1010,7 +1074,7 @@ class Queue(TableBase):
             key=lambda r: (r["key"], r["value"]),
         )
 
-        yt.unmount_table(self.data_path, sync=True)
+        master_client.unmount_table(self.data_path, sync=True)
 
         # Hunk chunks may still be sealing after unmount; alter rejects unsealed.
         self._wait_hunk_chunks_sealed()
@@ -1019,14 +1083,14 @@ class Queue(TableBase):
         # (ordered queue), so this is allowed. It preserves chunk_ids (including hunk
         # references), so subsequent ops exercise the real chunk lifecycle for hunked
         # tables.
-        yt.move(self.path, new_path)
-        yt.alter_table(new_path, dynamic=False)
+        master_client.move(self.path, new_path)
+        master_client.alter_table(new_path, dynamic=False)
 
         # The .data is sorted-dynamic and cannot be altered to static, so drop it and
         # recreate a static .data table (STATIC_DATA_SCHEMA) from the rows read above.
         # _validate_static_result sorts both sides in Python, so the differing column
         # order/sort is tolerated.
-        yt.remove(self.data_path)
+        master_client.remove(self.data_path)
 
         static_table = StaticTable(self.base_path, new_static_name, history=new_history)
         static_table._create_static_data_table(new_data_path, expected_rows)
@@ -1054,7 +1118,7 @@ class Queue(TableBase):
             # Reading from zero also checks that the server skips the trimmed prefix.
             offset = 0
             while True:
-                actual_rows = list(yt.pull_queue(
+                actual_rows = list(tablet_client.pull_queue(
                     path, offset=offset, partition_index=tablet_index,
                     max_data_weight=cfg.read_page_max_data_weight))
                 if len(actual_rows) == 0:
@@ -1109,20 +1173,20 @@ class Queue(TableBase):
 
 class StaticTable(TableBase):
     def get_expected_rows(self):
-        return list(yt.read_table(self.data_path))
+        return list(master_client.read_table(self.data_path))
 
     def remove(self):
         logger.info(f"Removing static table {self.path}")
-        yt.remove(self.path, force=True)
-        yt.remove(self.data_path, force=True)
+        master_client.remove(self.path, force=True)
+        master_client.remove(self.data_path, force=True)
 
     def copy(self, new_name):
         new_path = f"{self.base_path}/{new_name}"
         new_data_path = f"{self.base_path}/{new_name}.data"
         new_history = _derive_history(self.history, "copy")
         logger.info(f"Copying static table {self.path} to {new_path} (new history: {_format_history(new_history)})")
-        yt.copy(self.path, new_path)
-        yt.copy(self.data_path, new_data_path)
+        master_client.copy(self.path, new_path)
+        master_client.copy(self.data_path, new_data_path)
         return StaticTable(self.base_path, new_name, history=new_history)
 
     def move(self, new_name):
@@ -1130,8 +1194,8 @@ class StaticTable(TableBase):
         new_data_path = f"{self.base_path}/{new_name}.data"
         new_history = _derive_history(self.history, "move")
         logger.info(f"Moving static table {self.path} to {new_path} (new history: {_format_history(new_history)})")
-        yt.move(self.path, new_path)
-        yt.move(self.data_path, new_data_path)
+        master_client.move(self.path, new_path)
+        master_client.move(self.data_path, new_data_path)
         return StaticTable(self.base_path, new_name, history=new_history)
 
     def alter_to_queue(self, new_queue_name):
@@ -1141,7 +1205,7 @@ class StaticTable(TableBase):
         # Read rows from the static table itself (not its .data) so the row_index we
         # assign matches the order pull_queue will return after the alter — chunks are
         # immutable, so static read order == post-alter pull_queue order.
-        rows = list(yt.read_table(self.path))
+        rows = list(master_client.read_table(self.path))
         self._validate_static_result(self.path, self.data_path, "static table", actual_rows=rows)
         queue_data_rows = [
             {
@@ -1157,21 +1221,22 @@ class StaticTable(TableBase):
 
         # Drop sort order before making an ordered table. Existing rows without the
         # system column retain null; newly appended rows get cumulative weights.
-        schema = yt.get(f"{self.path}/@schema")
+        schema = master_client.get(f"{self.path}/@schema")
         has_sort_order = any(col.get("sort_order") for col in schema)
 
-        yt.move(self.path, new_path)
-        yt.remove(self.data_path)
+        master_client.move(self.path, new_path)
+        master_client.remove(self.data_path)
 
         if has_sort_order:
-            yt.alter_table(new_path, schema=UNSORTED_KV_SCHEMA)
-        yt.alter_table(new_path, dynamic=True, schema=QUEUE_SCHEMA)
-        yt.set(f"{new_path}/@enable_dynamic_store_read", True)
+            master_client.alter_table(new_path, schema=UNSORTED_KV_SCHEMA)
+        master_client.alter_table(new_path, dynamic=True, schema=QUEUE_SCHEMA)
+        master_client.set(f"{new_path}/@enable_dynamic_store_read", True)
 
         queue = Queue(self.base_path, new_queue_name, tablet_count=1, history=new_history)
         queue.create_data_table()
         for offset in range(0, len(queue_data_rows), DATA_TABLE_WRITE_BATCH_SIZE):
-            yt.insert_rows(queue.data_path, queue_data_rows[offset:offset + DATA_TABLE_WRITE_BATCH_SIZE])
+            tablet_client.insert_rows(
+                queue.data_path, queue_data_rows[offset:offset + DATA_TABLE_WRITE_BATCH_SIZE])
         queue.written_row_count[0] = len(queue_data_rows)
         queue.initialize_cumulative_data_weights()
 
@@ -1202,7 +1267,7 @@ class HunkStorage:
             hunk_storage_attributes.update(HUNK_STORAGE_ERASURE_ATTRIBUTES)
 
         logger.info(f"Creating hunk storage {self.path} on cell tag {self.cell_tag}, erasure: {erasure}")
-        self.hunk_storage_id = yt.create(
+        self.hunk_storage_id = master_client.create(
             "hunk_storage",
             self.path,
             attributes=hunk_storage_attributes)
@@ -1213,9 +1278,11 @@ class HunkStorage:
         wait_for_pending_unmounts(self, tablet_index)
 
         if tablet_index is not None:
-            yt.mount_table(self.path, first_tablet_index=tablet_index, last_tablet_index=tablet_index, sync=sync)
+            master_client.mount_table(
+                self.path, first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index, sync=sync)
         else:
-            yt.mount_table(self.path, sync=sync)
+            master_client.mount_table(self.path, sync=sync)
 
         self.mount_state.mount(tablet_index, sync=sync)
 
@@ -1225,21 +1292,21 @@ class HunkStorage:
         wait_for_pending_mounts(self, tablet_index)
 
         tablet_indexes = range(self.tablet_count) if tablet_index is None else [tablet_index]
-        tablets = yt.get(f"{self.path}/@tablets")
+        tablets = master_client.get(f"{self.path}/@tablets")
         tablets = [tablets[index] for index in tablet_indexes]
 
         # Pending queue mounts finish first; regular and hunk unmounts then overlap.
         self._async_unmount_locking_queue_tablets(tablets)
 
         if tablet_index is not None:
-            yt.unmount_table(
+            master_client.unmount_table(
                 self.path,
                 first_tablet_index=tablet_index,
                 last_tablet_index=tablet_index,
                 sync=False,
             )
         else:
-            yt.unmount_table(self.path, sync=False)
+            master_client.unmount_table(self.path, sync=False)
 
         self.mount_state.unmount(tablet_index, sync=False)
 
@@ -1258,9 +1325,9 @@ class HunkStorage:
 
             tablet_path = f"//sys/tablets/{tablet['tablet_id']}"
             try:
-                stores = yt.get(f"{tablet_path}/orchid/stores")
+                stores = master_client.get(f"{tablet_path}/orchid/stores")
             except YtError as err:
-                state = yt.get(f"{tablet_path}/@state")
+                state = master_client.get(f"{tablet_path}/@state")
                 if state == "unmounted":
                     continue
                 # The orchid disappears before the master processes the unmount acknowledgement.
@@ -1278,7 +1345,7 @@ class HunkStorage:
         queues_by_path = {queue.path: queue for queue in self.queues.values()}
         for tablet_id in sorted(lock_holders):
             try:
-                attributes = yt.get(
+                attributes = master_client.get(
                     f"//sys/tablets/{tablet_id}/@",
                     attributes=["table_path", "index"],
                 )
@@ -1301,14 +1368,14 @@ class HunkStorage:
     def remove(self):
         logger.info(f"Removing hunk_storage {self.path}")
         # Removal tears down tablets on the server without waiting for hunk locks.
-        yt.remove(self.path)
+        master_client.remove(self.path)
 
 
 def link(queue, hunk_storage):
     logger.info(f"Linking hunk storage {hunk_storage.path} and {queue.path}")
 
     with sync_unmount_queue_temporarily(queue):
-        yt.set(f"{queue.path}/@hunk_storage_id", hunk_storage.hunk_storage_id)
+        master_client.set(f"{queue.path}/@hunk_storage_id", hunk_storage.hunk_storage_id)
         queue.hunk_storage_name = hunk_storage.name
         hunk_storage.linked_queue_names.add(queue.name)
 
@@ -1316,7 +1383,7 @@ def link(queue, hunk_storage):
 def unlink(queue, hunk_storage):
     logger.info(f"Unlinking hunk storage {hunk_storage.path} and {queue.path}")
     with sync_unmount_queue_temporarily(queue):
-        yt.remove(f"{queue.path}/@hunk_storage_id")
+        master_client.remove(f"{queue.path}/@hunk_storage_id")
         queue.hunk_storage_name = None
         hunk_storage.linked_queue_names.remove(queue.name)
 
@@ -1328,21 +1395,16 @@ def is_unmounted_error(err):
 
 
 def test_queue_and_hunk_storage(base_path, spec, attributes, args):
+    global master_client, tablet_client
+
     logging.getLogger('Yt').setLevel(logging.DEBUG)
 
-    yt.config["backend"] = "rpc"
-    yt.config["driver_config"] = {"enable_retries": True}
-    yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
-    yt.config["dynamic_table_retries"]["total_timeout"] = 180000
-    yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
-    # Give transactions a generous lifetime (default is 30s): operations run under a master
-    # transaction (sort/merge/map_reduce/alter) can take minutes, and a too-short timeout makes
-    # the transaction expire mid-operation ("No such transaction" on commit).
-    yt.config["transaction_timeout"] = 300000
+    tablet_client = create_tablet_client(get_config(None))
+    master_client = create_master_client(tablet_client.config)
 
     # All table replicas created by this stress-test point to the current cluster.
     # Resolve its name once per run instead of issuing a Cypress get for every new queue.
-    cluster_name = yt.get("//sys/@cluster_name")
+    cluster_name = master_client.get("//sys/@cluster_name")
 
     queues = {}
     hunk_storages = {}
