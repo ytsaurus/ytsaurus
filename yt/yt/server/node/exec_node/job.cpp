@@ -3204,11 +3204,17 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         auto validateNodeIds = [&] (
             const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-            const TNodeDirectoryPtr& nodeDirectory)
+            const TNodeDirectoryPtr& nodeDirectory,
+            bool isInputTableChunk)
         {
             for (const auto& chunkSpec : chunkSpecs) {
-                auto tableIndex = chunkSpec.table_index();
-                bool isTableRemote = maybeDataSourceDirectory && !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                // Only input table indices refer to the data source directory.
+                // Artifact and layer chunk specs have independent table indices.
+                bool isTableRemote = false;
+                if (isInputTableChunk && maybeDataSourceDirectory) {
+                    auto tableIndex = chunkSpec.table_index();
+                    isTableRemote = !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                }
                 if (isTableRemote) {
                     // NB(coteeq): We cannot come to this branch if data source was missing,
                     // so there is a chance that we will try to resolve remote node ids.
@@ -3234,7 +3240,7 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
             for (const auto& tableSpec : tableSpecs) {
-                validateNodeIds(tableSpec.chunk_specs(), nodeDirectory);
+                validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ true);
             }
         };
 
@@ -3243,24 +3249,24 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
-            validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
+            validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
         }
 
         if (auto rootVolumeParams = FSSecretary_->GetRootVolumeParams(); rootVolumeParams) {
             for (const auto& artifactKey : rootVolumeParams->LayerArtifactKeys.GetAll()) {
-                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
             }
         }
 
         if (auto gpuVolumeParams = FSSecretary_->GetGpuCheckVolumeParams(); gpuVolumeParams) {
             for (const auto& artifactKey : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
-                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
             }
         }
 
         for (const auto& nonRootVolumeParams : FSSecretary_->GetNonRootVolumeParams()) {
             for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys.GetAll()) {
-                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
             }
         }
 
