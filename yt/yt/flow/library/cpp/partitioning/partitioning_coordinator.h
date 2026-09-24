@@ -16,6 +16,8 @@ struct TComputationPartitioningState
     : public NYTree::TYsonStruct
 {
     std::optional<TVersion> LastAppliedSinkTopologyVersion;
+    //! Source partitions to remove after their key disappears and they finish draining.
+    THashSet<TPartitionId> RetiringSourcePartitions;
 
     REGISTER_YSON_STRUCT(TComputationPartitioningState);
 
@@ -106,6 +108,7 @@ private:
         TComputationPartitioningStatePtr PersistedState;
         std::optional<TVersion> PendingAppliedSinkTopologyVersion;
         std::optional<TVersion> PreviousAppliedSinkTopologyVersion;
+        std::optional<THashSet<TPartitionId>> PreviousRetiringSourcePartitions;
     };
 
     struct TRangePartitioningParameters

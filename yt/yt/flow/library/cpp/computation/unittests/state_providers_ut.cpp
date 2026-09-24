@@ -11,6 +11,8 @@
 #include <yt/yt/flow/library/cpp/serializer/state.h>
 #include <yt/yt/flow/library/cpp/tables/state.h>
 
+#include <yt/yt/flow/library/cpp/misc/destruction_context.h>
+
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -43,6 +45,28 @@ TYsonString MakeValue(int value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TJobStateCacheValueTest, CompressionTransfersStateOwnership)
+{
+    auto state = New<TStateHolder<i64>>();
+    auto weakState = MakeWeak(state);
+    auto cached = New<TJobStateCacheValue>(/*remoteState*/ nullptr, std::move(state));
+
+    cached->Compress();
+    EXPECT_FALSE(cached->State);
+    EXPECT_FALSE(weakState.Lock());
+
+    state = New<TStateHolder<i64>>();
+    weakState = MakeWeak(state);
+    cached->State = std::move(state);
+    {
+        TDestructionContextGuard guard;
+        cached->Compress();
+        EXPECT_FALSE(cached->State);
+        EXPECT_TRUE(weakState.Lock());
+    }
+    EXPECT_FALSE(weakState.Lock());
+}
 
 // A state that no computation touched during the epoch must not be rewritten just
 // because the recode roll succeeded.

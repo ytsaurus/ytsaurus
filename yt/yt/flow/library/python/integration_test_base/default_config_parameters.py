@@ -5,6 +5,7 @@ import yatest
 IS_CI = bool(os.getenv('CI'))
 
 FLOW_NODE_DEFAULT_CONFIG = {
+    "enable_porto_resource_tracker": False,
     "solomon_exporter": {
         "enable_self_profiling": False,
     },

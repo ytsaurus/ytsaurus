@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
 namespace NYT::NHydraStressTest {
 
 using namespace NHydra;
@@ -127,9 +129,9 @@ void TAutomatonPart::HydraCas(
     ++MutationIndex_;
 
     if (context) {
-        context->SetResponseInfo("Success: %v, Current: %v",
-            response->success(),
-            response->current());
+        context->AnnotateResponse()
+            .With("Success", response->success())
+            .With("Current", response->current());
     }
 }
 
@@ -141,9 +143,9 @@ void TAutomatonPart::HydraSequencePart(
     auto value = request->value();
     auto id = request->id();
     if (context) {
-        context->SetRequestInfo("SequenceId: %v, Value: %v",
-            value,
-            id);
+        context->AnnotateRequest()
+            .With("SequenceId", value)
+            .With("Value", id);
     }
 
     YT_TLOG_DEBUG("Starting sequence iteration")
@@ -157,7 +159,7 @@ void TAutomatonPart::HydraSequencePart(
     SequenceValue_ = value;
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 
@@ -170,9 +172,9 @@ void TAutomatonPart::HydraSequence(
     auto count = request->count();
 
     if (context) {
-        context->SetRequestInfo("SequenceId: %v, Count: %v",
-            count,
-            id);
+        context->AnnotateRequest()
+            .With("SequenceId", count)
+            .With("Count", id);
     }
 
     YT_TLOG_DEBUG("Started sequence")
@@ -192,7 +194,7 @@ void TAutomatonPart::HydraSequence(
         .With("Count", count);
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 
@@ -204,8 +206,8 @@ void TAutomatonPart::HydraThrowException(
     auto expected = request->expected();
 
     if (context) {
-        context->SetRequestInfo("Expected: %v",
-            expected);
+        context->AnnotateRequest()
+            .With("Expected", expected);
     }
 
     if (expected) {
@@ -219,7 +221,7 @@ void TAutomatonPart::HydraThrowException(
     }
 
     if (context) {
-        context->SetResponseInfo();
+        context->AnnotateResponse();
     }
 }
 

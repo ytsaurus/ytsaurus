@@ -101,14 +101,14 @@ INodePtr MakeFileNode(TObjectId objectId, TRevision revision, i64 size)
         .BeginAttributes()
             .Item("id").Value(objectId)
             .Item("type").Value(EObjectType::File)
-            .Item("revision").Value(revision)
+            .Item("content_revision").Value(revision)
             .Item("uncompressed_data_size").Value(size)
         .EndAttributes()
         .Entity();
     // clang-format on
 }
 
-INodePtr MakeTableNode(TObjectId objectId, TRevision contentRevision)
+INodePtr MakeTableNode(TObjectId objectId, TRevision revision)
 {
     // clang-format off
     return BuildYsonNodeFluently()
@@ -116,7 +116,7 @@ INodePtr MakeTableNode(TObjectId objectId, TRevision contentRevision)
             .Item("id").Value(objectId)
             .Item("type").Value(EObjectType::Table)
             .Item("dynamic").Value(false)
-            .Item("content_revision").Value(contentRevision)
+            .Item("content_revision").Value(revision)
             .Item("schema").Value(GetYTFileProviderBlobTableSchema())
         .EndAttributes()
         .Entity();
@@ -192,10 +192,8 @@ TEST(TYTDirectoryLastFileProviderTest, SelectsLexicographicallyGreatestBlobTable
     auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
     ASSERT_TRUE(revision);
-    EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_blob_table:v1:"));
-    EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
-        EYTFileProviderObjectKind::BlobTable);
+    EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
+    EXPECT_EQ(revision->Locator->GetChildCount(), 4);
 }
 
 TEST(TYTDirectoryLastFileProviderTest, AlsoSelectsCypressFileChildren)
@@ -218,6 +216,29 @@ TEST(TYTDirectoryLastFileProviderTest, AlsoSelectsCypressFileChildren)
     ASSERT_TRUE(revision);
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
     EXPECT_FALSE(revision->Locator->FindChild("basename"));
+}
+
+TEST(TYTDirectoryLastFileProviderTest, SameChildReloadsOnContentChange)
+{
+    auto objectId = MakeTableId(1);
+    auto listing = MakeDirectoryListing({{"001", EObjectType::Table}});
+    auto client = New<testing::StrictMock<TMockClient>>();
+    auto provider = MakeDirectoryProvider(client);
+    ExpectDiscovery(client.Get(), listing, "//versions/001", objectId, MakeTableNode(objectId, TRevision{1}));
+    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    ExpectDiscovery(client.Get(), listing, "//versions/001", objectId, MakeTableNode(objectId, TRevision{2}));
+    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+
+    EXPECT_NE(first->ObjectId, second->ObjectId);
+
+    ExpectDiscovery(
+        client.Get(),
+        MakeDirectoryListing({{"002", EObjectType::Table}}),
+        "//versions/002",
+        objectId,
+        MakeTableNode(objectId, TRevision{2}));
+    auto nextPath = WaitFor(provider->Discover()).ValueOrThrow();
+    EXPECT_NE(second->ObjectId, nextPath->ObjectId);
 }
 
 TEST(TYTDirectoryLastFileProviderTest, DynamicPinSelectsExactChildAndCanBeCleared)
@@ -251,18 +272,18 @@ TEST(TYTDirectoryLastFileProviderTest, DynamicPinSelectsExactChildAndCanBeCleare
     auto provider = MakeDirectoryProvider(client);
 
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
-        secondTableId);
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        "//versions/002");
 
     provider->Reconfigure(MakeDirectoryDynamicContext("001"));
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
-        firstTableId);
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        "//versions/001");
 
     provider->Reconfigure(MakeDirectoryDynamicContext());
     EXPECT_EQ(
-        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
-        secondTableId);
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TYPath>("object_path"),
+        "//versions/002");
 }
 
 TEST(TYTDirectoryLastFileProviderTest, UnsupportedLinkDoesNotMaskGreatestSupportedChild)
@@ -283,9 +304,7 @@ TEST(TYTDirectoryLastFileProviderTest, UnsupportedLinkDoesNotMaskGreatestSupport
     auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
     ASSERT_TRUE(revision);
-    EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
-        EYTFileProviderObjectKind::BlobTable);
+    EXPECT_EQ(revision->Locator->GetChildCount(), 4);
 }
 
 TEST(TYTDirectoryLastFileProviderTest, EmptyOrUnsupportedDirectoryHasNoRevision)
@@ -332,19 +351,18 @@ TEST(TYTDirectoryLastFileProviderTest, DynamicPinMustNameExistingSupportedChild)
 
 TEST(TYTDirectoryLastFileProviderTest, SharesBlobTableObjectIdFamilyWithYTFileProvider)
 {
-    auto objectId = MakeTableId(6);
     auto revision = TRevision{42};
-    auto file = MakeYTBlobTableFileProviderRevision(
+    auto file = MakeYTFileProviderRevision(
         TypeName<TYTFileProvider>(),
         TRichYPath("<cluster=primary>//versions/001"),
         "primary",
-        objectId,
+        MakeTableId(6),
         revision);
-    auto directory = MakeYTBlobTableFileProviderRevision(
+    auto directory = MakeYTFileProviderRevision(
         TypeName<TYTDirectoryLastFileProvider>(),
         TRichYPath("<cluster=primary>//versions/001"),
         "primary",
-        objectId,
+        MakeTableId(6),
         revision);
 
     EXPECT_EQ(file->ObjectId, directory->ObjectId);

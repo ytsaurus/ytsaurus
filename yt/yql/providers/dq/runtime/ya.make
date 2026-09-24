@@ -17,6 +17,7 @@ PEERDIR(
     yql/essentials/utils
     yql/essentials/utils/backtrace
     yql/essentials/utils/failure_injector
+    yt/yt/core
 )
 
 YQL_LAST_ABI_VERSION()
@@ -24,6 +25,7 @@ YQL_LAST_ABI_VERSION()
 SRCS(
     file_cache.cpp
     task_command_executor.cpp
+    task_runner_invoker_factory.cpp
 )
 
 END()

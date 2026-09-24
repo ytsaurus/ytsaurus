@@ -29,6 +29,7 @@ namespace {
 struct TFileProviderDiscoveryState
     : public TYsonStruct
 {
+    IMapNodePtr ResourceSpec;
     IMapNodePtr FileProviders;
     IMapNodePtr DynamicFileProviders;
     THashMap<TFileProviderId, TFileProviderRevisionPtr> Revisions;
@@ -42,6 +43,8 @@ struct TFileProviderDiscoveryState
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("resource_spec", &TThis::ResourceSpec)
+            .Default();
         registrar.Parameter("file_providers", &TThis::FileProviders)
             .Default();
         registrar.Parameter("dynamic_file_providers", &TThis::DynamicFileProviders)
@@ -211,8 +214,12 @@ public:
         if (initContext) {
             initContext->InitClient<TFileProviderDiscoveryState>(State_, "v0");
 
+            auto resourceSpec = ConvertToNode(Context_->ResourceSpec)->AsMap();
+            const auto staticSpecMatches = State_->ResourceSpec &&
+                AreNodesEqual(State_->ResourceSpec, resourceSpec);
+            State_->ResourceSpec = std::move(resourceSpec);
             auto fileProviders = ConvertToNode(Context_->ResourceSpec->FileProviders)->AsMap();
-            if (State_->FileProviders &&
+            if (staticSpecMatches && State_->FileProviders &&
                 State_->DynamicFileProviders &&
                 AreNodesEqual(State_->FileProviders, fileProviders) &&
                 AreNodesEqual(State_->DynamicFileProviders, DynamicFileProviders_))
@@ -241,7 +248,7 @@ public:
                 KnownFileSnapshots_ = State_->KnownFileSnapshots;
                 auto activeFileSnapshot = FindKnownFileSnapshot(State_->ActiveFileSnapshotId);
                 auto preparingFileSnapshot = FindKnownFileSnapshot(State_->PreparingFileSnapshotId);
-                if (ArePersistedFileSnapshotsCompatible(activeFileSnapshot, preparingFileSnapshot)) {
+                if (staticSpecMatches && ArePersistedFileSnapshotsCompatible(activeFileSnapshot, preparingFileSnapshot)) {
                     ActiveFileSnapshot_ = std::move(activeFileSnapshot);
                     PreparingFileSnapshot_ = std::move(preparingFileSnapshot);
                     LastFileSnapshotCreationTime_ = State_->LastFileSnapshotCreationTime;
@@ -317,6 +324,7 @@ public:
 
     std::optional<std::pair<TFileSnapshotPtr, TFileSnapshotPtr>> BuildTargetFileSnapshots()
     {
+        const auto& Logger = Context_->Logger;
         std::optional<THashMap<TFileProviderId, TFileProviderRevisionPtr>> revisionsToSnapshot;
         {
             auto guard = Guard(Lock_);
@@ -343,6 +351,7 @@ public:
             }
         }
 
+        TFileSnapshotPtr createdSnapshot;
         if (revisionsToSnapshot) {
             THROW_ERROR_EXCEPTION_UNLESS(
                 Context_->TimeProvider,
@@ -360,10 +369,16 @@ public:
                     now >= *LastFileSnapshotCreationTime_ + FileSnapshotMinCreationPeriod_))
             {
                 PreparingFileSnapshot_ = std::move(snapshot);
+                createdSnapshot = PreparingFileSnapshot_;
                 RegisterKnownFileSnapshot(PreparingFileSnapshot_);
                 LastFileSnapshotCreationTime_ = now;
                 PersistFileSnapshotState();
             }
+        }
+
+        if (createdSnapshot) {
+            YT_TLOG_INFO("Created file snapshot for rollout")
+                .With("FileSnapshotId", createdSnapshot->Id);
         }
 
         auto guard = Guard(Lock_);
@@ -377,6 +392,7 @@ public:
         const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
         std::optional<i64> publishedRevisionId)
     {
+        const auto& Logger = Context_->Logger;
         if (Providers_.empty()) {
             return;
         }
@@ -451,6 +467,7 @@ public:
             }
         }
 
+        std::optional<TFileSnapshotId> promotedSnapshotId;
         if (publishedRevisionId) {
             auto guard = Guard(Lock_);
             if (PreparingFileSnapshot_) {
@@ -460,6 +477,7 @@ public:
                         status->PreparingFileSnapshot->State == EFileSnapshotState::Validated)
                     {
                         ActiveFileSnapshot_ = PreparingFileSnapshot_;
+                        promotedSnapshotId = ActiveFileSnapshot_->Id;
                         PreparingFileSnapshot_.Reset();
                         ActiveFileSnapshotPublishedAt_ = TInstant::Now();
                         PersistFileSnapshotState();
@@ -467,6 +485,11 @@ public:
                     }
                 }
             }
+        }
+
+        if (promotedSnapshotId) {
+            YT_TLOG_INFO("Promoted file snapshot to active target")
+                .With("FileSnapshotId", *promotedSnapshotId);
         }
 
         UpdateRolloutStatus(authoritativeWorkerStatuses, publishedRevisionId);
@@ -884,11 +907,15 @@ private:
                     id,
                     revision->FileProviderClassName,
                     entry.Spec->FileProviderClassName);
+                bool changed = false;
                 {
                     auto guard = Guard(Lock_);
                     if (generation != entry.Generation) {
                         return;
                     }
+                    auto previousIt = PendingRevisions_.find(id);
+                    changed = previousIt == PendingRevisions_.end() ||
+                        !AreNodesEqual(ConvertToNode(previousIt->second), ConvertToNode(revision));
                     PendingRevisions_[id] = revision;
                     if (PendingRevisions_.size() == Providers_.size()) {
                         PublishedRevisions_ = PendingRevisions_;
@@ -898,6 +925,13 @@ private:
                     }
                 }
                 entry.DiscoveryError->ClearError();
+                if (changed) {
+                    YT_TLOG_INFO("Discovered new file provider revision")
+                        .With("FileProvider", id)
+                        .With("ObjectId", revision->ObjectId)
+                        .With("DisplayVersion", revision->DisplayVersion)
+                        .With("ExpectedSize", revision->Size);
+                }
                 return;
             }
 

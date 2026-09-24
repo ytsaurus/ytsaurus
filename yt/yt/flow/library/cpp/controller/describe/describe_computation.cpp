@@ -404,14 +404,18 @@ void FillPerformanceMessage(
 
 TExtendedComputationDescription DescribeComputation(
     const TFlowViewPtr& flowView,
-    const TComputationId& computationId)
+    const TComputationId& computationId,
+    const THashMap<std::string, TError>& controllerErrors)
 {
     // Every computation's partitions, not just this one's: the writer-blocked
     // shares below come from the neighbors. One walk of the layout serves both.
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>> computationIntermediateDescriptions{
         {computationId, GetOrDefault(intermediateDescriptions, computationId)}};
-    auto computationDescriptions = MakeComputationDescriptions(flowView, computationIntermediateDescriptions); // Do some useless work, but it is not too heavy.
+    auto computationDescriptions = MakeComputationDescriptions(
+        flowView,
+        computationIntermediateDescriptions,
+        controllerErrors); // Do some useless work, but it is not too heavy.
     auto computationDescriptionIt = computationDescriptions.find(computationId);
     THROW_ERROR_EXCEPTION_IF(computationDescriptionIt == computationDescriptions.end(), "Computation %Qv not found", computationId);
     auto description = ConvertTo<TExtendedComputationDescription>(computationDescriptionIt->second);

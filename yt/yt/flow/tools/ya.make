@@ -6,7 +6,6 @@ RECURSE(
     python_companion_package
     reanimate_vanilla_operation
     reshard_flow_tables
-    yt_sync_mini
 )
 
 IF (NOT OPENSOURCE)

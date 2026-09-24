@@ -119,12 +119,16 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_lease_serialization.cpp
     chaos_client/chaos_leases_watcher.cpp
+    chaos_client/chaos_leases_watcher_client.cpp
     chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/master_cache_channel.cpp
+    chaos_client/native_chaos_lease_cache.cpp
     chaos_client/native_replication_card_cache_detail.cpp
+    chaos_client/object_watcher_client.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
@@ -280,6 +284,8 @@ SRCS(
 
     event_log/config.cpp
     event_log/event_log.cpp
+
+    exec_node/public.cpp
 
     exec_node_admin/proto/exec_node_admin_service.proto
     exec_node_tracker_client/proto/exec_node_tracker_service.proto
@@ -536,7 +542,6 @@ SRCS(
     table_client/table_columnar_statistics_cache.cpp
     table_client/table_read_spec.cpp
     table_client/timing_reader.cpp
-    table_client/timing_statistics.cpp
     table_client/versioned_block_reader.cpp
     table_client/versioned_block_writer.cpp
     table_client/versioned_chunk_reader.cpp

@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_base.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -181,7 +182,7 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        auto* node = GetThisImpl();
+        const auto* node = GetThisImpl();
         bool isGood = node->HasAliveLocalState();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
@@ -815,7 +816,7 @@ private:
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)
     {
         fluent
-            .DoListFor(cellar, [] (TFluentList fluent, const TNode::TCellSlot& slot) {
+            .DoListFor(cellar, [] (TFluentList fluent, const TCellSlot& slot) {
                 fluent
                     .Item().BeginMap()
                     .Item("state").Value(slot.PeerState)

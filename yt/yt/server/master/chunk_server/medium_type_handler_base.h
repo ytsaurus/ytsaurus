@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/server/master/object_server/public.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 

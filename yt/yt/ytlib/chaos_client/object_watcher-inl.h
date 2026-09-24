@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <algorithm>
+
 namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +48,7 @@ void TObjectWatcher<TObjectPtr, TWatcherInterface>::Start(
     const std::vector<TSnapshot>& objects)
 {
     auto writeGuard = WriterGuard(EntriesLock_);
+    WatchersByObjectId_.clear();
     WatchersByObjectId_.reserve(objects.size());
     for (const auto& object : objects) {
         WatchersByObjectId_.emplace(
@@ -128,11 +131,13 @@ void TObjectWatcher<TObjectPtr, TWatcherInterface>::OnObjectUpdated(
     }
 
     std::vector<TWatcherEntry> watcherEntries;
+    auto cacheTimestamp = timestamp;
     {
         auto& entry = it->second;
         auto entryGuard = Guard(entry->Lock);
+        cacheTimestamp = std::max(entry->CurrentCacheTimestamp, timestamp);
         watcherEntries.swap(entry->WatcherEntries);
-        entry->CurrentCacheTimestamp = timestamp;
+        entry->CurrentCacheTimestamp = cacheTimestamp;
         entry->Object = object;
         if (!watcherEntries.empty()) {
             entry->LastSeenWatchers.store(TInstant::Now());
@@ -142,7 +147,55 @@ void TObjectWatcher<TObjectPtr, TWatcherInterface>::OnObjectUpdated(
     readGuard.Release();
 
     for (const auto& watcher : watcherEntries) {
-        watcher.Callbacks->OnObjectChanged(object, timestamp);
+        watcher.Callbacks->OnObjectChanged(object, cacheTimestamp);
+    }
+}
+
+template <class TObjectPtr, class TWatcherInterface>
+void TObjectWatcher<TObjectPtr, TWatcherInterface>::AdvanceObjectCacheTimestamps(
+    NTransactionClient::TTimestamp timestamp)
+{
+    struct TNotification
+    {
+        TObjectPtr Object;
+        std::vector<TWatcherEntry> WatcherEntries;
+    };
+
+    std::vector<TNotification> notifications;
+
+    auto readGuard = ReaderGuard(EntriesLock_);
+    for (const auto& [_, entry] : WatchersByObjectId_) {
+        auto entryGuard = Guard(entry->Lock);
+        if (!entry->Object) {
+            continue;
+        }
+
+        if (timestamp <= entry->CurrentCacheTimestamp) {
+            continue;
+        }
+
+        entry->CurrentCacheTimestamp = timestamp;
+        if (entry->WatcherEntries.empty()) {
+            continue;
+        }
+
+        entry->LastSeenWatchers.store(TInstant::Now());
+        std::vector<TWatcherEntry> watcherEntries;
+        watcherEntries.swap(entry->WatcherEntries);
+        notifications.push_back(TNotification{
+            .Object = entry->Object,
+            .WatcherEntries = std::move(watcherEntries),
+        });
+    }
+
+    readGuard.Release();
+
+    for (const auto& notification : notifications) {
+        for (const auto& watcher : notification.WatcherEntries) {
+            watcher.Callbacks->OnObjectChanged(
+                notification.Object,
+                timestamp);
+        }
     }
 }
 
@@ -329,6 +382,30 @@ EObjectWatcherState TObjectWatcher<TObjectPtr, TWatcherInterface>::WatchObject(
         .With("ObjectId", objectId);
     callbacks->OnUnknownObject();
     return EObjectWatcherState::Unknown;
+}
+
+template <class TObjectPtr, class TWatcherInterface>
+TObjectPtr TObjectWatcher<TObjectPtr, TWatcherInterface>::FindObject(TChaosObjectId objectId)
+{
+    auto migratedObjectsGuard = ReaderGuard(MigratedObjectsLock_);
+    if (MigratedObjects_.contains(objectId)) {
+        return nullptr;
+    }
+
+    auto deletedObjectsGuard = ReaderGuard(DeletedObjectsLock_);
+    if (DeletedObjects_.contains(objectId)) {
+        return nullptr;
+    }
+
+    auto entriesGuard = ReaderGuard(EntriesLock_);
+    auto it = WatchersByObjectId_.find(objectId);
+    if (it == WatchersByObjectId_.end()) {
+        return nullptr;
+    }
+
+    const auto& entry = it->second;
+    auto entryGuard = Guard(entry->Lock);
+    return entry->Object;
 }
 
 template <class TObjectPtr, class TWatcherInterface>

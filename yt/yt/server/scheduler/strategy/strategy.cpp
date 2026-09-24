@@ -2560,13 +2560,12 @@ private:
             return Tree_ ? Tree_->GetSchedulingHeartbeatComplexity() : 0;
         }
 
-        void BuildSchedulingAttributesString(
-            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-            TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        NLogging::TLoggingTagList BuildSchedulingAttributeTags(
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const override
         {
-            if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForNode(schedulingHeartbeatContext, NodeId_, delimitedBuilder);
-            }
+            return Tree_
+                ? Tree_->BuildSchedulingAttributeTagsForNode(schedulingHeartbeatContext, NodeId_)
+                : NLogging::TLoggingTagList();
         }
 
         NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(

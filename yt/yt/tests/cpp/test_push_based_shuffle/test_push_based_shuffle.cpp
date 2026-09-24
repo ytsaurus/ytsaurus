@@ -55,6 +55,7 @@ namespace {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
@@ -62,6 +63,10 @@ using namespace NPushBasedShuffleClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto TestCodec = ECodec::Lz4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,6 +279,7 @@ protected:
             PoolConfig_,
             ControllerConfig_,
             Transaction_->GetId(),
+            /*slotCount*/ 1,
             WriterOptions_,
             WriterConfig_,
             ActionQueue_->GetInvoker(),
@@ -285,7 +291,6 @@ protected:
 
         auto writerConfig = New<TShuffleWriterConfig>();
         writerConfig->MemoryBudget = 16_MB;
-        writerConfig->Codec = NCompression::ECodec::Lz4;
 
         if (!partitioner) {
             partitioner = CreateColumnBasedPartitioner(
@@ -295,6 +300,7 @@ protected:
 
         ctx.Writer = CreatePushBasedShuffleWriter(
             writerConfig,
+            TestCodec,
             provider,
             std::move(partitioner),
             NativeConnection_,
@@ -325,6 +331,7 @@ protected:
             PoolConfig_,
             ControllerConfig_,
             Transaction_->GetId(),
+            /*slotCount*/ 1,
             WriterOptions_,
             WriterConfig_,
             ActionQueue_->GetInvoker(),
@@ -337,12 +344,12 @@ protected:
         auto writerConfig = New<TShuffleWriterConfig>();
         writerConfig->MemoryBudget = 1_MB;
         writerConfig->BuildersBudgetFraction = 0.01;
-        writerConfig->Codec = NCompression::ECodec::Lz4;
 
         auto partitioner = CreateColumnBasedPartitioner(1, 0);
 
         ctx.Writer = CreatePushBasedShuffleWriter(
             writerConfig,
+            TestCodec,
             provider,
             partitioner,
             NativeConnection_,
@@ -432,7 +439,6 @@ protected:
         // Reader exposes statistics we can switch that test to assert
         // ErrorAttemptCount > 0 rather than relying on timing.
         config->ChunkSessionReaderConfig->ErrorBackoff.MaxBackoff = TDuration::MilliSeconds(250);
-        config->Codec = NCompression::ECodec::Lz4;
         config->RowBufferStartChunkSize = 64_KB;
         config->MaxBytesPerRead = 64_MB;
 
@@ -443,6 +449,7 @@ protected:
     {
         return CreatePushBasedPartitionReader(
             MakePartitionReaderConfig(),
+            TestCodec,
             NativeClient_,
             New<TChunkReaderHost>(NativeClient_),
             /*readQuorum*/ 2,
@@ -460,11 +467,13 @@ protected:
         auto reader = CreateSortReader(
             sortConfig,
             MakePartitionReaderConfig(),
+            TestCodec,
             NativeClient_,
             New<TChunkReaderHost>(NativeClient_),
             /*readQuorum*/ 2,
             TComparator({ESortOrder::Ascending}),
             identityColumnIds,
+            /*onInputFetched*/ BIND([] { }),
             ActionQueue_->GetInvoker(),
             ActionQueue_->GetInvoker());
         for (const auto& chunk : chunks) {

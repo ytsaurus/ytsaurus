@@ -1,13 +1,21 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
+#include <yt/yt/flow/library/cpp/companion/server/server_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
+
+#include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
+
+#include <yt/yt/core/concurrency/poller.h>
+
+#include <yt/yt/core/http/client.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -541,9 +549,12 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
 {
     auto store = MakeStore();
     auto parameters = ConvertTo<IMapNodePtr>(NYson::TYsonString(TStringBuf("{answer=42}")));
-    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters);
+    auto parametersObject = New<TEmptyProcessFunctionParameters>();
+    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters, parametersObject);
 
     EXPECT_EQ(initContext->GetParametersNode()->GetChildOrThrow("answer")->AsInt64()->GetValue(), 42);
+    EXPECT_EQ(initContext->GetParametersObject(), parametersObject);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetParametersObject(), parametersObject);
 
     TMutableStateKeyClient<i64> client;
     initContext->InitClient(client, "counter");
@@ -558,6 +569,38 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetPartitionId()),
         "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpClient()),
+        "HTTP client is not available");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpsClient()),
+        "HTTPS client is not available");
+}
+
+TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
+{
+    auto context = CreateCompanionServerContext(
+        New<NCompanion::TCompanionExecutionConfig>(),
+        /*invoker*/ nullptr);
+
+    auto initContext = New<TCompanionRuntimeInitContext>(
+        MakeStore(),
+        /*parametersNode*/ nullptr,
+        /*parametersObject*/ nullptr,
+        THashMap<TResourceId, IResourcePtr>{},
+        /*prefix*/ std::string(),
+        /*profiler*/ NProfiling::TProfiler(),
+        context,
+        /*computationId*/ TComputationId("the-computation"));
+
+    EXPECT_EQ(initContext->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->GetHttpsClient(), context->HttpsClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpsClient(), context->HttpsClient);
+    EXPECT_EQ(initContext->GetComputationId(), TComputationId("the-computation"));
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetComputationId(), TComputationId("the-computation"));
+
+    context->HttpPoller->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

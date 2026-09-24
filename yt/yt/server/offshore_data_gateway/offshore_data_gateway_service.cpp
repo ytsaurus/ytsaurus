@@ -173,9 +173,9 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
 
-        context->SetRequestInfo("ChunkId: %v, BlockIndexes: %v",
-            chunkId,
-            blockIndexes);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("BlockIndexes", blockIndexes);
 
         auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->ReadBlocks({}, blockIndexes)
@@ -200,7 +200,8 @@ private:
 
                 SetRpcAttachedBlocks(response, blocks);
 
-                context->SetResponseInfo("BlockCount: %v", blocks.size());
+                context->AnnotateResponse()
+                    .With("BlockCount", blocks.size());
 
                 context->Reply();
             })
@@ -213,10 +214,10 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
 
-        context->SetRequestInfo("ChunkId: %v, FirstBlockIndex: %v, BlockCount: %v",
-            chunkId,
-            firstBlockIndex,
-            blockCount);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("FirstBlockIndex", firstBlockIndex)
+            .With("BlockCount", blockCount);
 
         auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->ReadBlocks({}, firstBlockIndex, blockCount)
@@ -240,7 +241,8 @@ private:
 
                 SetRpcAttachedBlocks(response, blocks);
 
-                context->SetResponseInfo("BlockCount: %v", blocks.size());
+                context->AnnotateResponse()
+                    .With("BlockCount", blocks.size());
 
                 context->Reply();
             })
@@ -251,7 +253,8 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %v", chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         auto reader = CreateS3Reader(*request, New<TS3ReaderConfig>(), chunkId);
         reader->GetMeta({})
@@ -269,7 +272,8 @@ private:
 
                 *response->mutable_chunk_meta() = static_cast<NChunkClient::NProto::TChunkMeta>(*meta);
 
-                context->SetResponseInfo("MetaSize: %v", response->chunk_meta().ByteSize());
+                context->AnnotateResponse()
+                    .With("MetaSize", response->chunk_meta().ByteSize());
 
                 context->Reply();
             })
@@ -280,7 +284,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto mediumDescriptor = GetS3MediumDescriptor(sessionId.MediumIndex);
         auto s3Client = CreateS3ClientForMedium(mediumDescriptor);
@@ -302,7 +307,6 @@ private:
         // No memory probing needed for S3 — the upload window is managed internally.
         response->set_use_probe_put_blocks(false);
 
-        context->SetResponseInfo("SessionId: %v", sessionId);
         context->Reply();
     }
 
@@ -311,10 +315,10 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
 
-        context->SetRequestInfo("SessionId: %v, FirstBlockIndex: %v, BlockCount: %v",
-            sessionId,
-            firstBlockIndex,
-            request->Attachments().size());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("FirstBlockIndex", firstBlockIndex)
+            .With("BlockCount", request->Attachments().size());
 
         auto writer = FindSession(sessionId);
         THROW_ERROR_EXCEPTION_IF(!writer, "No such write session %v", sessionId);
@@ -331,7 +335,6 @@ private:
 
         response->set_close_demanded(false);
 
-        context->SetResponseInfo("SessionId: %v, FirstBlockIndex: %v", sessionId, firstBlockIndex);
         context->Reply();
     }
 
@@ -339,9 +342,9 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v, BlockIndex: %v",
-            sessionId,
-            request->block_index());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("BlockIndex", request->block_index());
 
         // S3 uploads are asynchronous — no explicit flush step is needed.
         response->set_close_demanded(false);
@@ -353,9 +356,9 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
-            sessionId,
-            request->block_count());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("BlockCount", request->block_count());
 
         IChunkWriterPtr writer;
         {
@@ -382,9 +385,8 @@ private:
 
         *response->mutable_chunk_info() = writer->GetChunkInfo();
 
-        context->SetResponseInfo("SessionId: %v, DiskSpace: %v",
-            sessionId,
-            response->chunk_info().disk_space());
+        context->AnnotateResponse()
+            .With("DiskSpace", response->chunk_info().disk_space());
         context->Reply();
     }
 
@@ -392,7 +394,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         IChunkWriterPtr writer;
         {

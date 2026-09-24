@@ -3,8 +3,8 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "chunk_replica_fetcher.h"
 #include "config.h"
-#include "domestic_medium.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_registry.h"
@@ -32,6 +32,8 @@
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NChunkServer {
 

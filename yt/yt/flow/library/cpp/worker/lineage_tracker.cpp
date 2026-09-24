@@ -24,73 +24,45 @@ public:
 
     void Add(TLineageDelta delta) override
     {
-        if (!PendingDelta_) {
-            PendingDelta_ = std::move(delta);
-            return;
-        }
-
-        for (const auto& [outputStreamId, parentDeltas] : delta) {
-            auto& pendingParentDeltas = (*PendingDelta_)[outputStreamId];
-            for (const auto& [parentStreamId, value] : parentDeltas) {
-                auto& pendingValue = pendingParentDeltas[parentStreamId];
-                pendingValue.Count += value.Count;
-                pendingValue.ByteSize += value.ByteSize;
-                pendingValue.InputCount += value.InputCount;
-                pendingValue.InputByteSize += value.InputByteSize;
-            }
-        }
-    }
-
-    void Commit() override
-    {
-        if (!PendingDelta_) {
-            return;
-        }
-        auto delta = std::exchange(PendingDelta_, std::nullopt);
-        LineageTracker_->Commit(ComputationId_, ComputationSpec_, *delta);
+        LineageTracker_->Add(ComputationId_, ComputationSpec_, delta);
     }
 
 private:
     const TLineageTrackerPtr LineageTracker_;
     const TComputationId ComputationId_;
     const TComputationSpecPtr ComputationSpec_;
-
-    std::optional<TLineageDelta> PendingDelta_;
 };
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLineageTracker::Commit(
+void TLineageTracker::Add(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta)
 {
     auto guard = Guard(Lock_);
-    DoCommit(computationId, computationSpec, delta, TInstant::Now());
+    DoAdd(computationId, computationSpec, delta, TInstant::Now());
 }
 
-void TLineageTracker::Commit(
+void TLineageTracker::Add(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta,
     TInstant now)
 {
     auto guard = Guard(Lock_);
-    DoCommit(computationId, computationSpec, delta, now);
+    DoAdd(computationId, computationSpec, delta, now);
 }
 
-void TLineageTracker::DoCommit(
+void TLineageTracker::DoAdd(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta,
     TInstant now)
 {
-    if (now <= LastCommitTime_) {
-        now = LastCommitTime_ + TDuration::MicroSeconds(1);
-    }
-    LastCommitTime_ = now;
+    LastObservationTime_ = std::max(now, LastObservationTime_);
 
     auto updateEdge = [&] (
         const TStreamId& localOutputStreamId,
@@ -98,19 +70,12 @@ void TLineageTracker::DoCommit(
         const TLineageDeltaValue& value) {
         const auto outputStreamId = MakeGlobalStreamId(computationId, localOutputStreamId, computationSpec);
         const auto parentStreamId = MakeGlobalStreamId(computationId, localParentStreamId, computationSpec);
-        auto [it, inserted] = Counters_[outputStreamId].try_emplace(parentStreamId);
-        if (inserted) {
-            it->second.CountCounter.Update(value.Count, now);
-            it->second.ByteCounter.Update(value.ByteSize, now);
-            it->second.InputCountCounter.Update(value.InputCount, now);
-            it->second.InputByteCounter.Update(value.InputByteSize, now);
-        } else {
-            it->second.CountCounter.Inc(value.Count, now);
-            it->second.ByteCounter.Inc(value.ByteSize, now);
-            it->second.InputCountCounter.Inc(value.InputCount, now);
-            it->second.InputByteCounter.Inc(value.InputByteSize, now);
-        }
-        it->second.LastUpdateTime = now;
+        auto& counters = Counters_[outputStreamId][parentStreamId];
+        counters.CountCounter.Add(value.Count, now);
+        counters.ByteCounter.Add(value.ByteSize, now);
+        counters.InputCountCounter.Add(value.InputCount, now);
+        counters.InputByteCounter.Add(value.InputByteSize, now);
+        counters.LastUpdateTime = std::max(counters.LastUpdateTime, now);
     };
 
     for (const auto& [localOutputStreamId, parentDeltas] : delta) {
@@ -134,28 +99,36 @@ void TLineageTracker::DoCommit(
     }
 }
 
-TLineageRates TLineageTracker::GetRates(TInstant now)
+TLineageRatios TLineageTracker::GetRatios(TInstant now)
 {
     auto guard = Guard(Lock_);
-    return DoGetRates(std::max(now, LastCommitTime_));
+    return DoGetRatios(std::max(now, LastObservationTime_));
 }
 
-TLineageRates TLineageTracker::DoGetRates(TInstant now)
+TLineageRatios TLineageTracker::DoGetRatios(TInstant now)
 {
-    TLineageRates result;
+    TLineageRatios result;
     for (auto outputIt = Counters_.begin(); outputIt != Counters_.end();) {
         auto& parentCounters = outputIt->second;
         for (auto parentIt = parentCounters.begin(); parentIt != parentCounters.end();) {
-            if (parentIt->second.LastUpdateTime + LineageRateRetentionTime <= now) {
+            if (parentIt->second.LastUpdateTime + LineageRetentionTime <= now) {
                 auto staleIt = parentIt++;
                 parentCounters.erase(staleIt);
                 continue;
             }
-            auto& rate = result[outputIt->first][parentIt->first];
-            rate.CountPerSecond = parentIt->second.CountCounter.GetDecayedRate(now);
-            rate.BytesPerSecond = parentIt->second.ByteCounter.GetDecayedRate(now);
-            rate.InputCountPerSecond = parentIt->second.InputCountCounter.GetDecayedRate(now);
-            rate.InputBytesPerSecond = parentIt->second.InputByteCounter.GetDecayedRate(now);
+            auto getRatio = [now] (const TDecayedSum& output, const TDecayedSum& input) -> std::optional<TWeightedRatio> {
+                if (input.GetLastValue() == 0) {
+                    return std::nullopt;
+                }
+                TWeightedRatio result;
+                result.Ratio = output.GetLastValue() / input.GetLastValue();
+                result.Weight = input.GetDecayedValue(now);
+                return result;
+            };
+            const auto& counters = parentIt->second;
+            auto& ratio = result[outputIt->first][parentIt->first];
+            ratio.Count = getRatio(counters.CountCounter, counters.InputCountCounter);
+            ratio.ByteSize = getRatio(counters.ByteCounter, counters.InputByteCounter);
             ++parentIt;
         }
         if (parentCounters.empty()) {

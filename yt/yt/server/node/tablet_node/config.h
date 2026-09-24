@@ -311,6 +311,24 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGlobalStoresUpdateThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+    TDuration RpcTimeout;
+
+    // COMPAT(alexelexa)
+    TDuration NoSuchMethodBackoffTime;
+
+    REGISTER_YSON_STRUCT(TGlobalStoresUpdateThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGlobalStoresUpdateThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStoreTrimmerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -730,6 +748,7 @@ struct TTabletNodeDynamicConfig
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
     TInMemoryManagerDynamicConfigPtr InMemoryManager;
     TCompressionDictionaryBuilderDynamicConfigPtr CompressionDictionaryBuilder;
+    TGlobalStoresUpdateThrottlerConfigPtr GlobalStoresUpdateThrottler;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 
@@ -738,6 +757,11 @@ struct TTabletNodeDynamicConfig
     bool EnableStructuredLogger;
     TDuration FullStructuredTabletHeartbeatPeriod;
     TDuration IncrementalStructuredTabletHeartbeatPeriod;
+
+    // COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+    // Controls the exported label of tables with profiling_mode=tag:
+    // "table_tag", "table_path" or both.
+    EProfilingTagExportMode ProfilingTagExportMode;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;

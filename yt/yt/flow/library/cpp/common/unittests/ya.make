@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     buffer_warmup_ut.cpp
+    client_credentials_authenticator_ut.cpp
     distributing_tracker_ut.cpp
     dyntable_lease_ut.cpp
     flow_core_build_info_ut.cpp
@@ -24,6 +25,7 @@ SRCS(
     persisted_state_ut.cpp
     registry_ut.cpp
     resource_manager_ut.cpp
+    resource_status_ut.cpp
     schema_ut.cpp
     spec_ut.cpp
     state_ut.cpp

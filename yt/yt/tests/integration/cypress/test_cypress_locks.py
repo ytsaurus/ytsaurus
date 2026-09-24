@@ -479,7 +479,6 @@ class TestCypressLocks(YTEnvSetup):
         commit_transaction(tx1)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_unlock_unreachable_node(self):
         create("map_node", "//tmp/m1")
         create("map_node", "//tmp/m1/m2")

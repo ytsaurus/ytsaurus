@@ -152,15 +152,17 @@ bool IsYtPersistentSink(
     TExprContext& ctx,
     const TTypeAnnotationContext& typeCtx
 ) {
-    NYtflow::NProto::TQYTSinkMessage sinkSettings;
-    return TryGetYtSinkSettings(node, ctx, typeCtx, sinkSettings);
+    ::google::protobuf::Any settings;
+    return TryGetYtSinkSettings(node, ctx, typeCtx, settings) &&
+        (settings.Is<NYtflow::NProto::TYtQueueSinkMessage>() ||
+            settings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>());
 }
 
 bool TryGetYtSinkSettings(
     const TExprNode& node,
     TExprContext& ctx,
     const TTypeAnnotationContext& typeCtx,
-    NYtflow::NProto::TQYTSinkMessage& sinkSettings
+    ::google::protobuf::Any& sinkSettings
 ) {
     auto maybePersistentSink = TMaybeNode<TYtflowPersistentSink>(&node);
     if (!maybePersistentSink) {
@@ -177,10 +179,10 @@ bool TryGetYtSinkSettings(
     auto* ytflowIntegration = GetYtflowIntegration(input.Ref(), typeCtx);
     YQL_ENSURE(ytflowIntegration);
 
-    ::google::protobuf::Any settings;
-    ytflowIntegration->FillSinkSettings(input.Ref(), settings, ctx);
+    ytflowIntegration->FillSinkSettings(input.Ref(), sinkSettings, ctx);
 
-    return settings.UnpackTo(&sinkSettings);
+    return sinkSettings.Is<NYtflow::NProto::TYtQueueSinkMessage>() ||
+        sinkSettings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>();
 }
 
 bool IsYtflowProviderInput(const TExprNode& node) {

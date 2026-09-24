@@ -20,6 +20,14 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Sends the set-target-pipeline-state command to the pipeline controller.
+void SetTargetPipelineState(
+    const TFlowExecuteTarget& target,
+    const NYPath::TYPath& root,
+    EPipelineState state);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Returns the YT_FLOW_GRACEFUL_UPDATE env var as bool (defaults to true).
 //! Used by the runner to decide between StopPipeline (graceful) and PausePipeline.
 bool IsGracefulUpdateFromEnv();
@@ -50,9 +58,9 @@ void WaitPipelineState(
     TDuration waitTimeout = DefaultWaitPipelineTimeout,
     TDuration requestTimeout = DefaultWaitPipelineStateRequestTimeout);
 
-//! Same as above, using an existing client.
+//! Same as above, using an existing client; |target| may carry the direct-mode settings.
 void WaitPipelineState(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const NYPath::TYPath& root,
     EPipelineState state,
     TDuration waitTimeout = DefaultWaitPipelineTimeout,
@@ -71,7 +79,7 @@ void RunPipeline(
     bool enablePipelineStopOrPause = true);
 
 void RunPipeline(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const NYPath::TYPath& root,
     const TPipelineSpecPtr& spec,
     const TDynamicPipelineSpecPtr& dynamicSpec,
@@ -90,7 +98,7 @@ void WaitPipeline(
 //! Tails the controller log until the pipeline completes or the controller stays
 //! unreachable for |controllerUnavailableTimeout|.
 void WaitPipeline(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const NYPath::TRichYPath& pipelinePath,
     TDuration controllerUnavailableTimeout = DefaultWaitPipelineTimeout,
     const std::optional<TVanillaOperationHandle>& vanillaOperation = {});

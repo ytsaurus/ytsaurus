@@ -4,11 +4,15 @@
 
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
+#include <yt/yt/server/lib/chaos_node/chaos_lease_watcher_service_callbacks.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
-
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chaos_client/chaos_leases_watcher.h>
+#include <yt/yt/ytlib/chaos_client/chaos_leases_watcher_client.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 #include <yt/yt/ytlib/chaos_client/public.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
@@ -19,7 +23,10 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/chaos_client/chaos_lease.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -147,6 +154,103 @@ IReplicationCardsWatcherClientPtr CreateReplicationCardsWatcherClientWithCallbac
     return watcherClient;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TChaosLeaseCacheWatcherCallbacks
+    : public IChaosLeaseWatcherClientCallbacks
+{
+public:
+    TChaosLeaseCacheWatcherCallbacks(
+        IChaosLeasesWatcherPtr chaosLeasesWatcher,
+        TDuration expirationDelay,
+        TLogger logger)
+        : ChaosLeasesWatcher_(std::move(chaosLeasesWatcher))
+        , ExpirationDelay_(expirationDelay)
+        , Logger(std::move(logger))
+    { }
+
+    void OnChaosLeaseUpdated(
+        TChaosLeaseId chaosLeaseId,
+        const TChaosLeasePtr& chaosLease,
+        TTimestamp timestamp) override
+    {
+        YT_TLOG_DEBUG("Chaos lease updated")
+            .With("ChaosLeaseId", chaosLeaseId)
+            .With("Timestamp", timestamp);
+
+        ChaosLeasesWatcher_->OnObjectUpdated(chaosLeaseId, chaosLease, timestamp);
+    }
+
+    void OnChaosLeaseDeleted(TChaosLeaseId chaosLeaseId) override
+    {
+        YT_TLOG_DEBUG("Chaos lease deleted")
+            .With("ChaosLeaseId", chaosLeaseId);
+
+        ChaosLeasesWatcher_->OnObjectRemoved(chaosLeaseId);
+    }
+
+    void OnUnknownChaosLease(TChaosLeaseId chaosLeaseId) override
+    {
+        YT_TLOG_DEBUG("Unknown chaos lease")
+            .With("ChaosLeaseId", chaosLeaseId);
+    }
+
+    void OnChaosLeaseMigrated(TChaosLeaseId chaosLeaseId) override
+    {
+        YT_TLOG_DEBUG("Chaos lease migrated; upstream watch was redirected")
+            .With("ChaosLeaseId", chaosLeaseId);
+    }
+
+    void OnNothingChanged(TChaosLeaseId chaosLeaseId) override
+    {
+        if (ChaosLeasesWatcher_->GetLastSeenWatchersTime(chaosLeaseId) + ExpirationDelay_ < TInstant::Now() &&
+            ChaosLeasesWatcher_->TryUnregisterObject(chaosLeaseId))
+        {
+            if (auto owner = Owner_.Lock()) {
+                owner->StopWatchingChaosLease(chaosLeaseId);
+            }
+
+            YT_TLOG_DEBUG("Chaos lease watching request expired; watcher expired and unregistered")
+                .With("ChaosLeaseId", chaosLeaseId);
+        }
+    }
+
+    void SetOwner(TWeakPtr<IChaosLeasesWatcherClient> owner)
+    {
+        Owner_ = std::move(owner);
+    }
+
+private:
+    const IChaosLeasesWatcherPtr ChaosLeasesWatcher_;
+    const TDuration ExpirationDelay_;
+    const TLogger Logger;
+
+    TWeakPtr<IChaosLeasesWatcherClient> Owner_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChaosLeasesWatcherClientPtr CreateChaosLeasesWatcherClientWithCallbacks(
+    IChaosLeasesWatcherPtr chaosLeasesWatcher,
+    TDuration expirationDelay,
+    IConnectionPtr connection,
+    TLogger logger)
+{
+    auto callbacks = std::make_unique<TChaosLeaseCacheWatcherCallbacks>(
+        std::move(chaosLeasesWatcher),
+        expirationDelay,
+        std::move(logger));
+
+    auto* callbacksPtr = callbacks.get();
+
+    auto watcherClient = CreateChaosLeasesWatcherClient(
+        std::move(callbacks),
+        std::move(connection));
+    callbacksPtr->SetOwner(watcherClient);
+
+    return watcherClient;
+}
+
 const TReplicationCardFetchOptions& ExtendFetchOptions(const TReplicationCardFetchOptions& fetchOptions)
 {
     if (MinimalFetchOptions.Contains(fetchOptions)) {
@@ -192,6 +296,14 @@ public:
             config->UnwatchedCardExpirationDelay,
             Client_->GetNativeConnection(),
             Logger))
+        , ChaosLeasesWatcher_(CreateChaosLeasesWatcher(
+            config->ChaosLeasesWatcher,
+            invoker))
+        , ChaosLeasesWatcherClient_(CreateChaosLeasesWatcherClientWithCallbacks(
+            ChaosLeasesWatcher_,
+            config->UnwatchedLeaseExpirationDelay,
+            Client_->GetNativeConnection(),
+            Logger))
         , ReplicationCardUpdatesBatcher_(CreateMasterCacheReplicationCardUpdatesBatcher(
             config->ReplicationCardUpdateBatcher,
             Client_->GetNativeConnection(),
@@ -199,10 +311,13 @@ public:
             Logger))
     {
         ReplicationCardsWatcher_->Start({});
+        ChaosLeasesWatcher_->Start({});
         ReplicationCardUpdatesBatcher_->Start();
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardResidency));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosObjectResidency));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
@@ -212,6 +327,7 @@ public:
     ~TChaosCacheService()
     {
         ReplicationCardUpdatesBatcher_->Stop();
+        ChaosLeasesWatcher_->Stop();
         ReplicationCardsWatcher_->Stop();
     }
 
@@ -220,10 +336,14 @@ private:
     const IClientPtr Client_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
     const IReplicationCardsWatcherClientPtr ReplicationCardsWatcherClient_;
+    const IChaosLeasesWatcherPtr ChaosLeasesWatcher_;
+    const IChaosLeasesWatcherClientPtr ChaosLeasesWatcherClient_;
     const IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosLease);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchChaosLease);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardResidency);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosObjectResidency);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateTableProgress);
@@ -232,6 +352,8 @@ private:
     TFuture<TCellTag> DoGetChaosObjectResidency(
         TChaosObjectId chaosObjectId,
         std::optional<TCellTag> cellTagToForceRefresh);
+
+    TFuture<TChaosLeasePtr> FetchChaosLeaseFromCell(TChaosLeaseId chaosLeaseId, TInstant deadline);
 };
 
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
@@ -258,10 +380,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 
         const auto& user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
-            replicationCardId,
-            fetchOptions,
-            refreshEra);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("FetchOptions", fetchOptions)
+            .With("RefreshEra", refreshEra);
 
         auto key = TChaosCacheKey{
             .CardId = replicationCardId,
@@ -309,9 +431,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 }));
         }
     } else {
-        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
-            replicationCardId,
-            fetchOptions);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("FetchOptions", fetchOptions);
 
         YT_TLOG_DEBUG("Serving request directly")
             .With("RequestId", requestId);
@@ -335,9 +457,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
     auto cacheTimestamp = FromProto<TTimestamp>(request->replication_card_cache_timestamp());
 
-    context->SetRequestInfo("ReplicationCardId: %v, CacheTimestamp: %v",
-        replicationCardId,
-        cacheTimestamp);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationCardId)
+        .With("CacheTimestamp", cacheTimestamp);
 
     auto state = ReplicationCardsWatcher_->WatchObject(
         replicationCardId,
@@ -347,6 +469,87 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     if (state != EObjectWatcherState::Deleted) {
         ReplicationCardsWatcherClient_->WatchReplicationCard(replicationCardId);
     }
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosLease)
+{
+    auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+    context->AnnotateRequest()
+        .With("ChaosLeaseId", chaosLeaseId);
+
+    if (context->GetRequestHeader().HasExtension(TCachingHeaderExt::caching_header_ext)) {
+        if (auto chaosLease = ChaosLeasesWatcher_->FindObject(chaosLeaseId)) {
+            YT_TLOG_DEBUG("Serving chaos lease from watcher")
+                .With("ChaosLeaseId", chaosLeaseId);
+
+            response->set_timeout(ToProto(chaosLease->Timeout));
+            response->set_last_ping_time(ToProto(TInstant::Zero()));
+            ToProto(response->mutable_coordinator_cell_ids(), chaosLease->CoordinatorCellIds);
+            context->Reply();
+            return;
+        }
+    }
+
+    auto timeout = context->GetTimeout().value_or(
+        Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
+    auto startTime = context->GetStartTime().value_or(TInstant::Now());
+    auto chaosLeaseFuture = FetchChaosLeaseFromCell(chaosLeaseId, startTime + timeout);
+
+    context->ReplyFrom(chaosLeaseFuture
+        .Apply(BIND([context, response] (const TChaosLeasePtr& chaosLease) {
+            response->set_timeout(ToProto(chaosLease->Timeout));
+            response->set_last_ping_time(ToProto(chaosLease->LastPingTime));
+            ToProto(response->mutable_coordinator_cell_ids(), chaosLease->CoordinatorCellIds);
+        })));
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchChaosLease)
+{
+    auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+    auto cacheTimestamp = FromProto<TTimestamp>(request->chaos_lease_cache_timestamp());
+
+    context->AnnotateRequest()
+        .With("ChaosLeaseId", chaosLeaseId)
+        .With("CacheTimestamp", cacheTimestamp);
+
+    auto state = ChaosLeasesWatcher_->WatchObject(
+        chaosLeaseId,
+        cacheTimestamp,
+        CreateChaosLeaseWatcherCallbacks(context),
+        /*allowUnregistered*/ true);
+    if (state != EObjectWatcherState::Deleted) {
+        ChaosLeasesWatcherClient_->WatchChaosLease(chaosLeaseId);
+    }
+}
+
+TFuture<TChaosLeasePtr> TChaosCacheService::FetchChaosLeaseFromCell(
+    TChaosLeaseId chaosLeaseId,
+    TInstant deadline)
+{
+    auto connection = Client_->GetNativeConnection();
+    return BIND([client = Client_, connection, chaosLeaseId, deadline] {
+        auto fetch = [&] () -> TErrorOr<TChaosLeasePtr> {
+            auto remaining = deadline - TInstant::Now();
+            if (remaining <= TDuration::Zero()) {
+                return TError(NYT::EErrorCode::Timeout, "Timed out getting chaos lease %v", chaosLeaseId);
+            }
+
+            TGetChaosLeaseOptions options;
+            options.BypassCache = true;
+            options.Timeout = remaining;
+            return WaitFor(client->GetChaosLease(chaosLeaseId, options));
+        };
+
+        auto result = fetch();
+        if (!result.IsOK() && TError(result).FindMatching(NYTree::EErrorCode::ResolveError)) {
+            connection->GetChaosResidencyCache()->RemoveChaosObjectResidency(chaosLeaseId);
+            result = fetch();
+        }
+
+        return result.ValueOrThrow();
+    })
+        .AsyncVia(connection->GetInvoker())
+        .Run();
 }
 
 TFuture<TCellTag> TChaosCacheService::DoGetChaosObjectResidency(
@@ -385,10 +588,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
                 request->force_refresh_chaos_object_cell_tag()))
             : std::optional<TCellTag>();
 
-    context->SetRequestInfo("ChaosObjectId: %v, ChaosObjectType: %v CellTagToForceRefresh: %v",
-        chaosObjectId,
-        TypeFromId(chaosObjectId),
-        cellTagToForceRefresh);
+    context->AnnotateRequest()
+        .With("ChaosObjectId", chaosObjectId)
+        .With("ChaosObjectType", TypeFromId(chaosObjectId))
+        .With("CellTagToForceRefresh", cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
         response->set_chaos_object_cell_tag(ToProto(cellTag));
@@ -410,9 +613,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
                 request->force_refresh_replication_card_cell_tag()))
             : std::optional<NObjectClient::TCellTag>();
 
-    context->SetRequestInfo("ReplicationCardId: %v, CellTagToForceRefresh: %v",
-        replicationCardId,
-        cellTagToForceRefresh);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationCardId)
+        .With("CellTagToForceRefresh", cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
         response->set_replication_card_cell_tag(ToProto(cellTag));
@@ -429,9 +632,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
     auto replicationProgressUpdate = NYT::FromProto<TReplicationCardProgressUpdate>(
         request->replication_card_progress_update());
 
-    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
-        replicationProgressUpdate.ReplicationCardId,
-        replicationProgressUpdate.FetchOptions);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationProgressUpdate.ReplicationCardId)
+        .With("FetchOptions", replicationProgressUpdate.FetchOptions);
 
     auto futureCard = ReplicationCardUpdatesBatcher_->AddReplicationCardProgressesUpdate(std::move(
         replicationProgressUpdate));
@@ -448,8 +651,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
 {
     auto replicationProgressUpdatesBatch = NYT::FromProto<TReplicationCardProgressUpdatesBatch>(*request);
-    context->SetRequestInfo("ReplicationCardIdsCount: %v",
-        replicationProgressUpdatesBatch.ReplicationCardProgressUpdates.size());
+    context->AnnotateRequest()
+        .With("ReplicationCardIdsCount", replicationProgressUpdatesBatch.ReplicationCardProgressUpdates.size());
 
     auto futureCardsByIds = ReplicationCardUpdatesBatcher_->AddBulkReplicationCardProgressesUpdate(std::move(
         replicationProgressUpdatesBatch));

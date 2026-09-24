@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/gob"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"go.ytsaurus.tech/yt/go/yt"
@@ -20,8 +22,22 @@ type ACL []yt.ACE
 type CompressedACL map[int]Subjects
 
 func Hash(acl CompressedACL) string {
+	type aclEntry struct {
+		Index    int
+		Subjects Subjects
+	}
+	entries := make([]aclEntry, 0, len(acl))
+	for index, subjects := range acl {
+		sortedSubjects := slices.Clone(subjects)
+		slices.Sort(sortedSubjects)
+		entries = append(entries, aclEntry{Index: index, Subjects: sortedSubjects})
+	}
+	slices.SortFunc(entries, func(a, b aclEntry) int {
+		return cmp.Compare(a.Index, b.Index)
+	})
+
 	var b bytes.Buffer
-	ytmsvc.Must0(gob.NewEncoder(&b).Encode(acl))
+	ytmsvc.Must0(gob.NewEncoder(&b).Encode(entries))
 	return b.String()
 }
 
@@ -33,8 +49,20 @@ type CompressedACLValue struct {
 type ACLDumpMap map[string]*ACLDump
 
 type ACLDump struct {
-	Paths ACLDumpMap
-	ACL   CompressedACL
+	Paths    ACLDumpMap
+	ReadACL  CompressedACL
+	WriteACL CompressedACL
+}
+
+func (dump *ACLDump) GetACL(permission yt.Permission) CompressedACL {
+	switch permission {
+	case yt.PermissionRead:
+		return dump.ReadACL
+	case yt.PermissionWrite:
+		return dump.WriteACL
+	default:
+		panic(fmt.Sprintf("unexpected permission %q", permission))
+	}
 }
 
 var indexToACLArr = []CompressedACLValue{
@@ -124,11 +152,20 @@ func CheckCompressedACLLocal(groups Groups, acl CompressedACL) (result yt.Securi
 
 func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string) (result []yt.SecurityAction, err error) {
 	result = []yt.SecurityAction{} // Initialize empty slise to avoid serialization to null
+	if req.Permission == "" {
+		req.Permission = yt.PermissionRead
+	}
+	if req.Permission != yt.PermissionRead && req.Permission != yt.PermissionWrite {
+		return nil, fmt.Errorf("unsupported permission %q", req.Permission)
+	}
 	metrics := ActorMetrics{}
 	aclCache := Cache.Get(req.Cluster)
 	if aclCache == nil {
 		err = fmt.Errorf("unknown cluster %s", req.Cluster)
 		return
+	}
+	if req.Permission == yt.PermissionWrite && aclCache.ACLDump.WriteACL == nil {
+		return nil, fmt.Errorf("ACL dump for cluster %s does not contain write permissions", req.Cluster)
 	}
 	path2hash := make(map[string]string)
 	hash2ACL := make(map[string]ACL)
@@ -151,16 +188,17 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 	}
 	for _, path := range req.Paths {
 		var compressedACL CompressedACL
-		compressedACL, err = getCompressedACL(aclCache.ACLDump, path)
+		compressedACL, err = getCompressedACL(aclCache.ACLDump, path, req.Permission)
 		if err != nil {
 			return
 		}
 		hash := Hash(compressedACL)
 		path2hash[path] = hash
 		lruKey := LRUCacheKey{
-			Version: aclCache.Version,
-			Subject: req.Subject,
-			ACLHash: hash,
+			Version:    aclCache.Version,
+			Subject:    req.Subject,
+			Permission: req.Permission,
+			ACLHash:    hash,
 		}
 		if groups != nil {
 			metrics.SuccessChecks += 1
@@ -170,11 +208,11 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 			metrics.CacheHit += 1
 			hash2action[hash] = action
 		} else {
-			acl := unpackACL(compressedACL)
+			acl := unpackACL(compressedACL, req.Permission)
 			hash2ACL[hash] = acl
 		}
 	}
-	results := ParallelCheckPermissionByACL(ctx, aclCache.YtClient, &hash2ACL, req.Subject)
+	results := ParallelCheckPermissionByACL(ctx, aclCache.YtClient, &hash2ACL, req.Subject, req.Permission)
 	for range len(hash2ACL) {
 		answer := <-results
 		if answer.Err != nil {
@@ -184,9 +222,10 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 		}
 		hash2action[answer.Hash] = answer.Action
 		lruKey := LRUCacheKey{
-			Version: aclCache.Version,
-			Subject: req.Subject,
-			ACLHash: answer.Hash,
+			Version:    aclCache.Version,
+			Subject:    req.Subject,
+			Permission: req.Permission,
+			ACLHash:    answer.Hash,
 		}
 		metrics.SuccessChecks += 1
 		Cache.LRU.Add(lruKey, answer.Action)
@@ -204,7 +243,7 @@ type ParallelCheckPermissionByACLResult struct {
 	Err    error
 }
 
-func ParallelCheckPermissionByACL(ctx context.Context, ytClient yt.Client, hash2ACL *map[string]ACL, subject string) (result chan (ParallelCheckPermissionByACLResult)) {
+func ParallelCheckPermissionByACL(ctx context.Context, ytClient yt.Client, hash2ACL *map[string]ACL, subject string, permission yt.Permission) (result chan (ParallelCheckPermissionByACLResult)) {
 	result = make(chan ParallelCheckPermissionByACLResult)
 	for hash, acl := range *hash2ACL {
 		go func() {
@@ -213,7 +252,7 @@ func ParallelCheckPermissionByACL(ctx context.Context, ytClient yt.Client, hash2
 					ReadFrom: yt.ReadFromCache,
 				},
 			}
-			ret, err := ytClient.CheckPermissionByACL(ctx, subject, yt.PermissionRead, acl, &options)
+			ret, err := ytClient.CheckPermissionByACL(ctx, subject, permission, acl, &options)
 			if err != nil {
 				result <- ParallelCheckPermissionByACLResult{
 					Hash:   hash,
@@ -251,36 +290,40 @@ func EvolveCompressedACL(compressedACL CompressedACL, depth int) (CompressedACL,
 		action, inheritanceMode := IndexToACL(inheritanceModeIndex)
 		newInheritanceMode := evoluteInheritanceMode(evolutionMap, inheritanceMode)
 		if newInheritanceMode != yt.InheritanceModeNone {
-			newCompressedACL[ACLToIndex(action, newInheritanceMode)] = subjects
+			index := ACLToIndex(action, newInheritanceMode)
+			newCompressedACL[index] = append(newCompressedACL[index], subjects...)
 		}
 	}
 	return newCompressedACL, nil
 }
 
-func getCompressedACL(ACL *ACLDump, path string) (CompressedACL, error) {
+func getCompressedACL(ACL *ACLDump, path string, permission yt.Permission) (CompressedACL, error) {
 	currentRoot := ACL
-	lastNonTrivial := ACL.ACL
+	lastNonTrivial := ACL.GetACL(permission)
 	depthFromLast := 0
 	for _, part := range strings.Split(path, "/")[1:] {
 		depthFromLast += 1
 		if currentRoot != nil {
 			currentRoot = currentRoot.Paths[part]
-			if currentRoot != nil && currentRoot.ACL != nil {
-				lastNonTrivial = currentRoot.ACL
-				depthFromLast = 0
+			if currentRoot != nil {
+				currentACL := currentRoot.GetACL(permission)
+				if currentACL != nil {
+					lastNonTrivial = currentACL
+					depthFromLast = 0
+				}
 			}
 		}
 	}
 	return EvolveCompressedACL(lastNonTrivial, depthFromLast)
 }
 
-func unpackACL(compressedACL CompressedACL) (result ACL) {
+func unpackACL(compressedACL CompressedACL, permission yt.Permission) (result ACL) {
 	for aclIndex, subjects := range compressedACL {
 		action, inheritanceMode := IndexToACL(aclIndex)
 		result = append(result, yt.ACE{
 			Action:          yt.SecurityAction(action),
 			Subjects:        subjects,
-			Permissions:     []string{yt.PermissionRead},
+			Permissions:     []string{permission},
 			InheritanceMode: inheritanceMode,
 		})
 	}

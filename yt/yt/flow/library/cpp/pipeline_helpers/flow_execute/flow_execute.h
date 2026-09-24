@@ -1,12 +1,17 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/flow/library/cpp/common/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/compression/public.h>
 
+#include <yt/yt/client/api/flow_client.h>
 #include <yt/yt/client/api/public.h>
+
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -293,4 +298,107 @@ struct TSetFlowCoreTargetResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Direct mode: the commands the runner would otherwise send through the RPC proxy go to the
+//! pipeline controller itself.
+struct TDirectControllerCommandsConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled{};
+
+    TDuration RpcTimeout;
+
+    REGISTER_YSON_STRUCT(TDirectControllerCommandsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDirectControllerCommandsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Channels of the direct mode to the leader controller. A leader that publishes its incarnation
+//! certificate is reached over TLS with that certificate pinned.
+struct IDirectControllerChannels
+    : public virtual TRefCounted
+{
+    //! Returns a channel to |leader|, the node info published in the leader row of the flow_control table.
+    virtual NRpc::IChannelPtr GetChannel(const TNodeInfo& leader) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDirectControllerChannels)
+
+IDirectControllerChannelsPtr CreateDirectControllerChannels();
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Where the flow_execute commands go. Converts from a plain client, which keeps them on the
+//! RPC proxy path.
+struct TFlowExecuteTarget
+{
+    //! Client of the pipeline cluster. In the direct mode it reads the published leader and
+    //! carries the credentials the controller authenticates.
+    NApi::IClientPtr Client;
+
+    //! When set and enabled, the commands bypass the RPC proxy and go to the leader controller.
+    TDirectControllerCommandsConfigPtr DirectControllerCommands;
+
+    //! Channels to the leader controller; set in the direct mode only. Polling commands reuse
+    //! the channel of the published leader instead of connecting anew.
+    IDirectControllerChannelsPtr Channels;
+
+    TFlowExecuteTarget(NApi::IClientPtr client, TDirectControllerCommandsConfigPtr directControllerCommands = nullptr);
+
+    bool IsDirect() const;
+};
+
+//! The command name and the result type of a flow_execute argument; specialized per command below.
+template <class TArg>
+struct TFlowExecuteTraits;
+
+//! Runs |command| with a YSON argument and returns the YSON result. Must be called from a fiber.
+NYson::TYsonString FlowExecute(
+    const TFlowExecuteTarget& target,
+    const NYPath::TYPath& pipelinePath,
+    const std::string& command,
+    const NYson::TYsonString& argument,
+    const NApi::TFlowExecuteOptions& options = {});
+
+//! Same, with the command name and the result type taken from |argument|. Must be called from a fiber.
+template <class TArg>
+typename TFlowExecuteTraits<TArg>::TResult FlowExecute(
+    const TFlowExecuteTarget& target,
+    const NYPath::TYPath& pipelinePath,
+    const TArg& argument,
+    const NApi::TFlowExecuteOptions& options = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_FLOW_DEFINE_COMMAND(argType, resultType, commandName) \
+    template <>                                                  \
+    struct TFlowExecuteTraits<argType>                           \
+    {                                                            \
+        using TResult = resultType;                              \
+        static constexpr TStringBuf Command = commandName;       \
+    };
+
+YT_FLOW_DEFINE_COMMAND(TGetPipelineSpecArg, TGetPipelineSpecResult, "get-pipeline-spec")
+YT_FLOW_DEFINE_COMMAND(TSetPipelineSpecArg, TSetPipelineSpecResult, "set-pipeline-spec")
+YT_FLOW_DEFINE_COMMAND(TGetPipelineDynamicSpecArg, TGetPipelineDynamicSpecResult, "get-pipeline-dynamic-spec")
+YT_FLOW_DEFINE_COMMAND(TSetPipelineDynamicSpecArg, TSetPipelineDynamicSpecResult, "set-pipeline-dynamic-spec")
+YT_FLOW_DEFINE_COMMAND(TSetPipelineSpecsArg, TSetPipelineSpecsResult, "set-pipeline-specs")
+YT_FLOW_DEFINE_COMMAND(TGetPipelineStateArg, TGetPipelineStateResult, "get-pipeline-state")
+YT_FLOW_DEFINE_COMMAND(TSetTargetPipelineStateArg, TSetTargetPipelineStateResult, "set-target-pipeline-state")
+YT_FLOW_DEFINE_COMMAND(TGetControllerOrchidArg, TGetControllerOrchidResult, "get-controller-orchid")
+YT_FLOW_DEFINE_COMMAND(TGetFlowCoreTargetArg, TGetFlowCoreTargetResult, "get-flow-core-target")
+YT_FLOW_DEFINE_COMMAND(TSetFlowCoreTargetArg, TSetFlowCoreTargetResult, "set-flow-core-target")
+YT_FLOW_DEFINE_COMMAND(TGetFlowViewV2Arg, TGetFlowViewV2Result, "get-flow-view-v2")
+
+#undef YT_FLOW_DEFINE_COMMAND
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow
+
+#define FLOW_EXECUTE_INL_H_
+#include "flow_execute-inl.h"
+#undef FLOW_EXECUTE_INL_H_

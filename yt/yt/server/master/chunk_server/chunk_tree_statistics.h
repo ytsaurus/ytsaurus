@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "chunk_owner_data_statistics.h"
 
 #include <yt/yt/server/master/cell_master/public.h>

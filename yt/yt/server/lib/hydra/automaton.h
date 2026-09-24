@@ -26,7 +26,7 @@ struct IAutomaton
     virtual TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) = 0;
 
     //! Synchronously loads a snapshot.
-    //! The instance must be cleared (via #Clear) prior to this call.
+    //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
     virtual void LoadSnapshot(const TSnapshotLoadContext& context) = 0;
 
     //! Synchronously prepares the automaton state for further mutation processing
@@ -37,8 +37,8 @@ struct IAutomaton
     //! Clears the instance.
     virtual void Clear() = 0;
 
-    //! Brings the instance it to the state corresponding to zero version.
-    //! The instance must be cleared (via #Clear) prior to this call.
+    //! Brings the instance to the state corresponding to zero version.
+    //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
     virtual void SetZeroState() = 0;
 
     //! Applies a certain deterministic mutation to the instance.

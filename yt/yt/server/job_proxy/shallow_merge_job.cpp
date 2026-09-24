@@ -120,7 +120,7 @@ public:
             AbsorbMetas();
         } catch (const std::exception& ex) {
             YT_TLOG_INFO("Error absorbing metas")
-                .With(TError(ex));
+                .With(ex);
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed").With(ex);
         }
 

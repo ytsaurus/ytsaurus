@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/library/erasure/public.h>
 
 namespace NYT::NChunkClient {

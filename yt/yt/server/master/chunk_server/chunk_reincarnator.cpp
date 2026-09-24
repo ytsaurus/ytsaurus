@@ -2,11 +2,12 @@
 
 #include "chunk_list.h"
 #include "chunk_manager.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_requisition.h"
 #include "chunk_scanner.h"
 #include "config.h"
 #include "helpers.h"
-#include "chunk_replica_fetcher.h"
+#include "job_registry.h"
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -31,6 +32,8 @@
 #include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NChunkServer {
 

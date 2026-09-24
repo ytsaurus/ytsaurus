@@ -96,4 +96,4 @@ sed \
     -e "s|%YT_FLOW_PUBLIC_ADDRESS_OVERRIDE%|$flow_public_address_override|g" \
     "$CONFIG_SRC" > /tmp/config.yson
 
-exec /usr/bin/noop_pipeline --config /tmp/config.yson
+exec /usr/bin/flow_server --config /tmp/config.yson

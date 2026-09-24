@@ -125,7 +125,9 @@ struct ITransactionManager
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found or no transaction is found
     //! returns |nullptr|.
-    virtual TTransaction* FindPersistentTransaction(TTransactionId transactionId) = 0;
+    virtual TTransaction* FindPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -160,7 +162,6 @@ struct ITransactionManager
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
     virtual void RegisterTransactionActionHandlers(
@@ -169,9 +170,9 @@ struct ITransactionManager
     void RegisterTransactionActionHandlers(
         TTypedTransactionActionDescriptor<TProto, TState> descriptor);
 
-    //! Increases transaction commit signature.
-    // NB: After incrementing transaction may become committed and destroyed.
-    virtual void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta) = 0;
+    //! Decreases pending commit approval count for transaction.
+    // NB: After this transaction may become committed and destroyed.
+    virtual void DecrementPendingCommitApprovalCount(TTransaction* transaction) = 0;
 
     virtual TTimestamp GetMinPrepareTimestamp() const = 0;
     virtual TTimestamp GetMinCommitTimestamp() const = 0;

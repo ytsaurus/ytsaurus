@@ -56,7 +56,7 @@ Auto-merging is an additional step in the operation that consumes time. That's 
 Sample specification with the `relaxed` mode:
 
 
-```yaml
+```yson
 {
   input_table_paths = [ "//tmp/input_table" ];
   output_table_paths = [ "//tmp/output_table" ];
@@ -70,7 +70,7 @@ Sample specification with the `relaxed` mode:
 ```
 Sample specification with the `manual` mode:
 
-```yaml
+```yson
 {
   input_table_paths = [ "//tmp/input_table" ];
   output_table_paths = [ "//tmp/output_table" ];

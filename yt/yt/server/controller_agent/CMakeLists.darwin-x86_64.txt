@@ -71,6 +71,8 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/partitioning_parameters_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/push_based_shuffle_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/push_based_shuffle_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/scheduling_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp

@@ -27,6 +27,30 @@ public:
         IProcessFunctionBasePtr function,
         IRuntimeContextPtr context = TTestRuntimeContextBuilder().Build());
 
+    //! Constructs with and freezes the environment's current process-function context.
+    //! Configure all constructor dependencies before calling Create<T>().
+    template <class TFunction>
+    static TProcessFunctionTestHarness Create(
+        TTestStateEnvironment& environment,
+        IRuntimeContextPtr runtimeContext = TTestRuntimeContextBuilder().Build())
+    {
+        auto processFunctionContext = environment.CreateProcessFunctionContext();
+        auto function = environment.CreateProcessFunction<TFunction>(processFunctionContext);
+        return TProcessFunctionTestHarness(
+            environment,
+            std::move(function),
+            std::move(runtimeContext),
+            std::move(processFunctionContext));
+    }
+
+    template <class TFunction>
+    TIntrusivePtr<TFunction> GetFunction() const
+    {
+        auto function = DynamicPointerCast<TFunction>(Function_);
+        YT_VERIFY(function);
+        return function;
+    }
+
     //! Runs one epoch over |input|.
     void RunEpoch(const IInputContextPtr& input);
 
@@ -50,11 +74,18 @@ private:
     //! Set when the function has an end-of-epoch sync phase.
     ISyncProcessFunction* const SyncFunction_;
     const IRuntimeContextPtr Context_;
+    TProcessFunctionContextPtr FrozenProcessFunctionContext_;
 
     TIntrusivePtr<TRecordingOutputCollector> Output_;
     bool Initialized_ = false;
 
     void EnsureInitialized();
+
+    TProcessFunctionTestHarness(
+        TTestStateEnvironment& env,
+        IProcessFunctionBasePtr function,
+        IRuntimeContextPtr context,
+        TProcessFunctionContextPtr processFunctionContext);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

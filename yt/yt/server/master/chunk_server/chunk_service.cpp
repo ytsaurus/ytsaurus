@@ -1,19 +1,19 @@
 #include "chunk_service.h"
 
-#include "private.h"
-#include "config.h"
 #include "chunk.h"
 #include "chunk_manager.h"
-#include "chunk_replicator.h"
-#include "helpers.h"
 #include "chunk_owner_base.h"
-#include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk_replica_fetcher.h"
+#include "chunk_replicator.h"
+#include "config.h"
+#include "dynamic_store.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/multi_phase_cell_sync_session.h>
@@ -25,6 +25,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/table_server/public.h>
@@ -313,8 +314,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -398,8 +399,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateDynamicStores)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -492,8 +493,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, TouchChunks)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -514,8 +515,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
-        context->SetRequestInfo("SubrequestCount: %v",
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SubrequestCount", request->subrequests_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -684,9 +685,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
-            transactionId,
-            request->chunks_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ChunkCount", request->chunks_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -702,9 +703,9 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
-            transactionId,
-            request->chunks_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ChunkCount", request->chunks_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -736,8 +737,8 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
@@ -758,8 +759,8 @@ private:
             }
         }
 
-        context->SetResponseInfo("NodeCount: %v",
-            response->nodes_size());
+        context->AnnotateResponse()
+            .With("NodeCount", response->nodes_size());
         context->Reply();
     }
 
@@ -770,21 +771,14 @@ private:
             request->suppress_upstream_sync() ||
             GetSuppressUpstreamSync(context->RequestHeader());
 
-        context->SetRequestInfo(
-            "CreateChunkCount: %v, "
-            "ConfirmChunkCount: %v, "
-            "SealChunkCount: %v, "
-            "CreateChunkListsCount: %v, "
-            "UnstageChunkTreeCount: %v, "
-            "AttachChunkTreesCount: %v, "
-            "SuppressUpstreamSync: %v",
-            request->create_chunk_subrequests_size(),
-            request->confirm_chunk_subrequests_size(),
-            request->seal_chunk_subrequests_size(),
-            request->create_chunk_lists_subrequests_size(),
-            request->unstage_chunk_tree_subrequests_size(),
-            request->attach_chunk_trees_subrequests_size(),
-            suppressUpstreamSync);
+        context->AnnotateRequest()
+            .With("CreateChunkCount", request->create_chunk_subrequests_size())
+            .With("ConfirmChunkCount", request->confirm_chunk_subrequests_size())
+            .With("SealChunkCount", request->seal_chunk_subrequests_size())
+            .With("CreateChunkListsCount", request->create_chunk_lists_subrequests_size())
+            .With("UnstageChunkTreeCount", request->unstage_chunk_tree_subrequests_size())
+            .With("AttachChunkTreesCount", request->attach_chunk_trees_subrequests_size())
+            .With("SuppressUpstreamSync", suppressUpstreamSync);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -834,11 +828,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto parentId = FromProto<TChunkListId>(request->parent_id());
 
-        context->SetRequestInfo(
-            "TransactionId: %v, "
-            "ParentId: %v",
-            transactionId,
-            parentId);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ParentId", parentId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -863,11 +855,9 @@ private:
     {
         auto parentId = FromProto<TChunkListId>(request->parent_id());
 
-        context->SetRequestInfo(
-            "ParentId: %v, "
-            "ChildCount: %v",
-            parentId,
-            request->child_ids_size());
+        context->AnnotateRequest()
+            .With("ParentId", parentId)
+            .With("ChildCount", request->child_ids_size());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -881,11 +871,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
     {
         auto chunkTreeId = FromProto<TChunkId>(request->chunk_tree_id());
-        context->SetRequestInfo(
-            "ChunkTreeId: %v, "
-            "Recursive: %v",
-            chunkTreeId,
-            request->recursive());
+        context->AnnotateRequest()
+            .With("ChunkTreeId", chunkTreeId)
+            .With("Recursive", request->recursive());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -899,11 +887,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunkLists)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo(
-            "TransactionId: %v, "
-            "Count: %v",
-            transactionId,
-            request->count());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("Count", request->count());
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -927,9 +913,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        context->SetRequestInfo(
-            "ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -943,9 +928,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ScheduleChunkSeal)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        context->SetRequestInfo(
-            "ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -959,9 +943,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo(
-            "TransactionId: %v",
-            transactionId);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
@@ -995,9 +978,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        context->SetRequestInfo(
-            "ChunkId: %v",
-            chunkId);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId);
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);

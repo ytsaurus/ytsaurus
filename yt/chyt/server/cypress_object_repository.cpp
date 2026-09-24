@@ -398,7 +398,8 @@ void TCypressObjectRepository::WriteMaterializedView(
             transaction,
             resultOrError.Value(),
             config.SourceType,
-            config.SourceObjectId);
+            config.SourceObjectId,
+            config.Populate);
         WaitFor(transaction->Commit()).ThrowOnError();
     } catch (const std::exception&) {
         auto abortError = WaitFor(transaction->Abort());

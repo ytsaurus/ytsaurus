@@ -83,6 +83,8 @@ public:
 
     using TValidator = TNoopSpecValidator;
 
+    //! Must complete quickly: callers may invoke it before the partition's first status update, so
+    //! blocking here can delay graph progress.
     virtual void Init(IInitContextPtr initContext) = 0;
 
     // Distribute the message asynchronously.

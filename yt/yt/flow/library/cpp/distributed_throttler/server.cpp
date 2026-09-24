@@ -147,13 +147,12 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedThrottlerService, RequestQuota)
     // separately counts classless requests on buckets with weighted classes.
     const auto& quotaClassId = request->quota_class_id();
 
-    context->SetRequestInfo(
-        "ThrottlerId: %v, ClientId: %v, Amount: %v, Timestamp: %v, QuotaClassId: %v",
-        throttlerId,
-        clientId,
-        amount,
-        timestamp,
-        quotaClassId.empty() ? DefaultQuotaClassId : quotaClassId);
+    context->AnnotateRequest()
+        .With("ThrottlerId", throttlerId)
+        .With("ClientId", clientId)
+        .With("Amount", amount)
+        .With("Timestamp", timestamp)
+        .With("QuotaClassId", quotaClassId.empty() ? DefaultQuotaClassId : quotaClassId);
 
     // The token bucket YT_VERIFYs non-negative amounts; a malformed client
     // request must not abort the controller.

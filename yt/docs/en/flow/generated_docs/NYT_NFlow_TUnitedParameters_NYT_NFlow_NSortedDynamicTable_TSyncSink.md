@@ -33,7 +33,7 @@ If set to `false`, the presence of a synchronous replica is not checked when wri
 #|
 || `update_partition_count_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
-How often the controller should update the number of tablets in the table (the controller changes the number of receiver channels according to the number of tablets). ||
+How often the controller should update the number of tablets in the table (the controller changes the number of receiver channels accordingly). For a chaos replicated table, the controller uses the enabled data replica with the lexicographically smallest replica id; its current sync/async mode does not affect the choice. Resharding that replica may change the number of receiver channels. ||
 |#
 
 

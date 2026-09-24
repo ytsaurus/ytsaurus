@@ -12,7 +12,7 @@ from .computation import ComputationCellGenerator
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
 
 
 COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=False)
@@ -116,10 +116,55 @@ def build_buffers():
     )
 
 
+def build_buffer_demand():
+    def pressure(side):
+        demand = MonitoringExpr(FlowWorker(f"yt.flow.worker.buffer_state.computations.{side}.demand")).aggr(
+            "computation_id", "stream_id"
+        )
+        capacity = MonitoringExpr(FlowWorker(f"yt.flow.worker.buffer_state.pools.{side}.capacity"))
+        return MultiSensor(
+            (demand / capacity.drop_below(1)).alias("{{host}}"),
+            MonitoringExpr.constant_line(1).alias("Capacity threshold"),
+        )
+
+    description = (
+        "V2 pre-pool demand divided by effective capacity on the same worker. "
+        "Demand excludes explicit stream overrides and speculative output allowance. "
+        "Values above 1 mean local pool oversubscription; spare capacity elsewhere cannot cover it. "
+        "Workers with zero capacity are not plotted."
+    )
+    colors = {"Capacity threshold": "#e06666"}
+    return (
+        Rowset()
+        .all("host")
+        .stack(False)
+        .unit("UNIT_NONE")
+        .min(0)
+        .row()
+        .cell(
+            "Input pool pressure",
+            pressure("input"),
+            colors=colors,
+            description=description,
+            display_legend=True,
+        )
+        .cell(
+            "Output pool pressure",
+            pressure("output"),
+            colors=colors,
+            description=description,
+            display_legend=True,
+        )
+        .cell("", EmptyCell())
+        .cell("", EmptyCell())
+    )
+
+
 def build_flow_message_transfering(backend="monitoring"):
     def fill(d):
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
         d.add(build_buffers())
+        d.add(build_buffer_demand())
         d.add(build_message_distributor())
 
     return create_dashboard("message-transfering", fill, backend=backend)

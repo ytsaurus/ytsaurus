@@ -92,10 +92,15 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hive_profiling_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_cell_group_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
@@ -210,7 +215,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/private.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
@@ -432,6 +436,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/stores_update_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica.cpp

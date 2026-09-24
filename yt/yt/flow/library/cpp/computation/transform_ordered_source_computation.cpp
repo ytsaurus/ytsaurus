@@ -105,20 +105,27 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         if (allowRead) {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             sourceMessageBatches = WaitFor(OrderedSource_->GetNextBatch(TMessageBatcherSettingsPtr(dynamicSpec))).ValueOrThrow();
+            i64 sourceMessageCount = 0;
+            for (const auto& sourceBatch : sourceMessageBatches) {
+                sourceMessageCount += std::ssize(sourceBatch.Messages);
+            }
+            context->RegisterSourceMessages(sourceMessageCount);
         }
 
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
 
         const THashMap<TStreamId, TSystemTimestamp> inputWatermarks{{*ActiveSourceStreamId_, partitionReadWatermark}};
 
-        TLineageDelta inputLineageDelta;
+        THashMap<TStreamId, TBatchStatistics> skippedStatistics;
         i64 skippedCount = 0;
         for (auto& sourceBatch : sourceMessageBatches) {
-            AddLineageInputs(&inputLineageDelta, GetSpec(), sourceBatch.Messages, {}, {});
             RegisterInputBeforeProcessing(sourceBatch.Messages, {}, {}, inputWatermarks);
             if (Filter_->IsEnabled()) {
-                auto [kept, skipped] = Filter_->Partition(std::move(sourceBatch.Messages));
+                auto [kept, skipped, statistics] = Filter_->Partition(std::move(sourceBatch.Messages));
                 skippedCount += std::ssize(skipped);
+                for (const auto& [streamId, totals] : statistics) {
+                    skippedStatistics[streamId] += totals;
+                }
                 sourceBatch.Messages = std::move(kept);
             }
         }
@@ -139,12 +146,13 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
                 sourceMessages.insert(sourceMessages.end(), sourceBatch.Messages.begin(), sourceBatch.Messages.end());
             }
         }
+
         ThrottleInputBatch(sourceMessages, {}, {});
 
+        auto inputContext = New<TInputContext>(sourceMessages, std::vector<TInputTimerConstPtr>{});
         TRootOutputCollector::TTransformResult processResult;
         if (!sourceMessages.empty()) {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Process"));
-            auto inputContext = New<TInputContext>(sourceMessages, std::vector<TInputTimerConstPtr>{});
             auto metaSetter = CreateUniqueMetaSetter(GetSpec(), uniqueSeqNo, now, EventTimestampAssigner_);
             auto outputCollector = New<TRootOutputCollector>(GetSpec(), metaSetter, /*supportsDistribute*/ true);
             PreloadKeyStates(inputContext);
@@ -153,6 +161,7 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         }
 
         THROW_ERROR_EXCEPTION_UNLESS(processResult.OutputTimers.empty(), "TTransformOrderedSourceComputation does not support timers");
+        RegisterResults(inputContext, std::move(processResult.LineageDelta), std::move(skippedStatistics));
 
         std::optional<TWatermarkGeneratorCookie> watermarkGeneratorCookie;
         if (!sourceMessageBatches.empty()) {
@@ -177,7 +186,7 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.Start"));
             OutputStore_->TryRegisterKeyedBatch(outputMessages, *GetContext()->Partition->SourceKey, /*persist*/ true);
-            RegisterOutputMessages(context, outputMessages, *GetContext()->Partition->SourceKey, dynamicSpec);
+            RegisterOutputMessages(context, outputMessages, *GetContext()->Partition->SourceKey);
         }
 
         for (const auto& sourceBatch : sourceMessageBatches) {
@@ -194,12 +203,13 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Sync"));
             DoSync(tx);
         }
-        AddLineageDelta(std::move(inputLineageDelta));
-        AddLineageDelta(std::move(processResult.LineageDelta));
         Commit(context, tx);
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));
 
+        if (!sourceMessageBatches.empty()) {
+            NoteNonEmptyRunIteration();
+        }
         FinishRunIteration();
 
         WaitForBackoff(dynamicSpec, outputLimitsCheckResult, /*emptyInput*/ sourceMessageBatches.empty());

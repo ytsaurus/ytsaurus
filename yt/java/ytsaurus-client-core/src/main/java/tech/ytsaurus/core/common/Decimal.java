@@ -11,7 +11,7 @@ import tech.ytsaurus.lang.NonNullFields;
 @NonNullApi
 @NonNullFields
 public class Decimal {
-    private static final int MAX_PRECISION = 35;
+    private static final int MAX_PRECISION = 76;
 
     private static final byte[] PLUS_INF_4 = new byte[]{
             (byte) 0x7f, (byte) 0xff, (byte) 0xff, (byte) 0xfe,
@@ -29,6 +29,17 @@ public class Decimal {
             (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xfe,
     };
 
+    private static final byte[] PLUS_INF_32 = new byte[]{
+            (byte) 0x7f, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,
+            (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xfe,
+    };
+
     private static final byte[] MINUS_INF_4 = new byte[]{
             (byte) 0x80, 0x00, 0x00, 0x02
     };
@@ -40,6 +51,17 @@ public class Decimal {
 
     private static final byte[] MINUS_INF_16 = new byte[]{
             (byte) 0x80, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x02
+    };
+
+    private static final byte[] MINUS_INF_32 = new byte[]{
+            (byte) 0x80, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02
@@ -76,17 +98,24 @@ public class Decimal {
         validatePrecisionAndScale(precision, scale);
         int byteSize = getValueBinarySize(precision);
 
-        binaryDecimal[0] = (byte) (binaryDecimal[0] ^ (0x1 << 7));
+        if (binaryDecimal.length != byteSize) {
+            throw new IllegalArgumentException(String.format(
+                    "Decimal<%d,%d> binary value representation has invalid length: actual %d, expected %d",
+                    precision, scale, binaryDecimal.length, byteSize));
+        }
 
-        if (Arrays.equals(binaryDecimal, getPlusInf(byteSize))) {
+        byte[] value = binaryDecimal.clone();
+        value[0] = (byte) (value[0] ^ (0x1 << 7));
+
+        if (Arrays.equals(value, getPlusInf(byteSize))) {
             return "inf";
-        } else if (Arrays.equals(binaryDecimal, getMinusInf(byteSize))) {
+        } else if (Arrays.equals(value, getMinusInf(byteSize))) {
             return "-inf";
-        } else if (Arrays.equals(binaryDecimal, getNan(byteSize))) {
+        } else if (Arrays.equals(value, getNan(byteSize))) {
             return "nan";
         }
 
-        BigInteger decodedValue = new BigInteger(binaryDecimal);
+        BigInteger decodedValue = new BigInteger(value);
         String digits = String.format("%0" + (scale + 1) + "d", decodedValue);
         StringBuilder result = new StringBuilder(digits.length() + 2);
         result.append(digits.subSequence(0, digits.length() - scale));
@@ -213,6 +242,9 @@ public class Decimal {
             case 16: {
                 return PLUS_INF_16;
             }
+            case 32: {
+                return PLUS_INF_32;
+            }
             default: {
                 throw new IllegalArgumentException("Incorrect byteSize in getPlusInf");
             }
@@ -229,6 +261,9 @@ public class Decimal {
             }
             case 16: {
                 return MINUS_INF_16;
+            }
+            case 32: {
+                return MINUS_INF_32;
             }
             default: {
                 throw new IllegalArgumentException("Incorrect byteSize in getMinusInf");
@@ -280,8 +315,10 @@ public class Decimal {
                 return 4;
             } else if (precision <= 18) {
                 return 8;
-            } else if (precision <= 35) {
+            } else if (precision <= 38) {
                 return 16;
+            } else if (precision <= 76) {
+                return 32;
             }
         }
 

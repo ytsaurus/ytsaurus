@@ -6,6 +6,7 @@ SRCS(
     configs.go
     controller.go
     fancy.go
+    jdbc.go
     odbc.go
     resources.go
     runtime.go

@@ -6,6 +6,7 @@
 #include "job_state/state_manager.h"
 #include "key_visitor.h"
 #include "lineage_accumulator.h"
+#include "processing_observation_accumulator.h"
 #include "universal_controller.h"
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
@@ -118,7 +119,7 @@ protected:
 
     TNodeTraverseDataPtr GetNodeTraverse();
 
-    //! Applies pending states at the start of a run iteration.
+    //! Applies states received since the previous call.
     //! Must be called from JobSerializedInvoker_.
     void ApplyPendingStates();
 
@@ -228,12 +229,10 @@ public:
         TLineageDelta LineageDelta;
     };
 
-    //! Set |collectLineage| to false when output publication is deferred beyond this collector.
     TRootOutputCollector(
         TComputationSpecPtr spec,
         IMetaSetterPtr metaSetter,
-        bool supportsDistribute = false,
-        bool collectLineage = true);
+        bool supportsDistribute = false);
 
     [[nodiscard]] IOutputCollectorPtr SetParents(
         const std::vector<TInputMessageConstPtr>& messages,
@@ -254,8 +253,6 @@ private:
     const IMetaSetterPtr MetaSetter_;
     //! Whether messages with |distribute| = false remain available for watermark handling.
     const bool SupportsDistribute_;
-    //! Swift ordered source counts only outputs accepted after delay and deduplication.
-    const bool CollectLineage_;
     TLineageAccumulator LineageAccumulator_;
     TTransformResult Result_;
 };
@@ -428,6 +425,16 @@ protected:
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
         const IComputationRunContextPtr& context) const;
 
+    struct TFilteredInputBatch
+    {
+        std::vector<TInputMessageConstPtr> Messages;
+        THashMap<TStreamId, TBatchStatistics> SkippedStatistics;
+    };
+
+    TFilteredInputBatch FilterInputBatch(
+        const IComputationRunContextPtr& context,
+        std::vector<TInputMessageConstPtr> messages);
+
     void RegisterInputBeforeProcessing(
         const std::vector<TInputMessageConstPtr>& inputMessages,
         const std::vector<TInputTimerConstPtr>& inputTimers,
@@ -447,8 +454,7 @@ protected:
     void RegisterOutputMessages(
         const IComputationRunContextPtr& context,
         std::span<const TOutputMessageConstPtr> messages,
-        const std::optional<TKey>& parentKey,
-        const TDynamicComputationSpecPtr& dynamicSpec);
+        const std::optional<TKey>& parentKey);
 
     template <class TCallback>
     void SubscribeRunIterationStart(TCallback callback)
@@ -479,15 +485,21 @@ protected:
 
     TRunIterationGuard StartRunIteration(const IComputationRunContextPtr& context);
     IRetryableTransactionPtr PrepareTransaction(const IComputationRunContextPtr& context);
-    void AddLineageDelta(TLineageDelta delta);
     void Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction);
     void FinishRunIteration();
+    //! Call once per run iteration that had input to process, see #TComputationStatus::NonEmptyIterationCount.
+    void NoteNonEmptyRunIteration();
 
     TCheckOutputLimitsResult CheckOutputLimits(
         const TDynamicComputationSpecPtr& dynamicSpec,
         const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec);
     void InitBufferWarmupState();
     void RefreshBufferWarmupState();
+
+    void RegisterResults(
+        const IInputContextPtr& inputs,
+        TLineageDelta lineageDelta,
+        THashMap<TStreamId, TBatchStatistics> skipped = {});
 
     void WaitForBackoff(
         const TDynamicComputationSpecPtr& dynamicSpec,
@@ -509,6 +521,7 @@ protected:
     }
 
     void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
+    void InitSinks();
 
     void Run(const IComputationRunContextPtr& context) final;
 
@@ -524,8 +537,7 @@ protected:
     //! dedup state if the key's range is later re-read.
     virtual bool HasPersistedKeyedOutput() const;
 
-    ISinkPtr GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec);
-    std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> GetAllSinks() const;
+    ISinkPtr GetSink(const TSinkId& sinkId) const;
 
     void PreloadKeyStates(const IInputContextPtr& inputContext);
 
@@ -591,7 +603,7 @@ protected:
     const std::optional<TStreamId> ActiveSourceStreamId_;
     const ISourcePtr ActiveSource_;
 
-    THashMap<TSinkId, THashMap<std::optional<TKey>, ISinkPtr>> Sinks_;
+    THashMap<TSinkId, ISinkPtr> Sinks_;
 
     const IInputStorePtr InputStore_;
     const ITimerStorePtr TimerStore_;
@@ -601,6 +613,7 @@ protected:
     const THashMap<TStreamId, TKeyVisitorPtr> KeyVisitors_;
     const IComputationTracerPtr Tracer_;
     const IEventTimestampAssignerPtr EventTimestampAssigner_;
+    const IMessageFilterPtr Filter_;
 
 private:
     struct TStreamMessageCounters
@@ -610,6 +623,7 @@ private:
     };
 
     const TInstant StartTime_;
+    const NProfiling::TCounter InputSkippedByExpressionCounter_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LimitsLock_);
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;
@@ -620,6 +634,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     i64 RunIteration_ = -1;
+    std::atomic<i64> NonEmptyRunIterations_ = 0;
     TPromise<void> RunIterationStartPromise_;
     TPromise<void> BeforeCommitInIterationPromise_;
     TPromise<void> RunIterationFinishPromise_;
@@ -636,7 +651,9 @@ private:
 
     TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
 
-private:
+    TProcessingObservationAccumulator ProcessingObservationAccumulator_{StartTime_};
+    TAtomicIntrusivePtr<TProcessingObservation> ProcessingObservation_;
+
     std::optional<TStreamId> CreateActiveSourceStreamId();
     ISourcePtr CreateActiveSource();
     THashMap<TSinkId, ISinkPtr> CreateSinks();
@@ -655,17 +672,17 @@ private:
 
     void ObserveEpochEventLags(TInstant commitNow);
 
+    void ValidateOutputParentKey(const std::optional<TKey>& parentKey) const;
+    void ClearStateOwners();
+
     // Common implementation for RegisterOutputMessages and InitOutputStoreDistribution.
     // Iterates over |messages|, distributes each to the appropriate sink, registers
     // with context, and activates all trackers.
-    //   getKey(i)                  -> const std::optional<TKey>&  (used for GetOrCreateSink)
-    //   makeTrackerCallback(i, cookie) -> callable()              (stored in TDistributingTracker)
-    template <class TGetKey, class TMakeTrackerCallback>
+    // |makeTrackerCallback(i)| returns the completion callback stored in the tracker for |messages[i]|.
+    template <class TMakeTrackerCallback>
     void DistributeOutputMessagesImpl(
         const IComputationRunContextPtr& context,
         std::span<const TOutputMessageConstPtr> messages,
-        const TDynamicComputationSpecPtr& dynamicSpec,
-        TGetKey&& getKey,
         TMakeTrackerCallback&& makeTrackerCallback);
 
     void DrainDistributedOutputs(const IComputationRunContextPtr& context);

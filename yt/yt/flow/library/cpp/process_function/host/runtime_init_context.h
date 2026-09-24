@@ -19,10 +19,14 @@ public:
     TRuntimeInitContext(
         IJobInitContextPtr underlying,
         TJobStateManagerPtr stateManager,
+        TComputationId computationId,
         TPartitionId partitionId,
         NYTree::IMapNodePtr parametersNode = {},
+        NYTree::TYsonStructPtr parametersObject = {},
         THashMap<TResourceId, IResourcePtr> staticResources = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TProfiler profiler = {},
+        NHttp::IClientPtr httpClient = {},
+        NHttp::IClientPtr httpsClient = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
     TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
@@ -34,11 +38,17 @@ public:
     const std::string& GetPrefix() const override;
 
     NYTree::IMapNodePtr GetParametersNode() const override;
+    NYTree::TYsonStructPtr GetParametersObject() const override;
 
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
 
     NProfiling::TProfiler GetProfiler() const override;
 
+    //! Throw when the hosting computation context carried no such client.
+    NHttp::IClientPtr GetHttpClient() const override;
+    NHttp::IClientPtr GetHttpsClient() const override;
+
+    TComputationId GetComputationId() const override;
     TPartitionId GetPartitionId() const override;
 
 protected:
@@ -48,10 +58,16 @@ protected:
 private:
     const IJobInitContextPtr Underlying_;
     const TJobStateManagerPtr StateManager_;
+    const TComputationId ComputationId_;
     const TPartitionId PartitionId_;
     const NYTree::IMapNodePtr ParametersNode_;
+    //! The parameters node parsed into the registered static-parameters type (see
+    //! TRegistry::ParseProcessFunctionParameters); null when no processing function is named.
+    const NYTree::TYsonStructPtr ParametersObject_;
     const THashMap<TResourceId, IResourcePtr> StaticResources_;
     const NProfiling::TProfiler Profiler_;
+    const NHttp::IClientPtr HttpClient_;
+    const NHttp::IClientPtr HttpsClient_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

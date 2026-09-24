@@ -155,7 +155,7 @@ yt merge --mode auto --spec '{"force_transform"=true; "job_io"={"table_writer"={
 
 Пример потока входных данных в reduce-джобе в формате YSON, с указанием всех контрольных атрибутов:
 
-```json
+```yson
 <"table_index"=0;>#;
 <"range_index"=0;>#;
 <"row_index"=2;>#;

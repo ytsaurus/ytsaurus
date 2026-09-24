@@ -17,6 +17,8 @@ from yt.wrapper import yson, YtError
 
 import yt_error_codes
 
+import os
+
 import pytest
 
 import re
@@ -61,6 +63,53 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
                 if "pending" in stage and stage["pending"] > 0 :
                     return True
         return False
+
+
+class TestDynamicTokenResolution(TestQueriesYqlSimpleBase):
+    YQL_USE_TOKEN_RESOLVER = True
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "auth": {"enable_authentication": True},
+    }
+
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(300)
+    def test_dynamic_token_resolution(self, query_tracker, yql_agent):
+        create_user("token_resolution_user")
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+        })
+        write_table("//tmp/t", [{"a": 42}])
+        create("file", "//tmp/another_test_file")
+        write_file("//tmp/another_test_file", b"YtTokenResolver works!")
+
+        self._test_simple_query(
+            """
+PRAGMA File("test_file", "yt://primary/tmp/another_test_file");
+
+$has_cluster_token = Python3::has_cluster_token(
+    Callable<(Bytes)->Bool>,
+    @@#py
+def has_cluster_token(key):
+    return has_cluster_token._yql_secure_param(key).startswith("ytct-")
+    @@
+);
+
+SELECT
+    a + 1 AS value,
+    FileContent("test_file") AS file_content,
+    $has_cluster_token(SecureParam("cluster:default_primary")) AS has_cluster_token
+FROM primary.`//tmp/t`;
+""",
+            [{"value": 43, "file_content": "YtTokenResolver works!", "has_cluster_token": True}],
+            authenticated_user="token_resolution_user",
+        )
+
+        self._test_simple_query_error(
+            'SELECT SecureParam("token:default_yt");',
+            "unknown token id: default_yt, prefix: token",
+            authenticated_user="token_resolution_user",
+        )
 
 
 class TestStackOverflow(TestQueriesYqlSimpleBase):
@@ -446,8 +495,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicC
         #         'cluster': 'localhost:29782',
         #         'name': 'primary',
         #         'settings': [
-        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'},
-        #             {'name': '_UseKeyBoundApi', 'value': 'true'}
+        #             {'name': 'QueryCacheChunkLimit', 'value': '100000'}
         #         ]
         #     }
         # ]
@@ -930,8 +978,8 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
             assert gateway_config["yt_log_level"] == "YL_DEBUG"
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
-            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 3
-            assert len(gateway_config["default_settings"]) == 63
+            assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
+            assert len(gateway_config["default_settings"]) == 62
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -2058,14 +2106,125 @@ class TestDeclareRpcProxy(TestDeclare):
     ENABLE_MULTIDAEMON = True
 
 
-@authors("staketd")
-class TestYqlAgentWithProcesses(TestYqlAgent):
+class ProcessFileStorageTestMixin:
+    def _get_process_plugin_slots_root(self, yql_agent):
+        return os.path.join(yql_agent.yql_agent.env.path, "yql_agent", "0", "plugin_slots")
+
+    def _get_process_plugin_file_storage_path(self, yql_agent):
+        return os.path.join(self._get_process_plugin_slots_root(yql_agent), "file_storage")
+
+    def _get_slot_config_state(self, yql_agent):
+        slots_root = self._get_process_plugin_slots_root(yql_agent)
+        paths = []
+        modification_times = {}
+
+        for slot_index in range(self.YQL_SUBPROCESS_COUNT):
+            config_path = os.path.join(slots_root, str(slot_index), "config.yson")
+            try:
+                with open(config_path, "rb") as config_file:
+                    stat_before_read = os.fstat(config_file.fileno())
+                    config = yson.load(config_file)
+                    stat_after_read = os.fstat(config_file.fileno())
+                if (stat_before_read.st_mtime_ns, stat_before_read.st_size) != (
+                    stat_after_read.st_mtime_ns,
+                    stat_after_read.st_size,
+                ):
+                    return None
+                modification_times[slot_index] = stat_after_read.st_mtime_ns
+                paths.append(config["plugin_options"]["file_storage"]["path"])
+            except (OSError, yson.YsonError, KeyError, TypeError):
+                return None
+
+        return frozenset(paths), modification_times
+
+    def _wait_for_slot_configs(
+        self, yql_agent, expected_path, previous_modification_times=None, require_all_slots=False
+    ):
+        result = {}
+
+        def ready():
+            state = self._get_slot_config_state(yql_agent)
+            if state is None:
+                return False
+
+            paths, modification_times = state
+            if paths != {expected_path}:
+                return False
+
+            if previous_modification_times is not None:
+                restarted = (
+                    modification_times[slot_index] > previous_modification_times[slot_index]
+                    for slot_index in range(self.YQL_SUBPROCESS_COUNT)
+                )
+                if not (all(restarted) if require_all_slots else any(restarted)):
+                    return False
+
+            result["modification_times"] = modification_times
+            return True
+
+        wait(ready)
+        return result["modification_times"]
+
+
+@authors("staketd", "lucius")
+class TestYqlAgentWithProcesses(ProcessFileStorageTestMixin, TestYqlAgent):
+    YQL_SUBPROCESS_COUNT = 8
+
+    @pytest.mark.timeout(180)
+    def test_shared_file_storage_is_reused_after_query(self, query_tracker, yql_agent):
+        expected_path = self._get_process_plugin_file_storage_path(yql_agent)
+        modification_times_before = self._wait_for_slot_configs(yql_agent, expected_path)
+
+        self._test_simple_query("select 1 as value", [{"value": 1}])
+
+        self._wait_for_slot_configs(yql_agent, expected_path, modification_times_before)
+
+
+@authors("ziganshinmr")
+class TestDynamicTokenResolutionWithProcesses(TestDynamicTokenResolution):
     YQL_SUBPROCESS_COUNT = 8
 
 
-@authors("staketd")
-class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
+@authors("staketd", "lucius")
+class TestYqlAgentDynConfigWithProcesses(ProcessFileStorageTestMixin, TestYqlAgentDynConfig):
     YQL_SUBPROCESS_COUNT = 8
+
+    @pytest.mark.timeout(180)
+    def test_shared_file_storage_is_reused_after_dynamic_config_update(self, query_tracker, yql_agent):
+        expected_path = self._get_process_plugin_file_storage_path(yql_agent)
+        modification_times_before = self._wait_for_slot_configs(yql_agent, expected_path)
+
+        self._update_dyn_config(
+            yql_agent,
+            {
+                "gateways": {
+                    "yt": {
+                        "cluster_mapping": [],
+                    },
+                },
+            },
+        )
+
+        self._wait_for_slot_configs(
+            yql_agent,
+            expected_path,
+            modification_times_before,
+            require_all_slots=True,
+        )
+
+
+@authors("lucius")
+@pytest.mark.usefixtures("query_tracker")
+class TestYqlAgentWithExplicitProcessFileStorage(ProcessFileStorageTestMixin, TestQueriesYqlSimpleBase):
+    YQL_SUBPROCESS_COUNT = 2
+
+    @classmethod
+    def modify_yql_agent_config(cls, config):
+        cls.ExplicitFileStoragePath = os.path.join(cls.Env.path, "explicit_process_file_storage")
+        config["yql_agent"]["file_storage_config"]["path"] = cls.ExplicitFileStoragePath
+
+    def test_explicit_file_storage_path_is_preserved(self, yql_agent):
+        self._wait_for_slot_configs(yql_agent, self.ExplicitFileStoragePath)
 
 
 @authors("ziganshinmr")

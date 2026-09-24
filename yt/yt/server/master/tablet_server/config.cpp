@@ -12,6 +12,18 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto DefaultTabletBalancerSchedule = MakeTimeFormula("minutes % 5 == 0");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_tablet_balancer", &TThis::EnableTabletBalancer)
@@ -145,6 +157,29 @@ void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("throttler", &TThis::Throttler)
+        .DefaultNew();
+    registrar.Parameter("bundle_limit", &TThis::BundleLimit)
+        .GreaterThanOrEqual(0)
+        .Default(500);
+    registrar.Parameter("flush_relative_limit", &TThis::FlushRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("regular_relative_limit", &TThis::RegularRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Throttler->Limit) {
+            config->Throttler->Limit = 2000;
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("peer_revocation_timeout", &TThis::PeerRevocationTimeout)
@@ -263,6 +298,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
         .Default(15000);
 
+    registrar.Parameter("stores_update_throttler", &TThis::StoresUpdateThrottler)
+        .DefaultNew();
+
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
 
@@ -308,6 +346,29 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
+
+        auto addChildIfMissing = [] (const NYTree::IMapNodePtr& node, TStringBuf key, const auto& value) {
+            if (!node->FindChild(key)) {
+                node->AddChild(key, NYTree::ConvertToNode(value));
+            }
+        };
+
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "suspicious_node_grace_period",
+            config->StoreChunkReader->SuspiciousNodeGracePeriod);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreReaderConfig,
+            "ban_peers_permanently",
+            config->StoreChunkReader->BanPeersPermanently);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "block_size",
+            config->StoreChunkWriter->BlockSize);
+        addChildIfMissing(
+            config->IOConfigTemplatePatch->StoreWriterConfig,
+            "sample_rate",
+            config->StoreChunkWriter->SampleRate);
 
         for (const auto& [name, experiment] : config->TableConfigExperiments) {
             if (experiment->Salt.empty()) {

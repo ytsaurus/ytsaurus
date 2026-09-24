@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionSupervisor {
@@ -47,6 +49,7 @@ TCommit::TCommit(
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
     TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+    TTransactionCommitApprovalCounts targetCommitApprovalCounts,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
     std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
     bool distributed,
@@ -61,6 +64,7 @@ TCommit::TCommit(
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
     , ExpectedPrepareSignatures_(std::move(expectedPrepareSignatures))
+    , TargetCommitApprovalCounts_(std::move(targetCommitApprovalCounts))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
     , CellIdsToSyncWithBeforePrepare_(std::move(cellIdsToSyncWithBeforePrepare))
     , Distributed_(distributed)
@@ -80,7 +84,11 @@ TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
 
 void TCommit::SetResponseMessage(TSharedRefArray message)
 {
-    ResponseMessagePromise_.TrySet(std::move(message));
+    BIND([promise = ResponseMessagePromise_, message = std::move(message)] () mutable {
+        promise.TrySet(std::move(message));
+    })
+        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
 }
 
 bool TCommit::IsPrepareOnlyParticipant(TCellId cellId) const
@@ -99,6 +107,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
     Save(context, ExpectedPrepareSignatures_);
+    Save(context, TargetCommitApprovalCounts_);
     Save(context, PrepareOnlyParticipantCellIds_);
     Save(context, CellIdsToSyncWithBeforePrepare_);
     Save(context, Distributed_);
@@ -132,6 +141,10 @@ void TCommit::Load(TLoadContext& context)
         ExpectedPrepareSignatures_.Participants.assign(
             ParticipantCellIds_.size(),
             FinalTransactionSignature);
+    }
+    // COMPAT(kvk1920)
+    if (contextVersion >= ETransactionSupervisorReign::CommitApprovalCount) {
+        Load(context, TargetCommitApprovalCounts_);
     }
     Load(context, PrepareOnlyParticipantCellIds_);
     Load(context, CellIdsToSyncWithBeforePrepare_);

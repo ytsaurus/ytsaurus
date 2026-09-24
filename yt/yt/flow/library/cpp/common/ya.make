@@ -11,6 +11,8 @@ SRCS(
     companion_state_adapter.cpp
     computation_controller.cpp
     computation.cpp
+    computation_statistics.cpp
+    stream_statistics.cpp
     describe_traits.cpp
     distributing_tracker.cpp
     dyntable_lease.cpp
@@ -38,6 +40,7 @@ SRCS(
     resource.cpp
     resource_controller.cpp
     resource_manager.cpp
+    resource_status.cpp
     schema.cpp
     select_literals.cpp
     time_provider.cpp

@@ -61,7 +61,8 @@ YT_DEFINE_ERROR_ENUM(
     ((OverlayLayerPreparationFailed)         (1150))
 );
 
-DEFINE_ENUM(EJobPhase,
+// COMPAT(pogorelov): Remove in 26.3.
+DEFINE_ENUM(EJobPhaseOld,
     ((Missing)                      (100))
 
     ((Created)                      (  0))
@@ -69,6 +70,7 @@ DEFINE_ENUM(EJobPhase,
     ((DownloadingArtifacts)         ( 10))
     ((CachingArtifacts)             ( 11))
     ((PreparingLayers)              ( 12))
+    ((PreparingSlotDirectories)     ( 13))
     ((PreparingVolumes)             ( 15))
     ((PreparingGpuCheckVolume)      ( 20))
     ((LinkingVolumes)               ( 21))
@@ -88,7 +90,40 @@ DEFINE_ENUM(EJobPhase,
     ((Finished)                     ( 80))
 );
 
+DEFINE_ENUM_UNKNOWN_VALUE(EJobPhaseOld, Missing);
+
+DEFINE_ENUM(EJobPhase,
+    ((Missing)                      (100000))
+
+    ((Created)                      (     0))
+    ((PreparingNodeDirectory)       (  1000))
+    ((DownloadingArtifacts)         (  2000))
+    ((CachingArtifacts)             (  3000))
+    ((PreparingSlotDirectories)     (  4000))
+    ((PreparingLayers)              (  5000))
+    ((PreparingVolumes)             (  6000))
+    ((PreparingGpuCheckVolume)      (  7000))
+    ((LinkingVolumes)               (  8000))
+    ((ValidatingRootFS)             (  9000))
+    ((PreparingSandboxDirectories)  ( 10000))
+    ((RunningSetupCommands)         ( 11000))
+    ((RunningCustomPreparations)    ( 12000))
+    ((RunningGpuCheckCommand)       ( 13000))
+    ((SpawningJobProxy)             ( 14000))
+    ((PreparingArtifacts)           ( 15000))
+    ((PreparingJob)                 ( 16000))
+    ((Running)                      ( 17000))
+    ((FinalizingJobProxy)           ( 18000))
+    ((RunningExtraGpuCheckCommand)  ( 19000))
+    ((WaitingForCleanup)            ( 20000))
+    ((Cleanup)                      ( 21000))
+    ((Finished)                     ( 22000))
+);
+
 DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
+
+EJobPhase ConvertJobPhaseFromOld(EJobPhaseOld phase);
+EJobPhaseOld ConvertJobPhaseToOld(EJobPhase phase);
 
 ////////////////////////////////////////////////////////////////////////////////
 

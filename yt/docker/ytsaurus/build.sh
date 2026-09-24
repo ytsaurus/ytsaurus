@@ -118,6 +118,37 @@ if [[ "${component}" == "ytsaurus" ]]; then
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
 
+elif [[ "${component}" == "flow" || "${component}" == "flow-java" || "${component}" == "flow-python" ]]; then
+
+    flow_server="${ytsaurus_build_path}/yt/yt/flow/bin/flow_server/flow_server"
+
+    flow_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/flow"
+
+    cp ${flow_server} ${output_path}
+
+    cp -r ${flow_credits}/*.CREDITS ${output_path}/credits
+
+    if [[ "${component}" == "flow-python" ]]; then
+        # Sources of the Python SDK package: its own, the python packages it ships, the Flow
+        # protos it compiles and the core protos those import. They keep their repo-relative
+        # paths, since setup.py reads them by those paths.
+        python_sdk_paths=(
+            "yt/python/packages/ytsaurus-flow-companion"
+            "yt/yt/flow/library/python/companion"
+            "yt/yt/flow/library/python/runner"
+            "yt/yt/flow/library/cpp/companion/proto"
+            "yt/yt/flow/library/cpp/common/proto"
+            "yt/yt_proto/yt/core/misc/proto"
+            "yt/yt_proto/yt/core/ytree/proto"
+            "yt/yt_proto/yt/core/yson/proto"
+        )
+
+        for python_sdk_path in "${python_sdk_paths[@]}"; do
+            mkdir -p "${output_path}/python_sdk/$(dirname ${python_sdk_path})"
+            cp -r "${ytsaurus_source_path}/${python_sdk_path}" "${output_path}/python_sdk/${python_sdk_path}"
+        done
+    fi
+
 elif [[ "${component}" == "chyt" ]]; then
 
     ytserver_clickhouse="${ytsaurus_build_path}/yt/chyt/server/bin/ytserver-clickhouse"
@@ -219,6 +250,17 @@ common_docker_build_args=(
     --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
     --build-arg "SERVER_IMAGE_BASE=${server_image_base}"
 )
+
+if [[ "${component}" == "flow-python" ]]; then
+    # The SDK is published at the release version, which is what the image tag carries: strip
+    # the test-release prefix and the build-type suffix off it.
+    package_version="${image_tag#dev-}"
+    package_version="${package_version%-relwithdebinfo}"
+
+    common_docker_build_args+=(
+        --build-arg "FLOW_PYTHON_PACKAGE_VERSION=${package_version}"
+    )
+fi
 
 if [[ -n "${build_cache_repository}" ]]; then
     cache_from_args=(

@@ -1,5 +1,6 @@
 #include "private.h"
 #include "replicated_table_tracker.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/core/concurrency/thread_pool.h>

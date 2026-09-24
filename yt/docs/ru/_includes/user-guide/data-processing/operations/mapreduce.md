@@ -143,7 +143,7 @@ yt map-reduce --reduce-combiner cat --reducer cat --reduce-by cookies --src //st
 Если указаны опции и `mapper/output_streams`, и `mapper_output_table_count`, то сперва идут промежуточные данные, а потом выходные, т. е. промежуточные данные будут иметь `table_index = 0 ... len(mapper.output_streams)-1`, а выходные таблицы — `table_index = len(mapper.output_streams) ... len(mapper.output_streams) + mapper_output_table_count`.
 
 Пример в спецификации:
-```
+```yson
 mapper = {
   output_streams = [
     {
@@ -164,7 +164,7 @@ mapper = {
 
 Пример спецификации MapReduce операции:
 
-```yaml
+```yson
 {
   partition_count = 100;
   reduce_by = ["key"];

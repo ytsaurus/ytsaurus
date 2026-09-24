@@ -531,7 +531,6 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
         auto& attributes = startDescriptor.AllocationAttributes;
 
         attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
-        // Do not set disk_request allocation attributes in case of NBD disk.
         for (const auto& [_, volume] : userJobSpec->Volumes) {
             if (!volume->DiskRequest) {
                 continue;
@@ -541,6 +540,9 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
                 attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
                 attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
                 attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+            } else if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd) {
+                // NBD uses no local disk; keep exec node from falling back to MinRequiredDiskSpace.
+                attributes.DiskRequest.DiskSpace = attributes.DiskRequest.DiskSpace.value_or(0);
             }
         }
         attributes.PortCount = userJobSpec->PortCount;
@@ -635,9 +637,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
             if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
                 YT_TLOG_DEBUG("Job input is empty");
 
-                if (!previousJobCompetitionType) {
-                    CheckAndProcessOperationCompletedInScheduleJob();
-                }
+                CheckAndProcessOperationCompletedInScheduleJob();
 
                 return std::unexpected(EScheduleFailReason::EmptyInput);
             }
@@ -1569,6 +1569,11 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
     }
 }
 
+bool TTask::IsJobOutputNeeded(const TCompletedJobPtr& /*completedJob*/) const
+{
+    return true;
+}
+
 void TTask::OnStripeRegistrationFailed(
     TError error,
     IChunkPoolInput::TCookie /*cookie*/,
@@ -1689,11 +1694,13 @@ void TTask::AddSequentialInputSpec(
         TaskHost_->GetOperationType());
     auto* inputSpec = jobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
+    THashSet<TChunkId> seenHunkChunks;
     for (const auto& stripe : list->Stripes()) {
         AddChunksToInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
+            &seenHunkChunks,
             comparator,
             jobSpecExt);
     }
@@ -1716,6 +1723,7 @@ void TTask::AddParallelInputSpec(
         TaskHost_->GetInputManager(),
         TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
+    THashSet<TChunkId> seenHunkChunks;
     for (const auto& stripe : list->Stripes()) {
         auto* inputSpec = stripe->IsForeign()
             ? jobSpecExt->add_foreign_input_table_specs()
@@ -1724,6 +1732,7 @@ void TTask::AddParallelInputSpec(
             IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
+            &seenHunkChunks,
             comparator,
             jobSpecExt);
     }
@@ -1734,6 +1743,7 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
+    THashSet<TChunkId>* seenHunkChunks,
     TComparator comparator,
     TJobSpecExt* jobSpecExt)
 {
@@ -1780,6 +1790,28 @@ void TTask::AddChunksToInputSpec(
             if (directoryBuilder) {
                 auto replicas = chunkSlice->GetInputChunk()->GetReplicas();
                 directoryBuilder->Add(replicas);
+            }
+
+            const auto& hunkChunkRefsExt = chunkSlice->GetInputChunk()->HunkChunkRefsExt();
+            if (IsInput_ &&
+                hunkChunkRefsExt &&
+                TaskHost_->GetConfig()->EnableHunkChunkReplicaPrefetch &&
+                TaskHost_->GetOperationType() != EOperationType::RemoteCopy)
+            {
+                const auto& inputManager = TaskHost_->GetInputManager();
+                for (const auto& hunkChunkRef : hunkChunkRefsExt->refs()) {
+                    auto hunkChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+                    if (!seenHunkChunks->insert(hunkChunkId).second) {
+                        continue;
+                    }
+
+                    if (auto hunkChunk = inputManager->FindInputChunk(hunkChunkId)) {
+                        ToProto(inputSpec->add_hunk_chunk_specs(), hunkChunk);
+                        if (directoryBuilder) {
+                            directoryBuilder->Add(hunkChunk->GetReplicas());
+                        }
+                    }
+                }
             }
         }
     }
@@ -2096,7 +2128,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto jobSpec = ObjectPool<TJobSpec>().Allocate();
+    auto jobSpec = ObjectPool<TJobSpec>().AllocateUnique();
 
     BuildJobSpec(joblet, jobSpec.get());
 

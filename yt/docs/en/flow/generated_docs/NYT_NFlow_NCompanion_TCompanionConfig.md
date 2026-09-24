@@ -14,5 +14,14 @@ The port on which the worker talks to the companion process. The companion does 
 || `companion_process_count` | **Type**: `int`
 **Default value**: `0`
  ||
+|| `http_client_config` | **Type**: `NYT::TIntrusivePtr<`[NYT::NHttp::TClientConfig](./all_yson_structs#NYT_NHttp_TClientConfig)`>`
+**Default value**: `{}`
+Config of the HTTP client a C++ companion hands to process functions through `IRuntimeInitContext::GetHttpClient()`. Mirrors the same-named `TFlowNodeConfig` field; companions in other languages ignore it. ||
+|| `https_client_config` | **Type**: `NYT::TIntrusivePtr<`[NYT::NHttps::TClientConfig](./all_yson_structs#NYT_NHttps_TClientConfig)`>`
+**Default value**: `{}`
+Config of the HTTPS client a C++ companion hands to process functions through `IRuntimeInitContext::GetHttpsClient()`. Mirrors the same-named `TFlowNodeConfig` field; companions in other languages ignore it. The config reaches the companion through the process environment. For `credentials.private_key`, only `file_name` is supported; inline and environment-backed private keys are rejected. ||
+|| `http_poller_threads` | **Type**: `int`
+**Default value**: `1`
+Thread count of the C++ companion's HTTP poller, which runs its HTTP and HTTPS clients. Companions in other languages ignore it. ||
 |#
 

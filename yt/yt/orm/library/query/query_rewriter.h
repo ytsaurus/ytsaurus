@@ -15,6 +15,13 @@ using TFunctionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
     NQueryClient::NAst::TFunctionExpression*)>;
 using TExpressionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
     NQueryClient::NAst::TExpressionPtr)>;
+using TReferenceDefaultValueGetter = std::function<NQueryClient::NAst::TExpressionPtr(
+    const NQueryClient::NAst::TReference&)>;
+
+NQueryClient::NAst::TExpressionPtr RewriteNullAsDefaultPredicate(
+    TObjectsHolder* holder,
+    NQueryClient::NAst::TExpressionPtr expression,
+    const TReferenceDefaultValueGetter& getDefaultValue);
 
 NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(NQueryClient::NAst::TFunctionExpression*);
 NQueryClient::NAst::TExpressionPtr DummyReferenceMapping(const NQueryClient::NAst::TReference&);

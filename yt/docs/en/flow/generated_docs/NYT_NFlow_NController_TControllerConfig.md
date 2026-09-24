@@ -35,16 +35,16 @@ Period during which the controller attempts to tell {{product-name}} that it is 
 || `publish_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `2h`
  ||
-|| `election_manager` | **Type**: `NYT::NYTree::TPolymorphicYsonStruct<NYT::NYTree::NDetail::TPolymorphicMapping<&NYT::NFlow::NController::ElectionBackendDiscriminator.<char const at offset 0>, NYT::NFlow::NController::EElectionBackend, NYT::NYTree::NDetail::TOptionalValue<NYT::NFlow::NController::EElectionBackend, (NYT::NFlow::NController::EElectionBackend)0>, NYT::NFlow::NController::TElectionBackendConfigBase, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)0, NYT::NFlow::NController::TCypressElectionBackendConfig>, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)1, NYT::NFlow::NController::TDyntableElectionBackendConfig>>>`
+|| `election_manager` | **Type**: `NYT::NYTree::TPolymorphicYsonStruct<NYT::NYTree::NDetail::TPolymorphicMapping<&NYT::NFlow::NController::ElectionBackendDiscriminator.<char const at offset 0>, NYT::NFlow::NController::EElectionBackend, NYT::NYTree::NDetail::TOptionalValue<NYT::NFlow::NController::EElectionBackend, (NYT::NFlow::NController::EElectionBackend)0>, NYT::NFlow::NController::TElectionBackendConfigBase, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)0, NYT::NFlow::NController::TCypressElectionBackendConfig>, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)1, NYT::NFlow::NController::TDyntableElectionBackendConfig>, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)2, NYT::NFlow::NController::TChaosElectionBackendConfig>>>`
 **Default value**:
 
 ```yson
 {
     "backend" = "cypress";
     "leader_cache_update_period" = 1000;
+    "leader_lease_ping_period" = 1000;
+    "leader_lease_ttl" = 5000;
     "lock_acquisition_period" = 1000;
-    "transaction_ping_period" = 1000;
-    "transaction_timeout" = 5000;
 }
 ```
 Leader election settings for multiple controllers. ||
@@ -62,3 +62,15 @@ Leader election settings for multiple controllers. ||
  ||
 |#
 
+
+{% cut "**Additional parameters**" %}
+
+
+#|
+|| `publish_request_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `1s`
+Timeout of a single request of a publication attempt. A failed attempt is retried, so this only decides how long one attempt may hang before the retry. ||
+|#
+
+
+{% endcut %}

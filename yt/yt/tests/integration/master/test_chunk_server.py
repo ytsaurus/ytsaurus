@@ -2010,7 +2010,7 @@ class TestChunkServerMulticell(TestChunkServer):
         with raises_yt_error("Role .* cannot be removed from master cell .*, because it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
-    @authors("koloshmet")
+    @authors("danilalexeev", "koloshmet")
     def test_historically_non_vital_multicell(self):
         set("//sys/@config/chunk_manager/update_historically_non_vital_in_unexport", True)
 
@@ -2027,9 +2027,17 @@ class TestChunkServerMulticell(TestChunkServer):
         assert not get(f"#{chunk_id}/@historically_non_vital")
         assert len(get(f"#{chunk_id}/@exports")) == 1
 
+        # Wait for the destination's requisition before lowering the source's replication factor.
+        wait(lambda: get(
+            f"#{chunk_id}/@external_requisitions/12/0/replication_policy/replication_factor",
+            default=0) == 3)
+
         set("//tmp/t1/@replication_factor", 1)
-        sleep(1)
+        wait(lambda: get(f"#{chunk_id}/@local_requisition/0/replication_policy/replication_factor") == 1)
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
         remove("//tmp/concat")
+        wait(lambda: not get(f"#{chunk_id}/@exports"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
         assert get(f"#{chunk_id}/@historically_non_vital")
 
@@ -2049,6 +2057,51 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
     }
+
+    @authors("danilalexeev")
+    def test_cluster_statistics_reach_all_secondary_cells(self):
+        drivers = [get_driver(index) for index in range(self.NUM_SECONDARY_MASTER_CELLS + 1)]
+        statistic_path = "//sys/@lost_vital_chunk_count"
+
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
+
+        chunk_ids = {}
+        for cell_tag in (11, 12):
+            path = f"//tmp/missing_chunk_{cell_tag}"
+            create("table", path, attributes={
+                "external_cell_tag": cell_tag,
+                "replication_factor": 3,
+            })
+            write_table(path, {"key": "value"})
+            chunk_id = get_singular_chunk_id(path)
+            assert get(f"#{chunk_id}/@vital")
+            assert not get(f"#{chunk_id}/@historically_non_vital")
+            chunk_ids[cell_tag] = chunk_id
+        nodes = ls("//sys/cluster_nodes")
+
+        def all_cells_report_missing_chunks():
+            expected_count = sum(
+                get("//sys/local_lost_vital_chunks/@count", driver=driver)
+                for driver in drivers
+            )
+            return expected_count > 0 and all(
+                get(statistic_path, driver=driver) == expected_count
+                for driver in drivers
+            )
+
+        try:
+            set_nodes_banned(nodes, True)
+            wait(lambda: all(
+                chunk_id in ls("//sys/local_lost_vital_chunks", driver=drivers[cell_tag - 10])
+                for cell_tag, chunk_id in chunk_ids.items()
+            ))
+            # Cells 12 and 13 receive aggregate statistics; node host 11
+            # recomputes the total, including its own missing chunk.
+            wait(all_cells_report_missing_chunks)
+        finally:
+            set_nodes_banned(nodes, False)
+
+        wait(lambda: all(get(statistic_path, driver=driver) == 0 for driver in drivers))
 
 
 class TestChunkServerSequoia(TestChunkServerMulticell):

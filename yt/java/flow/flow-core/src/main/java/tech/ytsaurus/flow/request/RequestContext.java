@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.job.Job;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.Visit;
@@ -38,6 +39,7 @@ public class RequestContext implements YTreeConvertible {
     private final Map<String, Long> watermarks;
     private final Long minWatermark;
     private final Job job;
+    private final Map<String, FlowResource> resources;
 
     RequestContext(Builder builder) {
         this.jobId = Objects.requireNonNull(builder.jobId);
@@ -52,6 +54,7 @@ public class RequestContext implements YTreeConvertible {
         this.watermarks = builder.watermarks;
         this.minWatermark = builder.minWatermark;
         this.job = builder.job;
+        this.resources = builder.resources;
         if (builder.streamSpecsOverride != null) {
             // User overrides from input request.
             this.streamSpecs = builder.streamSpecsOverride;
@@ -117,6 +120,14 @@ public class RequestContext implements YTreeConvertible {
 
     public Long getMinWatermark() {
         return minWatermark;
+    }
+
+    /**
+     * Companion-hosted resources acquired for this batch, keyed by the alias from the job's
+     * resource references.
+     */
+    public Map<String, FlowResource> getResources() {
+        return resources;
     }
 
     @Override
@@ -185,6 +196,7 @@ public class RequestContext implements YTreeConvertible {
         private Map<String, StatesHolder> externalStates = Collections.emptyMap();
         private Map<String, StatesHolder> joinedExternalStates = Collections.emptyMap();
         private @Nullable Job job;
+        private Map<String, FlowResource> resources = Collections.emptyMap();
 
         Builder() {
         }
@@ -251,6 +263,14 @@ public class RequestContext implements YTreeConvertible {
 
         public Builder setJob(Job job) {
             this.job = job;
+            return this;
+        }
+
+        /**
+         * Sets the companion-hosted resources acquired for this batch, keyed by alias.
+         */
+        public Builder setResources(Map<String, FlowResource> resources) {
+            this.resources = resources;
             return this;
         }
 

@@ -143,7 +143,7 @@ If the option is specified, the user code can assume that it writes to multiple 
 If both `mapper/output_streams` and `mapper_output_table_count` options are specified, then first comes intermediate data followed by output data. That is, intermediate data will have `table_index = 0 ... len(mapper.output_streams)-1` while output tables will have `table_index = len(mapper.output_streams) ... len(mapper.output_streams) + mapper_output_table_count`.
 
 Example in the specification:
-```
+```yson
 mapper = {
   output_streams = [
     {
@@ -164,7 +164,7 @@ mapper = {
 
 Example of a MapReduce operation's specification:
 
-```yaml
+```yson
 {
   partition_count = 100;
   reduce_by = ["key"];

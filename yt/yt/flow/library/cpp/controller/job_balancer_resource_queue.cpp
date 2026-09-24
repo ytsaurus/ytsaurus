@@ -72,7 +72,8 @@ struct TResourceBalanceContext
 TResourceBalanceContext CollectResourceContext(
     const TFlowViewPtr& flowView,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup)
+    const TWorkerGroupId& workerGroup,
+    TInstant now)
 {
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     const auto& pipelineSpec = flowView->CurrentSpec->GetValue();
@@ -94,7 +95,6 @@ TResourceBalanceContext CollectResourceContext(
     };
 
     THashMap<TWorkerId, TTmpWorkerInfo> tmpWorkerInfoSet;
-    auto now = TInstant::Now();
 
     // Collect partition info.
     {
@@ -208,6 +208,36 @@ TResourceBalanceContext CollectResourceContext(
         }
     }
 
+    // Flow resources in use on each worker: required by a job there, or a dependency of one.
+    // Jobs of every group count, the worker serves them all.
+    THashMap<TWorkerId, THashSet<TResourceId>> consumedResources;
+    for (const auto& [jobId, job] : layout->Jobs) {
+        auto partitionIt = layout->Partitions.find(job->PartitionId);
+        if (partitionIt == layout->Partitions.end()) {
+            continue;
+        }
+        auto& consumed = consumedResources[job->WorkerAddress];
+        const auto& computationSpec = GetOrCrash(pipelineSpec->Computations, partitionIt->second->ComputationId);
+        std::vector<TResourceId> pending;
+        for (const auto& [resourceId, resourceDescription] : computationSpec->RequiredResourceIds) {
+            pending.push_back(resourceId);
+        }
+        while (!pending.empty()) {
+            auto resourceId = std::move(pending.back());
+            pending.pop_back();
+            if (!consumed.insert(resourceId).second) {
+                continue;
+            }
+            auto specIt = pipelineSpec->Resources.find(resourceId);
+            if (specIt == pipelineSpec->Resources.end()) {
+                continue;
+            }
+            for (const auto& [dependencyId, dependencyDescription] : specIt->second->Dependencies) {
+                pending.push_back(dependencyId);
+            }
+        }
+    }
+
     // Ensure all workers in the group are present in context.Workers,
     // even if they have no feedback status yet, and collect their resource stats from feedback.
     for (const auto& [workerAddress, worker] : flowView->State->Workers) {
@@ -218,18 +248,44 @@ TResourceBalanceContext CollectResourceContext(
         auto& tmpWorkerInfo = tmpWorkerInfoSet[workerAddress];
         workerInfo.Capabilities = worker->Capabilities;
         // Fill PreloadResourceIssued from WorkerSpecs in the layout (what the controller issued to this worker).
+        // Skip a spec of a previous incarnation of the address: the current incarnation has none of
+        // those resources.
         auto workerSpecIt = layout->WorkerSpecs.find(workerAddress);
         if (workerSpecIt != layout->WorkerSpecs.end()) {
-            workerInfo.PreloadResourceIssued = workerSpecIt->second->PreloadResources;
+            const auto& workerSpec = workerSpecIt->second;
+            if (!workerSpec->WorkerIncarnationId || *workerSpec->WorkerIncarnationId == worker->IncarnationId) {
+                workerInfo.PreloadResourceIssued = workerSpec->PreloadResources;
+            }
         }
 
-        // Collect worker resource stats from feedback.
+        // Collect worker resource stats from feedback. Skip a status of a previous incarnation of
+        // the address: that worker is gone, its preloads and queues do not exist.
         auto statusIt = flowView->Feedback->WorkerStatuses.find(workerAddress);
         if (statusIt == flowView->Feedback->WorkerStatuses.end()) {
             continue;
         }
         const auto& workerStatus = statusIt->second;
+        if (workerStatus->WorkerIncarnationId && *workerStatus->WorkerIncarnationId != worker->IncarnationId) {
+            continue;
+        }
         for (const auto& [resourceId, resourceStatus] : workerStatus->ResourceStatuses) {
+            // A worker keeps reporting a resource for a while after it is removed from the spec.
+            // Such stale stats must not shape the worker's capacity estimate.
+            if (!pipelineSpec->Resources.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Ignoring feedback of a resource missing from the spec")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
+            // The queue of a resource no job on the worker uses is a leftover of a departed
+            // computation, not load.
+            auto consumedIt = consumedResources.find(workerAddress);
+            if (consumedIt == consumedResources.end() || !consumedIt->second.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Ignoring feedback of a resource no job on the worker consumes")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
             TTmpResourceStat stat;
             stat.PutRate = resourceStatus->QueuePushRate10m.value_or(
                 resourceStatus->QueuePushRate30s.value_or(0.));
@@ -368,11 +424,34 @@ TResourceBalanceContext CollectResourceContext(
         // A multiplier is invalid when no worker had both non-zero rps for that computation
         // AND non-zero put_rate for that resource (the linear system had no useful data).
         // In that case, replace the multiplier with a fallback in priority order:
+        //   0. The resource is deployed (some worker hosts a partition of a computation requiring
+        //      it) yet no worker of the group reports it (a silent resource: a model, a client
+        //      factory, an encoder) — it has no queue and consumes nothing: 0. A resource of a
+        //      computation with no placed partitions (a new stage, only strays) is not silent, it
+        //      just has not started; nor is anything on cold start (nothing reported at all), where
+        //      1.0 keeps loads comparable.
         //   1. Average of valid multipliers for the same resource across other computations.
         //   2. Average of valid multipliers for the same computation across other resources.
         //   3. Average of all valid multipliers.
         //   4. 1.0 (last resort).
         {
+            THashSet<TResourceId> resourcesWithFeedback;
+            for (const auto& [workerAddress, workerInfo] : tmpWorkerInfoSet) {
+                for (const auto& [resourceId, stat] : workerInfo.ResourceStats) {
+                    resourcesWithFeedback.insert(resourceId);
+                }
+            }
+            THashSet<TResourceId> deployedResources;
+            for (const auto& [partitionId, partitionInfo] : context.Partitions) {
+                if (!partitionInfo.WorkerId) {
+                    continue;
+                }
+                const auto& computationInfo = GetOrCrash(context.Computations, partitionInfo.ComputationId);
+                for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+                    deployedResources.insert(resourceId);
+                }
+            }
+
             // Pre-compute averages of valid multipliers grouped by resource and by computation.
             THashMap<TResourceId, double> validSumByResource;
             THashMap<TResourceId, int> validCountByResource;
@@ -401,6 +480,14 @@ TResourceBalanceContext CollectResourceContext(
                 for (auto& [resourceId, multiplier] : computationInfo.ResourceConsumptionMultiplier) {
                     if (isValidMultiplier(computationId, resourceId)) {
                         continue; // Already valid.
+                    }
+                    // Priority 0: silent resource.
+                    if (!resourcesWithFeedback.empty() &&
+                        deployedResources.contains(resourceId) &&
+                        !resourcesWithFeedback.contains(resourceId))
+                    {
+                        multiplier = 0.;
+                        continue;
                     }
                     // Priority 1: average over other computations using the same resource.
                     auto byResIt = validCountByResource.find(resourceId);
@@ -459,6 +546,14 @@ TResourceBalanceContext CollectResourceContext(
             }
         }
 
+        // A worker carrying a meaningful standing backlog drains at its measured FetchRate, no
+        // matter what incomingLoad says (see the cap below).
+        constexpr double kBackloggedQueueFraction = 0.25;
+        auto isBacklogged = [&] (const TTmpResourceStat& total) {
+            double rate = (total.PutRate + total.FetchRate) / 2.0;
+            return total.QueueSize > kBackloggedQueueFraction * zeroQueueLatencySeconds * rate;
+        };
+
         for (auto& [workerAddress, workerInfo] : context.Workers) {
             auto& tmpWorkerInfo = GetOrCrash(tmpWorkerInfoSet, workerAddress);
             const auto& total = tmpWorkerInfo.TotalResourceStats;
@@ -483,6 +578,11 @@ TResourceBalanceContext CollectResourceContext(
                 }
             }
             workerInfo.TotalCapacity = incomingLoad - total.QueueGrowthRate;
+            // Cap a loaded backlogged worker here, before the per-capability averaging below, so
+            // idle peers borrow the real drain rate rather than incomingLoad.
+            if (!workerInfo.Underloaded && isBacklogged(total)) {
+                workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
+            }
         }
 
         // Fix TotalCapacity for Underloaded workers.
@@ -564,30 +664,39 @@ TResourceBalanceContext CollectResourceContext(
         // measured FetchRate (real drain rate). This must run AFTER the std::max above: for the
         // backlogged workers we target, the base capacity (incomingLoad) exceeds FetchRate, so capping
         // the estimate before the max would just be discarded by it. Near-empty workers are untouched,
-        // so cold-start spreading onto idle workers is unaffected.
-        {
-            constexpr double kBackloggedQueueFraction = 0.25;
-            for (auto& [workerAddress, workerInfo] : context.Workers) {
-                const auto& total = GetOrCrash(tmpWorkerInfoSet, workerAddress).TotalResourceStats;
-                double rate = (total.PutRate + total.FetchRate) / 2.0;
-                if (workerInfo.TotalQueueSize > kBackloggedQueueFraction * zeroQueueLatencySeconds * rate) {
-                    workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
-                }
+        // so cold-start spreading onto idle workers is unaffected. Loaded (!Underloaded) backlogged
+        // workers were already capped above, before their capacity was lent to peers.
+        for (auto& [workerAddress, workerInfo] : context.Workers) {
+            const auto& total = GetOrCrash(tmpWorkerInfoSet, workerAddress).TotalResourceStats;
+            if (workerInfo.Underloaded && isBacklogged(total)) {
+                workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
             }
         }
     }
 
-    // Fill DeployedResources for each worker.
-    // A resource is deployed if:
+    // A resource is deployed on a worker if:
     //   (a) it is required by a computation that has at least one partition on this worker, OR
-    //   (b) it appears in PreloadResourceIssued or PreloadResourceCompleted.
-
-    // Seed from preload state (issued + completed).
+    //   (b) it was preloaded (issued or completed) on this worker.
+    //
+    // Resources that have been removed from the spec are skipped: they do not participate
+    // in placement and are released in Step 5. Until the worker applies that Del the resource
+    // still occupies its capabilities, so the worker may be oversubscribed for one round.
+    // The worker drops removed preloads before it starts new ones, so an Add issued in the
+    // same round does not run ahead of the release.
     for (auto& [workerAddress, workerInfo] : context.Workers) {
         for (const auto& resourceId : workerInfo.PreloadResourceIssued) {
+            if (!context.Resources.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Issued preload of a resource missing from the spec")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
             workerInfo.DeployedResources.insert(resourceId);
         }
         for (const auto& resourceId : workerInfo.PreloadResourceCompleted) {
+            if (!context.Resources.contains(resourceId)) {
+                continue;
+            }
             workerInfo.DeployedResources.insert(resourceId);
         }
     }
@@ -761,16 +870,39 @@ TResourceBalanceContext CollectResourceContext(
 
 } // anonymous namespace
 
-TRebalanceResult DoBalanceResourceQueue(
+////////////////////////////////////////////////////////////////////////////////
+
+TResourceContextSnapshot CollectResourceContextForTesting(
     const TFlowViewPtr& flowView,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
     const TWorkerGroupId& workerGroup)
 {
+    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup, TInstant::Now());
+    TResourceContextSnapshot snapshot;
+    for (const auto& [computationId, computationInfo] : context.Computations) {
+        snapshot.ResourceConsumptionMultiplier[computationId] = computationInfo.ResourceConsumptionMultiplier;
+        snapshot.TotalConsumptionMultiplier[computationId] = computationInfo.TotalConsumptionMultiplier;
+    }
+    for (const auto& [workerAddress, workerInfo] : context.Workers) {
+        snapshot.WorkerTotalCapacity[workerAddress] = workerInfo.TotalCapacity;
+    }
+    return snapshot;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRebalanceResult DoBalanceResourceQueue(
+    const TFlowViewPtr& flowView,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup,
+    TInstant now)
+{
     const double planningHorizonSeconds = balancerSpec->PlanningHorizon.SecondsFloat();
+    const double zeroQueueLatencySeconds = balancerSpec->ZeroQueueLatency.SecondsFloat();
     TRebalanceResult rebalanceResult;
 
     // Collect current context (partitions, workers, computations with multipliers).
-    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup);
+    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup, now);
 
     // =========================================================================
     // Step 1: Determine which computations need more workers.
@@ -783,7 +915,8 @@ TRebalanceResult DoBalanceResourceQueue(
     //   min(w.TotalCapacity, workerInfo.ComputationLoad[c] + freeCapacity[w])
     // where freeCapacity[w] = max(0, w.TotalCapacity - workerInfo.TotalLoad).
     //
-    // If maxPossibleCapacity[c] < computationInfo.Consumption, c needs more workers.
+    // If maxPossibleCapacity[c] falls short of computationInfo.Consumption by more than
+    // RebalanceTargetDeviation, c needs more workers; a smaller deficit is noise of the estimate.
     //
     // starvingComputations: sorted by starvation degree descending.
     // starvation[c] = 1 - allocatedCapacity[c] / consumption[c], clamped to [0,1].
@@ -1002,8 +1135,12 @@ TRebalanceResult DoBalanceResourceQueue(
         return allocated;
     };
 
+    // Computations that need more workers per Step 1. Only these may take a worker from others in
+    // Steps 3-4; a deficit the own workers can cover is left to Step 8.
+    THashSet<TComputationId> needsMoreWorkers;
+
     // Helper: recompute AllocatedCapacity for all computations and build a fresh starvation queue.
-    // Includes all computations where AllocatedCapacity < Consumption.
+    // Includes the computations of |needsMoreWorkers| where AllocatedCapacity < Consumption.
     // Computations with no workers are unconditionally starving (starvation = 1.0).
     auto buildStarvingQueue = [&] {
         std::priority_queue<TStarvationEntry> queue;
@@ -1011,6 +1148,9 @@ TRebalanceResult DoBalanceResourceQueue(
             if (computationInfo.Workers.empty()) {
                 // No workers assigned yet — unconditionally starving.
                 queue.emplace(1.0, computationId);
+                continue;
+            }
+            if (!needsMoreWorkers.contains(computationId)) {
                 continue;
             }
             if (computationInfo.Consumption <= 0.) {
@@ -1026,8 +1166,8 @@ TRebalanceResult DoBalanceResourceQueue(
         return queue;
     };
 
-    // Seed the starvation queue for Step 2: only computations that cannot be satisfied
-    // even with optimal redistribution among current workers (maxPossible < Consumption).
+    // Seed the starvation queue for Step 2: only computations whose current workers cannot cover
+    // the consumption even after an optimal redistribution, by more than RebalanceTargetDeviation.
     // Computations with no workers are unconditionally starving (starvation = 1.0).
     for (auto& [computationId, computationInfo] : context.Computations) {
         if (computationInfo.Workers.empty()) {
@@ -1035,6 +1175,7 @@ TRebalanceResult DoBalanceResourceQueue(
                 .With("Computation", computationId)
                 .With("StrayPartitions", computationInfo.StrayPartitions.size())
                 .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
+            needsMoreWorkers.insert(computationId);
             starvingQueue.emplace(1.0, computationId);
             continue;
         }
@@ -1050,7 +1191,10 @@ TRebalanceResult DoBalanceResourceQueue(
             .With("MaxPossibleCapacity", maxPossible)
             .With("CurrentWorkers", computationInfo.Workers.size())
             .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
-        if (maxPossible >= computationInfo.Consumption) {
+        // The capacity estimate hovers around the consumption of a worker that keeps up, so a
+        // deficit within RebalanceTargetDeviation is noise: seeding on it asks for a worker one
+        // round and releases it the next.
+        if (maxPossible >= (1. - balancerSpec->RebalanceTargetDeviation) * computationInfo.Consumption) {
             YT_TLOG_DEBUG("ResourceQueue: Step 1 computation satisfied by existing workers, skipping Step 2")
                 .With("Computation", computationId);
             continue; // Can be satisfied by existing workers — skip Step 2 for this computation.
@@ -1059,6 +1203,7 @@ TRebalanceResult DoBalanceResourceQueue(
         YT_TLOG_DEBUG("ResourceQueue: Step 1 computation seeded into starvation queue")
             .With("Computation", computationId)
             .With("Starvation", starvation);
+        needsMoreWorkers.insert(computationId);
         starvingQueue.emplace(starvation, computationId);
     }
 
@@ -1158,7 +1303,7 @@ TRebalanceResult DoBalanceResourceQueue(
     //   Prefer the cSurplus with the smallest load on w (cheapest to move).
     //   Bound: stop after O(numWorkers) total moves.
 
-    // Rebuild the starvation queue for Step 3: all computations where AllocatedCapacity < Consumption.
+    // Rebuild the starvation queue for Step 3: the computations Step 2 could not satisfy.
     starvingQueue = buildStarvingQueue();
 
     YT_TLOG_DEBUG("ResourceQueue: Step 3 starting")
@@ -1488,12 +1633,23 @@ TRebalanceResult DoBalanceResourceQueue(
     // computationInfo.Workers = workers virtually assigned to c (from Steps 2-4).
     // computationInfo.ResourceConsumptionMultiplier = resources required by c (from spec via CollectResourceContext).
     THashMap<TWorkerId, THashSet<TResourceId>> desiredWorkerResources;
+    auto desireComputationResources = [&] (const TWorkerId& workerAddress, const TComputationInfo& computationInfo) {
+        for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+            desiredWorkerResources[workerAddress].insert(resourceId);
+        }
+    };
     for (const auto& [computationId, computationInfo] : context.Computations) {
         for (const auto& workerAddress : computationInfo.Workers) {
-            for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
-                desiredWorkerResources[workerAddress].insert(resourceId);
-            }
+            desireComputationResources(workerAddress, computationInfo);
         }
+    }
+    // A resource stays desired while partitions using it run on the worker: Steps 3-4 drop a
+    // worker from a computation's plan without evacuating them, and a job cannot lose its model.
+    for (const auto& [partitionId, partitionInfo] : context.Partitions) {
+        if (!partitionInfo.WorkerId) {
+            continue;
+        }
+        desireComputationResources(*partitionInfo.WorkerId, GetOrCrash(context.Computations, partitionInfo.ComputationId));
     }
 
     // Emit preload Add/Del actions and build workerPreloadReady.
@@ -1528,10 +1684,11 @@ TRebalanceResult DoBalanceResourceQueue(
             });
         }
 
-        // Emit Del for preloadable resources that are issued but no longer desired.
+        // Emit Del for preloadable resources that are issued but no longer desired. A resource
+        // removed from the spec while issued is released as well: it was preloadable when issued.
         for (const auto& resourceId : workerInfo.PreloadResourceIssued) {
             auto resourceIt = context.Resources.find(resourceId);
-            if (resourceIt == context.Resources.end() || !resourceIt->second.IsPreloadable) {
+            if (resourceIt != context.Resources.end() && !resourceIt->second.IsPreloadable) {
                 continue;
             }
             if (desired.contains(resourceId)) {
@@ -1683,6 +1840,23 @@ TRebalanceResult DoBalanceResourceQueue(
     //
     // For each worker w, compute the projected average queue over PlanningHorizon.
 
+    // Moves are emulated on a per-worker (load, queue) state, see |emulateMove|.
+    struct TEmulatedWorker
+    {
+        double Load = 0.;
+        double Queue = 0.;
+    };
+
+    using TEmulatedState = THashMap<TWorkerId, TEmulatedWorker>;
+
+    TEmulatedState baselineState;
+    for (const auto& [workerAddress, workerInfo] : context.Workers) {
+        baselineState[workerAddress] = TEmulatedWorker{
+            .Load = workerInfo.TotalLoad,
+            .Queue = workerInfo.TotalQueueSize,
+        };
+    }
+
     // Helper: compute the projected average queue over PlanningHorizon for given worker.
     // Let q(t) be the queue size starting from time 0.
     // The projected average is integral q(t) over [0, PlanningHorizon) divided by PlanningHorizon.
@@ -1692,11 +1866,10 @@ TRebalanceResult DoBalanceResourceQueue(
     // Case 2. If the queue drains, it may become zero before the timespan ends.
     //   q(t) = max(0, queueSize + excessRate * t).
     //   The integral of q(t) is an area of right triangle with legs queueSize and drainTime.
-    auto computeProjectedAvgQueue = [&] (const TWorkerId& workerAddress, double totalLoad) -> double {
-        const auto& workerInfo = GetOrCrash(context.Workers, workerAddress);
-        double queueSize = workerInfo.TotalQueueSize;
-        double capacity = workerInfo.TotalCapacity;
-        double excessRate = totalLoad - capacity; // >0 - queue grows, <0 - queue drains.
+    auto computeProjectedAvgQueue = [&] (const TWorkerId& workerAddress, const TEmulatedWorker& state) -> double {
+        double queueSize = state.Queue;
+        double capacity = GetOrCrash(context.Workers, workerAddress).TotalCapacity;
+        double excessRate = state.Load - capacity; // >0 - queue grows, <0 - queue drains.
         if (excessRate > -kEpsilon) {
             // Queue grows.
             return queueSize + excessRate * planningHorizonSeconds / 2.;
@@ -1714,55 +1887,73 @@ TRebalanceResult DoBalanceResourceQueue(
         }
     };
 
-    // Helper: compute coefficient of variation of projected queues across workers
-    // that have at least one partition.
-    auto computeQueueMetric = [&] (const THashMap<TWorkerId, double>& loads) -> double {
-        std::vector<double> projectedQueues;
-        projectedQueues.reserve(loads.size());
-        for (const auto& [workerAddress, load] : loads) {
-            // Only include workers that have partitions (existing or newly assigned).
-            bool hasPartitions = false;
-            const auto& wi = GetOrCrash(context.Workers, workerAddress);
-            if (!wi.ComputationLoad.empty()) {
-                hasPartitions = true;
+    // Workers a move can land on: enrolled by Steps 1-4.5 and preload-ready for at least one
+    // computation. The metric is evaluated on this set both before and after the moves.
+    THashSet<TWorkerId> enrolledWorkers;
+    for (const auto& [computationId, computationInfo] : context.Computations) {
+        for (const auto& workerAddress : computationInfo.Workers) {
+            if (context.Workers.contains(workerAddress) && isPreloadReady(workerAddress, computationId)) {
+                enrolledWorkers.insert(workerAddress);
             }
-            if (!hasPartitions) {
-                for (const auto& action : rebalanceResult.Actions) {
-                    if (action.WorkerAddress == workerAddress && action.Type == ERebalanceActionType::Add) {
-                        hasPartitions = true;
-                        break;
-                    }
-                }
-            }
-            if (!hasPartitions) {
-                continue;
-            }
-            projectedQueues.push_back(computeProjectedAvgQueue(workerAddress, load));
         }
-        if (projectedQueues.size() < 2) {
-            return 0.;
-        }
-        double mean = Accumulate(projectedQueues, 0.) / static_cast<double>(projectedQueues.size());
-        if (mean <= kEpsilon) {
-            return 0.;
-        }
-        double sumSq = 0.;
-        for (double q : projectedQueues) {
-            sumSq += (q - mean) * (q - mean);
-        }
-        double stddev = std::sqrt(sumSq / static_cast<double>(projectedQueues.size()));
-        return stddev / mean;
+    }
+
+    // Unevenness of the projected queues in queue units (standard deviation, not Cv): a plan that
+    // drains the queues but keeps their shape must count as an improvement.
+    struct TQueueMetric
+    {
+        double Deviation = 0.;
+        double Mean = 0.;
+        double Sum = 0.;
     };
 
-    THashMap<TWorkerId, double> workerTotalLoadMap;
-    for (const auto& [workerAddress, workerInfo] : context.Workers) {
-        workerTotalLoadMap[workerAddress] = workerInfo.TotalLoad;
+    auto computeQueueMetric = [&] (const TEmulatedState& state) -> TQueueMetric {
+        std::vector<double> projectedQueues;
+        projectedQueues.reserve(enrolledWorkers.size());
+        for (const auto& workerAddress : enrolledWorkers) {
+            projectedQueues.push_back(computeProjectedAvgQueue(
+                workerAddress,
+                GetOrDefault(state, workerAddress, TEmulatedWorker{})));
+        }
+        TQueueMetric metric;
+        if (projectedQueues.size() < 2) {
+            return metric;
+        }
+        metric.Sum = Accumulate(projectedQueues, 0.);
+        metric.Mean = metric.Sum / static_cast<double>(projectedQueues.size());
+        double sumSq = 0.;
+        for (double q : projectedQueues) {
+            sumSq += (q - metric.Mean) * (q - metric.Mean);
+        }
+        metric.Deviation = std::sqrt(sumSq / static_cast<double>(projectedQueues.size()));
+        return metric;
+    };
+
+    auto baselineMetric = computeQueueMetric(baselineState);
+    // A plan must improve by a share of the baseline queue level; with an unchanged mean this is an
+    // absolute Cv drop of RebalanceTargetDeviation.
+    double improvementThreshold = balancerSpec->RebalanceTargetDeviation * baselineMetric.Mean;
+
+    // There is a queue to balance only if some worker projects more than ZeroQueueLatency worth of
+    // its own load (the Underloaded rule). A group total would hide one saturated worker behind
+    // the load of its queue-free peers. Gates the baseline only.
+    bool aboveZeroLevel = false;
+    for (const auto& workerAddress : enrolledWorkers) {
+        const auto& state = GetOrDefault(baselineState, workerAddress, TEmulatedWorker{});
+        if (computeProjectedAvgQueue(workerAddress, state) > zeroQueueLatencySeconds * state.Load + kEpsilon) {
+            aboveZeroLevel = true;
+            break;
+        }
     }
-    double baselineMetric = computeQueueMetric(workerTotalLoadMap);
 
     YT_TLOG_DEBUG("ResourceQueue: Step 7 baseline queue metric computed")
         .With("WorkerGroup", workerGroup)
-        .With("BaselineMetric", baselineMetric);
+        .With("EnrolledWorkers", enrolledWorkers.size())
+        .With("BaselineDeviation", baselineMetric.Deviation)
+        .With("BaselineMean", baselineMetric.Mean)
+        .With("BaselineSum", baselineMetric.Sum)
+        .With("AboveZeroLevel", aboveZeroLevel)
+        .With("ImprovementThreshold", improvementThreshold);
 
     // =========================================================================
     // Step 8: Greedy queue equalization by moving partitions.
@@ -1772,158 +1963,189 @@ TRebalanceResult DoBalanceResourceQueue(
     // reduce the spread of projected queues.
     //
     // For each computation c:
-    //   - Find wHigh (highest projected queue) and wLow (lowest projected queue)
-    //     among preload-ready workers of c.
-    //   - Find the partition on wHigh whose load is closest to the ideal transfer:
-    //     idealTransferLoad = (projectedQueue[wHigh] - projectedQueue[wLow]) / (2 * planningHorizon)
+    //   - Find wHigh (highest projected queue) and wLow (lowest projected queue, ties broken
+    //     by the lowest load/capacity) among preload-ready workers of c.
+    //   - Among the partitions on wHigh pick the one whose move leaves the smallest spread
+    //     between wHigh and wLow.
     //   - Tentatively move it: emit Del from wHigh, Add to wLow.
     //   - Repeat up to max(numWorkers, maxPartitionsOnAWorker) moves per computation, so the
     //     busiest worker can actually be drained (numWorkers alone is far too few).
 
+    // A moved partition takes its share of the source queue along. After a graceful move the source
+    // has finished those requests; after a forced one they stay queued there, and the restarted job
+    // re-enqueues them at the target on top of a fresh batch (3/2 of the share).
+    auto emulateMove = [&] (TEmulatedWorker source, TEmulatedWorker target, double movedLoad) {
+        double movedQueue = source.Load > kEpsilon
+            ? std::min(source.Queue, source.Queue * movedLoad / source.Load)
+            : 0.;
+        source.Load -= movedLoad;
+        target.Load += movedLoad;
+        if (balancerSpec->GracefulMove) {
+            source.Queue -= movedQueue;
+            target.Queue += movedQueue;
+        } else {
+            target.Queue += 1.5 * movedQueue;
+        }
+        return std::pair(source, target);
+    };
+
     std::vector<TRebalanceResultAction> tentativeMoves;
-    THashMap<TWorkerId, double> equalizationLoads;
-    for (const auto& [workerAddress, workerInfo] : context.Workers) {
-        equalizationLoads[workerAddress] = workerInfo.TotalLoad;
+    TEmulatedState equalizationState = baselineState;
+
+    // Nothing can be accepted when the baseline is below the threshold or below the zero-queue level.
+    bool equalizationWorthTrying = aboveZeroLevel &&
+        baselineMetric.Deviation > kEpsilon &&
+        baselineMetric.Deviation >= improvementThreshold;
+    if (!equalizationWorthTrying) {
+        YT_TLOG_DEBUG("ResourceQueue: Step 8 skipped, nothing to equalize")
+            .With("WorkerGroup", workerGroup)
+            .With("AboveZeroLevel", aboveZeroLevel)
+            .With("BaselineDeviation", baselineMetric.Deviation)
+            .With("ImprovementThreshold", improvementThreshold);
     }
 
-    for (const auto& [computationId, computationInfo] : context.Computations) {
-        const auto& workers = computationInfo.Workers;
-        if (workers.size() < 2) {
-            continue;
-        }
-
-        // numWorkers moves per round is far too few to drain a backlogged worker that holds many
-        // partitions: convergence then takes dozens of rounds. Allow as many moves as the busiest
-        // worker has partitions, so a single round can rebalance it.
-        int maxPartitionsPerWorker = 0;
-        for (const auto& workerAddress : workers) {
-            auto wIt = workerComputationPartitions.find(workerAddress);
-            if (wIt == workerComputationPartitions.end()) {
+    if (equalizationWorthTrying) {
+        for (const auto& [computationId, computationInfo] : context.Computations) {
+            const auto& workers = computationInfo.Workers;
+            if (workers.size() < 2) {
                 continue;
             }
-            auto cIt = wIt->second.find(computationId);
-            if (cIt != wIt->second.end()) {
-                maxPartitionsPerWorker =
-                    std::max(maxPartitionsPerWorker, static_cast<int>(cIt->second.size()));
-            }
-        }
-        int maxEqualizationMoves = std::max(static_cast<int>(context.Workers.size()), maxPartitionsPerWorker);
 
-        int movesThisComputation = 0;
-        bool improved = true;
-        while (improved && movesThisComputation < maxEqualizationMoves) {
-            improved = false;
-
-            std::optional<TWorkerId> wHigh, wLow;
-            double highQueue = -1., lowQueue = std::numeric_limits<double>::max();
-
+            // numWorkers moves per round is far too few to drain a backlogged worker that holds many
+            // partitions: convergence then takes dozens of rounds. Allow as many moves as the busiest
+            // worker has partitions, so a single round can rebalance it.
+            int maxPartitionsPerWorker = 0;
             for (const auto& workerAddress : workers) {
-                if (!isPreloadReady(workerAddress, computationId)) {
+                auto wIt = workerComputationPartitions.find(workerAddress);
+                if (wIt == workerComputationPartitions.end()) {
                     continue;
                 }
-                double q = computeProjectedAvgQueue(workerAddress, equalizationLoads[workerAddress]);
-                if (q > highQueue) {
-                    highQueue = q;
-                    wHigh = workerAddress;
-                }
-                if (q < lowQueue) {
-                    lowQueue = q;
-                    wLow = workerAddress;
+                auto cIt = wIt->second.find(computationId);
+                if (cIt != wIt->second.end()) {
+                    maxPartitionsPerWorker =
+                        std::max(maxPartitionsPerWorker, static_cast<int>(cIt->second.size()));
                 }
             }
+            int maxEqualizationMoves = std::max(static_cast<int>(context.Workers.size()), maxPartitionsPerWorker);
 
-            if (!wHigh || !wLow || *wHigh == *wLow) {
-                break;
-            }
+            int movesThisComputation = 0;
+            bool improved = true;
+            while (improved && movesThisComputation < maxEqualizationMoves) {
+                improved = false;
 
-            double idealTransferLoad = (highQueue - lowQueue) / (2. * planningHorizonSeconds);
-            if (idealTransferLoad <= 0.) {
-                break;
-            }
+                std::optional<TWorkerId> wHigh, wLow;
+                double highQueue = -1., lowQueue = std::numeric_limits<double>::max();
+                double lowShare = std::numeric_limits<double>::max();
 
-            auto partitionsIt = workerComputationPartitions.find(*wHigh);
-            if (partitionsIt == workerComputationPartitions.end()) {
-                break;
-            }
-            auto compPartitionsIt = partitionsIt->second.find(computationId);
-            if (compPartitionsIt == partitionsIt->second.end() || compPartitionsIt->second.empty()) {
-                break;
-            }
-
-            std::optional<TPartitionId> bestPartition;
-            double bestDiff = std::numeric_limits<double>::max();
-            for (const auto& partitionId : compPartitionsIt->second) {
-                const auto& partitionInfo = context.Partitions.at(partitionId);
-                // Skip partitions that are still warming up — their RPS is not yet
-                // representative and moving them would cause oscillation.
-                if (partitionInfo.TimeSinceStart < PartitionWarmupPeriod) {
-                    continue;
+                for (const auto& workerAddress : workers) {
+                    if (!isPreloadReady(workerAddress, computationId)) {
+                        continue;
+                    }
+                    const auto& state = equalizationState[workerAddress];
+                    double q = computeProjectedAvgQueue(workerAddress, state);
+                    if (q > highQueue) {
+                        highQueue = q;
+                        wHigh = workerAddress;
+                    }
+                    // Idle workers all project to 0; break the tie by load share so moves round-robin.
+                    double share = state.Load /
+                        std::max(GetOrCrash(context.Workers, workerAddress).TotalCapacity, kEpsilon);
+                    if (q < lowQueue - kEpsilon || (std::abs(q - lowQueue) <= kEpsilon && share < lowShare)) {
+                        lowQueue = q;
+                        lowShare = share;
+                        wLow = workerAddress;
+                    }
                 }
-                double partLoad = partitionInfo.Rps * computationInfo.TotalConsumptionMultiplier;
-                double diff = std::abs(partLoad - idealTransferLoad);
-                if (diff < bestDiff) {
-                    bestDiff = diff;
-                    bestPartition = partitionId;
+
+                if (!wHigh || !wLow || *wHigh == *wLow) {
+                    break;
                 }
-            }
 
-            if (!bestPartition) {
-                break;
-            }
+                double oldSpread = highQueue - lowQueue; // highQueue >= lowQueue by construction.
+                if (oldSpread <= kEpsilon) {
+                    break;
+                }
 
-            const auto& partitionInfo = context.Partitions.at(*bestPartition);
-            double movedLoad = partitionInfo.Rps * computationInfo.TotalConsumptionMultiplier;
+                auto partitionsIt = workerComputationPartitions.find(*wHigh);
+                if (partitionsIt == workerComputationPartitions.end()) {
+                    break;
+                }
+                auto compPartitionsIt = partitionsIt->second.find(computationId);
+                if (compPartitionsIt == partitionsIt->second.end() || compPartitionsIt->second.empty()) {
+                    break;
+                }
 
-            // Tentatively apply the move and check whether the spread actually decreases.
-            double newHighQueue = computeProjectedAvgQueue(*wHigh, equalizationLoads[*wHigh] - movedLoad);
-            double newLowQueue = computeProjectedAvgQueue(*wLow, equalizationLoads[*wLow] + movedLoad);
-            double newSpread = std::abs(newHighQueue - newLowQueue);
-            double oldSpread = highQueue - lowQueue; // highQueue >= lowQueue by construction.
+                std::optional<TPartitionId> bestPartition;
+                double bestSpread = std::numeric_limits<double>::max();
+                double bestLoad = 0.;
+                for (const auto& partitionId : compPartitionsIt->second) {
+                    const auto& partitionInfo = context.Partitions.at(partitionId);
+                    // Skip partitions that are still warming up — their RPS is not yet
+                    // representative and moving them would cause oscillation.
+                    if (partitionInfo.TimeSinceStart < PartitionWarmupPeriod) {
+                        continue;
+                    }
+                    double partLoad = partitionInfo.Rps * computationInfo.TotalConsumptionMultiplier;
+                    auto [source, target] = emulateMove(equalizationState[*wHigh], equalizationState[*wLow], partLoad);
+                    double spread = std::abs(
+                        computeProjectedAvgQueue(*wHigh, source) - computeProjectedAvgQueue(*wLow, target));
+                    if (spread < bestSpread) {
+                        bestSpread = spread;
+                        bestPartition = partitionId;
+                        bestLoad = partLoad;
+                    }
+                }
 
-            if (newSpread >= oldSpread) {
-                YT_TLOG_DEBUG("ResourceQueue: Step 8 move does not reduce spread, stopping")
+                if (!bestPartition) {
+                    break;
+                }
+
+                if (bestSpread >= oldSpread) {
+                    YT_TLOG_DEBUG("ResourceQueue: Step 8 move does not reduce spread, stopping")
+                        .With("Computation", computationId)
+                        .With("wHigh", *wHigh)
+                        .With("wLow", *wLow)
+                        .With("OldSpread", oldSpread)
+                        .With("NewSpread", bestSpread)
+                        .With("Partition", *bestPartition)
+                        .With("MovedLoad", bestLoad);
+                    break; // No move reduces the spread — stop for this computation.
+                }
+
+                YT_TLOG_DEBUG("ResourceQueue: Step 8 equalization move")
                     .With("Computation", computationId)
-                    .With("wHigh", *wHigh)
-                    .With("wLow", *wLow)
-                    .With("OldSpread", oldSpread)
-                    .With("NewSpread", newSpread)
                     .With("Partition", *bestPartition)
-                    .With("MovedLoad", movedLoad);
-                break; // Move doesn't reduce the spread — stop for this computation.
+                    .With("From", *wHigh)
+                    .With("To", *wLow)
+                    .With("MovedLoad", bestLoad)
+                    .With("OldSpread", oldSpread)
+                    .With("NewSpread", bestSpread);
+
+                auto [movedSource, movedTarget] =
+                    emulateMove(equalizationState[*wHigh], equalizationState[*wLow], bestLoad);
+                equalizationState[*wHigh] = movedSource;
+                equalizationState[*wLow] = movedTarget;
+
+                auto& highPartitions = workerComputationPartitions[*wHigh][computationId];
+                highPartitions.erase(
+                    std::remove(highPartitions.begin(), highPartitions.end(), *bestPartition),
+                    highPartitions.end());
+                workerComputationPartitions[*wLow][computationId].push_back(*bestPartition);
+
+                tentativeMoves.push_back(TRebalanceResultAction{
+                    .Type = ERebalanceActionType::Del,
+                    .PartitionId = *bestPartition,
+                    .WorkerAddress = *wHigh,
+                });
+                tentativeMoves.push_back(TRebalanceResultAction{
+                    .Type = ERebalanceActionType::Add,
+                    .PartitionId = *bestPartition,
+                    .WorkerAddress = *wLow,
+                });
+
+                improved = true;
+                ++movesThisComputation;
             }
-
-            YT_TLOG_DEBUG("ResourceQueue: Step 8 equalization move")
-                .With("Computation", computationId)
-                .With("Partition", *bestPartition)
-                .With("From", *wHigh)
-                .With("To", *wLow)
-                .With("MovedLoad", movedLoad)
-                .With("IdealTransferLoad", idealTransferLoad)
-                .With("OldSpread", oldSpread)
-                .With("NewSpread", newSpread);
-
-            equalizationLoads[*wHigh] -= movedLoad;
-            equalizationLoads[*wLow] += movedLoad;
-
-            auto& highPartitions = workerComputationPartitions[*wHigh][computationId];
-            highPartitions.erase(
-                std::remove(highPartitions.begin(), highPartitions.end(), *bestPartition),
-                highPartitions.end());
-            workerComputationPartitions[*wLow][computationId].push_back(*bestPartition);
-
-            tentativeMoves.push_back(TRebalanceResultAction{
-                .Type = ERebalanceActionType::Del,
-                .PartitionId = *bestPartition,
-                .WorkerAddress = *wHigh,
-            });
-            tentativeMoves.push_back(TRebalanceResultAction{
-                .Type = ERebalanceActionType::Add,
-                .PartitionId = *bestPartition,
-                .WorkerAddress = *wLow,
-            });
-
-            improved = true;
-            ++movesThisComputation;
         }
     }
 
@@ -1931,25 +2153,21 @@ TRebalanceResult DoBalanceResourceQueue(
     // Step 9: Evaluate and possibly revert moves.
     // =========================================================================
     //
-    // If relative improvement >= RebalanceTargetDeviation, keep the tentative moves.
-    // Otherwise discard them.
+    // Accept if the deviation drops by the threshold. The threshold is a share of the baseline
+    // level, not of the baseline deviation: a relative test accepts micro-moves in a balanced group.
 
-    double newMetric = computeQueueMetric(equalizationLoads);
-    // Accept on the ABSOLUTE drop of the (dimensionless) queue CV, not the relative improvement.
-    // A relative test (baseline-new)/baseline accepts micro-moves once baselineMetric is already near
-    // zero (queues balanced) — any tiny absolute change is a large fraction of near-zero — causing
-    // perpetual noise-chasing churn. Requiring an absolute drop >= RebalanceTargetDeviation leaves
-    // already-balanced groups alone while still rebalancing genuinely imbalanced ones (large baseline).
+    auto newMetric = computeQueueMetric(equalizationState);
     bool equalizationAccepted = !tentativeMoves.empty() &&
-        (baselineMetric - newMetric) >= balancerSpec->RebalanceTargetDeviation;
+        (baselineMetric.Deviation - newMetric.Deviation) >= improvementThreshold;
 
     YT_TLOG_DEBUG("ResourceQueue: Step 9 equalization evaluation")
         .With("WorkerGroup", workerGroup)
         .With("TentativeMoves", tentativeMoves.size())
-        .With("BaselineMetric", baselineMetric)
-        .With("NewMetric", newMetric)
-        .With("RelativeImprovement", baselineMetric > kEpsilon ? (baselineMetric - newMetric) / baselineMetric : 0.)
-        .With("Threshold", balancerSpec->RebalanceTargetDeviation)
+        .With("BaselineDeviation", baselineMetric.Deviation)
+        .With("NewDeviation", newMetric.Deviation)
+        .With("BaselineMean", baselineMetric.Mean)
+        .With("NewMean", newMetric.Mean)
+        .With("ImprovementThreshold", improvementThreshold)
         .With("Accepted", equalizationAccepted);
 
     if (equalizationAccepted) {

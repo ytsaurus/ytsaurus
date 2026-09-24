@@ -14,7 +14,10 @@ class IScheduler {
 public:
     using TPtr = std::unique_ptr<IScheduler>;
 
-    static TPtr Make(const NProto::TDqConfig::TScheduler& schedulerConfig = {}, IMetricsRegistryPtr metricsRegistry = {});
+    static TPtr Make(
+        const NProto::TDqConfig::TScheduler& schedulerConfig = {},
+        IMetricsRegistryPtr metricsRegistry = {},
+        size_t targetCapacity = 0);
 
     virtual ~IScheduler() = default;
 
@@ -31,9 +34,13 @@ public:
 
     virtual bool Suspend(TWaitInfo&& info) = 0;
 
+    virtual size_t GetRunningTasksPerUserLimit() const = 0;
+
+    virtual void ReleaseRunningTasks(const TString& user, size_t count) = 0;
+
     virtual std::vector<NActors::TActorId> Cleanup() = 0;
 
-    virtual size_t UpdateMetrics() = 0;
+    virtual size_t UpdateMetrics(bool updateRunningLimitedQueueSize = true) = 0;
 
     using TProcessor = std::function<bool(const TWaitInfo& info)>;
 

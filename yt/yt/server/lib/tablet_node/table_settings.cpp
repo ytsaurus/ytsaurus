@@ -77,6 +77,23 @@ void ValidateNoForbiddenKeysInPatch(const NYTree::IMapNodePtr& keys, TStringBuf 
     }
 }
 
+template <class TConfig>
+TIntrusivePtr<TConfig> DeserializeIOConfig(
+    TStringBuf configType,
+    const IMapNodePtr& node,
+    std::vector<TError>* errors)
+{
+    try {
+        return ConvertTo<TIntrusivePtr<TConfig>>(node);
+    } catch (const std::exception& ex) {
+        if (errors) {
+            errors->push_back(TError("Error deserializing %v config", configType)
+                .With(ex));
+        }
+        return New<TConfig>();
+    }
+}
+
 } // namespace
 
 void TTableConfigPatch::Register(TRegistrar registrar)
@@ -87,6 +104,8 @@ void TTableConfigPatch::Register(TRegistrar registrar)
     registrar.Parameter("mount_config_patch", &TThis::MountConfigPatch)
         .DefaultCtor(&DefaultMapNodeCtor)
         .ResetOnLoad();
+    registrar.Parameter("io_config_template_patch", &TThis::IOConfigTemplatePatch)
+        .DefaultNew();
     registrar.Parameter("io_config_patch", &TThis::IOConfigPatch)
         .DefaultNew();
 
@@ -113,6 +132,7 @@ bool TTableConfigPatch::IsEqual(const TTableConfigPatchPtr& other) const
     return
         AreNodesEqual(MountConfigTemplatePatch, other->MountConfigTemplatePatch) &&
         AreNodesEqual(MountConfigPatch, other->MountConfigPatch) &&
+        IOConfigTemplatePatch->IsEqual(other->IOConfigTemplatePatch) &&
         IOConfigPatch->IsEqual(other->IOConfigPatch);
 }
 
@@ -223,11 +243,11 @@ TTableSettings TTableSettings::CreateNew()
 
 void TRawTableSettings::CreateNewProvidedConfigs()
 {
-    Provided.StoreReaderConfig = New<TTabletStoreReaderConfig>();
-    Provided.HunkReaderConfig = New<TTabletHunkReaderConfig>();
-    Provided.StoreWriterConfig = New<TTabletStoreWriterConfig>();
+    Provided.StoreReaderConfig = DefaultMapNodeCtor();
+    Provided.HunkReaderConfig = DefaultMapNodeCtor();
+    Provided.StoreWriterConfig = DefaultMapNodeCtor();
     Provided.StoreWriterOptions = New<TTabletStoreWriterOptions>();
-    Provided.HunkWriterConfig = New<TTabletHunkWriterConfig>();
+    Provided.HunkWriterConfig = DefaultMapNodeCtor();
     Provided.HunkWriterOptions = New<TTabletHunkWriterOptions>();
     Provided.TabletBalancerConfig = GetEphemeralNodeFactory()->CreateMap();
 }
@@ -305,6 +325,10 @@ std::pair<TTableMountConfigPtr, IMapNodePtr> DeserializeTableMountConfig(
 std::pair<TTableSettings, TTableConfigPatchPtr> TryApplySinglePatch(
     TTableSettings settings,
     const IMapNodePtr& initialMountConfigNode,
+    const IMapNodePtr& initialStoreReaderConfigNode,
+    const IMapNodePtr& initialHunkReaderConfigNode,
+    const IMapNodePtr& initialStoreWriterConfigNode,
+    const IMapNodePtr& initialHunkWriterConfigNode,
     const TTableConfigPatchPtr& existingPatch,
     const TTableConfigPatchPtr& newPatch)
 {
@@ -322,36 +346,47 @@ std::pair<TTableSettings, TTableConfigPatchPtr> TryApplySinglePatch(
 
     applyPatch([] (auto&& x) -> auto& { return x->MountConfigTemplatePatch; });
     applyPatch([] (auto&& x) -> auto& { return x->MountConfigPatch; });
+    applyPatch([] (auto&& x) -> auto& { return x->IOConfigTemplatePatch->StoreReaderConfig; });
+    applyPatch([] (auto&& x) -> auto& { return x->IOConfigTemplatePatch->HunkReaderConfig; });
+    applyPatch([] (auto&& x) -> auto& { return x->IOConfigTemplatePatch->StoreWriterConfig; });
+    applyPatch([] (auto&& x) -> auto& { return x->IOConfigTemplatePatch->HunkWriterConfig; });
     applyPatch([] (auto&& x) -> auto& { return x->IOConfigPatch->StoreReaderConfig; });
     applyPatch([] (auto&& x) -> auto& { return x->IOConfigPatch->HunkReaderConfig; });
     applyPatch([] (auto&& x) -> auto& { return x->IOConfigPatch->StoreWriterConfig; });
     applyPatch([] (auto&& x) -> auto& { return x->IOConfigPatch->HunkWriterConfig; });
 
     // New patch is built, now try applying it to the provided settings.
-    if (resultingPatch->MountConfigTemplatePatch->GetChildCount() > 0 ||
-        resultingPatch->MountConfigPatch->GetChildCount() > 0)
+
     {
-        try {
-            auto node = PatchNode(
-                resultingPatch->MountConfigTemplatePatch,
-                initialMountConfigNode);
-            node = PatchNode(node, resultingPatch->MountConfigPatch);
-            settings.MountConfig = ConvertTo<TTableMountConfigPtr>(node);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to apply table mount config patch")
-                .With(ex);
+        const auto& templatePatch = resultingPatch->MountConfigTemplatePatch;
+        const auto& patch = resultingPatch->MountConfigPatch;
+        if (templatePatch->GetChildCount() > 0 || patch->GetChildCount() > 0) {
+            try {
+                auto node = PatchNode(templatePatch, initialMountConfigNode);
+                node = PatchNode(node, patch);
+                settings.MountConfig = ConvertTo<TTableMountConfigPtr>(node);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to apply table mount config patch")
+                    .With(ex);
+            }
         }
     }
 
-    auto convertIOPatch = [&] (TStringBuf configType, auto&& getter) {
-        if (getter(*resultingPatch->IOConfigPatch)->GetChildCount() == 0) {
+    auto convertIOPatch = [&] (
+        TStringBuf configType,
+        const IMapNodePtr& providedNode,
+        auto&& getter)
+    {
+        const auto& templatePatch = getter(*resultingPatch->IOConfigTemplatePatch);
+        const auto& patch = getter(*resultingPatch->IOConfigPatch);
+        if (templatePatch->GetChildCount() == 0 && patch->GetChildCount() == 0)
+        {
             return;
         }
 
         try {
-            auto node = PatchNode(
-                ConvertToNode(getter(settings)),
-                getter(*resultingPatch->IOConfigPatch));
+            auto node = PatchNode(templatePatch, providedNode);
+            node = PatchNode(node, patch);
             getter(settings) = ConvertTo<std::decay_t<decltype(getter(settings))>>(node);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to apply %v patch", configType)
@@ -359,10 +394,22 @@ std::pair<TTableSettings, TTableConfigPatchPtr> TryApplySinglePatch(
         }
     };
 
-    convertIOPatch("store_reader", [] (auto&& x) -> auto& { return x.StoreReaderConfig; });
-    convertIOPatch("hunk_reader", [] (auto&& x) -> auto& { return x.HunkReaderConfig; });
-    convertIOPatch("store_writer", [] (auto&& x) -> auto& { return x.StoreWriterConfig; });
-    convertIOPatch("hunk_writer", [] (auto&& x) -> auto& { return x.HunkWriterConfig; });
+    convertIOPatch(
+        "store reader",
+        initialStoreReaderConfigNode,
+        [] (auto&& x) -> auto& { return x.StoreReaderConfig; });
+    convertIOPatch(
+        "hunk reader",
+        initialHunkReaderConfigNode,
+        [] (auto&& x) -> auto& { return x.HunkReaderConfig; });
+    convertIOPatch(
+        "store writer",
+        initialStoreWriterConfigNode,
+        [] (auto&& x) -> auto& { return x.StoreWriterConfig; });
+    convertIOPatch(
+        "hunk writer",
+        initialHunkWriterConfigNode,
+        [] (auto&& x) -> auto& { return x.HunkWriterConfig; });
 
     return {std::move(settings), std::move(resultingPatch)};
 }
@@ -372,11 +419,23 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
     std::vector<std::string>* unappliedExperimentNames) const
 {
     TTableSettings initialSettings{
-        .StoreReaderConfig = Provided.StoreReaderConfig,
-        .HunkReaderConfig = Provided.HunkReaderConfig,
-        .StoreWriterConfig = Provided.StoreWriterConfig,
+        .StoreReaderConfig = DeserializeIOConfig<TTabletStoreReaderConfig>(
+            "store reader",
+            Provided.StoreReaderConfig,
+            errors),
+        .HunkReaderConfig = DeserializeIOConfig<TTabletHunkReaderConfig>(
+            "hunk reader",
+            Provided.HunkReaderConfig,
+            errors),
+        .StoreWriterConfig = DeserializeIOConfig<TTabletStoreWriterConfig>(
+            "store writer",
+            Provided.StoreWriterConfig,
+            errors),
         .StoreWriterOptions = Provided.StoreWriterOptions,
-        .HunkWriterConfig = Provided.HunkWriterConfig,
+        .HunkWriterConfig = DeserializeIOConfig<TTabletHunkWriterConfig>(
+            "hunk writer",
+            Provided.HunkWriterConfig,
+            errors),
         .HunkWriterOptions = Provided.HunkWriterOptions,
         .TabletBalancerConfig = DeserializeTabletBalancerConfig(
             Provided.TabletBalancerConfig,
@@ -395,13 +454,15 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
     auto resultingSettings = initialSettings;
     auto resultingPatch = New<TTableConfigPatch>();
 
-    // Now apply global patch and experiments one by one, sandwiching mount config
-    // between patch and template patch and applying patches over IO configs.
     try {
         std::tie(resultingSettings, resultingPatch) =
             TryApplySinglePatch(
                 initialSettings,
                 initialMountConfigNode,
+                Provided.StoreReaderConfig,
+                Provided.HunkReaderConfig,
+                Provided.StoreWriterConfig,
+                Provided.HunkWriterConfig,
                 resultingPatch,
                 GlobalPatch);
     } catch (const std::exception& ex) {
@@ -417,6 +478,10 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
                 TryApplySinglePatch(
                     initialSettings,
                     initialMountConfigNode,
+                    Provided.StoreReaderConfig,
+                    Provided.HunkReaderConfig,
+                    Provided.StoreWriterConfig,
+                    Provided.HunkWriterConfig,
                     resultingPatch,
                     experiment->Patch);
         } catch (const std::exception& ex) {
@@ -432,6 +497,30 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
     }
 
     return resultingSettings;
+}
+
+void TRawTableSettings::MaterializeProvidedConfigs(std::vector<TError>* errors)
+{
+    Provided.StoreReaderConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletStoreReaderConfig>(
+            "store reader",
+            Provided.StoreReaderConfig,
+            errors))->AsMap();
+    Provided.HunkReaderConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletHunkReaderConfig>(
+            "hunk reader",
+            Provided.HunkReaderConfig,
+            errors))->AsMap();
+    Provided.StoreWriterConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletStoreWriterConfig>(
+            "store writer",
+            Provided.StoreWriterConfig,
+            errors))->AsMap();
+    Provided.HunkWriterConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletHunkWriterConfig>(
+            "hunk writer",
+            Provided.HunkWriterConfig,
+            errors))->AsMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

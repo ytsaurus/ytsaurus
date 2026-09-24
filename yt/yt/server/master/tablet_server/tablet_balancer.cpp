@@ -8,6 +8,7 @@
 #include "tablet_action.h"
 #include "tablet_action_manager.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -17,6 +18,8 @@
 #include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 

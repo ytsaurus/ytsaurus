@@ -844,7 +844,11 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         auto shuffleService = CreateShuffleService(
             apiInvoker,
             rootClient,
-            localServerAddress);
+            localServerAddress,
+            // TODO(apollo1321): The shuffle service is exposed to the user here. The TVM bridge
+            // cannot validate service tickets, since ParseServiceTicket is unimplemented for it.
+            // See YT-29714 for details.
+            /*authenticator*/ nullptr);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
         connection->RegisterShuffleService(localServerAddress);
         YT_TLOG_INFO("Shuffle Service registered")
@@ -1016,6 +1020,12 @@ TJobResult TJobProxy::RunJob()
         SupervisorChannel_ = supervisorChannel;
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(SupervisorChannel_);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
+
+        RetryingSupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(
+            Config_->UseRetryingChannels
+                ? SupervisorChannel_
+                : CreateRetryingChannel(Config_->RetryingChannel, SupervisorChannel_));
+        RetryingSupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
         RetrieveJobSpec();
 
@@ -1191,6 +1201,27 @@ TJobResult TJobProxy::RunJob()
     }
 
     return job->Run();
+}
+
+TFuture<NDistributedChunkSessionClient::TSessionDescriptor> TJobProxy::GetShuffleWriteSession(
+    int partitionIndex,
+    std::optional<NChunkClient::TSessionId> excludedSessionId) const
+{
+    auto req = RetryingSupervisorProxy_->GetShuffleWriteSession();
+    ToProto(req->mutable_job_id(), GetJobId());
+    req->set_partition_index(partitionIndex);
+    if (excludedSessionId) {
+        ToProto(req->mutable_excluded_session_id(), *excludedSessionId);
+    }
+
+    return req->Invoke()
+        .Apply(BIND([] (const TSupervisorServiceProxy::TRspGetShuffleWriteSessionPtr& rsp) {
+            return NDistributedChunkSessionClient::TSessionDescriptor{
+                .SessionId = FromProto<NChunkClient::TSessionId>(rsp->session_id()),
+                .SequencerNode = FromProto<NNodeTrackerClient::TNodeDescriptor>(
+                    rsp->sequencer_node()),
+            };
+        }));
 }
 
 NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(

@@ -130,23 +130,33 @@ public:
         CellCommitSession_
             ->GetPrepareSignatureGenerator()
             ->RegisterRequests(batchCount);
-        CellCommitSession_
-            ->GetCommitSignatureGenerator()
-            ->RegisterRequests(batchCount);
 
         return std::move(prepared.MergedRows);
+    }
+
+    void CalculateBatchSignatures() override
+    {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(BatchPrepareSignatures_.empty());
+
+        BatchPrepareSignatures_.resize(Batches_.size());
+
+        auto* signatureGenerator = CellCommitSession_->GetPrepareSignatureGenerator();
+        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
+            BatchPrepareSignatures_[batchIndex] = signatureGenerator->GenerateSignature();
+        }
     }
 
     // NB: Concurrent #Invoke calls with different retry indices are possible.
     TFuture<void> Invoke(int retryIndex) override
     {
+        YT_VERIFY(!Batches_.empty());
+        YT_VERIFY(Batches_.size() == BatchPrepareSignatures_.size());
+
         if (retryIndex == 0) {
-            YT_VERIFY(!Batches_.empty());
             for (const auto& batch : Batches_) {
                 batch->Materialize(Config_->WriteRowsRequestCodec);
             }
-
-            CalculateBatchSignatures();
         }
 
         auto cellId = TabletInfo_->CellId;
@@ -202,13 +212,7 @@ private:
     ITabletRequestBatcherPtr Batcher_;
 
     std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>> Batches_;
-
-    struct TBatchSignatures
-    {
-        TTransactionSignature PrepareSignature;
-        TTransactionSignature CommitSignature;
-    };
-    std::vector<TBatchSignatures> BatchSignatures_;
+    std::vector<TTransactionSignature> BatchPrepareSignatures_;
 
     bool IsVersioned_ = false;
     bool Prepared_ = false;
@@ -266,9 +270,7 @@ private:
         req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
         req->set_durability(ToProto(transaction->GetDurability()));
 
-        const auto& batchSignatures = BatchSignatures_[batchIndex];
-        req->set_prepare_signature(batchSignatures.PrepareSignature);
-        req->set_commit_signature(batchSignatures.CommitSignature);
+        req->set_prepare_signature(BatchPrepareSignatures_[batchIndex]);
 
         req->set_generation(commitContext->RetryIndex);
 
@@ -302,7 +304,6 @@ private:
             .With("RowCount", batch->RowCount)
             .With("CellId", TabletInfo_->CellId)
             .WithFormat("PrepareSignature", "%x", req->prepare_signature())
-            .WithFormat("CommitSignature", "%x", req->commit_signature())
             .With("Versioned", req->versioned())
             .With("UpstreamReplicaId", Options_.UpstreamReplicaId)
             .With("HunkChunksInfo", MakeFormatterWrapper([&] (auto* builder) {
@@ -539,27 +540,6 @@ private:
         commitContext->BatchIndex++;
         InvokeNextBatch(commitContext);
     }
-
-    void CalculateBatchSignatures()
-    {
-        YT_VERIFY(BatchSignatures_.empty());
-        BatchSignatures_.resize(Batches_.size());
-
-        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
-            auto& batchSignatures = BatchSignatures_[batchIndex];
-
-            auto prepareSignature = CellCommitSession_
-                ->GetPrepareSignatureGenerator()
-                ->GenerateSignature();
-            auto commitSignature = CellCommitSession_
-                ->GetCommitSignatureGenerator()
-                ->GenerateSignature();
-            batchSignatures = TBatchSignatures{
-                .PrepareSignature = prepareSignature,
-                .CommitSignature = commitSignature,
-            };
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -680,6 +660,12 @@ private:
 
     TFuture<void> DoCommitSessions(int retryIndex)
     {
+        if (retryIndex == 0) {
+            for (const auto& session : Sessions_) {
+                session->CalculateBatchSignatures();
+            }
+        }
+
         std::vector<TFuture<void>> commitFutures;
         commitFutures.reserve(Sessions_.size());
         for (const auto& session : Sessions_) {

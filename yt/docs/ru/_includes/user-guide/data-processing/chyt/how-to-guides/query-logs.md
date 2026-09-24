@@ -75,7 +75,7 @@ AND NOT is_initial_query -- исключит первичные запросы, 
 
 {% cut "Пример YSON" %}
 
-    ```json
+    ```yson
     {
         "try_optimize_distinct_read" = %false;
         "use_input_specs_pulling" = %false;

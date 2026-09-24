@@ -33,7 +33,7 @@ CLI
 ```bash
 $ yt get //path/to/my/table/@media
 ```
-```
+```yson
 {
   "default" = {
     "replication_factor" = 3;

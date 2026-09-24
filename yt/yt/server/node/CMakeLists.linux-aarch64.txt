@@ -183,7 +183,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/pending_downloads_tracker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/preparation_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
@@ -231,6 +230,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/error_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/failing_on_rotation_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/fetch_rows.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/global_stores_update_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hint_manager.cpp

@@ -31,6 +31,7 @@ target_link_libraries(library-cpp-runner PUBLIC
   library-cpp-vanilla
   library-cpp-worker
   library-cpp-pipeline_helpers
+  cpp-pipeline_helpers-flow_execute
   library-cpp-controller
   library-cpp-companion
   library-cpp-common

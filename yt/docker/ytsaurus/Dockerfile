@@ -375,6 +375,48 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 ##########################################################################################
 
+FROM base AS flow
+
+# Flow binary. A single binary serves as controller, worker and runner; the role
+# is chosen at startup by YT_FLOW_MODE.
+COPY ./flow_server /usr/bin/flow_server
+
+# Flow credits files.
+COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
+
+##########################################################################################
+
+FROM flow AS flow-java
+
+# Flow server with a Java runtime, for pipelines whose computations run in the Java SDK:
+# the worker starts the companion inside its own job, so the JRE has to sit next to
+# flow_server. The path matches the eclipse-temurin images, so jdk_bin_path stays
+# /opt/java/openjdk/bin/java.
+COPY --from=eclipse-temurin:17-jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+
+##########################################################################################
+
+FROM flow AS flow-python
+
+# Flow server with the Python SDK, for pipelines whose computations run in Python:
+# the worker starts the companion inside its own job, so the interpreter and the SDK have to
+# sit next to flow_server. The SDK is built from the same sources as flow_server, so the two
+# speak the same companion_service.proto by construction.
+ARG FLOW_PYTHON_PACKAGE_VERSION
+
+# The sources the package build reads; build.sh lays them out under their repo-relative paths.
+COPY ./python_sdk /tmp/python_sdk
+
+RUN set -eux; \
+    YTSAURUS_PACKAGE_VERSION="${FLOW_PYTHON_PACKAGE_VERSION}" python3 -m pip install \
+        --break-system-packages --no-cache-dir /tmp/python_sdk/yt/python/packages/ytsaurus-flow-companion; \
+    rm -rf /tmp/python_sdk; \
+    python3 -c 'from yt.yt.flow.library.python.companion import Pipeline, server'
+
+##########################################################################################
+
 FROM base-ytsaurus-python-packages AS base-query-tracker
 
 # Libpython shared objects that are needed for YQL system python UDFs to work.

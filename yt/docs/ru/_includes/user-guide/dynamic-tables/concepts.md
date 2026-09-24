@@ -14,7 +14,7 @@
 
 {% cut "Пример статистики по таблету" %}
 
-```json
+```yson
 {
     "chunk_count" = 1;
     "compressed_data_size" = 324;
@@ -85,7 +85,7 @@
 
 {% cut "Пример состояния селла" %}
 
-```json
+```yson
 {
     "health" = "good";
     "decommissioned" = %false;

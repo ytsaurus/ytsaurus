@@ -15,7 +15,7 @@ class TDataNodeNbdServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TDataNodeNbdServiceProxy, DataNodeNbdService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(NRpc::TProtocolVersion{0, 1}));
 
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, OpenSession);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, CloseSession);

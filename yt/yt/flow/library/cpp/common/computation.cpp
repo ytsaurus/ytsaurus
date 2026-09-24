@@ -1,5 +1,7 @@
 #include "computation.h"
 
+#include "computation_statistics.h"
+
 #include "flow_view.h"
 #include "message.h"
 #include "spec.h"
@@ -71,7 +73,12 @@ void TComputationStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_traverse", &TThis::NodeTraverse)
         .Default();
+    registrar.Parameter("processing_observation", &TThis::ProcessingObservation)
+        .DontSerializeDefault()
+        .Default();
     registrar.Parameter("partition_status", &TThis::PartitionStatus)
+        .Default();
+    registrar.Parameter("non_empty_iteration_count", &TThis::NonEmptyIterationCount)
         .Default();
     registrar.Parameter("epoch_part_times", &TThis::EpochPartTimes)
         .Default();

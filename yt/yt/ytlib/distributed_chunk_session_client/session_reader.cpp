@@ -315,6 +315,10 @@ private:
                 };
             }
 
+            if (!PrefetchStarted_ && !TryResolveReplicaDescriptors()) {
+                continue;
+            }
+
             auto result = Phase_ == EPhase::Active
                 ? RunActivePhaseIteration()
                 : RunFinalPhaseIteration();
@@ -341,6 +345,39 @@ private:
         Statistics_->ErrorAttemptCount.fetch_add(1, std::memory_order::relaxed);
         ErrorBackoffStrategy_.Next();
         TDelayedExecutor::WaitForDuration(ErrorBackoffStrategy_.GetBackoff());
+    }
+
+    bool TryResolveReplicaDescriptors()
+    {
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+        auto descriptorsKnown = [&] {
+            return !Replicas_.empty() && std::all_of(Replicas_.begin(), Replicas_.end(), [&] (auto replica) {
+                return nodeDirectory->FindDescriptor(replica.GetNodeId());
+            });
+        };
+
+        if (descriptorsKnown()) {
+            return true;
+        }
+
+        auto replicaUpdateResult = UpdateReplicasFromMaster();
+        if (!replicaUpdateResult.IsOK()) {
+            InnerErrors_.push_back(replicaUpdateResult);
+        } else if (descriptorsKnown()) {
+            return true;
+        } else {
+            YT_TLOG_DEBUG("Failed to resolve distributed chunk session reader replica descriptors")
+                .With("ReplicaCount", Replicas_.size());
+            InnerErrors_.push_back(Replicas_.empty()
+                ? TError("Chunk %v has no replicas on master", ChunkId_)
+                : TError(
+                    NNodeTrackerClient::EErrorCode::NoSuchNode,
+                    "Cannot resolve node descriptors for replicas %v of chunk %v",
+                    Replicas_,
+                    ChunkId_));
+        }
+        AccountError();
+        return false;
     }
 
     void TryFetchChunkRecordCount()

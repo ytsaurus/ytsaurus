@@ -4,9 +4,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.computation.Computation;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
@@ -19,7 +21,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
  *
  * <p>A snapshot is produced by passing a {@link PipelineContext} to
  * {@link #PipelineContextSnapshot(PipelineContext)} and contains a defensive copy of all
- * computations, streams and states that were registered at the moment of the call. The snapshot
+ * computations, streams, states and resource factories registered at the moment of the call. The snapshot
  * is safe to publish to multiple threads (including gRPC worker threads) without any
  * synchronization: all fields are {@code final}, all internal collections are
  * unmodifiable, and no mutation API is exposed.
@@ -31,28 +33,34 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
     private final Map<String, Computation> computations;
     private final FlowStreamsContext streamsContext;
     private final List<StateDescriptor<?>> states;
+    private final Map<String, Supplier<? extends FlowResource>> resourceFactories;
 
     /**
      * Creates an immutable snapshot from the current state of the given {@link PipelineContext}.
      *
-     * <p>The snapshot contains defensive copies of the registered computations and streams;
-     * subsequent modifications to the source context do not affect the snapshot. The
-     * snapshot is safe to publish to multiple threads.
+     * <p>The snapshot contains defensive copies of the registered computations, streams, states
+     * and resource factories; subsequent modifications to the source context — including
+     * unregistering a resource class — do not affect the snapshot. The snapshot is safe to publish
+     * to multiple threads.
      *
      * @param context the pipeline context to snapshot
      */
     public PipelineContextSnapshot(PipelineContext context) {
-        this(context.getComputations(), context.getStreams(), context.getStates());
+        this(context.getComputations(), context.getStreams(), context.getStates(),
+                context.getResourceFactories());
     }
 
     private PipelineContextSnapshot(
             Map<String, Computation> computations,
             Map<String, FlowStream<?>> streams,
-            List<StateDescriptor<?>> states
+            List<StateDescriptor<?>> states,
+            Map<String, Supplier<? extends FlowResource>> resourceFactories
     ) {
         this.computations = Collections.unmodifiableMap(new LinkedHashMap<>(computations));
         this.streamsContext = new FlowStreamsContext(streams);
         this.states = List.copyOf(states);
+        // Ordered like the computations above: the key set reaches the pipeline spec.
+        this.resourceFactories = Collections.unmodifiableMap(new LinkedHashMap<>(resourceFactories));
     }
 
     /**
@@ -94,6 +102,15 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
     }
 
     /**
+     * Returns the companion resource factories registered in the pipeline at snapshot time.
+     *
+     * @return the immutable map of resource factories keyed by resource class name
+     */
+    public Map<String, Supplier<? extends FlowResource>> getResourceFactories() {
+        return resourceFactories;
+    }
+
+    /**
      * Converts this snapshot to a YTree representation.
      *
      * @return the YTree representation
@@ -104,6 +121,10 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
                 .key("computations")
                 .beginMap();
         computations.forEach((key, value) -> builder.key(key).value(value.toYTree()));
-        return builder.endMap().endMap().build();
+        builder.endMap().key("resource_classes").beginList();
+        for (String resourceClassName : resourceFactories.keySet()) {
+            builder.value(resourceClassName);
+        }
+        return builder.endList().endMap().build();
     }
 }

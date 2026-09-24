@@ -23,6 +23,10 @@
 
 {% include notitle [SPYT](../_includes/releases/spyt.md) %}
 
+## Flow {#flow}
+
+{% include notitle [Flow](../_includes/releases/flow.md) %}
+
 ## Kubernetes operator {#kubernetes-operator}
 
 {% include notitle [k8s](../_includes/releases/k8s.md) %}

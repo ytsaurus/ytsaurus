@@ -23,8 +23,6 @@
 #include <yt/yt/flow/library/cpp/common/message_migration.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
-#include <yt/yt/flow/library/cpp/computation/message_filter.h>
-
 #include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
 #include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
 
@@ -103,6 +101,7 @@ public:
 
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams) override;
     TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics() override;
+    void RegisterSourceMessages(i64 count) override;
     void MarkPersisted(std::span<const TMessageId> messageIds) override;
     void MarkDeduplicated(std::span<const TMessageId> messageIds) override;
     void RegisterOutputMessages(
@@ -161,8 +160,6 @@ public:
         , ControlSerializedInvoker_(JobContext_->ControlSerializedInvoker)
         , JobSerializedInvoker_(JobContext_->SerializedInvoker)
         , EvaluatorCache_(JobContext_->EvaluatorCache)
-        , MessageFilter_(CreateMessageFilter(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression))
-        , SkippedByExpressionCounter_(Profiler.WithPrefix("/input_streams").Counter("/skipped_by_expression_count"))
         , MetricsInvoker_(NConcurrency::CreateSerializedInvoker(JobContext_->PoolInvoker))
         , GlobalHeavyHittersCounter_(CreateGlobalHeavyHitterCounter(JobSpec_->ComputationSpec))
         , StreamHeavyHittersCounters_(CreateStreamHeavyHitterCounters(JobSpec_->ComputationSpec))
@@ -261,8 +258,6 @@ public:
         Computation_->Reconfigure(dynamicComputationContext);
 
         InputBuffer_->Reconfigure(DynamicJobSpec_->DynamicComputationSpec);
-
-        MessageFilter_->Reconfigure(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression);
 
         YT_TLOG_DEBUG("Job reconfiguration completed")
             .With("Draining", DynamicJobSpec_->DynamicComputationSpec->Draining);
@@ -375,6 +370,13 @@ public:
         return InputBuffer_;
     }
 
+    TJobRuntimeCountersPtr GetRuntimeCounters() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return RuntimeCounters_;
+    }
+
     TSystemTimestamp GetInputStabilizedEventTimestamp()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -409,6 +411,7 @@ public:
         if (IsRunning_.load() && InitializePromise_.IsSet()) {
             try {
                 auto computationStatus = Computation_->GetStatus();
+                RuntimeCounters_->NonEmptyIterationCount.store(computationStatus->NonEmptyIterationCount);
                 if (computationStatus->NodeTraverse) {
                     auto traverseData = New<TFromPartitionTraverseData>();
                     traverseData->Node = std::move(computationStatus->NodeTraverse);
@@ -428,6 +431,7 @@ public:
                         status->InputMetrics = JobInputMetrics_;
                     }
                 }
+                status->ProcessingObservation = std::move(computationStatus->ProcessingObservation);
                 status->PartitionStatus = computationStatus->PartitionStatus;
                 status->EpochPartTimes = computationStatus->EpochPartTimes;
                 // Get internal computation limits. Will be enriched later.
@@ -436,7 +440,7 @@ public:
 
                 status->RetryableErrors = std::move(JobRootStatusProfiler_->GetStatus().Errors);
 
-                // Limit/Used/Pending are all reported in inflated bytes (raw payload plus the
+                // Limit/Used/Pending/Demand are all reported in inflated bytes (raw payload plus the
                 // per-message technical cost), so back-pressure and status read in the same units.
                 auto fillBufferLimits = [] (const auto& name, const NFlow::TStreamLimitUsageStateMap& states, auto& allLimits) {
                     if (states.empty()) {
@@ -449,6 +453,7 @@ public:
                         entityLimitStatus.Limit = state->GetLimitBytes();
                         entityLimitStatus.Used = usage.GetInflatedInflightBytes(state->GetInflationPerMessage());
                         entityLimitStatus.Pending = usage.PendingInflatedBytes;
+                        entityLimitStatus.Demand = state->GetDemandBytes();
                     }
                 };
 
@@ -481,6 +486,11 @@ public:
         return state;
     }
 
+    void RegisterSourceMessages(i64 count)
+    {
+        RuntimeCounters_->InputMessageCount.fetch_add(count);
+    }
+
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -494,9 +504,6 @@ public:
             .Apply(BIND([weakThis = MakeWeak(this)] (TErrorOr<std::vector<TInputMessageConstPtr>>&& errorOrMessages) -> std::vector<TInputMessageConstPtr> {
                 if (auto this_ = weakThis.Lock()) {
                     auto inputMessages = std::move(errorOrMessages).ValueOrThrow();
-                    if (this_->MessageFilter_->IsEnabled()) {
-                        inputMessages = this_->DropSkippedMessages(std::move(inputMessages));
-                    }
                     // Input metrics only drive repartition, so compute them off the fetch critical
                     // path: the executor fiber must not block on the per-key sketch work.
                     // TODO(pechatnov): hand the batch over as a shared range instead of copying the
@@ -640,9 +647,6 @@ private:
     const IInvokerPtr JobSerializedInvoker_;
     const NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache_;
 
-    const IMessageFilterPtr MessageFilter_;
-    const NProfiling::TCounter SkippedByExpressionCounter_;
-
     std::atomic<bool> IsRunning_ = false;
 
     TInstant StartTime_;
@@ -665,6 +669,7 @@ private:
     std::optional<TRemedianSplitter<TKey>> RemedianSplitter_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TNodeInputMetricsPtr JobInputMetrics_;
+    const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
 
     struct TDeliveryLogEntry
     {
@@ -709,31 +714,12 @@ private:
         YT_TLOG_INFO("Computation::Run completed");
     }
 
-    std::vector<TInputMessageConstPtr> DropSkippedMessages(std::vector<TInputMessageConstPtr> messages)
-    {
-        auto [kept, skipped] = MessageFilter_->Partition(std::move(messages));
-
-        if (!skipped.empty()) {
-            std::vector<TMessageId> skippedMessageIds;
-            skippedMessageIds.reserve(skipped.size());
-            for (const auto& message : skipped) {
-                skippedMessageIds.push_back(message->MessageId);
-            }
-            SkippedByExpressionCounter_.Increment(skippedMessageIds.size());
-            YT_TLOG_INFO("Skipped input messages by expression")
-                .With("Skipped", skippedMessageIds.size())
-                .With("Kept", kept.size());
-            MarkPersisted(skippedMessageIds);
-        }
-
-        return std::move(kept);
-    }
-
     void RegisterInputBatch(const std::vector<TInputMessageConstPtr>& messages)
     {
         if (messages.empty()) {
             return;
         }
+        RuntimeCounters_->InputMessageCount.fetch_add(std::ssize(messages));
 
         auto now = TInstant::Now();
 
@@ -920,6 +906,13 @@ TFuture<std::vector<TInputMessageConstPtr>> TComputationRunContext::GetNextBatch
         return job->GetNextBatch(allowedStreams);
     }
     return MakeFuture<std::vector<TInputMessageConstPtr>>(MakeExecutionInterruptedError());
+}
+
+void TComputationRunContext::RegisterSourceMessages(i64 count)
+{
+    if (auto job = Job_.Lock()) {
+        job->RegisterSourceMessages(count);
+    }
 }
 
 TFuture<THashMap<TStreamId, TInflightMetricsPtr>> TComputationRunContext::GetInputInflightMetrics()

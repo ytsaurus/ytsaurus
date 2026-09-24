@@ -110,6 +110,7 @@ public:
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
     const TDynamicClusterConfigPtr& GetDynamicConfig() const;
+    const IMasterCellGroupManagerPtr& GetMasterCellGroupManager() const;
     const IMulticellManagerPtr& GetMulticellManager() const;
     const IMulticellStatisticsCollectorPtr& GetMulticellStatisticsCollector() const;
     const NCypressServer::ISequoiaActionsExecutorPtr& GetSequoiaActionsExecutor() const;
@@ -212,6 +213,7 @@ protected:
 
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;
+    IMasterCellGroupManagerPtr MasterCellGroupManager_;
     IMulticellManagerPtr MulticellManager_;
     IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
     IHiveProfilingManagerPtr HiveProfilingManager_;

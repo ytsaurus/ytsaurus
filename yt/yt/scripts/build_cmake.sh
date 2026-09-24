@@ -140,9 +140,11 @@ cmd_move_binaries() {
 
     # Flow tests resolve these binaries by their build-tree paths.
     local flow_server="yt/yt/flow/bin/flow_server/flow_server"
-    strip "${flow_server}"
-    mkdir -p "${output_build_path}/$(dirname "${flow_server}")"
-    mv "${flow_server}" "${output_build_path}/$(dirname "${flow_server}")"
+    if [ -f "${flow_server}" ]; then
+        strip "${flow_server}"
+        mkdir -p "${output_build_path}/$(dirname "${flow_server}")"
+        mv "${flow_server}" "${output_build_path}/$(dirname "${flow_server}")"
+    fi
 
     for flow_example_dir in yt/yt/flow/examples/cpp/*/; do
         local flow_example_binary="${flow_example_dir}$(basename "${flow_example_dir}")"

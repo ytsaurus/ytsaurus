@@ -70,6 +70,8 @@ schema_columns = [
     ("owner",                                   "string",       False,      True),
     ("parent_id",                               "string",       False,      True),
     ("path",                                    "string",       True,       False),
+    ("pipeline_format_version",                 "any",          False,      True),
+    ("pipeline_name",                           "any",          False,      True),
     ("primary_medium",                          "string",       False,      True),
     ("ref_counter",                             "int64",        True,       True),
     ("replication_factor",                      "int64",        False,      True),

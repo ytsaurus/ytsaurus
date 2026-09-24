@@ -163,7 +163,7 @@ public:
         initialDynamicConfig->Load(NYTree::ConvertToNode(options.InitialDynamicConfig));
         YT_VERIFY(initialDynamicConfig->MaxSupportedYqlVersion);
 
-        {
+        if (options.EnableGetUsedClusters) {
             if (StaticGatewaysSnapshot_) {
                 options.GatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetYt());
                 options.DqGatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetDq());
@@ -195,7 +195,9 @@ public:
 
         WorkerApi_ = NYql::NWorkerApi::MakeMsgBusWorkerApi(std::move(busConfig));
 
-        YqlPluginForGetUsedClusters_->Start();
+        if (YqlPluginForGetUsedClusters_) {
+            YqlPluginForGetUsedClusters_->Start();
+        }
     }
 
     bool IsReady() const override
@@ -209,6 +211,7 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files) override
     {
+        YT_VERIFY(YqlPluginForGetUsedClusters_);
         return YqlPluginForGetUsedClusters_->GetUsedClusters(queryId, queryText, settings, files);
     }
 
@@ -337,7 +340,7 @@ public:
             TStringInput input(protoConfig);
             ParseFromTextFormat(input, protoGatewaysConfig, EParseFromTextFormatOption::AllowUnknownField);
 
-            if (flavor == "default") {
+            if (YqlPluginForGetUsedClusters_ && flavor == "default") {
                 auto defaultConfig = CloneYsonStruct(config);
                 defaultConfig->GatewaysConfig = SerializeProtoToYson(protoGatewaysConfig);
                 YqlPluginForGetUsedClusters_->OnDynamicConfigChanged(std::move(defaultConfig));
@@ -451,12 +454,14 @@ public:
             YT_VERIFY(inserted);
         }
 
-        try {
-            YqlPluginForGetUsedClusters_->RegisterQuery(queryId, settings);
-        } catch (...) {
-            TGuard guard(ActiveQueriesLock_);
-            ActiveQueries_.erase(queryId);
-            throw;
+        if (YqlPluginForGetUsedClusters_) {
+            try {
+                YqlPluginForGetUsedClusters_->RegisterQuery(queryId, settings);
+            } catch (...) {
+                TGuard guard(ActiveQueriesLock_);
+                ActiveQueries_.erase(queryId);
+                throw;
+            }
         }
     }
 
@@ -468,7 +473,9 @@ public:
             YT_VERIFY(erased == 1);
         }
 
-        YqlPluginForGetUsedClusters_->UnregisterQuery(queryId);
+        if (YqlPluginForGetUsedClusters_) {
+            YqlPluginForGetUsedClusters_->UnregisterQuery(queryId);
+        }
     }
 
 private:

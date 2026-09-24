@@ -693,6 +693,7 @@ public:
     bool operator()(const TLegacyOwningKey& lhsOwningKey, const TLegacyOwningKey& rhsOwningKey) const;
     bool operator()(const TLegacyOwningKey& lhsOwningKey, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
     bool operator()(const TSchemafulSortedDynamicRow& lhsSchemafulRow, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
+    bool operator()(const TUnversionedValueRange& lhs, const TUnversionedValueRange& rhs) const;
 
 private:
     const TSortedDynamicRowKeyComparer* RowKeyComparer_;

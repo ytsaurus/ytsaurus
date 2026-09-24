@@ -10,6 +10,7 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TReqPutJob;
@@ -39,6 +40,7 @@ public class ProtobufRequestBuilder {
 
     private final List<InternalStateInfo> internalStateInfos = new ArrayList<>();
     private final List<ExternalStateInfo> externalStateInfos = new ArrayList<>();
+    private final List<TCompanionResourceInstanceReference> companionResources = new ArrayList<>();
     private SchemaGenerator schemaGenerator = SchemaGenerator.builder().build();
     private @Nullable SpecGenerator specGenerator = null;
     private int messageCount = 100;
@@ -114,6 +116,7 @@ public class ProtobufRequestBuilder {
                     .build());
         }
         jobInfoBuilder.addAllStreams(streams);
+        jobInfoBuilder.addAllCompanionResources(companionResources);
         return jobInfoBuilder.build();
     }
 
@@ -184,6 +187,33 @@ public class ProtobufRequestBuilder {
 
     public ProtobufRequestBuilder addExternalState(String name, int payloadStringSize, TableSchema payloadSchema) {
         externalStateInfos.add(new ExternalStateInfo(name, payloadStringSize, payloadSchema));
+        return this;
+    }
+
+    /**
+     * Attaches a companion resource instance reference to the generated job info.
+     *
+     * @param resourceId              the resource id.
+     * @param incarnationId           the incarnation id of the required instance.
+     * @param configurationGeneration the configuration generation of the required instance.
+     * @param alias                   the alias under which the instance is exposed to the job;
+     *                                omitted when {@code null}.
+     * @return this builder
+     */
+    public ProtobufRequestBuilder addCompanionResource(
+            String resourceId,
+            GUID incarnationId,
+            long configurationGeneration,
+            @Nullable String alias
+    ) {
+        var referenceBuilder = TCompanionResourceInstanceReference.newBuilder()
+                .setResourceId(resourceId)
+                .setIncarnationId(ProtoUtils.toProto(incarnationId))
+                .setConfigurationGeneration(configurationGeneration);
+        if (alias != null) {
+            referenceBuilder.setAlias(alias);
+        }
+        companionResources.add(referenceBuilder.build());
         return this;
     }
 

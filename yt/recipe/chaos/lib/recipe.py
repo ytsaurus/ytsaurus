@@ -33,6 +33,16 @@ def _create_tablet_cell_bundle(clusters, bundle_name, clock_cluster_tag):
         cluster.get_yt_client().create("tablet_cell_bundle", "//sys/tablet_cell/bundles", attributes=attributes)
 
 
+def _patch_rpc_proxy_config(clusters, bundle_name, clock_cluster_tag):
+    """Point the rpc proxies at the master cluster."""
+
+    for cluster in clusters.values():
+        cluster.get_yt_client().set(
+            "//sys/tablet_cell_bundles/@rpc_proxy_config",
+            {bundle_name: {"clock_cluster_tag": clock_cluster_tag}},
+        )
+
+
 def start(yt_cluster_factory, args, work_dir=None):
     """recipe entry point (start services)."""
     parser = argparse.ArgumentParser()
@@ -63,6 +73,8 @@ def start(yt_cluster_factory, args, work_dir=None):
 
     if parsed_args.tablet_cell_bundle_name:
         _create_tablet_cell_bundle(clusters, parsed_args.tablet_cell_bundle_name, clock_cluster_tag)
+        if parsed_args.db_mode == "chaos":
+            _patch_rpc_proxy_config(clusters, parsed_args.tablet_cell_bundle_name, clock_cluster_tag)
 
     return clusters
 

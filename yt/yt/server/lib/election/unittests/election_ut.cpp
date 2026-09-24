@@ -37,7 +37,6 @@ using NYT::ToProto;
 
 using testing::Return;
 using testing::InSequence;
-using testing::Invoke;
 using testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////

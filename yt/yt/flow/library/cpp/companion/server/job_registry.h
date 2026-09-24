@@ -46,6 +46,8 @@ public:
     //! Ids of every registered job, including those whose removal is deferred
     //! behind an active lease.
     std::vector<TJobId> ListJobIds();
+    //! Number of registered jobs.
+    int GetJobCount();
 
 private:
     struct TEntry

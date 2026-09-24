@@ -36,7 +36,6 @@ using namespace NTableClient;
 using namespace NYTree;
 
 using ::testing::_;
-using ::testing::Invoke;
 
 using NYT::ToProto;
 
@@ -153,13 +152,24 @@ protected:
     void SetUp() override
     {
         EXPECT_CALL(*MockClient_, LookupRows(_, _, _, _))
-            .WillRepeatedly(Invoke([this] (
+            .WillRepeatedly([this] (
                 const NYPath::TYPath& /*path*/,
                 TNameTablePtr /*nameTable*/,
                 const TSharedRange<TLegacyKey>& keys,
                 const NApi::TLookupRowsOptions& /*options*/) {
                 return MakeFuture(MakeLookupResult(keys));
-            }));
+            });
+    }
+
+    template <class TStateProvider>
+    void PreloadKeyStates(const TIntrusivePtr<TStateProvider>& provider, THashSet<TKey> keys)
+    {
+        WaitFor(BIND([provider, keys = std::move(keys)] {
+            return provider->PreloadKeyStates(keys);
+        })
+                .AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ThrowOnError();
     }
 
     TPayload MakeStatePayload(i64 integerValue, TStringBuf stringValue)
@@ -277,9 +287,14 @@ protected:
 
     TSimpleExternalStateJoinerPtr MakeJoiner()
     {
-        return New<TSimpleExternalStateJoiner>(
-            MakeJoinerContext("NYT::NFlow::TSimpleExternalStateJoiner"),
-            MakeDynamicJoinerContext());
+        return WaitFor(BIND([this] {
+            return New<TSimpleExternalStateJoiner>(
+                MakeJoinerContext("NYT::NFlow::TSimpleExternalStateJoiner"),
+                MakeDynamicJoinerContext());
+        })
+                .AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ValueOrThrow();
     }
 
     static const TSimpleExternalState& AsSimpleState(const IStateHolderPtr& holder)
@@ -305,7 +320,7 @@ TEST_F(TSimpleStateAdapterTest, ManagerDescriptor)
     EXPECT_FALSE(descriptor.Schema);
 
     SeededRows_[1] = {10, "x"};
-    WaitFor(manager->PreloadKeyStates({MakeKey(ui64(1), "a")})).ThrowOnError();
+    PreloadKeyStates(manager, {MakeKey(ui64(1), "a")});
 
     descriptor = adapter->Describe();
     ASSERT_TRUE(descriptor.Schema);
@@ -320,7 +335,7 @@ TEST_F(TSimpleStateAdapterTest, ManagerEncodeReproducesWireBytes)
     SeededRows_[1] = {10, "x"};
     auto presentKey = MakeKey(ui64(1), "a");
     auto absentKey = MakeKey(ui64(2), "b");
-    WaitFor(manager->PreloadKeyStates({presentKey, absentKey})).ThrowOnError();
+    PreloadKeyStates(manager, {presentKey, absentKey});
 
     // A present state serializes exactly as the pre-adapter wire path did.
     auto encoded = adapter->EncodeState(presentKey);
@@ -340,7 +355,7 @@ TEST_F(TSimpleStateAdapterTest, ManagerApplyModifiedPayload)
 
     SeededRows_[1] = {10, "x"};
     auto key = MakeKey(ui64(1), "a");
-    WaitFor(manager->PreloadKeyStates({key})).ThrowOnError();
+    PreloadKeyStates(manager, {key});
 
     auto modified = SerializePayload(MakeStatePayload(20, "y"));
     adapter->ApplyState(key, TSharedRef::FromString(TString(modified)));
@@ -358,7 +373,7 @@ TEST_F(TSimpleStateAdapterTest, ManagerResetState)
 
     SeededRows_[1] = {10, "x"};
     auto key = MakeKey(ui64(1), "a");
-    WaitFor(manager->PreloadKeyStates({key})).ThrowOnError();
+    PreloadKeyStates(manager, {key});
 
     adapter->ResetState(key);
 
@@ -390,7 +405,7 @@ TEST_F(TSimpleStateAdapterTest, JoinerEncodeReproducesWireBytes)
 
     SeededRows_[1] = {10, "x"};
     auto key = MakeKey(ui64(1), "a");
-    WaitFor(joiner->PreloadKeyStates({key})).ThrowOnError();
+    PreloadKeyStates(joiner, {key});
 
     auto encoded = adapter->EncodeState(key);
     ASSERT_TRUE(encoded);

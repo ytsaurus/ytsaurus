@@ -4,109 +4,33 @@
 #include "object_detail.h"
 #endif
 
-#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/yt/ytlib/security_client/acl.h>
-
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/string.h>
 
-#include <yt/yt/core/ytree/ypath_proxy.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(babenko): move to cpp
-template <class TObject>
-TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShepherd(const NYPath::TYPath& path)
-{
-    const auto multicellManager = Bootstrap_->GetMulticellManager();
-    YT_ASSERT(multicellManager->IsSecondaryMaster());
-
-    auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
-        multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), NHydra::EPeerKind::Follower));
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    const auto* user = securityManager->GetAuthenticatedUser();
-    batchReq->SetUser(user->GetName());
-
-    auto req = NYTree::TYPathProxy::Get(path);
-    // NB: it's legal to fetch attributes of Sequoia objects this way so it's
-    // marked explicitly.
-    NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
-    batchReq->AddRequest(req);
-
-    return batchReq->Invoke()
-        .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-            auto cumulativeError = GetCumulativeError(batchRspOrError);
-            if (!cumulativeError.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
-                    path)
-                    .With(cumulativeError);
-            }
-
-            const auto& batchRsp = batchRspOrError.Value();
-            auto rsp = batchRsp->GetResponse<NYTree::TYPathProxy::TRspGet>(0).Value();
-            return NYson::TYsonString(rsp->value());
-        })
-        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-}
-
 template <class TObject>
 template <class T>
 TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NYTree::TInternedAttributeKey key)
 {
-    YT_ASSERT(IsPrimaryMaster());
-
-    const auto* object = GetThisImpl();
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
-    const auto* user = securityManager->GetAuthenticatedUser();
-
+    auto ysonResults = FetchYsonFromSwarm(key);
     std::vector<TFuture<T>> asyncResults;
-
-    for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
-            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
-        auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetUser(user->GetName());
-
-        auto attribute = key.Unintern();
-        auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
-        auto req = NYTree::TYPathProxy::Get(path);
-        // NB: it's legal to fetch attributes of Sequoia objects this way so
-        // it's marked explicitly.
-        NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
-        batchReq->AddRequest(req, "get");
-
-        auto result = batchReq->Invoke()
-            .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-                auto cumulativeError = GetCumulativeError(batchRspOrError);
-                if (!cumulativeError.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Error fetching attribute %Qv from cell %v",
-                        attribute,
-                        cellTag)
-                        .With(cumulativeError);
-                }
-
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rsp = batchRsp->GetResponse<NYTree::TYPathProxy::TRspGet>(0).Value();
-
-                auto result = NYTree::ConvertTo<T>(NYson::TYsonString(rsp->value()));
-                return result;
-            })
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
-
-        asyncResults.push_back(result);
+    asyncResults.reserve(ysonResults.size());
+    for (const auto& ysonResult : ysonResults) {
+        asyncResults.push_back(ysonResult.Apply(
+            BIND([] (const NYson::TYsonString& value) {
+                return NYTree::ConvertTo<T>(value);
+            })));
     }
 
     return AllSucceeded(asyncResults);
@@ -133,12 +57,12 @@ template <class T>
         checkOptions.Vital = request->vital();
     }
 
-    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
-        userName,
-        permission,
-        checkOptions.Columns,
-        checkOptions.Vital,
-        ignoreSafeMode);
+    context->AnnotateRequest()
+        .With("User", userName)
+        .With("Permission", permission)
+        .With("Columns", checkOptions.Columns)
+        .With("Vital", checkOptions.Vital)
+        .With("IgnoreSafeMode", ignoreSafeMode);
 
     const auto& securityManager = bootstrap->GetSecurityManager();
     if (!ignoreSafeMode && securityManager->IsSafeMode()) {
@@ -180,7 +104,8 @@ template <class T>
         ToProto(response->mutable_row_level_acl()->mutable_items(), *checkResponse.RowLevelAcl);
     }
 
-    context->SetResponseInfo("Action: %v", checkResponse.Action);
+    context->AnnotateResponse()
+        .With("Action", checkResponse.Action);
     context->Reply();
 }
 

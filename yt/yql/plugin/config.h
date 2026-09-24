@@ -97,6 +97,9 @@ struct TDQManagerConfig
     //! Address resolver used in DQ operation. Is taken from singletons config if not set.
     NNet::TAddressResolverConfigPtr AddressResolver;
 
+    //! DQ scheduler settings. Fields from NYql::NProto::TDqConfig::TScheduler with snake case keys.
+    NYTree::INodePtr Scheduler;
+
     //! DQ Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
     NYTree::INodePtr ICSettings;
 

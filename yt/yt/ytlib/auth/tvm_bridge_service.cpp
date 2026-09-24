@@ -45,9 +45,9 @@ private:
     {
         auto destinations = FromProto<std::vector<ui32>>(request->destinations());
 
-        context->SetRequestInfo("Source: %v, Destinations: %v",
-            request->source(),
-            MakeShrunkFormattableView(destinations, TDefaultFormatter(), 10));
+        context->AnnotateRequest()
+            .With("Source", request->source())
+            .With("Destinations", MakeShrunkFormattableView(destinations, TDefaultFormatter(), /*limit*/ 10));
 
         if (FromProto<TTvmId>(request->source()) != TvmService_->GetSelfTvmIdOrThrow()) {
             THROW_ERROR_EXCEPTION("Cannot fetch tickets for provided source")
@@ -72,10 +72,6 @@ private:
                         .With("destination", destination));
             }
         }
-
-        context->SetResponseInfo("Source: %v, Destinations: %v",
-            request->source(),
-            MakeShrunkFormattableView(destinations, TDefaultFormatter(), 10));
 
         context->Reply();
     }

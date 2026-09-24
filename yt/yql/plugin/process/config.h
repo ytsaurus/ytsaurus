@@ -21,6 +21,8 @@ struct TProcessYqlPluginInternalConfig
     TYqlPluginConfigPtr PluginConfig;
     TSingletonsConfigPtr SingletonsConfig;
     TYqlPluginDynamicConfigPtr PluginDynamicConfig;
+    bool UseTokenResolver;
+    std::string TokenServiceSocketPath;
 
     REGISTER_YSON_STRUCT(TProcessYqlPluginInternalConfig);
 

@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads)
+    YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads, with_portals_dir)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -2526,7 +2526,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -2561,7 +2560,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_time_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -2595,7 +2593,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_timeout_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -4774,11 +4771,18 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("No such transaction .*"):
             get(f"#{object_id}", tx=tx)
 
-    @authors("kivedernikov")
+    @authors("h0pless")
     def test_touch_time_without_expiration_timeout(self):
-        create("table", "//tmp/t")
+        path = "//tmp/node"
+        create("map_node", path)
+
         with raises_yt_error("Attribute .* is not found"):
-            get("//tmp/t/@touch_time")
+            get(f"{path}/@touch_time")
+
+        tx = start_transaction()
+        lock(path, tx=tx)
+        with raises_yt_error("Attribute .* is not found"):
+            get(f"{path}/@touch_time", tx=tx)
 
     @authors("kivedernikov")
     @pytest.mark.parametrize(
@@ -4977,7 +4981,6 @@ class TestCypressMulticell(TestCypress):
         assert not exists("//tmp/t/@external_cell_bias")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("use_offloading", [False, True])
     def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
         if use_offloading:
@@ -5012,7 +5015,21 @@ class TestCypressPortal(TestCypressMulticell):
         "13": {"roles": ["chunk_host"]},
     }
 
+    @authors("kvk1920")
+    def test_cross_cell_prerequisite_revision(self):
+        tx = start_transaction()
+
+        create("map_node", "//tmp/m")
+        m_revision = get("//tmp/m/@revision")
+        root_revision = get("//@revision")
+        with raises_yt_error("Request is cross-cell"):
+            exists("//tmp/m/@type", tx=tx, prerequisite_revisions=[{"path": "/", "revision": root_revision}])
+
+        with raises_yt_error("Prerequisite check failed"):
+            exists("//@type", tx=tx, prerequisite_revisions=[{"path": "//tmp/m", "revision": m_revision}])
+
     @authors("h0pless")
+    @with_portals_dir
     def test_cyclic_link_through_portal(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5026,6 +5043,7 @@ class TestCypressPortal(TestCypressMulticell):
             link("//portals/p/r/l2", "//portals/p/r/l2", force=True)
 
     @authors("h0pless")
+    @with_portals_dir
     def test_node_copy_rollback(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
@@ -5038,6 +5056,7 @@ class TestCypressPortal(TestCypressMulticell):
         remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_cross_shard_copy_inheritable_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5063,6 +5082,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//portals/p/d2/@tablet_cell_bundle") == "b"
 
     @authors("aleksandra-zh")
+    @with_portals_dir
     def test_cross_shard_copy_builtin_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5096,6 +5116,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/t2/@enable_skynet_sharing")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_cross_shard_copy_w_tx(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5109,6 +5130,7 @@ class TestCypressPortal(TestCypressMulticell):
         move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
     @authors("cherepashka")
+    @with_portals_dir
     def test_access_time_in_shard_copy(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/t1")
@@ -5118,6 +5140,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/t1/@access_time") > creation_time
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_annotation_portal(self):
         set("//sys/@config/cypress_manager/graft_synchronization_period", 1000)
         set("//portals/@annotation", "test")
@@ -5139,6 +5162,7 @@ class TestCypressPortal(TestCypressMulticell):
         pass
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_preserve_owner(self):
         create_user("u1")
         create("document", "//tmp/doc", authenticated_user="u1")
@@ -5149,6 +5173,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/doc/@owner") == get("//portals/p/doc/@owner") == "u1"
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_preserve_acl(self):
         create("document", "//tmp/t1")
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})

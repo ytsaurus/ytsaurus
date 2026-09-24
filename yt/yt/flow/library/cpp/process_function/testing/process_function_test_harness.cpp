@@ -17,6 +17,16 @@ TProcessFunctionTestHarness::TProcessFunctionTestHarness(
     , Output_(New<TRecordingOutputCollector>())
 { }
 
+TProcessFunctionTestHarness::TProcessFunctionTestHarness(
+    TTestStateEnvironment& env,
+    IProcessFunctionBasePtr function,
+    IRuntimeContextPtr context,
+    TProcessFunctionContextPtr processFunctionContext)
+    : TProcessFunctionTestHarness(env, std::move(function), std::move(context))
+{
+    FrozenProcessFunctionContext_ = std::move(processFunctionContext);
+}
+
 void TProcessFunctionTestHarness::RunEpoch(const IInputContextPtr& input)
 {
     EnsureInitialized();
@@ -62,7 +72,11 @@ void TProcessFunctionTestHarness::EnsureInitialized()
         return;
     }
     // Lazy, so the test can tweak the environment before the first epoch.
-    Function_->Init(Env_.GetInitContext());
+    if (FrozenProcessFunctionContext_) {
+        Env_.InitProcessFunction(Function_, FrozenProcessFunctionContext_);
+    } else {
+        Env_.InitProcessFunction(Function_);
+    }
     Initialized_ = true;
 }
 

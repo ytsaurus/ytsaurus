@@ -409,6 +409,7 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     }
 
     auto source = GetMaterializedViewSource(clonedCreate, context);
+    auto populate = queryContext->GetContextSettings(context)->MaterializedViewPopulate;
 
     auto getSingleTable = [] (const IStorageDistributorPtr& distributor, TStringBuf role) {
         THROW_ERROR_EXCEPTION_IF(!distributor,
@@ -451,6 +452,7 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
             .SourcePath = sourcePath,
             .TargetPath = targetPath,
             .SourceObjectId = sourceObjectId,
+            .Populate = populate,
         };
     }
 
@@ -473,6 +475,7 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
         .SourcePath = sourcePath,
         .TargetPath = targetPath,
         .SourceObjectId = sourceTable->ObjectId,
+        .Populate = populate,
     };
 }
 

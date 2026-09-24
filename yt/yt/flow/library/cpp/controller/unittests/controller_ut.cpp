@@ -327,6 +327,7 @@ public:
                 });
 
         auto transaction = New<StrictMock<NApi::TMockTransaction>>();
+        Transaction = transaction;
         EXPECT_CALL(*transaction, SetNode(_, _, _))
             .WillRepeatedly(Return(OKFuture));
         EXPECT_CALL(*transaction, Commit(_))
@@ -471,6 +472,8 @@ public:
     TMockPersistedStateManagerPtr PersistedStateManager;
     TMockWorkerTrackerPtr WorkerTracker;
     TMockYTConnectorPtr YTConnector;
+    //! The transaction every mocked start and attach hands out; job leases are built on it.
+    TIntrusivePtr<StrictMock<NApi::TMockTransaction>> Transaction;
     TControlActionQueuePtr ControlActionQueue;
     NConcurrency::IFairShareThreadPoolPtr ControllerThreadPool;
 
@@ -637,8 +640,9 @@ TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
         };
 
         waitForFeedback([&] {
-            const auto& feedback = Controller->GetFlowViewKeeper()->GetFlowView()->Feedback;
-            const auto* status = feedback->PartitionJobStatuses.FindPtr(partitionId);
+            // Hold the view: the controller replaces it on every feedback collection.
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto* status = flowView->Feedback->PartitionJobStatuses.FindPtr(partitionId);
             return status && (*status)->CurrentJobId == replacementJobId;
         });
 
@@ -651,7 +655,8 @@ TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
         Controller->RegisterJobStatus(oldJobId, staleStatus);
 
         waitForFeedback([&] {
-            return Controller->GetFlowViewKeeper()->GetFlowView()->Feedback->UpdateTime > feedbackUpdateTime;
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            return flowView->Feedback->UpdateTime > feedbackUpdateTime;
         });
 
         const auto& flowView = Controller->GetFlowViewKeeper()->GetFlowView();
@@ -1213,6 +1218,148 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TControllerTest, WorkerIncarnationsJobsSurviveLateWorkerRegistration)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+
+    auto schema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{
+        NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
+    auto spec = New<TPipelineSpec>();
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    computationSpec->GroupBySchema = schema;
+    computationSpec->InputStreamIds.insert("input_stream");
+    computationSpec->OutputStreamIds.insert("output_stream");
+    spec->Computations["computation"] = computationSpec;
+    for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
+        spec->Streams[streamId] = New<TStreamSpec>();
+        spec->Streams[streamId]->ClassName = "FakeClassName";
+        spec->Streams[streamId]->Schema = schema;
+    }
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->TargetState = EPipelineState::Working;
+    dynamicSpec->JobManager->AsyncBalancing = false;
+    dynamicSpec->Computations["computation"] = New<TDynamicComputationSpec>();
+
+    auto versionProvider = New<TFakeVersionProvider>(1);
+    const auto& state = PersistedStateManagerLocalState;
+    state->FlowView->State->AttachToControl(state->PersistedMasterControl);
+    state->PersistedMasterControl->Recover();
+    state->Spec->TrySetValue(spec, versionProvider);
+    state->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
+    state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    state->FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(
+        BuildExtendedPipelineSpec(spec),
+        versionProvider);
+    state->FlowView->State->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(state->DynamicSpec);
+    state->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(
+        EPipelineState::Working,
+        versionProvider);
+
+    TWorkerInfo earlyWorker;
+    earlyWorker.RpcAddress = "early-worker.net:81";
+    earlyWorker.State = EWorkerState::Registered;
+    earlyWorker.IncarnationId = TIncarnationId(TGuid::Create());
+
+    TWorkerInfo lateWorker;
+    lateWorker.RpcAddress = "late-worker.net:81";
+    lateWorker.State = EWorkerState::Registered;
+    lateWorker.IncarnationId = TIncarnationId(TGuid::Create());
+
+    auto createJob = [&] (const TWorkerInfo& worker) {
+        auto partition = New<TPartition>();
+        partition->PartitionId = TPartitionId(TGuid::Create());
+        partition->ComputationId = TComputationId("computation");
+        partition->State = EPartitionState::Executing;
+        partition->StateTimestamp = TInstant::Now();
+        state->FlowView->State->ExecutionSpec->Layout->CreatePartition(partition);
+
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->PartitionId = partition->PartitionId;
+        job->WorkerAddress = worker.RpcAddress;
+        job->WorkerIncarnationId = worker.IncarnationId;
+        state->FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+        return job->JobId;
+    };
+    state->FlowView->State->StartMutation();
+    const auto earlyJobId = createJob(earlyWorker);
+    const auto lateJobId = createJob(lateWorker);
+    state->FlowView->State->CommitMutation();
+
+    Prepare();
+
+    // The leader address is never published, so the warm-up holds job management off for the
+    // whole test and the recovered jobs stay in the layout.
+    EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+        .WillRepeatedly(Return(TInstant::Zero()));
+
+    // The recovered jobs have no leases; the leader grants them on the fixture transaction.
+    EXPECT_CALL(*Transaction, GetId())
+        .WillRepeatedly(Return(TGuid::Create()));
+    EXPECT_CALL(*Transaction, SubscribeAborted(_))
+        .Times(AnyNumber());
+    EXPECT_CALL(*Transaction, Abort(_))
+        .WillRepeatedly(Return(OKFuture));
+
+    std::atomic<bool> lateWorkerRegistered = false;
+    EXPECT_CALL(*WorkerTracker, GetWorkers())
+        .WillRepeatedly([&] {
+            std::vector<TWorkerInfo> workers{earlyWorker};
+            if (lateWorkerRegistered.load()) {
+                workers.push_back(lateWorker);
+            }
+            return workers;
+        });
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto registeredWorkerCount = [&] {
+            return std::ssize(Controller->GetFlowViewKeeper()->GetFlowView()->State->Workers);
+        };
+        auto waitForRegisteredWorkers = [&] (int count) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(30);
+            while (registeredWorkerCount() != count && TInstant::Now() < deadline) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+            return registeredWorkerCount() == count;
+        };
+
+        auto expectIndexMatchesLayout = [&] {
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto& layout = flowView->State->ExecutionSpec->Layout;
+            EXPECT_TRUE(layout->Jobs.contains(earlyJobId));
+            EXPECT_TRUE(layout->Jobs.contains(lateJobId));
+
+            THashMap<TIncarnationId, THashSet<TJobId>> expected;
+            for (const auto& [jobId, job] : layout->Jobs) {
+                expected[job->WorkerIncarnationId].insert(jobId);
+            }
+            EXPECT_EQ(flowView->EphemeralState->WorkerIncarnationsJobs, expected);
+        };
+
+        if (!waitForRegisteredWorkers(1)) {
+            StopLeading();
+            FAIL() << "The early worker was not registered";
+        }
+        expectIndexMatchesLayout();
+
+        lateWorkerRegistered = true;
+        if (!waitForRegisteredWorkers(2)) {
+            StopLeading();
+            FAIL() << "The late worker was not registered";
+        }
+        expectIndexMatchesLayout();
+
+        StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TControllerHelpersTest, LeadershipWarmupTimeout)
 {
     auto dynamicSpec = New<TDynamicPipelineSpec>();
@@ -1564,6 +1711,68 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
 
         StopLeading();
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAuthorizeCommandTest
+    : public TControllerTest
+{
+protected:
+    const TIntrusivePtr<StrictMock<TMockClient>> Client_ = New<StrictMock<TMockClient>>();
+    IFlowExecutorPtr FlowExecutor_;
+
+    void SetUp() override
+    {
+        TControllerTest::SetUp();
+
+        FlowExecutor_ = CreateFlowExecutor(
+            Controller,
+            PersistedStateManager,
+            YTConnector,
+            New<TControllerServiceConfig>(),
+            /*orchidRoot*/ nullptr,
+            CreateSyncStatusProfiler(),
+            GetSyncInvoker());
+
+        // The executor is built on the fixture's null client; only the permission check needs a real one.
+        EXPECT_CALL(*YTConnector, GetClient())
+            .WillRepeatedly(Return(Client_));
+    }
+
+    void ExpectPermissionCheck(EPermission permission, NSecurityClient::ESecurityAction action)
+    {
+        TCheckPermissionResponse response;
+        response.Action = action;
+        EXPECT_CALL(*Client_, CheckPermission("alice", NYPath::TYPath("//path"), permission, _))
+            .WillOnce(Return(MakeFuture(response)));
+    }
+};
+
+TEST_F(TAuthorizeCommandTest, ChecksThePermissionTheCommandRequires)
+{
+    ExpectPermissionCheck(EPermission::Read, NSecurityClient::ESecurityAction::Allow);
+    FlowExecutor_->AuthorizeCommand("get-pipeline-state", "alice");
+
+    ExpectPermissionCheck(EPermission::Write, NSecurityClient::ESecurityAction::Allow);
+    FlowExecutor_->AuthorizeCommand("set-target-pipeline-state", "alice");
+}
+
+TEST_F(TAuthorizeCommandTest, RejectsDeniedUser)
+{
+    ExpectPermissionCheck(EPermission::Write, NSecurityClient::ESecurityAction::Deny);
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        FlowExecutor_->AuthorizeCommand("set-target-pipeline-state", "alice"),
+        "No \"write\" permission for pipeline //path");
+}
+
+TEST_F(TAuthorizeCommandTest, RejectsUnknownCommand)
+{
+    // No permission check expectation: an unknown command fails before the cluster is asked.
+    EXPECT_THROW_WITH_SUBSTRING(
+        FlowExecutor_->AuthorizeCommand("no-such-command", "alice"),
+        "No such command: no-such-command");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,6 +12,8 @@
 #include <contrib/ydb/library/yql/providers/dq/task_runner/file_cache.h>
 #include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
 
+#include <yql/essentials/utils/log/log.h>
+
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
@@ -36,8 +38,10 @@ public:
         const TString& role,
         ui16 interconnectPort,
         const TString& hostName,
-        const TString& ip)
+        const TString& ip,
+        TGlobalWorkerManagerActorIdOptions actorIdOptions)
         : Config(config), SchedulerConfig(schedulerConfig)
+        , ActorIdOptions(actorIdOptions)
         , Role(role)
         , Host(hostName)
         , Ip(ip)
@@ -80,11 +84,12 @@ public:
         if (grpcPort) {
             options.Attributes[NCommonAttrs::GRPCPORT_ATTR] = *grpcPort;
         }
+        Y_ABORT_UNLESS(InterconnectPort);
         options.Attributes[NCommonAttrs::INTERCONNECTPORT_ATTR] = ToString(InterconnectPort);
         options.Attributes[NCommonAttrs::HOSTNAME_ATTR] = Host;
         options.Attributes[NCommonAttrs::REVISION_ATTR] = GetRevision();
 
-        options.NodeName = Host + ":" + ToString(GetPID()) + ":" + ToString(InterconnectPort);
+        options.NodeName = TStringBuilder() << Host << ":" << GetPID() << ":" << InterconnectPort;
         options.NodeId = nodeId;
         options.MinNodeId = minNodeId;
         options.MaxNodeId = maxNodeId;
@@ -119,6 +124,14 @@ public:
     }
 
     NActors::IActor* CreateLock(const TString& lockName, bool temporary) override {
+        YQL_CLOG(DEBUG, ProviderDq) << "CreateLock"
+            << " name=" << lockName
+            << " prefix=" << Config.GetPrefix()
+            << " cluster=" << Config.GetClusterName()
+            << " user=" << Config.GetUser()
+            << " has_token=" << !Config.GetToken().empty()
+            << " yt_wrapper=" << GetWrapper()
+            << " grpc_port=" << GrpcPort;
         return CreateLockOnCluster(GetWrapper(), Config.GetPrefix(), lockName, temporary);
     }
 
@@ -126,6 +139,10 @@ public:
         TWorkerRegistratorOptions wro;
         wro.NodeName = NodeName;
         wro.Prefix = Config.GetPrefix() + "/" + Role;
+        YQL_CLOG(DEBUG, ProviderDq) << "Start service node registrator"
+            << " ytPath=" << wro.Prefix << "/" << wro.NodeName
+            << " nodeId=" << NodeId
+            << " role=" << Role;
         Register(actorSystem, CreateWorkerRegistrator(GetWrapper(actorSystem), wro));
     }
 
@@ -153,18 +170,39 @@ public:
             TDynamicResolverOptions options;
             options.YtWrapper = GetWrapper(actorSystem);
             options.Prefix = Config.GetPrefix() + "/service_node";
+            YQL_CLOG(DEBUG, ProviderDq) << "Create dynamic service node resolver"
+                << " prefix=" << options.Prefix;
             return CreateDynamicResolver(actorSystem, options);
         }
     }
 
-    void StartGlobalWorker(NActors::TActorSystem* actorSystem, const TVector<TResourceManagerOptions>& resourceUploaderOptions, IMetricsRegistryPtr metricsRegistry) override
+    void StartGlobalWorker(
+        NActors::TActorSystem* actorSystem,
+        const TVector<TResourceManagerOptions>& resourceUploaderOptions,
+        IMetricsRegistryPtr metricsRegistry) override
     {
+        Y_ABORT_UNLESS(ActorIdOptions.RegisterLegacyActorId || ActorIdOptions.UseGlobalActorId);
         if (Config.GetLockType() != "dummy") {
             GetWrapper();
         }
         Y_ABORT_UNLESS(NodeId != static_cast<ui32>(-1));
-        auto actorId = Register(actorSystem, CreateGlobalWorkerManager(this, resourceUploaderOptions, std::move(metricsRegistry), SchedulerConfig));
-        actorSystem->RegisterLocalService(NDqs::MakeWorkerManagerActorID(NodeId), actorId);
+        auto actorId = Register(actorSystem, CreateGlobalWorkerManager(
+            this,
+            resourceUploaderOptions,
+            std::move(metricsRegistry),
+            SchedulerConfig,
+            /*scheduleInterval*/ TDuration::MilliSeconds(100),
+            ActorIdOptions));
+        const auto legacyServiceActorId = NDqs::MakeWorkerManagerActorID(NodeId);
+        const auto globalServiceActorId = NDqs::MakeGlobalWorkerManagerActorID(NodeId);
+        YQL_CLOG(INFO, ProviderDq) << "StartGlobalWorker: legacyServiceActorId: " << legacyServiceActorId
+            << ", globalServiceActorId: " << globalServiceActorId << ", actorId: " << actorId << ", NodeId: " << NodeId
+            << ", registerLegacyActorId: " << ActorIdOptions.RegisterLegacyActorId
+            << ", useGlobalActorId: " << ActorIdOptions.UseGlobalActorId;
+        if (ActorIdOptions.RegisterLegacyActorId) {
+            actorSystem->RegisterLocalService(legacyServiceActorId, actorId);
+        }
+        actorSystem->RegisterLocalService(globalServiceActorId, actorId);
     }
 
     const NProto::TDqConfig::TYtCoordinator& GetConfig() override {
@@ -182,6 +220,10 @@ public:
             auto wrapper = CreateYtWrapper(client, proxyAddress);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
+            YQL_CLOG(DEBUG, ProviderDq) << "Registered YtWrapper"
+                << " cluster=" << proxyAddress
+                << " user=" << user
+                << " actor_id=" << actorId;
             return actorId;
         }
     }
@@ -198,9 +240,23 @@ public:
         return it->second;
     }
 
-    NActors::IActor* CreateServiceNodePinger(const IServiceNodeResolver::TPtr& ptr, const TResourceManagerOptions& rmOptions, const THashMap<TString, TString>& attributes) override {
+    NActors::IActor* CreateServiceNodePinger(
+        const IServiceNodeResolver::TPtr& ptr,
+        const TResourceManagerOptions& rmOptions,
+        const THashMap<TString, TString>& attributes) override
+    {
         Y_ABORT_UNLESS(NodeId != static_cast<ui32>(-1));
-        return ::NYql::CreateServiceNodePinger(NodeId, Ip, InterconnectPort, Role, attributes, ptr, this, rmOptions);
+        Y_ABORT_UNLESS(InterconnectPort);
+        return ::NYql::CreateServiceNodePinger(
+            NodeId,
+            Ip,
+            InterconnectPort,
+            Role,
+            attributes,
+            ptr,
+            this,
+            rmOptions,
+            ActorIdOptions);
     }
 
     TWorkerRuntimeData* GetRuntimeData() override {
@@ -253,6 +309,7 @@ protected:
 
     const NProto::TDqConfig::TYtCoordinator Config;
     const NProto::TDqConfig::TScheduler SchedulerConfig;
+    const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
 
     TString Role;
 
@@ -283,8 +340,9 @@ public:
         const TString& role,
         ui16 interconnectPort,
         const TString& host,
-        const TString& ip)
-        : TCoordinationHelper(config, schedulerConfig, role, interconnectPort, host, ip)
+        const TString& ip,
+        TGlobalWorkerManagerActorIdOptions actorIdOptions)
+        : TCoordinationHelper(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions)
     { }
 
     NActors::IActor* CreateLockOnCluster(NActors::TActorId ytWrapper, const TString& prefix, const TString& lockName, bool temporary) override {
@@ -312,7 +370,14 @@ public:
     }
 };
 
-ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtCoordinator& cfg, const NProto::TDqConfig::TScheduler& schedulerConfig, const TString& role, ui16 interconnectPort, const TString& host, const TString& ip)
+ICoordinationHelper::TPtr CreateCoordiantionHelper(
+    const NProto::TDqConfig::TYtCoordinator& cfg,
+    const NProto::TDqConfig::TScheduler& schedulerConfig,
+    const TString& role,
+    ui16 interconnectPort,
+    const TString& host,
+    const TString& ip,
+    TGlobalWorkerManagerActorIdOptions actorIdOptions)
 {
     NProto::TDqConfig::TYtCoordinator config = cfg;
     const auto proxyAddress = config.GetProxyAddress();
@@ -346,9 +411,9 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtC
     config.SetToken(token);
 
     if (config.GetLockType() == "dummy") {
-        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip);
+        return new TCoordinationHelperWithDummyLock(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
     } else {
-        return new TCoordinationHelper(config, schedulerConfig, role, interconnectPort, host, ip);
+        return new TCoordinationHelper(config, schedulerConfig, role, interconnectPort, host, ip, actorIdOptions);
     }
 }
 

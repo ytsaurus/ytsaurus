@@ -293,6 +293,10 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 	if speclet.ODBCConfig.EnableOrDefault() {
 		args = append(args, "--prepare-odbc")
 	}
+	if speclet.JDBCConfig.EnableOrDefault() {
+		jdbcTrampolinePath := binariesDir + "jdbc-trampoline"
+		args = append(args, "--prepare-jdbc", "--jdbc-trampoline-bin", jdbcTrampolinePath)
+	}
 
 	if speclet.logsDir != nil {
 		args = append(
@@ -352,13 +356,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		if speclet.ODBCConfig == nil {
 			speclet.ODBCConfig = &ODBCConfig{}
 		}
-		// DriversDir points to a pre-populated Cypress directory.
-		// The controller reads config.yson from it and merges the discovered drivers and
-		// extra files into the speclet's own Drivers/ExtraFiles lists, so that a cluster
-		// admin can deploy a shared set of drivers once and have all ODBC-enabled cliques
-		// pick them up automatically without each user having to list them explicitly.
-		driversDir := speclet.ODBCConfig.DriversDirOrDefault()
-		odbcCfg, err := c.loadODBCDriversConfig(ctx, driversDir)
+		odbcCfg, err := c.loadODBCDriversConfig(ctx)
 		if err != nil || odbcCfg == nil {
 			c.l.Warn("failed to load ODBC drivers config, no default drivers will be added", log.Error(err))
 		} else {
@@ -398,8 +396,19 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		}
 	}
 
+	if speclet.JDBCConfig.EnableOrDefault() {
+		err = c.appendJDBCConfig(ctx, oplet, &speclet, &filePaths)
+		if err != nil {
+			return
+		}
+	}
+
 	// Build command.
 	command := c.buildCommand(&speclet)
+	portCount := 5
+	if speclet.JDBCConfig.EnableOrDefault() {
+		portCount++
+	}
 
 	spec = map[string]any{
 		"tasks": map[string]any{
@@ -409,7 +418,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"file_paths":                         filePaths,
 				"memory_limit":                       speclet.Resources.InstanceMemory.totalMemory(),
 				"cpu_limit":                          speclet.Resources.InstanceCPU,
-				"port_count":                         5,
+				"port_count":                         portCount,
 				"max_stderr_size":                    1024 * 1024 * 1024,
 				"user_job_memory_digest_lower_bound": 1.0,
 				"restart_completed_jobs":             true,

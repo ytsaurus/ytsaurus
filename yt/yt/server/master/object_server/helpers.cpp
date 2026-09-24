@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/rpc/service.h>
@@ -80,6 +82,27 @@ TError CheckObjectName(TStringBuf name)
     }
 
     return {};
+}
+
+void ValidateObjectName(
+    const std::string& name,
+    EObjectType objectType,
+    int maxNameLength)
+{
+    if (name.empty()) {
+        THROW_ERROR_EXCEPTION("Name cannot be empty");
+    }
+
+    if (std::ssize(name) > maxNameLength) {
+        THROW_ERROR_EXCEPTION("Name is too long for an object of type %Qv", objectType)
+            .With("length", name.length())
+            .With("max_length", maxNameLength);
+    }
+
+    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>("[A-Za-z0-9-_]+");
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(name), *regex)) {
+        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", regex->pattern());
+    }
 }
 
 std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name)

@@ -9,10 +9,12 @@
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/flow_execute/flow_execute.h>
 #include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
 #include <yt/yt/client/api/options.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/net/address.h>
 
@@ -78,6 +80,8 @@ void TSimpleRunnerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("set_flow_core_target", &TThis::SetFlowCoreTarget)
         .Default(true);
+    registrar.Parameter("direct_controller_commands", &TThis::DirectControllerCommands)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,9 +166,25 @@ void TSimpleRunnerProgram::DoRun()
         .Parameters = config->ClientsCacheFactory,
     });
 
+    auto client = clientsCache->GetClient(config->ClusterUrl);
+    THROW_ERROR_EXCEPTION_UNLESS(client,
+        "Root clients cache returned no client for cluster %Qv",
+        config->ClusterUrl);
+
+    TFlowExecuteTarget target(client, config->DirectControllerCommands);
+    if (target.IsDirect()) {
+        YT_TLOG_INFO("Pipeline commands go directly to the leader controller")
+            .With("Pipeline", pipelinePath);
+    }
+
     std::optional<TVanillaOperationHandle> vanillaOperation;
     if (config->Vanilla && config->Vanilla->Enable) {
-        vanillaOperation = LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla, clientsCache);
+        vanillaOperation = LaunchInVanillaJob(
+            pipelinePath,
+            config->ProxyRole,
+            config->Vanilla,
+            clientsCache,
+            config->DirectControllerCommands);
     }
 
     bool setFlowCoreTarget = true;
@@ -180,13 +200,8 @@ void TSimpleRunnerProgram::DoRun()
         setFlowCoreTarget = false;
     }
 
-    auto client = clientsCache->GetClient(config->ClusterUrl);
-    THROW_ERROR_EXCEPTION_UNLESS(client,
-        "Root clients cache returned no client for cluster %Qv",
-        config->ClusterUrl);
-
     RunPipeline(
-        client,
+        target,
         config->Path,
         config->Spec,
         config->DynamicSpec,
@@ -200,7 +215,7 @@ void TSimpleRunnerProgram::DoRun()
     PrintPipelineUiUrl(config->ClusterUrl, config->Path);
 
     if (FromString<bool>(GetEnv("YT_FLOW_WAIT", "1"))) {
-        WaitPipeline(client, pipelinePath, DefaultWaitPipelineTimeout, vanillaOperation);
+        WaitPipeline(target, pipelinePath, DefaultWaitPipelineTimeout, vanillaOperation);
     }
 }
 

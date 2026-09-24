@@ -1,5 +1,6 @@
 #include "transaction.h"
 #include "private.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>

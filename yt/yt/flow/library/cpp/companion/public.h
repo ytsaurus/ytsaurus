@@ -67,6 +67,7 @@ DECLARE_REFCOUNTED_CLASS(TTransformCompanionComputation);
 DECLARE_REFCOUNTED_CLASS(TTransformOrderedSourceCompanionComputation);
 
 DECLARE_REFCOUNTED_STRUCT(TCompanionConfig);
+DECLARE_REFCOUNTED_STRUCT(TCompanionMonitoringConfig);
 DECLARE_REFCOUNTED_STRUCT(TCompanionExecutionConfig);
 DECLARE_REFCOUNTED_STRUCT(TCompanionEntrypoint);
 DECLARE_REFCOUNTED_STRUCT(TCompanionManagerParameters);

@@ -657,6 +657,33 @@ TEST_F(TStateClientTest, LifecycleSyncWritesLiveClients)
 ////////////////////////////////////////////////////////////////////////////////
 // TJobStateManager — preload callbacks
 
+TEST_F(TStateClientTest, ClearReleasesManagersAndDiscardsPendingWrites)
+{
+    auto managerContext = MakeManagerContextWithExternal(/*autoPreload*/ true);
+    auto manager = MakeManager(managerContext);
+    auto externalManager = MakeWeak(GetRecordingManager(manager));
+    auto context = manager->CreateContext();
+    auto key = MakeKey<ui64>(1);
+    auto partitionClient = WaitFor(context->AsPartition()->CreateMutableStateClient<i64>("partition"))
+        .ValueOrThrow();
+    auto keyClient = WaitFor(context->AsKey(key)->CreateMutableStateClient<i64>("key"))
+        .ValueOrThrow();
+    auto keyedClient = WaitFor(context->CreateMutableStateKeyClient<i64>("keyed"))
+        .ValueOrThrow();
+    WaitFor(keyedClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    *partitionClient = 1;
+    *keyClient = 2;
+    *keyedClient.GetState(key) = 3;
+
+    manager->Clear();
+
+    EXPECT_FALSE(externalManager.Lock());
+    EXPECT_FALSE(manager->HasPreloadCallbacks());
+    manager->Sync(/*transaction*/ nullptr);
+    EXPECT_EQ(DynamicPointerCast<NTables::TInMemoryPartitionStates>(managerContext->PartitionStates)->GetWriteCount(), 0);
+    EXPECT_EQ(DynamicPointerCast<NTables::TInMemoryKeyStates>(managerContext->KeyStates)->GetWrittenKeyCount(), 0);
+}
+
 TEST_F(TStateClientTest, ManagerHasPreloadCallbacksAfterKeyClientCreated)
 {
     auto managerContext = MakeManagerContext();

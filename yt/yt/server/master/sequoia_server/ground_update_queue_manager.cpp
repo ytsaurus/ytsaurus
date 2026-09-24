@@ -28,6 +28,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>

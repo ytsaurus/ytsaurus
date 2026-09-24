@@ -24,7 +24,7 @@ You can find the code [here]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_
 
 ## Reading data
 
-This part is pretty standard. Since the data is already in the required format in the input queue, you can use the combination `TSwiftPassthroughSourceComputation + TQueueSource`. You register `action_reader`, which generates the `action` stream, and `hit_reader`, which generates the `hit` stream.
+This part is pretty standard. Since the data is already in the required format in the input queue, you can use the combination `TSwiftPassthroughOrderedSourceComputation + TQueueSource`. You register `action_reader`, which generates the `action` stream, and `hit_reader`, which generates the `hit` stream.
 
 However, for the pipeline to work correctly, you need to configure time handling properly. For both `SourceComputation` instances, you must set up `watermark_strategy`:
 
@@ -105,7 +105,7 @@ First, let’s look more closely at the join spec:
             };
             "sinks" = {
                 "queue" = {
-                    "sink_class_name" = "NYT::NFlow::TQueueSink";
+                    "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
                     "input_stream_ids" = ["joined_action"];
                     "parameters" = {
                     };
@@ -130,7 +130,7 @@ First, let’s look more closely at the join spec:
 
 - In `group_by_schema`, in addition to `hit_id` and `hit_time`, we include `hash`. This is for the correct operation of the [partitioning](../../../../flow/concepts/glossary.md#partition) algorithm.
 - The pipeline needs a [timer](../../../../flow/concepts/glossary.md#timer) to close the hit, so we register `timer` in `timers`. We don’t specify extra settings because timers, by default, use `event_time` and the input streams.
-- To send the `joined_event` to an ordered dynamic table (which might be on another cluster), we use an asynchronous `TQueueSink`.
+- To send the `joined_event` to an ordered dynamic table (which might be on another cluster), we use an asynchronous `TAsyncQueueSink`.
 
 The join itself is implemented as a [process function](../../../../flow/cpp/process-functions.md) called `TJoinFunction` (a subclass of `IProcessFunction` that processes messages and timers element by element). It’s executed by the built-in `TProcessFunctionComputation`. In the spec, you set it via `processing_function`, and `wait_for_actions` is passed through `processing_function_parameters`. We recommend reading the code in the repository because it’s continuously improved.
 

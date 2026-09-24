@@ -440,7 +440,10 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         }
     }
 
-    if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
+    if (reduceJobSpecExt.disable_sorted_input() &&
+        jobSpecExt.foreign_input_table_specs_size() == 0 &&
+        !reduceJobSpecExt.has_push_based_shuffle_valid_task_job_indexes())
+    {
         // Input tables are currently sorted, although this property is not utilized by this reader.
         // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
         // in the current implementation.
@@ -580,6 +583,18 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
             memoryManager);
 
         primaryReaders.emplace_back(reader);
+    }
+
+    if (reduceJobSpecExt.has_push_based_shuffle_valid_task_job_indexes()) {
+        YT_VERIFY(jobSpecExt.foreign_input_table_specs().empty());
+
+        return {
+            CreatePushBasedShuffleMergingReader(
+                primaryReaders,
+                reduceJobSpecExt.push_based_shuffle_valid_task_job_indexes(),
+                sortColumns),
+            preparationDataStatistics,
+        };
     }
 
     std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
@@ -730,11 +745,28 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
 
+    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+    if (reduceJobSpecExt.has_push_based_shuffle_sort_reader()) {
+        const auto& readerSpec = reduceJobSpecExt.push_based_shuffle_sort_reader();
+
+        YT_VERIFY(readerSpec.has_valid_task_job_indexes());
+
+        return {
+            CreatePushBasedShuffleSortReader(
+                jobSpecExt,
+                readerSpec,
+                FromProto<TNameTablePtr>(readerSpec.intermediate_stream_name_table()),
+                FromProto<TSortColumns>(reduceJobSpecExt.sort_columns()),
+                chunkReaderHost,
+                std::move(onNetworkReleased)),
+            std::nullopt,
+        };
+    }
+
     const auto& inputSpec = jobSpecExt.input_table_specs(0);
     auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
     auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
-    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
     auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
     auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
 

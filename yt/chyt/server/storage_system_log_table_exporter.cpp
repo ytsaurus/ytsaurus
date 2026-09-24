@@ -389,7 +389,7 @@ public:
                 }
                 extraRowBuffer->Clear();
             } catch (const std::exception& ex) {
-                YT_TLOG_ERROR("Failed to convert chunk to unverionsed rows; chunk skipped")
+                YT_TLOG_ERROR("Failed to convert chunk to unversioned rows; chunk skipped")
                     .With("RowCount", chunk.getNumRows())
                     .With(ex);
             }

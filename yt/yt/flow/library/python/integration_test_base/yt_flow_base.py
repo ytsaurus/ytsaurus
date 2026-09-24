@@ -476,7 +476,13 @@ class FlowTestBase:
         additional_env: dict[str, str] | None = None,
         worker_node_config_overrides: list[dict] | None = None,
         leader_wait_timeout: Optional[int] = None,
+        wait_pipeline: bool = True,
     ):
+        """Start the controllers, the workers and (unless run_pipeline is False) the runner.
+
+        wait_pipeline=False skips the pipeline state waits, which go through the RPC proxy;
+        for clusters where the proxy cannot reach the controller.
+        """
         if node_config is None:
             node_config = {}
         if binary_path is None:
@@ -530,6 +536,7 @@ class FlowTestBase:
             use_vanilla_jobs=use_vanilla_jobs,
             worker_node_config_overrides=worker_node_config_overrides,
             client=self.client,
+            dump_pipeline_state=self._try_dump_pipeline_state,
         ) as federation:
             monitoring = (
                 MonitoringStack(self.path_to_flow_logs, self.port_manager) if MONITORING_STACK_ENABLED else None
@@ -544,22 +551,21 @@ class FlowTestBase:
                         lambda: self.client.exists(f"{self.pipeline_path}/@leader_controller_address"),
                         timeout=leader_wait_timeout,
                     )
-                if run_pipeline:
-                    self.wait_pipeline_state(["working", "completed"])
-                else:
-                    wait(
-                        lambda: self.client.get_pipeline_state(self.pipeline_path) != "",
-                        timeout=180,
-                        ignore_exceptions=True,
-                    )
+                if wait_pipeline:
+                    if run_pipeline:
+                        self.wait_pipeline_state(["working", "completed"])
+                    else:
+                        wait(
+                            lambda: self.client.get_pipeline_state(self.pipeline_path) != "",
+                            timeout=180,
+                            ignore_exceptions=True,
+                        )
                 yield federation
             except WaitFailed:
                 debug_hang = True
                 raise
             finally:
-                self._try_dump_flow_view()
-                self._try_dump_description()
-                federation.try_dump_processes_state(debug_hang=debug_hang)
+                federation.try_dump_final_state(debug_hang=debug_hang)
                 # Pause before teardown so the pipeline stays up for inspection. Requested explicitly
                 # via PAUSE_BEFORE_FLOW_PROCESS_FEDERATION_TEARDOWN, or implicitly whenever the
                 # monitoring stack actually came up (its whole point is to browse the live metrics) --
@@ -573,6 +579,10 @@ class FlowTestBase:
                     monitoring.notify_hold()
                 while pause_before_teardown:
                     time.sleep(1)
+
+    def _try_dump_pipeline_state(self):
+        self._try_dump_flow_view()
+        self._try_dump_description()
 
     def _try_dump_flow_view(self):
         try:

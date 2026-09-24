@@ -38,7 +38,7 @@ const auto CreateStartTransactionResponse = BIND_NO_PROPAGATE([] (TTransactionId
     ToProto(rsp.mutable_id(), transactionId);
     return std::pair(
         CreateResponseMessage(rsp),
-        std::string(Format("TransactionId: %v", transactionId)));
+        NLogging::TLoggingTagList().With("TransactionId", transactionId));
 });
 
 const auto CreateAbortTransactionResponse = BIND_NO_PROPAGATE([] () {
@@ -60,7 +60,6 @@ void StartCypressTransactionInSequoiaAndReply(
     const ITransactionManager::TCtxStartCypressTransactionPtr& context)
 {
     context->ReplyAndLogFrom(
-        /*incremental*/ false,
         StartCypressTransaction(
             bootstrap
                 ->GetSequoiaConnection()

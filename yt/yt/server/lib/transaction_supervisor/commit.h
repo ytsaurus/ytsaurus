@@ -36,6 +36,10 @@ void Serialize(const TExpectedTransactionSignatureInfo& signatureInfo, NYson::IY
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TTransactionCommitApprovalCounts = THashMap<TCellId, int>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ECommitState,
     ((Start)                     (0))
     ((Prepare)                   (1))
@@ -57,6 +61,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYREF_RO_PROPERTY(TExpectedTransactionSignatureInfo, ExpectedPrepareSignatures);
+    DEFINE_BYREF_RO_PROPERTY(TTransactionCommitApprovalCounts, TargetCommitApprovalCounts);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, PrepareOnlyParticipantCellIds);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, CellIdsToSyncWithBeforePrepare);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
@@ -83,6 +88,7 @@ public:
         NRpc::TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
         TExpectedTransactionSignatureInfo expectedPrepareSignatures,
+        TTransactionCommitApprovalCounts targetCommitApprovalCounts,
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,

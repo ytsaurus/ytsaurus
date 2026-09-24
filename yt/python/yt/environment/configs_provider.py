@@ -2488,7 +2488,7 @@ def init_singletons(config, yt_config):
     set_at(config, "rpc_dispatcher", {
         "compression_pool_size": 1,
         "heavy_pool_size": 1,
-        "alert_on_missing_request_info": True,
+        "alert_on_missing_request_annotation": True,
         "alert_on_unset_request_timeout": True,
     })
     set_at(config, "chunk_client_dispatcher", {

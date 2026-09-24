@@ -14,7 +14,11 @@ import tech.ytsaurus.flow.row.codec.InternalStateValueCodec;
  * <p>The value it returns is live: it is decoded once per key and request, every accessor for
  * that key hands out the same object, and the changes made to it in place are written back at
  * the end of the request without a {@link #set} call. Nothing is written when the value encodes
- * to the bytes it arrived with. {@link #readOnly()} gives the untracked view.
+ * to the bytes it arrived with, the default of {@link #getOrDefault} included.
+ * {@link #readOnly()} gives the untracked view.
+ *
+ * <p>A state whose value cannot be changed in place — a protobuf one — is never tracked: it is
+ * written by {@link #set} and {@link #clear} alone.
  *
  * @param <T> state value type.
  */
@@ -62,42 +66,38 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
         if (state == null || state.isReset()) {
             return null;
         }
-        return state.getMutableValue(codec);
+        return descriptor.holdsImmutableValue() ? state.getValue(codec) : state.getMutableValue(codec);
     }
 
     /**
      * {@inheritDoc}
      *
-     * <p>The default becomes the state value and is written back, as if it had been {@link #set}.
+     * <p>The default is attached to the key, not written: it becomes the state value only once
+     * the computation changes it.
      */
     @Override
     public T getOrDefault(T defaultValue) {
         T value = get();
-        if (value == null) {
-            set(defaultValue);
-            return defaultValue;
-        }
-        return value;
+        return value != null ? value : attach(defaultValue);
     }
 
     /**
      * {@inheritDoc}
      *
-     * <p>The default becomes the state value and is written back, as if it had been {@link #set}.
+     * <p>The default is attached to the key, not written: it becomes the state value only once
+     * the computation changes it.
      */
     @Override
     public T getOrDefault() {
         T value = get();
-        if (value == null) {
-            T defaultValue = descriptor.defaultValue();
-            set(defaultValue);
-            return defaultValue;
-        }
-        return value;
+        return value != null ? value : attach(descriptor.defaultValue());
     }
 
     /**
      * {@inheritDoc}
+     *
+     * <p>A value that encodes to zero bytes is indistinguishable from no value on the wire and
+     * is sent back as a removal.
      */
     @Override
     public void set(T value) {
@@ -109,7 +109,7 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
      */
     @Override
     public void clear() {
-        statesHolder.set(key.getRow(), State.RESET);
+        statesHolder.clear(key.getRow());
     }
 
     /**
@@ -126,6 +126,24 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
     @Override
     public StateAccessor<T> readOnly() {
         return new ReadOnlyInternalStateAccessor<>(this);
+    }
+
+    /**
+     * Puts {@code value} under the key as an unmodified state and encodes it right away, so that
+     * the bytes serve as the baseline the end-of-request sweep compares against: an untouched
+     * default produces no write, one changed in place does. An immutable value is stored without
+     * the codec instead — there is nothing for the sweep to find, so it skips the entry.
+     */
+    private T attach(T value) {
+        State state;
+        if (descriptor.holdsImmutableValue()) {
+            state = new State(codec.encode(value), value);
+        } else {
+            state = new State(value, codec);
+            state.getBytes();
+        }
+        statesHolder.load(key.getRow(), state);
+        return value;
     }
 
     /**

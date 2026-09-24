@@ -865,9 +865,15 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("quorum_session_delay", &TThis::QuorumSessionDelay)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("max_chunks_per_seal_queue_scan", &TThis::MaxChunksPerSealQueueScan)
+        .GreaterThan(0)
+        .Default(10000);
     registrar.Parameter("max_chunks_per_seal", &TThis::MaxChunksPerSeal)
         .GreaterThan(0)
         .Default(10000);
+    registrar.Parameter("max_chunks_per_global_seal_scan", &TThis::MaxChunksPerGlobalSealScan)
+        .GreaterThan(0)
+        .Default(100000);
     registrar.Parameter("max_concurrent_chunk_seals", &TThis::MaxConcurrentChunkSeals)
         .GreaterThan(0)
         .Default(10);

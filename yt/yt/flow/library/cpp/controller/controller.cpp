@@ -5,7 +5,7 @@
 #include "config.h"
 #include "job_manager.h"
 #include "lease_manager.h"
-#include "lineage_rate_aggregator.h"
+#include "lineage_aggregator.h"
 #include "persisted_state_manager.h"
 #include "throttler_host.h"
 #include "worker.h"
@@ -236,15 +236,15 @@ public:
         void Apply(const TAggregatedNodePerformanceMetricsPtr& metrics)
         {
             CpuUsageTotalGauge_.Update(metrics->Total->CpuUsageCurrent.value_or(0));
-            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent);
+            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent.value_or(0));
 
             // CpuUsageCurrent/MemoryUsageCurrent is bad metric for taking maximum.
             PartitionCpuUsageMaxGauge_.Update(metrics->Max->CpuUsage30s.value_or(0));
             // Per-partition memory metric is very noisy, so use 10-min smoothed metric.
-            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m);
+            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m.value_or(0));
 
             PartitionCpuUsageAvgGauge_.Update(metrics->Avg->CpuUsageCurrent.value_or(0));
-            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent);
+            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent.value_or(0));
         }
 
         void ResetPerformanceMetrics()
@@ -445,8 +445,10 @@ public:
         , LeaseManager_(CreateLeaseManager(
             Connector_,
             Config_->LeaseManager,
-            Config_->ElectionManager.GetType() == EElectionBackend::Dyntable,
-            Config_->PersistedStateManager->MaxWritesPerTransaction))
+            Config_->ElectionManager.GetType(),
+            Config_->ElectionManager.TryGetConcrete<TChaosElectionBackendConfig>(),
+            Config_->PersistedStateManager->MaxWritesPerTransaction,
+            invoker))
         , MutationMetrics_(Profiler_)
         , CurrentEpochGauge_(Profiler_.Gauge("/current_epoch"))
         , ComputationCountGauge_(Profiler_.Gauge("/computation_count"))
@@ -472,7 +474,6 @@ public:
         THashMap<EWorkerState, ui64> counts;
         flowView->State->Workers.clear();
         flowView->EphemeralState->FlowCoreTargetMismatchedWorkers.clear();
-        THashSet<TIncarnationId> incarnations;
 
         const auto& flowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget;
         ui64 flowCoreTargetMismatchCount = 0;
@@ -495,12 +496,10 @@ public:
                     worker->RegisterTime = w.RegisterTime;
                     worker->LegacyAddress = worker->RpcAddress;
                     flowView->State->Workers[worker->RpcAddress] = worker;
-                    incarnations.insert(w.IncarnationId);
                 }
             }
             counts[w.State] += 1;
         }
-        DropMissingKeys(flowView->EphemeralState->WorkerIncarnationsJobs, incarnations);
         for (const auto& [state, count] : counts) {
             if (!WorkerCountGauges_.contains(state)) {
                 WorkerCountGauges_[state] = Profiler_.WithTag("state", ToString(state)).Gauge("/worker_count");
@@ -535,7 +534,7 @@ public:
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
 
-        LineageRateAggregator_.Update(flowView);
+        LineageAggregator_.Update(flowView);
 
         if (!UpdateSpecs(flowView, spec, dynamicSpec)) {
             YT_TLOG_WARNING("No job manager, fast stop");
@@ -643,9 +642,9 @@ public:
         TIncarnationId workerIncarnationId,
         TWorkerStatisticsPtr statistics)
     {
-        LineageRateAggregator_.AddWorkerRates(
+        LineageAggregator_.AddWorkerRatios(
             workerIncarnationId,
-            std::move(statistics->LineageRates));
+            std::move(statistics->LineageRatios));
     }
 
     void UpdateMetrics(const TFlowViewPtr& flowView)
@@ -758,7 +757,7 @@ private:
     const IThrottlerHostPtr ThrottlerHost_;
     const ILeaseManagerPtr LeaseManager_;
     IJobManagerPtr JobManager_;
-    TLineageRateAggregator LineageRateAggregator_;
+    TLineageAggregator LineageAggregator_;
 
     TMutationMetrics MutationMetrics_;
     THashMap<TStreamId, TStreamMetrics> StreamMetrics_;
@@ -921,8 +920,12 @@ private:
             }
         }
 
-        void OnUpdateJob(const TJobPtr& /*oldJob*/, const TJobPtr& /*newJob*/) override
+        void OnUpdateJob(const TJobPtr& oldJob, const TJobPtr& newJob) override
         {
+            // An update keeps the job where it is; a job on another worker or partition is a
+            // new job, and #WorkerIncarnationsJobs relies on that.
+            YT_VERIFY(newJob->WorkerIncarnationId == oldJob->WorkerIncarnationId);
+            YT_VERIFY(newJob->PartitionId == oldJob->PartitionId);
             if (auto strongLeader = WeakLeader_.Lock()) {
                 strongLeader->MutationMetrics_.UpdateJobLeaseCounter.Increment();
             }
@@ -941,7 +944,13 @@ private:
                 }
                 state->PreviousJobFinishReason = reason;
 
-                EphemeralState_->WorkerIncarnationsJobs[oldJob->WorkerIncarnationId].erase(oldJob->JobId);
+                auto incarnationIt = EphemeralState_->WorkerIncarnationsJobs.find(oldJob->WorkerIncarnationId);
+                if (incarnationIt != EphemeralState_->WorkerIncarnationsJobs.end()) {
+                    incarnationIt->second.erase(oldJob->JobId);
+                    if (incarnationIt->second.empty()) {
+                        EphemeralState_->WorkerIncarnationsJobs.erase(incarnationIt);
+                    }
+                }
             }
         }
 
@@ -1303,10 +1312,14 @@ private:
             }
         }
 
-        // Remove WorkerSpecs entries for workers that no longer exist.
+        // Remove the WorkerSpecs of workers that no longer exist and of workers that re-registered
+        // with a new incarnation: a new incarnation has no preloaded resources.
         std::vector<std::string> staleWorkerAddresses;
         for (const auto& [workerAddress, workerSpec] : flowLayout->WorkerSpecs) {
-            if (!flowView->State->Workers.contains(workerAddress)) {
+            auto* worker = flowView->State->Workers.FindPtr(workerAddress);
+            if (!worker ||
+                (workerSpec->WorkerIncarnationId && *workerSpec->WorkerIncarnationId != (*worker)->IncarnationId))
+            {
                 staleWorkerAddresses.push_back(workerAddress);
             }
         }

@@ -28,6 +28,9 @@ void TCompositeSettings::Register(TRegistrar registrar)
     registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
         .Default(false);
 
+    registrar.Parameter("annotate_result_schema_with_native_types", &TThis::AnnotateResultSchemaWithNativeTypes)
+        .Default(false);
+
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
 }
@@ -106,6 +109,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_after_refresh_commit", &TThis::ThrowExceptionAfterRefreshCommit)
         .Default(false);
+    registrar.Parameter("fail_materialized_view_refresh_query_response_for_partition", &TThis::FailMaterializedViewRefreshQueryResponseForPartition)
+        .Default();
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
@@ -346,6 +351,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
         .Default(false);
 
+    registrar.Parameter("materialized_view_populate", &TThis::MaterializedViewPopulate)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;
         config->TableReader->WindowSize = 70_MB;
@@ -556,6 +564,9 @@ void TMaterializedViewsConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_rows_per_refresh", &TThis::MaxRowsPerRefresh)
         .GreaterThanOrEqual(0)
         .Default(0);
+    registrar.Parameter("max_partitions_per_refresh", &TThis::MaxPartitionsPerRefresh)
+        .GreaterThanOrEqual(0)
+        .Default(10);
     registrar.Parameter("query_timeout", &TThis::QueryTimeout)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("table_mount_timeout", &TThis::TableMountTimeout)

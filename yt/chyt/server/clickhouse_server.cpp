@@ -195,7 +195,7 @@ private:
     void SetupLogger()
     {
         LogChannel_ = CreateLogChannel(ClickHouseNativeLogger());
-        // Pass logs to Client via TCP interface. Useful for debugging with `SET send_logs_level='trace'`
+        // Pass logs to Client via TCP interface. Useful for debugging with `SET send_logs_level='trace'`.
         DBPoco::AutoPtr<DB::OwnSplitChannel> splitChannel = new DB::OwnSplitChannel();
         splitChannel->addChannel(LogChannel_, "chyt_logs");
 

@@ -22,6 +22,8 @@ void TComputationPartitioningState::Register(TRegistrar registrar)
 {
     registrar.Parameter("last_applied_sink_topology_version", &TThis::LastAppliedSinkTopologyVersion)
         .Default();
+    registrar.Parameter("retiring_source_partitions", &TThis::RetiringSourcePartitions)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,11 @@ TPartitioningCoordinator::TPartitioningCoordinator(
 void TPartitioningCoordinator::BeginIteration()
 {
     for (auto& [_, state] : Computations_) {
+        if (state.PreviousRetiringSourcePartitions) {
+            state.PersistedState->RetiringSourcePartitions =
+                std::move(*state.PreviousRetiringSourcePartitions);
+            state.PreviousRetiringSourcePartitions.reset();
+        }
         if (state.PendingAppliedSinkTopologyVersion) {
             state.PersistedState->LastAppliedSinkTopologyVersion =
                 state.PreviousAppliedSinkTopologyVersion;
@@ -137,6 +144,7 @@ void TPartitioningCoordinator::Commit()
     for (auto& [_, state] : Computations_) {
         state.PendingAppliedSinkTopologyVersion.reset();
         state.PreviousAppliedSinkTopologyVersion.reset();
+        state.PreviousRetiringSourcePartitions.reset();
     }
 }
 
@@ -192,6 +200,19 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         UpdateDynamicPartitionSpec(flowView, partitionId, trivialDynamicPartitionSpec, logger);
     }
 
+    auto rememberRetiringSourcePartitions = [&] {
+        if (!state.PreviousRetiringSourcePartitions) {
+            state.PreviousRetiringSourcePartitions =
+                state.PersistedState->RetiringSourcePartitions;
+        }
+    };
+    auto eraseRetiringSourcePartition = [&] (const TPartitionId& partitionId) {
+        if (state.PersistedState->RetiringSourcePartitions.contains(partitionId)) {
+            rememberRetiringSourcePartitions();
+            state.PersistedState->RetiringSourcePartitions.erase(partitionId);
+        }
+    };
+
     auto description = controller->DescribePartitioning(BuildPartitioningStatus(grouped, flowView));
     if (auto* rangeDescription = std::get_if<IComputationController::TPartitioningDescription::TRange>(
         &description.Value))
@@ -199,6 +220,7 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         for (const auto& partitionId : GetKeys(grouped.KeyPartitions)) {
             // A source-shaped partition is invalid for range partitioning; interrupt and forget it.
             InterruptPartition(flowView, partitionId);
+            eraseRetiringSourcePartition(partitionId);
         }
 
         auto makeDynamicPartitionSpec = [&] (const TKey& lower, const TKey& upper) {
@@ -329,18 +351,19 @@ void TPartitioningCoordinator::DoComputationPartitioning(
         };
 
         for (const auto& [partitionId, key] : grouped.KeyPartitions) {
-            if (auto it = expectedKeys.find(key); it != expectedKeys.end()) {
-                UpdateDynamicPartitionSpec(
-                    flowView,
-                    partitionId,
-                    makeDynamicPartitionSpec(key, std::move(it->second)),
-                    logger);
-                expectedKeys.erase(it);
-                continue;
-            }
-
             const auto& partition = GetOrCrash(layout->Partitions, partitionId);
+            auto expectedIt = expectedKeys.find(key);
             if (partition->State == EPartitionState::Completed) {
+                const bool isRetiring =
+                    state.PersistedState->RetiringSourcePartitions.contains(partitionId);
+                if (
+                    !isRetiring &&
+                    expectedIt != expectedKeys.end())
+                {
+                    expectedKeys.erase(expectedIt);
+                    continue;
+                }
+
                 YT_TLOG_EVENT(
                     state.PublicLogger,
                     NLogging::ELogLevel::Info,
@@ -348,21 +371,44 @@ void TPartitioningCoordinator::DoComputationPartitioning(
                     .With("PartitionId", partitionId)
                     .With("Partition", ConvertToYsonString(partition, EYsonFormat::Text));
                 layout->RemovePartition(partitionId);
-            } else {
-                // The vanished key has no expected-key spec, while ephemeral specs do not survive a
-                // restart. Publish an empty active-source spec so the worker can run its retirement job.
+                if (isRetiring) {
+                    eraseRetiringSourcePartition(partitionId);
+                }
+                continue;
+            }
+
+            if (partition->State == EPartitionState::Executing && expectedIt != expectedKeys.end()) {
                 UpdateDynamicPartitionSpec(
                     flowView,
                     partitionId,
-                    makeDynamicPartitionSpec(key, GetEphemeralNodeFactory()->CreateMap()),
+                    makeDynamicPartitionSpec(key, std::move(expectedIt->second)),
                     logger);
-                if (partition->State == EPartitionState::Executing) {
-                    // Complete rather than interrupt so the obsolete source-key state is erased.
-                    CompletePartition(flowView, partitionId);
-                } else {
-                    // GroupPartitions admits only executing, completing, or completed source partitions.
-                    YT_VERIFY(partition->State == EPartitionState::Completing);
-                }
+                expectedKeys.erase(expectedIt);
+                continue;
+            }
+
+            if (
+                expectedIt == expectedKeys.end() &&
+                !state.PersistedState->RetiringSourcePartitions.contains(partitionId))
+            {
+                rememberRetiringSourcePartitions();
+                state.PersistedState->RetiringSourcePartitions.insert(partitionId);
+            }
+
+            // Ephemeral specs do not survive a restart. Keep publishing an empty active-source
+            // spec while this partition owns the key through completion.
+            UpdateDynamicPartitionSpec(
+                flowView,
+                partitionId,
+                makeDynamicPartitionSpec(key, GetEphemeralNodeFactory()->CreateMap()),
+                logger);
+            if (partition->State == EPartitionState::Executing) {
+                CompletePartition(flowView, partitionId);
+            } else {
+                YT_VERIFY(partition->State == EPartitionState::Completing);
+            }
+            if (expectedIt != expectedKeys.end()) {
+                expectedKeys.erase(expectedIt);
             }
         }
 

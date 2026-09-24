@@ -11,6 +11,7 @@
 
 #include <atomic>
 #include <limits>
+#include <optional>
 
 namespace NYT::NFlow {
 
@@ -57,6 +58,7 @@ ASSIGN_EXTERNAL_YSON_SERIALIZER(TStreamUsage, TStreamUsageSerializer);
 //!   - offered rate: written by the input buffer (or the source computation),
 //!     read by the manager tick.
 //!   - estimated speed: written by the manager, read by the warmup poller.
+//!   - demand: written by the manager, read by job status reporting.
 class alignas(64) TStreamLimitUsageState
     : public TRefCounted
 {
@@ -93,6 +95,10 @@ public:
     void SetLimitBytes(i64 limitBytes);
     i64 GetLimitBytes() const;
 
+    //! Pre-pool v2 demand in inflated bytes, excluding overrides and speculative output.
+    void SetDemandBytes(std::optional<i64> demandBytes);
+    std::optional<i64> GetDemandBytes() const;
+
     i64 GetInflationPerMessage() const;
     bool IsUsageWithinLimits(const TStreamUsage& usage) const;
 
@@ -104,6 +110,7 @@ private:
     std::atomic<ui64> PendingInflatedBytes_{0};
     std::atomic<ui64> Seq_{0};
     std::atomic<i64> LimitBytes_{std::numeric_limits<i64>::max()};
+    std::atomic<i64> DemandBytes_{-1};
     std::atomic<i64> MaxInflatedInflightBytes_{0};
     std::atomic<double> EstimatedInflatedSpeed_{0};
     std::atomic<double> OfferedInflatedBytesPerSecond_{0};

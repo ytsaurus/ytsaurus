@@ -103,6 +103,9 @@ public class StateDescriptors {
      * <p>{@code getOrDefault()} returns a freshly-built default protobuf message
      * (equivalent to {@code stateClass.newBuilder().build()}) when no value is stored.
      *
+     * <p>A protobuf message is immutable, so the state is written only by {@code set()} and
+     * {@code clear()}: reading it does not track it for in-place changes.
+     *
      * @param name       state name
      * @param stateClass state class
      * @param <T>        state type
@@ -116,7 +119,8 @@ public class StateDescriptors {
                 name,
                 stateClass,
                 new ProtobufByteArrayCodec<>(stateClass),
-                protobufDefault(stateClass)
+                protobufDefault(stateClass),
+                /*immutableValue*/ true
         );
     }
 

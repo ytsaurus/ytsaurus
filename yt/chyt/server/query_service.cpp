@@ -207,6 +207,8 @@ private:
             Logger);
         ConversionSettings_ = querySettings->Conversion;
         ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
+        ConversionSettings_->Composite->AnnotateResultSchemaWithNativeTypes =
+            Request_->annotate_result_schema_with_native_types();
     }
 
     void BuildPipeline(const TString& query)
@@ -341,10 +343,10 @@ private:
         const auto& user = context->GetAuthenticationIdentity().User;
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v, Query: %v, RowCountLimit: %v",
-            queryId,
-            request->chyt_request().query(),
-            request->row_count_limit());
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("Query", request->chyt_request().query())
+            .With("RowCountLimit", request->row_count_limit());
 
         ToProto(response->mutable_query_id(), queryId);
 
@@ -357,9 +359,8 @@ private:
         auto rowsetsOrError = call.Execute();
 
         if (rowsetsOrError.IsOK()) {
-            context->SetResponseInfo("QueryId: %v, ResultsCount: %v",
-                queryId,
-                rowsetsOrError.Value().size());
+            context->AnnotateResponse()
+                .With("ResultCount", rowsetsOrError.Value().size());
             std::vector<TSharedRef> attachments;
             for (auto& rowset : rowsetsOrError.Value()) {
                 attachments.push_back(std::move(rowset.Rowset));
@@ -367,9 +368,8 @@ private:
             }
             response->Attachments() = std::move(attachments);
         } else {
-            context->SetResponseInfo("QueryId: %v, Error: %v",
-                queryId,
-                rowsetsOrError);
+            context->AnnotateResponse()
+                .With("Error", rowsetsOrError);
             ToProto(response->mutable_error(), rowsetsOrError);
         }
 
@@ -380,9 +380,10 @@ private:
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
-        auto isFinishedCount = 0;
+        auto finishedCount = 0;
         auto additionalQueryIds = WaitFor(Host_->GetQueryRegistry()->GetAdditionalQueryIds(queryId)).ValueOrThrow();
         if (additionalQueryIds.empty()) {
             additionalQueryIds.push_back(queryId);
@@ -391,18 +392,17 @@ private:
         for (const auto& additionalQueryId : additionalQueryIds) {
             auto queryProgress = WaitFor(Host_->GetQueryRegistry()->GetQueryProgress(additionalQueryId)).ValueOrThrow();
             if (queryProgress && queryProgress->TotalProgress.Finished) {
-                ++isFinishedCount;
+                ++finishedCount;
             }
             ToProto(response->mutable_multi_progress()->mutable_progresses()->Add(), additionalQueryId, queryProgress);
         }
         if (response->multi_progress().progresses().size() > 0) {
-            context->SetResponseInfo("QueryId: %v, ProgressesCount: %v, IsFinishedCount: %v",
-                queryId,
-                response->multi_progress().progresses().size(),
-                isFinishedCount);
+            context->AnnotateResponse()
+                .With("ProgressCount", response->multi_progress().progresses().size())
+                .With("FinishedCount", finishedCount);
         } else {
-            context->SetResponseInfo(
-                "No progress found because the query has already finished or was initiated on another instance");
+            context->AnnotateResponse()
+                .With("ProgressFound", false);
         }
 
         context->Reply();

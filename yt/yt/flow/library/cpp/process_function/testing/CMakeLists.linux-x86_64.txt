@@ -37,6 +37,8 @@ target_link_libraries(cpp-process_function-testing PUBLIC
   library-cpp-common
   library-cpp-misc
   tables-unittests-mock
+  yt-client-cache
+  client-unittests-mock
   library-query-engine
 )
 

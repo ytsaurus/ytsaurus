@@ -38,6 +38,7 @@ GO_TEST_SRCS(
     client_test.go
     conn_pool_test.go
     helpers_test.go
+    lock_rows_test.go
     mutation_retrier_test.go
     object_type_test.go
     retrier_test.go

@@ -4,6 +4,8 @@
 
 #include "config.h"
 
+#include <yt/yt/flow/library/cpp/controller/config.h>
+
 #include <yt/yt/flow/library/cpp/vanilla/current_operation.h>
 #include <yt/yt/flow/library/cpp/vanilla/files.h>
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
@@ -62,11 +64,11 @@ namespace {
 constexpr int DefaultRpcPort = 10080;
 constexpr int DefaultMonitoringPort = 10081;
 constexpr int DefaultCompanionPort = 10082;
+constexpr int DefaultCompanionMonitoringPort = 10083;
 
-// Default `port_count` for tasks without a network project: rpc + monitoring for the
-// controller, plus the companion port for the worker.
+// Default port counts include RPC and monitoring endpoints for each task.
 constexpr int DefaultControllerPortCount = 2;
-constexpr int DefaultWorkerPortCount = 3;
+constexpr int DefaultWorkerPortCount = 4;
 
 // In-job file names for the binary and the node config; also the keys under vanilla/files.
 constexpr TStringBuf BinaryFileName = "flow_server";
@@ -95,11 +97,12 @@ NApi::IClientPtr GetClusterClient(
 }
 
 void ShutdownPriorVanillaOperation(
-    const NApi::IClientPtr& pipelineClient,
+    const TFlowExecuteTarget& pipelineTarget,
     const NYPath::TYPath& pipelinePath,
     TDuration waitTimeout,
     const NClient::NCache::IClientsCachePtr& clientsCache)
 {
+    const auto& pipelineClient = pipelineTarget.Client;
     auto pipelineExists = WaitFor(pipelineClient->NodeExists(pipelinePath)).ValueOrThrow();
     if (!pipelineExists) {
         return;
@@ -134,11 +137,11 @@ void ShutdownPriorVanillaOperation(
         .With("State", *opInfo.State)
         .With("Graceful", graceful);
     if (graceful) {
-        WaitFor(pipelineClient->StopPipeline(pipelinePath)).ThrowOnError();
-        WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Stopped, waitTimeout);
+        SetTargetPipelineState(pipelineTarget, pipelinePath, EPipelineState::Stopped);
+        WaitPipelineState(pipelineTarget, pipelinePath, EPipelineState::Stopped, waitTimeout);
     } else {
-        WaitFor(pipelineClient->PausePipeline(pipelinePath)).ThrowOnError();
-        WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Paused, waitTimeout);
+        SetTargetPipelineState(pipelineTarget, pipelinePath, EPipelineState::Paused);
+        WaitPipelineState(pipelineTarget, pipelinePath, EPipelineState::Paused, waitTimeout);
     }
     WaitFor(opClient->AbortOperation(opIdOrAlias)).ThrowOnError();
 }
@@ -261,6 +264,7 @@ TVanillaTaskSpec BuildTaskSpec(
     taskSpec.JobCount = task.JobCount;
     taskSpec.MemoryLimit = task.MemoryLimit;
     taskSpec.CpuLimit = task.CpuLimit;
+    taskSpec.SetContainerCpuLimit = task.SetContainerCpuLimit;
     taskSpec.PortCount = task.PortCount;
     taskSpec.Command = localBinaryPath
         ? Format("%v --config %v", *localBinaryPath, NodeConfigFileName)
@@ -307,6 +311,8 @@ void TVanillaTaskConfig::Register(TRegistrar registrar)
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .GreaterThan(0)
         .Default();
+    registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
+        .Default(false);
     registrar.Parameter("port_count", &TThis::PortCount)
         .GreaterThanOrEqual(0)
         .Default();
@@ -397,11 +403,8 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     std::optional<std::string> proxyRole,
     std::optional<int> workerPortCount)
 {
-    // Only the worker hosts a companion, and only a worker left on fixed ports may keep the
-    // fixed companion port: once the task asks YT for ports it runs on a host where fixed ones
-    // collide, and there 10082 could well be a neighbouring worker's companion. Requesting
-    // fewer than three ports then leaves the companion without one — a failure the companion
-    // manager reports, rather than a silent cross-wiring.
+    // YT-allocated ports imply a shared-network host, where a fixed companion port may belong
+    // to another job. Omit fixed companion ports there rather than risk cross-wiring.
     bool useFixedCompanionPort = workerPortCount.value_or(0) == 0;
 
     // clang-format off
@@ -417,6 +420,7 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
             .DoIf(useFixedCompanionPort, [&] (auto fluent) {
                 fluent.Item("companion").BeginMap()
                     .Item("port").Value(DefaultCompanionPort)
+                    .Item("monitoring_port").Value(DefaultCompanionMonitoringPort)
                 .EndMap();
             })
             .Item("abort_on_unrecognized_options").Value(false)
@@ -429,11 +433,42 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFlowNodeConfigPtr PatchVanillaNodeConfig(
+    const TFlowNodeConfigPtr& nodeConfig,
+    const INodePtr& patch)
+{
+    auto findMap = [] (const INodePtr& node, TStringBuf key) -> IMapNodePtr {
+        if (!node || node->GetType() != ENodeType::Map) {
+            return nullptr;
+        }
+        auto child = node->AsMap()->FindChild(TString(key));
+        return child && child->GetType() == ENodeType::Map ? child->AsMap() : nullptr;
+    };
+
+    auto node = ConvertToNode(nodeConfig);
+
+    // The patch is merged into a fully serialized config, and the backends spell their settings
+    // under the same keys. Left in place, the Cypress five-second TTL would reach a chaos manager
+    // that expects its own minute, so the subtree goes and the new backend fills it from its
+    // own defaults.
+    auto patchedElection = findMap(findMap(patch, "controller"), "election_manager");
+    if (patchedElection && patchedElection->FindChild(TString(NController::ElectionBackendDiscriminator))) {
+        if (auto controller = findMap(node, "controller")) {
+            controller->RemoveChild(TString("election_manager"));
+        }
+    }
+
+    return ConvertTo<TFlowNodeConfigPtr>(PatchNode(node, patch));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanillaConfig,
-    const NClient::NCache::IClientsCachePtr& clientsCache)
+    const NClient::NCache::IClientsCachePtr& clientsCache,
+    TDirectControllerCommandsConfigPtr directControllerCommands)
 {
     if (!vanillaConfig->Enable) {
         return {};
@@ -445,8 +480,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
 
     auto nodeConfig = BuildDefaultVanillaNodeConfig(pipelinePath, proxyRole, vanillaConfig->Worker->PortCount);
     if (vanillaConfig->NodeConfigPatch) {
-        nodeConfig = ConvertTo<TFlowNodeConfigPtr>(
-            PatchNode(ConvertToNode(nodeConfig), vanillaConfig->NodeConfigPatch));
+        nodeConfig = PatchVanillaNodeConfig(nodeConfig, vanillaConfig->NodeConfigPatch);
     }
 
     auto pipelineCluster = pipelinePath.GetCluster().value();
@@ -486,6 +520,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
         task.JobCount = config->Count;
         task.MemoryLimit = config->MemoryLimit.value_or(NYTree::TSize(DefaultMemoryLimit));
         task.CpuLimit = config->CpuLimit.value_or(DefaultCpuLimit);
+        task.SetContainerCpuLimit = config->SetContainerCpuLimit;
         task.PortCount = config->PortCount.value_or(0);
         task.LocalFiles = config->LocalFiles;
         task.CypressFiles = config->CypressFiles;
@@ -558,7 +593,11 @@ TVanillaOperationHandle LaunchInVanillaJob(
     // Switch (make-before-break): stop the prior operation, record the manifest, then start the
     // prepared one. The manifest goes first — the alias is known up front, and a write after the
     // start could fail, leaving a running operation the manifest does not point at.
-    ShutdownPriorVanillaOperation(pipelineClient, pipelinePath.GetPath(), vanillaConfig->WaitTimeout, clientsCache);
+    ShutdownPriorVanillaOperation(
+        TFlowExecuteTarget(pipelineClient, std::move(directControllerCommands)),
+        pipelinePath.GetPath(),
+        vanillaConfig->WaitTimeout,
+        clientsCache);
 
     auto manifest = New<TVanillaOperationManifest>();
     manifest->Cluster = runtimeCluster;

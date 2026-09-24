@@ -22,6 +22,7 @@ DEFINE_ENUM(ETransactionSupervisorReign,
     ((StopSendingUnnecessaryRequests)                               (19))  // h0pless
     ((RemoveUnusedAliases)                                          (20))  // h0pless
     ((RenameReadyToCommit)                                          (21))  // h0pless
+    ((CommitApprovalCount)                                          (22))  // kvk1920
 );
 
 static_assert(

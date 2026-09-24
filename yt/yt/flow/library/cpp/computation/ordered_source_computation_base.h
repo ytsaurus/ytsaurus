@@ -35,7 +35,6 @@ protected:
 
     IOrderedSourcePtr OrderedSource_;
     IWatermarkGeneratorPtr WatermarkGenerator_;
-    IMessageFilterPtr Filter_;
     NProfiling::TCounter SkippedByExpressionCounter_;
 };
 

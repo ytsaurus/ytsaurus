@@ -154,10 +154,11 @@ class TestReanimateVanillaJava(FlowTestJavaBase):
                 use_vanilla_jobs=True,
                 vanilla_secret_env=[SECRET_ENV],
                 additional_env={SECRET_ENV: SECRET_VALUE},
-            ):
+            ) as federation:
                 # Abort the operation while the runner still waits for the controller: it must
                 # notice and stop instead of waiting out the controller-unavailable timeout.
                 wait(lambda: self._current_operation_id() is not None, timeout=300, ignore_exceptions=True)
+                federation.try_dump_final_state()
                 self.client.abort_operation(self._current_operation_id())
                 wait(lambda: False, error_message="The runner did not exit after the abort", timeout=120)
 

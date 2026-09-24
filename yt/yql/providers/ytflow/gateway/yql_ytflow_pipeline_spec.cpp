@@ -355,7 +355,7 @@ void ProcessSource(
 
         ::google::protobuf::Any settings;
         ytflowIntegration->FillSourceSettings(providerInput.Ref(), settings, ctx.ExprContext);
-        YQL_ENSURE(settings.Is<NProto::TQYTSourceMessage>() || settings.Is<NProto::TPQSourceMessage>());
+        YQL_ENSURE(settings.Is<NProto::TYtQueueSourceMessage>() || settings.Is<NProto::TPQSourceMessage>());
 
         auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
         resourceDescription->Controller = true;
@@ -372,11 +372,28 @@ void ProcessSource(
         parameters->AddChild(
             "finite", NYT::NYTree::ConvertToNode(*finiteStreams));
 
-        if (settings.Is<NProto::TQYTSourceMessage>()) {
+        if (settings.Is<NProto::TYtQueueSourceMessage>()) {
             sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
 
-            NProto::TQYTSourceMessage qytSourceSettings;
-            settings.UnpackTo(&qytSourceSettings);
+            auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
+            YQL_ENSURE(
+                useSourceWatermark,
+                "Ytflow._YtUseSourceWatermark system setting is not set");
+
+            if (*useSourceWatermark) {
+                if (!computationSpec->WatermarkStrategy->WatermarkGenerator) {
+                    computationSpec->WatermarkStrategy->WatermarkGenerator =
+                        NYT::New<NYT::NFlow::TWatermarkGeneratorSpec>();
+                }
+
+                computationSpec
+                    ->WatermarkStrategy
+                    ->WatermarkGenerator
+                    ->UseSourceWatermark = true;
+            }
+
+            NProto::TYtQueueSourceMessage ytQueueSourceSettings;
+            settings.UnpackTo(&ytQueueSourceSettings);
 
             YQL_ENSURE(
                 ctx.ConfigClusters,
@@ -384,9 +401,9 @@ void ProcessSource(
             const auto& configClusters = *ctx.ConfigClusters;
 
             auto queueRichPath = NYT::NYPath::TRichYPath(
-                CanonizeYtPath(qytSourceSettings.GetPath(), *config));
+                CanonizeYtPath(ytQueueSourceSettings.GetPath(), *config));
             queueRichPath.SetCluster(configClusters.GetRealName(
-                qytSourceSettings.GetCluster()));
+                ytQueueSourceSettings.GetCluster()));
 
             parameters->AddChild(
                 "queue_path", NYT::NYTree::ConvertToNode(queueRichPath));
@@ -398,8 +415,8 @@ void ProcessSource(
             parameters->AddChild(
                 "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
 
-            parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(ESourceType::YT));
+            computationSpec->Parameters->AddChild(
+                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
         } else if (settings.Is<NProto::TPQSourceMessage>()) {
             sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
 
@@ -432,8 +449,8 @@ void ProcessSource(
             parameters->AddChild(
                 "consumer", NYT::NYTree::ConvertToNode(maybeConsumerPath.GetRef()));
 
-            parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(ESourceType::Logbroker));
+            computationSpec->Parameters->AddChild(
+                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Logbroker)));
 
             if (auto maybeToken = input.Cast<TYtflowReadWrap>().Token()) {
                 auto tokenName = maybeToken.Cast().Name().StringValue();
@@ -461,6 +478,7 @@ void ProcessSink(
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
     THashMap<TString, TString>& outputIndicesByOutputStreamId,
     TRequestedCredentials& requestedCredentials,
+    std::optional<TString>& asyncQueueCluster,
     TBuildPipelineSpecContext& ctx)
 {
     auto sinkBase = sink.Cast<TYtflowSinkBase>();
@@ -499,50 +517,100 @@ void ProcessSink(
         ::google::protobuf::Any settings;
         ytflowIntegration->FillSinkSettings(providerInput.Ref(), settings, ctx.ExprContext);
 
-        YQL_ENSURE(settings.Is<NProto::TQYTSinkMessage>() ||
+        YQL_ENSURE(settings.Is<NProto::TYtQueueSinkMessage>() ||
+            settings.Is<NProto::TYtSortedTableSinkMessage>() ||
             settings.Is<NProto::TPQSinkMessage>() ||
             settings.Is<NProto::TSolomonSinkMessage>());
         const auto& config = ctx.RunOptions.Config();
-        if (settings.Is<NProto::TQYTSinkMessage>()) {
-            sinkSpec->SinkClassName = "NYT::NFlow::TSyncQueueSink";
 
-            NProto::TQYTSinkMessage qytSinkSettings;
-            settings.UnpackTo(&qytSinkSettings);
+        if (settings.Is<NProto::TYtQueueSinkMessage>() ||
+            settings.Is<NProto::TYtSortedTableSinkMessage>())
+        {
+            bool isSortedTable = settings.Is<NProto::TYtSortedTableSinkMessage>();
+
+            TString clusterAlias;
+            TString path;
+
+            if (isSortedTable) {
+                NProto::TYtSortedTableSinkMessage sortedSettings;
+                settings.UnpackTo(&sortedSettings);
+
+                clusterAlias = sortedSettings.GetCluster();
+                path = sortedSettings.GetPath();
+            } else {
+                NProto::TYtQueueSinkMessage queueSettings;
+                settings.UnpackTo(&queueSettings);
+
+                clusterAlias = queueSettings.GetCluster();
+                path = queueSettings.GetPath();
+            }
 
             YQL_ENSURE(
                 ctx.ConfigClusters,
                 "Ytflow cluster mapping is not configured");
             const auto& configClusters = *ctx.ConfigClusters;
 
-            auto queueRichPath = NYT::NYPath::TRichYPath(
-                CanonizeYtPath(qytSinkSettings.GetPath(), *config));
+            auto tableRichPath = NYT::NYPath::TRichYPath(
+                CanonizeYtPath(path, *config));
 
-            auto cluster = configClusters.GetRealName(
-                qytSinkSettings.GetCluster());
-            queueRichPath.SetCluster(cluster);
+            auto cluster = configClusters.GetRealName(clusterAlias);
+            tableRichPath.SetCluster(cluster);
 
             auto& parameters = sinkSpec->Parameters;
-            parameters->AddChild(
-                "queue_path", NYT::NYTree::ConvertToNode(queueRichPath));
+            bool isRemoteTable =
+                cluster != ResolvePipelineClusterName(*config, configClusters);
 
-            auto producerPath = config->GetYtProducerPath();
-            auto producerRichPath = CanonizeYtRichPath(
-                std::move(producerPath), *config);
+            if (isSortedTable) {
+                if (isRemoteTable) {
+                    sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TAsyncSink";
+                } else {
+                    sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TSyncSink";
+                }
 
-            if (auto producerCluster = producerRichPath.GetCluster()) {
-                producerRichPath.SetCluster(
-                    configClusters.GetRealName(TString(*producerCluster)));
+                parameters->AddChild(
+                    "table_path", NYT::NYTree::ConvertToNode(tableRichPath));
             } else {
-                producerRichPath.SetCluster(cluster);
-            }
+                if (isRemoteTable) {
+                    YQL_ENSURE(
+                        !asyncQueueCluster || *asyncQueueCluster == cluster,
+                        "Writing into several remote YT queues "
+                        "on separate clusters is not supported yet");
 
-            parameters->AddChild(
-                "producer_path", NYT::NYTree::ConvertToNode(producerRichPath));
+                    asyncQueueCluster = cluster;
+
+                    auto producerRichPath = CanonizeYtRichPath(
+                        config->GetYtProducerPath(), *config);
+
+                    if (auto producerCluster = producerRichPath.GetCluster()) {
+                        producerRichPath.SetCluster(
+                            configClusters.GetRealName(TString(*producerCluster)));
+                    } else {
+                        producerRichPath.SetCluster(cluster);
+                    }
+
+                    YQL_ENSURE(producerRichPath.GetCluster() == cluster,
+                        "YT queue producer and YT queue must be on the same cluster: " << cluster);
+
+                    sinkSpec->SinkClassName = "NYT::NFlow::TAsyncQueueSink";
+
+                    parameters->AddChild(
+                        "producer_path", NYT::NYTree::ConvertToNode(producerRichPath));
+                } else {
+                    sinkSpec->SinkClassName = "NYT::NFlow::TSyncQueueSink";
+                }
+
+                parameters->AddChild(
+                    "queue_path", NYT::NYTree::ConvertToNode(tableRichPath));
+            }
 
             computationSpec->Sinks.emplace(NYT::NFlow::TSinkId(streamName), std::move(sinkSpec));
 
             rowType = sink.Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-            streamSpec->Schema = ConvertToQueueWriteSchema(BuildTableSchema(rowType));
+            auto tableSchema = BuildTableSchema(rowType);
+
+            streamSpec->Schema = isSortedTable
+                ? tableSchema
+                : ConvertToQueueWriteSchema(std::move(tableSchema));
         } else if (settings.Is<NProto::TPQSinkMessage>()) {
             sinkSpec->SinkClassName = "NYT::NFlow::TLogbrokerSink";
 
@@ -1099,7 +1167,8 @@ void ProcessHoppingAggregate(
             hoppingAggregate.UpdateStateLambda(),
             {
                 {"YtflowInputStream", ETypeAnnotationKind::Stream},
-                {"YtflowInputState", ETypeAnnotationKind::List}
+                {"YtflowInputState", ETypeAnnotationKind::List},
+                {"YtflowInputWatermark", ETypeAnnotationKind::Data}
             },
             lambdaBuilder,
             compiler,
@@ -1170,6 +1239,7 @@ TBuildPipelineSpecResult BuildPipelineSpec(
     pipelineSpec->Resources[NYT::NFlow::YTClientFactoryDefaultResourceId] = std::move(resourceSpec);
 
     TRequestedCredentials requestedCredentials;
+    std::optional<TString> asyncQueueCluster;
 
     for (const auto& operation: operations) {
         auto operationType = operation.Ref().Content();
@@ -1189,8 +1259,14 @@ TBuildPipelineSpecResult BuildPipelineSpec(
         THashMap<TString, TString> outputIndicesByOutputStreamId;
         for (const auto& sink: operation.Sinks()) {
             NPrivate::ProcessSink(
-                sink, computationName, computationSpec,
-                pipelineSpec, outputIndicesByOutputStreamId, requestedCredentials, ctx);
+                sink,
+                computationName,
+                computationSpec,
+                pipelineSpec,
+                outputIndicesByOutputStreamId,
+                requestedCredentials,
+                asyncQueueCluster,
+                ctx);
         }
 
         bool supportsComputationPatternResource = false;

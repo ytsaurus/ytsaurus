@@ -344,6 +344,25 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EReportedScanOrder ToReportedScanOrder(EScanOrder scanOrder)
+{
+    switch (scanOrder) {
+        case EScanOrder::Unordered:
+            return EReportedScanOrder::Unordered;
+        case EScanOrder::Ordered:
+            return EReportedScanOrder::Ordered;
+        case EScanOrder::Reversed:
+            return EReportedScanOrder::Reversed;
+    }
+    YT_ABORT();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryStatistics CoordinateAndExecute(
     EScanOrder scanOrder,
     bool prefetch,
@@ -401,6 +420,7 @@ TQueryStatistics CoordinateAndExecute(
     }
 
     auto queryStatistics = evaluateTopQuery(std::move(topReader), responseFeatureFlags);
+    queryStatistics.ScanOrder = ToReportedScanOrder(scanOrder);
 
     for (int index = 0; index < std::ssize(*subplanHolders); ++index) {
         auto subqueryStatisticsOrError = WaitForFast((*subplanHolders)[index].Get());
@@ -507,6 +527,9 @@ TQueryStatistics CoordinateAndExecuteWithShuffle(
         [] (i64 groupedRowCount, const TQueryStatistics& innerStatistics) {
             return groupedRowCount + innerStatistics.GroupedRowCount.GetTotal();
         }));
+
+    // Shuffling is only ever chosen for an unordered scan, and the final reader here is unordered.
+    statistics.ScanOrder = EReportedScanOrder::Unordered;
 
     return statistics;
 }

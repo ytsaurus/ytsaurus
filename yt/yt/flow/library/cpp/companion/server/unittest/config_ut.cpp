@@ -4,6 +4,9 @@
 
 #include <yt/yt/flow/library/cpp/companion/server/unittest/env_guard.h>
 
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/https/config.h>
+
 #include <util/system/env.h>
 
 namespace NYT::NFlow::NCompanionServer {
@@ -25,6 +28,21 @@ TEST_F(TCompanionEnvConfigTest, ParsesFullConfig)
     EXPECT_EQ(config->CompanionProcessCount, 0);
     EXPECT_EQ(config->ClusterUrl, "localhost:1234");
     EXPECT_EQ(config->PipelinePath, "//tmp/pipeline");
+    EXPECT_TRUE(config->HttpClientConfig);
+    EXPECT_TRUE(config->HttpsClientConfig);
+    EXPECT_EQ(config->HttpPollerThreads, 1);
+}
+
+TEST_F(TCompanionEnvConfigTest, ParsesHttpSettings)
+{
+    SetEnv("YT_FLOW_MODE", "Worker");
+    SetEnv(
+        "YT_FLOW_COMPANION_CONFIG",
+        R"({port=12345;http_poller_threads=2;https_client_config={allow_http=%true}})");
+
+    auto config = LoadCompanionExecutionConfigFromEnv();
+    EXPECT_EQ(config->HttpPollerThreads, 2);
+    EXPECT_TRUE(config->HttpsClientConfig->AllowHttp);
 }
 
 TEST_F(TCompanionEnvConfigTest, MissingModeThrows)

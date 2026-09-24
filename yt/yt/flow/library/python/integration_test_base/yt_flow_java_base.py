@@ -31,8 +31,8 @@ class FlowTestJavaBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
     JAVA_RUNNER_BINARY_DIR: str
     JAVA_MAIN_CLASS: str
-    # Extra port for the companion the worker spawns.
-    VANILLA_WORKER_PORT_COUNT = 3
+    # Node RPC/monitoring and companion RPC/monitoring.
+    VANILLA_WORKER_PORT_COUNT = 4
     # Cached JVM properties; populated lazily on first query.
     _java_properties_cache: Optional[dict] = None
 

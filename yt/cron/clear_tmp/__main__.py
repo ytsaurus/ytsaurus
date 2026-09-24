@@ -10,23 +10,26 @@ Special attribute @clear_tmp_config adjusts clear_tmp behavior on tables and dir
     @clear_tmp_config/dont_prune
         if true, current object will not be removed, but when set on directory
         children of this directory are still considered for removal
+        --dont-prune-white-list restricts this protection to the listed owners
 """
 
 from yt.common import _pretty_format_for_logging, date_string_to_datetime, update_inplace, utcnow
 from yt.wrapper.common import chunk_iter_list, get_value
 from yt.wrapper.default_config import retries_config
+from yt.cron.library.solomon import push_cluster_data_to_solomon
 
 import yt.wrapper as yt
 import yt.logger as yt_logger
-
-from collections import namedtuple
 
 import os
 import datetime
 import argparse
 import logging
 
+from collections import Counter, namedtuple
 from contextlib import contextmanager
+from enum import Enum
+from typing import List, Tuple, Dict, Set, Any
 
 
 SECOND = 1000
@@ -76,9 +79,109 @@ class ParseTimedeltaMinutesArgument(argparse.Action):
         setattr(namespace, self.dest, datetime.timedelta(minutes=int(values)))
 
 
-COMMON_ATTRIBUTES_TO_REQUEST = ("account", "acl", "revision", "type", "clear_tmp_config")
+COMMON_ATTRIBUTES_TO_REQUEST = ("account", "acl", "revision", "type", "clear_tmp_config", "owner")
 
 logger = logging.getLogger("clear_tmp")
+
+
+class RemovalReason(str, Enum):
+    NODE_COUNT = "max node count violated"
+    CHUNK_COUNT = "max chunk count violated"
+    DISK_SPACE = "max disk space violated"
+    OWNER_NODE_COUNT = "max node count per owner violated"
+    OWNER_CHUNK_COUNT = "max chunk count per owner violated"
+    OWNER_DISK_SPACE = "max disk space per owner violated"
+    MAX_AGE = "max age violated"
+    EMPTY_OBJECT = "empty table/file"
+    DIRECTORY_NODE_COUNT = "max dir node count violated"
+    EMPTY_DIRECTORY = "empty dir"
+    BROKEN_LINK = "broken link"
+
+
+class SkipReason(str, Enum):
+    SAFE_AGE = "safe_age"
+    DONT_PRUNE = "dont_prune"
+    LOCKED = "locked"
+    TARGET_LOCKED = "target_locked"
+    OTHER_ACCOUNT = "other_account"
+    ACL = "acl"
+    ROOT_DIRECTORY = "root_directory"
+    NON_EMPTY_DIRECTORY = "non_empty_directory"
+    NO_REMOVAL_REASON = "no_removal_reason"
+    MISSING_ATTRIBUTES = "missing_attributes"
+    REMOVE_FAILED = "remove_failed"
+    DRY_RUN = "dry_run"
+
+
+class CleanupCounters:
+    """Track one final outcome per path, including across directory passes."""
+
+    def __init__(self):
+        self.outcomes = {}
+        self.removal_reasons = {}
+
+    def collect(self, path):
+        self.outcomes.setdefault(str(path), SkipReason.NO_REMOVAL_REASON)
+
+    def skip(self, path, reason):
+        self.outcomes[str(path)] = reason
+        self.removal_reasons.pop(str(path), None)
+
+    def remove(self, path, reasons):
+        self.outcomes[str(path)] = None
+        self.removal_reasons[str(path)] = frozenset(reasons)
+
+    def removed_by_reason(self):
+        return Counter(reason for reasons in self.removal_reasons.values() for reason in reasons)
+
+    def log(self):
+        skipped = Counter(reason for reason in self.outcomes.values() if reason is not None)
+        removed = sum(reason is None for reason in self.outcomes.values())
+        logger.info("Cleanup counters: collected=%d, skipped=%d, removed=%d",
+                    len(self.outcomes), sum(skipped.values()), removed)
+        for reason, count in sorted(skipped.items(), key=lambda item: item[0].value):
+            logger.info("Skipped (%s): %d", reason.value, count)
+        for reason, count in sorted(self.removed_by_reason().items(), key=lambda item: item[0].name):
+            logger.info("Removed (%s): %d", reason.name.lower(), count)
+
+
+def report_counters(counters, args, cluster):
+    counters.log()
+    if not args.solomon_service:
+        return
+
+    skipped = Counter(reason for reason in counters.outcomes.values() if reason is not None)
+    labels = {"directory": args.directory, "dry_run": str(args.dry_run).lower()}
+    if args.account is not None:
+        labels["account"] = args.account
+
+    counts = {
+        "collected": len(counters.outcomes),
+        "skipped_total": sum(skipped.values()),
+        "removed_total": sum(reason is None for reason in counters.outcomes.values()),
+    }
+    sensors = [
+        {"labels": dict(labels, sensor=f"clear_tmp.{name}"), "value": count}
+        for name, count in counts.items()
+    ]
+    # Send zeros too, so a previous run's nonzero reason counts do not linger.
+    sensors.extend(
+        {"labels": dict(labels, sensor=f"clear_tmp.skipped_{reason.name.lower()}"),
+         "value": skipped[reason]}
+        for reason in SkipReason
+    )
+    removed = counters.removed_by_reason()
+    sensors.extend(
+        {"labels": dict(labels, sensor=f"clear_tmp.removed_{reason.name.lower()}"),
+         "value": removed[reason]}
+        for reason in RemovalReason
+    )
+
+    try:
+        push_cluster_data_to_solomon(args.solomon_cluster or cluster, args.solomon_service, sensors)
+        logger.info("Successfully pushed cleanup counters to Solomon")
+    except Exception:
+        logger.exception("Failed to push cleanup counters to Solomon")
 
 
 class Resources:
@@ -94,20 +197,21 @@ class Resources:
 
         self.limit_exceeded = False
 
-    def add(self, obj_attributes):
+    def consider_object_usage(self, obj_attributes, count_node=True):
         reasons = []
 
-        self.node_count += 1
+        if count_node:
+            self.node_count += 1
         if self.max_node_count is not None and self.node_count > self.max_node_count:
-            reasons.append("max node count {}violated".format(self.tag))
+            reasons.append(RemovalReason.OWNER_NODE_COUNT if self.tag else RemovalReason.NODE_COUNT)
 
         if hasattr(obj_attributes, "resource_usage"):
             self.chunk_count += int(obj_attributes.resource_usage["chunk_count"])
             if self.max_chunk_count is not None and self.chunk_count > self.max_chunk_count:
-                reasons.append(f"max chunk count {self.tag}violated")
+                reasons.append(RemovalReason.OWNER_CHUNK_COUNT if self.tag else RemovalReason.CHUNK_COUNT)
             self.disk_space += int(obj_attributes.resource_usage["disk_space"])
             if self.max_disk_space is not None and self.disk_space > self.max_disk_space:
-                reasons.append(f"max disk space {self.tag}violated")
+                reasons.append(RemovalReason.OWNER_DISK_SPACE if self.tag else RemovalReason.DISK_SPACE)
 
         if reasons:
             self.limit_exceeded = True
@@ -119,7 +223,7 @@ def get_age(time_str):
     return utcnow() - date_string_to_datetime(time_str)
 
 
-def is_empty(obj_attributes):
+def is_zero_size(obj_attributes):
     dspm = obj_attributes.get("resource_usage", {}).get("disk_space_per_medium", {})
     return not sum(dspm.values())
 
@@ -128,35 +232,65 @@ def is_locked(obj):
     return any(map(lambda lock: lock["mode"] in ("exclusive", "shared"), obj.attributes["locks"]))
 
 
+def _should_honor_dont_prune(obj_attributes, args):
+    return (
+        obj_attributes.clear_tmp_config is not None
+        and obj_attributes.clear_tmp_config.get("dont_prune", False)
+        and (args.dont_prune_white_list is None or obj_attributes.owner in args.dont_prune_white_list)
+    )
+
+
 def _is_deletion_candidate(
+    obj_name: str,
     age: datetime.timedelta,
     obj_attributes,
     args: argparse.Namespace,
     object_to_attributes: dict,
+    counters: CleanupCounters,
 ) -> bool:
+    """Check for safe age, user config (dont_prune), locks
+    """
     if age < args.safe_age:
+        counters.skip(obj_name, SkipReason.SAFE_AGE)
         return False
-    if obj_attributes.clear_tmp_config is not None:
-        if obj_attributes.clear_tmp_config.get("dont_prune", False):
-            return False
+    if _should_honor_dont_prune(obj_attributes, args):
+        counters.skip(obj_name, SkipReason.DONT_PRUNE)
+        logger.debug("Skipping: %s has \"dont_prune\"", obj_name)
+        return False
     if args.do_not_remove_objects_with_locks:
         if obj_attributes.locks:
+            counters.skip(obj_name, SkipReason.LOCKED)
+            logger.debug("Skipping: %s has locks", obj_name)
             return False
         if obj_attributes.type == "link":
             target_path = obj_attributes.target_path
             if target_path in object_to_attributes and object_to_attributes[target_path].locks:
+                counters.skip(obj_name, SkipReason.TARGET_LOCKED)
+                logger.debug("Skipping: link %s has locks", obj_name)
                 return False
     return True
 
 
 # TODO(ignat): refactor parameters of this method
-def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_name, object_to_attributes, resources, resources_per_user, args):
-    remaining_dir_sizes = dict((obj.name, obj.count) for obj in dirs)
+def collect_objects_to_remove(
+    yt_client,
+    root_dir,
+    dirs: List[Any],
+    links,
+    time_attribute_name,
+    object_to_attributes,
+    total_resources: Resources,
+    resources_per_user: Dict[str, Resources],
+    args: argparse.Namespace,
+    counters: CleanupCounters,
+) -> List[Tuple[str, List[RemovalReason]]]:
+    dir_childrens_count: Dict[str, int] = dict((obj.name, obj.count) for obj in dirs)
 
-    objects = []
     attributes_to_request = set(list(COMMON_ATTRIBUTES_TO_REQUEST) +
-                                ["locks", "resource_usage", "target_path", "owner", time_attribute_name])
+                                ["locks", "resource_usage", "target_path", time_attribute_name])
     ObjectAttributes = namedtuple("ObjectAttributes", list(attributes_to_request))
+
+    collected_objects: List[Tuple[bool, datetime.timedelta, bool, str, ObjectAttributes]] = []
 
     objects_iterator = yt_client.search(
         root_dir,
@@ -164,40 +298,51 @@ def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_n
         attributes=attributes_to_request)
 
     for obj in objects_iterator:
+        counters.collect(obj)
         if obj.attributes.get("type") in ("map_node", "list_node", "portal_entrance"):
             continue
         if is_locked(obj):
+            counters.skip(obj, SkipReason.LOCKED)
             continue
         if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
+            counters.skip(obj, SkipReason.OTHER_ACCOUNT)
             continue
         if obj.attributes.get("acl"):
+            counters.skip(obj, SkipReason.ACL)
             continue
         obj_attributes = ObjectAttributes(*[obj.attributes.get(attr) for attr in attributes_to_request])
         object_to_attributes[str(obj)] = obj_attributes
-        objects.append([None, get_age(obj.attributes[time_attribute_name]), is_empty(obj.attributes), str(obj), obj_attributes])
+        collected_objects.append([
+            None,  # is candidate to remove
+            get_age(obj.attributes[time_attribute_name]),  # object age
+            is_zero_size(obj.attributes),  # is empty
+            str(obj),  # obj name
+            obj_attributes,  # obj attrs
+        ])
 
     non_deletable_count = 0
-    for collected_object in objects:
+    for collected_object in collected_objects:
         _, age, empty, obj_name, obj_attributes = collected_object
-        collected_object[0] = _is_deletion_candidate(age, obj_attributes, args, object_to_attributes)
+        collected_object[0] = _is_deletion_candidate(obj_name, age, obj_attributes, args, object_to_attributes, counters)
         if not collected_object[0]:
             non_deletable_count += 1
 
-    objects.sort()
+    collected_objects.sort()
 
-    logger.info("Collected %d objects (%d non-deletable, %d deletion candidates)",
-                len(objects), non_deletable_count, len(objects) - non_deletable_count)
+    logger.info(
+        f"Collected {len(collected_objects):_} objects ({non_deletable_count:_} non-deletable, {len(collected_objects) - non_deletable_count:_} deletion candidates)",
+    )
 
-    to_remove = []
+    to_remove: List[Tuple[str, List[RemovalReason]]] = []
     to_remove_set = set()
 
-    def add_to_remove(obj, reason):
+    def add_to_remove(obj: str, reasons: List[RemovalReason]):
         obj = str(obj)
         if obj not in to_remove_set:
-            to_remove.append((obj, reason))
+            to_remove.append((obj, reasons))
             to_remove_set.add(obj)
 
-    def _ensure_user_resources(owner: str, resources_per_user: dict, args: argparse.Namespace) -> None:
+    def _ensure_user_resources(owner: str, resources_per_user: Dict[str, Resources], args: argparse.Namespace) -> None:
         if owner not in resources_per_user:
             resources_per_user[owner] = Resources(
                 max_disk_space=args.max_disk_space_per_owner,
@@ -205,39 +350,38 @@ def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_n
                 max_chunk_count=args.max_chunk_count_per_owner,
                 tag=f"per owner '{owner}' ")
 
-    for is_candidate, age, empty, obj_name, obj_attributes in objects:
+    for is_candidate, age, empty, obj_name, obj_attributes in collected_objects:
         owner = obj_attributes.owner
         if owner is not None:
             _ensure_user_resources(owner, resources_per_user, args)
 
         if not is_candidate:
             if owner is not None:
-                resources_per_user[owner].add(obj_attributes)
-            resources.add(obj_attributes)
+                resources_per_user[owner].consider_object_usage(obj_attributes)
+            total_resources.consider_object_usage(obj_attributes)
             continue
 
         reasons = []
         if owner is not None:
-            reasons += resources_per_user[owner].add(obj_attributes)
-        reasons += resources.add(obj_attributes)
+            reasons += resources_per_user[owner].consider_object_usage(obj_attributes)
+        reasons += total_resources.consider_object_usage(obj_attributes)
 
         if age > args.max_age:
-            reasons.append("max age violated")
+            reasons.append(RemovalReason.MAX_AGE)
 
         if args.remove_empty and empty:
-            reasons.append("empty table/file")
+            reasons.append(RemovalReason.EMPTY_OBJECT)
 
-        # NB: ypath_dirname invokes ypath parsing that occur to be a bottleneck.
+        # NB: bottleneck (ypath_dirname).
         obj_dir = yt.ypath_dirname(yt.YPath(obj_name, simplify=False))
-        dir_node_count = remaining_dir_sizes.get(obj_dir, 0)
+        dir_node_count = dir_childrens_count.get(obj_dir, 0)
         if dir_node_count > args.max_dir_node_count:
-            reasons.append("max dir node count violated")
+            reasons.append(RemovalReason.DIRECTORY_NODE_COUNT)
 
         if reasons:
             if dir_node_count > 0:
-                remaining_dir_sizes[obj_dir] -= 1
-
-            add_to_remove(obj_name, str(reasons))
+                dir_childrens_count[obj_dir] -= 1
+            add_to_remove(obj_name, reasons)
 
     return to_remove
 
@@ -280,12 +424,18 @@ def main():
     parser.add_argument("--do-not-remove-objects-with-locks", action="store_true", default=False,
                         help="Do not remove objects with any locks on them")
     parser.add_argument("--remove-empty", action="store_true", default=False, help="Remove empty tables/files/dirs")
+    parser.add_argument("--dont-prune-white-list", nargs="+", action="extend", metavar="OWNER",
+                        help="Honor dont_prune only for these node owners; defaults to all owners. May be repeated")
     parser.add_argument("--token-env-variable")
+    parser.add_argument("--solomon-service", help="Solomon service to push cleanup counters to; disabled by default")
+    parser.add_argument("--solomon-cluster", help="Solomon cluster label; defaults to the YT proxy")
     parser.add_argument("--log-level", default="INFO")
+    parser.add_argument("--dry-run", action="store_true", default=False, help="Do not remove anything")
     parser.add_argument("--verbose", action="store_true", default=False, help="Enable YT library DEBUG log level")
     args = parser.parse_args()
 
     configure_logger(args)
+    counters = CleanupCounters()
 
     time_attribute_name = args.time_attribute_for_age
 
@@ -315,6 +465,7 @@ def main():
                 args.max_chunk_count_per_owner = int(account_chunk_count * args.account_usage_ratio_save_per_owner)
 
     if not yt_client.exists(args.directory):
+        report_counters(counters, args, yt_client.config["proxy"]["url"])
         return
 
     # collect aux objects
@@ -323,8 +474,8 @@ def main():
     aux_object_attributes_to_request = set(list(COMMON_ATTRIBUTES_TO_REQUEST) + ["count", time_attribute_name])
     DirAttributes = namedtuple("DirAttributes", list(aux_object_attributes_to_request) + ["name"])
 
-    dirs = []
-    links = set()
+    dirs: List[DirAttributes] = []
+    links: Set[str] = set()
     aux_objects_iterator = yt_client.search(
         args.directory,
         object_filter=lambda obj: obj.attributes["type"] in ("link", "map_node", "list_node", "portal_entrance"),
@@ -332,6 +483,7 @@ def main():
         enable_batch_mode=True,
     )
     for obj in aux_objects_iterator:
+        counters.collect(obj)
         if obj.attributes["type"] == "link":
             links.add(str(obj))
         else:  # dir case
@@ -348,16 +500,20 @@ def main():
             else:
                 append_dirs(dirs, str(obj), obj, aux_object_attributes_to_request)
 
-    dir_sizes = dict((obj.name, obj.count) for obj in dirs)
+    dir_childrens_count: Dict[str, int] = dict((obj.name, obj.count) for obj in dirs)
     logger.info("Finish collecting links and dirs (link_count: %d, dir_count: %d)", len(links), len(dirs))
 
     object_to_attributes = {}
 
     resources_per_user = {}
-    resources = Resources(
+    total_resources = Resources(
         max_disk_space=args.max_disk_space,
         max_node_count=args.max_node_count,
-        max_chunk_count=args.max_chunk_count)
+        max_chunk_count=args.max_chunk_count,
+    )
+
+    # Collect objects considering nodes occupied by all dirs
+    total_resources.node_count += len(dirs)
 
     logger.info("Start collecting objects to remove")
     to_remove = collect_objects_to_remove(
@@ -367,157 +523,190 @@ def main():
         links,
         time_attribute_name,
         object_to_attributes,
-        resources,
+        total_resources,
         resources_per_user,
-        args)
+        args,
+        counters)
     logger.info("Finished collecting objects to remove")
 
     max_batch_size = get_value(args.remove_batch_size, yt_client.config["max_batch_size"])
     batch_client = yt_client.create_batch_client()
 
-    logger.info("Start removing")
-
-    batch_index = 0
-    for objects in chunk_iter_list(to_remove, max_batch_size):
-        batch_index += 1
-        logger.info("Removing batch %d", batch_index)
-        remove_results = []
-        for obj, reason in objects:
-            attributes = object_to_attributes.get(obj)
-            # It can be missing for link that we skip during search.
-            if attributes is None:
-                continue
-            if get_age(getattr(attributes, time_attribute_name)) <= args.safe_age:
-                continue
-
-            info = f"(reason={reason})"
-            if obj in object_to_attributes:
-                attrs = object_to_attributes[obj]
-                time = getattr(attrs, time_attribute_name)
-                info = info + f" ({time_attribute_name}={time})"
-                if "resource_usage" in attrs:
-                    disk_space = attrs.resource_usage["disk_space"]
-                    info = info + f" (size={disk_space})"
-            logger.debug("Removing %s %s", obj, info)
-
-            # NB: ypath_dirname invokes ypath parsing that occur to be a bottleneck.
-            obj_dir = yt.ypath_dirname(yt.YPath(obj, simplify=False))
-
-            # Directory may be missing since we separately search for dirs and files.
-            if obj_dir in dir_sizes:
-                dir_sizes[obj_dir] -= 1
-
-            params = {"prerequisite_revisions": [{
-                "path": obj + "&",
-                "revision": attributes.revision,
-                "transaction_id": "0-0-0-0"
-            }]}
-
-            with set_command_params(batch_client, params):
-                remove_results.append(batch_client.remove(obj, force=True))
-
-        batch_client.commit_batch()
-
-        for obj, remove_result in zip(objects, remove_results):
-            path, _ = obj
-            if remove_result.is_ok():
-                logger.debug("%s removed", path)
-            else:
-                error = yt.YtResponseError(remove_result.get_error())
-                if error.is_concurrent_transaction_lock_conflict() or error.is_prerequisite_check_failed() or error.is_resolve_error():
-                    logger.debug("Failed to remove %s (error: %s)", path, _pretty_format_for_logging(error))
-                else:
-                    raise error
-
-    del to_remove[:]
-
-    logger.info("Finish removing")
-
-    # check broken links
-    logger.info("Start removing broken links")
-    links_iterator = yt_client.search(
-        args.directory,
-        node_type=["link"],
-        attributes=["broken", "account"],
-        enable_batch_mode=True
-    )
-    for obj in links_iterator:
-        if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
-            continue
-        if obj.attributes["broken"]:
-            logger.debug("Removing broken link %s", obj)
-            batch_client.remove(obj, force=True)
-
-    batch_client.commit_batch()
-
-    logger.info("Finished removing broken links")
-
-    logger.info("Start removing empty dirs")
-    while True:
-        removed_dirs = []
+    if args.dry_run:
+        logger.info("Dry-run mode. Skipping removing.")
+        for obj, _ in to_remove:
+            counters.skip(obj, SkipReason.DRY_RUN)
         for dir in dirs:
-            # NB: avoid removing root directory itself
-            if args.directory.startswith(dir.name):
+            counters.skip(dir.name, SkipReason.DRY_RUN)
+    else:
+        logger.info("Start removing")
+
+        batch_index = 0
+        for objects in chunk_iter_list(to_remove, max_batch_size):
+            batch_index += 1
+            logger.info("Removing batch %d", batch_index)
+            remove_results = []
+            for obj, reasons in objects:
+                attributes = object_to_attributes.get(obj)
+                # It can be missing for link that we skip during search.
+                if attributes is None:
+                    counters.skip(obj, SkipReason.MISSING_ATTRIBUTES)
+                    continue
+                if get_age(getattr(attributes, time_attribute_name)) <= args.safe_age:
+                    counters.skip(obj, SkipReason.SAFE_AGE)
+                    continue
+
+                info = f"(reason={[reason.value for reason in reasons]})"
+                if obj in object_to_attributes:
+                    attrs = object_to_attributes[obj]
+                    time = getattr(attrs, time_attribute_name)
+                    info = info + f" ({time_attribute_name}={time})"
+                    if "resource_usage" in attrs:
+                        disk_space = attrs.resource_usage["disk_space"]
+                        info = info + f" (size={disk_space})"
+                logger.debug("Removing %s %s", obj, info)
+
+                # NB: ypath_dirname invokes ypath parsing that occur to be a bottleneck.
+                obj_dir = yt.ypath_dirname(yt.YPath(obj, simplify=False))
+
+                # Directory may be missing since we separately search for dirs and files.
+                if obj_dir in dir_childrens_count:
+                    dir_childrens_count[obj_dir] -= 1
+
+                params = {"prerequisite_revisions": [{
+                    "path": obj + "&",
+                    "revision": attributes.revision,
+                    "transaction_id": "0-0-0-0"
+                }]}
+
+                with set_command_params(batch_client, params):
+                    remove_results.append((obj, reasons, batch_client.remove(obj, force=True)))
+
+            batch_client.commit_batch()
+
+            for path, reasons, remove_result in remove_results:
+                if remove_result.is_ok():
+                    counters.remove(path, reasons)
+                    logger.debug("%s removed", path)
+                else:
+                    counters.skip(path, SkipReason.REMOVE_FAILED)
+                    error = yt.YtResponseError(remove_result.get_error())
+                    if error.is_concurrent_transaction_lock_conflict() or error.is_prerequisite_check_failed() or error.is_resolve_error():
+                        logger.debug("Failed to remove %s (error: %s)", path, _pretty_format_for_logging(error))
+                    else:
+                        raise error
+
+        del to_remove[:]
+
+        logger.info("Finish removing")
+
+        # check broken links
+        logger.info("Start removing broken links")
+        links_iterator = yt_client.search(
+            args.directory,
+            node_type=["link"],
+            attributes=["broken", "account"],
+            enable_batch_mode=True
+        )
+        removed_links = []
+        for obj in links_iterator:
+            counters.collect(obj)
+            if args.do_not_remove_objects_with_other_account and obj.attributes.get("account") != args.account:
+                counters.skip(obj, SkipReason.OTHER_ACCOUNT)
                 continue
-            if args.do_not_remove_objects_with_other_account and dir.account != args.account:
-                continue
-            if dir.acl:
-                continue
-            if dir_sizes[dir.name] != 0:
-                continue
-            if dir.clear_tmp_config is not None and dir.clear_tmp_config.get("dont_prune", False):
-                continue
-
-            reasons = resources.add(dir)
-            if get_age(getattr(dir, time_attribute_name)) > args.max_age:
-                reasons.append("max age violated")
-
-            parent_dir = yt.ypath_dirname(yt.YPath(dir.name, simplify=False))
-            if dir_sizes.get(parent_dir, 0) > args.max_dir_node_count:
-                reasons.append("max dir node count violated")
-
-            if args.remove_empty:
-                reasons.append("empty dir")
-
-            if reasons:
-                logger.debug("Removing empty dir %s (reasons: %s)", dir, str(reasons))
-
-                # To avoid removing twice
-                dir_sizes[dir.name] = -1
-
-                remove_result = batch_client.remove(dir.name, force=True)
-                removed_dirs.append((dir.name, remove_result))
+            if obj.attributes["broken"]:
+                logger.debug("Removing %s (reason: %s)", obj, RemovalReason.BROKEN_LINK.value)
+                removed_links.append((str(obj), batch_client.remove(obj, force=True)))
 
         batch_client.commit_batch()
-
-        successfully_removed_dir_count = 0
-
-        for dir_name, remove_result in removed_dirs:
-            if remove_result.get_error():
-                error = yt.YtResponseError(remove_result.get_error())
-                if not error.is_concurrent_transaction_lock_conflict():
-                    logger.debug("Failed to remove dir %s (error: %s)", dir_name, _pretty_format_for_logging(error))
+        for path, remove_result in removed_links:
+            if remove_result.is_ok():
+                counters.remove(path, [RemovalReason.BROKEN_LINK])
             else:
-                successfully_removed_dir_count += 1
-                # NB: ypath_dirname invokes ypath parsing that occur to be a bottleneck.
-                base_dir_name = yt.ypath_dirname(yt.YPath(dir_name, simplify=False))
-                if base_dir_name in dir_sizes:
-                    dir_sizes[base_dir_name] -= 1
+                counters.skip(path, SkipReason.REMOVE_FAILED)
 
-        if successfully_removed_dir_count == 0:
-            break
+        logger.info("Finished removing broken links")
 
-    logger.info("Finished removing empty dirs")
+        logger.info("Start removing empty dirs")
+        while True:
+            removed_dirs = []
+            for dir in dirs:
+                # NB: avoid removing root directory itself
+                if args.directory.startswith(dir.name):
+                    counters.skip(dir.name, SkipReason.ROOT_DIRECTORY)
+                    continue
+                if dir_childrens_count[dir.name] == -1:
+                    continue
+                if args.do_not_remove_objects_with_other_account and dir.account != args.account:
+                    counters.skip(dir.name, SkipReason.OTHER_ACCOUNT)
+                    continue
+                if dir.acl:
+                    counters.skip(dir.name, SkipReason.ACL)
+                    continue
+                if dir_childrens_count[dir.name] != 0:
+                    counters.skip(dir.name, SkipReason.NON_EMPTY_DIRECTORY)
+                    continue
+                if _should_honor_dont_prune(dir, args):
+                    counters.skip(dir.name, SkipReason.DONT_PRUNE)
+                    continue
+
+                # Directory nodes were already counted before collecting objects.
+                reasons = total_resources.consider_object_usage(dir, count_node=False)
+                if get_age(getattr(dir, time_attribute_name)) > args.max_age:
+                    reasons.append(RemovalReason.MAX_AGE)
+
+                parent_dir = yt.ypath_dirname(yt.YPath(dir.name, simplify=False))
+                if dir_childrens_count.get(parent_dir, 0) > args.max_dir_node_count:
+                    reasons.append(RemovalReason.DIRECTORY_NODE_COUNT)
+
+                if args.remove_empty:
+                    reasons.append(RemovalReason.EMPTY_DIRECTORY)
+
+                if reasons:
+                    logger.debug("Removing empty dir %s (reasons: %s)", dir, [reason.value for reason in reasons])
+
+                    # To avoid removing twice
+                    dir_childrens_count[dir.name] = -1
+
+                    remove_result = batch_client.remove(dir.name, force=True)
+                    removed_dirs.append((dir.name, reasons, remove_result))
+                else:
+                    counters.skip(dir.name, SkipReason.NO_REMOVAL_REASON)
+
+            batch_client.commit_batch()
+
+            successfully_removed_dir_count = 0
+
+            for dir_name, reasons, remove_result in removed_dirs:
+                if remove_result.get_error():
+                    counters.skip(dir_name, SkipReason.REMOVE_FAILED)
+                    error = yt.YtResponseError(remove_result.get_error())
+                    if not error.is_concurrent_transaction_lock_conflict():
+                        logger.debug("Failed to remove dir %s (error: %s)", dir_name, _pretty_format_for_logging(error))
+                else:
+                    counters.remove(dir_name, reasons)
+                    successfully_removed_dir_count += 1
+                    # NB: ypath_dirname invokes ypath parsing that occur to be a bottleneck.
+                    base_dir_name = yt.ypath_dirname(yt.YPath(dir_name, simplify=False))
+                    if base_dir_name in dir_childrens_count:
+                        dir_childrens_count[base_dir_name] -= 1
+
+            if successfully_removed_dir_count == 0:
+                break
+
+        logger.info("Finished removing empty dirs")
 
     logger.info(
-        "Total saved resources (disk_space: %d, node_count: %d, chunk_count: %d)",
-        resources.disk_space, resources.node_count, resources.chunk_count)
+        f"Total saved resources (disk_space: {total_resources.disk_space:_}, node_count: {total_resources.node_count:_}, chunk_count: {total_resources.node_count:_})",
+    )
 
-    for user, resources in resources_per_user.items():
-        if resources.limit_exceeded:
+    for user, user_resources in resources_per_user.items():
+        if user_resources.limit_exceeded:
             logger.info(
-                "Resource limit reached for user (user: %s, disk_space: %d, node_count: %d, chunk_count: %d)",
-                user, resources.disk_space, resources.node_count, resources.chunk_count)
+                f"Resource limit reached for user (user: {user}, disk_space: {user_resources.disk_space:_}, node_count: {user_resources.node_count:_}, chunk_count: {user_resources.chunk_count:_})",
+            )
+
+    report_counters(counters, args, yt_client.config["proxy"]["url"])
 
 
 if __name__ == "__main__":

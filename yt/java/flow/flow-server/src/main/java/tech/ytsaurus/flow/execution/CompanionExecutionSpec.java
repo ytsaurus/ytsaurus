@@ -2,12 +2,14 @@ package tech.ytsaurus.flow.execution;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import com.sun.net.httpserver.HttpHandler;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.config.CompanionExecutionConfig;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.service.JobSpecValidator;
 
 /**
  * Mutable configuration-phase holder for a {@link GrpcServerExecution}.
@@ -35,6 +37,7 @@ public final class CompanionExecutionSpec {
     private final PipelineContext pipelineContext;
     private @Nullable CompanionExecutionConfig config;
     private @Nullable JobContext jobContext;
+    private JobSpecValidator jobSpecValidator = JobSpecValidator.NOOP;
     private final Map<String, HttpHandler> httpHandlers = new HashMap<>();
 
     /**
@@ -88,6 +91,21 @@ public final class CompanionExecutionSpec {
      */
     public CompanionExecutionSpec setJobContext(JobContext jobContext) {
         this.jobContext = jobContext;
+        return this;
+    }
+
+    /**
+     * Returns the validator applied to native job metadata before registration.
+     */
+    public JobSpecValidator getJobSpecValidator() {
+        return jobSpecValidator;
+    }
+
+    /**
+     * Sets an optional application-specific job contract validator.
+     */
+    public CompanionExecutionSpec setJobSpecValidator(JobSpecValidator validator) {
+        jobSpecValidator = Objects.requireNonNull(validator, "validator");
         return this;
     }
 

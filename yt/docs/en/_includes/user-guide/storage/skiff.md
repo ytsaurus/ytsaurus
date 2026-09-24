@@ -152,7 +152,7 @@ In `table_skiff_schemas` and `skiff_schema_registry`, a skiff schema may be desc
 
 Example:
 
-```
+```yson
 <
     "table_skiff_schemas" = [
         "$table1"

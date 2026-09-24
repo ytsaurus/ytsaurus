@@ -52,7 +52,7 @@ The Raw accessor uses explicit read and write operations:
 |-------|----------------|----------|
 | `Get()` | `([]byte, bool)` | A copy of the saved bytes |
 | `Or(fallback []byte)` | `[]byte` | The current value or `fallback` |
-| `Set(data []byte)` | `error` | Save the bytes |
+| `Set(data []byte)` | `error` | Save the bytes; empty bytes delete the state |
 | `Clear()` | `error` | Delete the state |
 
 YSON and Proto states are changed in place:

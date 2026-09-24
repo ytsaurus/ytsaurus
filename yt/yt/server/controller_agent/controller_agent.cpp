@@ -11,6 +11,7 @@
 #include "operation_controller.h"
 #include "operation_controller_host.h"
 #include "private.h"
+#include "push_based_shuffle_registry.h"
 #include "scheduling_context.h"
 #include "universal_monitoring_descriptor_manager.h"
 
@@ -239,6 +240,7 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
+        , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>(Config_))
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
@@ -423,6 +425,13 @@ public:
         return JobTracker_.Get();
     }
 
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleRegistry_;
+    }
+
     const TMediumDirectoryPtr& GetMediumDirectory() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -458,6 +467,7 @@ public:
         ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
+        PushBasedShuffleRegistry_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -1199,6 +1209,7 @@ private:
     const TOperationEventReporterPtr OperationEventsReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
+    const TPushBasedShuffleRegistryPtr PushBasedShuffleRegistry_;
 
     bool Connected_ = false;
     bool ConnectScheduled_ = false;
@@ -1503,6 +1514,7 @@ private:
 
         // TODO(pogorelov): Do not call it directly, subscribe on signal when job tracker becomes stable.
         JobTracker_->OnSchedulerConnected(IncarnationId_);
+        PushBasedShuffleRegistry_->OnSchedulerConnected(IncarnationId_);
 
         SchedulerConnected_.Fire(IncarnationId_);
     }
@@ -1546,12 +1558,13 @@ private:
         IdToOperation_.clear();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Scheduler disconnected"));
+            CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Scheduler disconnected"));
             CancelableContext_.Reset();
         }
         CancelableControlInvoker_.Reset();
 
         JobTracker_->Cleanup();
+        PushBasedShuffleRegistry_->Cleanup();
 
         ExecNodeDescriptorsByTagsCache_->Clear();
 
@@ -1705,11 +1718,18 @@ private:
         ScheduleAllocationRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_allocation_requests());
 
         auto now = TInstant::Now();
-        preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
-        preparedRequest.OperationsSent = LastOperationsSendTime_ + Config_->OperationsPushPeriod < now;
-        preparedRequest.OperationJobMetricsSent = LastOperationJobMetricsSendTime_ + Config_->OperationJobMetricsPushPeriod < now;
-        preparedRequest.OperationAlertsSent = LastOperationAlertsSendTime_ + Config_->OperationAlertsPushPeriod < now;
-        preparedRequest.SuspiciousJobsSent = LastSuspiciousJobsSendTime_ + Config_->SuspiciousJobsPushPeriod < now;
+        auto isDue = [&] (TInstant lastTime, TDuration period) {
+            return lastTime + period < now;
+        };
+
+        preparedRequest.ExecNodesRequested = isDue(LastExecNodesUpdateTime_, Config_->ExecNodesUpdatePeriod);
+        preparedRequest.OperationsSent = isDue(LastOperationsSendTime_, Config_->OperationsPushPeriod);
+        preparedRequest.OperationJobMetricsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationJobMetricsSendTime_, Config_->OperationJobMetricsPushPeriod);
+        preparedRequest.OperationAlertsSent = preparedRequest.OperationsSent &&
+            isDue(LastOperationAlertsSendTime_, Config_->OperationAlertsPushPeriod);
+        preparedRequest.SuspiciousJobsSent = preparedRequest.OperationsSent &&
+            isDue(LastSuspiciousJobsSendTime_, Config_->SuspiciousJobsPushPeriod);
 
         for (const auto& [operationId, operation] : GetOperations()) {
             bool flushJobMetrics = flushJobMetricsOperationIds.contains(operationId);
@@ -1722,7 +1742,7 @@ private:
             auto* protoOperation = request->add_operations();
             ToProto(protoOperation->mutable_operation_id(), operationId);
 
-            // We must to sent job metrics for finished operations.
+            // We must send job metrics for finished operations.
             if (preparedRequest.OperationJobMetricsSent || flushJobMetrics) {
                 auto jobMetricsDelta = controller->PullJobMetricsDelta(/*force*/ flushJobMetrics);
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
@@ -1833,6 +1853,7 @@ private:
         YT_TLOG_DEBUG("Sending heartbeat")
             .With("ExecNodesRequested", preparedRequest.ExecNodesRequested)
             .With("OperationsSent", preparedRequest.OperationsSent)
+            .With("OperationJobMetricsSent", preparedRequest.OperationJobMetricsSent)
             .With("OperationAlertsSent", preparedRequest.OperationAlertsSent)
             .With("SuspiciousJobsSent", preparedRequest.SuspiciousJobsSent)
             .With("OperationEventCount", preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size());
@@ -2484,6 +2505,11 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
 TJobTracker* TControllerAgent::GetJobTracker() const
 {
     return Impl_->GetJobTracker();
+}
+
+const TPushBasedShuffleRegistryPtr& TControllerAgent::GetPushBasedShuffleRegistry() const
+{
+    return Impl_->GetPushBasedShuffleRegistry();
 }
 
 bool TControllerAgent::IsConnected() const

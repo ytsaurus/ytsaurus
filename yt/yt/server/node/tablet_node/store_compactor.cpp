@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "error_manager.h"
+#include "global_stores_update_throttler.h"
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "public.h"
@@ -987,6 +988,10 @@ public:
             Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Orchid,
             Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
+        , GlobalStoresUpdateThrottler_(New<TGlobalStoresUpdateThrottler>(
+            /*config*/ nullptr,
+            Bootstrap_->GetConnection(),
+            Profiler_))
     {
         Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -1008,14 +1013,32 @@ public:
 
     void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) override
     {
-        TEventTimerGuard timerGuard(ScanTimer_);
-
-        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
-        if (!dynamicConfig->Enable) {
+        if (!Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->Enable) {
             return;
         }
 
+        if (IsProcessingActionBatch_) {
+            const auto& Logger = TabletNodeLogger;
+            YT_TLOG_DEBUG("Store compactor is already processing an action batch, skipping the new one");
+            return;
+        }
+
+        IsProcessingActionBatch_ = true;
+
+        // NB: Process the action batch asynchronously to avoid performing long operations during slot scan.
+        GetCurrentInvoker()->Invoke(BIND(&TStoreCompactor::DoProcessLsmActionBatch, MakeStrong(this), batch));
+    }
+
+    void DoProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch)
+    {
+        TEventTimerGuard timerGuard(ScanTimer_);
+
         const auto& Logger = TabletNodeLogger;
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor;
+
+        auto finallyGuard = Finally([&] {
+            IsProcessingActionBatch_ = false;
+        });
 
         YT_TLOG_DEBUG("Store compactor started processing action batch");
 
@@ -1160,16 +1183,30 @@ public:
 
         YT_TLOG_DEBUG("Store compactor finished processing action batch");
 
-        // NB: Strictly speaking, redundant.
-        auto guard = Guard(ScanSpinLock_);
+        bool scanForPartitioning;
+        bool scanForCompactions;
 
-        if (ScanForPartitioning_) {
-            PickMorePartitionings(guard);
+        {
+            // NB: Strictly speaking, redundant.
+            auto guard = Guard(ScanSpinLock_);
+
+            scanForPartitioning = ScanForPartitioning_;
+            scanForCompactions = ScanForCompactions_;
+
+            if (scanForPartitioning) {
+                PickMorePartitionings(guard);
+            }
+
+            if (scanForCompactions) {
+                PickMoreCompactions(guard);
+            }
+        }
+
+        if (scanForPartitioning) {
             ScheduleMorePartitionings();
         }
 
-        if (ScanForCompactions_) {
-            PickMoreCompactions(guard);
+        if (scanForCompactions) {
             ScheduleMoreCompactions();
         }
     }
@@ -1214,6 +1251,8 @@ private:
     const TAsyncSemaphorePtr PartitioningSemaphore_;
     const TAsyncSemaphorePtr CompactionSemaphore_;
 
+    bool IsProcessingActionBatch_ = false;
+
     // Variables below contain per-iteration state for slot scan.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ScanSpinLock_);
     bool ScanForPartitioning_;
@@ -1223,10 +1262,8 @@ private:
 
     // Variables below are actually used during the scheduling.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TaskSpinLock_);
-    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_; // Queue.
-    size_t PartitioningTaskIndex_ = 0; // Queue begin boundary.
-    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_; // Queue.
-    size_t CompactionTaskIndex_ = 0; // Queue begin boundary.
+    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_;
+    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartedTasksSpinLock_);
     std::vector<NLsm::TStartedCompactionTask> StartedCompactionTasks_;
@@ -1235,6 +1272,8 @@ private:
     const TCompactionOrchidPtr CompactionOrchid_;
     const TCompactionOrchidPtr PartitioningOrchid_;
     const IYPathServicePtr OrchidService_;
+
+    const TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNamesLock_);
     std::optional<std::string> CompactionFairSharePool_;
@@ -1264,6 +1303,7 @@ private:
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
         PartitioningOrchid_->Reconfigure(config->Orchid);
         CompactionOrchid_->Reconfigure(config->Orchid);
+        GlobalStoresUpdateThrottler_->Reconfigure(newNodeConfig->GlobalStoresUpdateThrottler);
 
         {
             auto guard = WriterGuard(PoolNamesLock_);
@@ -1373,7 +1413,6 @@ private:
     void PickMoreTasks(
         std::vector<std::unique_ptr<TCompactionTask>>* candidates,
         std::vector<std::unique_ptr<TCompactionTask>>* tasks,
-        size_t* index,
         const NProfiling::TGauge& counter)
     {
         counter.Update(candidates->size());
@@ -1381,7 +1420,6 @@ private:
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
-            *index = 0;
         }
 
         candidates->clear();
@@ -1392,7 +1430,6 @@ private:
         PickMoreTasks(
             &PartitioningCandidates_,
             &PartitioningTasks_,
-            &PartitioningTaskIndex_,
             FeasiblePartitioningsCounter_);
     }
 
@@ -1401,24 +1438,51 @@ private:
         PickMoreTasks(
             &CompactionCandidates_,
             &CompactionTasks_,
-            &CompactionTaskIndex_,
             FeasibleCompactionsCounter_);
+    }
+
+    std::vector<bool> ThrottleStoresUpdateAtMaster(
+        std::vector<std::unique_ptr<TCompactionTask>>* tasks,
+        const TAsyncSemaphorePtr& semaphore,
+        ETabletStoresUpdateReason updateReason)
+    {
+        {
+            auto taskGuard = Guard(TaskSpinLock_);
+
+            int scheduleLimit = std::min<int>(tasks->size(), std::max<int>(semaphore->GetFree(), 0));
+            if (!scheduleLimit) {
+                return {};
+            }
+
+            for (int index = 0; index < scheduleLimit; ++index) {
+                auto& task = tasks->at(index);
+                GlobalStoresUpdateThrottler_->AddRequest(
+                    task->Slot->GetTabletCellBundleName(),
+                    ssize(task->Info->StoreIds),
+                    CellTagFromId(task->Info->TabletId));
+            }
+        }
+
+        return GlobalStoresUpdateThrottler_->Throttle(updateReason);
     }
 
     void ScheduleMoreTasks(
         std::vector<std::unique_ptr<TCompactionTask>>* tasks,
-        size_t* index,
         const TAsyncSemaphorePtr& semaphore,
         const TCounter& counter,
-        void (TStoreCompactor::*action)(TCompactionTask*))
+        void (TStoreCompactor::*action)(TCompactionTask*),
+        ETabletStoresUpdateReason updateReason)
     {
+        auto throttlerAcquired = ThrottleStoresUpdateAtMaster(tasks, semaphore, updateReason);
+
         auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
-        while (true) {
-            if (*index == tasks->size()) {
-                break;
+        YT_VERIFY(tasks->size() >= throttlerAcquired.size());
+        for (auto&& [task, isThrottlerAcquired] : Zip(*tasks, throttlerAcquired)) {
+            if (!isThrottlerAcquired) {
+                continue;
             }
 
             auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore);
@@ -1426,9 +1490,6 @@ private:
                 break;
             }
 
-            // Extract the next task.
-            auto&& task = tasks->at(*index);
-            ++*index;
             task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
 
@@ -1452,20 +1513,20 @@ private:
     {
         ScheduleMoreTasks(
             &PartitioningTasks_,
-            &PartitioningTaskIndex_,
             PartitioningSemaphore_,
             ScheduledPartitioningsCounter_,
-            &TStoreCompactor::PartitionEden);
+            &TStoreCompactor::PartitionEden,
+            ETabletStoresUpdateReason::Partitioning);
     }
 
     void ScheduleMoreCompactions()
     {
         ScheduleMoreTasks(
             &CompactionTasks_,
-            &CompactionTaskIndex_,
             CompactionSemaphore_,
             ScheduledCompactionsCounter_,
-            &TStoreCompactor::CompactPartition);
+            &TStoreCompactor::CompactPartition,
+            ETabletStoresUpdateReason::Compaction);
     }
 
     NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const std::string& title)
@@ -1776,6 +1837,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Partitioning));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             for (const auto& [writer, partitionIndex] : partitionWriters) {
                 AddStoresToAdd(&actionRequest, writer);
             }
@@ -1843,7 +1905,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Partitioning)
                 .With(ex);
 
@@ -1921,6 +1982,7 @@ private:
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToRemove(&actionRequest, stores);
 
             YT_TLOG_INFO("Partition stores discarded by TTL")
@@ -1949,7 +2011,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
                 .With(ex);
 
@@ -2057,6 +2118,7 @@ private:
             }
             stores.push_back(std::move(typedStore));
         }
+
         {
             auto guard = Guard(task->Info->RuntimeData.SpinLock);
             task->Info->RuntimeData.TotalReaderStatistics = TBackgroundActivityTaskInfoBase::TReaderStatistics(stores);
@@ -2205,6 +2267,7 @@ private:
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
+            actionRequest.set_throttle_at_master(GlobalStoresUpdateThrottler_->IsEnabled());
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);
             AddStoresToRemove(&actionRequest, stores);
@@ -2263,7 +2326,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletSnapshot->TabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
                 .With(ex);
 

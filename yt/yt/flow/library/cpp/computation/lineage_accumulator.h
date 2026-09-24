@@ -2,6 +2,8 @@
 
 #include "meta_setter.h"
 
+#include <yt/yt/flow/library/cpp/common/computation_statistics.h>
+#include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/traverse.h>
@@ -10,19 +12,11 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddLineageInput(
+TBatchStatistics AddLineageInputs(
     TLineageDelta* delta,
     const TComputationSpecPtr& spec,
-    const TStreamId& inputStreamId,
-    i64 count,
-    i64 byteSize);
-
-void AddLineageInputs(
-    TLineageDelta* delta,
-    const TComputationSpecPtr& spec,
-    const std::vector<TInputMessageConstPtr>& messages,
-    const std::vector<TInputTimerConstPtr>& timers,
-    const std::vector<TInputVisitConstPtr>& visits);
+    const IInputContext& inputs,
+    THashMap<TStreamId, TBatchStatistics> skipped);
 
 class TLineageAccumulator
 {

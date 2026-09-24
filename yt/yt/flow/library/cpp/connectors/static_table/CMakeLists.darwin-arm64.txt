@@ -30,16 +30,19 @@ target_compile_options(cpp-connectors-static_table PRIVATE
 target_link_libraries(cpp-connectors-static_table PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-timezone_conversion
   library-cpp-common
   cpp-connectors-common
-  cpp-connectors-static_table_v2
   library-cpp-resources
   yt-yt-core
   yt-yt-client
+  yt-library-re2
 )
 
 target_sources(cpp-connectors-static_table PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/arrival_order_table_sink.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/source.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/source_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/spec.cpp
 )
 
@@ -61,12 +64,13 @@ target_compile_options(cpp-connectors-static_table.global PRIVATE
 target_link_libraries(cpp-connectors-static_table.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-timezone_conversion
   library-cpp-common
   cpp-connectors-common
-  cpp-connectors-static_table_v2
   library-cpp-resources
   yt-yt-core
   yt-yt-client
+  yt-library-re2
 )
 
 target_sources(cpp-connectors-static_table.global PRIVATE

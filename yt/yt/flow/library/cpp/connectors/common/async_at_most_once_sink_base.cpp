@@ -92,16 +92,15 @@ void TAsyncAtMostOnceSinkBase::Commit()
             .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
             .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
     }
-    TFuture<void> combinedFuture = AllSucceeded(
+    auto combinedFuture = AllSet(
         std::move(futures),
         TFutureCombinerOptions{
             .PropagateCancelationToInput = false,
             .CancelInputOnShortcut = false,
-        });
-    combinedFuture.Subscribe(BIND([weakThis = MakeWeak(this), rowsSize] (const TError& /*error*/) {
-        if (auto strongThis = weakThis.Lock(); strongThis) {
-            strongThis->QueueSizeSemaphore_->Release(rowsSize);
-        }
+        })
+        .AsVoid();
+    combinedFuture.Subscribe(BIND([semaphore = QueueSizeSemaphore_, rowsSize] (const TError& /*error*/) {
+        semaphore->Release(rowsSize);
     }));
 }
 

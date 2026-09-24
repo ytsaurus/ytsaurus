@@ -71,7 +71,7 @@ All accessors implement the common `StateAccessor<T>` interface.
 
 ### Changing the value in place {#in-place}
 
-The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` becomes the state value and is written as after `set()`, so it can be changed right away:
+The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` is attached to the key but not written: it can be changed right away, and it becomes the state value only once it is changed — an untouched default creates no row in the state table:
 
 {% list tabs group=lang %}
 
@@ -108,6 +108,32 @@ To detect the changes, a value that was read is re-encoded once at the end of th
   ```
 
 {% endlist %}
+
+The same intent can be declared once on the descriptor: `InternalStateDescriptor.readOnly()` returns a descriptor of the same state whose accessors are read-only, so no access site needs a `readOnly()` call of its own. Declare it once as a constant next to the original:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  private static final InternalStateDescriptor<CounterState> COUNTER_READ_ONLY = COUNTER.readOnly();
+
+  long count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  private val COUNTER_READ_ONLY: InternalStateDescriptor<CounterState> = COUNTER.readOnly()
+
+  val count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count
+  ```
+
+{% endlist %}
+
+An internal state lives within a single computation: the worker serves only the names listed in the `internal_states` of its parameters. A read-only descriptor therefore reads the state of the computation it is used in: it is not a way to read a state that another computation writes — that is what [External State](../../../flow/java/external-state.md) joiners are for.
+
+Read-only is a discipline of access, not a property of the state: the tracking lives on the state itself. If the value for the same key was already read through a writable accessor in this batch, the state is already tracked, and a change made in place afterwards reaches the worker whichever accessor handed the value out. The descriptor guarantees "this accessor does not write", not "this state is not tracked".
 
 ## YsonStateAccessor {#yson-state-accessor}
 
@@ -212,9 +238,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
           // Modify the state
           state.setCount(state.getCount() + 1);
           state.setLastUpdate(message.getEventTimestamp());
-
-          // Save the state
-          stateAccessor.set(state);
       }
   }
   ```
@@ -233,9 +256,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
           // Modify the state
           state.count = state.count + 1
           state.lastUpdate = message.getEventTimestamp()
-
-          // Save the state
-          stateAccessor.set(state)
       }
   }
   ```
@@ -439,7 +459,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
 
           CounterState state = stateAccessor.getOrDefault(new CounterState());
           state.setCount(state.getCount() + 1);
-          stateAccessor.set(state);
       }
   }
   ```
@@ -469,7 +488,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
 
           val state: CounterState = stateAccessor.getOrDefault(CounterState())
           state.count = state.count + 1
-          stateAccessor.set(state)
       }
   }
   ```

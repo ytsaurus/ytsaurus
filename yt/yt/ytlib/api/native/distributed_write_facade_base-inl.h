@@ -217,58 +217,40 @@ void TDistributedWriteFinishFacadeBase<TDerived, TTraits>::FinishSession(
     NChunkClient::TChunkServiceProxy proxy(channel);
 
     // Split large outputs into separate requests.
-    NChunkClient::NProto::TReqAttachChunkTrees* req = nullptr;
-    NChunkClient::TChunkServiceProxy::TReqExecuteBatchPtr batchReq;
+    NChunkClient::TChunkServiceProxy::TReqAttachChunkTreesPtr req;
 
     auto flushRequest = [&] (bool requestStatistics) {
-        if (!batchReq) {
+        if (!req) {
             return;
         }
 
-        if (req) {
-            req->set_request_statistics(requestStatistics);
-            req = nullptr;
-        }
+        req->set_request_statistics(requestStatistics);
 
-        auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
+        auto rspOrError = NConcurrency::WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            NChunkClient::GetCumulativeError(batchRspOrError),
+            rspOrError,
             "Error attaching output chunks to %v",
             path);
 
-        const auto& batchRsp = batchRspOrError.Value();
-        const auto& subresponses = batchRsp->attach_chunk_trees_subresponses();
-
         if (requestStatistics) {
-            for (const auto& rsp : subresponses) {
-                dataStatistics += rsp.statistics();
-            }
+            dataStatistics += rspOrError.Value()->statistics();
         }
 
-        batchReq.Reset();
+        req.Reset();
     };
 
-    int currentRequestSize = 0;
     THashSet<NChunkClient::TChunkTreeId> addedChunkTrees;
 
     const auto& config = Client_->GetNativeConnection()->GetConfig()->DistributedWriteDynamicConfig;
     auto addChunkTree = [&] (NChunkClient::TChunkTreeId chunkTreeId) {
-        if (batchReq && currentRequestSize >= config->MaxChildrenPerAttachRequest) {
+        if (req && req->child_ids_size() >= config->MaxChildrenPerAttachRequest) {
             flushRequest(/*requestStatistics*/ false);
-            currentRequestSize = 0;
         }
 
-        ++currentRequestSize;
-
         if (!req) {
-            if (!batchReq) {
-                batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                NObjectClient::SetSuppressUpstreamSync(&batchReq->Header(), true);
-                // COMPAT(shakurov): prefer proto ext (above).
-                batchReq->set_suppress_upstream_sync(true);
-            }
-            req = batchReq->add_attach_chunk_trees_subrequests();
+            req = proxy.AttachChunkTrees();
+            GenerateMutationId(req);
+            NObjectClient::SetSuppressUpstreamSync(&req->Header(), true);
             ToProto(req->mutable_parent_id(), session.RootChunkListId);
         }
 

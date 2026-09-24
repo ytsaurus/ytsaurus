@@ -58,6 +58,7 @@ private:
         TStreamUsage LastReportedUsage;
 
         NProfiling::TGauge LimitBytesGauge;
+        NProfiling::TGauge DemandGauge;
         NProfiling::TGauge SizeGauge;
         NProfiling::TGauge PendingInflatedBytesGauge;
         NProfiling::TGauge MeasuredDemandGauge;
@@ -183,6 +184,7 @@ public:
                 // TODO(pechatnov): rename /size -> /used_inflated_bytes, /limit -> /limit_inflated_bytes,
                 // /pending_size -> /pending_inflated_bytes.
                 streamData.LimitBytesGauge = streamProfiler.Gauge("/limit");
+                streamData.DemandGauge = streamProfiler.Gauge("/demand");
                 streamData.SizeGauge = streamProfiler.Gauge("/size");
                 streamData.PendingInflatedBytesGauge = streamProfiler.WithDefaultDisabled().Gauge("/pending_size");
                 streamData.MeasuredDemandGauge = streamProfiler.Gauge("/measured_demand");
@@ -368,11 +370,13 @@ public:
         auto demandWindow = DynamicSpec_->DemandWindow;
         for (auto& [jobId, jobState] : JobIdToState_) {
             for (auto& [streamId, streamData] : jobState.Input.Streams) {
+                streamData.LimitUsageState->SetDemandBytes(std::nullopt);
                 streamData.OfferedRateEstimator->SetWindow(demandWindow);
                 streamData.PushDemand.SetWindow(demandWindow);
                 streamData.RawBytesRate.SetWindow(demandWindow);
             }
             for (auto& [streamId, streamData] : jobState.Output.Streams) {
+                streamData.LimitUsageState->SetDemandBytes(std::nullopt);
                 streamData.PushDemand.SetWindow(demandWindow);
                 streamData.RawBytesRate.SetWindow(demandWindow);
                 streamData.ProducedInflatedBytesRate->SetWindow(demandWindow);
@@ -391,6 +395,7 @@ public:
         auto guard = Guard(Lock_);
 
         if (JobIdToState_.empty()) {
+            UpdatePoolCapacityGauges();
             return;
         }
         // The tick is not idempotent (peaks are read-and-reset), so a second run
@@ -404,6 +409,12 @@ public:
     }
 
 private:
+    void UpdatePoolCapacityGauges()
+    {
+        InputCapacityGauge_.Update(DynamicSpec_->EnableV2 ? EffectiveFairSharePool(DynamicSpec_->InputBuffer) : 0);
+        OutputCapacityGauge_.Update(DynamicSpec_->EnableV2 ? EffectiveFairSharePool(DynamicSpec_->OutputBuffer) : 0);
+    }
+
     std::optional<double> GetOverrideLimit(const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& parameters, const TComputationId& computationId, const TStreamId& streamId)
     {
         if (auto it = parameters->JobOverrides.find(computationId); it != parameters->JobOverrides.end()) {
@@ -656,7 +667,10 @@ private:
         }
 
         if (!DynamicSpec_->EnableV2) {
+            UpdatePoolCapacityGauges();
             for (const auto& entry : plans) {
+                entry.StreamData->LimitUsageState->SetDemandBytes(std::nullopt);
+                entry.StreamData->DemandGauge.Update(0);
                 i64 newLimit = static_cast<i64>(ComputeLimit(*entry.Spec, entry.Demand, *entry.TotalDemand, entry.OverrideLimit));
                 entry.StreamData->LimitUsageState->SetLimitBytes(newLimit);
                 entry.StreamData->LimitBytesGauge.Update(newLimit);
@@ -778,7 +792,13 @@ private:
                 usedBySide[side] += entry.UsedInflatedBytes;
                 demandBackedWantedTotalBySide[side] += static_cast<double>(entry.DemandBackedWantedLimit);
             }
+            auto demand = entry.OverrideLimit
+                ? std::nullopt
+                : std::optional<i64>(entry.DemandBackedWantedLimit);
+            entry.StreamData->LimitUsageState->SetDemandBytes(demand);
+            entry.StreamData->DemandGauge.Update(demand.value_or(0));
         }
+        UpdatePoolCapacityGauges();
 
         std::array<double, 2> demandBackedScale{};
         for (size_t side = 0; side < fullPoolBySide.size(); ++side) {
@@ -903,6 +923,8 @@ private:
 
     THashMap<TJobId, TJobState> JobIdToState_;
     TMessageTransferingInfoPtr MessageTransferingInfo_;
+    NProfiling::TGauge InputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/input/capacity");
+    NProfiling::TGauge OutputCapacityGauge_ = WorkerProfiler().Gauge("/buffer_state/pools/output/capacity");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/journal_client/chunk_reader.h>
@@ -1245,6 +1246,7 @@ TEST_F(TDistributedChunkSessionTest, PoolRetryCreatesSeveralChunksForOneSlot)
         poolConfig,
         ControllerConfig_,
         Transaction_->GetId(),
+        /*slotCount*/ 1,
         WriterOptions_,
         WriterConfig_,
         ActionQueue_->GetInvoker(),
@@ -1276,6 +1278,7 @@ TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
         poolConfig,
         ControllerConfig_,
         Transaction_->GetId(),
+        /*slotCount*/ 1,
         WriterOptions_,
         WriterConfig_,
         ActionQueue_->GetInvoker(),
@@ -1356,6 +1359,104 @@ TEST_F(TDistributedChunkSessionTest, ReadAllRecordsFromSealedChunk)
     std::sort(got.begin(), got.end());
     std::sort(expected.begin(), expected.end());
     EXPECT_EQ(got, expected);
+}
+
+TEST_F(TDistributedChunkSessionTest, ReadWithFreshNodeDirectory)
+{
+    constexpr int RecordCount = 8;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    for (bool finalPhase : {false, true}) {
+        for (bool partiallyPopulated : {false, true}) {
+            SCOPED_TRACE(Format("FinalPhase: %v, PartiallyPopulated: %v", finalPhase, partiallyPopulated));
+            auto connection = NNative::CreateConnection(NativeConnection_->GetCompoundConfig());
+            auto terminateConnection = Finally([&] { connection->Terminate(); });
+            auto client = connection->CreateNativeClient(NNative::TClientOptions::Root());
+            const auto& nodeDirectory = connection->GetNodeDirectory();
+            ASSERT_TRUE(nodeDirectory->GetAllDescriptors().empty());
+
+            if (partiallyPopulated) {
+                auto nodeId = chunkInfo.Replicas.front().GetNodeId();
+                nodeDirectory->AddDescriptor(nodeId, NativeConnection_->GetNodeDirectory()->GetDescriptor(nodeId));
+            }
+
+            auto reader = CreateDistributedChunkSessionReader(
+                MakeReaderConfig(),
+                client,
+                New<TChunkReaderHost>(client),
+                chunkInfo.ChunkId,
+                chunkInfo.Replicas,
+                chunkInfo.ReadQuorum,
+                /*startRecordIndex*/ 0,
+                /*rangeEndRecordIndex*/ std::nullopt,
+                ActionQueue_->GetInvoker());
+
+            if (finalPhase) {
+                reader->SetAllWritersFinished();
+            }
+
+            EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
+            EXPECT_EQ(reader->GetStatistics()->MasterRefreshCount.load(), 1);
+            for (auto replica : chunkInfo.Replicas) {
+                EXPECT_TRUE(nodeDirectory->FindDescriptor(replica.GetNodeId()));
+            }
+        }
+    }
+}
+
+TEST_F(TDistributedChunkSessionTest, ReadWithFreshNodeDirectoryAndKnownRecordCount)
+{
+    constexpr int RecordCount = 8;
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+
+    auto connection = NNative::CreateConnection(NativeConnection_->GetCompoundConfig());
+    auto terminateConnection = Finally([&] { connection->Terminate(); });
+    auto client = connection->CreateNativeClient(NNative::TClientOptions::Root());
+    ASSERT_TRUE(connection->GetNodeDirectory()->GetAllDescriptors().empty());
+
+    auto reader = CreateDistributedChunkSessionReader(
+        MakeReaderConfig(),
+        client,
+        New<TChunkReaderHost>(client),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
+
+    EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
+    EXPECT_EQ(reader->GetStatistics()->MasterRefreshCount.load(), 1);
+    EXPECT_EQ(reader->GetStatistics()->ComputeQuorumInfoCount.load(), 0);
+}
+
+TEST_F(TDistributedChunkSessionTest, FreshNodeDirectoryRefreshFailureIsBounded)
+{
+    auto connection = NNative::CreateConnection(NativeConnection_->GetCompoundConfig());
+    auto terminateConnection = Finally([&] { connection->Terminate(); });
+    auto client = connection->CreateNativeClient(NNative::TClientOptions::Root());
+
+    auto config = MakeReaderConfig();
+    config->MaxReadAttempts = 2;
+    auto chunkId = MakeRandomId(EObjectType::JournalChunk, connection->GetPrimaryMasterCellTag());
+
+    auto reader = CreateDistributedChunkSessionReader(
+        config,
+        client,
+        New<TChunkReaderHost>(client),
+        chunkId,
+        /*replicas*/ {TChunkReplica(TNodeId(1), GenericChunkReplicaIndex)},
+        /*readQuorum*/ 1,
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        ActionQueue_->GetInvoker());
+
+    auto result = WaitFor(reader->Read());
+    EXPECT_FALSE(result.IsOK());
+    EXPECT_TRUE(result.FindMatching(NChunkClient::EErrorCode::NoSuchChunk));
+    EXPECT_EQ(reader->GetStatistics()->ErrorAttemptCount.load(), config->MaxReadAttempts);
 }
 
 TEST_F(TDistributedChunkSessionTest, ReadInterleavedWithWriter)

@@ -2,6 +2,8 @@ from .conftest import yt_env, run_clear_tmp  # noqa
 
 import yt.wrapper as yt
 
+import pytest
+
 
 COMMON_ARGS = [
     "--directory",
@@ -12,6 +14,90 @@ COMMON_ARGS = [
     "debug",
     "--verbose",
 ]
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_cleanup_counters(yt_env, capfd, dry_run):  # noqa
+    client = yt_env.yt_client
+    client.create("map_node", "//tmp/counters/dir/subdir", recursive=True)
+    client.create("table", "//tmp/counters/dir/subdir/table")
+    client.create("table", "//tmp/counters/protected", attributes={"clear_tmp_config": {"dont_prune": True}})
+    client.create("table", "//tmp/counters/locked")
+
+    with client.Transaction(timeout=60_000):
+        client.lock("//tmp/counters/locked", mode="exclusive")
+        run_clear_tmp(
+            yt_env.yt_instance.get_proxy_address(),
+            COMMON_ARGS + ["--directory", "//tmp/counters", "--remove-empty", "--safe-age", "0"]
+            + (["--dry-run"] if dry_run else []))
+
+    stderr = capfd.readouterr().err
+    assert "Skipped (dont_prune): 1" in stderr
+    assert "Skipped (locked): 1" in stderr
+    if dry_run:
+        assert "Cleanup counters: collected=6, skipped=6, removed=0" in stderr
+        assert "Skipped (dry_run): 4" in stderr
+        assert "Removed (" not in stderr
+        assert client.exists("//tmp/counters/dir/subdir/table")
+    else:
+        assert "Cleanup counters: collected=6, skipped=3, removed=3" in stderr
+        assert "Skipped (root_directory): 1" in stderr
+        assert "Removed (empty_object): 1" in stderr
+        assert "Removed (empty_directory): 2" in stderr
+        assert not client.exists("//tmp/counters/dir")
+    assert client.exists("//tmp/counters/protected")
+    assert client.exists("//tmp/counters/locked")
+
+
+def create_account_with_directory(client, account, disk_space, node_count, chunk_count):
+    client.create("account", attributes={
+        "name": account,
+        "resource_limits": {
+            "disk_space_per_medium": {"default": disk_space},
+            "node_count": node_count,
+            "chunk_count": chunk_count,
+        },
+    })
+    directory = yt.ypath_join("//home", account)
+    client.create("map_node", directory, attributes={"account": account})
+    return directory
+
+
+def test_directory_nodes_count_towards_quota(yt_env):  # noqa
+    proxy_address = yt_env.yt_instance.get_proxy_address()
+    client = yt_env.yt_client
+
+    account = "directory_nodes"
+    directory = create_account_with_directory(
+        client, account, disk_space=1024 * 1024, node_count=8, chunk_count=10)
+    tables = [yt.ypath_join(directory, f"table_{index}") for index in range(2)]
+    for table in tables:
+        client.create("table", table)
+
+    args = [
+        "--directory", directory,
+        "--account", account,
+        "--account-usage-ratio-save-total", "0.5",
+        "--safe-age", "0",
+        "--log-level", "debug",
+        "--verbose",
+    ]
+
+    # Two tables and the home directory fit within the four-node cleanup limit.
+    run_clear_tmp(proxy_address, args)
+    for table in tables:
+        assert client.exists(table)
+
+    # Directories alone now exceed the cleanup limit, while the total of seven
+    # nodes still fits within the account's eight-node creation limit.
+    for index in range(4):
+        client.create("map_node", yt.ypath_join(directory, f"dir_{index}"))
+
+    run_clear_tmp(proxy_address, args)
+
+    for table in tables:
+        assert not client.exists(table)
+    assert client.exists(directory)
 
 
 def test_locked_node(yt_env):  # noqa
@@ -99,3 +185,31 @@ def test_dont_prune(yt_env):  # noqa
 
     assert not client.exists("//tmp/dir/subdir")
     assert client.exists("//tmp/dir")
+
+
+@pytest.mark.parametrize("white_list_args", [
+    [],
+    ["--dont-prune-white-list", "owner_a", "owner_b"],
+    ["--dont-prune-white-list", "owner_a", "--dont-prune-white-list", "owner_b"],
+])
+def test_dont_prune_white_list(yt_env, white_list_args):  # noqa
+    proxy_address = yt_env.yt_instance.get_proxy_address()
+    client = yt_env.yt_client
+
+    for owner in ("owner_a", "owner_b", "owner_c"):
+        client.create("user", attributes={"name": owner})
+        attributes = {"owner": owner, "clear_tmp_config": {"dont_prune": True}}
+        client.create("map_node", f"//tmp/{owner}_dir", attributes=attributes)
+        client.create("table", f"//tmp/{owner}_table", attributes=attributes)
+        # An allowed owner alone does not protect a node or directory children.
+        client.create("table", f"//tmp/{owner}_dir/child", attributes={"owner": owner})
+
+    run_clear_tmp(
+        proxy_address,
+        COMMON_ARGS + ["--remove-empty", "--safe-age", "0"] + white_list_args)
+
+    for owner in ("owner_a", "owner_b", "owner_c"):
+        protected = not white_list_args or owner in ("owner_a", "owner_b")
+        assert client.exists(f"//tmp/{owner}_table") == protected
+        assert client.exists(f"//tmp/{owner}_dir") == protected
+        assert not client.exists(f"//tmp/{owner}_dir/child")

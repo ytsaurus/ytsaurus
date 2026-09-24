@@ -690,7 +690,7 @@ func TestResponseDataToProtoRendersClearedStateAsReset(t *testing.T) {
 	require.Nil(t, externalItem.State)
 }
 
-func TestResponseDataToProtoRejectsEmptyInternalStateValue(t *testing.T) {
+func TestResponseDataToProtoRendersEmptyInternalStateValueAsReset(t *testing.T) {
 	key := batchKey(t, 17, "user-1")
 	runtime, _ := processBatch(t, &companion.TReqProcessBatch{})
 
@@ -698,9 +698,12 @@ func TestResponseDataToProtoRejectsEmptyInternalStateValue(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, counters.Set(key, InternalState{}))
 
-	_, err = ResponseDataToProto(runtime, nil)
-	require.ErrorIs(t, err, ErrEmptyStateValue)
-	require.ErrorContains(t, err, "counters")
+	data, err := ResponseDataToProto(runtime, nil)
+	require.NoError(t, err)
+
+	item := data.GetInternalStates()[0].GetStateItems()[0]
+	require.True(t, item.GetReset_())
+	require.Nil(t, item.State)
 }
 
 func TestResponseDataToProtoDistinguishesNilAndEmptyExternalStateRows(t *testing.T) {
@@ -717,16 +720,21 @@ func TestResponseDataToProtoDistinguishesNilAndEmptyExternalStateRows(t *testing
 	require.NoError(t, err)
 	require.NoError(t, external.Set(key, ExternalState{}))
 
-	_, err = ResponseDataToProto(runtime, nil)
-	require.ErrorIs(t, err, ErrEmptyStateValue)
-	require.ErrorContains(t, err, "/state")
+	data, err := ResponseDataToProto(runtime, nil)
+	require.NoError(t, err)
+	item := data.GetExternalStates()[0].GetStateItems()[0]
+	require.True(t, item.GetReset_())
+	require.Nil(t, item.State)
 
 	empty := NewPayload(wire.Row{}, externalStateSchema())
 	require.NoError(t, external.Set(key, ExternalState{Value: empty}))
-	data, err := ResponseDataToProto(runtime, nil)
+	data, err = ResponseDataToProto(runtime, nil)
 	require.NoError(t, err)
 
-	row, err := wire.UnmarshalRowProto(data.GetExternalStates()[0].GetStateItems()[0].GetState())
+	item = data.GetExternalStates()[0].GetStateItems()[0]
+	require.False(t, item.GetReset_())
+
+	row, err := wire.UnmarshalRowProto(item.GetState())
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	require.Empty(t, row)

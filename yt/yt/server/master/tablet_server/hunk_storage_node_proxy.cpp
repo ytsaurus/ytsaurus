@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
+
 #include <util/generic/xrange.h>
 
 namespace NYT::NTabletServer {
@@ -73,8 +75,10 @@ private:
         auto isExternal = node->IsExternal();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReadQuorum)
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
             .SetExternal(isExternal)
@@ -195,6 +199,44 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::ReadQuorum:
+            case EInternedAttributeKey::WriteQuorum: {
+                ValidateStorageParametersUpdate();
+
+                auto quorum = ConvertTo<int>(value);
+                auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+                auto* node = TBase::LockThisImpl<THunkStorageNode>(lockRequest);
+                if (key == EInternedAttributeKey::ReadQuorum) {
+                    node->SetReadQuorum(quorum);
+                } else {
+                    node->SetWriteQuorum(quorum);
+                }
+
+                return true;
+            }
+
+            case EInternedAttributeKey::ErasureCodec:
+                ValidateStorageParametersUpdate();
+                // Underyling class will further verify the change and perform the update.
+                break;
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
+    }
+
+    void ValidateStorageParametersUpdate() override
+    {
+        TBase::ValidateStorageParametersUpdate();
+
+        GetThisImpl()->ValidateAllTabletsUnmounted("Cannot change hunk storage parameters");
+    }
+
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
@@ -212,7 +254,7 @@ DEFINE_YPATH_SERVICE_METHOD(THunkStorageNodeProxy, GetMountInfo)
     DeclareNonMutating();
     SuppressAccessTracking();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -239,11 +281,11 @@ DEFINE_YPATH_SERVICE_METHOD(THunkStorageNodeProxy, GetMountInfo)
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
     }
 
-    context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-        response->tablets_size(),
-        response->tablet_cells_size(),
-        response->replicas_size(),
-        response->indices_size());
+    context->AnnotateResponse()
+        .With("TabletCount", response->tablets_size())
+        .With("TabletCellCount", response->tablet_cells_size())
+        .With("ReplicaCount", response->replicas_size())
+        .With("IndexCount", response->indices_size());
 
     context->Reply();
 }

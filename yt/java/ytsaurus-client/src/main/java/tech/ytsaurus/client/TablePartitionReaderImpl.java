@@ -27,10 +27,9 @@ public class TablePartitionReaderImpl<T> extends StreamReaderImpl<TRspReadTableP
     }
 
     public CompletableFuture<AsyncReader<T>> waitMetadata() {
-        TablePartitionReaderImpl<T> self = this;
         return readHead().thenApply((data) -> {
-            self.metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
-            return self;
+            metadata = RpcUtil.parseMessageBodyWithCompression(data, META_PARSER, Compression.None);
+            return this;
         });
     }
 
@@ -53,12 +52,16 @@ public class TablePartitionReaderImpl<T> extends StreamReaderImpl<TRspReadTableP
     @Override
     public CompletableFuture<List<T>> next() {
         try {
-            List<T> rows = reader.parse(doRead());
-            if (rows != null) {
+            if (reader.isEndOfStream()) {
+                return CompletableFuture.completedFuture(null);
+            }
+            byte[] attachment = doRead();
+            List<T> rows = attachment == null && doIsEof() ? reader.endOfStream() : reader.parse(attachment);
+            if (rows != null || reader.isEndOfStream()) {
                 return CompletableFuture.completedFuture(rows);
             }
             return getReadyEvent().thenCompose(unused -> {
-                if (doCanRead()) {
+                if (!reader.isEndOfStream() && doCanRead()) {
                     return next();
                 } else {
                     return CompletableFuture.completedFuture(null);

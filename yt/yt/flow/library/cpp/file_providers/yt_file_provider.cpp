@@ -43,7 +43,7 @@ struct TLockedYTFileProviderObject
     ITransactionPtr Transaction;
     EObjectType Type;
     TObjectId ObjectId;
-    TRevision Revision;
+    TRevision ContentRevision;
     std::optional<i64> Size;
 };
 
@@ -83,10 +83,9 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
     options.Attributes = {
         "id",
         "type",
-        "revision",
+        "content_revision",
         "uncompressed_data_size",
         "dynamic",
-        "content_revision",
         "schema",
     };
     auto node = ConvertToNode(WaitFor(transaction->GetNode(
@@ -103,11 +102,11 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
         .With("actual_object_id", objectId);
 
     auto type = attributes.Get<EObjectType>("type");
-    TRevision revision;
+    TRevision contentRevision;
     std::optional<i64> size;
     switch (type) {
         case EObjectType::File:
-            revision = attributes.Get<TRevision>("revision");
+            contentRevision = attributes.Get<TRevision>("content_revision");
             size = attributes.Get<i64>("uncompressed_data_size");
             THROW_ERROR_EXCEPTION_UNLESS(
                 *size >= 0,
@@ -128,7 +127,7 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
                 path)
                 .With("expected_schema", expectedSchema)
                 .With("actual_schema", actualSchema);
-            revision = attributes.Get<TRevision>("content_revision");
+            contentRevision = attributes.Get<TRevision>("content_revision");
             break;
         }
 
@@ -144,7 +143,7 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
         .Transaction = std::move(transaction),
         .Type = type,
         .ObjectId = objectId,
-        .Revision = revision,
+        .ContentRevision = contentRevision,
         .Size = size,
     };
 }
@@ -186,22 +185,6 @@ i64 GetInt64Value(
         "YT BLOB table column %Qv must have int64 values",
         columnName);
     return value.Data.Int64;
-}
-
-void ValidateLockedRevision(
-    const TLockedYTFileProviderObject& object,
-    const TYTFileProviderLocatorPtr& locator)
-{
-    THROW_ERROR_EXCEPTION_UNLESS(
-        object.Type == EObjectType::Table &&
-            object.ObjectId == locator->ObjectId &&
-            object.Revision == locator->Revision,
-        "YT BLOB table changed between discovery and download")
-        .With("expected_object_id", locator->ObjectId)
-        .With("actual_object_id", object.ObjectId)
-        .With("expected_content_revision", locator->Revision)
-        .With("actual_content_revision", object.Revision)
-        .With("actual_type", object.Type);
 }
 
 void DownloadBlobTable(
@@ -274,8 +257,7 @@ void TYTFileProviderLocator::Register(TRegistrar registrar)
     registrar.Parameter("cluster", &TThis::Cluster);
     registrar.Parameter("object_path", &TThis::ObjectPath);
     registrar.Parameter("object_id", &TThis::ObjectId);
-    registrar.Parameter("revision", &TThis::Revision);
-    registrar.Parameter("object_kind", &TThis::ObjectKind);
+    registrar.Parameter("content_revision", &TThis::ContentRevision);
 }
 
 TTableSchemaPtr GetYTFileProviderBlobTableSchema()
@@ -290,50 +272,25 @@ TFileProviderRevisionPtr MakeYTFileProviderRevision(
     const TRichYPath& originalPath,
     const std::string& cluster,
     TObjectId objectId,
-    TRevision revision,
-    i64 size)
+    TRevision contentRevision,
+    std::optional<i64> size)
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-        size >= 0,
+        !size || *size >= 0,
         "YT file provider size must be nonnegative");
 
     auto locator = New<TYTFileProviderLocator>();
     locator->Cluster = cluster;
-    locator->ObjectPath = Format("#%v", objectId);
+    locator->ObjectPath = originalPath.GetPath();
     locator->ObjectId = objectId;
-    locator->Revision = revision;
-    locator->ObjectKind = EYTFileProviderObjectKind::CypressFile;
+    locator->ContentRevision = contentRevision;
 
     auto result = New<TFileProviderRevision>();
     result->FileProviderClassName = std::string(fileProviderClassName);
     result->ObjectId = NFileStorage::TFileStorageObjectId(
-        Format("yt_file:v1:%v:%v:%v", cluster, objectId, revision));
-    result->DisplayVersion = Format("%v@%v", originalPath, revision);
-    result->Size = size;
-    result->Locator = ConvertToNode(locator)->AsMap();
-    return result;
-}
-
-TFileProviderRevisionPtr MakeYTBlobTableFileProviderRevision(
-    TStringBuf fileProviderClassName,
-    const TRichYPath& originalPath,
-    const std::string& cluster,
-    TObjectId objectId,
-    TRevision contentRevision)
-{
-    auto locator = New<TYTFileProviderLocator>();
-    locator->Cluster = cluster;
-    locator->ObjectPath = Format("#%v", objectId);
-    locator->ObjectId = objectId;
-    locator->Revision = contentRevision;
-    locator->ObjectKind = EYTFileProviderObjectKind::BlobTable;
-
-    auto result = New<TFileProviderRevision>();
-    result->FileProviderClassName = std::string(fileProviderClassName);
-    result->ObjectId = NFileStorage::TFileStorageObjectId(
-        Format("yt_blob_table:v1:%v:%v:%v", cluster, objectId, contentRevision));
+        Format("yt_file:v1:%v:%v:%v:%v", cluster, originalPath.GetPath(), objectId, contentRevision));
     result->DisplayVersion = Format("%v@%v", originalPath, contentRevision);
-    result->Size = std::nullopt;
+    result->Size = size;
     result->Locator = ConvertToNode(locator)->AsMap();
     return result;
 }
@@ -350,27 +307,13 @@ TFuture<TFileProviderRevisionPtr> DiscoverYTFileProvider(
         AbortTransaction(transaction);
     });
 
-    switch (object.Type) {
-        case EObjectType::File:
-            return MakeFuture(MakeYTFileProviderRevision(
-                fileProviderClassName,
-                path,
-                cluster,
-                object.ObjectId,
-                object.Revision,
-                *object.Size));
-
-        case EObjectType::Table:
-            return MakeFuture(MakeYTBlobTableFileProviderRevision(
-                fileProviderClassName,
-                path,
-                cluster,
-                object.ObjectId,
-                object.Revision));
-
-        default:
-            YT_ABORT();
-    }
+    return MakeFuture(MakeYTFileProviderRevision(
+        fileProviderClassName,
+        path,
+        cluster,
+        object.ObjectId,
+        object.ContentRevision,
+        object.Size));
 }
 
 TFuture<void> DownloadYTFile(
@@ -381,17 +324,23 @@ TFuture<void> DownloadYTFile(
     auto locator = ConvertTo<TYTFileProviderLocatorPtr>(revision->Locator);
     auto client = context->ClientsCache->GetClient(locator->Cluster);
 
-    switch (locator->ObjectKind) {
-        case EYTFileProviderObjectKind::CypressFile: {
-            auto reader = WaitFor(client->CreateFileReader(locator->ObjectPath)).ValueOrThrow();
-            THROW_ERROR_EXCEPTION_UNLESS(
-                reader->GetId() == locator->ObjectId && reader->GetRevision() == locator->Revision,
-                "YT file changed between discovery and download")
-                .With("expected_object_id", locator->ObjectId)
-                .With("actual_object_id", reader->GetId())
-                .With("expected_revision", locator->Revision)
-                .With("actual_revision", reader->GetRevision());
+    auto object = LockYTFileProviderObject(client, locator->ObjectPath);
+    auto abortGuard = Finally([transaction = object.Transaction] {
+        AbortTransaction(transaction);
+    });
+    THROW_ERROR_EXCEPTION_UNLESS(
+        object.ObjectId == locator->ObjectId && object.ContentRevision == locator->ContentRevision,
+        "YT file provider source changed since discovery")
+        .With("path", locator->ObjectPath)
+        .With("expected_object_id", locator->ObjectId)
+        .With("actual_object_id", object.ObjectId)
+        .With("expected_content_revision", locator->ContentRevision)
+        .With("actual_content_revision", object.ContentRevision);
 
+    switch (object.Type) {
+        case EObjectType::File: {
+            auto reader = WaitFor(object.Transaction->CreateFileReader(Format("#%v", object.ObjectId)))
+                .ValueOrThrow();
             TFileOutput output((TFsPath(stagingDirectory) / CypressFilePayloadName).GetPath());
             while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {
                 output.Write(block.Begin(), block.Size());
@@ -400,15 +349,12 @@ TFuture<void> DownloadYTFile(
             break;
         }
 
-        case EYTFileProviderObjectKind::BlobTable: {
-            auto object = LockYTFileProviderObject(client, locator->ObjectPath);
-            auto abortGuard = Finally([transaction = object.Transaction] {
-                AbortTransaction(transaction);
-            });
-            ValidateLockedRevision(object, locator);
+        case EObjectType::Table:
             DownloadBlobTable(object, stagingDirectory);
             break;
-        }
+
+        default:
+            YT_ABORT();
     }
 
     return MakeFuture<void>(TError());

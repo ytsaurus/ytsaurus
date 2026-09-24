@@ -114,8 +114,8 @@ private:
             totalMessageCount += jobData.message_count();
         }
 
-        context->SetRequestInfo("Count: %v",
-            totalMessageCount);
+        context->AnnotateRequest()
+            .With("Count", totalMessageCount);
 
         auto streamSpecs = StreamSpecStorage_->GetStreamSpecs();
         THROW_ERROR_EXCEPTION_UNLESS(streamSpecs, "Message service is not ready for processing messages. StreamSpecStorage is not configured");
@@ -364,8 +364,8 @@ private:
             ++countPerState[FromProto<EMessageDeliveryState>(protoState)];
         }
 
-        context->SetResponseInfo("CountPerState: %v",
-            countPerState);
+        context->AnnotateResponse()
+            .With("CountPerState", countPerState);
 
         context->Reply();
     }

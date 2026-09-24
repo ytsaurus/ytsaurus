@@ -17,11 +17,14 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/security_client/proto/user_ypath.pb.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityServer {
 
@@ -284,15 +287,15 @@ private:
                     auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
 
                     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                    auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
+                    auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
 
-                    for (auto portalCellTag : portalCellTags) {
-                        if (portalCellTag == multicellManager->GetCellTag()) {
+                    for (auto nodeHostCellTag : nodeHostCellTags) {
+                        if (nodeHostCellTag == multicellManager->GetCellTag()) {
                             continue;
                         }
 
                         auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
-                            multicellManager->GetMasterChannelOrThrow(portalCellTag, NHydra::EPeerKind::Follower));
+                            multicellManager->GetMasterChannelOrThrow(nodeHostCellTag, NHydra::EPeerKind::Follower));
                         asyncResults.push_back(proxy.ExecuteAs(userNameToForward, TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
                     }
                 }

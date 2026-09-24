@@ -1,3 +1,4 @@
+#include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -181,21 +182,36 @@ TEST(TTraverseTest, ApplyInflightPreservesProducerSystemWatermark)
     EXPECT_EQ(applied->SystemWatermark, TSystemTimestamp(80));
 }
 
-TEST(TTraverseTest, MergeNodeKeepsMatureRatesWhenAnotherPartitionIsYoung)
+TEST(TTraverseTest, MergeNodeDoesNotCombineLocalIterationCycles)
 {
     const TStreamId streamId("stream");
-    auto mature = New<TNodeTraverseData>();
-    mature->IterationCycle = 10;
-    mature->Streams[streamId] = New<TStreamTraverseData>();
-    mature->Streams[streamId]->InflightMetrics->ProcessedCountPerSec = 100;
+    auto first = New<TNodeTraverseData>();
+    first->IterationCycle = 10;
+    first->Streams[streamId] = New<TStreamTraverseData>();
+    first->Streams[streamId]->InflightMetrics->ProcessedCountPerSec = 100;
+    auto second = New<TNodeTraverseData>();
+    second->IterationCycle = 1;
+    second->Streams[streamId] = New<TStreamTraverseData>();
 
-    auto young = New<TNodeTraverseData>();
-    young->IterationCycle = 1;
-    young->Streams[streamId] = New<TStreamTraverseData>();
-
-    const auto merged = MergeNodeTraverseData({mature, young});
+    const auto merged = MergeNodeTraverseData({first, second});
     EXPECT_EQ(merged->Streams.at(streamId)->InflightMetrics->ProcessedCountPerSec, 100);
     EXPECT_FALSE(merged->IterationCycle);
+}
+
+TEST(TTraverseTest, CompletedPartitionHasNoLocalIteration)
+{
+    auto spec = New<TExtendedComputationSpec>();
+    const TStreamId streamId("source");
+    spec->AllStreamIds.insert(streamId);
+    auto completed = MakeCompletedPartitionTraverseData(7, TSystemTimestamp(300), spec)->Node;
+    EXPECT_EQ(completed->ReportTime, TSystemTimestamp(300));
+    EXPECT_FALSE(completed->IterationCycle);
+    const auto& stream = completed->Streams.at(streamId);
+    EXPECT_EQ(stream->State, EStreamState::Completed);
+    EXPECT_EQ(stream->Epoch, 7);
+    EXPECT_EQ(stream->SystemWatermark, TSystemTimestamp(300));
+    EXPECT_EQ(stream->EventWatermark, TSystemTimestamp(300));
+    EXPECT_EQ(stream->InflightMetrics->Count, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

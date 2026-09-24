@@ -1247,6 +1247,26 @@ int GetFileDescriptorCount()
     return descriptorCount;
 }
 
+std::optional<i64> GetFileDescriptorLimit()
+{
+#ifdef _unix_
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+        YT_TLOG_ERROR("Error getting RLIMIT_NOFILE")
+            .With(TError::FromSystem());
+        return std::nullopt;
+    }
+
+    if (limit.rlim_cur == RLIM_INFINITY) {
+        return std::nullopt;
+    }
+
+    return static_cast<i64>(limit.rlim_cur);
+#else
+    return std::nullopt;
+#endif
+}
+
 void SafeCreateStderrFile(std::string fileName)
 {
 #ifdef _unix_
@@ -1617,7 +1637,7 @@ static bool TryParseField(const std::vector<TStringBuf>& fields, int index, TDur
 
 TBlockDeviceStat ParseBlockDeviceStat(const std::string& statLine)
 {
-    std::vector<TStringBuf> buffer = StringSplitter(statLine).Split(' ');
+    std::vector<TStringBuf> buffer = StringSplitter(statLine).Split(' ').SkipEmpty();
     TBlockDeviceStat result;
     TryParseField(buffer, 0, result.ReadsCompleted);
     TryParseField(buffer, 1, result.ReadsMerged);

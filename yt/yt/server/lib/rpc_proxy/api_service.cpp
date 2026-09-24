@@ -62,7 +62,7 @@
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
-#include <yt/yt/client/api/rpc_proxy/request_info.h>
+#include <yt/yt/client/api/rpc_proxy/request_tags.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
@@ -1788,9 +1788,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
         ? FromProto<TCellTag>(request->clock_cluster_tag())
         : InvalidCellTag;
 
-    context->SetRequestInfo("Count: %v, ClockClusterTag: %v",
-        count,
-        clockClusterTag);
+    context->AnnotateRequest()
+        .With("Count", count)
+        .With("ClockClusterTag", clockClusterTag);
 
     auto connection = client->GetNativeConnection();
     if (clockClusterTag == InvalidCellTag) {
@@ -1829,9 +1829,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
             auto* response = &context->Response();
             response->set_timestamp(ToProto(timestamp));
 
-            context->SetResponseInfo("Timestamp: %v@%v",
-                timestamp,
-                clockClusterTag);
+            context->AnnotateResponse()
+                .WithFormat("Timestamp", "%v@%v", timestamp, clockClusterTag);
         });
 }
 
@@ -1878,22 +1877,20 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartTransaction)
         options.StartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->start_timestamp());
     }
 
-    context->SetRequestInfo("TransactionType: %v, TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-        "Timeout: %v, Deadline: %v, AutoAbort: %v, "
-        "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %v",
-        transactionType,
-        options.Id,
-        options.ParentId,
-        options.PrerequisiteTransactionIds,
-        options.Timeout,
-        options.Deadline,
-        options.AutoAbort,
-        options.Sticky,
-        options.Ping,
-        options.PingAncestors,
-        options.Atomicity,
-        options.Durability,
-        options.StartTimestamp);
+    context->AnnotateRequest()
+        .With("TransactionType", transactionType)
+        .With("TransactionId", options.Id)
+        .With("ParentId", options.ParentId)
+        .With("PrerequisiteTransactionIds", options.PrerequisiteTransactionIds)
+        .With("Timeout", options.Timeout)
+        .With("Deadline", options.Deadline)
+        .With("AutoAbort", options.AutoAbort)
+        .With("Sticky", options.Sticky)
+        .With("Ping", options.Ping)
+        .With("PingAncestors", options.PingAncestors)
+        .With("Atomicity", options.Atomicity)
+        .With("Durability", options.Durability)
+        .With("StartTimestamp", options.StartTimestamp);
 
     ExecuteCall(
         context,
@@ -1912,9 +1909,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartTransaction)
                 StickyTransactionPool_->RegisterTransaction(transaction);
             }
 
-            context->SetResponseInfo("TransactionId: %v, StartTimestamp: %v",
-                transaction->GetId(),
-                transaction->GetStartTimestamp());
+            context->AnnotateResponse()
+                .With("TransactionId", transaction->GetId())
+                .With("StartTimestamp", transaction->GetStartTimestamp());
         });
 }
 
@@ -1929,8 +1926,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
     attachOptions.PingAncestors = request->ping_ancestors();
     attachOptions.PingerAddress = context->GetEndpointDescription();
 
-    context->SetRequestInfo("TransactionId: %v",
-        transactionId);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId);
 
     auto transaction = GetTransactionOrThrow(
         client,
@@ -1972,10 +1969,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v, PrerequisiteTransactionIds: %v",
-        transactionId,
-        options.AdditionalParticipantCellIds,
-        options.PrerequisiteTransactionIds);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId)
+        .With("AdditionalParticipantCellIds", options.AdditionalParticipantCellIds)
+        .With("PrerequisiteTransactionIds", options.PrerequisiteTransactionIds);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
@@ -1995,8 +1992,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
             ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
             response->set_primary_commit_timestamp(ToProto(result.PrimaryCommitTimestamp));
 
-            context->SetResponseInfo("PrimaryCommitTimestamp: %v, CommitTimestamps: %v",
-                result.PrimaryCommitTimestamp, result.CommitTimestamps);
+            context->AnnotateResponse()
+                .With("PrimaryCommitTimestamp", result.PrimaryCommitTimestamp)
+                .With("CommitTimestamps", result.CommitTimestamps);
         });
 }
 
@@ -2006,8 +2004,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
 
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-    context->SetRequestInfo("TransactionId: %v",
-        transactionId);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
@@ -2027,8 +2025,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
             ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
             ToProto(response->mutable_expected_prepare_signatures(), result.ExpectedPrepareSignatures);
 
-            context->SetResponseInfo("ParticipantCellIds: %v",
-                result.ParticipantCellIds);
+            context->AnnotateResponse()
+                .With("ParticipantCellIds", result.ParticipantCellIds);
         });
 }
 
@@ -2041,8 +2039,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortTransaction)
     TTransactionAbortOptions options;
     SetMutatingOptions(&options, request, context.Get());
 
-    context->SetRequestInfo("TransactionId: %v",
-        transactionId);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId);
 
     TTransactionAttachOptions attachOptions = {};
     attachOptions.Ping = false;
@@ -2075,8 +2073,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AttachTransaction)
         options.PingAncestors = request->ping_ancestors();
     }
 
-    context->SetRequestInfo("TransactionId: %v",
-        transactionId);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId);
 
     auto transaction = GetTransactionOrThrow(
         client,
@@ -2100,8 +2098,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DetachTransaction)
 {
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-    context->SetRequestInfo("TransactionId: %v",
-        transactionId);
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId);
 
     StickyTransactionPool_->UnregisterTransaction(transactionId);
 
@@ -2122,9 +2120,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateObject)
         options.Attributes = NYTree::FromProto(request->attributes());
     }
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
-        type,
-        options.IgnoreExisting);
+    context->AnnotateRequest()
+        .With("Type", type)
+        .With("IgnoreExisting", options.IgnoreExisting);
 
     ExecuteCall(
         context,
@@ -2135,7 +2133,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateObject)
             auto* response = &context->Response();
             ToProto(response->mutable_object_id(), objectId);
 
-            context->SetResponseInfo("ObjectId: %v", objectId);
+            context->AnnotateResponse()
+                .With("ObjectId", objectId);
         });
 }
 
@@ -2145,7 +2144,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
 
     auto path = FromProto<TYPath>(request->path());
 
-    context->SetRequestInfo("Path: %v", path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     const auto& tableMountCache = client->GetTableMountCache();
     ExecuteCall(
@@ -2182,10 +2182,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
 
             ToProto(response->mutable_indices(), tableMountInfo->Indices);
 
-            context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
-                tableMountInfo->Dynamic,
-                tabletCount,
-                tableMountInfo->Replicas.size());
+            context->AnnotateResponse()
+                .With("Dynamic", tableMountInfo->Dynamic)
+                .With("TabletCount", tabletCount)
+                .With("ReplicaCount", tableMountInfo->Replicas.size());
         });
 }
 
@@ -2195,7 +2195,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTablePivotKeys)
 
     auto path = FromProto<TYPath>(request->path());
 
-    context->SetRequestInfo("Path: %v", path);
+    context->AnnotateRequest()
+        .With("Path", path);
     TGetTablePivotKeysOptions options;
     options.RepresentKeyAsList = request->represent_key_as_list();
 
@@ -2235,8 +2236,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExistsNode)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2247,8 +2248,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExistsNode)
             auto* response = &context->Response();
             response->set_exists(result);
 
-            context->SetResponseInfo("Exists: %v",
-                result);
+            context->AnnotateResponse()
+                .With("Exists", result);
         });
 }
 
@@ -2288,9 +2289,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetNode)
         options.Options = NYTree::FromProto(request->options());
     }
 
-    context->SetRequestInfo("Path: %v, AttributeFilter: %v",
-        path,
-        options.Attributes);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("AttributeFilter", options.Attributes);
 
     ExecuteCall(
         context,
@@ -2336,9 +2337,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListNode)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v, AttributeFilter: %v",
-        path,
-        options.Attributes);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("AttributeFilter", options.Attributes);
 
     ExecuteCall(
         context,
@@ -2386,9 +2387,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Path: %v, Type: %v",
-        path,
-        type);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("Type", type);
 
     ExecuteCall(
         context,
@@ -2399,8 +2400,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateNode)
             auto* response = &context->Response();
             ToProto(response->mutable_node_id(), nodeId);
 
-            context->SetResponseInfo("NodeId: %v",
-                nodeId);
+            context->AnnotateResponse()
+                .With("NodeId", nodeId);
         });
 }
 
@@ -2426,8 +2427,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2462,8 +2463,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetNode)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2501,9 +2502,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultisetAttributesNode)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v, Attributes: %v",
-        path,
-        attributes->GetKeys());
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("Attributes", attributes->GetKeys());
 
     ExecuteCall(
         context,
@@ -2538,9 +2539,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LockNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Path: %v, Mode: %v",
-        path,
-        mode);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("Mode", mode);
 
     ExecuteCall(
         context,
@@ -2553,10 +2554,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LockNode)
             ToProto(response->mutable_lock_id(), result.LockId);
             response->set_revision(ToProto(result.Revision));
 
-            context->SetResponseInfo("NodeId: %v, LockId: %v, Revision: %x",
-                result.NodeId,
-                result.LockId,
-                result.Revision);
+            context->AnnotateResponse()
+                .With("NodeId", result.NodeId)
+                .With("LockId", result.LockId)
+                .WithFormat("Revision", "%x", result.Revision);
         });
 }
 
@@ -2576,7 +2577,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnlockNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Path: %v", path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2644,9 +2646,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CopyNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("SrcPath: %v, DstPath: %v",
-        srcPath,
-        dstPath);
+    context->AnnotateRequest()
+        .With("SrcPath", srcPath)
+        .With("DstPath", dstPath);
 
     ExecuteCall(
         context,
@@ -2657,8 +2659,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CopyNode)
             auto* response = &context->Response();
             ToProto(response->mutable_node_id(), nodeId);
 
-            context->SetResponseInfo("NodeId: %v",
-                nodeId);
+            context->AnnotateResponse()
+                .With("NodeId", nodeId);
         });
 }
 
@@ -2715,9 +2717,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MoveNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("SrcPath: %v, DstPath: %v",
-        srcPath,
-        dstPath);
+    context->AnnotateRequest()
+        .With("SrcPath", srcPath)
+        .With("DstPath", dstPath);
 
     ExecuteCall(
         context,
@@ -2728,8 +2730,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MoveNode)
             auto* response = &context->Response();
             ToProto(response->mutable_node_id(), nodeId);
 
-            context->SetResponseInfo("NodeId: %v",
-                nodeId);
+            context->AnnotateResponse()
+                .With("NodeId", nodeId);
         });
 }
 
@@ -2765,9 +2767,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LinkNode)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("SrcPath: %v, DstPath: %v",
-        srcPath,
-        dstPath);
+    context->AnnotateRequest()
+        .With("SrcPath", srcPath)
+        .With("DstPath", dstPath);
 
     ExecuteCall(
         context,
@@ -2781,8 +2783,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LinkNode)
             auto* response = &context->Response();
             ToProto(response->mutable_node_id(), nodeId);
 
-            context->SetResponseInfo("NodeId: %v",
-                nodeId);
+            context->AnnotateResponse()
+                .With("NodeId", nodeId);
         });
 }
 
@@ -2802,9 +2804,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ConcatenateNodes)
 
     options.ChunkMetaFetcherConfig = New<NChunkClient::TFetcherConfig>();
 
-    context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
-        srcPaths,
-        dstPath);
+    context->AnnotateRequest()
+        .With("SrcPaths", srcPaths)
+        .With("DstPath", dstPath);
 
     if (request->has_fetcher()) {
         options.ChunkMetaFetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
@@ -2830,9 +2832,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExternalizeNode)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Path: %v, CellTag: %v",
-        path,
-        cellTag);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("CellTag", cellTag);
 
     ExecuteCall(
         context,
@@ -2853,8 +2855,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, InternalizeNode)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2888,8 +2890,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MountTable)
         FromProto(&options, request->tablet_range_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2914,8 +2916,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnmountTable)
         FromProto(&options, request->tablet_range_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2937,8 +2939,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemountTable)
         FromProto(&options, request->tablet_range_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2960,8 +2962,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FreezeTable)
         FromProto(&options, request->tablet_range_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -2983,8 +2985,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnfreezeTable)
         FromProto(&options, request->tablet_range_options());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -3019,9 +3021,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTable)
     if (request->has_tablet_count()) {
         auto tabletCount = request->tablet_count();
 
-        context->SetRequestInfo("Path: %v, TabletCount: %v",
-            path,
-            tabletCount);
+        context->AnnotateRequest()
+            .With("Path", path)
+            .With("TabletCount", tabletCount);
 
         ExecuteCall(
             context,
@@ -3037,9 +3039,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTable)
             keys.emplace_back(key);
         }
 
-        context->SetRequestInfo("Path: %v, Keys: %v",
-            path,
-            keys);
+        context->AnnotateRequest()
+            .With("Path", path)
+            .With("Keys", keys);
 
         ExecuteCall(
             context,
@@ -3056,9 +3058,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTableAutomatic)
     const auto& path = request->path();
     auto keepActions = request->keep_actions();
 
-    context->SetRequestInfo("Path: %v, KeepActions: %v",
-        path,
-        keepActions);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("KeepActions", keepActions);
 
     TReshardTableAutomaticOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -3076,8 +3078,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTableAutomatic)
         [] (const auto& context, const auto& tabletActions) {
             auto* response = &context->Response();
             ToProto(response->mutable_tablet_actions(), tabletActions);
-            context->SetResponseInfo("TabletActionIds: %v",
-                tabletActions);
+            context->AnnotateResponse()
+                .With("TabletActionIds", tabletActions);
         });
 }
 
@@ -3092,10 +3094,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, TrimTable)
     TTrimTableOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("Path: %v, TabletIndex: %v, TrimmedRowCount: %v",
-        path,
-        tabletIndex,
-        trimmedRowCount);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("TabletIndex", tabletIndex)
+        .With("TrimmedRowCount", trimmedRowCount);
 
     ExecuteCall(
         context,
@@ -3148,8 +3150,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterTable)
         options.ClipTimestamp = FromProto<NTransactionClient::TTimestamp>(request->clip_timestamp());
     }
 
-    context->SetRequestInfo("Path: %v",
-        path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -3193,16 +3195,15 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterTableReplica)
 
     options.Force = request->force();
 
-    context->SetRequestInfo("ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, "
-        "EnableReplicatedTableTracker: %v, ReplicaPath: %v, Force: %v",
-        replicaId,
-        options.Enabled,
-        options.Mode,
-        options.Atomicity,
-        options.PreserveTimestamps,
-        options.EnableReplicatedTableTracker,
-        options.ReplicaPath,
-        options.Force);
+    context->AnnotateRequest()
+        .With("ReplicaId", replicaId)
+        .With("Enabled", options.Enabled)
+        .With("Mode", options.Mode)
+        .With("Atomicity", options.Atomicity)
+        .With("PreserveTimestamps", options.PreserveTimestamps)
+        .With("EnableReplicatedTableTracker", options.EnableReplicatedTableTracker)
+        .With("ReplicaPath", options.ReplicaPath)
+        .With("Force", options.Force);
 
     ExecuteCall(
         context,
@@ -3250,8 +3251,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterReplicationCard)
             break;
     }
 
-    context->SetRequestInfo("ReplicationCardId: %v",
-        replicationCardId);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationCardId);
 
     ExecuteCall(
         context,
@@ -3269,8 +3270,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingChaosLease)
     SetTimeoutOptions(&options, context.Get());
     options.PingAncestors = request->ping_ancestors();
 
-    context->SetRequestInfo("ChaosLeaseId: %v",
-        chaosLeaseId);
+    context->AnnotateRequest()
+        .With("ChaosLeaseId", chaosLeaseId);
 
     ExecuteCall(
         context,
@@ -3287,10 +3288,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BalanceTabletCells)
     auto tables = FromProto<std::vector<NYPath::TYPath>>(request->movable_tables());
     bool keepActions = request->keep_actions();
 
-    context->SetRequestInfo("Bundle: %v, TablePaths: %v, KeepActions: %v",
-        bundle,
-        tables,
-        keepActions);
+    context->AnnotateRequest()
+        .With("Bundle", bundle)
+        .With("TablePaths", tables)
+        .With("KeepActions", keepActions);
 
     TBalanceTabletCellsOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -3305,8 +3306,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BalanceTabletCells)
         [] (const auto& context, const auto& tabletActions) {
             auto* response = &context->Response();
             ToProto(response->mutable_tablet_actions(), tabletActions);
-            context->SetResponseInfo("TabletActionIds: %v",
-                tabletActions);
+            context->AnnotateResponse()
+                .With("TabletActionIds", tabletActions);
         });
 }
 
@@ -3325,15 +3326,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateTableBackup)
     options.Force = request->force();
     options.PreserveAccount = request->preserve_account();
 
-    context->SetRequestInfo(
-        "ClusterCount: %v, CheckpointTimestampDelay: %v, CheckpointCheckPeriod: %v, "
-        "CheckpointCheckTimeout: %v, Force: %v, PreserveAccount: %v",
-        manifest->Clusters.size(),
-        options.CheckpointTimestampDelay,
-        options.CheckpointCheckPeriod,
-        options.CheckpointCheckTimeout,
-        options.Force,
-        options.PreserveAccount);
+    context->AnnotateRequest()
+        .With("ClusterCount", manifest->Clusters.size())
+        .With("CheckpointTimestampDelay", options.CheckpointTimestampDelay)
+        .With("CheckpointCheckPeriod", options.CheckpointCheckPeriod)
+        .With("CheckpointCheckTimeout", options.CheckpointCheckTimeout)
+        .With("Force", options.Force)
+        .With("PreserveAccount", options.PreserveAccount);
 
     ExecuteCall(
         context,
@@ -3356,14 +3355,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RestoreTableBackup)
     options.EnableReplicas = request->enable_replicas();
     options.PreserveAccount = request->preserve_account();
 
-    context->SetRequestInfo(
-        "ClusterCount: %v, Force: %v, Mount: %v, EnableReplicas: %v, "
-        "PreserveAccount: %v",
-        manifest->Clusters.size(),
-        options.Force,
-        options.Mount,
-        options.EnableReplicas,
-        options.PreserveAccount);
+    context->AnnotateRequest()
+        .With("ClusterCount", manifest->Clusters.size())
+        .With("Force", options.Force)
+        .With("Mount", options.Mount)
+        .With("EnableReplicas", options.EnableReplicas)
+        .With("PreserveAccount", options.PreserveAccount);
 
     ExecuteCall(
         context,
@@ -3384,9 +3381,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, TransferBundleResources)
     SetTimeoutOptions(&options, context.Get());
     SetMutatingOptions(&options, request, context.Get());
 
-    context->SetRequestInfo("SrcBundle: %v, DstBundle: %v",
-        srcBundle,
-        dstBundle);
+    context->AnnotateRequest()
+        .With("SrcBundle", srcBundle)
+        .With("DstBundle", dstBundle);
 
     ExecuteCall(
         context,
@@ -3420,9 +3417,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartOperation)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("OperationType: %v, Spec: %v",
-        type,
-        specYson);
+    context->AnnotateRequest()
+        .With("OperationType", type)
+        .With("Spec", specYson);
 
     ExecuteCall(
         context,
@@ -3431,7 +3428,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartOperation)
         },
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
-            context->SetResponseInfo("OperationId: %v", result);
+            context->AnnotateResponse()
+                .With("OperationId", result);
             ToProto(response->mutable_operation_id(), result);
         });
 }
@@ -3448,9 +3446,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortOperation)
         options.AbortMessage = request->abort_message();
     }
 
-    context->SetRequestInfo("OperationId: %v, AbortMessage: %v",
-        operationIdOrAlias,
-        options.AbortMessage);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias)
+        .With("AbortMessage", options.AbortMessage);
 
     ExecuteCall(
         context,
@@ -3474,9 +3472,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SuspendOperation)
         options.Reason = request->reason();
     }
 
-    context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
-        operationIdOrAlias,
-        options.AbortRunningJobs);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias)
+        .With("AbortRunningJobs", options.AbortRunningJobs);
 
     ExecuteCall(
         context,
@@ -3494,8 +3492,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResumeOperation)
     TResumeOperationOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("OperationId: %v",
-        operationIdOrAlias);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias);
 
     ExecuteCall(
         context,
@@ -3513,8 +3511,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CompleteOperation)
     TCompleteOperationOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("OperationId: %v",
-        operationIdOrAlias);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias);
 
     ExecuteCall(
         context,
@@ -3534,9 +3532,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UpdateOperationParameters)
     TUpdateOperationParametersOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("OperationId: %v, Parameters: %v",
-        operationIdOrAlias,
-        parameters);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias)
+        .With("Parameters", parameters);
 
     ExecuteCall(
         context,
@@ -3563,9 +3561,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PatchOperationSpec)
     TPatchOperationSpecOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("OperationId: %v, Patches: %v",
-        operationIdOrAlias,
-        MakeFormattableView(patches, TDefaultFormatter()));
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias)
+        .With("Patches", MakeFormattableView(patches, TDefaultFormatter()));
 
     ExecuteCall(
         context,
@@ -3602,10 +3600,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetOperation)
         options.MaximumCypressProgressAge = FromProto<TDuration>(request->maximum_cypress_progress_age());
     }
 
-    context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v, Attributes: %v",
-        operationIdOrAlias,
-        options.IncludeRuntime,
-        options.Attributes);
+    context->AnnotateRequest()
+        .With("OperationId", operationIdOrAlias)
+        .With("IncludeRuntime", options.IncludeRuntime)
+        .With("Attributes", options.Attributes);
 
     ExecuteCall(
         context,
@@ -3633,7 +3631,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListOperationEvents)
 
     options.Limit = request->limit();
 
-    context->SetRequestInfo("OperationIdOrAlias: %v", operationIdOrAlias);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias);
 
     ExecuteCall(
         context,
@@ -3643,6 +3642,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListOperationEvents)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_events(), result);
+
+            context->AnnotateResponse()
+                .With("EventCount", result.size());
         });
 }
 
@@ -3713,18 +3715,17 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListOperations)
 
     options.EnableUIMode = request->enable_ui_mode();
 
-    context->SetRequestInfo("IncludeArchive: %v, FromTime: %v, ToTime: %v, CursorTime: %v, UserFilter: %v, "
-        "AccessFilter: %v, StateFilter: %v, TypeFilter: %v, SubstrFilter: %v, Attributes: %v",
-        options.IncludeArchive,
-        options.FromTime,
-        options.ToTime,
-        options.CursorTime,
-        options.UserFilter,
-        ConvertToYsonString(options.AccessFilter, EYsonFormat::Text),
-        options.StateFilter,
-        options.TypeFilter,
-        options.SubstrFilter,
-        options.Attributes);
+    context->AnnotateRequest()
+        .With("IncludeArchive", options.IncludeArchive)
+        .With("FromTime", options.FromTime)
+        .With("ToTime", options.ToTime)
+        .With("CursorTime", options.CursorTime)
+        .With("UserFilter", options.UserFilter)
+        .With("AccessFilter", ConvertToYsonString(options.AccessFilter, EYsonFormat::Text))
+        .With("StateFilter", options.StateFilter)
+        .With("TypeFilter", options.TypeFilter)
+        .With("SubstrFilter", options.SubstrFilter)
+        .With("Attributes", options.Attributes);
 
     ExecuteCall(
         context,
@@ -3735,10 +3736,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListOperations)
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
 
-            context->SetResponseInfo("OperationsCount: %v, FailedJobsCount: %v, Incomplete: %v",
-                result.Operations.size(),
-                result.FailedJobsCount,
-                result.Incomplete);
+            context->AnnotateResponse()
+                .With("OperationsCount", result.Operations.size())
+                .With("FailedJobsCount", result.FailedJobsCount)
+                .With("Incomplete", result.Incomplete);
         });
 }
 
@@ -3828,23 +3829,20 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
     options.DataSource = FromProto<EDataSource>(request->data_source());
     options.RunningJobsLookbehindPeriod = FromProto<TDuration>(request->running_jobs_lookbehind_period());
 
-    context->SetRequestInfo(
-        "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-        "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, "
-        "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v, MonitoringDescriptor: %v",
-        operationIdOrAlias,
-        options.Type,
-        options.State,
-        options.Address,
-        options.IncludeCypress,
-        options.IncludeControllerAgent,
-        options.IncludeArchive,
-        options.JobCompetitionId,
-        options.WithCompetitors,
-        options.WithMonitoringDescriptor,
-        options.WithInterruptionInfo,
-        options.Attributes,
-        options.MonitoringDescriptor);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("Type", options.Type)
+        .With("State", options.State)
+        .With("Address", options.Address)
+        .With("IncludeCypress", options.IncludeCypress)
+        .With("IncludeControllerAgent", options.IncludeControllerAgent)
+        .With("IncludeArchive", options.IncludeArchive)
+        .With("JobCompetitionId", options.JobCompetitionId)
+        .With("WithCompetitors", options.WithCompetitors)
+        .With("WithMonitoringDescriptor", options.WithMonitoringDescriptor)
+        .With("WithInterruptionInfo", options.WithInterruptionInfo)
+        .With("Attributes", options.Attributes)
+        .With("MonitoringDescriptor", options.MonitoringDescriptor);
 
     ExecuteCall(
         context,
@@ -3855,11 +3853,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
 
-            context->SetResponseInfo(
-                "CypressJobCount: %v, ControllerAgentJobCount: %v, ArchiveJobCount: %v",
-                result.CypressJobCount,
-                result.ControllerAgentJobCount,
-                result.ArchiveJobCount);
+            context->AnnotateResponse()
+                .With("CypressJobCount", result.CypressJobCount)
+                .With("ControllerAgentJobCount", result.ControllerAgentJobCount)
+                .With("ArchiveJobCount", result.ArchiveJobCount);
         });
 }
 
@@ -3873,9 +3870,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DumpJobContext)
     TDumpJobContextOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("JobId: %v, Path: %v",
-        jobId,
-        path);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -3895,7 +3892,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobInput)
 
     options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
-    context->SetRequestInfo("JobId: %v", jobId);
+    context->AnnotateRequest()
+        .With("JobId", jobId);
 
     auto jobInputReader = WaitFor(client->GetJobInput(jobId, options))
         .ValueOrThrow();
@@ -3913,7 +3911,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobInputPaths)
 
     options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
-    context->SetRequestInfo("JobId: %v", jobId);
+    context->AnnotateRequest()
+        .With("JobId", jobId);
 
     ExecuteCall(
         context,
@@ -3940,11 +3939,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobSpec)
     options.OmitOutputTableSpecs = request->omit_output_table_specs();
     options.JobSpecSource = FromProto<EJobSpecSource>(request->job_spec_source());
 
-    context->SetRequestInfo("JobId: %v, OmitNodeDirectory: %v, OmitInputTableSpecs: %v, OmitOutputTableSpecs: %v",
-        jobId,
-        options.OmitNodeDirectory,
-        options.OmitInputTableSpecs,
-        options.OmitOutputTableSpecs);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("OmitNodeDirectory", options.OmitNodeDirectory)
+        .With("OmitInputTableSpecs", options.OmitInputTableSpecs)
+        .With("OmitOutputTableSpecs", options.OmitOutputTableSpecs);
 
     ExecuteCall(
         context,
@@ -3968,11 +3967,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobStderr)
     SetTimeoutOptions(&options, context.Get());
     options.Type = FromProto<NApi::EJobStderrType>(request->type());
 
-    context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
-        operationIdOrAlias,
-        jobId,
-        options.Limit,
-        options.Offset);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("JobId", jobId)
+        .With("Limit", options.Limit)
+        .With("Offset", options.Offset);
 
     ExecuteCall(
         context,
@@ -3981,7 +3980,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobStderr)
         },
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
-            context->SetResponseInfo("Size: %v, TotalSize: %v, EndOffset: %v", result.Data.size(), result.TotalSize, result.EndOffset);
+            context->AnnotateResponse()
+                .With("Size", result.Data.size())
+                .With("TotalSize", result.TotalSize)
+                .With("EndOffset", result.EndOffset);
             response->set_total_size(result.TotalSize);
             response->set_end_offset(result.EndOffset);
             response->Attachments().push_back(result.Data);
@@ -4009,12 +4011,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobTrace)
         options.ToTime = FromProto<TInstant>(request->to_time());
     }
 
-    context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, TraceId: %v, FromTime: %v, ToTime: %v",
-        operationIdOrAlias,
-        jobId,
-        options.TraceId,
-        options.FromTime,
-        options.ToTime);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("JobId", jobId)
+        .With("TraceId", options.TraceId)
+        .With("FromTime", options.FromTime)
+        .With("ToTime", options.ToTime);
 
     auto jobTraceReader = WaitFor(client->GetJobTrace(operationIdOrAlias, jobId, options))
         .ValueOrThrow();
@@ -4038,11 +4040,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobTraces)
 
     options.Limit = request->limit();
 
-    context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, PerProcess: %v, Limit: %v",
-        operationIdOrAlias,
-        jobId,
-        options.PerProcess,
-        options.Limit);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("JobId", jobId)
+        .With("PerProcess", options.PerProcess)
+        .With("Limit", options.Limit);
 
     ExecuteCall(
         context,
@@ -4052,6 +4054,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobTraces)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_traces(), result);
+
+            context->AnnotateResponse()
+                .With("TraceCount", result.size());
         });
 }
 
@@ -4066,10 +4071,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckOperationPermission)
     TCheckOperationPermissionOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("User: %v, OperationIdOrAlias: %v, Permission: %v",
-        user,
-        operationIdOrAlias,
-        permission);
+    context->AnnotateRequest()
+        .With("User", user)
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("Permission", permission);
 
     ExecuteCall(
         context,
@@ -4079,6 +4084,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckOperationPermission)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
+
+            context->AnnotateResponse()
+                .With("Action", result.Action);
         });
 }
 
@@ -4092,9 +4100,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJobFailContext)
     TGetJobFailContextOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v",
-        operationIdOrAlias,
-        jobId);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("JobId", jobId);
 
     ExecuteCall(
         context,
@@ -4126,10 +4134,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetJob)
         FromProto(&(*options.Attributes), request->legacy_attributes().keys());
     }
 
-    context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Attributes: %v",
-        operationIdOrAlias,
-        jobId,
-        options.Attributes);
+    context->AnnotateRequest()
+        .With("OperationIdOrAlias", operationIdOrAlias)
+        .With("JobId", jobId)
+        .With("Attributes", options.Attributes);
 
     ExecuteCall(
         context,
@@ -4150,7 +4158,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbandonJob)
     TAbandonJobOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("JobId: %v", jobId);
+    context->AnnotateRequest()
+        .With("JobId", jobId);
 
     ExecuteCall(
         context,
@@ -4170,10 +4179,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PollJobShell)
     TPollJobShellOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("JobId: %v, Parameters: %v, ShellName: %v",
-        jobId,
-        parameters,
-        shellName);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("Parameters", parameters)
+        .With("ShellName", shellName);
 
     ExecuteCall(
         context,
@@ -4197,10 +4206,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RunJobShellCommand)
     TRunJobShellCommandOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("JobId: %v, Command: %v, ShellName: %v",
-        jobId,
-        command,
-        shellName);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("Command", command)
+        .With("ShellName", shellName);
 
     auto inputStream = WaitFor(client->RunJobShellCommand(jobId, shellName, command, options))
         .ValueOrThrow();
@@ -4220,9 +4229,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortJob)
         options.InterruptTimeout = FromProto<TDuration>(request->interrupt_timeout());
     }
 
-    context->SetRequestInfo("JobId: %v, InterruptTimeout: %v",
-        jobId,
-        options.InterruptTimeout);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("InterruptTimeout", options.InterruptTimeout);
 
     ExecuteCall(
         context,
@@ -4242,7 +4251,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DumpJobProxyLog)
     TDumpJobProxyLogOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
+    context->AnnotateRequest()
+        .With("JobId", jobId)
+        .With("Path", path);
 
     ExecuteCall(
         context,
@@ -4447,11 +4458,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LookupRows)
         request->Attachments(),
         HeavyRequestMemoryUsageTracker_);
 
-    context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
-        request->path(),
-        keys.Size(),
-        options.Timestamp,
-        options.ReplicaConsistency);
+    context->AnnotateRequest()
+        .With("Path", request->path())
+        .With("RowCount", keys.Size())
+        .With("Timestamp", options.Timestamp)
+        .With("ReplicaConsistency", options.ReplicaConsistency);
     NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
         traceContext->AddTag("yt.table_path", path);
     });
@@ -4478,9 +4489,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LookupRows)
                 context->GetAuthenticationIdentity().UserTag,
                 detailedProfilingInfo);
 
-            context->SetResponseInfo("RowCount: %v, DetailedTableProfilingEnabled: %v",
-                rowset->GetRows().Size(),
-                detailedProfilingInfo->EnableDetailedTableProfiling);
+            context->AnnotateResponse()
+                .With("RowCount", rowset->GetRows().Size())
+                .With("DetailedTableProfilingEnabled", detailedProfilingInfo->EnableDetailedTableProfiling);
         });
 }
 
@@ -4512,11 +4523,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, VersionedLookupRows)
         request->Attachments(),
         HeavyRequestMemoryUsageTracker_);
 
-    context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
-        request->path(),
-        keys.Size(),
-        options.Timestamp,
-        options.ReplicaConsistency);
+    context->AnnotateRequest()
+        .With("Path", request->path())
+        .With("RowCount", keys.Size())
+        .With("Timestamp", options.Timestamp)
+        .With("ReplicaConsistency", options.ReplicaConsistency);
     NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
         traceContext->AddTag("yt.table_path", path);
     });
@@ -4548,9 +4559,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, VersionedLookupRows)
                 context->GetAuthenticationIdentity().UserTag,
                 detailedProfilingInfo);
 
-            context->SetResponseInfo("RowCount: %v, EnableDetailedTableProfiling: %v",
-                rowset->GetRows().Size(),
-                detailedProfilingInfo->EnableDetailedTableProfiling);
+            context->AnnotateResponse()
+                .With("RowCount", rowset->GetRows().Size())
+                .With("EnableDetailedTableProfiling", detailedProfilingInfo->EnableDetailedTableProfiling);
         });
 }
 
@@ -4615,16 +4626,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
             request->Attachments().size());
     }
 
-    context->SetRequestInfo("Timestamp: %v, ReplicaConsistency: %v, Subrequests: %v",
-        options.Timestamp,
-        options.ReplicaConsistency,
-        MakeFormattableView(
-            subrequests,
-            [&] (auto* builder, const TMultiLookupSubrequest& request) {
-                builder->AppendFormat("{Path: %v, RowCount: %v}",
-                    request.Path,
-                    request.Keys.Size());
-            }));
+    context->AnnotateRequest()
+        .With("Timestamp", options.Timestamp)
+        .With("ReplicaConsistency", options.ReplicaConsistency)
+        .With("Subrequests", MakeFormattableView( subrequests, [&] (auto* builder, const TMultiLookupSubrequest& request) { builder->AppendFormat("{Path: %v, RowCount: %v}", request.Path, request.Keys.Size()); }));
     NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
         auto tablePaths = JoinToString(
             subrequests,
@@ -4670,8 +4675,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
                     detailedProfilingInfo);
             }
 
-            context->SetResponseInfo("RowCounts: %v",
-                rowCounts);
+            context->AnnotateResponse()
+                .With("RowCounts", rowCounts);
         });
 }
 
@@ -4799,18 +4804,18 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
     int queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
 
     if (options.PlaceholderValues) {
-        context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            TTruncatedStringView(query, queryTruncateLimit),
-            options.Timestamp,
-            options.PlaceholderValues);
+        context->AnnotateRequest()
+            .With("Query", TTruncatedStringView(query, queryTruncateLimit))
+            .With("Timestamp", options.Timestamp)
+            .With("PlaceholderValues", options.PlaceholderValues);
         YT_TLOG_DEBUG("Untruncated select query")
             .With("Query", query)
             .With("Timestamp", options.Timestamp)
             .With("PlaceholderValues", options.PlaceholderValues);
     } else {
-        context->SetRequestInfo("Query: %v, Timestamp: %v",
-            TTruncatedStringView(query, queryTruncateLimit),
-            options.Timestamp);
+        context->AnnotateRequest()
+            .With("Query", TTruncatedStringView(query, queryTruncateLimit))
+            .With("Timestamp", options.Timestamp);
         YT_TLOG_DEBUG("Untruncated select query")
             .With("Query", query)
             .With("Timestamp", options.Timestamp);
@@ -4834,7 +4839,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
             auto rows = result.Rowset->GetRows();
 
-            context->SetResponseInfo("RowCount: %v", rows.Size());
+            context->AnnotateResponse()
+                .With("RowCount", rows.Size());
 
             SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead.GetTotal());
             SelectConsumeRowCount_.Increment(result.Statistics.RowsRead.GetTotal());
@@ -4870,10 +4876,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
         InsertOrCrash(options.StartReplicationRowIndexes, std::pair(tabletId, rowIndex));
     }
 
-    context->SetRequestInfo("ReplicationProgress: %v, OrderRowsByTimestamp: %v, UpperTimestamp: %v",
-        options.ReplicationProgress,
-        options.OrderRowsByTimestamp,
-        options.UpperTimestamp);
+    context->AnnotateRequest()
+        .With("ReplicationProgress", options.ReplicationProgress)
+        .With("OrderRowsByTimestamp", options.OrderRowsByTimestamp)
+        .With("UpperTimestamp", options.UpperTimestamp);
 
     ExecuteCall(
         context,
@@ -4899,8 +4905,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullRows)
                 response->mutable_rowset_descriptor(),
                 result.Versioned);
 
-            context->SetResponseInfo("RowCount: %v",
-                result.RowCount);
+            context->AnnotateResponse()
+                .With("RowCount", result.RowCount);
         });
 }
 
@@ -4922,9 +4928,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExplainQuery)
         options.SyntaxVersion = request->syntax_version();
     }
 
-    context->SetRequestInfo("Query: %v, Timestamp: %v",
-        query,
-        options.Timestamp);
+    context->AnnotateRequest()
+        .With("Query", query)
+        .With("Timestamp", options.Timestamp);
 
     ExecuteCall(
         context,
@@ -4962,10 +4968,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetInSyncReplicas)
         ? std::make_optional(rowset->GetRows().Size())
         : std::nullopt;
 
-    context->SetRequestInfo("Path: %v, Timestamp: %v, KeyCount: %v",
-        path,
-        options.Timestamp,
-        keyCount);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("Timestamp", options.Timestamp)
+        .With("KeyCount", keyCount);
 
     ExecuteCall(
         context,
@@ -4984,8 +4990,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetInSyncReplicas)
             auto* response = &context->Response();
             ToProto(response->mutable_replica_ids(), replicaIds);
 
-            context->SetResponseInfo("ReplicaIds: %v",
-                replicaIds);
+            context->AnnotateResponse()
+                .With("ReplicaIds", replicaIds);
         });
 }
 
@@ -4996,9 +5002,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletInfos)
     const auto& path = request->path();
     auto tabletIndexes = FromProto<std::vector<int>>(request->tablet_indexes());
 
-    context->SetRequestInfo("Path: %v, TabletIndexes: %v",
-        path,
-        tabletIndexes);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("TabletIndexes", tabletIndexes);
 
     TGetTabletInfosOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -5043,7 +5049,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletErrors)
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
     const auto& path = request->path();
-    context->SetRequestInfo("Path: %v", path);
+    context->AnnotateRequest()
+        .With("Path", path);
 
     TGetTabletErrorsOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -5072,6 +5079,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletErrors)
             if (tabletErrors.Incomplete) {
                 response->set_incomplete(tabletErrors.Incomplete);
             }
+
+            context->AnnotateResponse()
+                .With("TabletErrorCount", tabletErrors.TabletErrors.size())
+                .With("ReplicationErrorCount", tabletErrors.ReplicationErrors.size())
+                .With("Incomplete", tabletErrors.Incomplete);
         });
 }
 
@@ -5097,15 +5109,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PushQueueProducer)
         options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
     }
 
-    context->SetRequestInfo(
-        "ProducerPath: %v, QueuePath: %v, SessionId: %v, "
-        "Epoch: %v, RequireSyncReplica: %v, TransactionId: %v",
-        producerPath,
-        queuePath,
-        sessionId,
-        request->epoch(),
-        options.RequireSyncReplica,
-        transactionId);
+    context->AnnotateRequest()
+        .With("ProducerPath", producerPath)
+        .With("QueuePath", queuePath)
+        .With("SessionId", sessionId)
+        .With("Epoch", request->epoch())
+        .With("RequireSyncReplica", options.RequireSyncReplica)
+        .With("TransactionId", transactionId);
 
     auto transaction = GetTransactionOrThrow(
         client,
@@ -5153,10 +5163,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PushQueueProducer)
             response->set_last_sequence_number(ToProto(pushQueueProducerResult.LastSequenceNumber));
             response->set_skipped_row_count(pushQueueProducerResult.SkippedRowCount);
 
-            context->SetResponseInfo(
-                "LastSequenceNumber: %v, SkippedRowCount: %v",
-                pushQueueProducerResult.LastSequenceNumber.Underlying(),
-                pushQueueProducerResult.SkippedRowCount);
+            context->AnnotateResponse()
+                .With("LastSequenceNumber", pushQueueProducerResult.LastSequenceNumber.Underlying())
+                .With("SkippedRowCount", pushQueueProducerResult.SkippedRowCount);
         });
 }
 
@@ -5186,15 +5195,13 @@ void TApiService::AdvanceQueueConsumerImpl(
     SetTimeoutOptions(&options, context.Get());
 
     auto oldOffset = YT_OPTIONAL_FROM_PROTO(*request, old_offset);
-    context->SetRequestInfo(
-        "ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, "
-        "OldOffset: %v, NewOffset: %v, TransactionId: %v",
-        consumerPath,
-        queuePath,
-        request->partition_index(),
-        oldOffset,
-        request->new_offset(),
-        transactionId);
+    context->AnnotateRequest()
+        .With("ConsumerPath", consumerPath)
+        .With("QueuePath", queuePath)
+        .With("PartitionIndex", request->partition_index())
+        .With("OldOffset", oldOffset)
+        .With("NewOffset", request->new_offset())
+        .With("TransactionId", transactionId);
 
     auto transaction = GetTransactionOrThrow(
         client,
@@ -5231,15 +5238,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullQueue)
 
     auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
-    context->SetRequestInfo(
-        "QueuePath: %v, Offset: %v, PartitionIndex: %v, "
-        "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-        queuePath,
-        request->offset(),
-        request->partition_index(),
-        rowBatchReadOptions.MaxRowCount,
-        rowBatchReadOptions.MaxDataWeight,
-        rowBatchReadOptions.DataWeightPerRowHint);
+    context->AnnotateRequest()
+        .With("QueuePath", queuePath)
+        .With("Offset", request->offset())
+        .With("PartitionIndex", request->partition_index())
+        .With("MaxRowCount", rowBatchReadOptions.MaxRowCount)
+        .With("MaxDataWeight", rowBatchReadOptions.MaxDataWeight)
+        .With("DataWeightPerRowHint", rowBatchReadOptions.DataWeightPerRowHint);
 
     // TODO(achulkov2): Support WorkloadDescriptor.
     options.UseNativeTabletNodeApi = request->use_native_tablet_node_api();
@@ -5268,11 +5273,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullQueue)
                 context->GetAuthenticationIdentity().UserTag,
                 detailedProfilingInfo);
 
-            context->SetResponseInfo(
-                "RowCount: %v, StartOffset: %v, EnableDetailedTableProfiling: %v",
-                queueRowset->GetRows().size(),
-                queueRowset->GetStartOffset(),
-                detailedProfilingInfo->EnableDetailedTableProfiling);
+            context->AnnotateResponse()
+                .With("RowCount", queueRowset->GetRows().size())
+                .With("StartOffset", queueRowset->GetStartOffset())
+                .With("EnableDetailedTableProfiling", detailedProfilingInfo->EnableDetailedTableProfiling);
         });
 }
 
@@ -5308,16 +5312,14 @@ void TApiService::PullQueueConsumerImpl(
 
     std::optional<i64> offset = YT_OPTIONAL_FROM_PROTO(*request, offset);
 
-    context->SetRequestInfo(
-        "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
-        "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
-        consumerPath,
-        queuePath,
-        offset,
-        request->partition_index(),
-        rowBatchReadOptions.MaxRowCount,
-        rowBatchReadOptions.MaxDataWeight,
-        rowBatchReadOptions.DataWeightPerRowHint);
+    context->AnnotateRequest()
+        .With("ConsumerPath", consumerPath)
+        .With("QueuePath", queuePath)
+        .With("Offset", offset)
+        .With("PartitionIndex", request->partition_index())
+        .With("MaxRowCount", rowBatchReadOptions.MaxRowCount)
+        .With("MaxDataWeight", rowBatchReadOptions.MaxDataWeight)
+        .With("DataWeightPerRowHint", rowBatchReadOptions.DataWeightPerRowHint);
 
     // TODO(achulkov2): Support WorkloadDescriptor.
     if (request->has_replica_consistency()) {
@@ -5346,11 +5348,10 @@ void TApiService::PullQueueConsumerImpl(
                 context->GetAuthenticationIdentity().UserTag,
                 detailedProfilingInfo);
 
-            context->SetResponseInfo(
-                "RowCount: %v, StartOffset: %v, EnableDetailedTableProfiling: %v",
-                queueRowset->GetRows().size(),
-                queueRowset->GetStartOffset(),
-                detailedProfilingInfo->EnableDetailedTableProfiling);
+            context->AnnotateResponse()
+                .With("RowCount", queueRowset->GetRows().size())
+                .With("StartOffset", queueRowset->GetStartOffset())
+                .With("EnableDetailedTableProfiling", detailedProfilingInfo->EnableDetailedTableProfiling);
         });
 }
 
@@ -5368,12 +5369,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RegisterQueueConsumer)
         options.Partitions = FromProto<std::vector<int>>(request->partitions().items());
     }
 
-    context->SetRequestInfo(
-        "QueuePath: %v, ConsumerPath: %v, Vital: %v, Partitions: %v",
-        queuePath,
-        consumerPath,
-        vital,
-        options.Partitions);
+    context->AnnotateRequest()
+        .With("QueuePath", queuePath)
+        .With("ConsumerPath", consumerPath)
+        .With("Vital", vital)
+        .With("Partitions", options.Partitions);
 
     ExecuteCall(
         context,
@@ -5396,10 +5396,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnregisterQueueConsumer)
     TUnregisterQueueConsumerOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo(
-        "QueuePath: %v, ConsumerPath: %v",
-        queuePath,
-        consumerPath);
+    context->AnnotateRequest()
+        .With("QueuePath", queuePath)
+        .With("ConsumerPath", consumerPath);
 
     ExecuteCall(
         context,
@@ -5427,10 +5426,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListQueueConsumerRegistrations)
     TListQueueConsumerRegistrationsOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo(
-        "QueuePath: %v, ConsumerPath: %v",
-        queuePath,
-        consumerPath);
+    context->AnnotateRequest()
+        .With("QueuePath", queuePath)
+        .With("ConsumerPath", consumerPath);
 
     ExecuteCall(
         context,
@@ -5452,7 +5450,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListQueueConsumerRegistrations)
                 }
             }
 
-            context->SetResponseInfo("Registrations: %v", registrations.size());
+            context->AnnotateResponse()
+                .With("Registrations", registrations.size());
         });
 }
 
@@ -5471,12 +5470,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateQueueProducerSession)
         options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
     }
 
-    context->SetRequestInfo(
-        "ProducerPath: %v, QueuePath: %v, SessionId: %v, MutationId: %v",
-        producerPath,
-        queuePath,
-        sessionId,
-        options.MutationId);
+    context->AnnotateRequest()
+        .With("ProducerPath", producerPath)
+        .With("QueuePath", queuePath)
+        .With("SessionId", sessionId)
+        .With("MutationId", options.MutationId);
 
     ExecuteCall(
         context,
@@ -5496,10 +5494,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateQueueProducerSession)
                 ToProto(response->mutable_user_meta(), ConvertToYsonString(result.UserMeta).ToString());
             }
 
-            context->SetResponseInfo(
-                "SequenceNumber: %v, Epoch: %v",
-                result.SequenceNumber,
-                result.Epoch);
+            context->AnnotateResponse()
+                .With("SequenceNumber", result.SequenceNumber)
+                .With("Epoch", result.Epoch);
         });
 }
 
@@ -5514,11 +5511,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveQueueProducerSession)
     TRemoveQueueProducerSessionOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo(
-        "ProducerPath: %v, QueuePath: %v, SessionId: %v",
-        producerPath,
-        queuePath,
-        sessionId);
+    context->AnnotateRequest()
+        .With("ProducerPath", producerPath)
+        .With("QueuePath", queuePath)
+        .With("SessionId", sessionId);
 
     ExecuteCall(
         context,
@@ -5650,11 +5646,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ModifyRows)
 
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-    context->SetRequestInfo(
-        "TransactionId: %v, Path: %v, ModificationCount: %v",
-        transactionId,
-        request->path(),
-        request->row_modification_types_size());
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId)
+        .With("Path", request->path())
+        .With("ModificationCount", request->row_modification_types_size());
 
     auto transaction = GetTransactionOrThrow(
         client,
@@ -5673,9 +5668,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BatchModifyRows)
 
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-    context->SetRequestInfo("TransactionId: %v, BatchSize: %v",
-        transactionId,
-        request->part_counts_size());
+    context->AnnotateRequest()
+        .With("TransactionId", transactionId)
+        .With("BatchSize", request->part_counts_size());
 
     i64 attachmentCount = request->Attachments().size();
     i64 expectedAttachmentCount = 0;
@@ -5728,11 +5723,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BuildSnapshot)
     options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
     options.EnableAutomatonReadOnlyBarrier = request->enable_automaton_read_only_barrier();
 
-    context->SetRequestInfo("CellId: %v, SetReadOnly: %v, WaitForSnapshotCompletion: %v, EnableAutomatonReadOnlyBarrier: %v",
-        options.CellId,
-        options.SetReadOnly,
-        options.WaitForSnapshotCompletion,
-        options.EnableAutomatonReadOnlyBarrier);
+    context->AnnotateRequest()
+        .With("CellId", options.CellId)
+        .With("SetReadOnly", options.SetReadOnly)
+        .With("WaitForSnapshotCompletion", options.WaitForSnapshotCompletion)
+        .With("EnableAutomatonReadOnlyBarrier", options.EnableAutomatonReadOnlyBarrier);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5743,7 +5738,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BuildSnapshot)
         [] (const auto& context, int snapshotId) {
             auto* response = &context->Response();
             response->set_snapshot_id(snapshotId);
-            context->SetResponseInfo("SnapshotId: %v", snapshotId);
+            context->AnnotateResponse()
+                .With("SnapshotId", snapshotId);
         });
 }
 
@@ -5754,7 +5750,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExitReadOnly)
 
     auto cellId = FromProto<TCellId>(request->cell_id());
 
-    context->SetRequestInfo("CellId: %v", cellId);
+    context->AnnotateRequest()
+        .With("CellId", cellId);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5770,7 +5767,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MasterExitReadOnly)
     SetTimeoutOptions(&options, context.Get());
     options.Retry = request->retry();
 
-    context->SetRequestInfo("Retry: %v", options.Retry);
+    context->AnnotateRequest()
+        .With("Retry", options.Retry);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5787,7 +5785,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DiscombobulateNonvotingPeers)
 
     auto cellId = FromProto<TCellId>(request->cell_id());
 
-    context->SetRequestInfo("CellId: %v", cellId);
+    context->AnnotateRequest()
+        .With("CellId", cellId);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5802,7 +5801,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResetDynamicallyPropagatedMasterCells)
     TResetDynamicallyPropagatedMasterCellsOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5818,7 +5817,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GCCollect)
     SetTimeoutOptions(&options, context.Get());
     options.CellId = FromProto<TCellId>(request->cell_id());
 
-    context->SetRequestInfo("CellId: %v", options.CellId);
+    context->AnnotateRequest()
+        .With("CellId", options.CellId);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5835,8 +5835,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SuspendCoordinator)
 
     auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
 
-    context->SetRequestInfo("CoordinatorCellId: %v",
-        coordinatorCellId);
+    context->AnnotateRequest()
+        .With("CoordinatorCellId", coordinatorCellId);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5853,8 +5853,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResumeCoordinator)
 
     auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
 
-    context->SetRequestInfo("CoordinatorCellId: %v",
-        coordinatorCellId);
+    context->AnnotateRequest()
+        .With("CoordinatorCellId", coordinatorCellId);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5875,10 +5875,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MigrateReplicationCards)
         options.DestinationCellId = FromProto<TCellId>(request->destination_cell_id());
     }
 
-    context->SetRequestInfo("ChaosCellId: %v, DestinationCellId: %v, ReplicationCardIds: %v",
-        chaosCellId,
-        options.DestinationCellId,
-        options.ReplicationCardIds);
+    context->AnnotateRequest()
+        .With("ChaosCellId", chaosCellId)
+        .With("DestinationCellId", options.DestinationCellId)
+        .With("ReplicationCardIds", options.ReplicationCardIds);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5895,8 +5895,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SuspendChaosCells)
 
     auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
-    context->SetRequestInfo("ChaosCellIds: %v",
-        cellIds);
+    context->AnnotateRequest()
+        .With("ChaosCellIds", cellIds);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5913,8 +5913,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResumeChaosCells)
 
     auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
-    context->SetRequestInfo("ChaosCellIds: %v",
-        cellIds);
+    context->AnnotateRequest()
+        .With("ChaosCellIds", cellIds);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5931,7 +5931,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SuspendTabletCells)
 
     auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
-    context->SetRequestInfo("TabletCellIds: %v", cellIds);
+    context->AnnotateRequest()
+        .With("TabletCellIds", cellIds);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -5948,7 +5949,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResumeTabletCells)
 
     auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
-    context->SetRequestInfo("TabletCellIds: %v", cellIds);
+    context->AnnotateRequest()
+        .With("TabletCellIds", cellIds);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -6016,13 +6018,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMaintenance)
     TAddMaintenanceOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo(
-        "Component: %v, Address: %v, Type: %v, Comment: %v, SupportsPerTargetResponse: %v",
-        component,
-        address,
-        type,
-        comment,
-        supportsPerTargetResponse);
+    context->AnnotateRequest()
+        .With("Component", component)
+        .With("Address", address)
+        .With("Type", type)
+        .With("Comment", comment)
+        .With("SupportsPerTargetResponse", supportsPerTargetResponse);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -6033,6 +6034,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMaintenance)
         },
         [=] (const auto& context, const TMaintenanceIdPerTarget& result) {
             auto* response = &context->Response();
+
+            context->AnnotateResponse()
+                .With("MaintenanceIdPerTarget", result);
+
             // COMPAT(kvk1920): Compatibility with pre-24.2 RPC clients.
             if (!supportsPerTargetResponse) {
                 ToProto(
@@ -6054,11 +6059,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
     auto component = MaintenanceComponentFromProto(request->component());
     auto address = request->address();
 
-    TStringBuilder requestInfo;
-    requestInfo.AppendFormat("Component: %v, Address: %v",
-        component,
-        address);
-
     if (request->mine() && request->has_user()) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"user\" and \"mine\"");
     }
@@ -6068,31 +6068,30 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
 
     if (request->has_type()) {
         filter.Type = MaintenanceTypeFromProto(request->type());
-        requestInfo.AppendFormat(", Type: %v", filter.Type);
     }
 
     using TByUser = TMaintenanceFilter::TByUser;
     if (request->has_user()) {
-        auto user = request->user();
-        requestInfo.AppendFormat(", User: %v", user);
-        filter.User = user;
+        filter.User = request->user();
     } else if (request->mine()) {
         filter.User = TByUser::TMine{};
-        requestInfo.AppendString(", Mine: true");
     } else {
         filter.User = TByUser::TAll{};
     }
 
     // COMPAT(kvk1920): For compatibility with pre-24.2 RPC clients.
     auto supportsPerTargetResponse = request->supports_per_target_response();
-    requestInfo.AppendFormat(
-        ", SupportsPerTargetResponse: %v",
-        supportsPerTargetResponse);
 
     TRemoveMaintenanceOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRawRequestInfo(requestInfo.Flush(), /*incremental*/ false);
+    context->AnnotateRequest()
+        .With("Component", component)
+        .With("Address", address)
+        .WithIf(request->has_type(), "Type", YT_LAZY(*filter.Type))
+        .WithIf(request->has_user(), "User", request->user())
+        .WithIf(!request->has_user() && request->mine(), "Mine", true)
+        .With("SupportsPerTargetResponse", supportsPerTargetResponse);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -6165,7 +6164,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DisableChunkLocations)
     TDisableChunkLocationsOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
+    context->AnnotateRequest()
+        .With("NodeAddress", nodeAddress)
+        .With("LocationUuids", locationUuids);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -6180,6 +6181,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DisableChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6192,10 +6196,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DestroyChunkLocations)
     TDestroyChunkLocationsOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("NodeAddress: %v, RecoverUnlinkedDisks: %v, LocationUuids: %v",
-        nodeAddress,
-        recoverUnlinkedDisks,
-        locationUuids);
+    context->AnnotateRequest()
+        .With("NodeAddress", nodeAddress)
+        .With("RecoverUnlinkedDisks", recoverUnlinkedDisks)
+        .With("LocationUuids", locationUuids);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -6211,6 +6215,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DestroyChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6222,7 +6229,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResurrectChunkLocations)
     TResurrectChunkLocationsOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
+    context->AnnotateRequest()
+        .With("NodeAddress", nodeAddress)
+        .With("LocationUuids", locationUuids);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -6237,6 +6246,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResurrectChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6247,7 +6259,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RequestRestart)
     TRequestRestartOptions options;
     SetTimeoutOptions(&options, context.Get());
 
-    context->SetRequestInfo("NodeAddress: %v", nodeAddress);
+    context->AnnotateRequest()
+        .With("NodeAddress", nodeAddress);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
     ExecuteCall(
@@ -6270,7 +6283,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    context->SuppressMissingRequestInfoCheck();
+    context->AnnotateRequest();
 
     ExecuteCall(
         context,
@@ -6280,6 +6293,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             response->set_user(result.User);
+
+            context->AnnotateResponse()
+                .With("User", result.User);
         });
 }
 
@@ -6297,11 +6313,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMember)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
-        group,
-        member,
-        options.MutationId,
-        options.Retry);
+    context->AnnotateRequest()
+        .With("Group", group)
+        .With("Member", member)
+        .With("MutationId", options.MutationId)
+        .With("Retry", options.Retry);
 
     ExecuteCall(
         context,
@@ -6324,11 +6340,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMember)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Group: %v, Member: %v, MutationId: %v, Retry: %v",
-        group,
-        member,
-        options.MutationId,
-        options.Retry);
+    context->AnnotateRequest()
+        .With("Group", group)
+        .With("Member", member)
+        .With("MutationId", options.MutationId)
+        .With("Retry", options.Retry);
 
     ExecuteCall(
         context,
@@ -6363,10 +6379,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermission)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("User: %v, Path: %v, Permission: %v",
-        user,
-        path,
-        FormatPermissions(permission));
+    context->AnnotateRequest()
+        .With("User", user)
+        .With("Path", path)
+        .With("Permission", FormatPermissions(permission));
 
     ExecuteCall(
         context,
@@ -6379,6 +6395,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermission)
             if (checkResponse.Columns) {
                 ToProto(response->mutable_columns()->mutable_items(), *checkResponse.Columns);
             }
+
+            context->AnnotateResponse()
+                .With("Action", checkResponse.Action);
         });
 }
 
@@ -6404,9 +6423,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
 
     options.IgnoreMissingSubjects = request->ignore_missing_subjects();
 
-    context->SetRequestInfo("User: %v, Permission: %v",
-        user,
-        FormatPermissions(permission));
+    context->AnnotateRequest()
+        .With("User", user)
+        .With("Permission", FormatPermissions(permission));
 
     ExecuteCall(
         context,
@@ -6416,6 +6435,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
+
+            context->AnnotateResponse()
+                .With("Action", result.Action);
         });
 }
 
@@ -6431,9 +6453,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, TransferAccountResources)
     SetTimeoutOptions(&options, context.Get());
     SetMutatingOptions(&options, request, context.Get());
 
-    context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
-        srcAccount,
-        dstAccount);
+    context->AnnotateRequest()
+        .With("SrcAccount", srcAccount)
+        .With("DstAccount", dstAccount);
 
     ExecuteCall(
         context,
@@ -6470,7 +6492,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFile)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    SetReadFileRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakeReadFileRequestTags(*request));
 
     PutMethodInfoInTraceContext("read_file");
 
@@ -6509,7 +6531,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFile)
         FromProto(&options, request->prerequisite_options());
     }
 
-    SetWriteFileRequestInfo(context, path, *request);
+    context->AnnotateRequest().With(MakeWriteFileRequestTags(path, *request));
 
     PutMethodInfoInTraceContext("write_file");
 
@@ -6572,10 +6594,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadJournal)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v, FirstRowIndex: %v, RowCount: %v",
-        path,
-        options.FirstRowIndex,
-        options.RowCount);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("FirstRowIndex", options.FirstRowIndex)
+        .With("RowCount", options.RowCount);
 
     auto journalReader = client->CreateJournalReader(path, options);
     WaitFor(journalReader->Open())
@@ -6616,12 +6638,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteJournal)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo(
-        "Path: %v, EnableMultiplexing: %v, EnableChunkPreallocation: %v, ReplicaLagLimit: %v",
-        path,
-        options.EnableMultiplexing,
-        options.EnableChunkPreallocation,
-        options.ReplicaLagLimit);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("EnableMultiplexing", options.EnableMultiplexing)
+        .With("EnableChunkPreallocation", options.EnableChunkPreallocation)
+        .With("ReplicaLagLimit", options.ReplicaLagLimit);
 
     auto journalWriter = client->CreateJournalWriter(path, options);
     WaitFor(journalWriter->Open())
@@ -6655,9 +6676,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, TruncateJournal)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo("Path: %v, RowCount: %v",
-        path,
-        rowCount);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("RowCount", rowCount);
 
     ExecuteCall(
         context,
@@ -6715,7 +6736,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    SetReadTableRequestInfo(context, path, *request);
+    context->AnnotateRequest().With(MakeReadTableRequestTags(path, *request));
 
     PutMethodInfoInTraceContext("read_table");
 
@@ -6857,7 +6878,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
     PutMethodInfoInTraceContext("write_table");
 
     auto path = FromProto<TRichYPath>(request->path());
-    SetWriteTableRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeWriteTableRequestTags(path));
 
     NApi::TTableWriterOptions options;
     std::string tableWriterConfig("{}");
@@ -6915,7 +6936,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetColumnarStatistics)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v", paths);
+    context->AnnotateRequest()
+        .With("Paths", paths);
 
     ExecuteCall(
         context,
@@ -6926,7 +6948,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetColumnarStatistics)
             auto* response = &context->Response();
             ToProto(response->mutable_statistics(), result);
 
-            context->SetResponseInfo("StatisticsCount: %v", result.size());
+            context->AnnotateResponse()
+                .With("StatisticsCount", result.size());
         });
 }
 
@@ -6982,7 +7005,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    SetPartitionTablesRequestInfo(context, paths, *request);
+    context->AnnotateRequest().With(MakePartitionTablesRequestTags(paths, *request));
 
     ExecuteCall(
         context,
@@ -6993,7 +7016,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
             auto* response = &context->Response();
             ToProto(response->mutable_partitions(), result.Partitions);
 
-            context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+            context->AnnotateResponse()
+                .With("PartitionCount", result.Partitions.size());
         });
 }
 
@@ -7024,7 +7048,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    SetReadTablePartitionRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakeReadTablePartitionRequestTags(*request));
 
     PutMethodInfoInTraceContext("read_table_partition");
 
@@ -7105,7 +7129,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteSession)
     TDistributedWriteSessionStartOptions options;
     ParseRequest(&path, &options, *request);
 
-    SetStartDistributedWriteSessionRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeStartDistributedWriteSessionRequestTags(path));
 
     ExecuteCall(
         context,
@@ -7129,7 +7153,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    SetPingDistributedWriteSessionRequestInfo(context, concreteSession.PatchInfo.ObjectId);
+    context->AnnotateRequest().With(MakePingDistributedWriteSessionRequestTags(concreteSession.PatchInfo.ObjectId));
 
     ExecuteCall(
         context,
@@ -7149,7 +7173,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteSession)
 
     auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    SetFinishDistributedWriteSessionRequestInfo(context, session.PatchInfo.ObjectId);
+    context->AnnotateRequest().With(MakeFinishDistributedWriteSessionRequestTags(session.PatchInfo.ObjectId));
 
     ExecuteCall(
         context,
@@ -7197,7 +7221,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTableFragment)
 
     auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
 
-    SetWriteTableFragmentRequestInfo(context, concreteCookie.PatchInfo.ObjectId, concreteCookie.MainTransactionId);
+    context->AnnotateRequest().With(MakeWriteTableFragmentRequestTags(concreteCookie.PatchInfo.ObjectId, concreteCookie.MainTransactionId));
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
@@ -7233,7 +7257,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteFileSession)
     TRichYPath path;
     TDistributedWriteFileSessionStartOptions options;
     ParseRequest(&path, &options, *request);
-    SetStartDistributedWriteFileSessionRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeStartDistributedWriteFileSessionRequestTags(path));
 
     ExecuteCall(
         context,
@@ -7257,7 +7281,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteFileSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    SetPingDistributedWriteFileSessionRequestInfo(context, concreteSession.HostData.FileId);
+    context->AnnotateRequest().With(MakePingDistributedWriteFileSessionRequestTags(concreteSession.HostData.FileId));
 
     ExecuteCall(
         context,
@@ -7277,7 +7301,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteFileSession)
 
     auto session = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    SetFinishDistributedWriteFileSessionRequestInfo(context, session.HostData.FileId);
+    context->AnnotateRequest().With(MakeFinishDistributedWriteFileSessionRequestTags(session.HostData.FileId));
 
     ExecuteCall(
         context,
@@ -7324,7 +7348,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFileFragment)
     auto concreteCookie = ConvertTo<TWriteFileFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
     const auto& cookieData = concreteCookie.CookieData;
 
-    SetWriteFileFragmentRequestInfo(context, cookieData.FileId, cookieData.MainTransactionId);
+    context->AnnotateRequest().With(MakeWriteFileFragmentRequestTags(cookieData.FileId, cookieData.MainTransactionId));
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
@@ -7377,9 +7401,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetFileFromCache)
         FromProto(&options, request->master_read_options());
     }
 
-    context->SetRequestInfo("MD5: %v, CachePath: %v",
-        md5,
-        options.CachePath);
+    context->AnnotateRequest()
+        .With("MD5", md5)
+        .With("CachePath", options.CachePath);
 
     ExecuteCall(
         context,
@@ -7390,8 +7414,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetFileFromCache)
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
 
-            context->SetResponseInfo("Path: %v",
-                result.Path);
+            context->AnnotateResponse()
+                .With("Path", result.Path);
         });
 }
 
@@ -7420,10 +7444,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PutFileToCache)
         FromProto(&options, request->master_read_options());
     }
 
-    context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
-        path,
-        md5,
-        options.CachePath);
+    context->AnnotateRequest()
+        .With("Path", path)
+        .With("MD5", md5)
+        .With("CachePath", options.CachePath);
 
     ExecuteCall(
         context,
@@ -7434,8 +7458,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PutFileToCache)
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
 
-            context->SetResponseInfo("Path: %v",
-                result.Path);
+            context->AnnotateResponse()
+                .With("Path", result.Path);
         });
 }
 
@@ -7451,7 +7475,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineSpec)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7463,8 +7488,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineSpec)
             response->set_version(ToProto(result.Version));
             response->set_spec(ToProto(result.Spec));
 
-            context->SetResponseInfo("Version: %v",
-                result.Version);
+            context->AnnotateResponse()
+                .With("Version", result.Version);
         });
 }
 
@@ -7485,10 +7510,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetPipelineSpec)
         ? std::make_optional<NFlow::TVersion>(request->expected_version())
         : std::nullopt;
 
-    context->SetRequestInfo("PipelinePath: %v, Force: %v, ExpectedVersion: %v",
-        pipelinePath,
-        options.Force,
-        options.ExpectedVersion);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath)
+        .With("Force", options.Force)
+        .With("ExpectedVersion", options.ExpectedVersion);
 
     ExecuteCall(
         context,
@@ -7499,8 +7524,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetPipelineSpec)
             auto* response = &context->Response();
             response->set_version(ToProto(result.Version));
 
-            context->SetResponseInfo("Version: %v",
-                result.Version);
+            context->AnnotateResponse()
+                .With("Version", result.Version);
         });
 }
 
@@ -7512,7 +7537,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineDynamicSpec)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7524,8 +7550,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineDynamicSpec)
             response->set_version(ToProto(result.Version));
             response->set_spec(ToProto(result.Spec));
 
-            context->SetResponseInfo("Version: %v",
-                result.Version);
+            context->AnnotateResponse()
+                .With("Version", result.Version);
         });
 }
 
@@ -7544,9 +7570,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetPipelineDynamicSpec)
         ? std::make_optional<NFlow::TVersion>(request->expected_version())
         : std::nullopt;
 
-    context->SetRequestInfo("PipelinePath: %v, ExpectedVersion: %v",
-        pipelinePath,
-        options.ExpectedVersion);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath)
+        .With("ExpectedVersion", options.ExpectedVersion);
 
     ExecuteCall(
         context,
@@ -7557,8 +7583,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetPipelineDynamicSpec)
             auto* response = &context->Response();
             response->set_version(ToProto(result.Version));
 
-            context->SetResponseInfo("Version: %v",
-                result.Version);
+            context->AnnotateResponse()
+                .With("Version", result.Version);
         });
 }
 
@@ -7570,7 +7596,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartPipeline)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7587,7 +7614,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StopPipeline)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7604,7 +7632,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PausePipeline)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7621,7 +7650,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineState)
     SetTimeoutOptions(&options, context.Get());
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
-    context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath);
 
     ExecuteCall(
         context,
@@ -7632,8 +7662,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetPipelineState)
             auto* response = &context->Response();
             response->set_state(ToProto(result.State));
 
-            context->SetResponseInfo("State: %v",
-                result.State);
+            context->AnnotateResponse()
+                .With("State", result.State);
         });
 }
 
@@ -7647,9 +7677,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetFlowView)
 
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
     auto viewPath = FromProto<TYPath>(request->view_path());
-    context->SetRequestInfo("PipelinePath: %v, ViewPath: %v",
-        pipelinePath,
-        viewPath);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath)
+        .With("ViewPath", viewPath);
 
     ExecuteCall(
         context,
@@ -7672,7 +7702,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlowExecute)
     auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
     auto command = request->command();
     auto argument = NYson::TYsonString(request->argument());
-    context->SetRequestInfo("PipelinePath: %v, Command: %v", pipelinePath, command);
+    context->AnnotateRequest()
+        .With("PipelinePath", pipelinePath)
+        .With("Command", command);
 
     ExecuteCall(
         context,
@@ -7717,9 +7749,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartQuery)
     auto req = proxy.StartQuery();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, Engine: %v",
-        request->query_tracker_stage(),
-        ConvertQueryEngineFromProto(request->engine()));
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("Engine", ConvertQueryEngineFromProto(request->engine()));
 
     ExecuteCall(
         context,
@@ -7730,7 +7762,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartQuery)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo("QueryId: %v", response->query_id());
+            context->AnnotateResponse()
+                .With("QueryId", response->query_id());
         });
 }
 
@@ -7741,9 +7774,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortQuery)
     auto req = proxy.AbortQuery();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, QueryId: %v",
-        request->query_tracker_stage(),
-        FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("QueryId", FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
     ExecuteCall(
         context,
@@ -7762,10 +7795,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryResult)
     auto req = proxy.GetQueryResult();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, QueryId: %v, ResultIndex: %v",
-        request->query_tracker_stage(),
-        FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
-        request->result_index());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("QueryId", FromProto<NQueryTrackerClient::TQueryId>(request->query_id()))
+        .With("ResultIndex", request->result_index());
 
     ExecuteCall(
         context,
@@ -7776,7 +7809,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryResult)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo("QueryId: %v", response->query_id());
+            context->AnnotateResponse()
+                .With("QueryId", response->query_id());
         });
 }
 
@@ -7787,10 +7821,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadQueryResult)
     auto req = proxy.ReadQueryResult();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, QueryId: %v, ResultIndex: %v",
-        request->query_tracker_stage(),
-        FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
-        request->result_index());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("QueryId", FromProto<NQueryTrackerClient::TQueryId>(request->query_id()))
+        .With("ResultIndex", request->result_index());
 
     ExecuteCall(
         context,
@@ -7811,10 +7845,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQuery)
     auto req = proxy.GetQuery();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, QueryId: %v, StartTimestamp: %v",
-        request->query_tracker_stage(),
-        FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
-        request->timestamp());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("QueryId", FromProto<NQueryTrackerClient::TQueryId>(request->query_id()))
+        .With("StartTimestamp", request->timestamp());
 
     ExecuteCall(
         context,
@@ -7825,7 +7859,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQuery)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo("QueryId: %v", response->query().id());
+            context->AnnotateResponse()
+                .With("QueryId", response->query().id());
         });
 }
 
@@ -7836,10 +7871,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListQueries)
     auto req = proxy.ListQueries();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo(
-        "Stage: %v, Limit: %v",
-        request->query_tracker_stage(),
-        request->limit());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("Limit", request->limit());
 
     ExecuteCall(
         context,
@@ -7850,10 +7884,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListQueries)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo("QueryCount: %v, Incomplete: %v, Timestamp: %v",
-                response->queries_size(),
-                response->incomplete(),
-                response->timestamp());
+            context->AnnotateResponse()
+                .With("QueryCount", response->queries_size())
+                .With("Incomplete", response->incomplete())
+                .With("Timestamp", response->timestamp());
         });
 }
 
@@ -7864,9 +7898,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterQuery)
     auto req = proxy.AlterQuery();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v, QueryId: %v",
-        request->query_tracker_stage(),
-        FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage())
+        .With("QueryId", FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
     ExecuteCall(
         context,
@@ -7885,7 +7919,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryTrackerInfo)
     auto req = proxy.GetQueryTrackerInfo();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v", request->query_tracker_stage());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage());
 
     ExecuteCall(
         context,
@@ -7896,7 +7931,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryTrackerInfo)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo("ClusterName: %v", response->cluster_name());
+            context->AnnotateResponse()
+                .With("ClusterName", response->cluster_name());
         });
 }
 
@@ -7907,7 +7943,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryDeclaredParametersInfo)
     auto req = proxy.GetQueryDeclaredParametersInfo();
     FillQueryTrackerRequest(context, request, req);
 
-    context->SetRequestInfo("Stage: %v", request->query_tracker_stage());
+    context->AnnotateRequest()
+        .With("Stage", request->query_tracker_stage());
 
     ExecuteCall(
         context,
@@ -7918,7 +7955,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetQueryDeclaredParametersInfo)
             auto* response = &context->Response();
             response->MergeFrom(result->rpc_proxy_response());
 
-            context->SetResponseInfo();
+            context->AnnotateResponse();
         });
 }
 
@@ -7932,11 +7969,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
 
     auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
 
-    context->SetRequestInfo(
-        "PartitionCount: %v, Account: %v, ParentTransactionId: %v",
-        request->partition_count(),
-        request->account(),
-        parentTransactionId);
+    context->AnnotateRequest()
+        .With("PartitionCount", request->partition_count())
+        .With("Account", request->account())
+        .With("ParentTransactionId", parentTransactionId);
 
     auto user = context->GetAuthenticationIdentity().User;
 
@@ -7970,6 +8006,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             if (request->has_config()) {
                 options.Config = TYsonString(request->config());
             }
+            options.Codec = FromProto<ECodec>(request->codec());
             return client->StartShuffle(
                 request->account(),
                 request->partition_count(),
@@ -7981,7 +8018,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             response->set_signed_shuffle_handle(ToProto(ConvertToYsonString(signedShuffleHandle)));
             // TODO(pavook): friendly YSON wrapper.
             auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
-            context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
+            context->AnnotateResponse()
+                .With("TransactionId", shuffleHandle->TransactionId);
         });
 }
 
@@ -8027,14 +8065,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadShuffleData)
         writerIndexRange = std::pair(*writerIndexBegin, *writerIndexEnd);
     }
 
-    context->SetRequestInfo(
-        "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v, WriterIndexRange: %v",
-        shuffleHandle->TransactionId,
-        shuffleHandle->CoordinatorAddress,
-        shuffleHandle->Account,
-        shuffleHandle->PartitionCount,
-        request->partition_index(),
-        writerIndexRange);
+    context->AnnotateRequest()
+        .With("TransactionId", shuffleHandle->TransactionId)
+        .With("CoordinatorAddress", shuffleHandle->CoordinatorAddress)
+        .With("Account", shuffleHandle->Account)
+        .With("PartitionCount", shuffleHandle->PartitionCount)
+        .With("PartitionIndex", request->partition_index())
+        .With("WriterIndexRange", writerIndexRange);
 
     auto reader = WaitFor(client->CreateShuffleReader(
         std::move(signedShuffleHandle),
@@ -8090,13 +8127,12 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteShuffleData)
 
     auto partitionColumn = request->partition_column();
 
-    context->SetRequestInfo(
-        "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionColumn: %v",
-        shuffleHandle->TransactionId,
-        shuffleHandle->CoordinatorAddress,
-        shuffleHandle->Account,
-        shuffleHandle->PartitionCount,
-        partitionColumn);
+    context->AnnotateRequest()
+        .With("TransactionId", shuffleHandle->TransactionId)
+        .With("CoordinatorAddress", shuffleHandle->CoordinatorAddress)
+        .With("Account", shuffleHandle->Account)
+        .With("PartitionCount", shuffleHandle->PartitionCount)
+        .With("PartitionColumn", partitionColumn);
 
     auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
     if (writerIndex && *writerIndex < 0) {
@@ -8153,10 +8189,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckClusterLiveness)
         options.CheckTabletCellBundle = request->check_tablet_cell_bundle();
     }
 
-    context->SetRequestInfo("CheckCypressRoot: %v, CheckSecondaryMasterCells: %v, CheckTabletCellBundle: %v",
-        options.CheckCypressRoot,
-        options.CheckSecondaryMasterCells,
-        options.CheckTabletCellBundle);
+    context->AnnotateRequest()
+        .With("CheckCypressRoot", options.CheckCypressRoot)
+        .With("CheckSecondaryMasterCells", options.CheckSecondaryMasterCells)
+        .With("CheckTabletCellBundle", options.CheckTabletCellBundle);
 
     ExecuteCall(
         context,

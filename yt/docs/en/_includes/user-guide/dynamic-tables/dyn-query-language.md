@@ -195,7 +195,7 @@ FROM (<list-expression-1> AS <alias-1>, <list-expression-2> AS <alias-2>, ...)
 #### Examples
 
 Data:
-```
+```yson
 a=1; b=[1;2;3]; c=[x;y;z]
 ```
 
@@ -205,7 +205,7 @@ SELECT t.a AS a, (SELECT b, c FROM (t.b AS b, t.c AS c) WHERE b > 1) AS nested F
 ```
 
 Result:
-```
+```yson
 a=1; nested=[[2;y];[3;z]]
 ```
 
@@ -860,7 +860,7 @@ The statistics have a hierarchical structure and correspond to the query executi
 ### The explain-query command { #explain_query }
 You can debug a query using the "explain" command. The command outputs the result in a structured form.
 Example:
-```
+```yson
 {
     "udf_registry_path" = "//sys/udfs";
     "query" = {

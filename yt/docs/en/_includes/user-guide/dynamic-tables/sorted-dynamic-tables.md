@@ -209,7 +209,7 @@ To enable deletion using a watermark, follow the steps below:
 - Set the `@custom_runtime_data` attribute for the table.
 
 The `custom_runtime_data` attribute must be as follows:
-```
+```yson
 {
     "watermark" = {
         "column_name" = "<column name>";

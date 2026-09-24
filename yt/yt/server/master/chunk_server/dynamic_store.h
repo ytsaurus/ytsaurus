@@ -1,8 +1,9 @@
 #pragma once
 
+#include "private.h"
+
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
-#include "private.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 

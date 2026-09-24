@@ -65,9 +65,9 @@ private:
         auto requestDescriptors = FromProto<std::vector<TAlienCellDescriptorLite>>(request->cell_descriptors());
         auto fullSync = request->full_sync();
 
-        context->SetRequestInfo("CellCount: %v, FullSync: %v",
-            requestDescriptors.size(),
-            fullSync);
+        context->AnnotateRequest()
+            .With("CellCount", requestDescriptors.size())
+            .With("FullSync", fullSync);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         std::vector<TAlienCellDescriptor> responseDescriptors;
@@ -105,9 +105,9 @@ private:
         const auto& chaosConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChaosManager;
         response->set_enable_metadata_cells(chaosConfig->EnableMetadataCells);
 
-        context->SetResponseInfo("CellCount: %v EnableMetadataCells: %v",
-            response->cell_descriptors_size(),
-            response->enable_metadata_cells());
+        context->AnnotateResponse()
+            .With("CellCount", response->cell_descriptors_size())
+            .With("EnableMetadataCells", response->enable_metadata_cells());
 
         context->Reply();
     }
@@ -116,8 +116,8 @@ private:
     {
         const auto& cellBundleName = request->cell_bundle();
 
-        context->SetRequestInfo("CellBundle: %v",
-            cellBundleName);
+        context->AnnotateRequest()
+            .With("CellBundle", cellBundleName);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         auto* cellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(cellBundleName, /*activeLifeStageOnly*/ true);
@@ -125,22 +125,22 @@ private:
             ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }
 
-        context->SetResponseInfo("CellCount: %v",
-            response->cell_descriptors_size());
+        context->AnnotateResponse()
+            .With("CellCount", response->cell_descriptors_size());
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptors)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         for (const auto* cell : cellManager->Cells(ECellarType::Chaos)) {
             ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
         }
 
-        context->SetResponseInfo("CellCount: %v",
-            response->cell_descriptors_size());
+        context->AnnotateResponse()
+            .With("CellCount", response->cell_descriptors_size());
         context->Reply();
     }
 
@@ -148,8 +148,8 @@ private:
     {
         auto cellTags = FromProto<std::vector<TCellTag>>(request->cell_tags());
 
-        context->SetRequestInfo("CellTags: %v",
-            cellTags);
+        context->AnnotateRequest()
+            .With("CellTags", cellTags);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         for (auto cellTag : cellTags) {

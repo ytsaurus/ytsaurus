@@ -1239,6 +1239,39 @@
             "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Results_/Output2.yqlrun.txt.attr"
         }
     ],
+    "test.test[lineage-prune_keys-default.txt-Debug]": [
+        {
+            "checksum": "88ff2a55bea48e503421e5a44a3c598c",
+            "size": 3423,
+            "uri": "https://{canondata_backend}/1900335/6a56bca14a9ae356aa00f3a8adba2f14433f62ec/resource.tar.gz#test.test_lineage-prune_keys-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-prune_keys-default.txt-Lineage]": [
+        {
+            "checksum": "b0b905172b61d319b738ba2351f072b5",
+            "size": 1512,
+            "uri": "https://{canondata_backend}/1900335/6a56bca14a9ae356aa00f3a8adba2f14433f62ec/resource.tar.gz#test.test_lineage-prune_keys-default.txt-Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-prune_keys-default.txt-Plan]": [
+        {
+            "checksum": "d7dbb18bf88bd0b8545e845e5683994b",
+            "size": 7734,
+            "uri": "https://{canondata_backend}/1900335/6a56bca14a9ae356aa00f3a8adba2f14433f62ec/resource.tar.gz#test.test_lineage-prune_keys-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-prune_keys-default.txt-Results]": [
+        {
+            "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+            "size": 0,
+            "uri": "https://{canondata_backend}/1900335/6a56bca14a9ae356aa00f3a8adba2f14433f62ec/resource.tar.gz#test.test_lineage-prune_keys-default.txt-Results_/Output.txt"
+        },
+        {
+            "checksum": "d21568701f01c6c6d0096ae574eb5637",
+            "size": 731,
+            "uri": "https://{canondata_backend}/1900335/6a56bca14a9ae356aa00f3a8adba2f14433f62ec/resource.tar.gz#test.test_lineage-prune_keys-default.txt-Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[lineage-reduce_all_row-lineage2-Debug]": [
         {
             "checksum": "35b3c6f6f25783c03d103419b2f8d6e5",

@@ -1,15 +1,15 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_manager.h"
+
 #include "chunk_replica.h"
 #include "domestic_medium.h"
-#include "consistent_chunk_placement.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

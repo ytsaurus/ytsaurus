@@ -64,7 +64,6 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"HybridDqDataSizeLimitForOrdered", "384M"},
     {"HybridDqDataSizeLimitForUnordered", "8G"},
     {"UseYqlRowSpecCompactForm", "false"},
-    {"_UseKeyBoundApi", "false"},
     {"UseNewPredicateExtraction", "true"},
     {"PruneKeyFilterLambda", "true"},
     {"JoinCommonUseMapMultiOut", "true"},
@@ -108,7 +107,6 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"QueryCacheChunkLimit", "100000"},
-    {"_UseKeyBoundApi", "true"},
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -116,6 +114,7 @@ constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf
     {"_MasterLockTimeout", "2m"},
     {"_MasterLockPingPeriod", "30s"},
     {"_FiniteStreams", "0"},
+    {"_YtUseSourceWatermark", "0"},
     {"EnableComputationPatternResources", "false"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},
@@ -279,6 +278,8 @@ void TDQManagerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("yt_coordinator", &TThis::YTCoordinator)
         .DefaultNew();
+    registrar.Parameter("scheduler", &TThis::Scheduler)
+        .Default(GetEphemeralNodeFactory()->CreateMap());
     registrar.Parameter("interconnect_settings", &TThis::ICSettings)
         .Default(GetEphemeralNodeFactory()->CreateMap());
 }

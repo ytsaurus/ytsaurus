@@ -10,6 +10,7 @@
 #include <yql/essentials/minikql/mkql_terminator.h>
 #include <yql/essentials/minikql/runtime_settings/runtime_settings.h>
 #include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
+#include <yql/essentials/public/udf/udf_data_type.h>
 #include <yql/essentials/utils/yql_panic.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
@@ -182,14 +183,23 @@ public:
             const auto& key = messages[0]->Key;
 
             auto aggregationState = AggregationStateClient.GetState(key);
+            bool hasPreviousAggregationState = aggregationState->Frames.has_value();
+
+            auto inputWatermark = GetEpochInputEventWatermark().Underlying();
+            auto inputWatermarkMicroseconds = TDuration::Seconds(inputWatermark).MicroSeconds();
 
             UpdateStateComputationGraphWithCodecs->SetInput(
                 messageHolders,
-                aggregationState->Frames);
+                aggregationState->Frames,
+                inputWatermarkMicroseconds);
 
             auto updateStateOutput = UpdateStateComputationGraphWithCodecs->GetOutput();
 
-            aggregationState->Frames = std::move(updateStateOutput.State);
+            if (!hasPreviousAggregationState && updateStateOutput.TimerInfos.empty()) {
+                aggregationState.Clear();
+            } else {
+                aggregationState->Frames = std::move(updateStateOutput.State);
+            }
 
             for (const auto& timerInfo : updateStateOutput.TimerInfos) {
                 output->AddTimer(

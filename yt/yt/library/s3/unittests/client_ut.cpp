@@ -90,15 +90,16 @@ private:
                 .ValueOrThrow();
 
             std::vector<std::string> objectKeys;
-            for (const auto& object: listObjectsResponse.Objects) {
+            for (const auto& object : listObjectsResponse.Objects) {
                 objectKeys.push_back(object.Key);
             }
             if (!objectKeys.empty()) {
-                WaitFor(S3Client_->DeleteObjects({
+                auto deleteObjectsResponse = WaitFor(S3Client_->DeleteObjects({
                     .Bucket = bucket.Name,
                     .Objects = std::move(objectKeys),
                 }))
                     .ValueOrThrow();
+                ASSERT_TRUE(deleteObjectsResponse.Errors.empty());
             }
 
             WaitFor(S3Client_->DeleteBucket({
@@ -162,6 +163,136 @@ TEST_F(TS3ClientTest, PutAndGetObjects)
     for (const auto& object: listObjectsResponse.Objects) {
         ASSERT_TRUE(object.Key == object1Key || object.Key == object2Key);
     }
+}
+
+TEST_F(TS3ClientTest, PutAndGetObjectsPreservesSpecialCharactersInKeys)
+{
+    const std::vector<std::string> objectKeys{
+        "А.jpeg",
+        "photo 1.jpeg",
+        "a?b.jpeg",
+        "100%.jpeg",
+        "photo%201.jpeg",
+        "nested/path.jpeg",
+        "фото/А.jpeg",
+    };
+
+    for (const auto& key : objectKeys) {
+        SCOPED_TRACE(key);
+        WaitFor(S3Client_->PutObject({
+            .Bucket = Bucket1_,
+            .Key = key,
+            .Data = TSharedRef::FromString(key),
+        }))
+            .ValueOrThrow();
+    }
+
+    for (const auto& key : objectKeys) {
+        SCOPED_TRACE(key);
+        auto response = WaitFor(S3Client_->GetObject({
+            .Bucket = Bucket1_,
+            .Key = key,
+        }))
+            .ValueOrThrow();
+        EXPECT_EQ(std::string(response.Data.ToStringBuf()), key);
+    }
+
+    auto listResponse = WaitFor(S3Client_->ListObjects({
+        .Bucket = Bucket1_,
+    }))
+        .ValueOrThrow();
+    std::vector<std::string> listedKeys;
+    for (const auto& object : listResponse.Objects) {
+        listedKeys.push_back(object.Key);
+    }
+    auto expectedKeys = objectKeys;
+    std::sort(listedKeys.begin(), listedKeys.end());
+    std::sort(expectedKeys.begin(), expectedKeys.end());
+    EXPECT_EQ(listedKeys, expectedKeys);
+}
+
+TEST_F(TS3ClientTest, ListObjectsPreservesSpecialCharactersInPrefix)
+{
+    const std::vector<std::string> prefixes{
+        "ampersand&/",
+        "question?/",
+        "plus+/",
+        "кириллица/",
+        "nested/path/",
+        "percent%20/",
+        "space /",
+    };
+
+    for (const auto& prefix : prefixes) {
+        SCOPED_TRACE(prefix);
+        auto key = prefix + "object";
+        WaitFor(S3Client_->PutObject({
+            .Bucket = Bucket1_,
+            .Key = key,
+            .Data = TSharedRef::FromString(key),
+        }))
+            .ValueOrThrow();
+    }
+
+    for (const auto& prefix : prefixes) {
+        SCOPED_TRACE(prefix);
+        auto response = WaitFor(S3Client_->ListObjects({
+            .Prefix = prefix,
+            .Bucket = Bucket1_,
+        }))
+            .ValueOrThrow();
+        ASSERT_EQ(response.Objects.size(), 1u);
+        EXPECT_EQ(response.Objects.front().Key, prefix + "object");
+    }
+}
+
+TEST_F(TS3ClientTest, DeleteObjectsPreservesSpecialCharactersInKeys)
+{
+    const std::vector<std::string> objectKeys{
+        "a&b",
+        "a&amp;b",
+        "a<b",
+        "a>b",
+        "a\"b",
+        "a'b",
+        "a]]>b",
+    };
+
+    for (const auto& key : objectKeys) {
+        SCOPED_TRACE(key);
+        WaitFor(S3Client_->PutObject({
+            .Bucket = Bucket1_,
+            .Key = key,
+            .Data = TSharedRef::FromString(key),
+        }))
+            .ValueOrThrow();
+    }
+
+    auto listResponse = WaitFor(S3Client_->ListObjects({
+        .Bucket = Bucket1_,
+    }))
+        .ValueOrThrow();
+    std::vector<std::string> listedKeys;
+    for (const auto& object : listResponse.Objects) {
+        listedKeys.push_back(object.Key);
+    }
+    auto expectedKeys = objectKeys;
+    std::sort(listedKeys.begin(), listedKeys.end());
+    std::sort(expectedKeys.begin(), expectedKeys.end());
+    ASSERT_EQ(listedKeys, expectedKeys);
+
+    auto deleteResponse = WaitFor(S3Client_->DeleteObjects({
+        .Bucket = Bucket1_,
+        .Objects = objectKeys,
+    }))
+        .ValueOrThrow();
+    ASSERT_TRUE(deleteResponse.Errors.empty());
+
+    auto remainingObjectsResponse = WaitFor(S3Client_->ListObjects({
+        .Bucket = Bucket1_,
+    }))
+        .ValueOrThrow();
+    EXPECT_TRUE(remainingObjectsResponse.Objects.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,20 +1,21 @@
 #include "chunk_sealer.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
 #include "chunk_list.h"
 #include "chunk_location.h"
-#include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
+#include "chunk_scanner.h"
+#include "chunk_tree.h"
 #include "config.h"
 #include "helpers.h"
-#include "chunk_scanner.h"
 #include "job.h"
 #include "job_registry.h"
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h>
 
@@ -35,8 +36,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -189,11 +190,14 @@ public:
         , SuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfulSealCounter_(ChunkServerProfiler().Counter("/chunk_sealer/unsuccessful_seals"))
         , SuccessfulSealTime_(ChunkServerProfiler().TimeCounter("/chunk_sealer/successful_seal_time"))
-        , SealScanner_(std::make_unique<TChunkSealScanner>(
-            Bootstrap_,
-            EChunkScanKind::Seal,
-            /*isJournal*/ true))
+        , GlobalScanner_(std::make_unique<TGlobalChunkScanner>(/*isJournal*/ true))
     {
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            SealQueues_[priority].emplace(
+                Bootstrap_,
+                EChunkScanKind::Seal);
+        }
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -202,7 +206,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            GlobalScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
 
         SealExecutor_ = New<TPeriodicExecutor>(
@@ -223,7 +227,11 @@ public:
         }
 
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Stop(shardIndex);
+            GlobalScanner_->Stop(shardIndex);
+        }
+
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            GetSealQueue(priority).Clear();
         }
 
         YT_UNUSED_FUTURE(SealExecutor_->Stop());
@@ -255,12 +263,17 @@ public:
 
     void OnChunkDestroyed(TChunk* chunk) override
     {
-        SealScanner_->OnChunkDestroyed(chunk);
+        GlobalScanner_->OnChunkDestroyed(chunk);
     }
 
     void OnProfiling(TSensorBuffer* buffer) const override
     {
-        buffer->AddGauge("/seal_queue_size", SealScanner_->GetQueueSize());
+        buffer->AddGauge("/global_scan_queue_size", GlobalScanner_->GetQueueSize());
+
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            TWithTagGuard tagGuard(buffer, "seal_priority", ToString(priority));
+            buffer->AddGauge("/seal_queue_size", GetSealQueue(priority).GetQueueSize());
+        }
     }
 
     // IJobController implementation.
@@ -438,9 +451,10 @@ private:
 
     TPeriodicExecutorPtr SealExecutor_;
 
-    // Scanner tracks error count.
-    using TChunkSealScanner = TChunkScannerWithPayload<std::pair<int, TCpuInstant>>;
-    const std::unique_ptr<TChunkSealScanner> SealScanner_;
+    using TChunkSealQueue = TChunkScanQueueWithPayload<std::pair<int, TCpuInstant>>;
+
+    const std::unique_ptr<TGlobalChunkScanner> GlobalScanner_;
+    TEnumIndexedArray<ESealPriority, std::optional<TChunkSealQueue>> SealQueues_;
 
     bool Enabled_ = true;
     bool Running_ = false;
@@ -551,17 +565,53 @@ private:
             delayed);
     }
 
+    TChunkSealQueue& GetSealQueue(ESealPriority priority)
+    {
+        return *SealQueues_[priority];
+    }
+
+    const TChunkSealQueue& GetSealQueue(ESealPriority priority) const
+    {
+        return *SealQueues_[priority];
+    }
+
+    TChunkSealQueue& GetQueueForChunk(const TChunk* chunk)
+    {
+        return GetSealQueue(GetChunkSealPriority(chunk));
+    }
+
     void EnqueueChunk(TChunk* chunk, int errorCount, TCpuInstant enqueueTime, bool delayed = false)
     {
+        if (!GlobalScanner_->IsRelevant(chunk)) {
+            return;
+        }
+
         auto adjustedDelay = delayed
             ? std::make_optional(DurationToCpuDuration(GetDynamicConfig()->ChunkSealBackoffTime))
             : std::nullopt;
-        if (!SealScanner_->EnqueueChunk({chunk, {errorCount, enqueueTime}}, adjustedDelay)) {
+
+        auto& queue = GetQueueForChunk(chunk);
+        if (!queue.EnqueueChunk({chunk, {errorCount, enqueueTime}}, adjustedDelay)) {
             return;
         }
 
         YT_TLOG_DEBUG("Chunk added to seal queue")
-            .With("ChunkId", chunk->GetId());
+            .With("ChunkId", chunk->GetId())
+            .With("ChunkFormat", chunk->GetChunkFormat());
+    }
+
+    void OnGlobalScan()
+    {
+        auto maxChunkCount = GetDynamicConfig()->MaxChunksPerGlobalSealScan;
+        for (int chunkCount = 0;
+             chunkCount < maxChunkCount && GlobalScanner_->HasUnscannedChunk();
+             ++chunkCount)
+        {
+            auto* chunk = GlobalScanner_->DequeueChunk();
+            if (chunk && IsSealNeeded(chunk)) {
+                EnqueueChunk(chunk, 0, GetCpuInstant());
+            }
+        }
     }
 
     void OnRefresh()
@@ -572,26 +622,45 @@ private:
             return;
         }
 
+        const auto& config = GetDynamicConfig();
+        OnGlobalScan();
+
         std::vector<TEphemeralObjectPtr<TChunk>> chunksToFetchReplicas;
         std::vector<TSealContextPtr> pendingSeals;
-        int totalCount = 0;
-        while (totalCount < GetDynamicConfig()->MaxChunksPerSeal &&
-               SealScanner_->HasUnscannedChunk())
-        {
-            auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
-            if (!guard) {
-                break;
-            }
+        int sealSlots = config->MaxChunksPerSeal;
+        int scanSlots = config->MaxChunksPerSealQueueScan;
 
-            ++totalCount;
-            auto [chunk, payload] = SealScanner_->DequeueChunk();
-            if (!chunk) {
-                continue;
-            }
+        auto canPlanNewSeal = [&] {
+            return sealSlots > 0 && scanSlots > 0;
+        };
 
-            if (CanBeSealed(chunk)) {
+        // TODO(evanevannnn): Prevent lower-priority queue starvation if strict priority
+        // scheduling becomes a problem.
+        bool concurrentSealLimitReached = false;
+        for (auto priority : TEnumTraits<ESealPriority>::GetDomainValues()) {
+            auto& queue = GetSealQueue(priority);
+            while (canPlanNewSeal() && queue.HasUnscannedChunk(GetCpuInstant()))
+            {
+                auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
+                if (!guard) {
+                    concurrentSealLimitReached = true;
+                    break;
+                }
+
+                auto [chunk, payload] = queue.DequeueChunk();
+                --scanSlots;
+
+                if (!chunk || !GlobalScanner_->IsRelevant(chunk) || !CanBeSealed(chunk)) {
+                    continue;
+                }
+
                 chunksToFetchReplicas.emplace_back(chunk);
                 pendingSeals.emplace_back(New<TSealContext>(chunk, payload, std::move(guard)));
+                --sealSlots;
+            }
+
+            if (concurrentSealLimitReached) {
+                break;
             }
         }
 

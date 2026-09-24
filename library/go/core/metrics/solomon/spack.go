@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
@@ -17,13 +18,18 @@ type spackVersion uint16
 const (
 	version11 spackVersion = 0x0101
 	version12 spackVersion = 0x0102
+	version13 spackVersion = 0x0103
+	version14 spackVersion = 0x0104
 )
 
 type spackFlag byte
 
 const (
-	memOnlyFlag spackFlag = 0b0000_0001
+	memOnlyFlag   spackFlag = 0b0000_0001
+	startTimeFlag spackFlag = 0b0000_0010
 )
+
+var packageInitTimeSeconds = uint32(time.Now().Unix())
 
 func writeUint8(w io.Writer, v uint8) error {
 	if bw, ok := w.(io.ByteWriter); ok {
@@ -74,7 +80,8 @@ func writeULEB128(w io.Writer, value uint32) error {
 }
 
 type spackMetric struct {
-	flags uint8
+	flags     uint8
+	startTime uint32
 
 	nameValueIndex uint32
 	labelsCount    uint32
@@ -119,6 +126,45 @@ func (se *spackEncoder) addName(name string) (uint32, error) {
 	return idx, nil
 }
 
+func (se *spackEncoder) addValueLengthPrefixed(value string) (uint32, error) {
+	if idx, ok := se.valuesIdx[value]; ok {
+		return idx, nil
+	}
+	idx := se.valueCounter
+	se.valuesIdx[value] = idx
+	se.valueCounter++
+
+	if err := writePoolStringLengthPrefixed(&se.labelValuePool, value); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
+func (se *spackEncoder) addNameLengthPrefixed(name string) (uint32, error) {
+	if idx, ok := se.namesIdx[name]; ok {
+		return idx, nil
+	}
+	idx := se.nameCounter
+	se.namesIdx[name] = idx
+	se.nameCounter++
+
+	if err := writePoolStringLengthPrefixed(&se.labelNamePool, name); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
+func writePoolStringLengthPrefixed(pool *bytes.Buffer, value string) error {
+	if uint64(len(value)) > math.MaxUint32 {
+		return xerrors.New("SPACK string length exceeds uint32")
+	}
+	if err := writeULEB128(pool, uint32(len(value))); err != nil {
+		return err
+	}
+	_, err := pool.WriteString(value)
+	return err
+}
+
 func (s *spackMetric) writeLabel(se *spackEncoder, name string, value string) error {
 	s.labelsCount++
 
@@ -127,6 +173,24 @@ func (s *spackMetric) writeLabel(se *spackEncoder, name string, value string) er
 		return err
 	}
 	valueIdx, err := se.addValue(value)
+	if err != nil {
+		return err
+	}
+
+	if err := writeULEB128(&se.labelsBuf, nameIdx); err != nil {
+		return err
+	}
+	return writeULEB128(&se.labelsBuf, valueIdx)
+}
+
+func (s *spackMetric) writeLabelLengthPrefixed(se *spackEncoder, name string, value string) error {
+	s.labelsCount++
+
+	nameIdx, err := se.addNameLengthPrefixed(name)
+	if err != nil {
+		return err
+	}
+	valueIdx, err := se.addValueLengthPrefixed(value)
 	if err != nil {
 		return err
 	}
@@ -158,8 +222,13 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion, labelsBuf [
 	if _, err := w.Write(hdr[:]); err != nil {
 		return xerrors.Errorf("write types and flags failed: %w", err)
 	}
+	if s.flags&uint8(startTimeFlag) != 0 {
+		if err := writeUint32LE(w, s.startTime); err != nil {
+			return xerrors.Errorf("write start time failed: %w", err)
+		}
+	}
 
-	if version >= version12 {
+	if version == version12 {
 		if err := writeULEB128(w, s.nameValueIndex); err != nil {
 			return xerrors.Errorf("write name value index failed: %w", err)
 		}
@@ -192,6 +261,18 @@ func (s *spackMetric) calculateMetricFlags() uint8 {
 	return flags
 }
 
+func (s *spackMetric) addStartTimeFlag(commonStartTime uint32) {
+	mType := s.metric.getType()
+	startTime := s.metric.getStartTime()
+	if startTime == 0 || (mType != typeRated && mType != typeRatedHistogram) {
+		return
+	}
+	s.startTime = startTime
+	if startTime != commonStartTime && startTime != 0 {
+		s.flags |= uint8(startTimeFlag)
+	}
+}
+
 func (s *spackMetric) getMetricNameValue(name string) string {
 	value := s.metric.Name()
 
@@ -210,15 +291,30 @@ func WithVersion12() func(*spackEncoder) {
 	}
 }
 
+// WithVersion13 enables length-delimited string pools, allowing NUL bytes in labels.
+func WithVersion13() func(*spackEncoder) {
+	return func(se *spackEncoder) {
+		se.version = version13
+	}
+}
+
+// WithVersion14 enables rate start times in addition to the SPACK 1.3 format.
+func WithVersion14() func(*spackEncoder) {
+	return func(se *spackEncoder) {
+		se.version = version14
+	}
+}
+
 type labelIdxPair struct {
 	nameIdx  uint32
 	valueIdx uint32
 }
 
 type spackEncoder struct {
-	context     context.Context
-	compression uint8
-	version     spackVersion
+	context         context.Context
+	compression     uint8
+	version         spackVersion
+	commonStartTime uint32
 
 	nameCounter  uint32
 	valueCounter uint32
@@ -244,12 +340,16 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 	valuesHint := len(metrics.metrics) + namesHint
 
 	se := &spackEncoder{
-		context:     ctx,
-		compression: uint8(compression),
-		version:     version11,
-		metrics:     *metrics,
-		namesIdx:    make(map[string]uint32, namesHint),
-		valuesIdx:   make(map[string]uint32, valuesHint),
+		context:         ctx,
+		compression:     uint8(compression),
+		version:         version11,
+		commonStartTime: packageInitTimeSeconds,
+		metrics:         *metrics,
+		namesIdx:        make(map[string]uint32, namesHint),
+		valuesIdx:       make(map[string]uint32, valuesHint),
+	}
+	if metrics.commonStartTime != 0 {
+		se.commonStartTime = metrics.commonStartTime
 	}
 	if n := len(metrics.metrics); n > 0 {
 		se.labelsBuf.Grow(n * namesHint)
@@ -261,15 +361,47 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 }
 
 func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
-	if err := se.processCommonLabels(); err != nil {
-		return nil, err
-	}
-
 	spackMetrics := make([]spackMetric, len(se.metrics.metrics))
-	for idx, metric := range se.metrics.metrics {
-		if err := se.processMetric(&spackMetrics[idx], metric); err != nil {
+	// Dispatch outside the loops so legacy string pools do not check for 1.3.
+	switch se.version {
+	case version11:
+		if err := se.processCommonLabels(); err != nil {
 			return nil, err
 		}
+		for idx, metric := range se.metrics.metrics {
+			if err := se.processMetricV11(&spackMetrics[idx], metric); err != nil {
+				return nil, err
+			}
+		}
+	case version12:
+		if err := se.processCommonLabels(); err != nil {
+			return nil, err
+		}
+		for idx, metric := range se.metrics.metrics {
+			if err := se.processMetricV12(&spackMetrics[idx], metric); err != nil {
+				return nil, err
+			}
+		}
+	case version13:
+		if err := se.processCommonLabelsLengthPrefixed(); err != nil {
+			return nil, err
+		}
+		for idx, metric := range se.metrics.metrics {
+			if err := se.processMetricV13(&spackMetrics[idx], metric); err != nil {
+				return nil, err
+			}
+		}
+	case version14:
+		if err := se.processCommonLabelsLengthPrefixed(); err != nil {
+			return nil, err
+		}
+		for idx, metric := range se.metrics.metrics {
+			if err := se.processMetricV14(&spackMetrics[idx], metric); err != nil {
+				return nil, err
+			}
+		}
+	default:
+		return nil, xerrors.Errorf("unsupported version: %v", se.version)
 	}
 
 	return spackMetrics, nil
@@ -295,24 +427,41 @@ func (se *spackEncoder) processCommonLabels() error {
 	return nil
 }
 
-func (se *spackEncoder) processMetric(m *spackMetric, metric Metric) error {
+func (se *spackEncoder) processCommonLabelsLengthPrefixed() error {
+	commonLabels := se.metrics.CommonLabels()
+	if len(commonLabels) == 0 {
+		return nil
+	}
+	se.commonLabelIdx = make([]labelIdxPair, 0, len(commonLabels))
+	for name, value := range commonLabels {
+		nameIdx, err := se.addNameLengthPrefixed(name)
+		if err != nil {
+			return err
+		}
+		valueIdx, err := se.addValueLengthPrefixed(value)
+		if err != nil {
+			return err
+		}
+		se.commonLabelIdx = append(se.commonLabelIdx, labelIdxPair{nameIdx: nameIdx, valueIdx: valueIdx})
+	}
+	return nil
+}
+
+func (se *spackEncoder) processMetricV11(m *spackMetric, metric Metric) error {
 	m.metric = metric
 	m.flags = m.calculateMetricFlags()
 	m.labelsStart = uint32(se.labelsBuf.Len())
 
-	if err := se.processMetricNameTag(m); err != nil {
+	nameTag := metric.getNameTag()
+	if err := m.writeLabel(se, nameTag, m.getMetricNameValue(nameTag)); err != nil {
 		return err
 	}
 
 	labels := metric.Labels()
-	nameTag := metric.getNameTag()
 	commonLabels := se.metrics.CommonLabels()
 
 	for name, value := range labels {
 		if name == nameTag {
-			continue
-		}
-		if se.version == version12 && name == "name" {
 			continue
 		}
 		if cValue, ok := commonLabels[name]; ok && cValue == value {
@@ -327,32 +476,71 @@ func (se *spackEncoder) processMetric(m *spackMetric, metric Metric) error {
 	return nil
 }
 
-func (se *spackEncoder) processMetricNameTag(m *spackMetric) error {
-	switch se.version {
-	case version11:
-		return se.processNameTagV11(m)
-	case version12:
-		return se.processNameTagV12(m)
-	default:
-		return xerrors.Errorf("unsupported version: %v", se.version)
-	}
-}
+func (se *spackEncoder) processMetricV12(m *spackMetric, metric Metric) error {
+	m.metric = metric
+	m.flags = m.calculateMetricFlags()
+	m.labelsStart = uint32(se.labelsBuf.Len())
 
-func (se *spackEncoder) processNameTagV11(m *spackMetric) error {
-	nameTag := m.metric.getNameTag()
-
-	return m.writeLabel(se, nameTag, m.getMetricNameValue(nameTag))
-}
-
-func (se *spackEncoder) processNameTagV12(m *spackMetric) error {
-	value := m.getMetricNameValue("name")
-
-	idx, err := se.addValue(value)
+	idx, err := se.addValue(m.getMetricNameValue("name"))
 	if err != nil {
 		return err
 	}
-
 	m.nameValueIndex = idx
+
+	labels := metric.Labels()
+	nameTag := metric.getNameTag()
+	commonLabels := se.metrics.CommonLabels()
+
+	for name, value := range labels {
+		if name == nameTag || name == "name" {
+			continue
+		}
+		if cValue, ok := commonLabels[name]; ok && cValue == value {
+			continue
+		}
+		if err := m.writeLabel(se, name, value); err != nil {
+			return err
+		}
+	}
+
+	m.labelsEnd = uint32(se.labelsBuf.Len())
+	return nil
+}
+
+func (se *spackEncoder) processMetricV13(m *spackMetric, metric Metric) error {
+	m.metric = metric
+	m.flags = m.calculateMetricFlags()
+	m.labelsStart = uint32(se.labelsBuf.Len())
+
+	nameTag := metric.getNameTag()
+	if err := m.writeLabelLengthPrefixed(se, nameTag, m.getMetricNameValue(nameTag)); err != nil {
+		return err
+	}
+
+	labels := metric.Labels()
+	commonLabels := se.metrics.CommonLabels()
+
+	for name, value := range labels {
+		if name == nameTag {
+			continue
+		}
+		if cValue, ok := commonLabels[name]; ok && cValue == value {
+			continue
+		}
+		if err := m.writeLabelLengthPrefixed(se, name, value); err != nil {
+			return err
+		}
+	}
+
+	m.labelsEnd = uint32(se.labelsBuf.Len())
+	return nil
+}
+
+func (se *spackEncoder) processMetricV14(m *spackMetric, metric Metric) error {
+	if err := se.processMetricV13(m, metric); err != nil {
+		return err
+	}
+	m.addStartTimeFlag(se.commonStartTime)
 	return nil
 }
 
@@ -392,6 +580,11 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 	if err != nil {
 		return written, xerrors.Errorf("writeCommonTime failed: %w", err)
 	}
+	if se.version == version14 {
+		if err = writeUint32LE(cw, se.commonStartTime); err != nil {
+			return written, xerrors.Errorf("writeCommonStartTime failed: %w", err)
+		}
+	}
 
 	err = se.writeCommonLabels(cw)
 	if err != nil {
@@ -428,14 +621,22 @@ func (se *spackEncoder) writeHeader(w io.Writer) error {
 		}
 	}
 
+	namesSize := uint32(se.labelNamePool.Len())
+	valuesSize := uint32(se.labelValuePool.Len())
+	if se.version == version13 || se.version == version14 {
+		// Since 1.3 these header fields count strings, not bytes.
+		namesSize = se.nameCounter
+		valuesSize = se.valueCounter
+	}
+
 	var buf [HeaderSize]byte
 	binary.LittleEndian.PutUint16(buf[0:2], 0x5053)                            // Magic.
 	binary.LittleEndian.PutUint16(buf[2:4], uint16(se.version))                // Version.
 	binary.LittleEndian.PutUint16(buf[4:6], HeaderSize)                        // Header size.
 	buf[6] = 0                                                                 // TimePrecision = SECONDS
 	buf[7] = se.compression                                                    // CompressionAlg
-	binary.LittleEndian.PutUint32(buf[8:12], uint32(se.labelNamePool.Len()))   // Label names size.
-	binary.LittleEndian.PutUint32(buf[12:16], uint32(se.labelValuePool.Len())) // Label values size.
+	binary.LittleEndian.PutUint32(buf[8:12], namesSize)                        // Label names size.
+	binary.LittleEndian.PutUint32(buf[12:16], valuesSize)                      // Label values size.
 	binary.LittleEndian.PutUint32(buf[16:20], uint32(len(se.metrics.metrics))) // Metrics count.
 	binary.LittleEndian.PutUint32(buf[20:24], totalPoints)                     // Points count.
 

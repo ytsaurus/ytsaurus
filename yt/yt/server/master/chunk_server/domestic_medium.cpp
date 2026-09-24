@@ -1,7 +1,5 @@
 #include "domestic_medium.h"
 
-#include "config.h"
-
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NChunkServer {

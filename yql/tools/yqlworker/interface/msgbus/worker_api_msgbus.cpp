@@ -163,6 +163,7 @@ private:
             auto handler = Handler_.lock();
             if (!handler) {
                 YQL_LOG(WARN) << "Handler is released. Skip message type: " << ToCString(type);
+                ctx.ForgetRequest();
                 return;
             }
 

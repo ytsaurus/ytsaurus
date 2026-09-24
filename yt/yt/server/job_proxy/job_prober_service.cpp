@@ -60,18 +60,20 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, DumpInputContext)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        context->SetRequestInfo("TransactionId: %v", transactionId);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId);
 
         auto chunkIds = GetJobProxy()->DumpInputContext(transactionId);
         ToProto(response->mutable_chunk_ids(), chunkIds);
 
-        context->SetResponseInfo("ChunkIds: %v", chunkIds);
+        context->AnnotateResponse()
+            .With("ChunkIds", chunkIds);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, GetStderr)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto stderrData = GetJobProxy()->GetStderr({
             .Limit = context->Request().limit(),
@@ -91,17 +93,16 @@ private:
         NJobProberClient::TJobShellDescriptor jobShellDescriptor;
         jobShellDescriptor.Subcontainer = request->subcontainer();
 
-        context->SetRequestInfo("Parameters: %v, Subcontainer: %v",
-            ConvertToYsonString(parameters, EYsonFormat::Text),
-            jobShellDescriptor.Subcontainer);
+        context->AnnotateRequest()
+            .With("Parameters", ConvertToYsonString(parameters, EYsonFormat::Text))
+            .With("Subcontainer", jobShellDescriptor.Subcontainer);
 
         auto pollJobShellResponse = GetJobProxy()->PollJobShell(jobShellDescriptor, parameters);
         response->set_result(ToProto(pollJobShellResponse.Result));
         if (pollJobShellResponse.LoggingContext) {
             response->set_logging_context(ToProto(pollJobShellResponse.LoggingContext));
-            context->SetResponseInfo(
-                "LoggingContext: %v",
-                pollJobShellResponse.LoggingContext);
+            context->AnnotateResponse()
+                .With("LoggingContext", pollJobShellResponse.LoggingContext);
         }
 
         context->Reply();
@@ -111,7 +112,7 @@ private:
     {
         Y_UNUSED(response);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         GetJobProxy()->Interrupt();
 
@@ -124,7 +125,7 @@ private:
 
         auto error = FromProto<TError>(request->error());
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         GetJobProxy()->Fail(std::move(error));
 
@@ -137,7 +138,8 @@ private:
 
         auto error = FromProto<TError>(request->error());
 
-        context->SetRequestInfo("AbortError: %v", error);
+        context->AnnotateRequest()
+            .With("AbortError", error);
 
         GetJobProxy()->GracefulAbort(std::move(error));
 
@@ -146,7 +148,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, DumpSensors)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         response->Attachments().push_back(GetJobProxy()->DumpSensors());
 

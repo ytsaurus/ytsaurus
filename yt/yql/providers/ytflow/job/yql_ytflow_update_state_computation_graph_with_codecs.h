@@ -40,7 +40,8 @@ public:
 public:
     virtual void SetInput(
         const std::vector<TMessageHolder>& messageHolders,
-        std::optional<TString> maybeState) = 0;
+        std::optional<TString> maybeState,
+        ui64 inputWatermark) = 0;
 
     virtual TUpdateStateOutput GetOutput() = 0;
 

@@ -104,6 +104,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     TDistributedChunkSessionPoolConfigPtr config,
     TDistributedChunkSessionControllerConfigPtr controllerConfig,
     NObjectClient::TTransactionId transactionId,
+    int slotCount,
     NApi::TJournalChunkWriterOptionsPtr writerOptions,
     NApi::TJournalChunkWriterConfigPtr writerConfig,
     IInvokerPtr invoker,

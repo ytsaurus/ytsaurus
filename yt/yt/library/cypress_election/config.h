@@ -4,21 +4,20 @@
 
 #include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <yt/yt/library/lock_election/config.h>
 
 namespace NYT::NCypressElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressElectionManagerConfig
-    : public NYTree::TYsonStruct
+    : public NLockElection::TLockElectionManagerConfig
 {
     NYPath::TYPath LockPath;
 
     TDuration TransactionTimeout;
     TDuration TransactionPingPeriod;
     NTransactionClient::EMasterTransactionExpirationMode MasterTransactionExpirationMode;
-    TDuration LockAcquisitionPeriod;
     TDuration LeaderCacheUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TCypressElectionManagerConfig);

@@ -123,9 +123,7 @@ class StrictOptionalTableInfo:
                 )
             )
         self.expected_output = [
-            {"data": row.data.data, "event_time": create_time}
-            for row in self.input_data
-            if row.data is not None
+            {"data": row.data.data, "event_time": create_time} for row in self.input_data if row.data is not None
         ]
 
 
@@ -148,7 +146,9 @@ class StrictYsonTableInfo:
                     ),
                 }
             )
-        self.expected_output = [{"data": yt.yson.loads(row["data"]).get("data"), "event_time": create_time} for row in self.input_data]
+        self.expected_output = [
+            {"data": yt.yson.loads(row["data"]).get("data"), "event_time": create_time} for row in self.input_data
+        ]
 
 
 class WeakOptionalTableInfo:
@@ -163,14 +163,15 @@ class WeakOptionalTableInfo:
                 "null_first": i % 2 == 0,
                 "all_null": True,
             }[null_pattern]
-            self.input_data.append({
-                "data": None if is_null else f"payload_{alias}_{i:05}",
-            })
+            self.input_data.append(
+                {
+                    "data": None if is_null else f"payload_{alias}_{i:05}",
+                }
+            )
         self.expected_output = [
-            {"data": row["data"], "event_time": create_time}
-            for row in self.input_data
-            if row["data"] is not None
+            {"data": row["data"], "event_time": create_time} for row in self.input_data if row["data"] is not None
         ]
+
 
 ##################################################################
 
@@ -184,8 +185,12 @@ class Test(FlowTestBase):
         self.client.create("map_node", self.input_dir)
         self.first_input_table = TableInfo("first", int(1.5e9), EVENT_COUNT, self.input_dir)
         self.second_input_table = TableInfo("second", int(1.6e9), EVENT_COUNT, self.input_dir)
-        self.strict_composite_input_table = StrictCompositeTableInfo("strict_composite", int(1.5e9), EVENT_COUNT, self.input_dir)
-        self.weak_composite_input_table = WeakCompositeTableInfo("weak_composite", int(1.5e9), EVENT_COUNT, self.input_dir)
+        self.strict_composite_input_table = StrictCompositeTableInfo(
+            "strict_composite", int(1.5e9), EVENT_COUNT, self.input_dir
+        )
+        self.weak_composite_input_table = WeakCompositeTableInfo(
+            "weak_composite", int(1.5e9), EVENT_COUNT, self.input_dir
+        )
         self.output_queue = self.work_yt_path + "/output_queue"
 
     def get_output(self):
@@ -233,6 +238,7 @@ class Test(FlowTestBase):
         clusters: list[str] | None = None,
         source_class_name: str | None = None,
         use_migration_timestamps: bool = False,
+        use_planned_timestamps: bool = False,
     ):
         config_path, sink_computation = {
             "swift": (PIPELINE_SWIFT_CONFIG_PATH, "reader"),
@@ -245,6 +251,7 @@ class Test(FlowTestBase):
         if source_class_name is not None:
             source_spec["source_class_name"] = source_class_name
         source_parameters["finite"] = finite
+        source_parameters["use_planned_timestamps"] = use_planned_timestamps
         if use_migration_timestamps:
             source_parameters.update(
                 {
@@ -279,6 +286,7 @@ class Test(FlowTestBase):
         if reader_empty_spec:
             empty_source_parameters = reader_empty_spec["source_streams"]["table"]["parameters"]
             empty_source_parameters["finite"] = finite
+            empty_source_parameters["use_planned_timestamps"] = use_planned_timestamps
             if add_bad_source:
                 assert not process_two_tables and pipeline_type == "swift"
                 empty_source_parameters["tables"] = [f"<cluster=primary>{self.first_input_table.path}_bad"]
@@ -588,11 +596,13 @@ class Test(FlowTestBase):
             assert len(list(self.client.select_rows(f"* FROM [{self.pipeline_path}/states] LIMIT 10000"))) == 0
 
             def check_partitions_cleaned():
-                rows = list(self.client.select_rows(
-                    f"* FROM [{self.pipeline_path}/flow_state] "
-                    'WHERE state_name = "layout_partitions" AND value IS NOT NULL '
-                    "LIMIT 10000"
-                ))
+                rows = list(
+                    self.client.select_rows(
+                        f"* FROM [{self.pipeline_path}/flow_state] "
+                        'WHERE state_name = "layout_partitions" AND value IS NOT NULL '
+                        "LIMIT 10000"
+                    )
+                )
                 return len(rows) == 0
 
             # Partitions of source computation must be cleaned and partitions of transform must not.
@@ -814,7 +824,7 @@ class Test(FlowTestBase):
 
         run_yt_sync("primary", self.work_yt_path)
         replica_client.create("map_node", self.input_dir)
-        self.prepare_input_table_on(self.client, self.first_input_table)      # earlier event timestamp
+        self.prepare_input_table_on(self.client, self.first_input_table)  # earlier event timestamp
         self.prepare_input_table_on(replica_client, self.second_input_table)  # later event timestamp
 
         pipeline_config_path = self.prepare_pipeline_config(
@@ -826,6 +836,72 @@ class Test(FlowTestBase):
             self.wait_pipeline_state("completed", timeout=180)
             assert self.get_output() == self.first_input_table.expected_output + self.second_input_table.expected_output
             assert len(list(self.client.select_rows(f"* FROM [{self.pipeline_path}/states] LIMIT 10000"))) == 0
+
+    @pytest.mark.authors(["mikari"])
+    def test_planned_timestamps_survive_restart_and_replica_roundtrip(self):
+        replica_cluster = self.remote_cluster_names[0]
+        replica_client = self.cluster_name_to_client[replica_cluster]
+        run_yt_sync("primary", self.work_yt_path)
+        replica_client.create("map_node", self.input_dir)
+        self.prepare_input_table(self.first_input_table)
+        replica = TableInfo("replica", self.first_input_table.create_time, EVENT_COUNT, self.input_dir)
+        pipeline_config_path = self.prepare_pipeline_config(
+            pipeline_type="swift",
+            clusters=["primary", replica_cluster],
+            finite=False,
+            desired_table_process_time=datetime.timedelta(minutes=5),
+            use_planned_timestamps=True,
+        )
+        with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}) as federation:
+            wait(lambda: len(self.get_output()) > 0, timeout=180)
+            initial = self.get_source_controller_state()["distributing_table"]
+            initial_start = initial["planned_start_time"]
+            initial_timestamp = min(row["event_time"] for row in self.get_output())
+            wait(lambda: self.get_processing_watermark() >= initial_timestamp, timeout=180)
+            before_restart_watermark = self.get_processing_watermark()
+
+            federation.controllers[0].restart()
+            federation.workers[0].restart()
+            restored = self.wait_source_state(
+                lambda state: state["distributing_table"]["planned_start_time"] == initial_start
+            )["distributing_table"]
+            assert restored["planned_range_timestamps"] == initial["planned_range_timestamps"]
+            assert self.get_processing_watermark() >= before_restart_watermark
+
+            self.prepare_input_table_on(replica_client, replica)
+            saved_path = self.work_yt_path + "/saved_input"
+            switch_time = int(datetime.datetime.now(datetime.UTC).timestamp())
+            self.client.move(self.first_input_table.path, saved_path)
+            switched = self.wait_source_state(
+                lambda state: state["distributing_table"]["path"].attributes["cluster"] == replica_cluster
+            )["distributing_table"]
+            assert switched["planned_start_time"] != initial_start
+            wait(lambda: any(row["data"].startswith("payload_replica_") for row in self.get_output()), timeout=180)
+            assert all(
+                row["event_time"] >= switch_time
+                for row in self.get_output()
+                if row["data"].startswith("payload_replica_")
+            )
+            before_return_watermark = self.get_processing_watermark()
+
+            return_time = int(datetime.datetime.now(datetime.UTC).timestamp())
+            self.client.move(saved_path, self.first_input_table.path)
+            replica_client.remove(replica.path)
+            resumed = self.wait_source_state(
+                lambda state: state["distributing_table"]["path"].attributes["cluster"] == "primary"
+            )["distributing_table"]
+            assert resumed["planned_start_time"] != initial_start
+            wait(
+                lambda: any(
+                    row["data"].startswith("payload_first_") and row["event_time"] >= return_time
+                    for row in self.get_output()
+                ),
+                timeout=180,
+            )
+            assert self.get_processing_watermark() >= before_return_watermark
+            self.update_source_dynamic_parameters(desired_table_process_time="1s")
+            expected_data = {row["data"] for row in self.first_input_table.expected_output}
+            wait(lambda: expected_data <= {row["data"] for row in self.get_output()}, timeout=180)
 
     @pytest.mark.authors(["htual"])
     def test_multi_cluster_failover(self):

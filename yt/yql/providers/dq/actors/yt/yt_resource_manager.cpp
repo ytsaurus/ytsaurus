@@ -39,13 +39,16 @@ namespace NYql {
 
     namespace NCommonJobVars {
         const TString ACTOR_PORT("ACTOR_PORT");
+        const TString GRPC_PORT("GRPC_PORT");
         const TString ACTOR_NODE_ID("ACTOR_NODE_ID");
+        const TString LOG_LEVEL("LOG_LEVEL");
         const TString ADDRESS_RESOLVER_CONFIG("ADDRESS_RESOLVER_CONFIG");
         const TString UDFS_PATH("UDFS_PATH");
         const TString OPERATION_SIZE("OPERATION_SIZE");
         const TString YT_COORDINATOR("YT_COORDINATOR");
         const TString YT_BACKEND("YT_BACKEND");
         const TString YT_FORCE_IPV4("YT_FORCE_IPV4");
+        const TString DQ_CLIQUE_ALIAS("DQ_CLIQUE_ALIAS");
     }
 
     constexpr TStringBuf YqlWorkerTaskPrefix = "yql_worker_";

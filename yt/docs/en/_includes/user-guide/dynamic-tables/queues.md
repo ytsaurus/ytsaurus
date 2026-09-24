@@ -156,7 +156,7 @@ With Queue Agent, you can configure regular data export from queues to static ta
 - `use_upper_bound_for_table_names`: Determines the time boundary used in the table name.  The default value is `false`. When set to `false`, the lower boundary is used; `true` indicates the upper boundary.
 
 The complete queue export configuration appears as a mapping from export names to their parameters, for example:
-```
+```yson
 {
     default={
         export_period=60000;

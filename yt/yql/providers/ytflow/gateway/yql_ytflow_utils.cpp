@@ -105,18 +105,26 @@ NYT::NYPath::TRichYPath MakeYtConsumerRichPath(
 TString GetAuth(
     TString cluster,
     const TYtflowSettings& config,
-    const TConfigClusters& configClusters)
+    const TConfigClusters& configClusters,
+    const IYtTokenResolver::TPtr& ytTokenResolver,
+    const TCredentials& credentials)
 {
-    TString token;
-    if (auto auth = config.Auth.Get()) {
-        token = *auth;
-    } else {
-        token = configClusters.GetAuth(cluster);
+    if (auto auth = config.Auth.Get(); auth && !auth->empty()) {
+        return *auth;
     }
 
-    YQL_ENSURE(token, "No valid ytflow token provided");
+    if (auto token = configClusters.GetAuth(cluster)) {
+        return token;
+    }
 
-    return token;
+    if (ytTokenResolver) {
+        auto ytName = configClusters.GetRealName(cluster);
+        if (auto token = ytTokenResolver->ResolveClusterToken(ytName, credentials)) {
+            return *token;
+        }
+    }
+
+    YQL_ENSURE(false, "No valid ytflow token provided");
 }
 
 TString MakeOperationTitle(const TYqlOperationOptions& operationOptions)
@@ -166,28 +174,21 @@ NYT::TNode MakeOperationDescription(
     description["yql_pipeline_path"] = absolutePipelinePath;
     description["yql_pipeline_cluster"] = clusterRealName;
 
-    auto uiOrigin = config._UIOrigin.Get();
+    NYT::TNode& pipelineUrlNode = description["yql_pipeline_url"];
+    pipelineUrlNode = NYT::Format(
+        "/%v/flows/graph?path=%v",
+        clusterRealName,
+        config.GetPipelinePath());
 
-    // TODO(ngc224): move formatting into UI to eliminate knowledge of concrete UI paths
-    if (uiOrigin) {
-        NYT::TNode& urlNode = description["yql_pipeline_url"];
-        urlNode = NYT::Format(
-            "%v/%v/flows/graph?path=%v",
-            *uiOrigin,
-            clusterRealName,
-            config.GetPipelinePath());
-
-        urlNode.Attributes()["_type_tag"] = "url";
-    }
+    pipelineUrlNode.Attributes()["_type_tag"] = "url";
 
     // TODO(ngc224): rewrite into pure Url option, for now it's not supported by UI
     if (auto url = operationOptions.Url;
-        url && uiOrigin && operationOptions.Id
+        url && operationOptions.Id
     ) {
         NYT::TNode& urlNode = description["yql_op_url"];
         urlNode = NYT::Format(
-            "%v/%v/queries/%v",
-            *uiOrigin,
+            "/%v/queries/%v",
             *url,
             *operationOptions.Id);
 

@@ -6,6 +6,14 @@
     #include "two_level_cache.h"
 #endif
 
+#include <yt/yt/flow/library/cpp/misc/destruction_context.h>
+
+#include <library/cpp/yt/assert/assert.h>
+
+#include <library/cpp/yt/string/format.h>
+
+#include <util/generic/yexception.h>
+
 namespace NYT::NFlow::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,15 +48,23 @@ i64 TTwoLevelCache<TKey, TCompressibleValue>::TCache::GetWeight(const TItemPtr& 
 }
 
 template <class TKey, class TCompressibleValue>
-void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr& item)
+void TTwoLevelCache<TKey, TCompressibleValue>::TCache::OnRemoved(const TItemPtr& item) noexcept
 {
-    if (NextCache_ && item->AllowCompression.exchange(false) == true) {
-        item->Value->Compress();
-        auto cookie = NextCache_->BeginInsert(item->GetKey());
-        cookie.EndInsert(item);
-        NextCache_->Touch(item);
+    try {
+        if (NextCache_ && item->AllowCompression.exchange(false) == true) {
+            item->Value->Compress();
+            auto cookie = NextCache_->BeginInsert(item->GetKey());
+            cookie.EndInsert(item);
+            NextCache_->Touch(item);
+        }
+        if (!NextCache_) {
+            // Keep the evicted item alive until the outermost cache operation finishes.
+            TDestructionContextGuard::Add(item);
+        }
+        TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
+    } catch (...) {
+        YT_ABORT(Format("Exception in cache eviction callback: %v", CurrentExceptionMessage()));
     }
-    TimeToExpire_.Record(TInstant::Now() - item->InsertTimestamp);
 }
 
 template <class TKey, class TCompressibleValue>
@@ -66,6 +82,7 @@ TTwoLevelCache<TKey, TCompressibleValue>::TTwoLevelCache(NProfiling::TProfiler p
 template <class TKey, class TCompressibleValue>
 void TTwoLevelCache<TKey, TCompressibleValue>::Reconfigure(i64 capacity, i64 compressedCapacity)
 {
+    TDestructionContextGuard guard;
     {
         auto cacheConfig = New<TSlruCacheDynamicConfig>();
         cacheConfig->Capacity = capacity;
@@ -82,6 +99,7 @@ template <class TKey, class TCompressibleValue>
 void TTwoLevelCache<TKey, TCompressibleValue>::Insert(const TKey& key, TCompressibleValuePtr value)
 {
     YT_VERIFY(value);
+    TDestructionContextGuard guard;
     auto cookie = Cache_->BeginInsert(key);
     auto item = New<TItem>(key, std::move(value));
     cookie.EndInsert(item);
@@ -93,6 +111,7 @@ void TTwoLevelCache<TKey, TCompressibleValue>::Insert(const TKey& key, TCompress
 template <class TKey, class TCompressibleValue>
 TIntrusivePtr<TCompressibleValue> TTwoLevelCache<TKey, TCompressibleValue>::Extract(const TKey& key)
 {
+    TDestructionContextGuard guard;
     if (auto item = Cache_->Find(key)) {
         auto value = item->Value;
         bool mayCompress = item->AllowCompression.exchange(false);

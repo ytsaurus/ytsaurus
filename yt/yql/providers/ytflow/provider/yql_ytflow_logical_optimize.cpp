@@ -23,6 +23,8 @@
 #include <util/generic/set.h>
 #include <util/string/cast.h>
 
+#include <google/protobuf/any.pb.h>
+
 #include <utility>
 
 
@@ -425,19 +427,19 @@ private:
         TVector<TSortedYtSinkInfo> sortedYtSinks;
         TVector<TExprNode::TPtr> resultSinks;
         for (auto [index, sink] : Enumerate(opBase.Sinks())) {
-            NYtflow::NProto::TQYTSinkMessage sinkSettings;
-            if (!TryGetYtSinkSettings(sink.Ref(), ctx, *State_->Types, sinkSettings)) {
+            ::google::protobuf::Any settings;
+            if (!TryGetYtSinkSettings(sink.Ref(), ctx, *State_->Types, settings) ||
+                !settings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>())
+            {
                 resultSinks.push_back(sink.Ptr());
                 continue;
             }
+
+            NYtflow::NProto::TYtSortedTableSinkMessage sinkSettings;
+            settings.UnpackTo(&sinkSettings);
 
             TVector<TString> keyColumns(
                 sinkSettings.GetKeyColumns().begin(), sinkSettings.GetKeyColumns().end());
-
-            if (keyColumns.empty()) {
-                resultSinks.push_back(sink.Ptr());
-                continue;
-            }
 
             auto outputIndex = ::FromString<ui32>(sink.Cast<TYtflowSinkBase>().OutputIndex());
             sortedYtSinks.push_back(TSortedYtSinkInfo{

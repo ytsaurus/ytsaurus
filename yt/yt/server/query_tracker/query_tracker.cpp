@@ -547,13 +547,13 @@ private:
                             AcquiredQueries_[queryId].Handler->Abort();
                         }
                         YT_TLOG_INFO("Query abort was requested")
-                            .With("Error", error);
+                            .With(error);
                         break;
                     case EQueryState::Failing:
                         error = *activeQueryRecord->Error;
                         finalState = EQueryState::Failed;
                         YT_TLOG_INFO("Query failed")
-                            .With("Error", error);
+                            .With(error);
                         break;
                     case EQueryState::Completing:
                         finalState = EQueryState::Completed;

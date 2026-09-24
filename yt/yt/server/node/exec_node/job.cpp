@@ -126,8 +126,6 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
-#include <util/system/env.h>
-
 namespace NYT::NExecNode {
 
 using namespace NRpc;
@@ -175,10 +173,6 @@ using NChunkClient::TDataSliceDescriptor;
 
 using NObjectClient::TObjectId;
 using NCypressClient::EObjectType;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,6 +808,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingLayers:
+        case EJobPhase::PreparingSlotDirectories:
         case EJobPhase::PreparingVolumes:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::LinkingVolumes:
@@ -3065,20 +3060,15 @@ void TJob::Cleanup()
     removeVolume(FSSecretary_->ReleaseGpuCheckVolume());
 
     if (const auto& slot = GetUserSlot()) {
-        if (ShouldCleanSandboxes()) {
-            try {
-                YT_TLOG_DEBUG("Clean sandbox")
-                    .With("SlotIndex", slot->GetSlotIndex());
-                slot->CleanSandbox();
-            } catch (const std::exception& ex) {
-                // Errors during cleanup phase do not affect job outcome.
-                YT_TLOG_ERROR("Failed to clean sandbox")
-                    .With("SlotIndex", slot->GetSlotIndex())
-                    .With(ex);
-            }
-        } else {
-            YT_TLOG_WARNING("Sandbox cleanup is disabled by an environment variable; should be used for testing purposes only")
-                .With("Variable", DisableSandboxCleanupEnv);
+        try {
+            YT_TLOG_DEBUG("Clean sandbox")
+                .With("SlotIndex", slot->GetSlotIndex());
+            slot->CleanSandbox();
+        } catch (const std::exception& ex) {
+            // Errors during cleanup phase do not affect job outcome.
+            YT_TLOG_ERROR("Failed to clean sandbox")
+                .With("SlotIndex", slot->GetSlotIndex())
+                .With(ex);
         }
     }
 
@@ -3216,11 +3206,17 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         auto validateNodeIds = [&] (
             const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-            const TNodeDirectoryPtr& nodeDirectory)
+            const TNodeDirectoryPtr& nodeDirectory,
+            bool isInputTableChunk)
         {
             for (const auto& chunkSpec : chunkSpecs) {
-                auto tableIndex = chunkSpec.table_index();
-                bool isTableRemote = maybeDataSourceDirectory && !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                // Only input table indices refer to the data source directory.
+                // Artifact and layer chunk specs have independent table indices.
+                bool isTableRemote = false;
+                if (isInputTableChunk && maybeDataSourceDirectory) {
+                    auto tableIndex = chunkSpec.table_index();
+                    isTableRemote = !IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName());
+                }
                 if (isTableRemote) {
                     // NB(coteeq): We cannot come to this branch if data source was missing,
                     // so there is a chance that we will try to resolve remote node ids.
@@ -3246,7 +3242,7 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         auto validateTableSpecs = [&] (const ::google::protobuf::RepeatedPtrField<TTableInputSpec>& tableSpecs) {
             for (const auto& tableSpec : tableSpecs) {
-                validateNodeIds(tableSpec.chunk_specs(), nodeDirectory);
+                validateNodeIds(tableSpec.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ true);
             }
         };
 
@@ -3255,15 +3251,25 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
-            validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
+            validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetRootVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto rootVolumeParams = FSSecretary_->GetRootVolumeParams(); rootVolumeParams) {
+            for (const auto& artifactKey : rootVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
+            }
         }
 
-        for (const auto& artifactKey : FSSecretary_->GetGpuCheckVolumeLayerArtifactKeys()) {
-            validateNodeIds(artifactKey.chunk_specs(), nodeDirectory);
+        if (auto gpuVolumeParams = FSSecretary_->GetGpuCheckVolumeParams(); gpuVolumeParams) {
+            for (const auto& artifactKey : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
+            }
+        }
+
+        for (const auto& nonRootVolumeParams : FSSecretary_->GetNonRootVolumeParams()) {
+            for (const auto& artifactKey : nonRootVolumeParams->LayerArtifactKeys.GetAll()) {
+                validateNodeIds(artifactKey.chunk_specs(), nodeDirectory, /*isInputTableChunk*/ false);
+            }
         }
 
         if (!unresolvedNodeId) {
@@ -3683,8 +3689,11 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     options.SlotPath = GetUserSlot()->GetSlotPath();
     options.JobVolumeMounts = FSSecretary_->GetJobVolumeMounts();
-    options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
-    options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
+
+    options.DiskSpaceLimit = FSSecretary_->GetSandboxDiskSpace();
+    options.InodeLimit = FSSecretary_->GetSandboxInodeLimit();
+
+    options.RootVolumeParams = FSSecretary_->GetRootVolumeParams();
 
     options.VirtualSandboxOptions = FSSecretary_->GetVirtualSandboxOptions();
 
@@ -3705,10 +3714,12 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
         .TrafficMeter = TrafficMeter_,
         .OnLayerDownloaded = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
             TCpuDuration downloadCpuDuration,
-            TCpuDuration importCpuDuration)
+            TCpuDuration importCpuDuration,
+            i64 importSize)
         {
             ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
             ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
+            ArtifactStatistics_.LayersImportedSize += importSize;
         }).Via(Invoker_),
     };
 
@@ -4196,6 +4207,10 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/layers_downloaded_size"_SP,
         ArtifactStatistics_.LayersDownloadedSize);
+    // Layers: bytes imported into Porto (excludes SquashFS layers).
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_imported_size"_SP,
+        ArtifactStatistics_.LayersImportedSize);
 
     // Download durations; monotonic CPU clock is used to avoid NTP jumps.
     // Files: sum of per-file download durations (cache miss + bypass).
@@ -4428,11 +4443,6 @@ void TJob::ReportJobProxyProcessFinish(const TError& error)
     }
 
     Bootstrap_->GetJobController()->OnJobProxyProcessFinished(error, delay);
-}
-
-bool TJob::ShouldCleanSandboxes()
-{
-    return GetEnv(DisableSandboxCleanupEnv) != "1";
 }
 
 bool TJob::NeedGpuLayers()
@@ -4704,6 +4714,7 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
 
     status->set_job_type(ToProto(job->GetType()));
     status->set_state(ToProto(job->GetState()));
+    status->set_phase_old(ToProto(ConvertJobPhaseToOld(job->GetPhase())));
     status->set_phase(ToProto(job->GetPhase()));
     status->set_job_execution_completed(job->IsJobProxyCompleted());
     status->set_interruption_reason(ToProto(job->GetInterruptionReason()));

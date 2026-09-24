@@ -88,15 +88,19 @@ void TInflightMetrics::Register(TRegistrar registrar)
         .Default();
 }
 
-void TStreamRate::Register(TRegistrar registrar)
+void TWeightedRatio::Register(TRegistrar registrar)
 {
-    registrar.Parameter("count_per_second", &TThis::CountPerSecond)
+    registrar.Parameter("ratio", &TThis::Ratio)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("weight", &TThis::Weight)
+        .GreaterThanOrEqual(0);
+}
+
+void TLineageRatio::Register(TRegistrar registrar)
+{
+    registrar.Parameter("count", &TThis::Count)
         .Default();
-    registrar.Parameter("bytes_per_second", &TThis::BytesPerSecond)
-        .Default();
-    registrar.Parameter("input_count_per_second", &TThis::InputCountPerSecond)
-        .Default();
-    registrar.Parameter("input_bytes_per_second", &TThis::InputBytesPerSecond)
+    registrar.Parameter("byte_size", &TThis::ByteSize)
         .Default();
 }
 

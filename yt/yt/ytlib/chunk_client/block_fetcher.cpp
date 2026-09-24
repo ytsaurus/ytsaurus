@@ -465,17 +465,16 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
+        uncompressedBlock = TrackMemory(
+            ChunkReadOptions_.MemoryUsageTracker,
+            std::move(uncompressedBlock));
+
         if (Config_->UseUncompressedBlockCache) {
             BlockCache_->PutBlock(
                 blockId,
                 blockInfo.BlockType,
                 TBlock(uncompressedBlock));
         }
-
-        uncompressedBlock = TryTrackMemory(
-            ChunkReadOptions_.MemoryUsageTracker,
-            std::move(uncompressedBlock))
-            .ValueOrThrow();
 
         auto& windowSlot = Window_[windowIndex];
 
@@ -593,7 +592,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
     if (TotalRemainingSize_ > 0) {
         auto nextGroupSize = std::min<i64>(TotalRemainingSize_, Config_->GroupSize);
-        MemoryManagerHolder_->Get()->SetPrefetchMemorySize(nextGroupSize);
+        MemoryManagerHolder_->Get()->SetPrefetchMemorySize(std::min<i64>(Config_->WindowSize, TotalRemainingSize_));
         FetchNextGroupMemoryFuture_ = MemoryManagerHolder_->Get()->AsyncAcquire(nextGroupSize);
         FetchNextGroupMemoryFuture_.Subscribe(BIND(
             &TBlockFetcher::FetchNextGroup,

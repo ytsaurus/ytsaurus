@@ -244,6 +244,10 @@ public:
         return FileGateway_->Commit(std::move(options));
     }
 
+    TFuture<TUnlockTablesResult> UnlockTables(TUnlockTablesOptions&& options) final {
+        return NativeGateway_->UnlockTables(std::move(options));
+    }
+
     TFuture<TDropTrackablesResult> DropTrackables(TDropTrackablesOptions&& options) final {
         return FileGateway_->DropTrackables(std::move(options));
     }

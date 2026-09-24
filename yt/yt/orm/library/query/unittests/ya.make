@@ -1,5 +1,7 @@
 GTEST(unittester-yt-orm-library-query)
 
+SIZE(MEDIUM)
+
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(

@@ -19,6 +19,8 @@
 
 #include <yt/yt/flow/library/cpp/client/public.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -581,7 +583,7 @@ public:
                     .With("ComputationId", partition->ComputationId)
                     .With("TargetWorkerAddress", targetWorkerIt->second->RpcAddress);
 
-                layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Rebalanced);
+                NBalancer::RemoveJobKeepingMetrics(flowView, currentJobStatus->JobId, EJobFinishReason::Rebalanced);
 
                 auto newJob = New<TJob>();
                 newJob->JobId = TJobId(TGuid::Create());
@@ -654,7 +656,7 @@ public:
                         .With("JobId", currentJobStatus->JobId)
                         .With("PartitionId", partitionId)
                         .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId);
-                    layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Rebalanced);
+                    NBalancer::RemoveJobKeepingMetrics(flowView, currentJobStatus->JobId, EJobFinishReason::Rebalanced);
                     continue;
                 }
                 foundError += 1;
@@ -663,7 +665,7 @@ public:
                     .With("PartitionId", partitionId)
                     .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId)
                     .With(currentJobStatus->Error);
-                layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Failed);
+                NBalancer::RemoveJobKeepingMetrics(flowView, currentJobStatus->JobId, EJobFinishReason::Failed);
 
                 auto partitionState = flowView->EphemeralState->GetPartitionState(partitionId);
                 partitionState->PreviousJobFailInstant = partitionJobStatus->CurrentJobStatusUpdateTime;
@@ -715,6 +717,7 @@ public:
 
     void RemoveLostJobs(const TFlowViewPtr& flowView) override
     {
+        NProfiling::TWallTimer timer;
         YT_TLOG_INFO("Looking for lost jobs")
             .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
 
@@ -736,7 +739,7 @@ public:
             YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
                 .With(error);
             removed++;
-            layout->RemoveJob(jobId, EJobFinishReason::LostWorker);
+            NBalancer::RemoveJobKeepingMetrics(flowView, jobId, EJobFinishReason::LostWorker);
 
             auto partitionState = flowView->EphemeralState->GetPartitionState(job->PartitionId);
             partitionState->PreviousJobFailInstant = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
@@ -779,7 +782,8 @@ public:
 
         YT_TLOG_INFO("Finished removing lost jobs")
             .With("Removed", removed)
-            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
+            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size())
+            .With("Duration", timer.GetElapsedTime());
         LostJobsCounter_.Increment(removed);
     }
 
@@ -936,7 +940,7 @@ public:
         ssize_t stopCount = 0;
         auto stopJob = [&] (const auto& partition) {
             stopCount++;
-            layout->RemoveJob(partition->CurrentJobId.value(), EJobFinishReason::Rebalanced);
+            NBalancer::RemoveJobKeepingMetrics(flowView, partition->CurrentJobId.value(), EJobFinishReason::Rebalanced);
 
             auto partitionState = flowView->EphemeralState->GetPartitionState(partition->PartitionId);
             partitionState->PreviousRebalancingInstant = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
@@ -998,6 +1002,11 @@ public:
         }
 
         const auto jobManagerSpec = DynamicSpec_->JobManager;
+        THashSet<TWorkerGroupId> workerGroups;
+        for (const auto& [workerGroup, _] : BalanceSynchronizers_) {
+            workerGroups.insert(workerGroup);
+        }
+        NBalancer::PruneBalancerGroups(flowView, workerGroups);
         for (const auto& [workerGroup, balanceSynchronizer] : BalanceSynchronizers_) {
             const auto groupJobBalancerSpec = GetOrDefault(jobManagerSpec->WorkerGroupOverride, workerGroup, jobManagerSpec);
             auto rebalanceResult = balanceSynchronizer->DoBalance(
@@ -1046,12 +1055,21 @@ public:
             }
 
             for (const auto& preloadAction : rebalanceResult.PreloadResourceActions) {
+                auto* worker = flowView->State->Workers.FindPtr(preloadAction.WorkerAddress);
                 auto* existingSpec = layout->WorkerSpecs.FindPtr(preloadAction.WorkerAddress);
-                auto workerSpec = existingSpec ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
+                // A spec of a previous incarnation of the address does not apply to the current one:
+                // start a new spec, do not copy its resources.
+                bool existingSpecIsVoid = existingSpec && worker &&
+                    (*existingSpec)->WorkerIncarnationId &&
+                    *(*existingSpec)->WorkerIncarnationId != (*worker)->IncarnationId;
+                auto workerSpec = existingSpec && !existingSpecIsVoid ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
                 if (preloadAction.Type == NBalancer::ERebalanceActionType::Add) {
                     workerSpec->PreloadResources.insert(preloadAction.ResourceId);
                 } else {
                     workerSpec->PreloadResources.erase(preloadAction.ResourceId);
+                }
+                if (worker) {
+                    workerSpec->WorkerIncarnationId = (*worker)->IncarnationId;
                 }
                 layout->WorkerSpecs.insert_or_assign(preloadAction.WorkerAddress, std::move(workerSpec));
             }
@@ -1065,6 +1083,7 @@ public:
 
     void StopAllJobs(const TFlowViewPtr& flowView) override
     {
+        NProfiling::TWallTimer timer;
         const auto& layout = flowView->State->ExecutionSpec->Layout;
         // Actually it seems to be safe to iterate over layout->Jobs and remove jobs right in the loop.
         // But on the other hand it's hard to prove, so better to extract IDs before removal.
@@ -1075,8 +1094,16 @@ public:
             jobIds.emplace_back(jobId);
         }
         for (const auto& jobId : jobIds) {
-            layout->RemoveJob(jobId, EJobFinishReason::Stopped);
+            NBalancer::RemoveJobKeepingMetrics(flowView, jobId, EJobFinishReason::Stopped);
         }
+        YT_TLOG_INFO("Stopped all jobs")
+            .With("JobCount", jobIds.size())
+            .With("Duration", timer.GetElapsedTime());
+    }
+
+    const THashMap<TComputationId, IComputationControllerPtr>& GetComputationControllers() const override
+    {
+        return ComputationControllers_;
     }
 
     TJobManagerStatePtr GetState() override

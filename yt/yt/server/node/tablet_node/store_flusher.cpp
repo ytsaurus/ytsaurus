@@ -665,7 +665,6 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(error);
             YT_TLOG_ERROR(Message)
-                .With("TabletId", tabletId)
                 .With("BackgroundActivity", ETabletBackgroundActivity::Flush)
                 .With(ex);
 

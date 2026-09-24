@@ -2,7 +2,7 @@
     "meta": {
         "name": "flow-noop-pipeline",
         "maintainer": "YT team",
-        "description": "YT Flow noop example image — noop_pipeline + yt_sync (x86_64)",
+        "description": "YT Flow noop example image — flow_server + yt_sync (x86_64)",
         "version": "local-{revision}",
     },
     "params": {
@@ -12,7 +12,7 @@
     "build": {
         "build_noop": {
             "targets": [
-                "yt/yt/flow/examples/cpp/noop/pipeline",
+                "yt/yt/flow/bin/flow_server",
                 "yt/yt/flow/examples/cpp/noop/yt_sync",
             ],
             "build_type": "profile",
@@ -68,10 +68,10 @@
             "source": {
                 "type": "BUILD_OUTPUT",
                 "build_key": "build_noop",
-                "path": "yt/yt/flow/examples/cpp/noop/pipeline/pipeline",
+                "path": "yt/yt/flow/bin/flow_server/flow_server",
             },
             "destination": {
-                "path": "/noop_pipeline",
+                "path": "/flow_server",
             },
         },
         {

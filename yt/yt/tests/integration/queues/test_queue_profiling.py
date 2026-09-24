@@ -11,6 +11,7 @@ from yt_commands import (
     create,
     insert_rows,
     register_queue_consumer,
+    unregister_queue_consumer,
     advance_consumer,
     ls,
     set as yt_set,
@@ -280,6 +281,74 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         lag_rows = get_metric()[0]
         assert lag_rows["tags"]["queue_tag"] == queue_tag
         assert lag_rows["tags"]["consumer_tag"] == consumer_tag
+
+    @authors("panesher")
+    def test_registered_partitions_profiling(self):
+        orchid = QueueAgentOrchid()
+
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True, partition_count=4)
+        insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3 + [{"data": "foo", "$tablet_index": 1}])
+
+        consumer_path = self.create_consumer_path()
+        create("queue_consumer", consumer_path)
+
+        # Out-of-range and duplicate indices are ignored.
+        register_queue_consumer(queue, consumer_path, vital=True, partitions=[1, 3, 3, 10])
+
+        self._wait_for_component_passes()
+
+        consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
+        queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
+
+        profiler = get_profiler()
+
+        def get_lag_rows() -> list:
+            return profiler.summary(
+                "queue_agent/consumer_partition/lag_rows",
+                fixed_tags={
+                    "consumer_path": consumer_path,
+                    "consumer_cluster": "primary",
+                },
+            ).get_all()
+
+        def get_partition_lag_rows() -> dict[str, int]:
+            return {
+                metric["tags"]["partition_index"]: int(metric["value"])
+                for metric in get_lag_rows()
+                if "partition_index" in metric["tags"]
+            }
+
+        def get_aggregated_lag_rows() -> set[int]:
+            return {int(metric["value"]) for metric in get_lag_rows() if "partition_index" not in metric["tags"]}
+
+        # Aggregated sum covers registered partitions only, so the lag of partition 0 is not visible.
+        wait(
+            lambda: get_partition_lag_rows() == {"1": 1, "3": 0} and get_aggregated_lag_rows() == {1},
+            ignore_exceptions=True,
+        )
+
+        # Both null and empty list mean all partitions.
+        for partitions in [None, []]:
+            unregister_queue_consumer(queue, consumer_path)
+            register_queue_consumer(queue, consumer_path, vital=True, partitions=[0])
+            consumer_orchid.wait_fresh_pass()
+
+            wait(
+                lambda: get_partition_lag_rows() == {"0": 3} and get_aggregated_lag_rows() == {3},
+                ignore_exceptions=True,
+            )
+
+            unregister_queue_consumer(queue, consumer_path)
+            register_queue_consumer(queue, consumer_path, vital=True, partitions=partitions)
+            consumer_orchid.wait_fresh_pass()
+
+            wait(
+                lambda: get_partition_lag_rows() == {"0": 3, "1": 1, "2": 0, "3": 0} and get_aggregated_lag_rows() == {4},
+                ignore_exceptions=True,
+            )
 
     @authors("panesher")
     def test_multi_consumer_profiling(self):

@@ -1,6 +1,9 @@
 package tech.ytsaurus.flow.spring;
 
 import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -16,10 +19,14 @@ import tech.ytsaurus.flow.execution.CompanionExecution;
 import tech.ytsaurus.flow.execution.CompanionExecutionSpec;
 import tech.ytsaurus.flow.execution.GrpcServerExecution;
 import tech.ytsaurus.flow.function.RowFunction;
+import tech.ytsaurus.flow.resource.FlowResource;
+import tech.ytsaurus.flow.resource.FlowResourceClass;
+import tech.ytsaurus.flow.resource.ResourceContext;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.testutils.CompanionConfigFixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -113,6 +120,74 @@ class FlowAutoConfigurationTest {
     }
 
     @Test
+    void autoConfigurationAppliedWithResourceProvider() {
+        contextRunner
+                .withUserConfiguration(TestResourceProviderConfig.class)
+                .run(context -> {
+                    assertTrue(context.containsBean("flowCompanionLifecycle"));
+                    assertTrue(context.containsBean("pipelineContext"));
+                    var snapshot = new PipelineContextSnapshot(context.getBean(PipelineContext.class));
+                    assertTrue(snapshot.getResourceFactories().containsKey("TestResource"));
+                });
+    }
+
+    @Test
+    void resourceProviderUsesExplicitNamesWithoutConstructingResources() {
+        var creations = new AtomicInteger();
+        Supplier<AnnotatedResource> factory = () -> {
+            creations.incrementAndGet();
+            return new AnnotatedResource();
+        };
+        contextRunner.withUserConfiguration(CompanionConfig.class)
+                .withBean(ResourceProvider.class, () -> () -> Map.of("explicit_name", factory))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var factories = new PipelineContextSnapshot(context.getBean(PipelineContext.class))
+                            .getResourceFactories();
+                    assertEquals(Map.of("explicit_name", factory), factories);
+                    assertFalse(factories.containsKey("annotation_name"));
+                    assertEquals(0, creations.get());
+                });
+        assertEquals(0, creations.get());
+    }
+
+    @Test
+    void resourceClassAnnotationDoesNotActivateAutomaticRegistration() {
+        contextRunner.withBean(AnnotatedResource.class, AnnotatedResource::new).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertFalse(context.containsBean("pipelineContext"));
+            assertFalse(context.containsBean("flowCompanionLifecycle"));
+        });
+    }
+
+    @Test
+    void resourceProvidersCannotRegisterTheSameTypeName() {
+        contextRunner.withUserConfiguration(CompanionConfig.class)
+                .withBean("firstProvider", ResourceProvider.class,
+                        () -> () -> Map.of("SharedType", AnnotatedResource::new))
+                .withBean("secondProvider", ResourceProvider.class,
+                        () -> () -> Map.of("SharedType", AnnotatedResource::new))
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("Resource class SharedType already exists");
+                });
+    }
+
+    @Test
+    void resourceProviderNamesUseTheCoreValidation() {
+        contextRunner.withUserConfiguration(CompanionConfig.class)
+                .withBean(ResourceProvider.class, () -> () -> Map.of(" ", AnnotatedResource::new))
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("Resource class name must not be blank");
+                });
+    }
+
+    @Test
     void customPipelineContextBeanTakesPrecedence() {
         contextRunner
                 .withUserConfiguration(
@@ -140,6 +215,10 @@ class FlowAutoConfigurationTest {
                 });
     }
 
+    @FlowResourceClass("annotation_name")
+    static class AnnotatedResource extends TestResourceProviderConfig.TestResource {
+    }
+
     @Configuration
     static class TestComputationProviderConfig {
         @Bean
@@ -150,6 +229,35 @@ class FlowAutoConfigurationTest {
         @Bean
         CompanionExecutionConfig companionExecutionConfig() {
             return CompanionConfigFixtures.defaults();
+        }
+    }
+
+    @Configuration
+    static class TestResourceProviderConfig {
+        @Bean
+        ResourceProvider resourceProvider() {
+            return new ResourceProvider() {
+                @Override
+                public Map<String, Supplier<? extends FlowResource>> getResourceClasses() {
+                    return Map.of("TestResource", TestResource::new);
+                }
+            };
+        }
+
+        @Bean
+        CompanionExecutionConfig companionExecutionConfig() {
+            return CompanionConfigFixtures.defaults();
+        }
+
+        static class TestResource implements FlowResource {
+            @Override
+            public void load(ResourceContext context) {
+            }
+
+            @Override
+            public void unload() {
+                // No external resources to release.
+            }
         }
     }
 

@@ -17,6 +17,7 @@ SRCS(
     jvm_options_ut.cpp
     process_manager_base_ut.cpp
     registry_ut.cpp
+    state_codec_ut.cpp
     transform_ordered_source_companion_computation_ut.cpp
 )
 
@@ -24,6 +25,7 @@ PEERDIR(
     library/cpp/testing/common
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/companion
+    yt/yt/library/profiling/solomon
     yt/yt/library/query/engine
 )
 

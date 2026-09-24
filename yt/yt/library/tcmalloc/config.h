@@ -8,6 +8,31 @@ namespace NYT::NTCMalloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMemoryProfileRetentionConfig
+    : public NYTree::TYsonStruct
+{
+    //! Maximum number of complete memory profile dumps to retain.
+    std::optional<int> MaxDumpCount;
+
+    //! Maximum age of a complete memory profile dump.
+    std::optional<TDuration> MaxDumpAge;
+
+    //! Maximum total size of retained complete memory profile dumps.
+    //! The newest non-expired dump is retained even if it alone exceeds the limit.
+    std::optional<i64> MaxTotalSize;
+
+    //! Maximum age of matching files that do not belong to a complete memory profile dump.
+    TDuration MaxOrphanAge;
+
+    REGISTER_YSON_STRUCT(TMemoryProfileRetentionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryProfileRetentionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct THeapSizeLimitConfig
     : public NYTree::TYsonStruct
 {
@@ -33,6 +58,10 @@ struct THeapSizeLimitConfig
     //! $(MemoryProfileDumpPath)/$(Name)_$(Timestamp).$(Ext) (if MemoryProfileDumpFilenameSuffix is missing)
     std::optional<std::string> MemoryProfileDumpPath;
     std::optional<std::string> MemoryProfileDumpFilenameSuffix;
+
+    //! Retention policy for memory profile dumps. Disabled when missing.
+    //! Configured only at startup; cannot be changed dynamically.
+    TMemoryProfileRetentionConfigPtr MemoryProfileRetention;
 
     void ApplyDynamicInplace(const TDynamicHeapSizeLimitConfigPtr& dynamicConfig);
     THeapSizeLimitConfigPtr ApplyDynamic(const TDynamicHeapSizeLimitConfigPtr& dynamicConfig) const;
@@ -90,6 +119,10 @@ struct TTCMallocConfig
     i64 MaxPerCpuCacheSize;
     i64 MaxTotalThreadCacheBytes;
     i64 BackgroundReleaseRate;
+
+    //! If true, an out-of-memory failure terminates the process without
+    //! writing a coredump.
+    bool FailFastOnOom;
 
     THeapSizeLimitConfigPtr HeapSizeLimit;
 

@@ -14,11 +14,17 @@ void TComputationsDescription::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TComputationsDescription DescribeComputations(const TFlowViewPtr& flowView)
+TComputationsDescription DescribeComputations(
+    const TFlowViewPtr& flowView,
+    const THashMap<std::string, TError>& controllerErrors)
 {
     TComputationsDescription computations;
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
-    for (const auto& [computationId, computation] : MakeComputationDescriptions(flowView, intermediateDescriptions)) {
+    for (const auto& [computationId, computation] : MakeComputationDescriptions(
+        flowView,
+        intermediateDescriptions,
+        controllerErrors))
+    {
         computations.Computations.push_back(computation);
     }
     SortBy(computations.Computations, [] (const auto& computation) -> auto& {

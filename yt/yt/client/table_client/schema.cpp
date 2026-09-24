@@ -25,6 +25,7 @@
 #include <yt/yt_proto/yt/client/tablet_client/proto/lock_mask.pb.h>
 
 #include <optional>
+#include <ranges>
 
 namespace NYT::NTableClient {
 
@@ -147,6 +148,15 @@ void FromProto(TLockMask* lockMask, const NTabletClient::NProto::TLockMask& prot
     *lockMask = TLockMask(bitmap, size);
 }
 
+void FormatValue(TStringBuilderBase* builder, const TLockMask& lockMask, TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "%v",
+        MakeFormattableView(std::views::iota(0, lockMask.GetSize()), [&] (TStringBuilderBase* itemBuilder, int index) {
+            itemBuilder->AppendFormat("%v", lockMask.Get(index));
+        }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
@@ -157,7 +167,7 @@ TColumnSchema::TColumnSchema()
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     EValueType type,
     std::optional<ESortOrder> sortOrder)
     : TColumnSchema(
@@ -167,7 +177,7 @@ TColumnSchema::TColumnSchema(
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     ESimpleLogicalValueType type,
     std::optional<ESortOrder> sortOrder)
     : TColumnSchema(
@@ -177,11 +187,11 @@ TColumnSchema::TColumnSchema(
 { }
 
 TColumnSchema::TColumnSchema(
-    const std::string& name,
+    TStringBuf name,
     TLogicalTypePtr type,
     std::optional<ESortOrder> sortOrder)
-    : StableName_(name)
-    , Name_(name)
+    : StableName_(std::string(name))
+    , Name_(std::string(name))
     , SortOrder_(sortOrder)
 {
     SetLogicalType(std::move(type));

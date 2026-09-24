@@ -1,3 +1,5 @@
+EXPLICIT_DATA()
+
 TAG(
     ya:fat
     ya:full_logs

@@ -113,7 +113,7 @@ DEFINE_ENUM(EPartitionState,
     ((Executing)       (1))
     // Partition processing is interrupting. It cannot receive input messages, but can distribute output.
     ((Interrupting)    (2))
-    // Partition processing has been successfully completed. Cleaning states and other partition data.
+    // Partition processing has completed. It only distributes persisted output, then cleans owned state.
     ((Completing)      (3))
     // Partition processing has been successfully completed and fully cleaned. So, it will never start again.
     ((Completed)       (4))
@@ -299,6 +299,9 @@ DECLARE_REFCOUNTED_STRUCT(TExecutionSpec);
 DECLARE_REFCOUNTED_STRUCT(TExecutionSpecVersions);
 
 DECLARE_REFCOUNTED_STRUCT(TJobManagerState);
+DECLARE_REFCOUNTED_STRUCT(TPartitionMetricsHistory);
+DECLARE_REFCOUNTED_STRUCT(TBalancerGroupState);
+DECLARE_REFCOUNTED_STRUCT(TBalancerState);
 
 DECLARE_REFCOUNTED_STRUCT(TFlowFeedback);
 DECLARE_REFCOUNTED_STRUCT(TPartitionEphemeralState);
@@ -322,6 +325,7 @@ DECLARE_REFCOUNTED_CLASS(TStreamLimitUsageState);
 DECLARE_REFCOUNTED_STRUCT(TComputationContext);
 DECLARE_REFCOUNTED_STRUCT(IComputationRunContext);
 DECLARE_REFCOUNTED_STRUCT(TComputationStatus);
+DECLARE_REFCOUNTED_STRUCT(TProcessingObservation);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationContext);
 DECLARE_REFCOUNTED_STRUCT(IComputation);
 
@@ -332,6 +336,7 @@ DECLARE_REFCOUNTED_STRUCT(IKeyedBatchProcessFunction);
 struct ISyncProcessFunction;
 DECLARE_REFCOUNTED_STRUCT(IRuntimeContext);
 DECLARE_REFCOUNTED_STRUCT(IRuntimeInitContext);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionContext);
 
 DECLARE_REFCOUNTED_STRUCT(TSourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicSourceContext);

@@ -1,15 +1,14 @@
 #include "chunk_proxy.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "chunk_reincarnator.h"
+#include "chunk_replica_fetcher.h"
 #include "chunk_replicator.h"
+#include "helpers.h"
 #include "job.h"
 #include "job_registry.h"
-#include "domestic_medium.h"
-#include "helpers.h"
-#include "chunk_replica_fetcher.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -35,9 +34,12 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -1347,7 +1349,7 @@ private:
 
         DeclareNonMutating();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto chunk = TEphemeralObjectPtr<TChunk>(GetThisImpl());
 

@@ -1,5 +1,4 @@
 #include "chunk_scanner.h"
-#include "chunk_manager.h"
 
 #include "chunk.h"
 #include "helpers.h"
@@ -94,6 +93,11 @@ void TGlobalChunkScanner::OnChunkDestroyed(TChunk* chunk)
     if (chunk == globalScanShard.Iterator) {
         AdvanceGlobalIterator(shardIndex);
     }
+}
+
+bool TGlobalChunkScanner::IsRelevant(TChunk* chunk) const
+{
+    return ActiveShardIndices_.test(chunk->GetShardIndex());
 }
 
 TChunk* TGlobalChunkScanner::DequeueChunk()
@@ -194,11 +198,6 @@ TChunkScannerBase::TChunkScannerBase(
 int TChunkScannerBase::GetShardIndex(TChunk* chunk)
 {
     return chunk->GetShardIndex();
-}
-
-bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
-{
-    return ActiveShardIndices_.test(chunk->GetShardIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

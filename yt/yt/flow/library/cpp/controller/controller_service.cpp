@@ -6,6 +6,7 @@
 #include "persisted_state_manager.h"
 #include "private.h"
 
+#include <yt/yt/flow/library/cpp/client/authentication.h>
 #include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/flow/library/cpp/common/authenticator.h>
@@ -79,14 +80,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSpec)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         TGetPipelineSpecArg executorArg;
         auto executorResult = FlowExecutor_->GetPipelineSpec(executorArg);
 
         response->set_spec(ToProto(ConvertToYsonString(executorResult.Spec)));
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
@@ -99,25 +101,29 @@ private:
         executorArg.Spec = ConvertTo<NYTree::INodePtr>(TYsonStringBuf(request->spec()));
         executorArg.Force = request->force();
 
-        context->SetRequestInfo("ExpectedVersion: %v, Force: %v", executorArg.ExpectedVersion, executorArg.Force);
+        context->AnnotateRequest()
+            .With("ExpectedVersion", executorArg.ExpectedVersion)
+            .With("Force", executorArg.Force);
 
         auto executorResult = FlowExecutor_->SetPipelineSpec(executorArg);
 
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetDynamicSpec)
     {
         TGetPipelineDynamicSpecArg executorArg;
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto executorResult = FlowExecutor_->GetPipelineDynamicSpec(executorArg);
 
         response->set_spec(ToProto(ConvertToYsonString(executorResult.Spec)));
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
@@ -129,12 +135,14 @@ private:
             : std::nullopt;
         executorArg.Spec = ConvertTo<NYTree::INodePtr>(TYsonStringBuf(request->spec()));
 
-        context->SetRequestInfo("ExpectedVersion: %v", executorArg.ExpectedVersion);
+        context->AnnotateRequest()
+            .With("ExpectedVersion", executorArg.ExpectedVersion);
 
         auto executorResult = FlowExecutor_->SetPipelineDynamicSpec(executorArg);
 
         response->set_version(ToProto(executorResult.Version));
-        context->SetResponseInfo("Version: %v", executorResult.Version);
+        context->AnnotateResponse()
+            .With("Version", executorResult.Version);
         context->Reply();
     }
 
@@ -177,11 +185,35 @@ private:
         } else {
             argument = TYsonString(request->argument(), EYsonType::Node);
         }
-        response->set_result(FlowExecutor_->Execute(request->command(), argument, request->user()).ToString());
+
+        // The RPC proxy checks the pipeline permission before forwarding a request; a request
+        // marked as direct is authorized here, where the command is known.
+        auto user = request->user();
+        if (IsDirectRequest(context->GetRequestHeader())) {
+            user = context->GetAuthenticationIdentity().User;
+            FlowExecutor_->AuthorizeCommand(request->command(), user);
+        }
+
+        response->set_result(FlowExecutor_->Execute(request->command(), argument, user).ToString());
         context->Reply();
     }
 
 private:
+    //! Only #FlowExecute knows the command being run and authorizes the caller itself; the other
+    //! methods trust the RPC proxy that forwarded the request, so a request marked as direct
+    //! must not reach them.
+    void BeforeInvoke(NRpc::IServiceContext* context) override
+    {
+        TServiceBase::BeforeInvoke(context);
+
+        if (context->GetMethod() != "FlowExecute" && IsDirectRequest(context->GetRequestHeader())) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::AuthenticationError,
+                "Method %Qv accepts requests forwarded by the RPC proxy only",
+                context->GetMethod());
+        }
+    }
+
     void SetTargetPipelineState(EPipelineState state)
     {
         TSetTargetPipelineStateArg executorArg;

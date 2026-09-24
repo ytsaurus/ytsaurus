@@ -26,6 +26,8 @@ External State в Java SDK Flow (Java и Kotlin) представлен клас
 
 Подробнее о Internal State см. [Internal State](../../../flow/java/internal-state.md).
 
+В отличие от внутреннего стейта, внешний стейт не отслеживается: новое значение задаётся только через `set()`, а стейт из joiner-а доступен только на чтение.
+
 ## Получение ExternalStateAccessor
 
 External state описывается константой `ExternalStateDescriptor`, создаваемой через `StateDescriptors.external(...)`. Дескриптор обычно объявляется один раз на класс `RowFunction`:

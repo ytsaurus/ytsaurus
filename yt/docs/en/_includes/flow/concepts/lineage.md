@@ -35,6 +35,10 @@ For more details on how to use this in each language:
 - [Python](../../../flow/python/computation.md#output-collector)
 - [Go](../../../flow/go/computation.md#output-collector)
 
+## Conversion statistics {#conversion-statistics}
+
+Flow estimates the output-to-input ratio for each stream pair, separately for message count and byte size. These statistics describe processed messages, not guaranteed deliveries.
+
 ## See also
 
 - [Message Processing Order](../../../flow/concepts/ordering.md)

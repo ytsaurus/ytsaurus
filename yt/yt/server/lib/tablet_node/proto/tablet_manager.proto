@@ -366,7 +366,6 @@ message TReqWriteRows
     required int32 codec = 7; // NCompression::ECodec
     required bytes compressed_data = 8;
     optional uint32 prepare_signature = 9;
-    optional uint32 commit_signature = 19;
     optional uint32 generation = 16;
     required bool lockless = 10;
     required int32 row_count = 11;
@@ -378,6 +377,9 @@ message TReqWriteRows
     optional NYT.NTabletClient.NProto.THunkChunksInfo hunk_chunks_info = 20;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 21;
     optional NYT.NProto.TGuid transaction_externalization_token = 22;
+
+    // COMPAT(kvk1920): can be reused after 26.2.
+    reserved 19;
 }
 
 message TReqWriteDelayedRows
@@ -387,12 +389,12 @@ message TReqWriteDelayedRows
     required uint64 mount_revision = 3;
     required int32 codec = 4; // NCompression::ECodec
     required bytes compressed_data = 5;
-    optional uint32 commit_signature = 6;
-    required bool lockless = 7;
-    required int32 row_count = 8;
-    optional int64 data_weight = 9;
-    optional string user = 10;
-    optional string user_tag = 11;
+    required bool approve_commit = 6;
+    required int32 row_count = 7;
+    optional int64 data_weight = 8;
+    optional string user = 9;
+    optional string user_tag = 10;
+    optional NYT.NProto.TGuid transaction_externalization_token = 11;
 }
 
 message TReqTrimRows

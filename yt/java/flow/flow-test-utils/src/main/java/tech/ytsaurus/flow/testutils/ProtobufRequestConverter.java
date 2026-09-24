@@ -10,12 +10,14 @@ import com.google.protobuf.ByteString;
 import tech.ytsaurus.TGuid;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.MessageProtoMapper;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TState;
@@ -24,6 +26,7 @@ import tech.ytsaurus.flow.rpc.TStream;
 import tech.ytsaurus.flow.rpc.TWatermark;
 import tech.ytsaurus.flow.state.State;
 import tech.ytsaurus.flow.state.StateFormat;
+import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
@@ -44,6 +47,7 @@ public class ProtobufRequestConverter {
 
     private TGuid jobId = ProtobufRequestBuilder.PROTO_JOB_ID;
     private CodecRegistry codecRegistry = CodecRegistry.getInstance();
+    private List<TCompanionResourceInstanceReference> companionResources = List.of();
 
     /**
      * Overrides the job id used for subsequent {@code create*} calls.
@@ -69,6 +73,22 @@ public class ProtobufRequestConverter {
      */
     public ProtobufRequestConverter setCodecRegistry(CodecRegistry codecRegistry) {
         this.codecRegistry = Objects.requireNonNull(codecRegistry, "codecRegistry must not be null");
+        return this;
+    }
+
+    /**
+     * Sets the companion resource instance references attached to the job info of subsequent
+     * {@code create*} calls; the companion resolves them against its resource store when the batch
+     * is processed.
+     *
+     * @param companionResources the instance references required by the job
+     * @return this converter
+     */
+    public ProtobufRequestConverter setCompanionResources(
+            List<TCompanionResourceInstanceReference> companionResources
+    ) {
+        this.companionResources = List.copyOf(
+                Objects.requireNonNull(companionResources, "companionResources must not be null"));
         return this;
     }
 
@@ -107,7 +127,9 @@ public class ProtobufRequestConverter {
                 .setComputationId(computationId);
 
         var pipelineContext = extractPipelineContext(computationId, pipelineSpec, streamsContext);
-        builder.setJobInfo(pipelineContext.jobInfo());
+        builder.setJobInfo(pipelineContext.jobInfo().toBuilder()
+                .addAllCompanionResources(companionResources)
+                .build());
 
         var protoMessages = convertExtendedMessagesToProto(
                 messages,
@@ -309,32 +331,25 @@ public class ProtobufRequestConverter {
     // --- State conversion ---
 
     /**
-     * Converts internal states to proto format. State values are already wire bytes; keys are
-     * serialized with the supplied {@link KeyCodec} so that custom registrations are honoured
-     * on the wire.
+     * Converts internal states to proto format through the production
+     * {@link InternalStateProtoMapper}, so that a seed reaches the wire exactly as the worker
+     * would send it. A value that encodes to no bytes travels as a reset. Keys are serialized
+     * with the supplied {@link KeyCodec} so that custom registrations are honoured on the wire.
      */
     private static List<TState> convertInternalStatesToProto(
             Map<String, Map<Payload, State>> internalStates,
             KeyCodec keyCodec
     ) {
+        // toProto never reads the key schema: it serves createHolder and the holder's YSON
+        // rendering, neither of which runs on this path.
+        var mapper = new InternalStateProtoMapper(null, keyCodec);
         var result = new ArrayList<TState>(internalStates.size());
         for (var entry : internalStates.entrySet()) {
-            var stateName = entry.getKey();
-            var stateMap = entry.getValue();
-            TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
-
-            var stateItems = new ArrayList<TStateItem>(stateMap.size());
-            for (var stateEntry : stateMap.entrySet()) {
-                TStateItem.Builder itemBuilder = TStateItem.newBuilder()
-                        .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
-                        .setReset(stateEntry.getValue().isReset());
-                if (!stateEntry.getValue().isReset() && stateEntry.getValue().getBytes() != null) {
-                    itemBuilder.setState(stateEntry.getValue().getBytes());
-                }
-                stateItems.add(itemBuilder.build());
+            var holder = new StatesHolder(entry.getKey(), null);
+            for (var stateEntry : entry.getValue().entrySet()) {
+                holder.set(stateEntry.getKey().getRow(), stateEntry.getValue());
             }
-            stateBuilder.addAllStateItems(stateItems);
-            result.add(stateBuilder.build());
+            result.add(mapper.toProto(holder, holder.collectModifiedStates()));
         }
         return result;
     }

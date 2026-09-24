@@ -132,6 +132,8 @@ protected:
 
     const NLogging::TLogger& Logger;
 
+    TFuture<void> DoBuildSlotRootDirectory();
+
     virtual TFuture<void> DoPrepareLayers() = 0;
 
     virtual TFuture<void> DoPrepareRootVolume() = 0;

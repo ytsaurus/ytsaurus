@@ -1072,6 +1072,22 @@ DEFINE_ENUM(EJobBalancerType,
     (ResourceQueue)
 );
 
+//! Where the CpuAware balancer takes a partition's CPU usage from.
+DEFINE_ENUM(EBalancerMetricsSource,
+    //! The running job's status only: the 10-minute rate, or the 30-second and immediate ones until it exists.
+    (Job)
+    //! The 10-minute rate of the running job, or the partition's persisted history until it exists.
+    (Partition)
+);
+
+//! How the CpuAware balancer estimates the relative speed of workers.
+DEFINE_ENUM(EWorkerCoefMode,
+    //! From the current CPU usage of each worker's partitions against their computation averages.
+    (Legacy)
+    //! From partitions that moved between workers, see #NBalancer::TWorkerCoefEstimator.
+    (Probing)
+);
+
 //! Worker resources the CpuAware balancer can balance by.
 DEFINE_ENUM(EBalanceResource,
     (Cpu)
@@ -1122,6 +1138,22 @@ struct TDynamicJobBalancerSpec
     //! weighted mix: weighting a second resource in proportionally shrinks the first one's
     //! contribution, making the balancer correspondingly more tolerant to its imbalance.
     THashMap<EBalanceResource, double> BalanceWeights;
+    // TODO(thenewone): Temporary switch, remove after the metrics-history balancer rollout.
+    EBalancerMetricsSource BalancerMetricsSource{};
+    //! Never move a running job whose metrics are not mature yet (see #EBalancerMetricsSource):
+    //! it is still paying for its previous move, and its weight is not known.
+    // TODO(thenewone): Temporary switch, remove after the metrics-history balancer rollout.
+    bool BalanceWarmupProtection{};
+    //! The protection is lifted while at least this share of the group's workers run no job of
+    //! the group: filling them matters more than the metrics of the jobs that would move.
+    double BalanceWarmupIdleWorkerShare{};
+    // TODO(thenewone): Temporary switch, remove after the metrics-history balancer rollout.
+    EWorkerCoefMode WorkerCoefMode{};
+    //! Parameters of the probing estimator, see #NBalancer::TWorkerCoefEstimatorConfig.
+    TDuration WorkerCoefHalfLife;
+    TDuration WorkerCoefRetention;
+    double WorkerCoefPriorWeight{};
+    double WorkerCoefMaxRatio{};
     // Test-only: when set to true, the even-load gate is bypassed and rebalancing always runs.
     std::optional<bool> DisableEvenLoadGate;
     bool AsyncBalancing{};
@@ -1162,6 +1194,8 @@ struct TDynamicJobManagerSpec
     // WorkerGroupOverride itself, so the spec is not self-referential (nested overrides make no
     // sense and would make the YSON schema infinitely recursive).
     THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
+    //! Most partition histories kept in the balancer state; the lightest one goes when it is full.
+    i64 PartitionHistoryLimit{};
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 
@@ -1285,6 +1319,12 @@ struct TDynamicJobTrackerSpec
     TLoadThroughputThrottlerSpecPtr LoadThroughputThrottler;
 
     TDynamicStateCacheSpecPtr StateCache;
+
+    //! Report the job's rate counters as steady only once its first iteration with input has
+    //! completed (or once a minute has passed without input), so that the balancer reads the windowed
+    //! metrics after the initialization of the job has decayed out of them.
+    // TODO(thenewone): Temporary switch, remove after the metrics-history balancer rollout.
+    bool MarkPerformanceMetricsSteadyAfterFirstIteration{};
 
     REGISTER_YSON_STRUCT(TDynamicJobTrackerSpec);
 

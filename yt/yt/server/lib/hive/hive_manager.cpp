@@ -44,6 +44,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NHiveServer {
@@ -639,9 +641,9 @@ private:
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v",
-            srcCellId,
-            SelfCellId_);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_);
 
         HydraManager_->ValidatePeer(EPeerKind::Leader);
 
@@ -654,8 +656,8 @@ private:
             response->set_last_outcoming_message_id(*lastOutcomingMessageId);
         }
 
-        context->SetResponseInfo("LastOutcomingMessageId: %v",
-            lastOutcomingMessageId);
+        context->AnnotateResponse()
+            .With("LastOutcomingMessageId", lastOutcomingMessageId);
 
         context->Reply();
     }
@@ -664,7 +666,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
@@ -743,11 +745,10 @@ private:
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
         int messageCount = request->messages_size();
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v",
-            srcCellId,
-            SelfCellId_,
-            firstMessageId,
-            firstMessageId + messageCount - 1);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_)
+            .WithFormat("MessageIds", "%v-%v", firstMessageId, firstMessageId + messageCount - 1);
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -793,9 +794,9 @@ private:
 
         auto nextPersistentIncomingMessageId = cellRuntimeData->PersistentState->GetNextPersistentIncomingMessageId();
         auto nextTransientIncomingMessageId = cellRuntimeData->NextTransientIncomingMessageId;
-        context->SetResponseInfo("NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v",
-            nextPersistentIncomingMessageId,
-            nextTransientIncomingMessageId);
+        context->AnnotateResponse()
+            .With("NextPersistentIncomingMessageId", nextPersistentIncomingMessageId)
+            .With("NextTransientIncomingMessageId", nextTransientIncomingMessageId);
         context->Reply();
     }
 
@@ -806,10 +807,10 @@ private:
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         int messageCount = request->messages_size();
 
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageCount: %v",
-            srcCellId,
-            SelfCellId_,
-            messageCount);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_)
+            .With("MessageCount", messageCount);
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -829,8 +830,8 @@ private:
 
         auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
 
-        context->SetRequestInfo("SrcCellIds: %v",
-            srcCellIds);
+        context->AnnotateRequest()
+            .With("SrcCellIds", srcCellIds);
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -850,18 +851,18 @@ private:
             ? std::optional<TLogicalTime>(request->logical_time())
             : std::nullopt;
 
-        context->SetRequestInfo("LogicalTime: %v",
-            requestTime);
+        context->AnnotateRequest()
+            .With("LogicalTime", requestTime);
 
         auto [logicalTime, state] = LogicalTimeRegistry_->GetConsistentState(requestTime);
         response->set_logical_time(logicalTime.Underlying());
         response->set_sequence_number(state.SequenceNumber);
         response->set_segment_id(state.SegmentId);
 
-        context->SetResponseInfo("StateLogicalTime: %v, StateSequenceNumber: %v, StateSegmentId: %v",
-            logicalTime,
-            state.SequenceNumber,
-            state.SegmentId);
+        context->AnnotateResponse()
+            .With("StateLogicalTime", logicalTime)
+            .With("StateSequenceNumber", state.SequenceNumber)
+            .With("StateSegmentId", state.SegmentId);
         context->Reply();
     }
 
@@ -1077,7 +1078,6 @@ private:
             }
         }
 
-        auto sequenceNumber = mutationContext ? mutationContext->GetSequenceNumber() : 0;
         YT_TLOG_DEBUG("Reliable outcoming message added")
             .With("MutationType", message->Type)
             .With("SrcCellId", SelfCellId_)
@@ -1085,7 +1085,7 @@ private:
                 builder->AppendFormat("%v=>%v", dstId.first, dstId.second);
             }))
             .WithIf(mutationContext, "LogicalTime", logicalTime)
-            .WithIf(mutationContext, "SequenceNumber", sequenceNumber);
+            .WithIf(mutationContext, "SequenceNumber", YT_LAZY(mutationContext->GetSequenceNumber()));
     }
 
     void UnreliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)

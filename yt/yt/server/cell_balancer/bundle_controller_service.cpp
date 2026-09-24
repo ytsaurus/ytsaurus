@@ -230,8 +230,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, GetBundleConfig)
     {
         const auto& bundleName = request->bundle_name();
-        context->SetRequestInfo("BundleName: %v",
-            bundleName);
+        context->AnnotateRequest()
+            .With("BundleName", bundleName);
 
         auto timeout = context->GetTimeout();
 
@@ -251,8 +251,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, SetBundleConfig)
     {
         const auto& bundleName = request->bundle_name();
-        context->SetRequestInfo("BundleName: %v",
-            bundleName);
+        context->AnnotateRequest()
+            .With("BundleName", bundleName);
 
         auto timeout = context->GetTimeout();
 
@@ -272,9 +272,9 @@ private:
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto nodeAddress = FromProto<std::string>(request->node_address());
 
-        context->SetRequestInfo("NodeId: %v, NodeAddress: %v",
-            nodeId,
-            nodeAddress);
+        context->AnnotateRequest()
+            .With("NodeId", nodeId)
+            .With("NodeAddress", nodeAddress);
 
         if (!Bootstrap_->GetElectionManager()->IsLeader()) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bundle controller instance is not leading");

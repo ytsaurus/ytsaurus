@@ -28,9 +28,9 @@ void TCypressProxyServiceBase::InitContext(TCypressProxyServiceContext<TRequestM
     auto cellTag = FromProto<NObjectClient::TCellTag>(ext.cell_tag());
     auto kind = FromProto<NApi::EMasterChannelKind>(ext.master_channel_kind());
 
-    context->SetIncrementalRequestInfo("TargetMasterCellTag: %v, TargetMasterChannelKind: %v",
-        cellTag,
-        kind);
+    context->AnnotateRequest(/*flush*/ false)
+        .With("TargetMasterCellTag", cellTag)
+        .With("TargetMasterChannelKind", kind);
 
     YT_TLOG_ALERT_AND_THROW_UNLESS(
         kind == NApi::EMasterChannelKind::Leader || kind == NApi::EMasterChannelKind::Follower,

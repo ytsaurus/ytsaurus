@@ -117,6 +117,9 @@ func NewClient(conf *yt.Config) (*client, error) {
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
+			bus.WithFeatureIDFormatter(func(featureID int32) string {
+				return rpcProxyFeature(featureID).String()
+			}),
 			bus.WithNetwork(conf.GetIPVersion().Network()),
 		}
 		if conf.UseTLS && transport.TLSClientConfig != nil {
@@ -421,6 +424,10 @@ func (c *client) LockRows(
 	keys []any,
 	opts *yt.LockRowsOptions,
 ) (err error) {
+	if err := validateLockRows(path, locks); err != nil {
+		return err
+	}
+
 	if opts == nil {
 		opts = &yt.LockRowsOptions{}
 	}
@@ -428,13 +435,15 @@ func (c *client) LockRows(
 		opts.TransactionOptions = &yt.TransactionOptions{}
 	}
 
-	if len(keys) == 0 {
-		return nil
-	}
-
 	var zero yt.TxID
 	if opts.TransactionID != zero {
-		return c.Encoder.LockRows(ctx, path, locks, lockType, keys, opts)
+		return yterrors.Err("external transactions are not supported by LockRows",
+			yterrors.Attr("path", path.String()),
+			yterrors.Attr("method", "lock_rows"))
+	}
+
+	if len(keys) == 0 {
+		return nil
 	}
 
 	tx, err := c.BeginTabletTx(ctx, nil)

@@ -1116,7 +1116,8 @@ void ImportSnapshotMain(int argc, const char** argv)
         realDestinationTablesNames.emplace_back(std::move(realDestinationTable));
     }
     for (const auto& snapshotId : snapshots) {
-        YT_LOG_INFO("Attempting import of [%v]", snapshotId);
+        YT_TLOG_INFO("Attempting snapshot import")
+            .With("SnapshotId", snapshotId);
     }
     pipeline.Run();
 
@@ -1142,6 +1143,7 @@ void ImportSnapshotMain(int argc, const char** argv)
         client->MountTable(realDestinationTable);
         client->Set(NYT::Format("%v/@_features", realDestinationTable), TNode::CreateMap()("recursive_versioned_resource_usage", 1)("type_in_key", 1));
 
-        YT_LOG_INFO("Import of [%v] done.", snapshotId);
+        YT_TLOG_INFO("Snapshot import done")
+            .With("SnapshotId", snapshotId);
     }
 }

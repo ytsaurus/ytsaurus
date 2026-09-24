@@ -1,25 +1,28 @@
 #include "chunk_manager.h"
 
-#include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
 #include "chunk_creation_time_histogram_builder.h"
 #include "chunk_list.h"
 #include "chunk_list_type_handler.h"
+#include "chunk_location.h"
 #include "chunk_merger.h"
 #include "chunk_owner_base.h"
-#include "chunk_reincarnator.h"
-#include "chunk_replicator.h"
-#include "chunk_replica_fetcher.h"
 #include "chunk_placement.h"
-#include "chunk_type_handler.h"
+#include "chunk_reincarnator.h"
+#include "chunk_replica_fetcher.h"
+#include "chunk_replicator.h"
 #include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_tree_traverser.h"
+#include "chunk_type_handler.h"
 #include "chunk_view.h"
 #include "chunk_view_type_handler.h"
 #include "config.h"
+#include "consistent_chunk_placement.h"
 #include "data_node_tracker.h"
+#include "domestic_medium.h"
+#include "domestic_medium_type_handler.h"
 #include "dynamic_store.h"
 #include "dynamic_store_type_handler.h"
 #include "helpers.h"
@@ -27,9 +30,7 @@
 #include "job_controller.h"
 #include "job_registry.h"
 #include "master_cell_chunk_statistics_collector.h"
-#include "domestic_medium.h"
-#include "domestic_medium_type_handler.h"
-#include "chunk_location.h"
+#include "private.h"
 #include "s3_medium.h"
 #include "s3_medium_type_handler.h"
 #include "sequoia_chunk_refresher.h"
@@ -37,13 +38,14 @@
 
 #include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
-#include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
@@ -76,12 +78,13 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_owner_base.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
-#include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_manager.h>
+#include <yt/yt/server/master/journal_server/journal_node.h>
 
 #include <yt/yt/server/lib/chunk_server/helpers.h>
 #include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
@@ -97,25 +100,28 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
-#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -140,8 +146,9 @@
 #include <yt/yt/library/profiling/simple_sensor_impl.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
-#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/parallel_runner.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -7546,6 +7553,8 @@ private:
             .With("Destroyed", isDestroyed)
             .With("ChunkId", chunkIdWithIndex)
             .With("Address", node->GetDefaultAddress())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationId", location->GetId())
             .With("NodeId", nodeId);
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);

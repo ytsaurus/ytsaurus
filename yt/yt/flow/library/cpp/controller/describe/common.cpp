@@ -401,8 +401,6 @@ void FillRetryableErrors(const THashMap<std::string, TError>& errors, std::vecto
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 double GetMostStableCpuUsage(const TNodePerformanceMetricsPtr& metrics)
@@ -412,12 +410,7 @@ double GetMostStableCpuUsage(const TNodePerformanceMetricsPtr& metrics)
 
 i64 GetMostStableMemoryUsage(const TNodePerformanceMetricsPtr& metrics)
 {
-    for (i64 value : {metrics->MemoryUsage10m, metrics->MemoryUsage30s, metrics->MemoryUsageCurrent}) {
-        if (value) {
-            return value;
-        }
-    }
-    return 0;
+    return metrics->MemoryUsage10m.value_or(metrics->MemoryUsage30s.value_or(metrics->MemoryUsageCurrent.value_or(0)));
 }
 
 } // namespace
@@ -427,6 +420,7 @@ i64 GetMostStableMemoryUsage(const TNodePerformanceMetricsPtr& metrics)
 THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
     const TFlowViewPtr& flowView,
     const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions,
+    const THashMap<std::string, TError>& controllerErrors,
     TCurrentResourceUsage* currentResourceUsage)
 {
     THashMap<TComputationId, TComputationDescription> computationDescriptions;
@@ -463,7 +457,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
             {
                 const auto& performanceMetrics = intermediatePartition.PartitionJobStatus->CurrentJobStatus->PerformanceMetrics;
                 currentResourceUsage->CpuUsageCores += performanceMetrics->CpuUsageCurrent.value_or(0.0);
-                currentResourceUsage->MemoryUsage += performanceMetrics->MemoryUsageCurrent;
+                currentResourceUsage->MemoryUsage += performanceMetrics->MemoryUsageCurrent.value_or(0);
             }
             if (intermediatePartition.PartitionJobStatus && intermediatePartition.PartitionJobStatus->CurrentJobStatus) {
                 const auto& currentJobStatus = intermediatePartition.PartitionJobStatus->CurrentJobStatus;
@@ -523,6 +517,27 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         }
     }
 
+    static const std::string ComputationControllerPrefix = "/job_manager/computation_controllers/";
+    THashMap<TComputationId, THashMap<std::string, TError>> computationControllerErrors;
+    for (const auto& [component, error] : controllerErrors) {
+        if (!component.starts_with(ComputationControllerPrefix)) {
+            continue;
+        }
+
+        auto computationIdEnd = component.find('/', ComputationControllerPrefix.size());
+        auto computationId = TComputationId(component.substr(
+            ComputationControllerPrefix.size(),
+            computationIdEnd - ComputationControllerPrefix.size()));
+        if (computationId.Underlying().empty() || !computationDescriptions.contains(computationId)) {
+            continue;
+        }
+        computationControllerErrors[computationId].emplace(component, error);
+    }
+    for (const auto& [computationId, errors] : computationControllerErrors) {
+        auto& computationDescription = GetOrCrash(computationDescriptions, computationId);
+        FillRetryableErrors(errors, computationDescription.Messages, &computationDescription.Status);
+    }
+
     // Cpu and memory usage.
     THashMap<TComputationId, double> cpuUsages;
     THashMap<TComputationId, double> memoryUsages;
@@ -579,7 +594,7 @@ void FillPartitionDescription(
 
         const auto& performanceMetrics = jobStatus->PerformanceMetrics;
         description.CpuUsage = GetMostStableCpuUsage(performanceMetrics);
-        description.MemoryUsage = performanceMetrics->MemoryUsage10m;
+        description.MemoryUsage = GetMostStableMemoryUsage(performanceMetrics);
 
         if (jobStatus->InputMetrics) {
             description.MessagesPerSecond += jobStatus->InputMetrics->Global.MessagesPerSecond;

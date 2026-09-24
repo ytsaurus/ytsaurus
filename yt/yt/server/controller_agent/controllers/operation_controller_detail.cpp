@@ -2262,7 +2262,8 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& [chunkId, job] : ChunkOriginMap_) {
-        if (!job->Suspended || !job->Restartable) {
+        // The scraper only needs chunks whose recovery can still affect a destination task.
+        if ((!job->Suspended || !job->Restartable) && job->SourceTask->IsJobOutputNeeded(job)) {
             intermediateChunks.insert(chunkId);
         }
     }
@@ -2717,7 +2718,7 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
-    CancelableContext_->Cancel(TError("Operation committed"));
+    CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Operation committed"));
 
     YT_TLOG_INFO("Results committed");
 }
@@ -3879,6 +3880,14 @@ void TOperationControllerBase::UpdatePreemptibleProgressStartTime(
     if (joblet->PreemptibleProgressStartTime < preemptibleProgressStartTime) {
         joblet->PreemptibleProgressStartTime = preemptibleProgressStartTime;
         RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = preemptibleProgressStartTime;
+
+        if (jobSummary->LastProgressSaveTime.has_value()) {
+            LogEventFluently(ELogEventType::ProgressSaved)
+                .Item("job_id").Value(jobId)
+                .Item("allocation_id").Value(AllocationIdFromJobId(jobId))
+                .Item("operation_id").Value(OperationId_)
+                .Item("preemptible_progress_start_time").Value(preemptibleProgressStartTime);
+        }
     }
 }
 
@@ -4294,6 +4303,14 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap_, chunkId);
+
+    if (!completedJob->SourceTask->IsJobOutputNeeded(completedJob)) {
+        YT_TLOG_DEBUG("Ignoring unavailable intermediate chunk whose output is no longer needed")
+            .With("ChunkId", chunkId)
+            .With("JobId", completedJob->JobId);
+        IntermediateChunkScraper_->UpdateChunkSet();
+        return false;
+    }
 
     YT_TLOG_DEBUG("Intermediate chunk is lost")
         .With("ChunkId", chunkId)
@@ -5433,7 +5450,7 @@ void TOperationControllerBase::Cancel()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    CancelableContext_->Cancel(TError("Operation controller canceled"));
+    CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Operation controller canceled"));
 
     YT_TLOG_INFO("Operation controller canceled");
 }

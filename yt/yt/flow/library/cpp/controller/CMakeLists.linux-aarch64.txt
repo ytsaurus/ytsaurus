@@ -53,6 +53,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   yt-library-orchid
   library-profiling-solomon
   library-query-engine_api
+  server-lib-chaos_election
 )
 
 target_sources(library-cpp-controller PRIVATE
@@ -68,12 +69,13 @@ target_sources(library-cpp-controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_balancer_result.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lease_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lineage_rate_aggregator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lineage_aggregator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/persisted_state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_access.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/throttler_host.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/worker_coef_estimator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/worker_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/worker_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/worker.cpp

@@ -933,8 +933,28 @@ public:
             for (const auto& setting : publish.Settings().Ref().Children()) {
                 const auto settingType = FromString<EYtSettingType>(setting->Head().Content());
                 if (setting->ChildrenSize() == 2) {
-                    TString value = TString{setting->Tail().Content()};
-                    if (EYtSettingType::ColumnGroups == settingType) {
+                    TString value;
+                    if (EYtSettingType::UserAttrs == settingType) {
+                        if (setting->Tail().IsCallable("Nothing")) {
+                            YQL_LOG_CTX_THROW TErrorException(TIssuesIds::DEFAULT_ERROR)
+                                << "Failed to parse user attributes Yson: String evaluated to null";
+                        }
+                        if (setting->Tail().IsCallable("String")) {
+                            YQL_ENSURE(setting->Tail().ChildrenSize() == 1);
+                            YQL_ENSURE(setting->Tail().Head().IsAtom());
+                            value = setting->Tail().Head().Content();
+                        } else if (setting->Tail().IsCallable("Just")) {
+                            YQL_ENSURE(setting->Tail().ChildrenSize() == 1);
+                            YQL_ENSURE(setting->Tail().Head().IsCallable("String"));
+                            YQL_ENSURE(setting->Tail().Head().ChildrenSize() == 1);
+                            YQL_ENSURE(setting->Tail().Head().Head().IsAtom());
+                            value = setting->Tail().Head().Head().Content();
+                        } else {
+                            YQL_ENSURE(setting->Tail().IsAtom());
+                            value = setting->Tail().Content();
+                        }
+                    } else if (EYtSettingType::ColumnGroups == settingType) {
+                        value = setting->Tail().Content();
                         bool groupDiff = false;
                         if (srcColumnGroupAlts.empty()) {
                             groupDiff = true;
@@ -952,6 +972,8 @@ public:
                             forceMerge = forceTransform = true;
                             YQL_CLOG(INFO, ProviderYt) << "Column groups diff forces merge";
                         }
+                    } else {
+                        value = setting->Tail().Content();
                     }
                     strOpts.emplace(settingType, value);
                 } else if (setting->ChildrenSize() == 1) {
@@ -1033,38 +1055,101 @@ public:
         }
     }
 
+    TFuture<TUnlockTablesResult> UnlockTables(TUnlockTablesOptions&& options) final {
+        YQL_LOG_CTX_SCOPE(TStringBuf("Gateway"), __FUNCTION__);
+        try {
+            TSession::TPtr session = GetSession(options.SessionId());
+
+            THashMap<TString, TVector<TUnlockTablesOptions::TUnlockTable>> tablesByCluster;
+            for (const auto& item : options.Tables()) {
+                tablesByCluster[item.Cluster].push_back(item);
+            }
+
+            if (YQL_CLOG_ACTIVE(INFO, ProviderYt)) {
+                auto& paths = options.Tables();
+                for (size_t i: xrange(Min<size_t>(paths.size(), 10))) {
+                    const auto& path = paths[i].Path;
+                    const auto& cluster = paths[i].Cluster;
+                    const auto& epoch = paths[i].Epoch;
+                    YQL_CLOG(INFO, ProviderYt) << "Release snapshot lock '" << path << "' from epoch '" << epoch << "' on cluster '" << cluster << "'";
+                }
+                if (paths.size() > 10) {
+                    YQL_CLOG(INFO, ProviderYt) << "...total tables=" << paths.size();
+                }
+            }
+
+            TVector<TFuture<void>> futures;
+            for (auto &[cluster, tables] : tablesByCluster) {
+                auto ytServer = Clusters_->TryGetServer(cluster);
+                if (!ytServer) {
+                    continue;
+                }
+                auto entry = session->TxCache_.TryGetEntry(ytServer);
+                if (!entry) {
+                    continue;
+                }
+                auto execCtx = MakeExecCtx(TUnlockTablesOptions(options), session, cluster, nullptr, nullptr);
+                const auto tmpFolder = GetTablesTmpFolder(*options.Config(), cluster, session->UseSecureTmp_, session->OperationOptions_);
+                THashMap<TTransactionId, TVector<TString>> pathsByTx;
+                with_lock(entry->Lock_) {
+                    for (auto& table : tables) {
+                        auto path = NYql::TransformPath(tmpFolder, table.Path, table.Anonymous, session->UserName_);
+                        if (auto it = entry->Snapshots.find(std::make_pair(path, table.Epoch))) {
+                            pathsByTx[std::get<TTransactionId>(it->second)].push_back(std::move(path));
+                            entry->Snapshots.erase(it);
+                        }
+                    }
+                    for (auto &[txId, paths] : pathsByTx) {
+                        if (auto tx = entry->SnapshotTxs.FindPtr(txId)) {
+                            futures.push_back(session->Async([tx = *tx, execCtx, unlockPaths = std::move(paths)] () {
+                                YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
+                                return ExecUnlockTables(unlockPaths, tx);
+                            }));
+                        }
+                    }
+                }
+            }
+
+            return WaitExceptionOrAll(futures).Apply([] (const TFuture<void>& /*f*/) {
+                TUnlockTablesResult res;
+                res.SetSuccess();
+                return res;
+            });
+        } catch (...) {
+            return MakeFuture(ResultFromCurrentException<TUnlockTablesResult>());
+        }
+    }
+
     TFuture<TDropTrackablesResult> DropTrackables(TDropTrackablesOptions&& options) final {
         YQL_LOG_CTX_SCOPE(TStringBuf("Gateway"), __FUNCTION__);
         try {
             TSession::TPtr session = GetSession(options.SessionId());
 
             if (YQL_CLOG_ACTIVE(INFO, ProviderYt)) {
-                for (size_t i: xrange(Min<size_t>(options.Pathes().size(), 10))) {
-                    const auto& path = options.Pathes()[i].Path;
-                    const auto& cluster = options.Pathes()[i].Cluster;
+                for (size_t i: xrange(Min<size_t>(options.Paths().size(), 10))) {
+                    const auto& path = options.Paths()[i].Path;
+                    const auto& cluster = options.Paths()[i].Cluster;
                     YQL_CLOG(INFO, ProviderYt) << "Dropping temporary table '" << path << "' on cluster '" << cluster << "'";
                 }
-                if (options.Pathes().size() > 10) {
-                    YQL_CLOG(INFO, ProviderYt) << "...total dropping tables=" << options.Pathes().size();
+                if (options.Paths().size() > 10) {
+                    YQL_CLOG(INFO, ProviderYt) << "...total dropping tables=" << options.Paths().size();
                 }
             }
 
             THashMap<TString, TVector<TString>> pathsByCluster;
-            for (const auto& i : options.Pathes()) {
+            for (const auto& i : options.Paths()) {
                 pathsByCluster[i.Cluster].push_back(i.Path);
             }
 
             TVector<TFuture<void>> futures;
-            for (const auto& i : pathsByCluster) {
+            for (auto& i : pathsByCluster) {
                 auto cluster = i.first;
-                auto paths = i.second;
-
 
                 auto execCtx = MakeExecCtx(TDropTrackablesOptions(options), session, cluster, nullptr, nullptr);
 
-                futures.push_back(session->Async([execCtx, paths] () {
+                futures.push_back(session->Async([execCtx, dropPaths = std::move(i.second)] () {
                     YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
-                    return ExecDropTrackables(paths, execCtx);
+                    return ExecDropTrackables(dropPaths, execCtx);
                 }));
             }
 
@@ -2489,7 +2574,17 @@ private:
 
         const auto userAttrsIt = strOpts.find(EYtSettingType::UserAttrs);
         if (userAttrsIt != strOpts.cend()) {
-            const NYT::TNode mapNode = NYT::NodeFromYsonString(userAttrsIt->second);
+            NYT::TNode mapNode;
+            try {
+                mapNode = NYT::NodeFromYsonString(userAttrsIt->second);
+            } catch (const ::NYson::TYsonException& e) {
+                YQL_LOG_CTX_THROW TErrorException(TIssuesIds::DEFAULT_ERROR)
+                    << "Failed to parse user attributes Yson: " << e.what();
+            }
+            if (!mapNode.IsMap()) {
+                YQL_LOG_CTX_THROW TErrorException(TIssuesIds::DEFAULT_ERROR)
+                    << "Failed to parse user attributes Yson: Expected Yson map, got " << mapNode.GetType();
+            }
             const auto& map = mapNode.AsMap();
             for (auto it = map.cbegin(); it != map.cend(); ++it) {
                 yqlAttrs[it->first] = it->second;
@@ -2542,7 +2637,7 @@ private:
                                     securityTagsNode] (const auto& f) mutable
             {
                 if (f.GetValue()) {
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
                 // Use explicit columns for source tables to cut aux columns
@@ -2729,6 +2824,35 @@ private:
             }
         };
         return res.Apply(setAttrs).Apply(commitCheckpoint);
+    }
+
+    static TFuture<void> ExecUnlockTables(const TVector<TString>& paths,
+        const ITransactionPtr& tx)
+    {
+        if (paths.empty()) {
+            return MakeFuture();
+        }
+
+        auto batch = tx->CreateBatchRequest();
+
+        TVector<TFuture<void>> batchResults;
+        for (auto& path : paths) {
+            batchResults.push_back(batch->Unlock(path));
+        }
+        batch->ExecuteBatch();
+
+        return WaitAll(batchResults).Apply([futures = batchResults](const NThreading::TFuture<void>&) {
+            for (auto& f : futures) {
+                if (f.HasException()) {
+                    try {
+                        f.TryRethrow();
+                    } catch (std::exception& e) {
+                        YQL_CLOG(WARN, ProviderYt) << "Cannot unlock table: " << CurrentExceptionMessage();
+                        return;
+                    }
+                }
+            }
+        });
     }
 
     static TFuture<void> ExecDropTrackables(const TVector<TString>& paths,
@@ -3668,7 +3792,7 @@ private:
                 bool cacheHit = f.GetValue();
                 TVector<TRichYPath> outYPaths = PrepareDestinations(execCtx->OutTables_, execCtx, entry, !cacheHit);
                 if (cacheHit) {
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
 
@@ -3710,7 +3834,7 @@ private:
             YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
             execCtx->SetNodeExecProgress("Preparing");
             auto entry = execCtx->GetEntry();
-            execCtx->QueryCacheItem.Destroy(); // Don't use cache for YtCopy
+            execCtx->QueryCacheItem.reset(); // Don't use cache for YtCopy
             TOutputInfo& out = execCtx->OutTables_.front();
 
             entry->DeleteAtFinalize(out.Path);
@@ -3782,7 +3906,7 @@ private:
                 bool cacheHit = f.GetValue();
                 TVector<TRichYPath> outYPaths = PrepareDestinations(execCtx->OutTables_, execCtx, entry, !cacheHit);
                 if (cacheHit) {
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
 
@@ -3859,7 +3983,7 @@ private:
             YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
             execCtx->SetNodeExecProgress("Preparing");
             auto entry = execCtx->GetEntry();
-            execCtx->QueryCacheItem.Destroy(); // Don't use cache for YtPersist
+            execCtx->QueryCacheItem.reset(); // Don't use cache for YtPersist
             TOutputInfo& out = execCtx->OutTables_.front();
 
             const bool remote = entry->Cluster != execCtx->InputTables_.front().Cluster;
@@ -3934,7 +4058,7 @@ private:
                 outYPaths = PrepareDestinations(execCtx->OutTables_, execCtx, entry, !cacheHit);
                 if (cacheHit) {
                     execCtx->ReportFullCaptureCacheHit();
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
             }
@@ -4108,7 +4232,7 @@ private:
                 outYPaths = PrepareDestinations(execCtx->OutTables_, execCtx, entry, !cacheHit);
                 if (cacheHit) {
                     execCtx->ReportFullCaptureCacheHit();
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
             }
@@ -5763,7 +5887,7 @@ private:
             .Apply([execCtx, entry, mapOpSpec = std::move(mapOpSpec), job, tmpTable, lambda, extraUsage, tmpFiles] (const TFuture<bool>& f) {
                 if (f.GetValue()) {
                     execCtx->ReportFullCaptureCacheHit();
-                    execCtx->QueryCacheItem.Destroy();
+                    execCtx->QueryCacheItem.reset();
                     return MakeFuture();
                 }
                 NYT::TNode spec = execCtx->Session_->CreateSpecWithDesc(execCtx->CodeSnippets_);

@@ -1160,6 +1160,28 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("balance_weights", &TThis::BalanceWeights)
         .Default({{EBalanceResource::Cpu, 1.0}, {EBalanceResource::Memory, 0.0}});
+    registrar.Parameter("balancer_metrics_source", &TThis::BalancerMetricsSource)
+        .Default(EBalancerMetricsSource::Job);
+    registrar.Parameter("balance_warmup_protection", &TThis::BalanceWarmupProtection)
+        .Default(false);
+    registrar.Parameter("balance_warmup_idle_worker_share", &TThis::BalanceWarmupIdleWorkerShare)
+        .Default(0.2)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("worker_coef_mode", &TThis::WorkerCoefMode)
+        .Default(EWorkerCoefMode::Legacy);
+    registrar.Parameter("worker_coef_half_life", &TThis::WorkerCoefHalfLife)
+        .Default(TDuration::Hours(24))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("worker_coef_retention", &TThis::WorkerCoefRetention)
+        .Default(TDuration::Days(7))
+        .GreaterThanOrEqual(TDuration::Zero());
+    registrar.Parameter("worker_coef_prior_weight", &TThis::WorkerCoefPriorWeight)
+        .Default(0.05)
+        .GreaterThan(0.);
+    registrar.Parameter("worker_coef_max_ratio", &TThis::WorkerCoefMaxRatio)
+        .Default(4.)
+        .GreaterThanOrEqual(1.);
     registrar.Parameter("disable_even_load_gate", &TThis::DisableEvenLoadGate)
         .Default();
     registrar.Parameter("async_balancing", &TThis::AsyncBalancing)
@@ -1233,6 +1255,9 @@ void TDynamicJobManagerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("worker_group_override", &TThis::WorkerGroupOverride)
         .Default();
+    registrar.Parameter("partition_history_limit", &TThis::PartitionHistoryLimit)
+        .Default(4096)
+        .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1352,6 +1377,9 @@ void TDynamicJobTrackerSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("state_cache", &TThis::StateCache)
         .DefaultNew();
+
+    registrar.Parameter("mark_performance_metrics_steady_after_first_iteration", &TThis::MarkPerformanceMetricsSteadyAfterFirstIteration)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2264,6 +2292,29 @@ void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
             for (const auto& name : GetKeys(computationSpec->StateManager->FormatOverrides)) {
                 validateStateKey("state_manager/format_overrides", name);
             }
+        }
+    }
+
+    // The ResourceQueue balancer asks for more workers below (1 - deviation) of the consumption, so
+    // a deviation of one or more silently stops provisioning; the other balancers use the field as
+    // a score threshold where any value is meaningful. Checked on set, not in the postprocessor: a
+    // stored spec of an older release must still load on recovery.
+    auto validateRebalanceTargetDeviation = [] (const TDynamicJobBalancerSpecPtr& balancerSpec, TStringBuf path) {
+        if (balancerSpec->BalancerType != EJobBalancerType::ResourceQueue) {
+            return;
+        }
+        double deviation = balancerSpec->RebalanceTargetDeviation;
+        if (deviation < 0.0 || deviation >= 1.0) {
+            THROW_ERROR_EXCEPTION(
+                "Rebalance target deviation %v of the ResourceQueue balancer at %v must be in [0, 1)",
+                deviation,
+                path);
+        }
+    };
+    if (const auto& jobManager = dynamicSpec->JobManager) {
+        validateRebalanceTargetDeviation(jobManager, "job_manager");
+        for (const auto& [workerGroup, groupSpec] : jobManager->WorkerGroupOverride) {
+            validateRebalanceTargetDeviation(groupSpec, Format("job_manager/worker_group_override/%v", workerGroup));
         }
     }
 }

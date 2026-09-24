@@ -331,10 +331,10 @@ func (a RawStateAccessor) Or(fallback []byte) []byte {
 	return fallback
 }
 
-// Set copies data into the state of the key.
+// Set copies data into the state of the key; empty data deletes the state.
 func (a RawStateAccessor) Set(data []byte) error {
 	if len(data) == 0 {
-		return xerrors.Errorf("flow: state %q: %w", a.holder.Name(), ErrEmptyStateValue)
+		return a.Clear()
 	}
 	return a.holder.Set(a.key, InternalState{Data: bytes.Clone(data)})
 }
@@ -509,14 +509,11 @@ func (s *ProtoState[T, PT]) Or(fallback PT) PT {
 	return fallback
 }
 
-// Set stores value as the state of the key.
+// Set stores value as the state of the key; a message that encodes to no bytes deletes the state.
 func (s *ProtoState[T, PT]) Set(value PT) error {
-	data, err := protoStateMarshalOptions.Marshal(value)
-	if err != nil {
+	// Report an unencodable message here, where the caller can still see which write caused it.
+	if _, err := protoStateMarshalOptions.Marshal(value); err != nil {
 		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), err)
-	}
-	if len(data) == 0 {
-		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), ErrEmptyStateValue)
 	}
 	s.bind(value)
 	return nil
@@ -649,10 +646,10 @@ func (a ExternalStateAccessor) Builder() *PayloadBuilder {
 	return NewPayloadBuilder(a.holder.StateSchema())
 }
 
-// Set stores value as the row of the key.
+// Set stores value as the row of the key; the zero Payload deletes the row.
 func (a ExternalStateAccessor) Set(value Payload) error {
 	if value.row == nil {
-		return xerrors.Errorf("flow: state %q: %w", a.holder.Name(), ErrEmptyStateValue)
+		return a.Clear()
 	}
 	return a.holder.Set(a.key, ExternalState{Value: value})
 }

@@ -89,6 +89,7 @@ public:
         IPipelineAuthenticatorPtr authenticator);
 
     TYsonString Execute(const std::string& command, const TYsonString& argument, const std::string& user) override;
+    void AuthorizeCommand(const std::string& command, const std::string& user) override;
 
 protected:
     TLogger Logger;
@@ -792,7 +793,8 @@ TYsonString TFlowExecutor::DescribeComputation(const std::string& /*command*/, c
     auto argument = ConvertTo<TDescribeComputationArg>(serializedArgument);
     auto descr = NDescribe::DescribeComputation(
         Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.ComputationId);
+        argument.ComputationId,
+        RootStatusProfiler_->GetStatus().Errors);
     return ConvertToYsonString(descr);
 }
 
@@ -801,7 +803,9 @@ TYsonString TFlowExecutor::DescribeComputation(const std::string& /*command*/, c
 TYsonString TFlowExecutor::DescribeComputations(const std::string& /*command*/, const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TEmptyArg>(serializedArgument);
-    return ConvertToYsonString(NDescribe::DescribeComputations(Controller_->GetFlowViewKeeper()->GetFlowView()));
+    return ConvertToYsonString(NDescribe::DescribeComputations(
+        Controller_->GetFlowViewKeeper()->GetFlowView(),
+        RootStatusProfiler_->GetStatus().Errors));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1300,6 +1304,7 @@ TYsonString TFlowExecutor::ReadStates(const std::string& /*command*/, const TYso
                     YTConnector_->GetPipelinePath(),
                     Authenticator_,
                     RootStatusProfiler_,
+                    ControllerProfiler().WithPrefix("/flow_executor"),
                     converterCache,
                     Logger);
                 auto externalFilters = BuildExternalStateFilters(
@@ -1392,6 +1397,7 @@ TYsonString TFlowExecutor::DeleteStates(const std::string& /*command*/, const TY
                     YTConnector_->GetPipelinePath(),
                     Authenticator_,
                     RootStatusProfiler_,
+                    ControllerProfiler().WithPrefix("/flow_executor"),
                     converterCache,
                     Logger);
                 auto externalFilters = BuildExternalStateFilters(
@@ -1611,6 +1617,21 @@ TYsonString TFlowExecutor::Execute(const std::string& command, const TYsonString
     } else {
         return CommandNotFound(command, argument);
     }
+}
+
+void TFlowExecutor::AuthorizeCommand(const std::string& command, const std::string& user)
+{
+    auto it = CommandDescriptors_.find(command);
+    if (it == CommandDescriptors_.end()) {
+        CommandNotFound(command, {});
+    }
+    auto permission = it->second.RequiredPermission;
+    auto pipelinePath = YTConnector_->GetPipelinePath().GetPath();
+
+    auto response = WaitFor(YTConnector_->GetClient()->CheckPermission(user, pipelinePath, permission))
+        .ValueOrThrow();
+    response.ToError(user, permission)
+        .ThrowOnError("No %Qlv permission for pipeline %v", permission, pipelinePath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

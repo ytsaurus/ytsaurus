@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE, with_portals_dir)
 from yt_queue_agent_test_base import (GenericObjectPath, OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
@@ -5559,12 +5559,15 @@ class QueueStaticExportCrossCellBase(TestQueueStaticExport):
     EXPORT_DIR = None
 
     @authors("achulkov2", "nadya73")
+    @with_portals_dir
     def test_different_native_cells(self):
         _, queue_id = self._create_queue(self.QUEUE_PATH)
 
         self._create_export_destination(self.EXPORT_DIR, queue_id)
 
         assert get(f"{self.EXPORT_DIR}/@native_cell_tag") != get(f"{self.QUEUE_PATH}/@native_cell_tag")
+        queue_revision = get(f"{self.QUEUE_PATH}/@attribute_revision")
+        wait(lambda: get("//sys/@queue_agent_object_revisions")["queues"].get(self.QUEUE_PATH) == queue_revision)
 
         insert_rows(self.QUEUE_PATH, [{"$tablet_index": 0, "data": "foo"}] * 6)
         self._flush_table(self.QUEUE_PATH)
@@ -5604,19 +5607,25 @@ class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueu
 
 
 class TestQueueStaticExportSequoia(QueueStaticExportCrossCellBase):
+    NUM_TEST_PARTITIONS = 5
+
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_GROUND_TABLE_MOUNT_CACHE = False
     ENABLE_TMP_ROOTSTOCK = True
 
+    NUM_SECONDARY_MASTER_CELLS = 4
+
     QUEUE_PATH = "//tmp/q"
     EXPORT_DIR = "//sys/queue_export"
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["chunk_host", "cypress_node_host", "sequoia_node_host"]},
-        "12": {"roles": ["chunk_host", "cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]},
+        "14": {"roles": ["sequoia_node_host"]},
     }
 
 
@@ -6846,6 +6855,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         sync_unmount_table(queue_path)
         remove(f"{queue_path}/@hunk_storage_id")
+        assert get(f"{queue_path}/@hunk_storage_id") == "0-0-0-0"
         remove(f"{queue_path}/@static_export_config")
         self._wait_for_global_sync()
         assert get(f"{queue_path}/@locks") == []

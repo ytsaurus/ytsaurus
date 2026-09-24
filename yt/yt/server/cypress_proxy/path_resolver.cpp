@@ -154,7 +154,9 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, bool pathIsAdditional, TString
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
 
-    YT_TLOG_ALERT_IF(pathIsAdditional && method != "Copy", "Attempting to resolve path as additional for an unexpected method")
+    YT_TLOG_ALERT_IF(
+        pathIsAdditional && method != "Copy",
+        "Attempting to resolve path as additional for an unexpected method")
         .With("Method", method);
 
     if (method == "Copy" && pathIsAdditional) {

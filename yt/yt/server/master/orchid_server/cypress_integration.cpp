@@ -5,6 +5,8 @@
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/virtual.h>
 
+#include <yt/yt/server/master/object_server/object_detail.h>
+
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>

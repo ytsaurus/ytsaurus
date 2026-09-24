@@ -44,7 +44,7 @@ The Map operation supports the following additional options (the default values,
 
 ## Example specification
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   job_count = 100;

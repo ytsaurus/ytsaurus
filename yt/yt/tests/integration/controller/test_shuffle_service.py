@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, has_tvm_service_support
 
 from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
@@ -10,6 +10,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema
 
+from yt_driver_bindings import Driver as NativeDriver
 from yt_driver_rpc_bindings import Driver
 from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
@@ -23,6 +24,7 @@ import builtins
 import os
 import pytest
 import string
+import yt_error_codes
 
 
 ##################################################################
@@ -87,7 +89,6 @@ class TestShuffleService(YTEnvSetup):
     }
 
     DELTA_RPC_PROXY_CONFIG = {
-        "enable_shuffle_service": True,
         "signature_components": {
             "generation": {
                 "generator": {},
@@ -265,6 +266,63 @@ class TestShuffleService(YTEnvSetup):
             use_push_based_shuffle=use_push_based_shuffle,
             config={"no_such_section": {}, mode: {"no_such_option": 1}},
             **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
+
+    @authors("apollo1321")
+    def test_codec_compresses_and_round_trips(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        # get_chunks() is cluster-wide, and push-based shuffle creates its chunks at
+        # start_shuffle, so snapshot before that.
+        chunks_before = builtins.set(get_chunks())
+
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=2,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            codec="lz4",
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "string")]))
+
+        assert parser.loads(shuffle_handle["payload"].encode())["codec"] == "lz4"
+
+        row_size = 64 * 1024
+        rows = [{"key": key, "value": "a" * row_size} for key in range(2) for _ in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows)
+
+        # A reader left on another codec would decode compressed bytes as wire rows, not these.
+        for partition in range(2):
+            assert_items_equal(
+                read_shuffle_data(shuffle_handle, partition),
+                [row for row in rows if row["key"] == partition])
+
+        def get_new_chunks():
+            return [chunk for chunk in get_chunks() if chunk not in chunks_before]
+
+        if use_push_based_shuffle:
+            def get_written_bytes():
+                chunks = get_new_chunks()
+                if not chunks:
+                    return None
+                total = 0
+                for chunk in chunks:
+                    # Sizes reach the meta at seal, which the read above hints lazily.
+                    if not get(f"#{chunk}/@sealed"):
+                        return None
+                    total += get(f"#{chunk}/@compressed_data_size")
+                return total
+
+            wait(lambda: get_written_bytes() is not None)
+
+            # A journal stores what the writer handed it, so this is the size after compression.
+            assert get_written_bytes() < len(rows) * row_size // 10
+        else:
+            # Readers take the codec from the meta; what can go wrong is the writer never getting it.
+            chunks = get_new_chunks()
+            assert len(chunks) > 0
+            for chunk in chunks:
+                assert get(f"#{chunk}/@compression_codec") == "lz4"
+
+        commit_transaction(parent_transaction)
 
     @authors("apollo1321")
     def test_different_partition_columns(self, use_push_based_shuffle):
@@ -611,6 +669,40 @@ class TestShuffleService(YTEnvSetup):
             read_shuffle_data(modified_handle, 0)
 
     @authors("apollo1321")
+    @pytest.mark.parametrize("replication_factor", [2, 3])
+    def test_shuffle_read_with_fresh_native_driver(self, use_push_based_shuffle, replication_factor):
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=3,
+            parent_transaction_id=parent_transaction,
+            replication_factor=replication_factor,
+            use_push_based_shuffle=use_push_based_shuffle,
+            config=(
+                {"push": {}}
+                if use_push_based_shuffle
+                else {"pull": {"reader": {"fail_on_unresolved_node_id": True}}}),
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
+
+        rows = [{"key": partition, "value": value} for partition in range(2) for value in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows[:4])
+        write_shuffle_data(shuffle_handle, "key", rows[4:])
+
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 4
+        for partition in range(3):
+            native_driver = NativeDriver(native_config)
+            try:
+                assert_items_equal(
+                    read_shuffle_data(shuffle_handle, partition, driver=native_driver),
+                    [row for row in rows if row["key"] == partition])
+            finally:
+                native_driver.terminate()
+
+        commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
     def test_job_proxy_shuffle_service_without_api_service(self, use_push_based_shuffle):
         with raises_yt_error("Option .* cannot be enabled when .* is disabled"):
             run_test_vanilla(
@@ -856,6 +948,38 @@ class TestShuffleService(YTEnvSetup):
             assert read_quorum + write_quorum > replication_factor
 
         commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
+    @pytest.mark.skipif(not has_tvm_service_support, reason="Native authentication requires a TVM service")
+    def test_coordinator_requires_service_ticket(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=1,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
+
+        base_driver_config = deepcopy(self.Env.configs["driver"])
+        base_driver_config["connection_type"] = "native"
+
+        for ticket_mode in ["trusted", "missing", "wrong_destination"]:
+            driver_config = deepcopy(base_driver_config)
+            driver_config["api_version"] = 4
+            if ticket_mode == "missing":
+                driver_config.pop("tvm_id", None)
+                driver_config.pop("tvm_service", None)
+            elif ticket_mode == "wrong_destination":
+                driver_config["tvm_id"] += 1
+            driver = NativeDriver(driver_config)
+            try:
+                expected_error = (
+                    raises_yt_error("Invalid partition index") if ticket_mode == "trusted"
+                    else raises_yt_error(code=yt_error_codes.RpcAuthenticationError))
+                with expected_error:
+                    read_shuffle_data(shuffle_handle, partition_index=1, driver=driver)
+            finally:
+                driver.terminate()
 
 
 @pytest.mark.parametrize("use_push_based_shuffle", [False, True])

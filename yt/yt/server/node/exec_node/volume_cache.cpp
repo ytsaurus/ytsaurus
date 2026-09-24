@@ -173,8 +173,15 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
         .With("Tag", tag)
         .With("CypressPath", artifactKey.data_source().path());
 
+    auto downloadCpuStart = GetCpuInstant();
     return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
+            auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
+
+            if (downloadOptions.OnLayerDownloaded) {
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0, /*importSize*/ 0);
+            }
+
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
                 /*volume type*/ "squashfs",
                 /*Cypress path*/ "n/a");
@@ -1362,7 +1369,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
             auto importCpuDuration = GetCpuInstant() - importCpuStart;
 
             if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration);
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration, artifactKey.GetCompressedDataSize());
             }
 
             return New<TLayer>(layerMeta, artifactKey, location);

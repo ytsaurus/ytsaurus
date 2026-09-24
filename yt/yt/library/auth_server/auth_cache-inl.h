@@ -7,6 +7,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/core/concurrency/propagating_storage.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/jitter.h>
@@ -64,22 +66,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
             auto context = entry->Context;
             guard.Release();
 
-            DoGet(entry->Key, context)
-                .Subscribe(BIND([entry] (const TErrorOr<TValue>& value) {
-                    auto transientError = !value.IsOK() && !value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
-
-                    auto guard = Guard(entry->Lock);
-                    entry->Updating = false;
-
-                    if (transientError) {
-                        const auto& Logger = AuthLogger;
-                        YT_TLOG_DEBUG("Skipping transient error while updating authentication cache entry")
-                            .With(value);
-                        return;
-                    }
-
-                    entry->Future = MakeFuture(value);
-                }));
+            RefreshEntry(entry, context);
         }
 
         return future;
@@ -123,6 +110,30 @@ void TAuthCache<TKey, TValue, TContext>::Clear()
 }
 
 template <class TKey, class TValue, class TContext>
+void TAuthCache<TKey, TValue, TContext>::RefreshEntry(const TEntryPtr& entry, const TContext& context)
+{
+    // Refresh can outlive the request and must not share its mutable trace context.
+    NConcurrency::TNullPropagatingStorageGuard storageGuard;
+
+    DoGet(entry->Key, context)
+        .Subscribe(BIND_NO_PROPAGATE([entry] (const TErrorOr<TValue>& valueOrError) {
+            auto transientError = !valueOrError.IsOK() && !valueOrError.FindMatching(NRpc::EErrorCode::InvalidCredentials);
+
+            auto guard = Guard(entry->Lock);
+            entry->Updating = false;
+
+            if (transientError) {
+                const auto& Logger = AuthLogger;
+                YT_TLOG_DEBUG("Skipping transient error while updating authentication cache entry")
+                    .With(valueOrError);
+                return;
+            }
+
+            entry->Future = MakeFuture(valueOrError);
+        }));
+}
+
+template <class TKey, class TValue, class TContext>
 void TAuthCache<TKey, TValue, TContext>::ScheduleErase(const TEntryPtr& entry)
 {
     auto delay = ApplyJitter(
@@ -132,7 +143,7 @@ void TAuthCache<TKey, TValue, TContext>::ScheduleErase(const TEntryPtr& entry)
         [] { return RandomNumber<double>() - 1.0; });
 
     entry->EraseCookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
+        BIND_NO_PROPAGATE(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
         delay);
 }
 

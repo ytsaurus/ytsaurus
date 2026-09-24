@@ -26,7 +26,8 @@ public:
     TFuture<void> PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp);
+        TTimestamp prepareTimestamp,
+        int targetCommitApprovalCount = 0);
 
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,

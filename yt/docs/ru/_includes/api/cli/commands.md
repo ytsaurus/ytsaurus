@@ -10,6 +10,7 @@
 
 concatenates cypress nodes. This command applicable only to files and tables
 
+<a id="yt-concatenate"></a>
 ```bash
 usage: yt concatenate [-h] [--params PARAMS] --src SOURCE_PATHS --dst DESTINATION_PATH
 ```
@@ -26,6 +27,7 @@ usage: yt concatenate [-h] [--params PARAMS] --src SOURCE_PATHS --dst DESTINATIO
 
 copies Cypress node
 
+<a id="yt-copy"></a>
 ```bash
 usage: yt copy [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination-path DESTINATION_PATH] [--preserve-account | --no-preserve-account]
                [--preserve-owner | --no-preserve-owner] [--preserve-acl | --no-preserve-acl] [--preserve-creation-time] [--preserve-modification-time] [--preserve-expiration-time]
@@ -81,6 +83,7 @@ usage: yt copy [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 creates Cypress node
 
+<a id="yt-create"></a>
 ```bash
 usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-l] [-f] [--attributes ATTRIBUTES] [type] [path]
 ```
@@ -113,6 +116,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 . creates account
 
+<a id="yt-create-account"></a>
 ```bash
 usage: yt create-account [-h] [--params PARAMS] [--name NAME] [--parent-name PARENT_NAME] [--resource-limits RESOURCE_LIMITS] [-i] [--allow-children-limit-overcommit]
                          [--attributes ATTRIBUTES]
@@ -143,6 +147,7 @@ usage: yt create-account [-h] [--params PARAMS] [--name NAME] [--parent-name PAR
 
 . creates scheduler pool
 
+<a id="yt-create-pool"></a>
 ```bash
 usage: yt create-pool [-h] [--params PARAMS] [--name NAME] [--pool-tree POOL_TREE] [--parent-name PARENT_NAME] [--weight WEIGHT] [--mode MODE]
                       [--fifo-sort-parameters FIFO_SORT_PARAMETERS] [--max-operation-count MAX_OPERATION_COUNT] [--max-running-operation-count MAX_RUNNING_OPERATION_COUNT]
@@ -198,6 +203,7 @@ usage: yt create-pool [-h] [--params PARAMS] [--name NAME] [--pool-tree POOL_TRE
 
 checks if Cypress node exists
 
+<a id="yt-exists"></a>
 ```bash
 usage: yt exists [-h] [--params PARAMS] [--path PATH] [--suppress-transaction-coordinator-sync] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE] [path]
 ```
@@ -222,6 +228,7 @@ usage: yt exists [-h] [--params PARAMS] [--path PATH] [--suppress-transaction-co
 
 externalize cypress node
 
+<a id="yt-externalize"></a>
 ```bash
 usage: yt externalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [path]
 ```
@@ -242,6 +249,7 @@ usage: yt externalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 searches for some nodes in Cypress subtree
 
+<a id="yt-find"></a>
 ```bash
 usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] [--account ACCOUNT] [--owner OWNER] [--follow-links] [--attribute-filter ATTRIBUTE_FILTER]
                [--depth DEPTH] [-l] [--recursive-resource-usage] [--time-type {access_time,modification_time,creation_time}] [--read-from READ_FROM]
@@ -259,13 +267,7 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--name, -name`    pattern of node name, use shell-style wildcards:
-
-> ```
-> *
-> ```
-
-> , ?, [seq], [!seq]
+> `--name, -name`    pattern of node name, use shell-style wildcards: `*, ?, [seq], [!seq]`
 
 > `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
@@ -285,7 +287,7 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 > `--time-type`    Possible choices: access_time, modification_time, creation_time
 
-> type of time to use in long-format, default: `«modification_time»`
+> type of time to use in long-format, default: ``'modification_time'``
 
 > `--read-from`    Can be set to «cache» to enable reads from system cache
 
@@ -295,6 +297,7 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 gets Cypress node content (attribute tree)
 
+<a id="yt-get"></a>
 ```bash
 usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--format FORMAT] [--attribute ATTRIBUTES] [--suppress-transaction-coordinator-sync] [--read-from READ_FROM]
               [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE]
@@ -313,7 +316,7 @@ usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--form
 
 > `--max-size`    maximum size of entries returned by get; if actual directory size exceeds that value only subset of entries will be listed (it’s not specified which subset); default value is enough to list any nonsystem directory.
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'<format=pretty>yson'``
 
 > `--attribute`    desired node attributes in the response Accepted multiple times.
 
@@ -327,6 +330,7 @@ usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--form
 
 internalize cypress node
 
+<a id="yt-internalize"></a>
 ```bash
 usage: yt internalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [path]
 ```
@@ -347,6 +351,7 @@ usage: yt internalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 makes link to Cypress node
 
+<a id="yt-link"></a>
 ```bash
 usage: yt link [-h] [--params PARAMS] [--target-path TARGET_PATH] [--link-path LINK_PATH] [-r] [-i] [-l] [-f] [--attributes ATTRIBUTES] [target_path] [link_path]
 ```
@@ -379,6 +384,7 @@ usage: yt link [-h] [--params PARAMS] [--target-path TARGET_PATH] [--link-path L
 
 lists directory (map_node) content. Node type must be «map_node»
 
+<a id="yt-list"></a>
 ```bash
 usage: yt list [-h] [--params PARAMS] [--path PATH] [-l] [--format FORMAT] [--attribute ATTRIBUTES] [--max-size MAX_SIZE] [--recursive-resource-usage]
                [--suppress-transaction-coordinator-sync] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE] [--absolute]
@@ -417,6 +423,7 @@ usage: yt list [-h] [--params PARAMS] [--path PATH] [-l] [--format FORMAT] [--at
 
 moves (renames) Cypress node
 
+<a id="yt-move"></a>
 ```bash
 usage: yt move [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination-path DESTINATION_PATH] [--preserve-account | --no-preserve-account]
                [--preserve-owner | --no-preserve-owner] [--preserve-acl | --no-preserve-acl] [--preserve-creation-time] [--preserve-modification-time] [--preserve-expiration-time]
@@ -468,6 +475,7 @@ usage: yt move [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 removes Cypress node
 
+<a id="yt-remove"></a>
 ```bash
 usage: yt remove [-h] [--params PARAMS] [--path PATH] [-r] [-f] [path]
 ```
@@ -490,6 +498,7 @@ usage: yt remove [-h] [--params PARAMS] [--path PATH] [-r] [-f] [path]
 
 removes attribute at given path
 
+<a id="yt-remove-attribute"></a>
 ```bash
 usage: yt remove-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name
 ```
@@ -512,6 +521,7 @@ usage: yt remove-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name
 
 sets new value to Cypress node
 
+<a id="yt-set"></a>
 ```bash
 usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [--suppress-transaction-coordinator-sync] [--value VALUE] [path] [value]
 ```
@@ -528,7 +538,7 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'yson'``
 
 > `-r, --recursive`
 
@@ -542,6 +552,7 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 sets attribute at given path
 
+<a id="yt-set-attribute"></a>
 ```bash
 usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name value
 ```
@@ -570,6 +581,7 @@ usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name va
 
 downloads file from path in Cypress to local machine
 
+<a id="yt-download"></a>
 ```bash
 usage: yt download [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_READER] [--offset OFFSET] [--length LENGTH] [path]
 ```
@@ -594,6 +606,7 @@ usage: yt download [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_READ
 
 downloads file from path in Cypress to local machine
 
+<a id="yt-read-file"></a>
 ```bash
 usage: yt read-file [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_READER] [--offset OFFSET] [--length LENGTH] [path]
 ```
@@ -618,6 +631,7 @@ usage: yt read-file [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_REA
 
 uploads file to destination path from stream on local machine
 
+<a id="yt-upload"></a>
 ```bash
 usage: yt upload [-h] [--params PARAMS] [--destination DESTINATION] [--file-writer FILE_WRITER] [--compressed] [--executable] [--compute-md5] [--no-compression] [destination]
 ```
@@ -646,6 +660,7 @@ usage: yt upload [-h] [--params PARAMS] [--destination DESTINATION] [--file-writ
 
 uploads file to destination path from stream on local machine
 
+<a id="yt-write-file"></a>
 ```bash
 usage: yt write-file [-h] [--params PARAMS] [--destination DESTINATION] [--file-writer FILE_WRITER] [--compressed] [--executable] [--compute-md5] [--no-compression] [destination]
 ```
@@ -678,6 +693,7 @@ usage: yt write-file [-h] [--params PARAMS] [--destination DESTINATION] [--file-
 
 performs schema and other table meta information modifications
 
+<a id="yt-alter-table"></a>
 ```bash
 usage: yt alter-table [-h] [--params PARAMS] [--path PATH] [--schema [SCHEMA]] [--dynamic | --static] [--upstream-replica-id UPSTREAM_REPLICA_ID] [path]
 ```
@@ -704,6 +720,7 @@ usage: yt alter-table [-h] [--params PARAMS] [--path PATH] [--schema [SCHEMA]] [
 
 creates temporary table by given path with given prefix and return name
 
+<a id="yt-create-temp-table"></a>
 ```bash
 usage: yt create-temp-table [-h] [--params PARAMS] [--path PATH] [--name-prefix NAME_PREFIX] [--expiration-timeout EXPIRATION_TIMEOUT] [--attributes ATTRIBUTES]
 ```
@@ -724,6 +741,7 @@ usage: yt create-temp-table [-h] [--params PARAMS] [--path PATH] [--name-prefix 
 
 Upload/download to file system commands
 
+<a id="yt-dirtable"></a>
 ```bash
 usage: yt dirtable [-h] dirtable_command ...
 ```
@@ -749,7 +767,7 @@ yt dirtable upload [-h] --directory DIRECTORY [--store-full-path] [--part-size P
 
 > `--store-full-path`    Store full path to the uploaded file. Makes –yt-name equal to the –fs-path value
 
-> `--part-size`    Default: `4194304`
+> `--part-size`    Default: ``4194304``
 
 > `--recursive`
 
@@ -757,7 +775,7 @@ yt dirtable upload [-h] --directory DIRECTORY [--store-full-path] [--part-size P
 
 > `--yt-table`
 
-> `--process-count`    Default: `4`
+> `--process-count`    Default: ``4``
 
 > `--exact-filenames`    Files to upload (separated by comma)
 
@@ -784,7 +802,7 @@ yt dirtable download [-h] --directory DIRECTORY --yt-table YT_TABLE [--process-c
 
 > `--yt-table`
 
-> `--process-count`    Default: `4`
+> `--process-count`    Default: ``4``
 
 > `--exact-filenames`    Files to extract (separated by comma)
 
@@ -824,12 +842,13 @@ yt dirtable append-single-file [-h] --yt-table YT_TABLE [--yt-name YT_NAME] --fs
 
 > `--store-full-path`    Storing file’s full path as provided in –directory
 
-> `--process-count`    Default: `4`
+> `--process-count`    Default: ``4``
 
 ### get-table-columnar-statistics
 
 gets columnar statistics of tables listed in paths
 
+<a id="yt-get-table-columnar-statistics"></a>
 ```bash
 usage: yt get-table-columnar-statistics [-h] [--params PARAMS] --path PATHS
 ```
@@ -844,6 +863,7 @@ usage: yt get-table-columnar-statistics [-h] [--params PARAMS] --path PATHS
 
 reads rows from table and parse (optionally)
 
+<a id="yt-read"></a>
 ```bash
 usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-reader TABLE_READER] [--control-attributes CONTROL_ATTRIBUTES] [--unordered] [--as-json-list]
                [--omit-inaccessible-columns] [--omit-inaccessible-rows]
@@ -878,6 +898,7 @@ usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table
 
 reads file from blob table
 
+<a id="yt-read-blob-table"></a>
 ```bash
 usage: yt read-blob-table [-h] [--params PARAMS] [--table TABLE] [--part-index-column-name PART_INDEX_COLUMN_NAME] [--data-column-name DATA_COLUMN_NAME] [--part-size PART_SIZE]
                           [--table-reader TABLE_READER]
@@ -906,6 +927,7 @@ usage: yt read-blob-table [-h] [--params PARAMS] [--table TABLE] [--part-index-c
 
 reads rows from table and parse (optionally)
 
+<a id="yt-read-table"></a>
 ```bash
 usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-reader TABLE_READER] [--control-attributes CONTROL_ATTRIBUTES] [--unordered] [--as-json-list]
                      [--omit-inaccessible-columns] [--omit-inaccessible-rows]
@@ -940,6 +962,7 @@ usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [-
 
 writes rows from input_stream to table
 
+<a id="yt-write"></a>
 ```bash
 usage: yt write [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-writer TABLE_WRITER] [--compressed] [--no-compression] [table]
 ```
@@ -966,6 +989,7 @@ usage: yt write [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--tabl
 
 writes rows from input_stream to table
 
+<a id="yt-write-table"></a>
 ```bash
 usage: yt write-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table-writer TABLE_WRITER] [--compressed] [--no-compression] [table]
 ```
@@ -996,6 +1020,7 @@ usage: yt write-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 changes mode and enables or disables a table replica or replicated table tracker for table replica
 
+<a id="yt-alter-table-replica"></a>
 ```bash
 usage: yt alter-table-replica [-h] [--params PARAMS] [--enable | --disable] [--enable-replicated-table-tracker | --disable-replicated-table-tracker] [--mode MODE] replica_id
 ```
@@ -1022,8 +1047,9 @@ usage: yt alter-table-replica [-h] [--params PARAMS] [--enable | --disable] [--e
 
 reassign tablets evenly among tablet cells
 
+<a id="yt-balance-tablet-cells"></a>
 ```bash
-usage: yt balance-tablet-cells [-h] [--params PARAMS] [--bundle BUNDLE] [--tables [TABLES [TABLES ...]]] [--sync] [bundle]
+usage: yt balance-tablet-cells [-h] [--params PARAMS] [--bundle BUNDLE] [--tables [TABLES ...]] [--sync] [bundle]
 ```
 
 #### Positional Arguments
@@ -1044,6 +1070,7 @@ usage: yt balance-tablet-cells [-h] [--params PARAMS] [--bundle BUNDLE] [--table
 
 . Use "delete-rows" instead of "delete"
 
+<a id="yt-delete"></a>
 ```bash
 usage: yt delete [-h] [--params PARAMS]
 ```
@@ -1056,6 +1083,7 @@ usage: yt delete [-h] [--params PARAMS]
 
 deletes rows with keys from input_stream from dynamic table
 
+<a id="yt-delete-rows"></a>
 ```bash
 usage: yt delete-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--atomicity {full,none}] [--durability {sync,async}] [--require-sync-replica | --no-require-sync-replica]
                       [table]
@@ -1085,6 +1113,7 @@ usage: yt delete-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 explains a SQL-like query on dynamic table
 
+<a id="yt-explain-query"></a>
 ```bash
 usage: yt explain-query [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMESTAMP] [--input-row-limit INPUT_ROW_LIMIT] [--output-row-limit OUTPUT_ROW_LIMIT]
                         [--allow-full-scan | --forbid-full-scan] [--allow-join-without-index | --forbid-join-without-index] [--execution-pool EXECUTION_POOL] [--format FORMAT]
@@ -1128,6 +1157,7 @@ usage: yt explain-query [-h] [--params PARAMS] [--query QUERY] [--timestamp TIME
 
 freezes the table
 
+<a id="yt-freeze-table"></a>
 ```bash
 usage: yt freeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [--sync] [path]
 ```
@@ -1152,6 +1182,7 @@ usage: yt freeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-inde
 
 returns dynamic table tablet and replication errors
 
+<a id="yt-get-tablet-errors"></a>
 ```bash
 usage: yt get-tablet-errors [-h] [--params PARAMS] [--path PATH] [--limit LIMIT] [--format FORMAT] [path]
 ```
@@ -1174,6 +1205,7 @@ usage: yt get-tablet-errors [-h] [--params PARAMS] [--path PATH] [--limit LIMIT]
 
 returns various runtime tablet information
 
+<a id="yt-get-tablet-infos"></a>
 ```bash
 usage: yt get-tablet-infos [-h] [--params PARAMS] [--path PATH] [--tablet-indexes TABLET_INDEXES [TABLET_INDEXES ...]] [--format FORMAT] [path]
 ```
@@ -1196,6 +1228,7 @@ usage: yt get-tablet-infos [-h] [--params PARAMS] [--path PATH] [--tablet-indexe
 
 . Use "insert-rows" instead of "insert"
 
+<a id="yt-insert"></a>
 ```bash
 usage: yt insert [-h] [--params PARAMS]
 ```
@@ -1208,6 +1241,7 @@ usage: yt insert [-h] [--params PARAMS]
 
 inserts rows from input_stream to dynamic table
 
+<a id="yt-insert-rows"></a>
 ```bash
 usage: yt insert-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--atomicity {full,none}] [--durability {sync,async}] [--require-sync-replica | --no-require-sync-replica]
                       [--update | --no-update] [--aggregate | --no-aggregate] [--lock_type LOCK_TYPE]
@@ -1248,6 +1282,7 @@ usage: yt insert-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 . Use "lookup-rows" instead of "lookup"
 
+<a id="yt-lookup"></a>
 ```bash
 usage: yt lookup [-h] [--params PARAMS]
 ```
@@ -1260,6 +1295,7 @@ usage: yt lookup [-h] [--params PARAMS]
 
 lookups rows in dynamic table
 
+<a id="yt-lookup-rows"></a>
 ```bash
 usage: yt lookup-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--timestamp TIMESTAMP] [--versioned] [--column-name COLUMN_NAMES] [table]
 ```
@@ -1286,6 +1322,7 @@ usage: yt lookup-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 mounts the table
 
+<a id="yt-mount-table"></a>
 ```bash
 usage: yt mount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [--freeze] [--sync]
                       [--cell-id CELL_ID | --target-cell-ids TARGET_CELL_IDS [TARGET_CELL_IDS ...]]
@@ -1318,6 +1355,7 @@ usage: yt mount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index
 
 remounts the table
 
+<a id="yt-remount-table"></a>
 ```bash
 usage: yt remount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [path]
 ```
@@ -1340,10 +1378,11 @@ usage: yt remount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 changes pivot keys separating tablets of a given table
 
+<a id="yt-reshard-table"></a>
 ```bash
 usage: yt reshard-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [--tablet-count TABLET_COUNT] [--sync]
                         [--uniform] [--slicing-accuracy SLICING_ACCURACY] [--trimmed-row-counts TRIMMED_ROW_COUNTS [TRIMMED_ROW_COUNTS ...]] [--enable-slicing | --no-enable-slicing]
-                        [path] [pivot_keys [pivot_keys ...]]
+                        [path] [pivot_keys ...]
 ```
 
 #### Positional Arguments
@@ -1380,6 +1419,7 @@ usage: yt reshard-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 automatically balance tablets of a mounted table according to tablet balancer config
 
+<a id="yt-reshard-table-automatic"></a>
 ```bash
 usage: yt reshard-table-automatic [-h] [--params PARAMS] [--path PATH] [--sync] [path]
 ```
@@ -1400,6 +1440,7 @@ usage: yt reshard-table-automatic [-h] [--params PARAMS] [--path PATH] [--sync] 
 
 . Use "select-rows" instead of "select"
 
+<a id="yt-select"></a>
 ```bash
 usage: yt select [-h] [--params PARAMS]
 ```
@@ -1412,6 +1453,7 @@ usage: yt select [-h] [--params PARAMS]
 
 executes a SQL-like query on dynamic table
 
+<a id="yt-select-rows"></a>
 ```bash
 usage: yt select-rows [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMESTAMP] [--input-row-limit INPUT_ROW_LIMIT] [--output-row-limit OUTPUT_ROW_LIMIT] [--verbose-logging]
                       [--enable-code-cache | --disable-code-cache] [--allow-full-scan | --forbid-full-scan] [--allow-join-without-index | --forbid-join-without-index]
@@ -1468,6 +1510,7 @@ usage: yt select-rows [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMEST
 
 trim rows of the dynamic table
 
+<a id="yt-trim-rows"></a>
 ```bash
 usage: yt trim-rows [-h] [--params PARAMS] [--path PATH] [path] tablet_index trimmed_row_count
 ```
@@ -1490,6 +1533,7 @@ usage: yt trim-rows [-h] [--params PARAMS] [--path PATH] [path] tablet_index tri
 
 unfreezes the table
 
+<a id="yt-unfreeze-table"></a>
 ```bash
 usage: yt unfreeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [--sync] [path]
 ```
@@ -1514,6 +1558,7 @@ usage: yt unfreeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-in
 
 unmounts the table
 
+<a id="yt-unmount-table"></a>
 ```bash
 usage: yt unmount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index FIRST_TABLET_INDEX] [--last-tablet-index LAST_TABLET_INDEX] [--force] [--sync] [path]
 ```
@@ -1544,6 +1589,7 @@ usage: yt unmount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 erases table or part of it
 
+<a id="yt-erase"></a>
 ```bash
 usage: yt erase [-h] [--params PARAMS] [--table TABLE] [--print-statistics] [--async] [--spec SPEC] [table]
 ```
@@ -1568,6 +1614,7 @@ usage: yt erase [-h] [--params PARAMS] [--table TABLE] [--print-statistics] [--a
 
 runs join-reduce operation
 
+<a id="yt-join-reduce"></a>
 ```bash
 usage: yt join-reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE [--file YT_FILES] [--local-file LOCAL_FILES]
                       [--job-count JOB_COUNT] [--memory-limit MEMORY_LIMIT] [--spec SPEC] [--format FORMAT] [--input-format INPUT_FORMAT] [--output-format OUTPUT_FORMAT]
@@ -1615,6 +1662,7 @@ usage: yt join-reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TAB
 
 runs map operation
 
+<a id="yt-map"></a>
 ```bash
 usage: yt map [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE [--file YT_FILES] [--local-file LOCAL_FILES]
               [--job-count JOB_COUNT] [--memory-limit MEMORY_LIMIT] [--spec SPEC] [--format FORMAT] [--input-format INPUT_FORMAT] [--output-format OUTPUT_FORMAT] [--print-statistics]
@@ -1662,6 +1710,7 @@ usage: yt map [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOUR
 
 runs map (optionally), sort, reduce and reduce-combine (optionally) operations
 
+<a id="yt-map-reduce"></a>
 ```bash
 usage: yt map-reduce [-h] [--params PARAMS] [--mapper MAPPER] --reducer REDUCER [--reduce-combiner REDUCE_COMBINER] --src SOURCE_TABLE --dst DESTINATION_TABLE [--map-file MAP_YT_FILES]
                      [--map-local-file MAP_LOCAL_FILES] [--reduce-file REDUCE_YT_FILES] [--reduce-local-file REDUCE_LOCAL_FILES] [--reduce-combiner-file REDUCE_COMBINER_YT_FILES]
@@ -1730,6 +1779,7 @@ usage: yt map-reduce [-h] [--params PARAMS] [--mapper MAPPER] --reducer REDUCER 
 
 merges source tables to destination table
 
+<a id="yt-merge"></a>
 ```bash
 usage: yt merge [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE [--mode {unordered,ordered,sorted,auto}] [--print-statistics] [--async]
                 [--spec SPEC]
@@ -1745,7 +1795,7 @@ usage: yt merge [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --d
 
 > `--mode`    Possible choices: unordered, ordered, sorted, auto
 
-> use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. Mode auto chooses from sorted and unordered modes depending on sortedness of source tables., default: `«auto»`
+> use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. Mode auto chooses from sorted and unordered modes depending on sortedness of source tables., default: ``'auto'``
 
 > `--print-statistics`
 
@@ -1757,6 +1807,7 @@ usage: yt merge [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --d
 
 runs reduce operation
 
+<a id="yt-reduce"></a>
 ```bash
 usage: yt reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE [--file YT_FILES] [--local-file LOCAL_FILES]
                  [--job-count JOB_COUNT] [--memory-limit MEMORY_LIMIT] [--spec SPEC] [--format FORMAT] [--input-format INPUT_FORMAT] [--output-format OUTPUT_FORMAT] [--print-statistics]
@@ -1808,6 +1859,7 @@ usage: yt reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [S
 
 copies source table from remote cluster to destination table on current cluster
 
+<a id="yt-remote-copy"></a>
 ```bash
 usage: yt remote-copy [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE --cluster CLUSTER_NAME [--network NETWORK_NAME] [--copy-attributes]
                       [--print-statistics] [--async] [--cluster-connection CLUSTER_CONNECTION] [--spec SPEC]
@@ -1839,6 +1891,7 @@ usage: yt remote-copy [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ..
 
 shuffles table randomly
 
+<a id="yt-shuffle"></a>
 ```bash
 usage: yt shuffle [-h] [--params PARAMS] --table TABLE [--temp-column-name TEMP_COLUMN_NAME] [--print-statistics] [--async]
 ```
@@ -1859,6 +1912,7 @@ usage: yt shuffle [-h] [--params PARAMS] --table TABLE [--temp-column-name TEMP_
 
 sorts source tables to destination table
 
+<a id="yt-sort"></a>
 ```bash
 usage: yt sort [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --dst DESTINATION_TABLE --sort-by SORT_BY [--print-statistics] [--async] [--spec SPEC]
 ```
@@ -1883,6 +1937,7 @@ usage: yt sort [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --ds
 
 run vanilla operation
 
+<a id="yt-vanilla"></a>
 ```bash
 usage: yt vanilla [-h] [--params PARAMS] [--print-statistics] [--async] [--tasks TASKS] [--spec SPEC]
 ```
@@ -1907,6 +1962,7 @@ usage: yt vanilla [-h] [--params PARAMS] [--print-statistics] [--async] [--tasks
 
 aborts operation
 
+<a id="yt-abort-op"></a>
 ```bash
 usage: yt abort-op [-h] [--params PARAMS] [--message MESSAGE] [--operation OPERATION] [--operation-alias OPERATION_ALIAS] [operation]
 ```
@@ -1923,18 +1979,13 @@ usage: yt abort-op [-h] [--params PARAMS] [--message MESSAGE] [--operation OPERA
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 ### check-operation-permission
 
 check if user has permission for operation
 
+<a id="yt-check-operation-permission"></a>
 ```bash
 usage: yt check-operation-permission [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] --user USER --permission PERMISSION [--format FORMAT]
                                      [operation_id]
@@ -1950,13 +2001,7 @@ usage: yt check-operation-permission [-h] [--params PARAMS] [--operation OPERATI
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--user`    (Required) user name
 
@@ -1968,6 +2013,7 @@ usage: yt check-operation-permission [-h] [--params PARAMS] [--operation OPERATI
 
 completes operation
 
+<a id="yt-complete-op"></a>
 ```bash
 usage: yt complete-op [-h] [--params PARAMS] [--operation OPERATION] [--operation-alias OPERATION_ALIAS] [operation]
 ```
@@ -1982,18 +2028,13 @@ usage: yt complete-op [-h] [--params PARAMS] [--operation OPERATION] [--operatio
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 ### get-operation
 
 get operation attributes through API
 
+<a id="yt-get-operation"></a>
 ```bash
 usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--include-runtime] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--format FORMAT]
                         [operation_id]
@@ -2013,13 +2054,7 @@ usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--inclu
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
@@ -2027,6 +2062,7 @@ usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--inclu
 
 list events of given operation
 
+<a id="yt-list-operation-events"></a>
 ```bash
 usage: yt list-operation-events [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--event-type EVENT_TYPE] [--format FORMAT] [operation_id]
 ```
@@ -2041,13 +2077,7 @@ usage: yt list-operation-events [-h] [--params PARAMS] [--operation OPERATION_ID
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--event-type`    filter events by type
 
@@ -2057,6 +2087,7 @@ usage: yt list-operation-events [-h] [--params PARAMS] [--operation OPERATION_ID
 
 list operations that satisfy given options
 
+<a id="yt-list-operations"></a>
 ```bash
 usage: yt list-operations [-h] [--params PARAMS] [--user USER] [--state STATE] [--type TYPE] [--filter FILTER] [--pool-tree POOL_TREE] [--pool POOL]
                           [--with-failed-jobs | --without-failed-jobs] [--from-time FROM_TIME] [--to-time TO_TIME] [--cursor-time CURSOR_TIME] [--cursor-direction CURSOR_DIRECTION]
@@ -2105,6 +2136,7 @@ usage: yt list-operations [-h] [--params PARAMS] [--user USER] [--state STATE] [
 
 patches operation spec
 
+<a id="yt-patch-op-spec"></a>
 ```bash
 usage: yt patch-op-spec [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [operation_id] patches
 ```
@@ -2121,18 +2153,13 @@ usage: yt patch-op-spec [-h] [--params PARAMS] [--operation OPERATION_ID] [--ope
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 ### resume-op
 
 continues operation after suspending
 
+<a id="yt-resume-op"></a>
 ```bash
 usage: yt resume-op [-h] [--params PARAMS] [--operation OPERATION] [--operation-alias OPERATION_ALIAS] [operation]
 ```
@@ -2147,18 +2174,13 @@ usage: yt resume-op [-h] [--params PARAMS] [--operation OPERATION] [--operation-
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 ### suspend-op
 
 suspends operation
 
+<a id="yt-suspend-op"></a>
 ```bash
 usage: yt suspend-op [-h] [--params PARAMS] [--operation OPERATION] [--operation-alias OPERATION_ALIAS] [--abort-running-jobs] [--reason REASON] [operation]
 ```
@@ -2173,13 +2195,7 @@ usage: yt suspend-op [-h] [--params PARAMS] [--operation OPERATION] [--operation
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--abort-running-jobs`    abort running jobs
 
@@ -2189,6 +2205,7 @@ usage: yt suspend-op [-h] [--params PARAMS] [--operation OPERATION] [--operation
 
 synchronously tracks operation, prints current progress and finalize at the completion
 
+<a id="yt-track-op"></a>
 ```bash
 usage: yt track-op [-h] [--params PARAMS] [--operation OPERATION] [operation]
 ```
@@ -2207,6 +2224,7 @@ usage: yt track-op [-h] [--params PARAMS] [--operation OPERATION] [operation]
 
 updates operation runtime parameters
 
+<a id="yt-update-op-parameters"></a>
 ```bash
 usage: yt update-op-parameters [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [operation_id] parameters
 ```
@@ -2223,13 +2241,7 @@ usage: yt update-op-parameters [-h] [--params PARAMS] [--operation OPERATION_ID]
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 ## Job commands
 
@@ -2239,6 +2251,7 @@ usage: yt update-op-parameters [-h] [--params PARAMS] [--operation OPERATION_ID]
 
 interrupts running job with preserved result
 
+<a id="yt-abort-job"></a>
 ```bash
 usage: yt abort-job [-h] [--params PARAMS] [--interrupt-timeout INTERRUPT_TIMEOUT] job_id
 ```
@@ -2257,6 +2270,7 @@ usage: yt abort-job [-h] [--params PARAMS] [--interrupt-timeout INTERRUPT_TIMEOU
 
 get job of operation
 
+<a id="yt-get-job"></a>
 ```bash
 usage: yt get-job [-h] [--params PARAMS] [--job-id JOB_ID] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--format FORMAT] [job_id] [operation_id]
 ```
@@ -2275,13 +2289,7 @@ usage: yt get-job [-h] [--params PARAMS] [--job-id JOB_ID] [--operation OPERATIO
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
@@ -2289,6 +2297,7 @@ usage: yt get-job [-h] [--params PARAMS] [--job-id JOB_ID] [--operation OPERATIO
 
 get full input of the specified job
 
+<a id="yt-get-job-input"></a>
 ```bash
 usage: yt get-job-input [-h] [--params PARAMS] [--job-id JOB_ID] [job_id]
 ```
@@ -2307,6 +2316,7 @@ usage: yt get-job-input [-h] [--params PARAMS] [--job-id JOB_ID] [job_id]
 
 get input paths of the specified job
 
+<a id="yt-get-job-input-paths"></a>
 ```bash
 usage: yt get-job-input-paths [-h] [--params PARAMS] [--job-id JOB_ID] [job_id]
 ```
@@ -2325,6 +2335,7 @@ usage: yt get-job-input-paths [-h] [--params PARAMS] [--job-id JOB_ID] [job_id]
 
 get spec of the specified job
 
+<a id="yt-get-job-spec"></a>
 ```bash
 usage: yt get-job-spec [-h] [--params PARAMS] [--job-id JOB_ID] [--omit-node-directory | --no-omit-node-directory] [--omit-input-table-specs | --no-omit-input-table-specs]
                        [--omit-output-table-specs | --no-omit-output-table-specs]
@@ -2357,6 +2368,7 @@ usage: yt get-job-spec [-h] [--params PARAMS] [--job-id JOB_ID] [--omit-node-dir
 
 gets stderr of the specified job
 
+<a id="yt-get-job-stderr"></a>
 ```bash
 usage: yt get-job-stderr [-h] [--params PARAMS] [--job-id JOB_ID] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--stderr-type {user_job_stderr,gpu_check_stderr}]
                          [job_id] [operation_id]
@@ -2376,13 +2388,7 @@ usage: yt get-job-stderr [-h] [--params PARAMS] [--job-id JOB_ID] [--operation O
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--stderr-type`    Possible choices: user_job_stderr, gpu_check_stderr
 
@@ -2392,6 +2398,7 @@ usage: yt get-job-stderr [-h] [--params PARAMS] [--job-id JOB_ID] [--operation O
 
 list jobs of operation
 
+<a id="yt-list-jobs"></a>
 ```bash
 usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--job-type JOB_TYPE] [--job-state JOB_STATE] [--address ADDRESS]
                     [--job-competition-id JOB_COMPETITION_ID] [--sort-field {type,state,start_time,finish_time,address,duration,progress,id}] [--sort-order SORT_ORDER] [--limit LIMIT]
@@ -2411,13 +2418,7 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--operati
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--job-type`    filter jobs by job type
 
@@ -2471,6 +2472,7 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--operati
 
 runs interactive shell in the job sandbox
 
+<a id="yt-run-job-shell"></a>
 ```bash
 usage: yt run-job-shell [-h] [--params PARAMS] [--shell-name SHELL_NAME] [--timeout TIMEOUT] [--command COMMAND] job_id [command]
 ```
@@ -2499,6 +2501,7 @@ usage: yt run-job-shell [-h] [--params PARAMS] [--shell-name SHELL_NAME] [--time
 
 aborts transaction. All changes will be lost
 
+<a id="yt-abort-tx"></a>
 ```bash
 usage: yt abort-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transaction]
 ```
@@ -2517,6 +2520,7 @@ usage: yt abort-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transacti
 
 saves all transaction changes
 
+<a id="yt-commit-tx"></a>
 ```bash
 usage: yt commit-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transaction]
 ```
@@ -2535,6 +2539,7 @@ usage: yt commit-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transact
 
 tries to lock the path. Do not forget about global –tx option
 
+<a id="yt-lock"></a>
 ```bash
 usage: yt lock [-h] [--params PARAMS] [--path PATH] [--mode {snapshot,shared,exclusive}] [--waitable] [--wait-for WAIT_FOR] [--child-key CHILD_KEY] [--attribute-key ATTRIBUTE_KEY]
                [path]
@@ -2566,6 +2571,7 @@ usage: yt lock [-h] [--params PARAMS] [--path PATH] [--mode {snapshot,shared,exc
 
 prolongs transaction lifetime
 
+<a id="yt-ping-tx"></a>
 ```bash
 usage: yt ping-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transaction]
 ```
@@ -2584,6 +2590,7 @@ usage: yt ping-tx [-h] [--params PARAMS] [--transaction TRANSACTION] [transactio
 
 starts transaction
 
+<a id="yt-start-tx"></a>
 ```bash
 usage: yt start-tx [-h] [--params PARAMS] [--attributes ATTRIBUTES] [--timeout TIMEOUT]
 ```
@@ -2600,6 +2607,7 @@ usage: yt start-tx [-h] [--params PARAMS] [--attributes ATTRIBUTES] [--timeout T
 
 tries to unlock the path
 
+<a id="yt-unlock"></a>
 ```bash
 usage: yt unlock [-h] [--params PARAMS] [--path PATH] [path]
 ```
@@ -2622,6 +2630,7 @@ usage: yt unlock [-h] [--params PARAMS] [--path PATH] [path]
 
 adds member to Cypress node group
 
+<a id="yt-add-member"></a>
 ```bash
 usage: yt add-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP] [member] [group]
 ```
@@ -2644,8 +2653,9 @@ usage: yt add-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP] [m
 
 checks permission for Cypress node
 
+<a id="yt-check-permission"></a>
 ```bash
-usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PERMISSION] [--path PATH] [-q] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE]
+usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PERMISSION] [--path PATH] [--read-from READ_FROM] [--cache-sticky-group-size CACHE_STICKY_GROUP_SIZE]
                            [--columns COLUMNS] [--format FORMAT]
                            [user] [permission] [path]
 ```
@@ -2668,20 +2678,19 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 > `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `-q, --quiet`    do not write anything to standard output; exit with 0 if permission is granted, 1 otherwise
-
 > `--read-from`    Can be set to «cache» to enable reads from system cache
 
 > `--cache-sticky-group-size`    Size of sticky group size for read_from=»cache» mode
 
 > `--columns`    structured columns in yson format
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'<format=pretty>yson'``
 
 ### issue-token
 
 issues a new token for user, reading password interactively and securely from console
 
+<a id="yt-issue-token"></a>
 ```bash
 usage: yt issue-token [-h] [--params PARAMS] user
 ```
@@ -2698,6 +2707,7 @@ usage: yt issue-token [-h] [--params PARAMS] user
 
 lists sha256-encoded user tokens, reading password interactively and securely from console
 
+<a id="yt-list-user-tokens"></a>
 ```bash
 usage: yt list-user-tokens [-h] [--params PARAMS] user
 ```
@@ -2714,6 +2724,7 @@ usage: yt list-user-tokens [-h] [--params PARAMS] user
 
 removes member from Cypress node group
 
+<a id="yt-remove-member"></a>
 ```bash
 usage: yt remove-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP] [member] [group]
 ```
@@ -2736,6 +2747,7 @@ usage: yt remove-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP]
 
 revokes user token, reading password and maybe token value interactively and securely from console
 
+<a id="yt-revoke-token"></a>
 ```bash
 usage: yt revoke-token [-h] [--params PARAMS] [--token-sha256 TOKEN_SHA256] user
 ```
@@ -2754,6 +2766,7 @@ usage: yt revoke-token [-h] [--params PARAMS] [--token-sha256 TOKEN_SHA256] user
 
 updates user password, reading it and optionally a current password
 
+<a id="yt-set-user-password"></a>
 ```bash
 usage: yt set-user-password [-h] [--params PARAMS] user
 ```
@@ -2770,6 +2783,7 @@ usage: yt set-user-password [-h] [--params PARAMS] user
 
 invokes whoami command at {{product-name}} API and returns login
 
+<a id="yt-whoami"></a>
 ```bash
 usage: yt whoami [-h] [--params PARAMS]
 ```
@@ -2786,6 +2800,7 @@ usage: yt whoami [-h] [--params PARAMS]
 
 downloads core dump for a given operation_id and job_id from a given core_table_path. Tool for downloading job core dumps
 
+<a id="yt-download-core-dump"></a>
 ```bash
 usage: yt download-core-dump [-h] [--params PARAMS] [--operation-id OPERATION_ID] [--core-table-path CORE_TABLE_PATH] [--job-id JOB_ID] [--core-index CORE_INDICES]
                              [--output-directory OUTPUT_DIRECTORY]
@@ -2803,12 +2818,13 @@ usage: yt download-core-dump [-h] [--params PARAMS] [--operation-id OPERATION_ID
 
 > `--core-index`    Indices of core dumps to download (indexing inside single job). Several indices may be specified. If not specified, all core dumps will be downloaded. Requires –job-id to be specified Accepted multiple times.
 
-> `--output-directory`    A directory to save the core dumps. Defaults to the current working directory, default: `«.»`
+> `--output-directory`    A directory to save the core dumps. Defaults to the current working directory, default: ``'.'``
 
 ### get-job-trace
 
 get traces of the specified job
 
+<a id="yt-get-job-trace"></a>
 ```bash
 usage: yt get-job-trace [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--job-id JOB_ID] [--trace-id TRACE_ID] [--from-time FROM_TIME]
                         [--to-time TO_TIME]
@@ -2827,13 +2843,7 @@ usage: yt get-job-trace [-h] [--params PARAMS] [--operation OPERATION_ID] [--ope
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--job-id`    job id, for example: 5c51-24e204-384-9f3f6437
 
@@ -2850,6 +2860,7 @@ Tool helps to debug user job code by preparing job environment on local machine.
 It downloads all necessary job files, fail context (small portion of job input data)
 and prepares run script.
 
+<a id="yt-job-tool"></a>
 ```bash
 usage: yt job-tool [-h] [--params PARAMS] command ...
 ```
@@ -2914,6 +2925,7 @@ yt job-tool run-job [-h] [--job-path JOB_PATH] [--env ENV] [job_path]
 
 list traces of the specified job
 
+<a id="yt-list-job-traces"></a>
 ```bash
 usage: yt list-job-traces [-h] [--params PARAMS] [--operation OPERATION_ID] [--operation-alias OPERATION_ALIAS] [--job-id JOB_ID] [--per-process] [--limit LIMIT] [--format FORMAT]
                           [operation_id] [job_id]
@@ -2931,13 +2943,7 @@ usage: yt list-job-traces [-h] [--params PARAMS] [--operation OPERATION_ID] [--o
 
 > `--operation`    operation id
 
-> `--operation-alias`    operation alias (e.g.
-
-> ```
-> *
-> ```
-
-> my_alias)
+> `--operation-alias`    operation alias (e.g. `*my_alias`)
 
 > `--job-id`    job id, for example: 5c51-24e204-384-9f3f6437
 
@@ -2951,6 +2957,7 @@ usage: yt list-job-traces [-h] [--params PARAMS] [--operation OPERATION_ID] [--o
 
 runs a command in the job sandbox and returns the output
 
+<a id="yt-run-job-shell-command"></a>
 ```bash
 usage: yt run-job-shell-command [-h] [--params PARAMS] [--job-id JOB_ID] [--command COMMAND] [--shell-name SHELL_NAME] [job_id] [command]
 ```
@@ -2979,6 +2986,7 @@ usage: yt run-job-shell-command [-h] [--params PARAMS] [--job-id JOB_ID] [--comm
 
 dump table with a strict schema as ORC <https://orc.apache.org/> file
 
+<a id="yt-dump-orc"></a>
 ```bash
 usage: yt dump-orc [-h] [--params PARAMS] [--table TABLE] --output-file OUTPUT_FILE [table]
 ```
@@ -2999,6 +3007,7 @@ usage: yt dump-orc [-h] [--params PARAMS] [--table TABLE] --output-file OUTPUT_F
 
 dump table with a strict schema as Parquet <https://parquet.apache.org/docs> file
 
+<a id="yt-dump-parquet"></a>
 ```bash
 usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] [--output-path OUTPUT_PATH] [--output-file OUTPUT_FILE] [--enable-several-files] [--unordered] [table]
 ```
@@ -3025,6 +3034,7 @@ usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] [--output-path OUT
 
 upload ORC <https://orc.apache.org/> file as a table
 
+<a id="yt-upload-orc"></a>
 ```bash
 usage: yt upload-orc [-h] [--params PARAMS] [--table TABLE] --input-file INPUT_FILE [table]
 ```
@@ -3045,6 +3055,7 @@ usage: yt upload-orc [-h] [--params PARAMS] [--table TABLE] --input-file INPUT_F
 
 upload Parquet <https://parquet.apache.org/docs> file as a table
 
+<a id="yt-upload-parquet"></a>
 ```bash
 usage: yt upload-parquet [-h] [--params PARAMS] [--table TABLE] --input-file INPUT_FILE [table]
 ```
@@ -3069,6 +3080,7 @@ usage: yt upload-parquet [-h] [--params PARAMS] [--table TABLE] --input-file INP
 
 advances consumer offset for the given queue
 
+<a id="yt-advance-consumer"></a>
 ```bash
 usage: yt advance-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [--queue-path QUEUE_PATH] --partition-index PARTITION_INDEX [--old-offset OLD_OFFSET] --new-offset
                            NEW_OFFSET
@@ -3099,6 +3111,7 @@ usage: yt advance-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH
 
 advances consumer offset for the given queue
 
+<a id="yt-advance-queue-consumer"></a>
 ```bash
 usage: yt advance-queue-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [--queue-path QUEUE_PATH] --partition-index PARTITION_INDEX [--old-offset OLD_OFFSET]
                                  --new-offset NEW_OFFSET
@@ -3129,6 +3142,7 @@ usage: yt advance-queue-consumer [-h] [--params PARAMS] [--consumer-path CONSUME
 
 creates queue producer session
 
+<a id="yt-create-queue-producer-session"></a>
 ```bash
 usage: yt create-queue-producer-session [-h] [--params PARAMS] [--producer-path PRODUCER_PATH] [--queue-path QUEUE_PATH] --session-id SESSION_ID [--format FORMAT]
 ```
@@ -3149,6 +3163,7 @@ usage: yt create-queue-producer-session [-h] [--params PARAMS] [--producer-path 
 
 lists queue consumer registrations
 
+<a id="yt-list-queue-consumer-registrations"></a>
 ```bash
 usage: yt list-queue-consumer-registrations [-h] [--params PARAMS] [--queue-path QUEUE_PATH] [--consumer-path CONSUMER_PATH] [--format FORMAT]
 ```
@@ -3167,6 +3182,7 @@ usage: yt list-queue-consumer-registrations [-h] [--params PARAMS] [--queue-path
 
 reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer
 
+<a id="yt-pull-consumer"></a>
 ```bash
 usage: yt pull-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [--queue-path QUEUE_PATH] --offset OFFSET --partition-index PARTITION_INDEX
                         [--max-row-count MAX_ROW_COUNT] [--max-data-weight MAX_DATA_WEIGHT] [--replica-consistency {none,sync}] [--format FORMAT]
@@ -3203,6 +3219,7 @@ usage: yt pull-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [
 
 reads rows from a single partition of a queue (i.e. any ordered dynamic table)
 
+<a id="yt-pull-queue"></a>
 ```bash
 usage: yt pull-queue [-h] [--params PARAMS] [--queue-path QUEUE_PATH] --offset OFFSET --partition-index PARTITION_INDEX [--max-row-count MAX_ROW_COUNT]
                      [--max-data-weight MAX_DATA_WEIGHT] [--replica-consistency {none,sync}] [--format FORMAT]
@@ -3235,6 +3252,7 @@ usage: yt pull-queue [-h] [--params PARAMS] [--queue-path QUEUE_PATH] --offset O
 
 reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer
 
+<a id="yt-pull-queue-consumer"></a>
 ```bash
 usage: yt pull-queue-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [--queue-path QUEUE_PATH] --offset OFFSET --partition-index PARTITION_INDEX
                               [--max-row-count MAX_ROW_COUNT] [--max-data-weight MAX_DATA_WEIGHT] [--replica-consistency {none,sync}] [--format FORMAT]
@@ -3271,6 +3289,7 @@ usage: yt pull-queue-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_P
 
 push rows to queue via queue producer
 
+<a id="yt-push-queue-producer"></a>
 ```bash
 usage: yt push-queue-producer [-h] [--params PARAMS] [--producer-path PRODUCER_PATH] [--queue-path QUEUE_PATH] --session-id SESSION_ID --epoch EPOCH
                               [--require-sync-replica | --no-require-sync-replica] [--input-format INPUT_FORMAT] [--output-format OUTPUT_FORMAT]
@@ -3307,8 +3326,9 @@ usage: yt push-queue-producer [-h] [--params PARAMS] [--producer-path PRODUCER_P
 
 registers queue consumer
 
+<a id="yt-register-queue-consumer"></a>
 ```bash
-usage: yt register-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PATH] [--consumer-path CONSUMER_PATH] (--vital | --non-vital) [--partitions [PARTITIONS [PARTITIONS ...]]]
+usage: yt register-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PATH] [--consumer-path CONSUMER_PATH] (--vital | --non-vital) [--partitions [PARTITIONS ...]]
                                   [queue_path] [consumer_path]
 ```
 
@@ -3336,6 +3356,7 @@ usage: yt register-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PAT
 
 removes queue producer session
 
+<a id="yt-remove-queue-producer-session"></a>
 ```bash
 usage: yt remove-queue-producer-session [-h] [--params PARAMS] [--producer-path PRODUCER_PATH] [--queue-path QUEUE_PATH] --session-id SESSION_ID
 ```
@@ -3354,6 +3375,7 @@ usage: yt remove-queue-producer-session [-h] [--params PARAMS] [--producer-path 
 
 unregisters queue consumer
 
+<a id="yt-unregister-queue-consumer"></a>
 ```bash
 usage: yt unregister-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PATH] [--consumer-path CONSUMER_PATH] [queue_path] [consumer_path]
 ```
@@ -3380,6 +3402,7 @@ usage: yt unregister-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_P
 
 abort query
 
+<a id="yt-abort-query"></a>
 ```bash
 usage: yt abort-query [-h] [--params PARAMS] [--message MESSAGE] [--stage STAGE] query_id
 ```
@@ -3400,6 +3423,7 @@ usage: yt abort-query [-h] [--params PARAMS] [--message MESSAGE] [--stage STAGE]
 
 alter query
 
+<a id="yt-alter-query"></a>
 ```bash
 usage: yt alter-query [-h] [--params PARAMS] [--annotations ANNOTATIONS] [--access-control-objects ACCESS_CONTROL_OBJECTS] [--stage STAGE] query_id
 ```
@@ -3422,6 +3446,7 @@ usage: yt alter-query [-h] [--params PARAMS] [--annotations ANNOTATIONS] [--acce
 
 get query
 
+<a id="yt-get-query"></a>
 ```bash
 usage: yt get-query [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--stage STAGE] [--format FORMAT] query_id
 ```
@@ -3444,6 +3469,7 @@ usage: yt get-query [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--stage STA
 
 get query result
 
+<a id="yt-get-query-result"></a>
 ```bash
 usage: yt get-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX] [--stage STAGE] [--format FORMAT] query_id
 ```
@@ -3466,6 +3492,7 @@ usage: yt get-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX] 
 
 get query tracker info
 
+<a id="yt-get-query-tracker-info"></a>
 ```bash
 usage: yt get-query-tracker-info [-h] [--params PARAMS] [--stage STAGE] [--format FORMAT]
 ```
@@ -3482,6 +3509,7 @@ usage: yt get-query-tracker-info [-h] [--params PARAMS] [--stage STAGE] [--forma
 
 list operations that satisfy given options
 
+<a id="yt-list-queries"></a>
 ```bash
 usage: yt list-queries [-h] [--params PARAMS] [--user USER] [--engine ENGINE] [--state STATE] [--filter FILTER] [--from-time FROM_TIME] [--to-time TO_TIME] [--cursor-time CURSOR_TIME]
                        [--cursor-direction CURSOR_DIRECTION] [--limit LIMIT] [--attribute ATTRIBUTES] [--stage STAGE] [--use-full-scan-search | --search-by-token-prefix] [--tutorials]
@@ -3528,6 +3556,7 @@ usage: yt list-queries [-h] [--params PARAMS] [--user USER] [--engine ENGINE] [-
 
 run query and track its progress (unless sync = false)
 
+<a id="yt-query"></a>
 ```bash
 usage: yt query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILES] [--access-control-objects ACCESS_CONTROL_OBJECTS] [--stage STAGE] [--structured] [--async] [--format FORMAT]
                 engine query
@@ -3561,6 +3590,7 @@ usage: yt query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILES] [--
 
 read query result
 
+<a id="yt-read-query-result"></a>
 ```bash
 usage: yt read-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX] [--stage STAGE] [--format FORMAT] query_id
 ```
@@ -3583,6 +3613,7 @@ usage: yt read-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX]
 
 start query
 
+<a id="yt-start-query"></a>
 ```bash
 usage: yt start-query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILES] [--annotations ANNOTATIONS] [--access-control-object ACCESS_CONTROL_OBJECT]
                       [--access-control-objects ACCESS_CONTROL_OBJECTS] [--stage STAGE] [--do-not-index]
@@ -3621,6 +3652,7 @@ usage: yt start-query [-h] [--params PARAMS] [--settings SETTINGS] [--files FILE
 
 adds maintenance request for a given node
 
+<a id="yt-add-maintenance"></a>
 ```bash
 usage: yt add-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] [-t TYPE] [--comment COMMENT]
 ```
@@ -3641,6 +3673,7 @@ usage: yt add-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] [-t
 
 Administer commands
 
+<a id="yt-admin"></a>
 ```bash
 usage: yt admin [-h] admin_command ...
 ```
@@ -3693,9 +3726,9 @@ yt admin describe cluster [-h] [--nodes] [--bundles] [--dynamic-configs] [--stat
 
 > `--static-configs`    Fetch static node configurations
 
-> `--format`    Possible choices: yson, json, yaml, default: `«yson»`
+> `--format`    Possible choices: yson, json, yaml, default: ``'yson'``
 
-> `-o, --output`    Output directory path, default: `«describe»`
+> `-o, --output`    Output directory path, default: ``'describe'``
 
 ####### table
 
@@ -3711,9 +3744,9 @@ yt admin describe table [-h] [--format {yson,json,yaml}] [-o dir] paths [paths .
 
 ######## Named Arguments
 
-> `--format`    Possible choices: yson, json, yaml, default: `«yson»`
+> `--format`    Possible choices: yson, json, yaml, default: ``'yson'``
 
-> `-o, --output`    Output directory path, default: `«describe»`
+> `-o, --output`    Output directory path, default: ``'describe'``
 
 ##### logs
 
@@ -3745,7 +3778,7 @@ yt admin logs k8s [-h] [-n NAMESPACE] [-p PODS] [--exec-slot-index EXEC_SLOT_IND
 
 > Component name
 
-> `group_name`    Component group name, default: `«default»`
+> `group_name`    Component group name, default: ``'default'``
 
 ######## Named Arguments
 
@@ -3755,15 +3788,15 @@ yt admin logs k8s [-h] [-n NAMESPACE] [-p PODS] [--exec-slot-index EXEC_SLOT_IND
 
 > `--exec-slot-index`    Slot index for job proxy logs (useful only for exec nodes)
 
-> `--from-ts`    Filter logs from this time (i.e. 2026-08-10T13:25:52Z)
+> `--from-ts`    Filter logs from this time (i.e. 2026-09-21T21:58:13Z)
 
-> `--to-ts`    Filter logs up to this time (i.e. 2026-08-10T13:25:52Z)
+> `--to-ts`    Filter logs up to this time (i.e. 2026-09-21T21:58:13Z)
 
 > `-w, --writer`    Filter by writer name (can be specified multiple times)
 
 > `--writer-force`    Force add regex pattern for filename filtering
 
-> `-o, --output`    Output directory path, default: `«logs»`
+> `-o, --output`    Output directory path, default: ``'logs'``
 
 > `--grep`    Filter logs content by regex
 
@@ -3806,9 +3839,9 @@ yt admin metrics dump [-h] --spec SPEC --from-ts ISO8601 --to-ts ISO8601 --prome
 
 > `--spec`    Path to spec.yaml
 
-> `--from-ts`    Start timestamp (i.e. 2026-08-10T13:25:52Z)
+> `--from-ts`    Start timestamp (i.e. 2026-09-21T21:58:13Z)
 
-> `--to-ts`    End timestamp (i.e. 2026-08-10T13:25:52Z)
+> `--to-ts`    End timestamp (i.e. 2026-09-21T21:58:13Z)
 
 > `--prometheus-url`    Prometheus base URL
 
@@ -3816,13 +3849,13 @@ yt admin metrics dump [-h] --spec SPEC --from-ts ISO8601 --to-ts ISO8601 --prome
 
 > `--target`    Additional inline target as JSON, e.g. "{«type»:»metric»,»query»:»yt_x»}"
 
-> `--output`    Output archive path, default: `«metrics.zip»`
+> `--output`    Output archive path, default: ``'metrics.zip'``
 
-> `--max-series`    Confirmation threshold for total series count, default: `100000`
+> `--max-series`    Confirmation threshold for total series count, default: ``100000``
 
 > `--force`    Skip confirmation when over –max-series
 
-> `--max-points-per-series`    Maximum points per series a single query may return (0 to disable), default: `11000`
+> `--max-points-per-series`    Maximum points per series a single query may return (0 to disable), default: ``11000``
 
 ####### replay
 
@@ -3860,6 +3893,7 @@ yt admin remove-master-unrecognized-options [-h] [--dry] [--do-not-print-config]
 
 ClickHouse over {{product-name}} commands
 
+<a id="yt-chyt"></a>
 ```bash
 usage: yt chyt [-h] clickhouse_command ...
 ```
@@ -3893,7 +3927,7 @@ yt chyt start-clique [-h] --instance-count INSTANCE_COUNT [--alias ALIAS] [--cyp
 
 > `--cypress-ytserver-log-tailer-path`
 
-> `--cypress-base-config-path`    Default: `«//sys/clickhouse/config»`
+> `--cypress-base-config-path`    Default: ``'//sys/clickhouse/config'``
 
 > `--cpu-limit`
 
@@ -3929,7 +3963,7 @@ yt chyt execute [-h] [--alias ALIAS] [--query QUERY] [--format FORMAT] [--settin
 
 > `--query`    Query to execute; do not specify FORMAT in query, use –format instead
 
-> `--format`    ClickHouse data format; refer to [https://clickhouse.tech/docs/en/interfaces/formats/](https://clickhouse.tech/docs/en/interfaces/formats/); default is TabSeparated, default: `«TabSeparated»`
+> `--format`    ClickHouse data format; refer to [https://clickhouse.tech/docs/en/interfaces/formats/](https://clickhouse.tech/docs/en/interfaces/formats/); default is TabSeparated, default: ``'TabSeparated'``
 
 > `--setting`    Add ClickHouse setting to query in format <key>=<value>. Accepted multiple times.
 
@@ -3949,7 +3983,7 @@ yt chyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] co
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
@@ -3957,6 +3991,7 @@ yt chyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] co
 
 ClickHouse over {{product-name}} commands
 
+<a id="yt-clickhouse"></a>
 ```bash
 usage: yt clickhouse [-h] clickhouse_command ...
 ```
@@ -3991,7 +4026,7 @@ yt clickhouse start-clique [-h] --instance-count INSTANCE_COUNT [--alias ALIAS] 
 
 > `--cypress-ytserver-log-tailer-path`
 
-> `--cypress-base-config-path`    Default: `«//sys/clickhouse/config»`
+> `--cypress-base-config-path`    Default: ``'//sys/clickhouse/config'``
 
 > `--cpu-limit`
 
@@ -4027,7 +4062,7 @@ yt clickhouse execute [-h] [--alias ALIAS] [--query QUERY] [--format FORMAT] [--
 
 > `--query`    Query to execute; do not specify FORMAT in query, use –format instead
 
-> `--format`    ClickHouse data format; refer to [https://clickhouse.tech/docs/en/interfaces/formats/](https://clickhouse.tech/docs/en/interfaces/formats/); default is TabSeparated, default: `«TabSeparated»`
+> `--format`    ClickHouse data format; refer to [https://clickhouse.tech/docs/en/interfaces/formats/](https://clickhouse.tech/docs/en/interfaces/formats/); default is TabSeparated, default: ``'TabSeparated'``
 
 > `--setting`    Add ClickHouse setting to query in format <key>=<value>. Accepted multiple times.
 
@@ -4047,12 +4082,13 @@ yt clickhouse ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NA
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
 ### detect-porto-layer
 
+<a id="yt-detect-porto-layer"></a>
 ```bash
 usage: yt detect-porto-layer [-h] [--params PARAMS]
 ```
@@ -4065,6 +4101,7 @@ usage: yt detect-porto-layer [-h] [--params PARAMS]
 
 Devtools commands
 
+<a id="yt-devtools"></a>
 ```bash
 usage: yt devtools [-h] {image} ...
 ```
@@ -4094,8 +4131,8 @@ yt devtools image get-cluster-env [-h]
 Create dockerfile for cluster OS/Python version and build image
 
 ```bash
-yt devtools image prepare [-h] [--image-name IMAGE_NAME] [--base-image BASE_IMAGE] [--python-version PYTHON_VERSION] [--print-dockerfile-only]
-                          [--with-modules [WITH_MODULES [WITH_MODULES ...]]] [--with-local-modules]
+yt devtools image prepare [-h] [--image-name IMAGE_NAME] [--base-image BASE_IMAGE] [--python-version PYTHON_VERSION] [--print-dockerfile-only] [--with-modules [WITH_MODULES ...]]
+                          [--with-local-modules]
 ```
 
 ######## Named Arguments
@@ -4145,7 +4182,7 @@ yt devtools image list [-h] [--all]
 List images for scrupt run
 
 ```bash
-yt devtools image install [-h] [--image-name IMAGE_NAME] [--pip [PACKAGES [PACKAGES ...]]] [--bash BASH]
+yt devtools image install [-h] [--image-name IMAGE_NAME] [--pip [PACKAGES ...]] [--bash BASH]
 ```
 
 ######## Named Arguments
@@ -4160,6 +4197,7 @@ yt devtools image install [-h] [--image-name IMAGE_NAME] [--pip [PACKAGES [PACKA
 
 DQ clique commands
 
+<a id="yt-dq"></a>
 ```bash
 usage: yt dq [-h] dq_command ...
 ```
@@ -4186,7 +4224,7 @@ yt dq ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] comm
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
@@ -4194,6 +4232,7 @@ yt dq ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] comm
 
 . execute your command
 
+<a id="yt-execute"></a>
 ```bash
 usage: yt execute [-h] [--params PARAMS] command_name execute_params
 ```
@@ -4212,6 +4251,7 @@ usage: yt execute [-h] [--params PARAMS] command_name execute_params
 
 executes requests in parallel as one batch request
 
+<a id="yt-execute-batch"></a>
 ```bash
 usage: yt execute-batch [-h] [--params PARAMS] requests [requests ...]
 ```
@@ -4226,6 +4266,7 @@ usage: yt execute-batch [-h] [--params PARAMS] requests [requests ...]
 
 ### explain-id
 
+<a id="yt-explain-id"></a>
 ```bash
 usage: yt explain-id [-h] [--params PARAMS] [--local] id
 ```
@@ -4244,6 +4285,7 @@ usage: yt explain-id [-h] [--params PARAMS] [--local] id
 
 {{product-name}} Flow commands
 
+<a id="yt-flow"></a>
 ```bash
 usage: yt flow [-h] flow_command ...
 ```
@@ -4272,7 +4314,7 @@ yt flow start-pipeline [-h] [--pipeline-path PIPELINE_PATH] [--sync] [--wait-tim
 
 > `--sync`    Wait for the pipeline to start
 
-> `--wait-timeout`    Timeout in seconds to wait for the pipeline to start, default: `600`
+> `--wait-timeout`    Timeout in seconds to wait for the pipeline to start, default: ``600``
 
 ##### stop-pipeline
 
@@ -4292,7 +4334,7 @@ yt flow stop-pipeline [-h] [--pipeline-path PIPELINE_PATH] [--sync] [--wait-time
 
 > `--sync`    Wait for the pipeline to stop
 
-> `--wait-timeout`    Timeout in seconds to wait for the pipeline to stop, default: `600`
+> `--wait-timeout`    Timeout in seconds to wait for the pipeline to stop, default: ``600``
 
 ##### pause-pipeline
 
@@ -4312,7 +4354,7 @@ yt flow pause-pipeline [-h] [--pipeline-path PIPELINE_PATH] [--sync] [--wait-tim
 
 > `--sync`    Wait for the pipeline to pause
 
-> `--wait-timeout`    Timeout in seconds to wait for the pipeline to pause, default: `600`
+> `--wait-timeout`    Timeout in seconds to wait for the pipeline to pause, default: ``600``
 
 ##### get-pipeline-spec
 
@@ -4330,7 +4372,7 @@ yt flow get-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'<format=pretty>yson'``
 
 > `--spec-path`    Path inside pipeline spec yson struct, starting with /
 
@@ -4353,7 +4395,7 @@ yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'yson'``
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -4401,7 +4443,7 @@ yt flow get-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'<format=pretty>yson'``
 
 > `--spec-path`    Path inside pipeline dynamic spec yson struct, starting with /
 
@@ -4424,7 +4466,7 @@ yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'yson'``
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -4484,7 +4526,7 @@ yt flow get-flow-view [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: ``'<format=pretty>yson'``
 
 > `--view-path`    Path inside flow view yson struct, starting with /
 
@@ -4506,11 +4548,11 @@ yt flow show-logs [-h] [--pipeline-path PIPELINE_PATH] [--count COUNT] [--attach
 
 > `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--count`    The number of last logs, default: `25`
+> `--count`    The number of last logs, default: ``25``
 
 > `--attach`    Attach to the logs stream
 
-> `--rate`    Logs reading period in seconds, default: `1.0`
+> `--rate`    Logs reading period in seconds, default: ``1.0``
 
 > `--print-host`    Print controller’s hostname
 
@@ -4593,7 +4635,7 @@ yt flow read-states [-h] [--pipeline-path PIPELINE_PATH] [--computation-id COMPU
 
 > Which table(s) to read (default all)
 
-> `--limit`    Upper bound on rows scanned per table, default: `10`
+> `--limit`    Upper bound on rows scanned per table, default: ``10``
 
 > `--output-format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
@@ -4637,6 +4679,7 @@ yt flow delete-states [-h] [--pipeline-path PIPELINE_PATH] [--computation-id COM
 
 generates timestamp
 
+<a id="yt-generate-timestamp"></a>
 ```bash
 usage: yt generate-timestamp [-h] [--params PARAMS]
 ```
@@ -4649,6 +4692,7 @@ usage: yt generate-timestamp [-h] [--params PARAMS]
 
 retrieves supported cluster features (data types, codecs etc.). Get cluster features (types, codecs etc.)
 
+<a id="yt-get-features"></a>
 ```bash
 usage: yt get-features [-h] [--params PARAMS] [--format FORMAT]
 ```
@@ -4665,6 +4709,7 @@ usage: yt get-features [-h] [--params PARAMS] [--format FORMAT]
 
 IDM-related commands
 
+<a id="yt-idm"></a>
 ```bash
 usage: yt idm [-h] (--path PATH | --account ACCOUNT | --bundle TABLET_CELL_BUNDLE | --group GROUP | --pool POOL | --network-project NETWORK_PROJECT) [--pool-tree POOL_TREE]
               [--address ADDRESS]
@@ -4712,18 +4757,18 @@ yt idm show [-h] [--immediate]
 Request IDM role
 
 ```bash
-yt idm request [-h] [--responsibles [RESPONSIBLES [RESPONSIBLES ...]]] [--read-approvers [READ_APPROVERS [READ_APPROVERS ...]]] [--auditors [AUDITORS [AUDITORS ...]]]
-               [--set-inherit-acl | --unset-inherit-acl] [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval]
-               [--subjects [SUBJECTS [SUBJECTS ...]]] [--comment COMMENT] [--dry-run] [--permissions PERMISSIONS]
+yt idm request [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
+               [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run]
+               [--permissions PERMISSIONS]
 ```
 
 ###### Named Arguments
 
-> `--responsibles, -r`    User logins space separated, default: `[]`
+> `--responsibles, -r`    User logins space separated, default: ``[]``
 
-> `--read-approvers, -a`    User logins space separated, default: `[]`
+> `--read-approvers, -a`    User logins space separated, default: ``[]``
 
-> `--auditors, -u`    User logins space separated, default: `[]`
+> `--auditors, -u`    User logins space separated, default: ``[]``
 
 > `--set-inherit-acl`    Enable ACL inheritance
 
@@ -4737,31 +4782,31 @@ yt idm request [-h] [--responsibles [RESPONSIBLES [RESPONSIBLES ...]]] [--read-a
 
 > `--unset-boss-approval`    Disable boss approval requirement for personal roles
 
-> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
+> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: ``[]``
 
 > `--comment`    Comment for the role
 
 > `--dry-run`    Do not make real changes
 
-> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
+> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: ``[]``
 
 ##### revoke
 
 Revoke IDM role
 
 ```bash
-yt idm revoke [-h] [--responsibles [RESPONSIBLES [RESPONSIBLES ...]]] [--read-approvers [READ_APPROVERS [READ_APPROVERS ...]]] [--auditors [AUDITORS [AUDITORS ...]]]
-              [--set-inherit-acl | --unset-inherit-acl] [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval]
-              [--subjects [SUBJECTS [SUBJECTS ...]]] [--comment COMMENT] [--dry-run] [--permissions PERMISSIONS] [--revoke-all-roles]
+yt idm revoke [-h] [--responsibles [RESPONSIBLES ...]] [--read-approvers [READ_APPROVERS ...]] [--auditors [AUDITORS ...]] [--set-inherit-acl | --unset-inherit-acl]
+              [--set-inherit-responsibles | --unset-inherit-responsibles] [--set-boss-approval | --unset-boss-approval] [--subjects [SUBJECTS ...]] [--comment COMMENT] [--dry-run]
+              [--permissions PERMISSIONS] [--revoke-all-roles]
 ```
 
 ###### Named Arguments
 
-> `--responsibles, -r`    User logins space separated, default: `[]`
+> `--responsibles, -r`    User logins space separated, default: ``[]``
 
-> `--read-approvers, -a`    User logins space separated, default: `[]`
+> `--read-approvers, -a`    User logins space separated, default: ``[]``
 
-> `--auditors, -u`    User logins space separated, default: `[]`
+> `--auditors, -u`    User logins space separated, default: ``[]``
 
 > `--set-inherit-acl`    Enable ACL inheritance
 
@@ -4775,13 +4820,13 @@ yt idm revoke [-h] [--responsibles [RESPONSIBLES [RESPONSIBLES ...]]] [--read-ap
 
 > `--unset-boss-approval`    Disable boss approval requirement for personal roles
 
-> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: `[]`
+> `--subjects, -s`    Space separated user logins or staff/ABC groups like idm-group:ID or tvm apps like tvm-app:ID, default: ``[]``
 
 > `--comment`    Comment for the role
 
 > `--dry-run`    Do not make real changes
 
-> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: `[]`
+> `--permissions, -p`    Permissions like: R - read; RW - read, write, remove; M - mount, U - use, default: ``[]``
 
 > `--revoke-all-roles`    Revoke all IDM roles
 
@@ -4799,13 +4844,13 @@ yt idm copy [-h] [--dst-pool-tree DST_POOL_TREE] [--immediate] [--erase] [--dst-
 
 ###### Named Arguments
 
-> `--dst-pool-tree`    Destination pool tree override; by default copying is done within a single pool tree, default: `«»`
+> `--dst-pool-tree`    Destination pool tree override; by default copying is done within a single pool tree, default: ``''``
 
 > `--immediate, -i`    Only copy immediate IDM permissions
 
 > `--erase, -e`    Erase all existing permissions from destination object
 
-> `--dst-cluster`    Destination cluster override; by default copying is done within a single cluster, default: `«»`
+> `--dst-cluster`    Destination cluster override; by default copying is done within a single cluster, default: ``''``
 
 > `--dry-run`    Do not make real changes
 
@@ -4815,6 +4860,7 @@ yt idm copy [-h] [--dst-pool-tree DST_POOL_TREE] [--immediate] [--erase] [--dst-
 
 Jupyter over {{product-name}} commands
 
+<a id="yt-jupyt"></a>
 ```bash
 usage: yt jupyt [-h] jupyter_command ...
 ```
@@ -4841,7 +4887,7 @@ yt jupyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] c
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
@@ -4849,6 +4895,7 @@ yt jupyt ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAME] c
 
 removes maintenance requests from given node by id or filter
 
+<a id="yt-remove-maintenance"></a>
 ```bash
 usage: yt remove-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] [--id ID] [--ids IDS] [-t TYPE] [-u USER] [--mine] [--all]
 ```
@@ -4877,6 +4924,7 @@ usage: yt remove-maintenance [-h] [--params PARAMS] [-c COMPONENT] [-a ADDRESS] 
 
 . Run command under lock
 
+<a id="yt-run-command-with-lock"></a>
 ```bash
 usage: yt run-command-with-lock [-h] [--params PARAMS] [--shell] [--poll-period POLL_PERIOD] [--term-delay TERM_DELAY] [--kill-delay KILL_DELAY]
                                 [--conflict-exit-code CONFLICT_EXIT_CODE] [--set-address] [--address-path ADDRESS_PATH] [--recursive]
@@ -4895,13 +4943,13 @@ usage: yt run-command-with-lock [-h] [--params PARAMS] [--shell] [--poll-period 
 
 > `--shell`    Run command in subshell
 
-> `--poll-period`    Poll period for command process in seconds, default: `1.0`
+> `--poll-period`    Poll period for command process in seconds, default: ``1.0``
 
-> `--term-delay`    Delay before term signal in seconds, default: `1.0`
+> `--term-delay`    Delay before term signal in seconds, default: ``1.0``
 
-> `--kill-delay`    Delay before kill signal in seconds, default: `1.0`
+> `--kill-delay`    Delay before kill signal in seconds, default: ``1.0``
 
-> `--conflict-exit-code`    Exit code in case of lock conflict, default: `1`
+> `--conflict-exit-code`    Exit code in case of lock conflict, default: ``1``
 
 > `--set-address`    Set address of current host (in lock attribute by default)
 
@@ -4915,6 +4963,7 @@ Gets input table and recompresses it in all available codecs.
 
 For each codec prints compression ratio, cpu_write and cpu_read.
 
+<a id="yt-run-compression-benchmarks"></a>
 ```bash
 usage: yt run-compression-benchmarks [-h] [--params PARAMS] [--table TABLE] [--all-codecs] [--sample-size SAMPLE_SIZE] [--format {json,csv}] [--max-operations MAX_OPERATIONS]
                                      [--time-limit-sec TIME_LIMIT_SEC]
@@ -4933,20 +4982,21 @@ usage: yt run-compression-benchmarks [-h] [--params PARAMS] [--table TABLE] [--a
 
 > `--all-codecs`    benchmark every level of codecs with levels
 
-> `--sample-size`    approximate table’s sample fragment size in bytes, default: `1000000000`
+> `--sample-size`    approximate table’s sample fragment size in bytes, default: ``1000000000``
 
 > `--format`    Possible choices: json, csv
 
-> output format, default: `«json»`
+> output format, default: ``'json'``
 
-> `--max-operations`    max count of parallel operations, default: `10`
+> `--max-operations`    max count of parallel operations, default: ``10``
 
-> `--time-limit-sec`    time limit for one operation in seconds, default: `200`
+> `--time-limit-sec`    time limit for one operation in seconds, default: ``200``
 
 ### show-default-config
 
 returns default configuration of python API
 
+<a id="yt-show-default-config"></a>
 ```bash
 usage: yt show-default-config [-h] [--params PARAMS] [--with-env-patch] [--with-remote-patch] [--only-remote-patch]
 ```
@@ -4965,6 +5015,7 @@ usage: yt show-default-config [-h] [--params PARAMS] [--with-env-patch] [--with-
 
 shows available spec options of the operation
 
+<a id="yt-show-spec"></a>
 ```bash
 usage: yt show-spec [-h] [--params PARAMS] operation
 ```
@@ -4983,6 +5034,7 @@ usage: yt show-spec [-h] [--params PARAMS] operation
 
 shares table on cluster via skynet
 
+<a id="yt-sky-share"></a>
 ```bash
 usage: yt sky-share [-h] [--params PARAMS] [--cluster CLUSTER] [--key-column KEY_COLUMNS] [--enable-fastbone] [--share-operation-options SHARE_OPERATION_OPTIONS] path
 ```
@@ -5009,6 +5061,7 @@ usage: yt sky-share [-h] [--params PARAMS] [--cluster CLUSTER] [--key-column KEY
 
 SPYT commands
 
+<a id="yt-spark"></a>
 ```bash
 usage: yt spark [-h] spark_command ...
 ```
@@ -5061,7 +5114,7 @@ yt spark livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NA
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
@@ -5069,6 +5122,7 @@ yt spark livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NA
 
 SPYT commands
 
+<a id="yt-spyt"></a>
 ```bash
 usage: yt spyt [-h] spark_command ...
 ```
@@ -5121,7 +5175,7 @@ yt spyt livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAM
 
 > `--address`    controller service address; may contain {stage}, {family} and {host_suffix} parameters; the default value is fetched from the remote client config
 
-> `--stage`    controller stage, default: `«production»`
+> `--stage`    controller stage, default: ``'production'``
 
 > `--cluster-name`    cluster name under which the cluster is configured in the strawberry controller; the default value is fetched from the remote client config
 
@@ -5129,6 +5183,7 @@ yt spyt livy ctl [--address ADDRESS] [--stage STAGE] [--cluster-name CLUSTER_NAM
 
 transfers resources between accounts
 
+<a id="yt-transfer-account-resources"></a>
 ```bash
 usage: yt transfer-account-resources [-h] [--params PARAMS] [--source-account SOURCE_ACCOUNT] [--destination-account DESTINATION_ACCOUNT] [--resource-delta RESOURCE_DELTA]
                                      [source_account] [destination_account]
@@ -5154,6 +5209,7 @@ usage: yt transfer-account-resources [-h] [--params PARAMS] [--source-account SO
 
 transfers resources between pools
 
+<a id="yt-transfer-pool-resources"></a>
 ```bash
 usage: yt transfer-pool-resources [-h] [--params PARAMS] [--source-pool SOURCE_POOL] [--destination-pool DESTINATION_POOL] [--pool-tree POOL_TREE] [--resource-delta RESOURCE_DELTA]
                                   [source_pool] [destination_pool] [pool_tree]
@@ -5183,6 +5239,7 @@ usage: yt transfer-pool-resources [-h] [--params PARAMS] [--source-pool SOURCE_P
 
 transforms source table to destination table writing data with given compression and erasure codecs
 
+<a id="yt-transform"></a>
 ```bash
 usage: yt transform [-h] [--params PARAMS] [--src SOURCE_TABLE] [--dst DESTINATION_TABLE] [--erasure-codec ERASURE_CODEC] [--compression-codec COMPRESSION_CODEC]
                     [--optimize-for OPTIMIZE_FOR] [--desired-chunk-size DESIRED_CHUNK_SIZE] [--check-codecs] [--spec SPEC]

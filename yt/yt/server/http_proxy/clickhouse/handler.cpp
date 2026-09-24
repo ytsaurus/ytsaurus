@@ -120,12 +120,12 @@ public:
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
             YT_TLOG_INFO("Request contains traceparent header")
-                .With("Traceparent", traceParent);
+                .With("Traceparent", *traceParent);
         }
 
         if (auto* xRequestId = req->GetHeaders()->Find("X-Request-Id")) {
             YT_TLOG_INFO("Request contains X-Request-Id header")
-                .With("XRequestId", xRequestId);
+                .With("XRequestId", *xRequestId);
         }
     }
 

@@ -65,7 +65,7 @@ class HttpProxyTestBase(YTEnvSetup):
     DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
             "heartbeat_interval": 100,
-            "death_age": 500,
+            "death_age": 2000,
             "cypress_timeout": 50,
         },
         "api": {
@@ -1075,6 +1075,7 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["rpc_proxy"] == 2
         assert counts["discovery"] == 1
         assert counts["timestamp_provider"] == 1
+        assert counts["timestamp_proxy"] == 1
         assert counts["master_cache"] == 1
         assert counts["bundle_controller"] == 1
         assert counts["queue_agent"] == 1
@@ -1995,14 +1996,6 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "build_snapshot_delay": 10000,
-        },
-    }
-
-    DELTA_HTTP_PROXY_CONFIG = {
-        "coordinator": {
-            "heartbeat_interval": 100,
-            "cypress_timeout": 50,
-            "death_age": 500,
         },
     }
 

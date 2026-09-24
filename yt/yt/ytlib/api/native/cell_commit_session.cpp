@@ -36,7 +36,6 @@ public:
             useUniformPrepareSignatures
                 ? std::make_unique<TUniformSignatureGenerator>()
                 : std::make_unique<TTransactionSignatureGenerator>(FinalTransactionSignature))
-        , CommitSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
         , Logger(logger.WithTag("CellId", cellId))
     { }
 
@@ -45,16 +44,10 @@ public:
         return PrepareSignatureGenerator_.get();
     }
 
-    TTransactionSignatureGenerator* GetCommitSignatureGenerator() override
-    {
-        return &CommitSignatureGenerator_;
-    }
-
     void RegisterAction(NTransactionClient::TTransactionActionData data) override
     {
         if (Actions_.empty()) {
             PrepareSignatureGenerator_->RegisterRequest();
-            CommitSignatureGenerator_.RegisterRequest();
         }
         Actions_.push_back(data);
     }
@@ -66,16 +59,22 @@ public:
 
     void RegisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EmplaceOrCrash(Tablets_, tabletId);
     }
 
     void UnregisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EraseOrCrash(Tablets_, tabletId);
     }
 
     bool HasRegisteredTabletCommitSessions() const override
     {
+        auto guard = Guard(TabletsLock_);
+
         return !Tablets_.empty();
     }
 
@@ -117,11 +116,13 @@ private:
     const TCellId CellId_;
 
     std::unique_ptr<TTransactionSignatureGenerator> PrepareSignatureGenerator_;
-    TTransactionSignatureGenerator CommitSignatureGenerator_;
 
     const TLogger Logger;
 
+    // NB: All accesses are non-concurrent by construction; add a lock if that ever changes.
     std::vector<TTransactionActionData> Actions_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TabletsLock_);
     THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
@@ -131,7 +132,6 @@ private:
         req->set_transaction_start_timestamp(ToProto(owner->GetStartTimestamp()));
         req->set_transaction_timeout(ToProto(owner->GetTimeout()));
         req->set_prepare_signature(PrepareSignatureGenerator_->GenerateSignature());
-        req->set_commit_signature(CommitSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }

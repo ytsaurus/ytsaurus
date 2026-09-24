@@ -32,6 +32,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -64,8 +65,10 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
@@ -77,6 +80,7 @@
 #include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
@@ -84,13 +88,12 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
-#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -118,6 +121,7 @@
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
@@ -185,6 +189,56 @@ constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+INodePtr ComputeNonDefaultConfigPatch(
+    const INodePtr& configNode,
+    const INodePtr& defaultNode)
+{
+    // COMPAT(ifsmirnov): Delete this function when the reign is removed.
+    static_cast<void>(EMasterReign::LegacyBaseIOConfigs);
+
+    if (defaultNode && AreNodesEqual(configNode, defaultNode)) {
+        return nullptr;
+    }
+
+    if (configNode->GetType() == ENodeType::Map &&
+        defaultNode &&
+        defaultNode->GetType() == ENodeType::Map)
+    {
+        auto result = GetEphemeralNodeFactory()->CreateMap();
+        const auto& defaultMap = defaultNode->AsMap();
+        for (const auto& [key, child] : configNode->AsMap()->GetChildren()) {
+            auto childPatch = ComputeNonDefaultConfigPatch(
+                child,
+                defaultMap->FindChild(key));
+            if (childPatch) {
+                result->AddChild(key, childPatch);
+            }
+        }
+        return result->GetChildCount() > 0 ? result : nullptr;
+    }
+
+    return CloneNode(configNode);
+}
+
+template <class TConfigPtr>
+IMapNodePtr ComputeNonDefaultConfigPatch(
+    const TConfigPtr& config,
+    const TConfigPtr& defaultConfig)
+{
+    auto patch = ComputeNonDefaultConfigPatch(
+        ConvertToNode(config),
+        ConvertToNode(defaultConfig));
+    return patch
+        ? patch->AsMap()
+        : GetEphemeralNodeFactory()->CreateMap();
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletManager
     : public ITabletManager
     , public ITabletActionManagerHost
@@ -196,12 +250,13 @@ public:
         , TabletService_(CreateTabletService(Bootstrap_))
         , TabletBalancer_(CreateTabletBalancer(Bootstrap_))
         , TabletCellDecommissioner_(CreateTabletCellDecommissioner(Bootstrap_))
+        , StoresUpdateThrottlerActionQueue_(New<TActionQueue>("StoresUpdThrt"))
         , TabletActionManager_(CreateTabletActionManager(
             Bootstrap_,
             this,
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager)))
-        , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_))
+        , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_, StoresUpdateThrottlerActionQueue_->GetInvoker()))
         , TabletMap_(TEntityMapTypeTraits<TTabletBase>(Bootstrap_))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
@@ -290,6 +345,7 @@ public:
 
         TabletService_->Initialize();
         TabletActionManager_->Initialize();
+        TabletChunkManager_->Initialize();
     }
 
     IYPathServicePtr GetOrchidService() override
@@ -308,6 +364,11 @@ public:
     const ITabletActionManagerPtr& GetTabletActionManager() const override
     {
         return TabletActionManager_;
+    }
+
+    const IInvokerPtr& GetStoresUpdateThrottlerInvoker() const override
+    {
+        return StoresUpdateThrottlerActionQueue_->GetInvoker();
     }
 
     void OnTabletCellBundleDestroyed(TCellBundle* cellBundle)
@@ -2803,6 +2864,7 @@ private:
     const ITabletServicePtr TabletService_;
     const ITabletBalancerPtr TabletBalancer_;
     const ITabletCellDecommissionerPtr TabletCellDecommissioner_;
+    const TActionQueuePtr StoresUpdateThrottlerActionQueue_;
     const ITabletActionManagerPtr TabletActionManager_;
     const ITabletChunkManagerPtr TabletChunkManager_;
 
@@ -2838,6 +2900,9 @@ private:
 
     // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
+
+    // COMPAT(ifsmirnov): LegacyBaseIOConfigs.
+    bool MigrateLegacyBaseIOConfigs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4285,11 +4350,55 @@ private:
 
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
+
+        if (context.GetVersion() < EMasterReign::LegacyBaseIOConfigs) {
+            MigrateLegacyBaseIOConfigs_ = true;
+        }
     }
 
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(ifsmirnov): LegacyBaseIOConfigs.
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (MigrateLegacyBaseIOConfigs_ && multicellManager->IsPrimaryMaster()) {
+            static const std::string LegacyExperimentName = "legacy_base_io_configs";
+
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            auto dynamicConfig = CloneYsonStruct(configManager->GetConfig());
+            const auto& config = dynamicConfig->TabletManager;
+            auto ioConfigTemplatePatch = New<NTabletNode::TTableIOConfigPatch>();
+            ioConfigTemplatePatch->StoreReaderConfig = ComputeNonDefaultConfigPatch(
+                config->StoreChunkReader,
+                New<NTabletNode::TTabletStoreReaderConfig>());
+            ioConfigTemplatePatch->HunkReaderConfig = ComputeNonDefaultConfigPatch(
+                config->HunkChunkReader,
+                New<NTabletNode::TTabletHunkReaderConfig>());
+            ioConfigTemplatePatch->StoreWriterConfig = ComputeNonDefaultConfigPatch(
+                config->StoreChunkWriter,
+                New<NTabletNode::TTabletStoreWriterConfig>());
+            ioConfigTemplatePatch->HunkWriterConfig = ComputeNonDefaultConfigPatch(
+                config->HunkChunkWriter,
+                New<NTabletNode::TTabletHunkWriterConfig>());
+
+            auto experiment = ConvertTo<NTabletNode::TTableConfigExperimentPtr>(
+                BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("fraction").Value(1.0)
+                        .Item("auto_apply").Value(false)
+                        .Item("patch").BeginMap()
+                            .Item("io_config_template_patch").Value(ioConfigTemplatePatch)
+                        .EndMap()
+                    .EndMap());
+            config->TableConfigExperiments[LegacyExperimentName] = std::move(experiment);
+            configManager->SetConfig(ConvertToNode(dynamicConfig));
+
+            YT_LOG_INFO("Migrated legacy base IO configs to table config experiment "
+                "(ExperimentName: %v, IOConfigTemplatePatch: %v)",
+                LegacyExperimentName,
+                ConvertToYsonString(ioConfigTemplatePatch, EYsonFormat::Text));
+        }
 
         InitBuiltins();
 
@@ -4320,13 +4429,13 @@ private:
         for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
             YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
-            cell->GossipStatistics().Initialize(Bootstrap_);
+            InitializeGossipValue(&cell->GossipStatistics(), Bootstrap_);
         }
 
         for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
-            bundle->ResourceUsage().Initialize(Bootstrap_);
+            InitializeGossipValue(&bundle->ResourceUsage(), Bootstrap_);
         }
 
         TabletActionManager_->OnAfterCellManagerSnapshotLoaded();
@@ -4343,6 +4452,7 @@ private:
 
         DefaultTabletCellBundle_ = nullptr;
         NonAvenueTabletCount_ = 0;
+        MigrateLegacyBaseIOConfigs_ = false;
     }
 
     void SetZeroState() override
@@ -4423,7 +4533,7 @@ private:
         options->SnapshotAccount = DefaultStoreAccountName;
 
         auto holder = TPoolAllocator::New<TTabletCellBundle>(id);
-        holder->ResourceUsage().Initialize(Bootstrap_);
+        InitializeGossipValue(&holder->ResourceUsage(), Bootstrap_);
         cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
             ->As<TTabletCellBundle>();
         return true;
@@ -5750,7 +5860,7 @@ private:
                             .With(tags);
                         tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
                     } else {
-                        YT_TLOG_ALERT("Trimmed row count exceeds total row count of the tablet and will be rolled back")
+                        YT_TLOG_ALERT("Trimmed row count exceeds total row count of the tablet")
                             .With(tags);
                     }
                 }

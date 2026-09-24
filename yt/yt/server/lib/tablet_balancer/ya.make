@@ -6,8 +6,10 @@ SRCS(
     balancing_helpers.cpp
     config.cpp
     helpers.cpp
-    parameterized_balancing_helpers.cpp
+    metrics_calculator.cpp
+    parameterized_move_helpers.cpp
     replica_balancing_helpers.cpp
+    resharder.cpp
     table.cpp
     tablet.cpp
     tablet_cell.cpp

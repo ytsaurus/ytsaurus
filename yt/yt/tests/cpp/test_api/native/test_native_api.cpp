@@ -4,6 +4,7 @@
 #include <yt/yt/tests/cpp/test_api/common/modify_rows_test.h>
 
 #include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/table_writer.h>
 
@@ -2134,6 +2135,56 @@ TEST_F(TCheckPermissionByAclTest, PendingRemovalSubjects)
     EXPECT_EQ(0, std::ssize(checkPermissionResult.MissingSubjects));
     EXPECT_EQ(1, std::ssize(checkPermissionResult.PendingRemovalSubjects));
     EXPECT_EQ("buba", checkPermissionResult.PendingRemovalSubjects.back());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableReaderTimingStatisticsTest
+    : public TApiTestBase
+{ };
+
+TEST_F(TTableReaderTimingStatisticsTest, StaticTableRead)
+{
+    NYPath::TYPath path = "//tmp/table_reader_timing_statistics";
+    WaitFor(Client_->CreateNode(path, EObjectType::Table))
+        .ThrowOnError();
+
+    auto rowBuffer = New<TRowBuffer>();
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+        auto valueId = writer->GetNameTable()->GetIdOrRegisterName("value");
+        std::vector<TUnversionedRow> rows;
+        for (int index = 0; index < 1000; ++index) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedInt64Value(index, valueId));
+            rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
+        }
+        if (!writer->Write(rows)) {
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
+        }
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto reader = WaitFor(Client_->CreateTableReader(path))
+        .ValueOrThrow();
+    while (auto batch = reader->Read()) {
+        if (batch->IsEmpty()) {
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+
+    auto statistics = reader->GetTimingStatistics();
+    ASSERT_TRUE(statistics.MasterFetchTime.has_value());
+    ASSERT_TRUE(statistics.DataReadTiming.has_value());
+    EXPECT_GT(*statistics.MasterFetchTime, TDuration::Zero());
+    EXPECT_GT(statistics.DataReadTiming->ReadTime, TDuration::Zero());
+    EXPECT_GE(
+        statistics.TotalTime,
+        *statistics.MasterFetchTime + statistics.DataReadTiming->WaitTime + statistics.DataReadTiming->ReadTime + statistics.DataReadTiming->IdleTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

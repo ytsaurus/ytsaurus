@@ -28,6 +28,7 @@ namespace NYql::NYtflow::NPrivate {
 
 constexpr TStringBuf YtflowInputStreamCallableName = "YtflowInputStream";
 constexpr TStringBuf YtflowInputStateCallableName = "YtflowInputState";
+constexpr TStringBuf YtflowInputWatermarkCallableName = "YtflowInputWatermark";
 
 class TUpdateStateComputationGraphWithCodecs
     : public TComputationGraphWithCodecsBase
@@ -77,7 +78,8 @@ public:
 public:
     void SetInput(
         const std::vector<TMessageHolder>& messageHolders,
-        std::optional<TString> maybeState) override
+        std::optional<TString> maybeState,
+        ui64 inputWatermark) override
     {
         auto guard = Guard(Alloc);
 
@@ -92,6 +94,10 @@ public:
         StateNode->SetValue(
             ComputationGraph->GetContext(),
             StateInputCodec->Convert(stateValue));
+
+        InputWatermarkNode->SetValue(
+            ComputationGraph->GetContext(),
+            NYql::NUdf::TUnboxedValuePod(inputWatermark));
     }
 
     TUpdateStateOutput GetOutput() override
@@ -195,6 +201,7 @@ private:
     void SetupProcessing() {
         auto* streamNode = YtflowInputNodes.at(TString(YtflowInputStreamCallableName));
         StateNode = YtflowInputNodes.at(TString(YtflowInputStateCallableName));
+        InputWatermarkNode = YtflowInputNodes.at(TString(YtflowInputWatermarkCallableName));
 
         ValueFetcher = MakeHolder<TMessageSequenceValueFetcher>(
             InputSchema, StreamInputCodec.Get(), Profiler, ConverterCache);
@@ -230,6 +237,7 @@ private:
     THolder<TMessageSequenceValueFetcher> ValueFetcher;
     TStreamValue* StreamValue = nullptr;
     NKikimr::NMiniKQL::IComputationExternalNode* StateNode = nullptr;
+    NKikimr::NMiniKQL::IComputationExternalNode* InputWatermarkNode = nullptr;
 };
 
 } // namespace NYql::NYtflow::NPrivate

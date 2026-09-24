@@ -4,6 +4,7 @@
 #include "job_balancer_common.h"
 #include "job_balancer_greedy.h"
 #include "job_balancer_resource_queue.h"
+#include "worker_coef_estimator.h"
 
 #include <util/generic/map.h>
 
@@ -96,6 +97,20 @@ struct TPartitionDistributionInfo
     TWorkerPtr Worker;
     //! One of the original counters from status of an active job, if there's one.
     std::optional<double> InputCpuUsage;
+    //! Address of the worker #InputCpuUsage was measured on: the job's own worker, not the target
+    //! of a graceful move it may be in.
+    std::string MetricsWorker;
+    //! CPU usage from the partition's persisted history and the worker it was measured on.
+    std::optional<double> HistoryCpuUsage;
+    std::string HistoryWorker;
+    //! Share of #InputCpuUsage in its blend with #HistoryCpuUsage, in [0, 1]; 1 once the job's
+    //! metrics are mature.
+    double MetricsSwitchShare = 1.;
+    //! Whether the balancer may move the partition; false for a running job whose metrics are not
+    //! mature yet when warm-up protection is on.
+    bool Movable = true;
+    //! CPU usage divided by the coefficient of the worker it was measured on, blended across the switch.
+    std::optional<double> NormalizedInputCpuUsage;
     //! Memory usage in bytes from the status of an active job, if there's one.
     std::optional<double> InputMemoryUsage;
     //! Calculated complexity (Cp from the formula above).
@@ -576,7 +591,11 @@ std::optional<TSequenceId> TRebalanceActions::GetSequenceId() const
 class TPartitionDistributionData
 {
 public:
-    TPartitionDistributionData(const TFlowViewPtr& flowView, const TControllersMap& controllers, const TWorkerGroupId& workerGroup);
+    TPartitionDistributionData(
+        const TFlowViewPtr& flowView,
+        const TControllersMap& controllers,
+        const TDynamicJobBalancerSpecPtr& balancerSpec,
+        const TWorkerGroupId& workerGroup);
     TPartitionDistributionData(const TPartitionDistributionData&) = delete;
     TPartitionDistributionData& operator=(const TPartitionDistributionData&) = delete;
 
@@ -636,12 +655,21 @@ private:
     TMemoryMetricQuality MemoryMetricQuality_;
 
     //! Accumulate all known data in one table in data.
-    void CollectPartitions(const TFlowViewPtr& flowView, const TControllersMap& controllers, const TWorkerGroupId& workerGroup);
+    void CollectPartitions(
+        const TFlowViewPtr& flowView,
+        const TControllersMap& controllers,
+        const TDynamicJobBalancerSpecPtr& balancerSpec,
+        const TWorkerGroupId& workerGroup);
     //! Make indexes of the main table in data.
     void GenerateIndexes();
     //! Find worker coefficients.
     //! Normalize them to be about 1 on average, so we could take 1 for unknown workers.
     void CalculateWorkerCoefs();
+    //! Take the worker coefficients solved by the probing estimator from the persisted balancer state.
+    void LoadWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec, const TWorkerGroupId& workerGroup);
+    //! Divide each known CPU usage by the coefficient of the worker it was measured on and blend
+    //! the job's own value with the partition's history across the metrics switch.
+    void NormalizeInputCpuUsage();
     //! Find computation coefficients.
     //! Normalize them so that individual partition complexities will be around 1 on average,
     //!  so we could take 1 as partition complexity if cpu load is unknown.
@@ -1134,9 +1162,21 @@ class TRebalanceActionsVerifier
 public:
     using TPartitionLocations = THashMap<TPartitionId, std::string>;
 
-    TRebalanceActionsVerifier(const TFlowViewPtr& flowView)
+    TRebalanceActionsVerifier(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec)
         : FlowView_(flowView)
+        , BalancerSpec_(balancerSpec)
     { }
+
+    bool IsWarmupProtectionActive(const TPartitionId& partitionId)
+    {
+        const auto& partition = GetOrCrash(FlowView_->State->ExecutionSpec->Layout->Partitions, partitionId);
+        const auto& workerGroup = GetOrCrash(FlowView_->CurrentSpec->GetValue()->Computations, partition->ComputationId)->WorkerGroup;
+        auto it = WarmupProtectionActive_.find(workerGroup);
+        if (it == WarmupProtectionActive_.end()) {
+            it = WarmupProtectionActive_.emplace(workerGroup, NBalancer::IsWarmupProtectionActive(FlowView_, BalancerSpec_, workerGroup)).first;
+        }
+        return it->second;
+    }
 
     TRebalanceActions VerifyWithKnownLocations(const TRebalanceActions& actions, TPartitionLocations& whereIs, bool rollback = false)
     {
@@ -1164,6 +1204,10 @@ public:
                 }
             } else if (action.Type == ERebalanceActionType::Del) {
                 if (!whereIs.contains(action.PartitionId) || whereIs[action.PartitionId] != action.WorkerAddress) {
+                    return false;
+                }
+                // The decision may predate a restart of the partition's job.
+                if (!IsPartitionMovable(FlowView_, action.PartitionId, IsWarmupProtectionActive(action.PartitionId))) {
                     return false;
                 }
             }
@@ -1286,6 +1330,8 @@ public:
 
 private:
     TFlowViewPtr FlowView_;
+    TDynamicJobBalancerSpecPtr BalancerSpec_;
+    THashMap<TWorkerGroupId, bool> WarmupProtectionActive_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1394,12 +1440,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionDistributionData::TPartitionDistributionData(const TFlowViewPtr& flowView, const TControllersMap& controllers, const TWorkerGroupId& workerGroup)
+TPartitionDistributionData::TPartitionDistributionData(
+    const TFlowViewPtr& flowView,
+    const TControllersMap& controllers,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup)
 {
-    CollectPartitions(flowView, controllers, workerGroup);
+    CollectPartitions(flowView, controllers, balancerSpec, workerGroup);
     GenerateIndexes();
     CalculateWorkerAvgJobIntervals();
-    CalculateWorkerCoefs();
+    if (balancerSpec->WorkerCoefMode == EWorkerCoefMode::Probing) {
+        LoadWorkerCoefs(flowView, balancerSpec, workerGroup);
+    } else {
+        CalculateWorkerCoefs();
+    }
+    NormalizeInputCpuUsage();
     CalculateComputationCoefs();
     InterpolateComplexities();
     NormalizeComplexities();
@@ -1407,10 +1462,18 @@ TPartitionDistributionData::TPartitionDistributionData(const TFlowViewPtr& flowV
     FinalizeMemoryUsage();
 }
 
-void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView, const TControllersMap& controllers, const TWorkerGroupId& workerGroup)
+void TPartitionDistributionData::CollectPartitions(
+    const TFlowViewPtr& flowView,
+    const TControllersMap& controllers,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup)
 {
     const auto& layout = flowView->State->ExecutionSpec->Layout;
+    const auto& histories = flowView->State->BalancerState->PartitionHistories;
     THashMap<TJobId, TPartitionId> jobIdToPartitionId;
+    const bool useHistory = balancerSpec->BalancerMetricsSource == EBalancerMetricsSource::Partition;
+    const bool warmupProtection = IsWarmupProtectionActive(flowView, balancerSpec, workerGroup);
+    const auto now = TInstant::Now();
 
     for (const auto& [partitionId, partition] : layout->Partitions) {
         if (partition->State != EPartitionState::Executing && partition->State != EPartitionState::Completing && partition->State != EPartitionState::Interrupting) {
@@ -1426,6 +1489,12 @@ void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView,
         info.State = partition->State;
         info.ComputationId = partition->ComputationId;
         info.Weight = weight;
+        if (useHistory) {
+            if (auto* history = histories.FindPtr(partitionId)) {
+                info.HistoryCpuUsage = (*history)->CpuUsage;
+                info.HistoryWorker = (*history)->WorkerAddress;
+            }
+        }
     }
 
     for (const auto& [jobId, job] : layout->Jobs) {
@@ -1439,6 +1508,9 @@ void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView,
         if (worker && worker->IncarnationId == job->WorkerIncarnationId) {
             info.JobId = jobId;
             info.Worker = worker;
+            info.MetricsWorker = job->WorkerAddress;
+            // A running job is immovable until its status proves its metrics mature.
+            info.Movable = !warmupProtection;
             jobIdToPartitionId[jobId] = job->PartitionId;
 
             // If this partition is being gracefully migrated to another worker, treat it as
@@ -1453,6 +1525,10 @@ void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView,
                     info.Worker = targetWorker;
                 }
             }
+            if (!useHistory) {
+                // The legacy model attributes the metrics to the placement worker.
+                info.MetricsWorker = info.Worker->RpcAddress;
+            }
         }
     }
 
@@ -1463,20 +1539,29 @@ void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView,
             continue;
         }
         auto& info = it2->second;
+        double maturity = GetJobMetricsMaturity(currentJobStatus, now);
+        if (info.Worker && warmupProtection) {
+            // Maturity of the CPU rate gates moves for every resource: a move costs the same
+            // whichever resource asked for it.
+            info.Movable = maturity >= 1. || IsJobFreshlyStarted(currentJobStatus, now);
+        }
         if (currentJobStatus) {
-            if (currentJobStatus->PerformanceMetrics->CpuUsage10m) {
-                info.InputCpuUsage = currentJobStatus->PerformanceMetrics->CpuUsage10m;
-            } else if (currentJobStatus->PerformanceMetrics->CpuUsage30s) {
-                info.InputCpuUsage = currentJobStatus->PerformanceMetrics->CpuUsage30s;
-            } else {
-                info.InputCpuUsage = currentJobStatus->PerformanceMetrics->CpuUsageCurrent;
+            const auto& metrics = currentJobStatus->PerformanceMetrics;
+            if (metrics->CpuUsage10m && (!useHistory || AreJobMetricsSteady(currentJobStatus))) {
+                info.InputCpuUsage = metrics->CpuUsage10m;
+            } else if (!useHistory) {
+                info.InputCpuUsage = metrics->CpuUsage30s ? metrics->CpuUsage30s : metrics->CpuUsageCurrent;
             }
-            // Unlike the CPU counterparts, the memory fields are plain integers: present iff positive.
-            if (currentJobStatus->PerformanceMetrics->MemoryUsage10m > 0) {
-                info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsage10m;
-            } else if (currentJobStatus->PerformanceMetrics->MemoryUsage30s > 0) {
-                info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsage30s;
-            } else if (currentJobStatus->PerformanceMetrics->MemoryUsageCurrent > 0) {
+            if (useHistory) {
+                // Until the 10-minute rate exists the partition lives on its history; then the
+                // job's own value takes over linearly during one more window.
+                info.MetricsSwitchShare = maturity;
+            }
+            if (currentJobStatus->PerformanceMetrics->MemoryUsage10m) {
+                info.InputMemoryUsage = *currentJobStatus->PerformanceMetrics->MemoryUsage10m;
+            } else if (currentJobStatus->PerformanceMetrics->MemoryUsage30s) {
+                info.InputMemoryUsage = *currentJobStatus->PerformanceMetrics->MemoryUsage30s;
+            } else {
                 info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsageCurrent;
             }
             info.TimeSinceStart = TInstant::Now() - currentJobStatus->StartTime;
@@ -1500,7 +1585,8 @@ void TPartitionDistributionData::CalculateWorkerCoefs()
 {
     auto ignorePartition = [] (const TPartitionDistributionInfo& info) {
         return info.State != EPartitionState::Executing || !info.Worker ||
-            !info.InputCpuUsage.has_value() || info.InputCpuUsage.value() <= 0.;
+            !info.InputCpuUsage.has_value() || info.InputCpuUsage.value() <= 0. ||
+            info.MetricsSwitchShare < 1.;
     };
 
     THashMap<TComputationId, double> sumComputationCpuUsage;
@@ -1528,8 +1614,8 @@ void TPartitionDistributionData::CalculateWorkerCoefs()
         }
         double value = info.InputCpuUsage.value() / info.Weight;
         double normalizedValue = value / avgComputationCpuUsage.at(info.ComputationId);
-        sumWorkerCoef[info.Worker->RpcAddress] += normalizedValue;
-        numWorkerCoef[info.Worker->RpcAddress]++;
+        sumWorkerCoef[info.MetricsWorker] += normalizedValue;
+        numWorkerCoef[info.MetricsWorker]++;
     }
     THashMap<std::string, double> avgWorkerCoef;
     for (const auto& [address, count] : numWorkerCoef) {
@@ -1565,6 +1651,148 @@ void TPartitionDistributionData::CalculateWorkerCoefs()
     }
 }
 
+void TPartitionDistributionData::NormalizeInputCpuUsage()
+{
+    for (auto& [_, info] : PartitionInfos_) {
+        std::optional<double> current;
+        if (info.Worker && info.InputCpuUsage.has_value() && info.InputCpuUsage.value() > 0.) {
+            current = info.InputCpuUsage.value() / GetWorkerCoef(info.MetricsWorker);
+        }
+        std::optional<double> history;
+        if (info.HistoryCpuUsage.has_value() && info.HistoryCpuUsage.value() > 0.) {
+            history = info.HistoryCpuUsage.value() / GetWorkerCoef(info.HistoryWorker);
+        }
+        if (current && history) {
+            info.NormalizedInputCpuUsage = std::lerp(*history, *current, info.MetricsSwitchShare);
+        } else {
+            info.NormalizedInputCpuUsage = current ? current : history;
+        }
+    }
+}
+
+TWorkerCoefEstimatorConfig MakeWorkerCoefEstimatorConfig(const TDynamicJobBalancerSpecPtr& balancerSpec)
+{
+    TWorkerCoefEstimatorConfig config;
+    config.HalfLife = balancerSpec->WorkerCoefHalfLife;
+    config.Retention = balancerSpec->WorkerCoefRetention;
+    config.PriorWeight = balancerSpec->WorkerCoefPriorWeight;
+    config.MaxRatio = balancerSpec->WorkerCoefMaxRatio;
+    return config;
+}
+
+void TPartitionDistributionData::LoadWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec, const TWorkerGroupId& workerGroup)
+{
+    auto* groupState = flowView->State->BalancerState->Groups.FindPtr(workerGroup);
+    if (!groupState) {
+        return; // Nothing observed yet: every worker is 1.
+    }
+    TWorkerCoefEstimator estimator(*groupState, MakeWorkerCoefEstimatorConfig(balancerSpec));
+    // The history of a partition may have been measured on a worker that has left; the estimator
+    // remembers it for a while.
+    for (const auto& [address, _] : flowView->State->Workers) {
+        WorkerCoefs_[address] = estimator.GetCoef(address);
+    }
+    for (const auto& [_, info] : PartitionInfos_) {
+        for (const auto& address : {info.MetricsWorker, info.HistoryWorker}) {
+            if (!address.empty()) {
+                WorkerCoefs_[address] = estimator.GetCoef(address);
+            }
+        }
+    }
+}
+
+//! Turns the partitions that have moved and matured on their new worker into worker-coefficient
+//! observations, then re-solves the group's coefficients. Runs in the synchronous part of the
+//! balancing so that the persisted state is updated in the controller's mutation.
+void UpdateWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec, const TWorkerGroupId& workerGroup)
+{
+    const auto now = TInstant::Now();
+    auto& groupState = flowView->State->BalancerState->Groups[workerGroup];
+    if (!groupState) {
+        groupState = New<TBalancerGroupState>();
+    }
+    TWorkerCoefEstimator estimator(groupState, MakeWorkerCoefEstimatorConfig(balancerSpec));
+
+    THashSet<std::string> present;
+    for (const auto& [address, worker] : flowView->State->Workers) {
+        if (WorkerBelongsToGroup(worker, workerGroup)) {
+            present.insert(address);
+        }
+    }
+
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+    const auto& computations = flowView->CurrentSpec->GetValue()->Computations;
+    auto& histories = flowView->State->BalancerState->PartitionHistories;
+    THashMap<std::string, int> partitionsOnWorker;
+    std::vector<TPartitionPtr> moved;
+    for (const auto& [partitionId, partition] : layout->Partitions) {
+        if (!partition->CurrentJobId) {
+            continue;
+        }
+        auto* computationSpec = computations.FindPtr(partition->ComputationId);
+        if (!computationSpec || !ComputationBelongsToGroup(*computationSpec, workerGroup)) {
+            continue;
+        }
+        auto job = layout->Jobs.at(*partition->CurrentJobId);
+        ++partitionsOnWorker[job->WorkerAddress];
+        auto* history = histories.FindPtr(partitionId);
+        if (history && (*history)->WorkerAddress != job->WorkerAddress) {
+            moved.push_back(partition);
+        }
+    }
+
+    int observations = 0;
+    for (const auto& partition : moved) {
+        const auto& status = flowView->Feedback->GetCurrentJobStatus(partition->PartitionId);
+        if (GetJobMetricsMaturity(status, now) < 1.) {
+            continue;
+        }
+        auto job = layout->Jobs.at(*partition->CurrentJobId);
+        const auto& history = GetOrCrash(histories, partition->PartitionId);
+        const auto& metrics = status->PerformanceMetrics;
+        // Comparing CPU per message across a code or binary change would attribute the change
+        // to the hardware.
+        bool sameImplementation = history->FlowCoreVersion && history->FlowCoreVersion == metrics->FlowCoreVersion &&
+            history->PipelineSpecVersion && history->PipelineSpecVersion == metrics->PipelineSpecVersion;
+        std::optional<double> observation;
+        if (sameImplementation && history->MessagesPerSecond && metrics->MessagesPerSecond10m) {
+            observation = estimator.MakeObservation(history->CpuUsage, *history->MessagesPerSecond, *metrics->CpuUsage10m, *metrics->MessagesPerSecond10m);
+        }
+        if (observation) {
+            // One partition speaks for its worker with the weight of one of its partitions.
+            double weight = 1. / partitionsOnWorker[job->WorkerAddress];
+            estimator.AddObservation(history->WorkerAddress, job->WorkerAddress, *observation, weight, now);
+            ++observations;
+            YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Worker coef observation")
+                .With("Partition", partition->PartitionId)
+                .With("From", history->WorkerAddress)
+                .With("To", job->WorkerAddress)
+                .With("CpuBefore", history->CpuUsage)
+                .With("RateBefore", *history->MessagesPerSecond)
+                .With("CpuAfter", *metrics->CpuUsage10m)
+                .With("RateAfter", *metrics->MessagesPerSecond10m)
+                .With("Observation", *observation)
+                .With("Weight", weight);
+        }
+        // Taken into account exactly once; the balancer runs on the job's own metrics from now on.
+        histories.erase(partition->PartitionId);
+    }
+
+    estimator.Prune(present, now);
+    estimator.Solve();
+    if (observations > 0) {
+        TStringStream coefs;
+        for (const auto& address : present) {
+            coefs << address << "=" << estimator.GetCoef(address) << " ";
+        }
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Worker coefs solved")
+            .With("WorkerGroup", workerGroup)
+            .With("Observations", observations)
+            .With("Edges", estimator.GetEdgeCount())
+            .With("Coefs", coefs.Str());
+    }
+}
+
 void TPartitionDistributionData::CalculateComputationCoefs()
 {
     int avgComputationCoefCount = 0;
@@ -1573,11 +1801,10 @@ void TPartitionDistributionData::CalculateComputationCoefs()
         int coefCount = 0;
         for (const auto& partitionId : partitions) {
             const auto& info = PartitionInfos_.at(partitionId);
-            if (!info.Worker || !info.InputCpuUsage.has_value() || info.InputCpuUsage.value() <= 0.) {
+            if (!info.NormalizedInputCpuUsage) {
                 continue;
             }
-            double workerCoef = GetWorkerCoef(info.Worker->RpcAddress);
-            coefSum += info.InputCpuUsage.value() / info.Weight / workerCoef;
+            coefSum += *info.NormalizedInputCpuUsage / info.Weight;
             coefCount++;
         }
         if (coefCount == 0) {
@@ -1598,12 +1825,11 @@ void TPartitionDistributionData::CalculateComputationCoefs()
 void TPartitionDistributionData::InterpolateComplexities()
 {
     for (auto& [_, info] : PartitionInfos_) {
-        if (!info.Worker || !info.InputCpuUsage.has_value() || info.InputCpuUsage.value() <= 0.) {
+        if (!info.NormalizedInputCpuUsage) {
             info.Complexity = 1.;
         } else {
             double computationCoef = GetComputationCoef(info.ComputationId);
-            double workerCoef = GetWorkerCoef(info.Worker->RpcAddress);
-            info.Complexity = info.InputCpuUsage.value() / computationCoef / workerCoef / info.Weight;
+            info.Complexity = *info.NormalizedInputCpuUsage / computationCoef / info.Weight;
         }
     }
 }
@@ -1947,11 +2173,11 @@ TBalancer::TBalancer(
     const TDynamicJobBalancerSpecPtr& balancerSpec,
     const TWorkerGroupId& workerGroup,
     const TPersistentBalanceManagerPtr& persistentManager)
-    : Data_(flowView, controllers, workerGroup)
+    : Data_(flowView, controllers, balancerSpec, workerGroup)
     , Emulation_(flowView, Data_, workerGroup, NormalizeBalanceWeights(balancerSpec->BalanceWeights))
     , PersistentManager_(persistentManager)
     , ManagerSpec_(balancerSpec)
-    , Verifier_(flowView)
+    , Verifier_(flowView, balancerSpec)
 {
     PersistentManager_->ActionsBuffer = Verifier_.Verify(PersistentManager_->ActionsBuffer);
     auto& workersRemaining = PersistentManager_->GetLoopContext().WorkersRemaining;
@@ -2008,6 +2234,17 @@ TRebalanceActions TBalancer::KickPartitionsFromOvercountedWorkers()
                 double removeUsage = (workerInfo.Usage[resource] - targetUsagePerWorker) / plannedToRemove + targetUsagePerJob;
                 TPartitionId partitionId = workerInfo.FindClosest(resource, removeUsage);
                 const auto& info = partitionInfos.at(partitionId);
+                if (!info.Movable) {
+                    // Kicking another partition instead would evict the wrong one and win nothing;
+                    // the worker stays over the count until the candidate warms up.
+                    YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Kick skipped because the closest partition is not warmed up")
+                        .With("Partition", partitionId)
+                        .With("Computation", computationId)
+                        .With("Worker", workerAddress)
+                        .With("Count", countBeforeKick)
+                        .With("MaxCount", maxCount);
+                    break;
+                }
                 Emulation_.DelPartition(partitionId, info, workerAddress);
                 Emulation_.AddStrayPartition(partitionId, info);
                 result.EmplaceAsTransaction(ERebalanceActionType::Del, partitionId, workerAddress, info);
@@ -2330,7 +2567,9 @@ TRebalanceActions TBalancer::RelieveWorker(const TComputationId& computationId, 
     partitions.clear();
     partitions.reserve(Emulation_.GetInfo(myWorker, computationId).Executing.Partitions.size());
     for (const auto& [_, partitionId] : Emulation_.GetInfo(myWorker, computationId).Executing.Spectres[EBalanceResource::Cpu]) {
-        partitions.push_back(partitionId);
+        if (partitionInfos.at(partitionId).Movable) {
+            partitions.push_back(partitionId);
+        }
     }
 
     for (const auto& [peerWorkerAddress, peerWorker] : workers) {
@@ -2358,6 +2597,9 @@ TRebalanceActions TBalancer::RelieveWorker(const TComputationId& computationId, 
             if (Emulation_.GetInfo(peerWorker, computationId).Executing.Count > 0) {
                 const auto& peerEmulation = Emulation_.GetInfo(peerWorker, computationId).Executing;
                 peerPartitionId = peerEmulation.FindClosest(bottleneckResource, recvNormalized * peerWorker.GetCoef(bottleneckResource));
+                if (!partitionInfos.at(*peerPartitionId).Movable) {
+                    peerPartitionId.reset();
+                }
             }
 
             const auto& myInfo = partitionInfos.at(partitionId);
@@ -2493,6 +2735,9 @@ TRebalanceActions TBalancer::RelieveResourceOverloadedWorkers(TInstant until)
                 const auto& [candidateUsage, candidateId] = *it;
                 if (candidateUsage <= 0.) {
                     break; // Zero-usage partitions cannot narrow the spread.
+                }
+                if (!partitionInfos.at(candidateId).Movable) {
+                    continue;
                 }
                 if (receiverAccepts(partitionInfos.at(candidateId).ComputationId)) {
                     foundPartitionId = candidateId;
@@ -2741,23 +2986,7 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
 {
     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered slow balancing");
 
-    PersistentManager_->ActionsBuffer = Verifier_.VerifyWithPreapplied(AlreadyApplied_, PersistentManager_->ActionsBuffer);
-    PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
-    if (PersistentManager_->GetLoopContext().Computation.has_value()) {
-        PersistentManager_->ActionBufferScore = AssessScore(PersistentManager_->ActionsBuffer, PersistentManager_->GetLoopContext().Computation.value().Id);
-    }
-
     TRebalanceActions result;
-
-    auto finishedComputation = [&] (const TComputationId&) {
-        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
-
-        Emulation_.ApplyAll(PersistentManager_->ActionsBuffer, Data_);
-        AlreadyApplied_.Merge(PersistentManager_->ActionsBuffer);
-        result.Merge(PersistentManager_->ActionsBuffer);
-        PersistentManager_->ActionsBuffer = TRebalanceActions();
-        PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
-    };
 
     if (Emulation_.ComputationInfos().empty() || Emulation_.Workers().empty()) {
         NConcurrency::TDelayedExecutor::WaitForDuration(EmptyIterationBackoff);
@@ -2771,6 +3000,24 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
         AlreadyApplied_.Merge(reliefActions);
         result.Merge(reliefActions);
     }
+
+    // The buffer kept from the previous round is checked against everything applied so far,
+    // the relief included: it may move a partition the relief has just moved elsewhere.
+    PersistentManager_->ActionsBuffer = Verifier_.VerifyWithPreapplied(AlreadyApplied_, PersistentManager_->ActionsBuffer);
+    PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
+    if (PersistentManager_->GetLoopContext().Computation.has_value()) {
+        PersistentManager_->ActionBufferScore = AssessScore(PersistentManager_->ActionsBuffer, PersistentManager_->GetLoopContext().Computation.value().Id);
+    }
+
+    auto finishedComputation = [&] (const TComputationId&) {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
+
+        Emulation_.ApplyAll(PersistentManager_->ActionsBuffer, Data_);
+        AlreadyApplied_.Merge(PersistentManager_->ActionsBuffer);
+        result.Merge(PersistentManager_->ActionsBuffer);
+        PersistentManager_->ActionsBuffer = TRebalanceActions();
+        PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
+    };
 
     while (TInstant::Now() < until) {
         // If we've used up more than max time for one action, we remove all the remaining workers from the queue, which will wrap up action selection process.
@@ -2907,7 +3154,7 @@ std::pair<TRebalanceActions, TRebalanceActions> RebalanceJobs(
     const TRebalanceActions& alreadyAppliedDeferred)
 {
     TBalancer balancer(flowView, controllers, balancerSpec, workerGroup, persistentManager);
-    TRebalanceActionsVerifier verifier(flowView);
+    TRebalanceActionsVerifier verifier(flowView, balancerSpec);
 
     balancer.ApplyAll(alreadyApplied);
     auto fastActions = TRebalanceActions::NewSequencedAs(alreadyApplied);
@@ -2994,10 +3241,10 @@ bool ShouldApplySlowActionsNow(
 THashMap<std::string, double> GetWorkerCoefs(
     const TFlowViewPtr& flowView,
     const TControllersMap& controllers,
-    const TDynamicJobBalancerSpecPtr&,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
     const TWorkerGroupId& workerGroup)
 {
-    TPartitionDistributionData data(flowView, controllers, workerGroup);
+    TPartitionDistributionData data(flowView, controllers, balancerSpec, workerGroup);
     THashMap<std::string, double> result;
     for (const auto& [workerAddress, _] : flowView->State->Workers) {
         result[workerAddress] = data.GetWorkerCoef(workerAddress);
@@ -3226,7 +3473,7 @@ public:
         YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "FlowView pushed")
             .With("SequenceId", maxAppliedSequenceId.Underlying())
             .With("Dropped", originalCount - AppliedActions_.Transactions.size());
-        TRebalanceActionsVerifier verifier(flowView);
+        TRebalanceActionsVerifier verifier(flowView, balancerSpec);
         AppliedActions_ = verifier.Verify(AppliedActions_);
         DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
 
@@ -3304,7 +3551,7 @@ public:
                     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Fast actions merge completed")
                         .With("SequenceId", AppliedActions_.GetSequenceId());
                     DeferredAppliedActions_ = slowActions;
-                    TRebalanceActionsVerifier verifier(startData.FlowView);
+                    TRebalanceActionsVerifier verifier(startData.FlowView, startData.BalancerSpec);
                     DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
                     if (ShouldApplySlowActionsNow(startData.FlowView, startData.Controllers, startData.BalancerSpec, strongThis->WorkerGroup_, PersistentManager_, AppliedActions_, DeferredAppliedActions_)) {
                         AppliedActions_.Merge(DeferredAppliedActions_);
@@ -3365,9 +3612,9 @@ public:
         return result;
     }
 
-    TRebalanceResult PullActionsVerify(const TFlowViewPtr& flowView)
+    TRebalanceResult PullActionsVerify(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec)
     {
-        auto verifier = TRebalanceActionsVerifier(flowView);
+        auto verifier = TRebalanceActionsVerifier(flowView, balancerSpec);
         return PrepareResult(verifier.Verify(PullActionsUnverified()));
     }
 
@@ -3379,6 +3626,7 @@ public:
         EPipelineState targetState) override
     {
         UpdateMetrics(flowView, controllers, balancerSpec);
+        PrunePartitionHistories(flowView, balancerSpec, WorkerGroup_);
 
         const auto& layout = flowView->State->ExecutionSpec->Layout;
         NBalancer::TRebalanceResult rebalanceResult;
@@ -3386,6 +3634,9 @@ public:
         if (balancerSpec->BalancerType == EJobBalancerType::Greedy) {
             rebalanceResult = DoBalanceGreedy(flowView, controllers, WorkerGroup_);
         } else if (balancerSpec->BalancerType == EJobBalancerType::CpuAware) {
+            if (balancerSpec->WorkerCoefMode == EWorkerCoefMode::Probing) {
+                UpdateWorkerCoefs(flowView, balancerSpec, WorkerGroup_);
+            }
             if (balancerSpec->AsyncBalancing) {
                 // The pushed snapshot reflects the in-flight mutation (CreateSnapshot(committed=false)),
                 // so it is always consistent with the live feedback/ephemeral state the balancer reads.
@@ -3394,11 +3645,17 @@ public:
                 // the balancer, now the snapshot carries the mutation that interrupts those partitions.
                 Push(flowView, controllers, balancerSpec);
 
+                // Only this group's strays release the buffer: a jobless partition of another group
+                // says nothing about this group and must not flush its moves ahead of the sync delay.
+                const auto& computations = flowView->CurrentSpec->GetValue()->Computations;
                 bool foundStrayPartitions = false;
                 for (const auto& [_, partition] : layout->Partitions) {
                     if ((partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) && !partition->CurrentJobId.has_value()) {
-                        foundStrayPartitions = true;
-                        break;
+                        auto* computationSpec = computations.FindPtr(partition->ComputationId);
+                        if (computationSpec && ComputationBelongsToGroup(*computationSpec, WorkerGroup_)) {
+                            foundStrayPartitions = true;
+                            break;
+                        }
                     }
                 }
 
@@ -3418,7 +3675,7 @@ public:
                 }
 
                 if (shouldDoPull) {
-                    rebalanceResult = PullActionsVerify(flowView);
+                    rebalanceResult = PullActionsVerify(flowView, balancerSpec);
                     YT_TLOG_INFO("Pulled rebalance actions")
                         .With("Count", rebalanceResult.Actions.size())
                         .With("SequenceId", rebalanceResult.SequenceId);
@@ -3444,7 +3701,7 @@ public:
         AppliedActions_ = TRebalanceActions(SequenceIdGenerator_);
         auto [fastActions, slowActions] =
             RebalanceJobs(flowView, controllers, balancerSpec, WorkerGroup_, TInstant::Now() + balancerSpec->RebalanceSyncPeriod, PersistentManager_, AppliedActions_, TRebalanceActions(DeferredSequenceIdGenerator_));
-        auto verifier = TRebalanceActionsVerifier(flowView);
+        auto verifier = TRebalanceActionsVerifier(flowView, balancerSpec);
         auto resultActions = verifier.Verify(fastActions);
         auto slowActionsVerified = verifier.VerifyWithPreapplied(resultActions, slowActions);
         if (ShouldApplySlowActionsNow(flowView, controllers, balancerSpec, WorkerGroup_, PersistentManager_, resultActions, slowActionsVerified)) {
@@ -3476,6 +3733,20 @@ TBalancerLoopContext& TPersistentBalanceManager::GetLoopContext()
 IBalanceAsyncSynchronizerPtr CreateBalanceAsyncSynchronizer(const NProfiling::TProfiler& profiler, const TWorkerGroupId& workerGroup)
 {
     return New<TBalanceAsyncSynchronizer>(profiler, workerGroup);
+}
+
+THashMap<TPartitionId, double> GetPartitionComplexities(
+    const TFlowViewPtr& flowView,
+    const THashMap<TComputationId, IComputationControllerPtr>& controllers,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup)
+{
+    TPartitionDistributionData data(flowView, controllers, balancerSpec, workerGroup);
+    THashMap<TPartitionId, double> result;
+    for (const auto& [partitionId, info] : data.PartitionInfos()) {
+        result[partitionId] = info.Complexity;
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

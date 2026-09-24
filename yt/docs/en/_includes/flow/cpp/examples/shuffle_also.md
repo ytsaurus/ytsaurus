@@ -5,7 +5,7 @@
 
 - You must include the `value` column (and its hash) in `group_by_schema` to group by `value`.
 - List all streams — `event_a`, `event_b`, `event_c`, and `event_d` — in `input_stream_ids` to read all resulting streams. From a business logic perspective, this isn’t the most meaningful action. However, the original goal of this pipeline was to test the `exactly-once` guarantees, even in the case of a `Swift` chain.
-- `TReducer` implements `IProcessFunction` and is hosted by `TProcessFunctionComputation`. The adapter persists `input_message_ids` and `output_messages` in {{product-name}}, but this example produces no output messages. In effect, the pipeline saves the `reader` metadata, the (`message_id`, `key`) metadata for each `reducer` input message, and the `value => count` table. The intermediate passthrough computations don’t interact with {{product-name}}.
+- `TReducer` implements `IProcessFunction` and is hosted by `TProcessFunctionComputation`. The adapter persists `input_messages` and `output_messages` in {{product-name}}, but this example produces no output messages. In effect, the pipeline saves the `reader` metadata, the (`message_id`, `key`) metadata for each `reducer` input message, and the `value => count` table. The intermediate passthrough computations don’t interact with {{product-name}}.
 
 ### DynamicSpec
 
@@ -14,7 +14,7 @@
 
 ### Config for running
 
-- Key settings for running: `cluster_url`, `proxy_role`, `path`, `rpc_proxy`, and `monitoring_port`.
+- Key settings for running: `cluster_url`, `proxy_role`, `path`, `rpc_port`, and `monitoring_port`.
 - Set `controller/scheduler_period` to 200 for this specific test — in reality, the default value should be sufficient.
 - `logging` contains the logging settings.
 

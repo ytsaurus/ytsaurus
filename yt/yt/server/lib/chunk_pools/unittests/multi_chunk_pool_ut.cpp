@@ -17,7 +17,6 @@ namespace NYT::NChunkPools {
 namespace {
 
 using ::testing::InSequence;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 using ::testing::Test;
 using ::testing::_;

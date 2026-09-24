@@ -11,7 +11,7 @@ The configuration consists of two parts:
 2. Mapping from a cluster name to a preset name.
 
 Example configuration for reading from the cluster `remote_cluster` using the SDK:
-```
+```yson
 {
   "presets" = {
     "allow_sdk_read" = {

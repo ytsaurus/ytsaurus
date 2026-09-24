@@ -71,7 +71,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
 ### Изменение значения на месте {#in-place}
 
-Значение, которое возвращают `get()` и `getOrDefault()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `getOrDefault()` становится значением стейта и записывается, как после `set()`, поэтому его можно сразу изменять:
+Значение, которое возвращают `get()` и `getOrDefault()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `getOrDefault()` привязывается к ключу, но не записывается: его можно сразу изменять, и значением стейта он становится только после изменения — нетронутый дефолт не создаёт строку в таблице стейтов:
 
 {% list tabs group=lang %}
 
@@ -108,6 +108,32 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```
 
 {% endlist %}
+
+То же самое можно объявить один раз на дескрипторе: `InternalStateDescriptor.readOnly()` возвращает дескриптор того же стейта, аксессоры которого доступны только на чтение, — тогда вызывать `readOnly()` на каждом месте обращения не нужно. Такой дескриптор объявляют один раз константой рядом с исходным:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  private static final InternalStateDescriptor<CounterState> COUNTER_READ_ONLY = COUNTER.readOnly();
+
+  long count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  private val COUNTER_READ_ONLY: InternalStateDescriptor<CounterState> = COUNTER.readOnly()
+
+  val count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count
+  ```
+
+{% endlist %}
+
+Внутренний стейт живёт в пределах одного компьютейшена: воркер отдаёт только те имена, которые перечислены в `internal_states` его параметров. Поэтому read-only-дескриптор читает стейт того компьютейшена, в котором используется: прочитать им стейт, который пишет другой компьютейшен, нельзя — для этого есть joiner'ы [External State](../../../flow/java/external-state.md).
+
+Read-only — это дисциплина обращения, а не свойство стейта: отслеживание живёт на самом стейте. Если в этом же батче значение для того же ключа уже читали через пишущий аксессор, стейт уже отслеживается, и сделанное после этого изменение на месте дойдёт до воркера, каким бы аксессором значение ни было получено. Дескриптор гарантирует «этот аксессор не пишет», а не «этот стейт не отслеживается».
 
 ## YsonStateAccessor {#yson-state-accessor}
 
@@ -212,9 +238,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           // Модификация стейта
           state.setCount(state.getCount() + 1);
           state.setLastUpdate(message.getEventTimestamp());
-
-          // Сохранение стейта
-          stateAccessor.set(state);
       }
   }
   ```
@@ -233,9 +256,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           // Модификация стейта
           state.count = state.count + 1
           state.lastUpdate = message.getEventTimestamp()
-
-          // Сохранение стейта
-          stateAccessor.set(state)
       }
   }
   ```
@@ -439,7 +459,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
           CounterState state = stateAccessor.getOrDefault(new CounterState());
           state.setCount(state.getCount() + 1);
-          stateAccessor.set(state);
       }
   }
   ```
@@ -469,7 +488,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
           val state: CounterState = stateAccessor.getOrDefault(CounterState())
           state.count = state.count + 1
-          stateAccessor.set(state)
       }
   }
   ```

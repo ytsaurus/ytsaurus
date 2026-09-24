@@ -46,6 +46,51 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
+    @authors("buyval01")
+    def test_result_schema_contains_native_types(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query_text = (
+                "select toUInt8(1) as uint8, "
+                "CAST(2, 'Nullable(Int16)') as nullable_int16, "
+                "toDateTime64('2019-01-01 00:00:00', 3, 'Asia/Istanbul') as datetime64, "
+                "CAST([1], 'Array(UInt8)') as array_uint8, "
+                "CAST('value', 'Variant(UInt64, String, Array(UInt64))') as variant"
+            )
+
+            query = start_query("chyt", query_text, settings=settings)
+            query.track()
+            schema = query.get_result(0)["schema"]
+            assert schema[0]["type_v3"] == "uint8"
+            assert schema[3]["type_v3"] == {
+                "type_name": "list",
+                "item": "uint8",
+            }
+
+            settings["annotate_result_schema_with_native_types"] = True
+            query = start_query("chyt", query_text, settings=settings)
+            query.track()
+            schema = query.get_result(0)["schema"]
+            assert [column["type_v3"]["tag"] for column in schema] == [
+                "UInt8",
+                "Nullable",
+                "DateTime64(3, 'Asia/Istanbul')",
+                "Array",
+                "Variant(Array(UInt64), String, UInt64)",
+            ]
+            assert schema[3]["type_v3"] == {
+                "type_name": "tagged",
+                "tag": "Array",
+                "item": {
+                    "type_name": "list",
+                    "item": {
+                        "type_name": "tagged",
+                        "tag": "UInt8",
+                        "item": "uint8",
+                    },
+                },
+            }
+
     @authors("mpereskokova")
     def test_simple_query_not_indexed(self, query_tracker):
         with Clique(1, alias="*ch_alias"):

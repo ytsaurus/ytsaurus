@@ -279,6 +279,22 @@ func (oplet *Oplet) BrokenReason() string {
 	}
 }
 
+func (oplet *Oplet) SetExceedingFailedJobsLimitFailure() {
+	oplet.infoState.ExceedingFailedJobsLimit = true
+}
+
+func (oplet *Oplet) ClearExceedingFailedJobsLimitFailure() {
+	oplet.infoState.ExceedingFailedJobsLimit = false
+}
+
+// JobCount returns the saved job count and whether it is known.
+func (oplet *Oplet) JobCount() (int, bool) {
+	if oplet.persistentState.YTOpJobCount == nil {
+		return 0, false
+	}
+	return *oplet.persistentState.YTOpJobCount, true
+}
+
 func (oplet *Oplet) BrokenError() error {
 	switch {
 	case oplet.stateCorrupted():
@@ -376,6 +392,9 @@ func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	}
 	if oplet.infoState.Error != nil {
 		return OpletHealthFailed, "info state contains error"
+	}
+	if oplet.HasYTOperation() && oplet.infoState.ExceedingFailedJobsLimit {
+		return OpletHealthFailed, "crash loop detected: too many jobs are simultaneously unavailable"
 	}
 
 	if ok, reason := oplet.needsRestart(); ok {
@@ -745,6 +764,70 @@ func (oplet *Oplet) modifyPersistentState(ctx context.Context, mod persistentSta
 	}
 
 	return nil
+}
+
+func integerAsInt(value any) (int, bool) {
+	var n uint64
+	switch v := value.(type) {
+	case int:
+		n = uint64(v)
+	case int64:
+		n = uint64(v)
+	case uint64:
+		n = v
+	case *uint64:
+		if v == nil {
+			return 0, false
+		}
+		n = *v
+	default:
+		return 0, false
+	}
+	if n > uint64(^uint(0)>>1) {
+		return 0, false
+	}
+	return int(n), true
+}
+
+func totalJobCountFromSpec(spec map[string]any) (int, error) {
+	tasksValue, ok := spec["tasks"]
+	if !ok {
+		return 0, yterrors.Err("operation spec does not contain tasks")
+	}
+
+	tasks, ok := tasksValue.(map[string]any)
+	if !ok {
+		return 0, yterrors.Err("tasks type is not 'map'",
+			yterrors.Attr("tasks", tasksValue),
+			yterrors.Attr("type", fmt.Sprintf("%T", tasksValue)))
+	}
+
+	totalJobCount := 0
+	for taskName, taskValue := range tasks {
+		task, ok := taskValue.(map[string]any)
+		if !ok {
+			return 0, yterrors.Err("task type is not 'map'",
+				yterrors.Attr("task_name", taskName),
+				yterrors.Attr("task", taskValue),
+				yterrors.Attr("type", fmt.Sprintf("%T", taskValue)))
+		}
+
+		jobCountValue, ok := task["job_count"]
+		if !ok {
+			return 0, yterrors.Err("task does not contain job_count",
+				yterrors.Attr("task_name", taskName))
+		}
+		jobCount, ok := integerAsInt(jobCountValue)
+		if !ok {
+			return 0, yterrors.Err("job_count is not a non-negative integer representable as int",
+				yterrors.Attr("task_name", taskName),
+				yterrors.Attr("job_count", jobCountValue),
+				yterrors.Attr("type", fmt.Sprintf("%T", jobCountValue)))
+		}
+		totalJobCount += jobCount
+	}
+
+	return totalJobCount, nil
 }
 
 func (oplet *Oplet) needsBackoff() bool {
@@ -1195,9 +1278,17 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		return err
 	} else {
 		oplet.clearError()
+		oplet.ClearExceedingFailedJobsLimitFailure()
 	}
 
 	oplet.persistentState.YTOpID = opID
+	oplet.persistentState.YTOpJobCount = nil
+	if jobCount, err := totalJobCountFromSpec(spec); err != nil {
+		oplet.l.Warn("failed to get job count from operation spec", log.Error(err))
+	} else {
+		oplet.persistentState.YTOpJobCount = &jobCount
+	}
+
 	oplet.persistentState.YTOpState = yt.StateInitializing
 	oplet.persistentState.YTOpSuspended = false
 	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker

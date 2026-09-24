@@ -465,7 +465,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true)
-        .SetPresent(table->GetHunkStorage()));
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssignedMountConfigExperiments)
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -1096,13 +1096,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::HunkStorageId: {
-            const auto* hunkStorage = table->GetHunkStorage();
-            if (!hunkStorage) {
+            if (!isDynamic) {
                 break;
             }
 
+            const auto* hunkStorage = table->GetHunkStorage();
+            auto hunkStorageId = hunkStorage ? hunkStorage->GetId() : NullObjectId;
             BuildYsonFluently(consumer)
-                .Value(hunkStorage->GetId());
+                .Value(hunkStorageId);
+
             return true;
         }
 
@@ -1521,6 +1523,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
         case EInternedAttributeKey::HunkStorageId: {
             auto* lockedTable = LockThisImpl();
+            lockedTable->ValidateAllTabletsUnmounted("Cannot remove hunk storage");
             lockedTable->ResetHunkStorage();
             return true;
         }
@@ -1950,6 +1953,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto objectId = ConvertTo<TObjectId>(value);
             auto* object = objectManager->GetObjectOrThrow(objectId);
 
+            lockedTable->ValidateAllTabletsUnmounted("Cannot reset hunk storage");
             lockedTable->ValidateAndSetHunkStorage(object);
 
             return true;
@@ -2176,7 +2180,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)
 
     bool keepActions = request->keep_actions();
 
-    context->SetRequestInfo("KeepActions: %v", keepActions);
+    context->AnnotateRequest()
+        .With("KeepActions", keepActions);
 
     ValidateNoTransaction();
 
@@ -2194,7 +2199,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     DeclareNonMutating();
     SuppressAccessTracking();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
     if (const auto& delay = dynamicConfig->Testing.GetMountInfoDelay) {
@@ -2212,6 +2217,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_schema(), trunkTable->GetSchema()->AsCompactTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
     response->set_serialization_type(ToProto(trunkTable->GetSerializationType()));
+    response->set_commit_ordering(ToProto(trunkTable->GetCommitOrdering()));
 
     THashSet<TTabletCell*> cells;
     for (auto tabletBase : trunkTable->Tablets()) {
@@ -2271,11 +2277,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->mutable_hunk_storage_id(), hunkStorage->GetId());
     }
 
-    context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-        response->tablets_size(),
-        response->tablet_cells_size(),
-        response->replicas_size(),
-        response->indices_size());
+    context->AnnotateResponse()
+        .With("TabletCount", response->tablets_size())
+        .With("TabletCellCount", response->tablet_cells_size())
+        .With("ReplicaCount", response->replicas_size())
+        .With("IndexCount", response->indices_size());
 
     context->Reply();
 }
@@ -2344,20 +2350,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, "
-        "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v, ColumnToConstraint: %v",
-        options.Dynamic,
-        options.UpstreamReplicaId,
-        options.SchemaModification,
-        options.ReplicationProgress,
-        options.ClipTimestamp,
-        options.SchemaId,
-        options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog),
-        MakeShrunkFormattableView(
-            options.ColumnToConstraint ? *options.ColumnToConstraint : TColumnNameToConstraintMap(),
-            TDefaultFormatter(),
-            dynamicConfig->ColumnToConstraintLogLimit));
+    context->AnnotateRequest()
+        .With("Dynamic", options.Dynamic)
+        .With("UpstreamReplicaId", options.UpstreamReplicaId)
+        .With("SchemaModification", options.SchemaModification)
+        .With("ReplicationProgress", options.ReplicationProgress)
+        .With("ClipTimestamp", options.ClipTimestamp)
+        .With("SchemaId", options.SchemaId)
+        .With("SchemaMemoryUsage", options.Schema ? options.Schema->GetMemoryUsage() : 0)
+        .With("Schema", MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog))
+        .With("ColumnToConstraint", MakeShrunkFormattableView( options.ColumnToConstraint ? *options.ColumnToConstraint : TColumnNameToConstraintMap(), TDefaultFormatter(), dynamicConfig->ColumnToConstraintLogLimit));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
@@ -2729,8 +2731,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
 
     auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
-    context->SetRequestInfo("Timestamp: %v",
-        timestamp);
+    context->AnnotateRequest()
+        .With("Timestamp", timestamp);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->LockDynamicTable(
@@ -2745,7 +2747,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
 {
     ValidateTransaction();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->CheckDynamicTableLock(
@@ -2774,10 +2776,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartBackup)
     auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
         request->replicas());
 
-    context->SetRequestInfo("Timestamp: %v, BackupMode: %v, ClockClusterTag: %v",
-        timestamp,
-        backupMode,
-        clockClusterTag);
+    context->AnnotateRequest()
+        .With("Timestamp", timestamp)
+        .With("BackupMode", backupMode)
+        .With("ClockClusterTag", clockClusterTag);
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
     backupManager->StartBackup(
@@ -2800,7 +2802,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartRestore)
     auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
         request->replicas());
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
     backupManager->StartRestore(
@@ -2815,7 +2817,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackup)
 {
     ValidateTransaction();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
     backupManager->CheckBackup(
@@ -2829,7 +2831,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, FinishBackup)
 {
     ValidateTransaction();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
     context->ReplyFrom(backupManager->FinishBackup(GetThisImpl()));
@@ -2839,7 +2841,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, FinishRestore)
 {
     ValidateTransaction();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
     context->ReplyFrom(backupManager->FinishRestore(GetThisImpl()));

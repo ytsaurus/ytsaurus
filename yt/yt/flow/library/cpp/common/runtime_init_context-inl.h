@@ -89,7 +89,18 @@ void IRuntimeInitContext::InitExternalStateClient(TJoinedStateKeyClient<TStateHo
 template <class T>
 TIntrusivePtr<T> IRuntimeInitContext::GetParameters() const
 {
-    return NYTree::ConvertTo<TIntrusivePtr<T>>(GetParametersNode());
+    auto object = GetParametersObject();
+    if (!object) {
+        // The spec names no processing function (possible only under the test environment):
+        // the static block is absent and defaults apply.
+        return New<T>();
+    }
+    auto parameters = DynamicPointerCast<T>(object);
+    THROW_ERROR_EXCEPTION_UNLESS(parameters,
+        "Static function parameters type mismatch: requested %Qv, registered %Qv",
+        TypeName<T>(),
+        TypeName(*object));
+    return parameters;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

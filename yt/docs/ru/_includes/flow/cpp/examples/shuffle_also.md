@@ -5,7 +5,7 @@
 
 - Для группировки по `value` обязательно необходимо указать эту колонку (и хэш от неё) в `group_by_schema`.
 - В `input_stream_ids` перечисляются все потоки: `event_a`, `event_b`, `event_c`, `event_d` &mdash; чтобы читать все получившиеся потоки. С точки зрения "бизнес логики" это не самое осмысленное действие, однако исходной целью данного пайплайна было протестировать гарантии `exactly-once` даже в случае `Swift` цепочки.
-- `TReducer` реализует `IProcessFunction` и запускается через `TProcessFunctionComputation`. Адаптер сохраняет `input_message_ids` и `output_messages` в {{product-name}}, но в этом примере выходных сообщений нет. По сути, пайплайн сохраняет метаинформацию `reader`, метаинформацию (`message_id` и `key`) каждого входного сообщения `reducer` и таблицу `value => count`. Промежуточные passthrough-компьютейшены с {{product-name}} не взаимодействуют.
+- `TReducer` реализует `IProcessFunction` и запускается через `TProcessFunctionComputation`. Адаптер сохраняет `input_messages` и `output_messages` в {{product-name}}, но в этом примере выходных сообщений нет. По сути, пайплайн сохраняет метаинформацию `reader`, метаинформацию (`message_id` и `key`) каждого входного сообщения `reducer` и таблицу `value => count`. Промежуточные passthrough-компьютейшены с {{product-name}} не взаимодействуют.
 
 ### DynamicSpec
 
@@ -14,7 +14,7 @@
 
 ### Config для запуска
 
-- Ключевое для запуска: `cluster_url`, `proxy_role`, `path`, `rpc_proxy`, `monitoring_port`.
+- Ключевое для запуска: `cluster_url`, `proxy_role`, `path`, `rpc_port`, `monitoring_port`.
 - `controller/scheduler_period` выставлен в 200 для конкретного теста - в реальности должно быть достаточно дефолтного значения.
 - `logging` - настройки логирования.
 

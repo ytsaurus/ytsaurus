@@ -75,6 +75,19 @@ DEFINE_REFCOUNTED_TYPE(TJobOrchidState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Counters a job maintains for the tracker's performance accounting; read from the Control thread.
+struct TJobRuntimeCounters
+    : public TRefCounted
+{
+    std::atomic<i64> InputMessageCount = 0;
+    //! Completed run iterations that had input, see #TComputationStatus::NonEmptyIterationCount.
+    std::atomic<i64> NonEmptyIterationCount = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobRuntimeCounters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IJob
     : public TRefCounted
 {
@@ -91,6 +104,7 @@ struct IJob
     virtual TComputationId GetComputationId() = 0;
     virtual TFuture<TJobStatusPtr> GetStatus() = 0;
     virtual IInputBufferPtr GetInputBuffer() = 0;
+    virtual TJobRuntimeCountersPtr GetRuntimeCounters() = 0;
 
     virtual TJobOrchidStatePtr GetOrchidState() = 0;
 };

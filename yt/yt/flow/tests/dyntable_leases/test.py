@@ -3,7 +3,9 @@ dynamic table (no Cypress lock), controller transactions fenced by the leader ro
 fenced by partition lease rows (no YT lease transactions at all).
 """
 
+import copy
 import logging
+import time
 
 import pytest
 
@@ -71,6 +73,55 @@ class Test(TestBase):
             if set(rows) == {"existence", "expiration"} and len(job_ids) == 1:
                 owned[partition_id] = job_ids.pop()
         return owned
+
+    @pytest.mark.authors(["thenewone"])
+    def test_deadline_is_refreshed_at_the_lease_ping_period(self):
+        """The shared deadline moves at ``lease_ping_period``, not at a fraction of the timeout.
+
+        Nothing else keeps the dyntable leases alive, so the refresh cadence is what decides how
+        much of the timeout a failover inherits. Here the period is two orders of magnitude below
+        the timeout, so a cadence derived from the timeout would show at most one refresh over the
+        whole observation while the period shows one every couple of seconds.
+        """
+        self.prepare_environment()
+        pipeline_config_path = self.prepare_pipeline_config(finite=False)
+
+        node_config = copy.deepcopy(DYNTABLE_LEASES_NODE_CONFIG)
+        node_config["controller"]["lease_manager"] = {
+            "lease_timeout": "10m",
+            "lease_ping_period": "2s",
+        }
+
+        federation = self.start_flow_process_federation(
+            node_config=node_config,
+            pipeline_binary_args={
+                "--config": pipeline_config_path,
+            },
+            workers_count=1,
+            controllers_count=1,
+        )
+
+        with federation:
+            wait(lambda: self.read_leases()[1] is not None, timeout=120)
+
+            # Grants rewrite the deadline too, so the count is taken once the leases stop appearing
+            # and every further move is a refresh.
+            wait(lambda: len(self.owned_leases()) > 0, timeout=120)
+            granted = len(self.owned_leases())
+            wait(lambda: len(self.owned_leases()) == granted, timeout=60)
+
+            deadlines = set()
+            deadline = time.time() + 20
+            while time.time() < deadline:
+                _, expiration = self.read_leases()
+                if expiration is not None:
+                    deadlines.add(expiration)
+                time.sleep(0.5)
+
+            logging.info("observed %d distinct deadlines over 20s", len(deadlines))
+            # A timeout-derived cadence would be 200s here, giving one value, maybe two if the
+            # window happened to straddle a refresh.
+            assert len(deadlines) >= 3, sorted(deadlines)
 
     @pytest.mark.authors(["thenewone"])
     @pytest.mark.parametrize("controllers_count", [1, 3], ids=["1c", "3c"])

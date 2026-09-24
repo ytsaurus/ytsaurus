@@ -34,6 +34,7 @@ target_link_libraries(common-unittests-mock PUBLIC
 
 target_sources(common-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/mock/authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/mock/source_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/mock/state.cpp
 )
 

@@ -32,6 +32,13 @@ using IBalanceAsyncSynchronizerPtr = TIntrusivePtr<IBalanceAsyncSynchronizer>;
 
 IBalanceAsyncSynchronizerPtr CreateBalanceAsyncSynchronizer(const NProfiling::TProfiler& profiler, const TWorkerGroupId& workerGroup);
 
+//! Partition complexities as the CpuAware balancer would model them right now; for tests.
+THashMap<TPartitionId, double> GetPartitionComplexities(
+    const TFlowViewPtr& flowView,
+    const THashMap<TComputationId, IComputationControllerPtr>& controllers,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NBalancer

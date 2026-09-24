@@ -6,7 +6,7 @@ from yt_type_helpers import optional_type
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
-from .helpers import get_disabled_cache_config
+from helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
@@ -1085,6 +1085,29 @@ class TestInputFetching(ClickHouseTestBase):
             # But isNull/isNotNull should work fine even with 'any' columns.
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is null', exact=1)
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
+
+    @authors("buyval01")
+    def test_min_max_filtering_optional_tagged_string(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type_v3": optional_type({
+                "type_name": "tagged",
+                "tag": "AggregateFunction(uniq, Nullable(String))",
+                "item": "string",
+            })},
+        ]})
+        write_table("//tmp/t", [{"key": 1, "value": "foo"}])
+        write_table("<append=%true>//tmp/t", [{"key": 2, "value": None}])
+        write_table("<append=%true>//tmp/t", [{"key": 3, "value": "bar"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query(
+                'select key, value from "//tmp/t" order by key'
+            ) == [{"key": 1, "value": "foo"}, {"key": 2, "value": None}, {"key": 3, "value": "bar"}]
+            assert clique.make_query_and_validate_read_row_count(
+                'select key from "//tmp/t" where value = \'foo\' '
+                'settings optimize_move_to_prewhere = 0', exact=1
+            ) == [{"key": 1}]
 
     @authors("buyval01")
     def test_predicate_pushdown_through_subquery(self):

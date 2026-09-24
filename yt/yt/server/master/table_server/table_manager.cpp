@@ -31,6 +31,8 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/tablet_server/config.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -39,6 +41,8 @@
 #include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
@@ -53,6 +57,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/random_access_queue.h>
@@ -1434,31 +1439,39 @@ public:
         addToObjectRevisions("consumers", chaosManager->GetQueueConsumers());
         addToObjectRevisions("producers", chaosManager->GetQueueProducers());
 
-        if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
+        if (multicellManager->IsPrimaryMaster()) {
+            auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
+            nodeHostCellTags.erase(multicellManager->GetCellTag());
+
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
-            for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
-                if (multicellManager->GetCellTag() != cellTag) {
-                    YT_TLOG_DEBUG("Requesting queue agent objects from secondary cell")
-                        .With("CellTag", cellTag);
-                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
-                        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
-                    auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
-                    // TODO(kvk1920): don't use "root" user here.
-                    asyncResults.push_back(proxy.Execute(req));
-                }
+            asyncResults.reserve(nodeHostCellTags.size());
+            for (auto cellTag : nodeHostCellTags) {
+                YT_TLOG_DEBUG("Requesting queue agent objects from secondary cell")
+                    .With("CellTag", cellTag);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                    multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+                auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
+                // TODO(kvk1920): don't use "root" user here.
+                asyncResults.push_back(proxy.Execute(req));
             }
-            return AllSucceeded(std::move(asyncResults)).Apply(BIND([objectRevisions] (const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable {
-                for (const auto& rsp : responses) {
-                    auto objects = ConvertTo<TObjectRevisionMap>(TYsonString{rsp->value()});
-                    for (const auto& [key, items] : objects) {
-                        objectRevisions[key].insert(items.begin(), items.end());
-                    }
-                }
-                return ConvertToYsonString(objectRevisions);
-            }));
-        } else {
-            return MakeFuture(ConvertToYsonString(objectRevisions));
+
+            if (!asyncResults.empty()) {
+                return AllSucceeded(std::move(asyncResults))
+                    .Apply(BIND([objectRevisions = std::move(objectRevisions)] (
+                        const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable
+                    {
+                        for (const auto& rsp : responses) {
+                            auto objects = ConvertTo<TObjectRevisionMap>(TYsonString{rsp->value()});
+                            for (const auto& [key, items] : objects) {
+                                objectRevisions[key].insert(items.begin(), items.end());
+                            }
+                        }
+                        return ConvertToYsonString(objectRevisions);
+                    }));
+            }
         }
+
+        return MakeFuture(ConvertToYsonString(objectRevisions));
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationCreated);

@@ -22,6 +22,7 @@
 #include <library/cpp/yt/misc/property.h>
 
 #include <algorithm>
+#include <limits>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -239,7 +240,9 @@ public:
         , SealMonitor_(New<TFakeDistributedChunkSessionSealMonitor>())
     { }
 
-    IDistributedChunkSessionPoolPtr CreatePool(int maxActiveSessionsPerSlot)
+    IDistributedChunkSessionPoolPtr CreatePool(
+        int maxActiveSessionsPerSlot,
+        int slotCount = std::numeric_limits<int>::max())
     {
         auto config = New<TDistributedChunkSessionPoolConfig>();
         config->SetDefaults();
@@ -269,6 +272,7 @@ public:
                     return MakeFuture(TError());
                 }),
                 .SealMonitor = SealMonitor_,
+                .SlotCount = slotCount,
             },
             ActionQueue_->GetInvoker());
     }
@@ -389,6 +393,24 @@ TEST(TDistributedChunkSessionPoolTest, CreatesFirstSessionForEmptySlot)
         session.SequencerNode.GetDefaultAddress(),
         harness.StartedSessions()[0].SequencerNode.GetDefaultAddress());
     EXPECT_EQ(harness.GetCreateControllerCallCount(), 1);
+}
+
+TEST(TDistributedChunkSessionPoolTest, RejectsOutOfRangeSlotCookie)
+{
+    TPoolHarness harness({
+        MakeStartedSessionInfo(/*counter*/ 1, /*mediumIndex*/ 0, "node-1"),
+    });
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3, /*slotCount*/ 2);
+
+    EXPECT_THAT(WaitFor(pool->GetSession(2)).GetMessage(), ::testing::HasSubstr("Invalid slot cookie"));
+    EXPECT_THAT(WaitFor(pool->GetSession(-1)).GetMessage(), ::testing::HasSubstr("Invalid slot cookie"));
+    EXPECT_THAT(WaitFor(pool->GetSlotChunks(2)).GetMessage(), ::testing::HasSubstr("Invalid slot cookie"));
+    EXPECT_THROW_WITH_SUBSTRING(pool->FinalizeSlot(2), "Invalid slot cookie");
+
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 0);
+
+    EXPECT_TRUE(WaitFor(pool->GetSession(1)).IsOK());
 }
 
 TEST(TDistributedChunkSessionPoolTest, ReportsAndRetainsSessionProgress)

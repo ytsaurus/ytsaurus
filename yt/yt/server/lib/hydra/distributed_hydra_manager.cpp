@@ -857,17 +857,17 @@ private:
             bool setReadOnly = request->set_read_only();
             bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
             bool enableAutomatonReadOnlyBarrier = request->enable_automaton_read_only_barrier();
-            context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v, EnableAutomatonReadOnlyBarrier: %v",
-                setReadOnly,
-                waitForSnapshotCompletion,
-                enableAutomatonReadOnlyBarrier);
+            context->AnnotateRequest()
+                .With("SetReadOnly", setReadOnly)
+                .With("WaitForSnapshotCompletion", waitForSnapshotCompletion)
+                .With("EnableAutomatonReadOnlyBarrier", enableAutomatonReadOnlyBarrier);
 
             auto owner = GetOwnerOrThrow();
             int snapshotId = WaitFor(owner->BuildSnapshot(setReadOnly, waitForSnapshotCompletion, enableAutomatonReadOnlyBarrier))
                 .ValueOrThrow();
 
-            context->SetResponseInfo("SnapshotId: %v",
-                snapshotId);
+            context->AnnotateResponse()
+                .With("SnapshotId", snapshotId);
 
             response->set_snapshot_id(snapshotId);
 
@@ -876,7 +876,7 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ForceSyncWithLeader)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             context->ReplyFrom(owner->SyncWithLeader());
@@ -884,7 +884,7 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, PrepareLeaderSwitch)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             owner->PrepareLeaderSwitch();
@@ -894,7 +894,7 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Poke)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             owner->CommitMutation(TMutationRequest{.Reign = owner->GetCurrentReign()})
@@ -907,9 +907,9 @@ private:
         {
             auto reason = FromProto<TError>(request->reason());
             auto armPriorityBoost = request->arm_priority_boost();
-            context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
-                reason,
-                armPriorityBoost);
+            context->AnnotateRequest()
+                .With("Reason", reason)
+                .With("ArmPriorityBoost", armPriorityBoost);
 
             auto owner = GetOwnerOrThrow();
             owner->ForceRestart(reason, armPriorityBoost);
@@ -919,12 +919,13 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, GetPeerState)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             auto state = owner->GetControlState();
 
-            context->SetResponseInfo("PeerState: %v", state);
+            context->AnnotateResponse()
+                .With("PeerState", state);
 
             response->set_peer_state(ToUnderlying(state));
             context->Reply();
@@ -932,8 +933,9 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ResetStateHash)
         {
-            context->SetRequestInfo("NewStateHash: %x", request->new_state_hash());
-            context->SetResponseInfo();
+            context->AnnotateRequest()
+                .WithFormat("NewStateHash", "%x", request->new_state_hash());
+            context->AnnotateResponse();
 
             auto owner = GetOwnerOrThrow();
 
@@ -943,7 +945,7 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ExitReadOnly)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             if (!owner->IsActiveLeader()) {
@@ -968,7 +970,7 @@ private:
 
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, DiscombobulateNonvotingPeers)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             owner->DiscombobulateNonvotingPeers();
@@ -979,8 +981,8 @@ private:
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, Freeze)
         {
             auto term = request->term();
-            context->SetRequestInfo("Term: %v",
-                term);
+            context->AnnotateRequest()
+                .With("Term", term);
 
             auto owner = GetOwnerOrThrow();
             owner->Freeze(term);
@@ -991,8 +993,8 @@ private:
         DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, TruncateChangelog)
         {
             auto lastSequenceNumber = request->last_sequence_number();
-            context->SetRequestInfo("LastSequenceNumber: %v",
-                lastSequenceNumber);
+            context->AnnotateRequest()
+                .With("LastSequenceNumber", lastSequenceNumber);
 
             auto owner = GetOwnerOrThrow();
             owner->TruncateChangelog(lastSequenceNumber);
@@ -1041,9 +1043,9 @@ private:
         {
             auto maxSnapshotId = request->max_snapshot_id();
             auto exactId = request->exact_id();
-            context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %v",
-                maxSnapshotId,
-                exactId);
+            context->AnnotateRequest()
+                .With("MaxSnapshotId", maxSnapshotId)
+                .With("ExactId", exactId);
 
             auto owner = GetOwnerOrThrow();
 
@@ -1067,16 +1069,17 @@ private:
                 *response->mutable_meta() = params.Meta;
             }
 
-            context->SetResponseInfo("SnapshotId: %v", snapshotId);
+            context->AnnotateResponse()
+                .With("SnapshotId", snapshotId);
             context->Reply();
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
         {
             auto snapshotId = request->snapshot_id();
-            context->SetRequestInfo("SnapshotId: %v, ResponseCodec: %v",
-                snapshotId,
-                context->GetResponseCodec());
+            context->AnnotateRequest()
+                .With("SnapshotId", snapshotId)
+                .With("ResponseCodec", context->GetResponseCodec());
 
             auto owner = GetOwnerOrThrow();
             auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
@@ -1090,7 +1093,8 @@ private:
         DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
         {
             int changelogId = request->changelog_id();
-            context->SetRequestInfo("ChangelogId: %v", changelogId);
+            context->AnnotateRequest()
+                .With("ChangelogId", changelogId);
 
             auto owner = GetOwnerOrThrow();
             auto [recordCount, firstSequenceNumber] = owner->LookupChangelog(changelogId);
@@ -1100,15 +1104,15 @@ private:
                 response->set_first_sequence_number(*firstSequenceNumber);
             }
 
-            context->SetResponseInfo("RecordCount: %v, FirstSequenceNumber: %v",
-                recordCount,
-                firstSequenceNumber);
+            context->AnnotateResponse()
+                .With("RecordCount", recordCount)
+                .With("FirstSequenceNumber", firstSequenceNumber);
             context->Reply();
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto, GetLatestChangelogId)
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto owner = GetOwnerOrThrow();
             auto [changelogId, term] = owner->GetLatestChangelogId();
@@ -1116,7 +1120,8 @@ private:
             response->set_changelog_id(changelogId);
             response->set_term(term);
 
-            context->SetResponseInfo("ChangelogId: %v", changelogId);
+            context->AnnotateResponse()
+                .With("ChangelogId", changelogId);
             context->Reply();
         }
 
@@ -1125,10 +1130,10 @@ private:
             int changelogId = request->changelog_id();
             int startRecordId = request->start_record_id();
             int recordCount = request->record_count();
-            context->SetRequestInfo("ChangelogId: %v, StartRecordId: %v, RecordCount: %v",
-                changelogId,
-                startRecordId,
-                recordCount);
+            context->AnnotateRequest()
+                .With("ChangelogId", changelogId)
+                .With("StartRecordId", startRecordId)
+                .With("RecordCount", recordCount);
 
             auto owner = GetOwnerOrThrow();
             auto recordsData = owner->ReadChangeLog(changelogId, startRecordId, recordCount);
@@ -1136,7 +1141,8 @@ private:
             // Pack refs to minimize allocations.
             response->Attachments().push_back(PackRefs(recordsData));
 
-            context->SetResponseInfo("RecordCount: %v", recordsData.size());
+            context->AnnotateResponse()
+                .With("RecordCount", recordsData.size());
             context->Reply();
         }
 
@@ -1151,10 +1157,10 @@ private:
             auto epochId = FromProto<TEpochId>(request->epoch_id());
             auto term = request->has_term() ? std::make_optional(request->term()) : std::nullopt;
             auto alivePeerIds = FromProto<TPeerIdSet>(request->alive_peer_ids());
-            context->SetRequestInfo("EpochId: %v, Term: %v, AlivePeerIds: %v",
-                epochId,
-                term,
-                alivePeerIds);
+            context->AnnotateRequest()
+                .With("EpochId", epochId)
+                .With("Term", term)
+                .With("AlivePeerIds", alivePeerIds);
 
             auto owner = GetOwnerOrThrow();
             auto state = owner->PingFollower(epochId, term, alivePeerIds);
@@ -1179,10 +1185,10 @@ private:
             auto priority = extractPriority();
             auto changelogId = request->changelog_id();
 
-            context->SetRequestInfo("Term: %v, Priority: %v, ChangelogId: %v",
-                term,
-                priority,
-                changelogId);
+            context->AnnotateRequest()
+                .With("Term", term)
+                .With("Priority", priority)
+                .With("ChangelogId", changelogId);
 
             auto owner = GetOwnerOrThrow();
             owner->AcquireChangelog(term, priority, changelogId);
@@ -1194,15 +1200,15 @@ private:
         {
             auto epochId = FromProto<TEpochId>(request->epoch_id());
             auto term = request->term();
-            context->SetRequestInfo("EpochId: %v, Term: %v",
-                epochId,
-                term);
+            context->AnnotateRequest()
+                .With("EpochId", epochId)
+                .With("Term", term);
 
             auto owner = GetOwnerOrThrow();
             auto sequenceNumber = owner->SyncWithLeader(epochId, term);
 
-            context->SetResponseInfo("SyncSequenceNumber: %v",
-                sequenceNumber);
+            context->AnnotateResponse()
+                .With("SyncSequenceNumber", sequenceNumber);
 
             response->set_sync_sequence_number(sequenceNumber);
             context->Reply();
@@ -1226,10 +1232,10 @@ private:
                 mutationRequest.Reign = owner->GetCurrentReign();
             }
 
-            context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
-                mutationRequest.Type,
-                mutationRequest.MutationId,
-                mutationRequest.Retry);
+            context->AnnotateRequest()
+                .With("MutationType", mutationRequest.Type)
+                .With("MutationId", mutationRequest.MutationId)
+                .With("Retry", mutationRequest.Retry);
 
             owner->CommitMutation(std::move(mutationRequest))
                 .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
@@ -1250,23 +1256,23 @@ private:
         DECLARE_RPC_SERVICE_METHOD(NProto, AbandonLeaderLease)
         {
             auto peerId = request->peer_id();
-            context->SetRequestInfo("PeerId: %v",
-                peerId);
+            context->AnnotateRequest()
+                .With("PeerId", peerId);
 
             auto owner = GetOwnerOrThrow();
             auto abandoned = owner->AbandonLeaderLease(peerId);
 
             response->set_abandoned(abandoned);
-            context->SetResponseInfo("Abandoned: %v",
-                abandoned);
+            context->AnnotateResponse()
+                .With("Abandoned", abandoned);
             context->Reply();
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto, ReportMutationsStateHashes)
         {
             auto peerId = request->peer_id();
-            context->SetRequestInfo("PeerId: %v",
-                peerId);
+            context->AnnotateRequest()
+                .With("PeerId", peerId);
 
             auto owner = GetOwnerOrThrow();
 
@@ -1285,8 +1291,8 @@ private:
         DECLARE_RPC_SERVICE_METHOD(NProto, Discombobulate)
         {
             auto sequenceNumber = request->sequence_number();
-            context->SetRequestInfo("SequenceNumber: %v",
-                sequenceNumber);
+            context->AnnotateRequest()
+                .With("SequenceNumber", sequenceNumber);
 
             auto owner = GetOwnerOrThrow();
             owner->Discombobulate(sequenceNumber);
@@ -1364,12 +1370,12 @@ private:
         auto term = request->term();
 
         auto mutationCount = request->Attachments().size();
-        context->SetRequestInfo("StartSequenceNumber: %v, CommittedSequenceNumber: %v, CommittedSegmentId: %v, EpochId: %v, MutationCount: %v",
-            startSequenceNumber,
-            committedSequenceNumber,
-            committedSegmentId,
-            epochId,
-            mutationCount);
+        context->AnnotateRequest()
+            .With("StartSequenceNumber", startSequenceNumber)
+            .With("CommittedSequenceNumber", committedSequenceNumber)
+            .With("CommittedSegmentId", committedSegmentId)
+            .With("EpochId", epochId)
+            .With("MutationCount", mutationCount);
 
         auto epochContext = GetControlEpochContext(epochId);
 
@@ -1511,10 +1517,10 @@ private:
         response->set_expected_sequence_number(expectedSequenceNumber);
         response->set_mutations_accepted(mutationsAccepted);
 
-        context->SetResponseInfo("LoggedSequenceNumber: %v, ExpectedSequenceNumber: %v, MutationsAccepted: %v",
-            loggedSequenceNumber,
-            expectedSequenceNumber,
-            mutationsAccepted);
+        context->AnnotateResponse()
+            .With("LoggedSequenceNumber", loggedSequenceNumber)
+            .With("ExpectedSequenceNumber", expectedSequenceNumber)
+            .With("MutationsAccepted", mutationsAccepted);
         context->Reply();
     }
 

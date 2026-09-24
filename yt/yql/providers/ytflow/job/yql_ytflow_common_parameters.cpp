@@ -20,6 +20,9 @@ void TCommonMapParameters::Register(TRegistrar registrar)
     registrar.Parameter("lambda_file", &TThis::LambdaFile);
     registrar.Parameter("inject_input_message_id", &TThis::InjectInputMessageId)
         .Default(false);
+
+    registrar.Parameter("source_type", &TThis::SourceType)
+        .Default(ESourceType::Yt);
 }
 
 void ValidateMapSpec(const NYT::NFlow::TComputationSpec& spec)

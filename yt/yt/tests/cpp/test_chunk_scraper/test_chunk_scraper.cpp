@@ -466,7 +466,7 @@ TEST_F(TChunkScraperBaseTest, DrainQueueAndAddChunks)
     WaitFor(allChunksRemoved.ToFuture())
         .ThrowOnError();
 
-    ScraperActionQueue_->GetInvoker()->Invoke(BIND([scraper, chunkIds = std::move(chunkIds)] {
+    ScraperActionQueue_->GetInvoker()->Invoke(BIND([&] {
         for (auto chunkId : chunkIds) {
             scraper->Add(chunkId);
         }

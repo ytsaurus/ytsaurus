@@ -25,9 +25,14 @@ PEERDIR(
     yt/yql/providers/dq/actors
     yt/yql/providers/dq/actors/yt
     yt/yql/providers/dq/global_worker_manager
+    yt/yql/tools/dq/job_config
     yql/essentials/utils/signals
 )
 
 YQL_LAST_ABI_VERSION()
 
 END()
+
+RECURSE_FOR_TESTS(
+    ut
+)

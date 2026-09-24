@@ -16,6 +16,16 @@
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -107,11 +117,169 @@ public:
     { }
 };
 
+//! Static parameters of TUnittestOffsetFunction: the offset added to every key.
+struct TUnittestOffsetParameters
+    : public NYTree::TYsonStruct
+{
+    ui64 Offset = 0;
+
+    REGISTER_YSON_STRUCT(TUnittestOffsetParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("offset", &TThis::Offset)
+            .Default(0);
+    }
+};
+
+//! Reads its static parameters in Init and emits every key shifted by the offset.
+class TUnittestOffsetFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Offset_ = initContext->GetParameters<TUnittestOffsetParameters>()->Offset;
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto builder = context->MakeOutputMessageBuilder(std::nullopt);
+        builder.SetMessageId(TMessageId(Format("out-%v", message->MessageId)));
+        builder.SetSystemTimestamp(message->SystemTimestamp);
+        builder.SetAlignmentTimestamp(message->AlignmentTimestamp);
+        builder.Payload().Set(GetColumnValue<ui64>(*message, 0) + Offset_, "key");
+        output->AddMessage(builder.Finish());
+    }
+
+private:
+    ui64 Offset_ = 0;
+};
+
+//! Registered without a parameters type but asks for a typed one; used to test the mismatch path.
+class TUnittestMismatchedParametersFunction
+    : public TUnittestOffsetFunction
+{ };
+
+class TUnittestContextConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TUnittestContextConstructorFunction(const TProcessFunctionContextPtr& context)
+    {
+        Y_UNUSED(context->Logger);
+        SawStatusProfiler = context->StatusProfiler != nullptr;
+        SawEnabledProfiler = context->InitContext->GetProfiler().IsEnabled();
+        try {
+            Y_UNUSED(context->InitContext->GetPartitionId());
+        } catch (const std::exception&) {
+            SawNoPartition = true;
+        }
+        SawNullClientsCache = !context->ClientsCache;
+        SawNullInvoker = !context->Invoker;
+        SawNullPrimaryClient = !context->RetryableClient;
+        ConstructorContext = context;
+        ++ConstructionCount;
+    }
+
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        SawSameInitContext = context == ConstructorContext->InitContext;
+        ++InitCount;
+    }
+
+    static int ConstructionCount;
+    static int InitCount;
+    static bool SawStatusProfiler;
+    static bool SawEnabledProfiler;
+    static bool SawNoPartition;
+    static bool SawNullClientsCache;
+    static bool SawNullInvoker;
+    static bool SawNullPrimaryClient;
+    static bool SawSameInitContext;
+
+private:
+    TProcessFunctionContextPtr ConstructorContext;
+};
+
+int TUnittestContextConstructorFunction::ConstructionCount = 0;
+int TUnittestContextConstructorFunction::InitCount = 0;
+bool TUnittestContextConstructorFunction::SawStatusProfiler = false;
+bool TUnittestContextConstructorFunction::SawEnabledProfiler = false;
+bool TUnittestContextConstructorFunction::SawNoPartition = false;
+bool TUnittestContextConstructorFunction::SawNullClientsCache = false;
+bool TUnittestContextConstructorFunction::SawNullInvoker = false;
+bool TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+bool TUnittestContextConstructorFunction::SawSameInitContext = false;
+
+class TUnittestClientConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TUnittestClientConstructorFunction(const TProcessFunctionContextPtr& context)
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            context->ClientsCache && context->Invoker && context->RetryableClient,
+            "YT client infrastructure is not available in this companion process");
+    }
+};
+
+struct TUnittestHttpParameters
+    : public NYTree::TYsonStruct
+{
+    std::string Url;
+
+    REGISTER_YSON_STRUCT(TUnittestHttpParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("url", &TThis::Url);
+    }
+};
+
+class TUnittestHttpFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Client_ = initContext->GetHttpClient();
+        Url_ = initContext->GetParameters<TUnittestHttpParameters>()->Url;
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto rsp = NConcurrency::WaitFor(Client_->Get(Url_)).ValueOrThrow();
+
+        auto builder = context->MakeOutputMessageBuilder(std::nullopt);
+        builder.SetMessageId(TMessageId(Format("out-%v", message->MessageId)));
+        builder.SetSystemTimestamp(message->SystemTimestamp);
+        builder.SetAlignmentTimestamp(message->AlignmentTimestamp);
+        builder.Payload().Set(static_cast<ui64>(rsp->GetStatusCode()), "key");
+        output->AddMessage(builder.Finish());
+    }
+
+private:
+    NHttp::IClientPtr Client_;
+    std::string Url_;
+};
+
 // The passthrough function is registered through the typed pipeline API in the
 // fixture; the extra spec-selectable functions keep using the macro.
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestCountingFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestOffsetFunction, TUnittestOffsetParameters);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestMismatchedParametersFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestHttpFunction, TUnittestHttpParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestBusyFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestSyncFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestContextConstructorFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestClientConstructorFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,25 +338,30 @@ protected:
         Server_->Stop();
     }
 
-    std::string BuildSpecYson(const std::string& functionName)
+    std::string BuildSpecYson(
+        const std::string& functionName,
+        const std::string& processingFunctionParametersYson)
     {
         return Format(R"({
                 computation_class_name = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
                 processing_function = %Qv;
+                processing_function_parameters = %v;
                 group_by_schema = %v;
                 input_stream_ids = ["input"];
                 output_stream_ids = ["output"];
                 parameters = {internal_states = ["counter"]};
             })",
             functionName,
+            processingFunctionParametersYson,
             KeySchemaYson);
     }
 
     void FillJobInfo(
         NProto::NCompanion::TJobInfo* jobInfo,
-        const std::string& functionName)
+        const std::string& functionName,
+        const std::string& processingFunctionParametersYson)
     {
-        jobInfo->set_spec(BuildSpecYson(functionName));
+        jobInfo->set_spec(BuildSpecYson(functionName, processingFunctionParametersYson));
         jobInfo->set_dynamic_spec("{}");
         for (const auto& [streamId, specId, schema] : {
                 std::tuple{TStreamId("input"), TStreamSpecId(1), Schema_},
@@ -201,14 +374,16 @@ protected:
         }
     }
 
-    auto BuildRequest(const std::optional<std::string>& functionName)
+    auto BuildRequest(
+        const std::optional<std::string>& functionName,
+        const std::string& processingFunctionParametersYson = "{}")
     {
         auto req = Proxy_->ProcessBatch();
         ToProto(req->mutable_request_id(), TGuid::Create());
         ToProto(req->mutable_job_id(), JobId_);
         req->set_computation_id("my_computation");
         if (functionName) {
-            FillJobInfo(req->mutable_job_info(), *functionName);
+            FillJobInfo(req->mutable_job_info(), *functionName, processingFunctionParametersYson);
         }
         return req;
     }
@@ -427,6 +602,65 @@ TEST_F(TProcessBatchTest, UnknownComputationFails)
         testing::HasSubstr("is not registered in this companion"));
 }
 
+TEST_F(TProcessBatchTest, StaticParametersParsedIntoRegisteredType)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestOffsetFunction", "{offset = 40}");
+    AddMessage(req, 2, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    ASSERT_EQ(rsp->data().output_size(), 1);
+    auto message = FromProto<TMessage>(rsp->data().output(0).messages(0), StreamSpecs_);
+    EXPECT_EQ(GetColumnValue<ui64>(message, 0), ui64{42});
+}
+
+class TUnittestOkHttpHandler
+    : public NHttp::IHttpHandler
+{
+public:
+    void HandleRequest(const NHttp::IRequestPtr& /*req*/, const NHttp::IResponseWriterPtr& rsp) override
+    {
+        rsp->SetStatus(NHttp::EStatusCode::OK);
+        NConcurrency::WaitFor(rsp->Close()).ThrowOnError();
+    }
+};
+
+TEST_F(TProcessBatchTest, HttpClientReachesProcessFunction)
+{
+    auto httpPort = ::NTesting::GetFreePort();
+    auto poller = NConcurrency::CreateThreadPoolPoller(1, "UnittestHttpSrv");
+    auto serverConfig = New<NHttp::TServerConfig>();
+    serverConfig->Port = httpPort;
+    auto httpServer = NHttp::CreateServer(serverConfig, poller);
+    httpServer->AddHandler("/ok", New<TUnittestOkHttpHandler>());
+    httpServer->Start();
+    auto cleanup = Finally([&] {
+        httpServer->Stop();
+        poller->Shutdown();
+    });
+
+    auto req = BuildRequest(
+        "NYT::NFlow::NCompanionServer::TUnittestHttpFunction",
+        Format("{url = %Qv}", Format("http://localhost:%v/ok", static_cast<int>(httpPort))));
+    AddMessage(req, 1, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    ASSERT_EQ(rsp->data().output_size(), 1);
+    ASSERT_EQ(rsp->data().output(0).messages_size(), 1);
+    auto message = FromProto<TMessage>(rsp->data().output(0).messages(0), StreamSpecs_);
+    EXPECT_EQ(GetColumnValue<ui64>(message, 0), ui64{200});
+}
+
+TEST_F(TProcessBatchTest, StaticParametersTypeMismatchFails)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestMismatchedParametersFunction", "{offset = 40}");
+    AddMessage(req, 2, "m1");
+    auto rspOrError = req->Invoke().BlockingGet();
+    ASSERT_FALSE(rspOrError.IsOK());
+    EXPECT_THAT(
+        ToString(static_cast<const TError&>(rspOrError)),
+        testing::HasSubstr("Static function parameters type mismatch"));
+}
+
 TEST_F(TProcessBatchTest, SyncFunctionRejected)
 {
     auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestSyncFunction");
@@ -436,6 +670,44 @@ TEST_F(TProcessBatchTest, SyncFunctionRejected)
     EXPECT_THAT(
         ToString(static_cast<const TError&>(rspOrError)),
         testing::HasSubstr("sync process functions are not supported"));
+}
+
+TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
+{
+    TUnittestContextConstructorFunction::ConstructionCount = 0;
+    TUnittestContextConstructorFunction::InitCount = 0;
+    TUnittestContextConstructorFunction::SawStatusProfiler = false;
+    TUnittestContextConstructorFunction::SawEnabledProfiler = false;
+    TUnittestContextConstructorFunction::SawNoPartition = false;
+    TUnittestContextConstructorFunction::SawNullClientsCache = false;
+    TUnittestContextConstructorFunction::SawNullInvoker = false;
+    TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+    TUnittestContextConstructorFunction::SawSameInitContext = false;
+
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestContextConstructorFunction");
+    AddMessage(req, 1, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    EXPECT_EQ(TUnittestContextConstructorFunction::ConstructionCount, 1);
+    EXPECT_EQ(TUnittestContextConstructorFunction::InitCount, 1);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawStatusProfiler);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawEnabledProfiler);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNoPartition);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullClientsCache);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullInvoker);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullPrimaryClient);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawSameInitContext);
+}
+
+TEST_F(TProcessBatchTest, ClientDependencyIsRejected)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestClientConstructorFunction");
+    AddMessage(req, 1, "m1");
+    auto rspOrError = req->Invoke().BlockingGet();
+    ASSERT_FALSE(rspOrError.IsOK());
+    EXPECT_THAT(
+        ToString(static_cast<const TError&>(rspOrError)),
+        testing::HasSubstr("YT client infrastructure is not available"));
 }
 
 TEST_F(TProcessBatchTest, SourceStreamOverride)

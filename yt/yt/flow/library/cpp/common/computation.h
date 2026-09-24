@@ -111,6 +111,11 @@ struct IComputationRunContext
     // Includes all acknowledgements submitted through this context before the call.
     virtual TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics() = 0;
 
+    // Counts messages a source computation read from its source; messages of input streams are
+    // counted by GetNextBatch. Wrappers that do not forward it only lose the count.
+    virtual void RegisterSourceMessages(i64 /*count*/)
+    { }
+
     // Acknowledge messages newly persisted by this computation.
     virtual void MarkPersisted(std::span<const TMessageId> messageIds) = 0;
     // Acknowledge messages that had already been persisted before this attempt.
@@ -143,7 +148,10 @@ struct TComputationStatus
     : public NYTree::TYsonStruct
 {
     TNodeTraverseDataPtr NodeTraverse;
+    TProcessingObservationPtr ProcessingObservation;
     NYTree::IMapNodePtr PartitionStatus;
+    //! Run iterations that had input to process; idle ones (no messages, timers or visits) do not count.
+    i64 NonEmptyIterationCount{};
     THashMap<std::string, double> EpochPartTimes;
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits;
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits;

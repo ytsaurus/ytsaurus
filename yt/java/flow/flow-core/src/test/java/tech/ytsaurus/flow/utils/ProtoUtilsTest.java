@@ -3,6 +3,8 @@ package tech.ytsaurus.flow.utils;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.junit.jupiter.api.Test;
+import tech.ytsaurus.TGuid;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.test.TTestMessage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,6 +12,18 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ProtoUtilsTest {
+
+    @Test
+    void guidFromProtoMatchesCanonicalTextForm() {
+        // Canonical YT GUID text form is "Parts32[3]-[2]-[1]-[0]"; the proto TGuid carries
+        // first = (Parts32[1] << 32) | Parts32[0] and second = (Parts32[3] << 32) | Parts32[2].
+        var protoGuid = TGuid.newBuilder()
+                .setFirst((3L << 32) | 4L)
+                .setSecond((1L << 32) | 2L)
+                .build();
+        assertEquals(GUID.valueOf("1-2-3-4"), ProtoUtils.fromProto(protoGuid));
+        assertEquals("1-2-3-4", ProtoUtils.fromProto(protoGuid).toString());
+    }
 
     @Test
     void parseBytes() {

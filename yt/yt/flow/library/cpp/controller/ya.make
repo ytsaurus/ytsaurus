@@ -15,12 +15,13 @@ SRCS(
     job_balancer_result.cpp
     job_manager.cpp
     lease_manager.cpp
-    lineage_rate_aggregator.cpp
+    lineage_aggregator.cpp
     persisted_state_manager.cpp
     private.cpp
     state_access.cpp
     state_manager.cpp
     throttler_host.cpp
+    worker_coef_estimator.cpp
     worker_tracker_service.cpp
     worker_tracker.cpp
     worker.cpp
@@ -47,6 +48,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/query/engine_api
+    yt/yt/server/lib/chaos_election
 )
 
 END()

@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////

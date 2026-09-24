@@ -263,10 +263,10 @@ DEFINE_YPATH_SERVICE_METHOD(TSchedulerPoolProxy, TransferPoolResources)
             .With("resource_delta", resourceDelta);
     }
 
-    context->SetRequestInfo("SrcPool: %v, DstPool: %v, PoolTree: %v",
-        srcPool->GetName(),
-        dstPool->GetName(),
-        poolTreeImpl->GetTreeName());
+    context->AnnotateRequest()
+        .With("SrcPool", srcPool->GetName())
+        .With("DstPool", dstPool->GetName())
+        .With("PoolTree", poolTreeImpl->GetTreeName());
 
     schedulerPoolManager->TransferPoolResources(srcPool, dstPool, resourceDelta);
 

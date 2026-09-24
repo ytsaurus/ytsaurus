@@ -81,7 +81,7 @@ spec:
 
 Конфигурация таблетных нод указывается в атрибуте `tablet_node_sizes`. Это словарь, состоящий из одного поля `regular` (тип инстанса). Он имеет следующий вид:
 
-```
+```yson
 {
     "default_config" = {
         "cpu_limits" = {
@@ -121,7 +121,7 @@ spec:
 
 Конфигурация RPC proxy указывается в атрибуте `rpc_proxy_sizes`. Это словарь, состоящий из одного поля `regular` (тип инстанса). Он имеет следующий вид:
 
-```
+```yson
  {
    "resource_guarantee" = {
         "net_bytes" = 0;
@@ -170,7 +170,7 @@ Bundle controller может управлять аккаунтами, в кот�
 
 Чтобы бандл оказался под управлением Bundle controller, на нём должны быть установлены атрибуты `enable_bundle_controller = %true` и `zone = "zone_default"`. Также должен быть установлен атрибут `bundle_controller_target_config`, имеющий следующий вид:
 
-```
+```yson
 {
     "cpu_limits" = {
         "lookup_thread_pool_size" = 2;
@@ -227,7 +227,7 @@ Bundle controller может управлять аккаунтами, в кот�
 
 Атрибут `bundle_controller_annotations` имеет следующий вид:
 
-```
+```yson
 {
     "allocated" = %true;
     "allocated_for_bundle" = "spare";

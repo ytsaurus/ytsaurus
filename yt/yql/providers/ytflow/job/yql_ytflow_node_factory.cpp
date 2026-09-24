@@ -33,6 +33,11 @@ struct TYtflowInputStateCallable
     static constexpr TStringBuf Name = "YtflowInputState";
 };
 
+struct TYtflowInputWatermarkCallable
+    : TCallableDescriptor<EYtflowCallablePatternSharing::Shareable> {
+    static constexpr TStringBuf Name = "YtflowInputWatermark";
+};
+
 struct TYtflowInputKeyCallable
     : TCallableDescriptor<EYtflowCallablePatternSharing::Shareable> {
     static constexpr TStringBuf Name = "YtflowInputKey";
@@ -82,6 +87,7 @@ bool MatchYtflowInputCallable(
 {
     return MatchCallable<TYtflowInputStreamCallable>(callableName, sharing) ||
         MatchCallable<TYtflowInputStateCallable>(callableName, sharing) ||
+        MatchCallable<TYtflowInputWatermarkCallable>(callableName, sharing) ||
         MatchCallable<TYtflowInputKeyCallable>(callableName, sharing) ||
         MatchCallable<TYtflowInputMaxHopStartTimeCallable>(callableName, sharing);
 }

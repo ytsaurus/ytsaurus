@@ -65,6 +65,9 @@ struct IObjectWatcher
         const TObjectPtr& object,
         NTransactionClient::TTimestamp timestamp) = 0;
 
+    virtual void AdvanceObjectCacheTimestamps(
+        NTransactionClient::TTimestamp timestamp) = 0;
+
     virtual void OnObjectRemoved(TChaosObjectId objectId) = 0;
     virtual void OnObjectsMigrated(
         const std::vector<std::pair<TChaosObjectId, NObjectClient::TCellId>>& objectIds) = 0;
@@ -74,6 +77,9 @@ struct IObjectWatcher
         NTransactionClient::TTimestamp cacheTimestamp,
         IObjectWatcherCallbacksPtr<TObjectPtr> callbacks,
         bool allowUnregistered = false) = 0;
+
+    //! Returns the last observed object without a freshness guarantee.
+    virtual TObjectPtr FindObject(TChaosObjectId objectId) = 0;
 
     virtual bool TryUnregisterObject(TChaosObjectId objectId) = 0;
     virtual TInstant GetLastSeenWatchersTime(TChaosObjectId objectId) = 0;
@@ -112,6 +118,9 @@ public:
         const TObjectPtr& object,
         NTransactionClient::TTimestamp timestamp) override;
 
+    void AdvanceObjectCacheTimestamps(
+        NTransactionClient::TTimestamp timestamp) override;
+
     void OnObjectRemoved(TChaosObjectId objectId) override;
     void OnObjectsMigrated(
         const std::vector<std::pair<TChaosObjectId, NObjectClient::TCellId>>& objectIds) override;
@@ -121,6 +130,8 @@ public:
         NTransactionClient::TTimestamp cacheTimestamp,
         IObjectWatcherCallbacksPtr<TObjectPtr> callbacks,
         bool allowUnregistered) override;
+
+    TObjectPtr FindObject(TChaosObjectId objectId) override;
 
     bool TryUnregisterObject(TChaosObjectId objectId) override;
     TInstant GetLastSeenWatchersTime(TChaosObjectId objectId) override;
@@ -159,6 +170,9 @@ private:
     };
 
     const NConcurrency::TPeriodicExecutorPtr ExpirationExecutor_;
+    const TDuration ExpirationTime_;
+    const TDuration GoneObjectsExpirationTime_;
+    const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EntriesLock_);
     THashMap<TChaosObjectId, std::unique_ptr<TWatchersList>> WatchersByObjectId_;
@@ -169,11 +183,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DeletedObjectsLock_);
     THashMap<TChaosObjectId, TInstant> DeletedObjects_;
 
-    const TDuration ExpirationTime_;
-    const TDuration GoneObjectsExpirationTime_;
     std::atomic<bool> IsRunning_ = false;
-
-    const NLogging::TLogger Logger;
 
     void OnExpirationSweep();
 };

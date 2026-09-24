@@ -185,17 +185,13 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         Events_->InsertNodeEvent(nextHeartbeatEvent);
     }
 
-    TStringBuilder schedulingAttributesBuilder;
-    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(schedulingHeartbeatContext, delimitedSchedulingAttributesBuilder);
-
     YT_TLOG_DEBUG("Heartbeat finished")
         .With("VirtualTimestamp", event.Time)
         .With("NodeId", event.NodeId)
         .With("NodeAddress", node->GetDefaultAddress())
         .With("StartedJobs", schedulingHeartbeatContext->StartedAllocations().size())
         .With("PreemptedJobs", schedulingHeartbeatContext->PreemptedAllocations().size())
-        .With("SchedulingAttributes", schedulingAttributesBuilder.Flush());
+        .With(strategyProxy->BuildSchedulingAttributeTags(schedulingHeartbeatContext));
 }
 
 void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)

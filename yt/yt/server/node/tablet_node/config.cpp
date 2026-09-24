@@ -309,6 +309,18 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGlobalStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("no_such_method_backoff_time", &TThis::NoSuchMethodBackoffTime)
+        .Default(TDuration::Hours(6));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreTrimmerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -710,6 +722,8 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("compression_dictionary_builder", &TThis::CompressionDictionaryBuilder)
         .DefaultNew();
+    registrar.Parameter("global_stores_update_throttler", &TThis::GlobalStoresUpdateThrottler)
+        .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
         .DefaultNew();
@@ -723,6 +737,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("incremental_structured_tablet_heartbeat_period", &TThis::IncrementalStructuredTabletHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("profiling_tag_export_mode", &TThis::ProfilingTagExportMode)
+        .Default(EProfilingTagExportMode::TableTag);
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();

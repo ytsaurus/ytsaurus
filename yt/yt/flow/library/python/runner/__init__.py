@@ -25,6 +25,7 @@ from yt.wrapper import yson
 log = logging.getLogger(__name__)
 
 _PYTHON_COMPANION_NAME = "py_companion"
+_PYTHON_COMPANION_PORT_COUNT = 3
 _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
 
 
@@ -53,6 +54,14 @@ def launch(config_path, flow_bin):
         worker = vanilla.setdefault("worker", {})
         # Hand the worker this very binary; flow_server ships it into the job sandbox.
         worker.setdefault("local_files", {})[_PYTHON_COMPANION_NAME] = os.path.abspath(sys.argv[0])
+        # Python has no monitoring endpoint, so reserve only node RPC/monitoring and companion RPC.
+        port_count = worker.get("port_count")
+        if (
+            port_count is None
+            or isinstance(port_count, yson.YsonEntity)
+            or (isinstance(port_count, int) and port_count < _PYTHON_COMPANION_PORT_COUNT)
+        ):
+            worker["port_count"] = _PYTHON_COMPANION_PORT_COUNT
 
     extended_config = _write_temp_yson(pipeline_config, "extended-pipeline.yson")
     flow_bin = os.path.abspath(flow_bin)

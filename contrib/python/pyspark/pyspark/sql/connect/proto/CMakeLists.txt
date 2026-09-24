@@ -66,6 +66,9 @@ target_proto_messages(sql-connect-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/common.proto
   ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/example_plugins.proto
   ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/expressions.proto
+  ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml.proto
+  ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml_common.proto
+  ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/pipelines.proto
   ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/relations.proto
   ${PROJECT_SOURCE_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/types.proto
 )
@@ -83,6 +86,12 @@ target_sources(sql-connect-proto PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/example_plugins.grpc.pb.h
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/expressions.pb.h
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/expressions.grpc.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml.grpc.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml_common.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/ml_common.grpc.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/pipelines.pb.h
+  ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/pipelines.grpc.pb.h
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/relations.pb.h
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/relations.grpc.pb.h
   ${PROJECT_BINARY_DIR}/contrib/python/pyspark/pyspark/sql/connect/proto/types.pb.h

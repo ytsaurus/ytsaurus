@@ -1,5 +1,8 @@
 package tech.ytsaurus.flow.service;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import io.grpc.Context;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -13,8 +16,16 @@ import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.row.ExtendedMessage;
+import tech.ytsaurus.flow.rpc.EResourceCommand;
+import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
+import tech.ytsaurus.flow.rpc.TReqListJobs;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
+import tech.ytsaurus.flow.rpc.TReqPutJob;
+import tech.ytsaurus.flow.rpc.TReqResourceExecute;
+import tech.ytsaurus.flow.rpc.TRspListJobs;
 import tech.ytsaurus.flow.rpc.TRspProcessBatch;
+import tech.ytsaurus.flow.rpc.TRspPutJob;
+import tech.ytsaurus.flow.rpc.TRspResourceExecute;
 import tech.ytsaurus.flow.testutils.ProtobufRequestBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,8 +33,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link CompanionService} error surfacing in ProcessBatch.
@@ -69,12 +86,12 @@ class CompanionServiceTest {
     }
 
     private static String processBatchErrorDescription(CompanionService service) {
-        var observer = new CapturingObserver();
+        var observer = new CapturingObserver<TRspProcessBatch>();
         service.processBatch(createRequest(), observer);
         return assertErrorDescription(observer);
     }
 
-    private static String assertErrorDescription(CapturingObserver observer) {
+    private static String assertErrorDescription(CapturingObserver<TRspProcessBatch> observer) {
         assertNull(observer.response);
         assertFalse(observer.completed);
         var statusException = assertInstanceOf(StatusRuntimeException.class, observer.error);
@@ -118,7 +135,7 @@ class CompanionServiceTest {
     @Test
     void virtualMachineErrorIsRethrownAfterSurfacingStatus() {
         var service = serviceWithFailure(new OutOfMemoryError("simulated"));
-        var observer = new CapturingObserver();
+        var observer = new CapturingObserver<TRspProcessBatch>();
         var request = createRequest();
 
         assertThrows(OutOfMemoryError.class, () -> service.processBatch(request, observer));
@@ -172,13 +189,142 @@ class CompanionServiceTest {
         assertTrue(description.contains("toString failed"), description);
     }
 
-    private static final class CapturingObserver implements StreamObserver<TRspProcessBatch> {
-        private TRspProcessBatch response;
+    @Test
+    void resourceStatusesStayInBandThroughTheInjectedProcessor() {
+        var processor = mock(CompanionRequestProcessor.class);
+        var service = new CompanionService(processor, new SimpleMeterRegistry());
+        var request = TReqResourceExecute.newBuilder()
+                .setRequestId(createRequest().getRequestId())
+                .setResourceId("r").setCommand(EResourceCommand.RC_INIT).build();
+        when(processor.resourceExecute(request)).thenReturn(
+                new ExecuteOutcome(EResourceExecuteStatus.RES_RESOURCE_NOT_INITIALIZED, "dependency missing"));
+        var observer = new CapturingObserver<TRspResourceExecute>();
+
+        service.resourceExecute(request, observer);
+
+        assertNull(observer.error);
+        assertTrue(observer.completed);
+        assertEquals(request.getRequestId(), observer.response.getRequestId());
+        assertEquals(EResourceExecuteStatus.RES_RESOURCE_NOT_INITIALIZED, observer.response.getStatus());
+        assertEquals("dependency missing", observer.response.getError().getMessage());
+        verify(processor).resourceExecute(request);
+    }
+
+    @Test
+    void cancelledBatchAndPutJobDoNotReachProcessor() {
+        var processor = mock(CompanionRequestProcessor.class);
+        var registry = new SimpleMeterRegistry();
+        var service = new CompanionService(processor, registry);
+        var batch = createRequest();
+        var putJob = TReqPutJob.newBuilder().setRequestId(batch.getRequestId()).setJobId(batch.getJobId())
+                .setComputationId(batch.getComputationId()).setJobInfo(batch.getJobInfo()).build();
+        var batchObserver = new CapturingObserver<TRspProcessBatch>();
+        var jobObserver = new CapturingObserver<TRspPutJob>();
+        try (var context = Context.current().withCancellation()) {
+            context.cancel(null);
+            context.run(() -> {
+                service.processBatch(batch, batchObserver);
+                service.putJob(putJob, jobObserver);
+            });
+        }
+        verifyNoInteractions(processor);
+        assertEquals(Status.Code.CANCELLED, Status.fromThrowable(batchObserver.error).getCode());
+        assertEquals(Status.Code.CANCELLED, Status.fromThrowable(jobObserver.error).getCode());
+        assertEquals(1, registry.get(CompanionMetrics.REQUEST_DURATION).timer().count());
+    }
+
+    @Test
+    void failedBatchStopsMeasurementOnce() throws Exception {
+        var processor = mock(CompanionRequestProcessor.class);
+        var registry = new SimpleMeterRegistry();
+        when(processor.processBatch(any())).thenThrow(new AssertionError("batch failed"));
+        var observer = new CapturingObserver<TRspProcessBatch>();
+
+        new CompanionService(processor, registry).processBatch(createRequest(), observer);
+
+        assertErrorDescription(observer);
+        assertEquals(1, registry.get(CompanionMetrics.REQUEST_DURATION).timer().count());
+    }
+
+    @Test
+    void nonBatchErrorsUseTheSameBoundedFormatter() {
+        var processor = mock(CompanionRequestProcessor.class);
+        when(processor.listJobs(any())).thenThrow(new IllegalStateException("я".repeat(4000)));
+        var observer = new CapturingObserver<TRspListJobs>();
+        new CompanionService(processor, new SimpleMeterRegistry()).listJobs(TReqListJobs.newBuilder()
+                .setRequestId(createRequest().getRequestId()).build(), observer);
+        var status = Status.fromThrowable(observer.error);
+        assertEquals(Status.Code.INTERNAL, status.getCode());
+        assertNotNull(status.getDescription());
+        assertTrue(status.getDescription().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 2065);
+        assertFalse(observer.completed);
+    }
+
+    @Test
+    void fatalFailureIsNotMaskedByAnErrorObserver() {
+        var fatal = new OutOfMemoryError("simulated");
+        var deliveryFailure = new IllegalStateException("observer failed");
+        var observer = new CapturingObserver<TRspProcessBatch>() {
+            @Override
+            public void onError(Throwable error) {
+                throw deliveryFailure;
+            }
+        };
+        assertSame(fatal, assertThrows(OutOfMemoryError.class,
+                () -> serviceWithFailure(fatal).processBatch(createRequest(), observer)));
+        assertSame(deliveryFailure, fatal.getSuppressed()[0]);
+    }
+
+    @Test
+    void successfulResponseDeliveryFailureDoesNotTriggerAnotherTerminalCallback() {
+        var processor = mock(CompanionRequestProcessor.class);
+        var request = TReqListJobs.newBuilder().setRequestId(createRequest().getRequestId()).build();
+        when(processor.listJobs(request)).thenReturn(java.util.Set.of());
+        var deliveryFailure = new IllegalStateException("observer failed");
+        var terminalCalls = new AtomicInteger();
+        var observer = new CapturingObserver<TRspListJobs>() {
+            @Override
+            public void onNext(TRspListJobs response) {
+                throw deliveryFailure;
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                terminalCalls.incrementAndGet();
+            }
+
+            @Override
+            public void onCompleted() {
+                terminalCalls.incrementAndGet();
+            }
+        };
+        var service = new CompanionService(processor, new SimpleMeterRegistry());
+        assertSame(deliveryFailure, assertThrows(IllegalStateException.class,
+                () -> service.listJobs(request, observer)));
+        assertEquals(0, terminalCalls.get());
+    }
+
+    @Test
+    void fatalFormatterFailureIsNotSwallowed() {
+        var fatal = new OutOfMemoryError("formatter, simulated");
+        var failure = new IllegalStateException("body") {
+            @Override
+            public String toString() {
+                throw fatal;
+            }
+        };
+        var observer = new CapturingObserver<TRspProcessBatch>();
+        assertSame(fatal, assertThrows(OutOfMemoryError.class,
+                () -> serviceWithFailure(failure).processBatch(createRequest(), observer)));
+    }
+
+    private static class CapturingObserver<T> implements StreamObserver<T> {
+        private T response;
         private Throwable error;
         private boolean completed;
 
         @Override
-        public void onNext(TRspProcessBatch value) {
+        public void onNext(T value) {
             response = value;
         }
 

@@ -66,7 +66,10 @@ void TPartitioningCoordinator::InputAutoPartitioningCollectData(
             context.AllPartitionsHavePivots = false;
             break;
         }
-        if (it->second->CurrentJobStatus->InputMetrics->Global.Pivots.empty()) {
+        const auto& globalInputMetrics = it->second->CurrentJobStatus->InputMetrics->Global;
+        // Idle partitions never accumulate pivots, so requiring them would deadlock rebalancing;
+        // an idle partition must not veto redistribution of the partitions that do have load.
+        if (globalInputMetrics.MessagesPerSecond > 0 && globalInputMetrics.Pivots.empty()) {
             context.AllPartitionsHavePivots = false;
         }
     }
@@ -199,7 +202,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
                         : *status->PerformanceMetrics->CpuUsage30s);
             }
             if (status->PerformanceMetrics && status->PerformanceMetrics->MemoryUsage10m) {
-                averageMemoryUsage.Add(partitionId, status->PerformanceMetrics->MemoryUsage10m);
+                averageMemoryUsage.Add(partitionId, *status->PerformanceMetrics->MemoryUsage10m);
             }
             if (status->InputMetrics) {
                 averageMessagesPerSecond.Add(partitionId, status->InputMetrics->Global.MessagesPerSecond);

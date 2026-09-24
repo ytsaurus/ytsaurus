@@ -1,18 +1,59 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/cobra"
 
 	"go.ytsaurus.tech/yt/go/yt"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
+
+func RunServer(cmd *cobra.Command, args []string) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(fmt.Errorf("normal terminate"))
+	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")), ytmsvc.Must(cmd.Flags().GetString("token-env-variable")))
+	go perClusterRunner(ctx, ytClient, cmd)
+	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
+	debugLogin := ytmsvc.Must(cmd.Flags().GetString("debug-login"))
+
+	addr := fmt.Sprintf(":%v", port)
+	var router http.Handler
+	if debugLogin != "" {
+		addr = fmt.Sprintf("127.0.0.1:%d", port)
+		logger.Warnf("Authentication is disabled; using debug login %q on loopback", debugLogin)
+		router = createDebugRouter(debugLogin)
+	} else {
+		router = GetRouterHandler(ytClient, cmd)
+	}
+	ytmsvc.Must0(http.ListenAndServe(addr, router))
+}
+
+func createDebugRouter(debugLogin string) http.Handler {
+	accessChecker := &debugAccessChecker{login: debugLogin}
+	whoamiHandler := func(http.ResponseWriter, *http.Request) (any, error) {
+		return map[string]string{"user": debugLogin}, nil
+	}
+	return createRouter(
+		GetInfoHandler(),
+		whoamiHandler,
+		GetServedClustersHandler(),
+		createCheckACLHandler(accessChecker),
+		GetClickHouseDictHandler(),
+		GetLivenessHandler(),
+		GetReadinessHandler(),
+		GetDropCacheHandler(),
+		GetMetricsHandler(),
+	)
+}
 
 func createRouter(
 	infoHandler ytmsvc.HTTPHandlerE,
@@ -46,6 +87,17 @@ func createRouter(
 
 type AccessChecker interface {
 	CheckAccess(subject string, req *http.Request) (string, error)
+}
+
+type debugAccessChecker struct {
+	login string
+}
+
+func (c *debugAccessChecker) CheckAccess(subject string, _ *http.Request) (string, error) {
+	if subject != c.login {
+		return "", fmt.Errorf("debug login %q cannot check subject %q", c.login, subject)
+	}
+	return "user/" + c.login, nil
 }
 
 func createCheckACLHandler(accessChecker AccessChecker) ytmsvc.HTTPHandlerE {

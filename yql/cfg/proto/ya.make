@@ -11,6 +11,7 @@ PEERDIR(
     yql/essentials/protos
     yql/essentials/providers/common/proto
     yql/essentials/utils/log/proto
+    yt/yql/library/token_resolver/proto
     yt/yql/providers/yt/lib/access_provider/proto
     yt/yql/providers/yt/lib/tvm_client/proto
     yt/yql/providers/dq/config

@@ -829,7 +829,8 @@ void TJobManager::Enlarge(
                 sliceCount)
             .WithFormat(
                 "NewConstraints",
-                "{DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, MaxDataSlicesPerJob: %v}",
+                "{DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
+                "MaxCompressedDataSizePerJob: %v, MaxDataSlicesPerJob: %v}",
                 dataWeightPerJob,
                 primaryDataWeightPerJob,
                 jobSizeConstraints->GetMaxDataWeightPerJob(),

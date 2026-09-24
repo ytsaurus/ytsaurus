@@ -281,10 +281,8 @@ public:
             // For last mutation we use signature from the request,
             // for other mutations signature is zero, see comment above.
             auto mutationPrepareSignature = InitialTransactionSignature;
-            auto mutationCommitSignature = InitialTransactionSignature;
             if (reader->IsFinished()) {
                 mutationPrepareSignature = params.PrepareSignature;
-                mutationCommitSignature = params.CommitSignature;
             }
 
             auto lockless = context.Lockless;
@@ -302,8 +300,7 @@ public:
                 .With("RowCount", context.RowCount)
                 .With("Lockless", lockless)
                 .WithFormat("Generation", "%x", params.Generation)
-                .WithFormat("PrepareSignature", "%x", mutationPrepareSignature)
-                .WithFormat("CommitSignature", "%x", mutationCommitSignature);
+                .WithFormat("PrepareSignature", "%x", mutationPrepareSignature);
 
             if (atomicity == EAtomicity::Full) {
                 transaction->TransientPrepareSignature() += mutationPrepareSignature;
@@ -336,7 +333,6 @@ public:
                 hydraRequest.set_codec(ToProto(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
                 hydraRequest.set_prepare_signature(mutationPrepareSignature);
-                hydraRequest.set_commit_signature(mutationCommitSignature);
                 hydraRequest.set_generation(params.Generation);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
@@ -359,7 +355,6 @@ public:
                     params.TransactionId,
                     tablet->GetMountRevision(),
                     mutationPrepareSignature,
-                    mutationCommitSignature,
                     params.Generation,
                     lockless,
                     writeRecord,
@@ -447,7 +442,6 @@ private:
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
         TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
         TTransactionGeneration generation,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
@@ -539,8 +533,6 @@ private:
                 tabletWriteManager->AtomicLeaderWriteRows(transaction, generation, writeRecord, lockless);
 
                 transaction->PersistentPrepareSignature() += prepareSignature;
-                // NB: May destroy transaction.
-                transactionManager->IncrementCommitSignature(transaction, commitSignature);
 
                 if (updateReplicationProgress) {
                     // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
@@ -598,8 +590,6 @@ private:
         auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
-        // COMPAT(gritukan)
-        auto commitSignature = request->has_commit_signature() ? request->commit_signature() : prepareSignature;
         auto generation = request->generation();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
@@ -725,7 +715,6 @@ private:
                 }
 
                 transaction->PersistentPrepareSignature() += prepareSignature;
-                transactionManager->IncrementCommitSignature(transaction, commitSignature);
 
                 break;
             }
@@ -803,30 +792,52 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         YT_VERIFY(AtomicityFromTransactionId(transactionId) == EAtomicity::Full);
 
+        auto transactionExternalizationToken = FromProto<TTransactionExternalizationToken>(
+            request->transaction_externalization_token());
+
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
-        auto commitSignature = request->commit_signature();
+        auto approveCommit = request->approve_commit();
+
+        // NB: Commit approval may happen only on the source servant.
+        YT_VERIFY(!transactionExternalizationToken || !approveCommit);
 
         auto* tablet = Host_->FindTablet(tabletId);
+
+        const auto& transactionManager = Host_->GetTransactionManager();
+        auto* transaction = transactionManager->FindPersistentTransaction(
+            transactionId,
+            transactionExternalizationToken);
+
+        auto finally = Finally([&] {
+            if (approveCommit && transaction) {
+                transactionManager->DecrementPendingCommitApprovalCount(transaction);
+            }
+        });
+
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
             YT_TLOG_DEBUG("Received delayed rows for nonexistent tablet; ignored")
                 .With("TabletId", tabletId)
-                .With("TransactionId", transactionId);
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken));
             return;
+        }
+
+        if (!tablet->IsPhysicallySorted()) {
+            YT_TLOG_ALERT("Attempted to perform delayed write to non-sorted dynamic table")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken));
         }
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
             YT_TLOG_DEBUG("Received delayed rows with invalid mount revision; ignored")
-                .With("TabletId", tabletId)
-                .With("TransactionId", transactionId)
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken))
                 .WithFormat("TabletMountRevision", "%x", tablet->GetMountRevision())
                 .WithFormat("RequestMountRevision", "%x", mountRevision);
             return;
         }
-
-        auto lockless = request->lockless();
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -858,31 +869,69 @@ private:
 
         YT_VERIFY(writeRecord.GetByteSize() != 0);
 
-        const auto& transactionManager = Host_->GetTransactionManager();
-        auto* transaction = transactionManager->FindPersistentTransaction(transactionId);
-
         if (!transaction) {
-            YT_TLOG_ALERT("Delayed rows sent for absent transaction, ignored")
-                .With("TransactionId", transactionId)
-                .With("TabletId", tablet->GetId())
+            YT_TLOG_ALERT("Delayed rows sent for absent transaction; ignored")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken))
                 .With("RowCount", rowCount)
                 .With("DataWeight", dataWeight)
-                .WithFormat("CommitSignature", "%x", commitSignature);
+                .With("ApproveCommit", approveCommit);
+            return;
+        }
+
+        if (!transaction->PersistentAffectedTabletIds().contains(tabletId)) {
+            // Some probably forgot to lock the row before delayed write.
+            YT_TLOG_ALERT("Delayed rows sent to tablet not affected by the transaction persistently; skipping")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken));
+            return;
+        }
+
+        if (auto atomicity = AtomicityFromTransactionId(transactionId); atomicity != EAtomicity::Full) {
+            YT_TLOG_ALERT("Unexpected transaction atomicity during delayed write; skipping")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken))
+                .With("Atomicity", atomicity);
             return;
         }
 
         YT_TLOG_DEBUG("Writing transaction delayed rows")
-            .With("TabletId", tablet->GetId())
-            .With("TransactionId", transaction->GetId())
+            .With(tablet->GetLoggingTags())
+            .With("TransactionId", FormatTransactionId(transaction->GetId(), transactionExternalizationToken))
             .With("RowCount", writeRecord.RowCount)
-            .With("Lockless", lockless)
-            .WithFormat("CommitSignature", "%x", commitSignature);
+            .With("ApproveCommit", approveCommit);
 
         auto tabletWriteManager = tablet->GetTabletWriteManager();
-        tabletWriteManager->WriteDelayedRows(transaction, writeRecord, lockless);
+        tabletWriteManager->WriteDelayedRows(transaction, writeRecord);
 
-        // NB: May destroy transaction.
-        transactionManager->IncrementCommitSignature(transaction, commitSignature);
+        if (tablet->SmoothMovementData().ShouldForwardMutation()) {
+            ForwardWriteDelayedRowsMutation(tablet, transaction, *request);
+        }
+    }
+
+    void ForwardWriteDelayedRowsMutation(
+        TTablet* tablet,
+        TTransaction* transaction,
+        TReqWriteDelayedRows request)
+    {
+        YT_TLOG_DEBUG("Forwarding delayed writes to sibling servant")
+            .With(tablet->GetLoggingTags())
+            .With("TransactionId", transaction->GetId());
+
+        auto token = TTransactionExternalizationToken(tablet->SmoothMovementData().GetSiblingAvenueEndpointId());
+
+        const auto& transactionManager = Host_->GetTransactionManager();
+        transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
+
+        YT_VERIFY(AtomicityFromTransactionId(transaction->GetId()) == EAtomicity::Full);
+        ToProto(request.mutable_transaction_externalization_token(), token);
+        ToProto(
+            request.mutable_transaction_id(),
+            ReplaceTypeInId(transaction->GetId(), EObjectType::ExternalizedAtomicTabletTransaction));
+        request.set_approve_commit(false);
+        request.set_mount_revision(ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
+
+        MutationForwarder_->MaybeForwardMutationToSiblingServant(tablet, request);
     }
 
     void OnTransactionPrepared(TTransaction* transaction, bool persistent)
@@ -1069,7 +1118,6 @@ private:
 
         transaction->SetPersistentGeneration(generation);
         transaction->PersistentPrepareSignature() = InitialTransactionSignature;
-        transaction->CommitSignature() = InitialTransactionSignature;
 
         for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();

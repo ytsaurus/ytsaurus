@@ -12,13 +12,17 @@ import org.junit.jupiter.api.Test;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.context.DefaultRuntimeContext;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.rpc.TState;
+import tech.ytsaurus.flow.test.TOptionalTestMessage;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,15 +31,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests for internal state tracking: the value handed out by {@link InternalStateAccessor} is live
  * and written back when the holder's modified states are collected, while unchanged states and
- * states read through {@link StateAccessor#readOnly()} produce no write.
+ * states read through {@link StateAccessor#readOnly()} or {@link InternalStateDescriptor#readOnly()}
+ * produce no write.
  */
 class InternalStateTrackingTest {
     private static final String COUNTER_STATE = "counter-state";
     private static final String RAW_STATE = "raw-state";
+    private static final String PROTO_STATE = "proto-state";
     private static final CounterCodec CODEC = new CounterCodec();
     private static final InternalStateDescriptor<Counter> COUNTER =
             StateDescriptors.custom(COUNTER_STATE, Counter.class, CODEC, Counter::new);
+    private static final InternalStateDescriptor<Counter> COUNTER_READ_ONLY = COUNTER.readOnly();
     private static final InternalStateDescriptor<byte[]> RAW = StateDescriptors.raw(RAW_STATE);
+    private static final InternalStateDescriptor<TOptionalTestMessage> PROTO =
+            StateDescriptors.protobuf(PROTO_STATE, TOptionalTestMessage.class);
 
     private TableSchema keySchema;
     private ExtendedMessage message;
@@ -71,7 +80,7 @@ class InternalStateTrackingTest {
         message = message("k1");
         internalStates = new HashMap<>();
         var backend = new DefaultStateBackend(
-                Set.of(COUNTER_STATE, RAW_STATE),
+                Set.of(COUNTER_STATE, RAW_STATE, PROTO_STATE),
                 Set.of(),
                 Set.of(),
                 internalStates,
@@ -144,11 +153,24 @@ class InternalStateTrackingTest {
     }
 
     @Test
-    @DisplayName("getOrDefault() of an absent state writes the default")
-    void getOrDefaultWritesTheDefault() {
-        ctx.getState(COUNTER, message).getOrDefault();
+    @DisplayName("getOrDefault() after clear() left untouched keeps the reset")
+    void getOrDefaultAfterClearLeftUntouchedKeepsTheReset() {
+        seed(message, 1L);
 
-        assertEquals(wire(0L), modified().get(key(message)).getBytes());
+        var state = ctx.getState(COUNTER, message);
+        state.clear();
+        state.getOrDefault();
+
+        assertTrue(modified().get(key(message)).isReset());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of an absent state left untouched writes nothing")
+    void getOrDefaultOfAbsentStateWritesNothing() {
+        assertEquals(0L, ctx.getState(COUNTER, message).getOrDefault().value);
+
+        assertTrue(modified().isEmpty());
+        assertEquals(0, proto(COUNTER_STATE).getStateItemsCount());
     }
 
     @Test
@@ -157,6 +179,84 @@ class InternalStateTrackingTest {
         ctx.getState(COUNTER, message).getOrDefault().value = 7L;
 
         assertEquals(wire(7L), modified().get(key(message)).getBytes());
+
+        TState out = proto(COUNTER_STATE);
+        assertEquals(1, out.getStateItemsCount());
+        assertFalse(out.getStateItems(0).getReset());
+        assertEquals(wire(7L), out.getStateItems(0).getState());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() attaches the default, so a later get() hands out the same value")
+    void getOrDefaultAttachesTheDefault() {
+        var state = ctx.getState(COUNTER, message);
+        var value = state.getOrDefault();
+
+        assertSame(value, state.get());
+        assertSame(value, ctx.getState(COUNTER, message).getOrDefault());
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("a raw default changed in place is written back")
+    void rawGetOrDefaultChangedInPlaceIsWrittenBack() {
+        // A byte[] default is mutable, so attaching it is what lets a change reach the wire.
+        ctx.getState(RAW, message).getOrDefault(new byte[]{1, 2, 3})[0] = 42;
+
+        assertEquals(
+                ByteString.copyFrom(new byte[]{42, 2, 3}),
+                modifiedOf(RAW_STATE).get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of an absent raw state sends no empty payload")
+    void rawGetOrDefaultSendsNothing() {
+        // The raw default is an empty byte array and encodes to an empty payload, which the
+        // worker rejects on a non-reset item; attaching it keeps the item off the wire.
+        assertEquals(0, ctx.getState(RAW, message).getOrDefault().length);
+
+        assertTrue(modifiedOf(RAW_STATE).isEmpty());
+        assertEquals(0, proto(RAW_STATE).getStateItemsCount());
+    }
+
+    @Test
+    @DisplayName("a value that encodes to no bytes goes out as a reset")
+    void emptyValueGoesOutAsReset() {
+        // An all-default protobuf message serializes to zero bytes, and the worker rejects a
+        // non-reset item with an empty payload: no bytes is no value, and a reset is how the
+        // wire spells that. Only an external state in the proto format is exempt, see
+        // StateProtoMapperTest.
+        ctx.getState(PROTO, message).set(TOptionalTestMessage.getDefaultInstance());
+
+        TState out = proto(PROTO_STATE);
+        assertEquals(1, out.getStateItemsCount());
+        assertTrue(out.getStateItems(0).getReset());
+        assertTrue(out.getStateItems(0).getState().isEmpty());
+    }
+
+    @Test
+    @DisplayName("reading a protobuf state does not send it back")
+    void readingAProtoStateDoesNotSendItBack() {
+        // Bytes that do not round-trip: an unknown field placed before the known one comes back
+        // after it. A tracked read re-encodes the value and takes that difference for a change.
+        var payload = ByteString.copyFrom(new byte[]{0x10, 0x07, 0x08, 0x2A});
+        holder(PROTO_STATE).load(key(message), new State(protoWire(payload)));
+
+        assertEquals(42L, ctx.getState(PROTO, message).get().getCount());
+
+        assertTrue(modifiedOf(PROTO_STATE).isEmpty());
+        assertEquals(0, proto(PROTO_STATE).getStateItemsCount());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of a protobuf state attaches it without writing it")
+    void protoGetOrDefaultAttachesWithoutWriting() {
+        var value = ctx.getState(PROTO, message).getOrDefault();
+
+        assertEquals(TOptionalTestMessage.getDefaultInstance(), value);
+        assertSame(value, ctx.getState(PROTO, message).get());
+        assertTrue(modifiedOf(PROTO_STATE).isEmpty());
+        assertEquals(0, proto(PROTO_STATE).getStateItemsCount());
     }
 
     @Test
@@ -237,6 +337,73 @@ class InternalStateTrackingTest {
         readOnly.value = 2L;
 
         assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: reading writes nothing")
+    void readOnlyDescriptorReadWritesNothing() {
+        seed(message, 1L);
+
+        var value = ctx.getState(COUNTER_READ_ONLY, message).get();
+        assertEquals(1L, value.value);
+        value.value = 2L;
+
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: getOrDefault() does not create the state")
+    void readOnlyDescriptorGetOrDefaultDoesNotCreateTheState() {
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+        assertEquals(0L, state.getOrDefault().value);
+        assertEquals(3L, state.getOrDefault(counter(3L)).value);
+
+        assertNull(state.get());
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: set() and clear() throw")
+    void readOnlyDescriptorRejectsWrites() {
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+
+        assertThrows(UnsupportedOperationException.class, () -> state.set(counter(1L)));
+        assertThrows(UnsupportedOperationException.class, state::clear);
+        assertSame(state, state.readOnly());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor reads the cell the writable descriptor writes")
+    void readOnlyDescriptorSharesTheStateCell() {
+        seed(message, 1L);
+
+        ctx.getState(COUNTER, message).getOrDefault().value = 2L;
+
+        assertEquals(2L, ctx.getState(COUNTER_READ_ONLY, message).get().value);
+        assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor does not untrack a state the writable accessor has read")
+    void readOnlyDescriptorDoesNotUntrackTheState() {
+        seed(message, 1L);
+
+        ctx.getState(COUNTER, message).get();
+        ctx.getState(COUNTER_READ_ONLY, message).get().value = 2L;
+
+        assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("readOnly() carries the state identity and stays read-only")
+    void readOnlyCarriesTheStateIdentity() {
+        assertEquals(COUNTER.getName(), COUNTER_READ_ONLY.getName());
+        assertEquals(COUNTER.getStateClass(), COUNTER_READ_ONLY.getStateClass());
+
+        assertSame(COUNTER_READ_ONLY, COUNTER_READ_ONLY.readOnly());
+
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+        assertThrows(UnsupportedOperationException.class, () -> state.set(counter(1L)));
     }
 
     @Test
@@ -333,8 +500,18 @@ class InternalStateTrackingTest {
         return holder(stateName).collectModifiedStates();
     }
 
+    private TState proto(String stateName) {
+        var holder = holder(stateName);
+        return new InternalStateProtoMapper(keySchema, CodecRegistry.getInstance().getKeyCodec())
+                .toProto(holder, holder.collectModifiedStates());
+    }
+
     private static UnversionedRow key(ExtendedMessage forMessage) {
         return forMessage.getKey().getRow();
+    }
+
+    private static ByteString protoWire(ByteString payload) {
+        return CodecRegistry.getInstance().getInternalStateValueCodec().encode(payload.toByteArray());
     }
 
     private static ByteString wire(long value) {

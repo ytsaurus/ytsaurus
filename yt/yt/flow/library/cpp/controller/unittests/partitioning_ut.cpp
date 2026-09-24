@@ -528,6 +528,47 @@ TEST_F(TPartitioning, MalformedPartitionIsInterruptedWithoutBlockingRangeLookup)
         EPartitionState::Interrupting);
 }
 
+TEST_F(TPartitioning, RangePartitioningErasesRetiringSourceMarker)
+{
+    const auto partitionId = TPartitionId(TPartitionId::TUnderlying::Create());
+    auto coordinatorState = New<NPartitioning::TPartitioningCoordinatorState>();
+    auto computationState = New<NPartitioning::TComputationPartitioningState>();
+    computationState->RetiringSourcePartitions.insert(partitionId);
+    coordinatorState->Computations[ComputationId] = std::move(computationState);
+    FlowView->State->JobManagerState->Computations[TComputationId(TStateManager::PartitioningStateComputationId)]["/v1"] =
+        ConvertToYsonString(coordinatorState);
+
+    Prepare(1);
+
+    const auto preparedState = JobManager->GetState();
+    const auto preparedCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        preparedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    ASSERT_TRUE(
+        preparedCoordinatorState->Computations.at(ComputationId)->RetiringSourcePartitions.contains(partitionId));
+
+    auto sourcePartition = New<TPartition>();
+    sourcePartition->PartitionId = partitionId;
+    sourcePartition->ComputationId = ComputationId;
+    sourcePartition->SourceKey = MakeKey(0);
+    sourcePartition->State = EPartitionState::Executing;
+    sourcePartition->StateEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    sourcePartition->StateTimestamp = TInstant::Now();
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->CreatePartition(sourcePartition);
+    FlowView->State->CommitMutation();
+
+    RunPartitioning();
+
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        EPartitionState::Interrupting);
+    const auto persistedState = JobManager->GetState();
+    const auto restoredCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        persistedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    EXPECT_TRUE(
+        restoredCoordinatorState->Computations.at(ComputationId)->RetiringSourcePartitions.empty());
+}
+
 TEST_F(TPartitioning, RepartitioningCooldownIsSharedAcrossComputations)
 {
     Prepare(10, /*withSink*/ false, /*withSecondSink*/ false, /*withSecondComputation*/ true);
@@ -778,10 +819,11 @@ TEST_F(TPartitioning, DisappearedSourcePartitionCompletesThenIsRemoved)
     const auto& partition = FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId);
     ASSERT_EQ(partition->State, EPartitionState::Executing);
 
-    StatefulSourceTestState.OmittedSourceStreams.insert(MakeGlobalStreamId(
+    const auto sourceStreamId = MakeGlobalStreamId(
         ComputationId,
         TStreamId("source_stream"),
-        Spec->Computations.at(ComputationId)));
+        Spec->Computations.at(ComputationId));
+    StatefulSourceTestState.OmittedSourceStreams.insert(sourceStreamId);
     RunPartitioning();
 
     const auto& completingPartition =
@@ -795,6 +837,21 @@ TEST_F(TPartitioning, DisappearedSourcePartitionCompletesThenIsRemoved)
     ASSERT_TRUE(partitioningSpec->ActiveSource);
     EXPECT_TRUE(partitioningSpec->ActiveSource->GetChildren().empty());
 
+    RecreateJobManager();
+    StatefulSourceTestState.OmittedSourceStreams.erase(sourceStreamId);
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        EPartitionState::Completing);
+    const auto& reappearedDynamicPartitionSpec =
+        FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    auto reappearedPartitioningSpec = ConvertTo<IComputation::TDynamicPartitionSpecPtr>(
+        reappearedDynamicPartitionSpec->ComputationPartitionSpec);
+    ASSERT_TRUE(reappearedPartitioningSpec->ActiveSource);
+    EXPECT_TRUE(reappearedPartitioningSpec->ActiveSource->GetChildren().empty());
+
     FlowView->State->StartMutation();
     FlowView->State->ExecutionSpec->Layout->UpdatePartition(
         partitionId,
@@ -803,8 +860,79 @@ TEST_F(TPartitioning, DisappearedSourcePartitionCompletesThenIsRemoved)
         TInstant::Now());
     FlowView->State->CommitMutation();
 
+    auto failedFlowView = FlowView->CopyPtr();
+    failedFlowView->State = failedFlowView->State->Clone();
+    failedFlowView->EphemeralState = CloneYsonStruct(failedFlowView->EphemeralState);
+    JobManager->BeginIteration();
+    failedFlowView->State->StartMutation();
+    JobManager->DoPartitioning(failedFlowView);
+
+    ASSERT_EQ(failedFlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_FALSE(failedFlowView->State->ExecutionSpec->Layout->Partitions.contains(partitionId));
+
     RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
     EXPECT_FALSE(FlowView->State->ExecutionSpec->Layout->Partitions.contains(partitionId));
+    const auto successorPartitionId =
+        FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(successorPartitionId)->State,
+        EPartitionState::Executing);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_TRUE(FlowView->State->ExecutionSpec->Layout->Partitions.contains(successorPartitionId));
+}
+
+TEST_F(TPartitioning, CompletedSourcePartitionIsNotRecreatedWhileExpected)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto partitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+        partitionId,
+        EPartitionState::Completing,
+        FlowView->State->ExecutionSpec->GetEpoch(),
+        TInstant::Now());
+    FlowView->State->CommitMutation();
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        EPartitionState::Completing);
+
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+        partitionId,
+        EPartitionState::Completed,
+        FlowView->State->ExecutionSpec->GetEpoch(),
+        TInstant::Now());
+    FlowView->State->CommitMutation();
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        EPartitionState::Completed);
+
+    RecreateJobManager();
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->State,
+        EPartitionState::Completed);
 }
 
 TEST_F(TPartitioning, SourcePartitioningIgnoresDesiredPartitionCount)
@@ -1578,6 +1706,77 @@ TEST_F(TPartitioning, SinkTopologyChangeWaitsForNonUintRangePivots)
     EXPECT_EQ(
         FlowView->State->ExecutionSpec->Layout->Partitions.at(initialPartitionId)->State,
         EPartitionState::Interrupting);
+}
+
+// A partition that goes fully idle after being split never produces pivots again; it must not
+// veto resharding of a sibling partition that is still loaded.
+TEST_F(TPartitioning, IdlePartitionDoesNotBlockReshardOfLoadedPartition)
+{
+    Prepare(
+        2,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ false,
+        /*withNonUintKey*/ true);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "desired_partition_count" = 2;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 1);
+    const auto initialPartitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+
+    SetFeedback(0, 0, 0, 0);
+    FlowView->Feedback->PartitionJobStatuses.at(initialPartitionId)
+        ->CurrentJobStatus->InputMetrics->Global.Pivots = {MakeKey(TStringBuf("m"))};
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 2);
+
+    // The partition whose lower bound is the universal minimum covers "< m" (the busy one); the
+    // other, starting at "m", covers ">= m".
+    std::optional<TPartitionId> lowPartitionId;
+    std::optional<TPartitionId> highPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != ComputationId || partition->State != EPartitionState::Executing) {
+            continue;
+        }
+        ASSERT_TRUE(partition->LowerKey);
+        if (*partition->LowerKey == MinKey()) {
+            lowPartitionId = partitionId;
+        } else {
+            highPartitionId = partitionId;
+        }
+    }
+    ASSERT_TRUE(lowPartitionId.has_value());
+    ASSERT_TRUE(highPartitionId.has_value());
+
+    // The low partition is still loaded and ready to split further (fresh pivot at "g"). The high
+    // partition is the formerly hot client that has now finished: no messages, no pivots, forever.
+    SetPartitionFeedback(*lowPartitionId, /*cpuUsage*/ 0, /*memUsage*/ 0, /*messagesPerSecond*/ 0, /*bytesPerSecond*/ 0);
+    FlowView->Feedback->PartitionJobStatuses.at(*lowPartitionId)
+        ->CurrentJobStatus->InputMetrics->Global.Pivots = {MakeKey(TStringBuf("g"))};
+    SetPartitionFeedback(*highPartitionId, /*cpuUsage*/ 0, /*memUsage*/ 0, /*messagesPerSecond*/ 0, /*bytesPerSecond*/ 0);
+
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "desired_partition_count" = 3;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+    RunPartitioning();
+
+    // Before the fix, the idle high partition's missing pivots forever blocked this reshard.
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

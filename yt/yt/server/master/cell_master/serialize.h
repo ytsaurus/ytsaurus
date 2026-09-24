@@ -220,6 +220,11 @@ DEFINE_ENUM(EMasterReign,
     ((LogicalHunkDataWeight)                                        (3345))  // akozhikhov
     ((DeprecateArbitraryDataVersionSettings)                        (3346))  // sabdenovch
     ((NoSuchYPathMethod)                                            (3347))  // kvk1920
+    ((PersistNodeLeaseTimeoutBeforeExtension)                       (3348))  // danilalexeev
+    ((MiscHunkStorageFixes)                                         (3349))  // akozhikhov
+    ((IntroduceStoresUpdateThrottler)                               (3350))  // alexelexa
+    ((MasterCellGroups)                                             (3351))  // evanevannnn
+    ((LegacyBaseIOConfigs)                                          (3352))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

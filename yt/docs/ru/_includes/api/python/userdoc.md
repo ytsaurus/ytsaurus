@@ -120,7 +120,7 @@ client = yt.YtClient(config=my_config)
 
 Пример конфигурации с профилями в формате yson:
 
-```
+```yson
 {
     "default_profile"="dev";
     "profiles"={

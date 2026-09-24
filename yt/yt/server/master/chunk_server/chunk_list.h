@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
 #include "cumulative_statistics.h"

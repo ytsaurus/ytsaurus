@@ -108,6 +108,7 @@ TYtflowConfiguration::TYtflowConfiguration()
     REGISTER_SETTING(*this, _JobManagerConfig);
 
     REGISTER_SETTING(*this, _FiniteStreams);
+    REGISTER_SETTING(*this, _YtUseSourceWatermark);
 
     REGISTER_SETTING(*this, ControllerCount)
         .Lower(1);
@@ -189,8 +190,6 @@ TYtflowConfiguration::TYtflowConfiguration()
     REGISTER_SETTING(*this, _MonitoringResolverTag);
     REGISTER_SETTING(*this, _MonitoringProject);
     REGISTER_SETTING(*this, _MonitoringCluster);
-    REGISTER_SETTING(*this, _UIOrigin);
-
     REGISTER_SETTING(*this, YtPartitionCount);
     REGISTER_SETTING(*this, YtTtl);
 

@@ -75,7 +75,7 @@ CHYT parameters are marked in the Query logs table with the `chyt_` prefix.
 
 {% cut "YSON example" %}
 
-    ```json
+    ```yson
     {
         "try_optimize_distinct_read" = %false;
         "use_input_specs_pulling" = %false;

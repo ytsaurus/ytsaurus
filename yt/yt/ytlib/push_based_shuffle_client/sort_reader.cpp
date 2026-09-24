@@ -26,6 +26,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NTableClient;
@@ -53,12 +54,14 @@ public:
         TSortReaderConfigPtr config,
         IPushBasedPartitionReaderPtr underlyingReader,
         TComparator comparator,
+        TClosure onInputFetched,
         IInvokerPtr invoker,
         IInvokerPtr sortInvoker)
         : Config_(std::move(config))
         , UnderlyingReader_(std::move(underlyingReader))
         , Comparator_(std::move(comparator))
         , KeyColumnCount_(Comparator_.GetLength())
+        , OnInputFetched_(std::move(onInputFetched))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , SortInvoker_(std::move(sortInvoker))
         , Logger(PushBasedShuffleLogger())
@@ -125,6 +128,7 @@ private:
     const IPushBasedPartitionReaderPtr UnderlyingReader_;
     const TComparator Comparator_;
     const int KeyColumnCount_;
+    const TClosure OnInputFetched_;
     const IInvokerPtr SerializedInvoker_;
     const IInvokerPtr SortInvoker_;
     const TLogger Logger;
@@ -188,6 +192,7 @@ private:
 
         if (batch->Finished) {
             IngestFinished_ = true;
+            OnInputFetched_();
             SealCurrentBucket();
             MaybeStartOutput();
         } else {
@@ -545,6 +550,7 @@ ISortReaderPtr CreateSortReaderWithPolicy(
     IPushBasedPartitionReaderPtr underlyingReader,
     TComparator comparator,
     TModePolicy /*modePolicy*/,
+    TClosure onInputFetched,
     IInvokerPtr invoker,
     IInvokerPtr sortInvoker)
 {
@@ -552,6 +558,7 @@ ISortReaderPtr CreateSortReaderWithPolicy(
         std::move(config),
         std::move(underlyingReader),
         std::move(comparator),
+        std::move(onInputFetched),
         std::move(invoker),
         std::move(sortInvoker));
     reader->Start();
@@ -578,6 +585,7 @@ ISortReaderPtr CreateSortReaderForTesting(
             std::move(underlyingReader),
             std::move(comparator),
             std::move(modePolicy),
+            /*onInputFetched*/ BIND([] { }),
             std::move(invoker),
             std::move(sortInvoker));
     };
@@ -597,11 +605,13 @@ ISortReaderPtr CreateSortReaderForTesting(
 ISortReaderPtr CreateSortReader(
     TSortReaderConfigPtr sortReaderConfig,
     TPartitionReaderConfigPtr partitionReaderConfig,
+    ECodec codec,
     NApi::NNative::IClientPtr client,
     TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
     TComparator comparator,
     TSortReaderMode mode,
+    TClosure onInputFetched,
     IInvokerPtr invoker,
     IInvokerPtr sortInvoker)
 {
@@ -612,6 +622,7 @@ ISortReaderPtr CreateSortReader(
     {
         auto partitionReader = CreatePushBasedPartitionReader(
             std::move(partitionReaderConfig),
+            codec,
             std::move(client),
             std::move(chunkReaderHost),
             readQuorum,
@@ -623,6 +634,7 @@ ISortReaderPtr CreateSortReader(
             std::move(partitionReader),
             std::move(comparator),
             std::move(modePolicy),
+            std::move(onInputFetched),
             std::move(invoker),
             std::move(sortInvoker));
     };

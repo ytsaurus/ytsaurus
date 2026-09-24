@@ -909,7 +909,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     {
         TStoreLocationPtr Location;
         TError Error;
-        ELocationWriteThrottlingReason Reason;
+        ELocationWriteThrottlingReason Reason = ELocationWriteThrottlingReason::LocationNotWritable;
     };
 
     std::vector<TThrottledLocationInfo> throttledLocations;

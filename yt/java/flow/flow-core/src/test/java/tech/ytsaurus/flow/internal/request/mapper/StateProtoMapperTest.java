@@ -128,13 +128,15 @@ class StateProtoMapperTest {
     @Test
     void externalResetOnlyStateWithEmptySchemaLoadsReset() {
         // A reset-only external state may carry an empty schema (companion_service.proto): it must be
-        // accepted and loaded as RESET rather than rejected for the missing schema.
+        // accepted and loaded as a reset rather than rejected for the missing schema.
         var mapper = new ExternalStateProtoMapper(KEY_SCHEMA, CODECS.getKeyCodec());
         TState proto = TState.newBuilder().setName("ext").addStateItems(resetItem(1)).build();
 
         var states = mapper.fromProto(List.of(proto), GUID.create(), GUID.create());
 
-        assertEquals(List.of(State.RESET), List.copyOf(states.get("ext").getStates().values()));
+        var loaded = List.copyOf(states.get("ext").getStates().values());
+        assertEquals(1, loaded.size());
+        assertTrue(loaded.get(0).isReset());
     }
 
     @Test
@@ -150,14 +152,35 @@ class StateProtoMapperTest {
     }
 
     @Test
-    void internalResetItemLoadsCanonicalReset() {
-        // A reset item carries no value; it must decode to State.RESET (null value), not a
-        // non-null empty value, so the round-trip preserves equality with State.RESET.
+    void internalResetItemsLoadAsResets() {
+        // A reset item carries no value; it must decode to a reset entry, not to a non-null empty
+        // value.
+        var mapper = new InternalStateProtoMapper(KEY_SCHEMA, CODECS.getKeyCodec());
+        TState proto = TState.newBuilder().setName("int")
+                .addStateItems(resetItem(1))
+                .addStateItems(resetItem(2))
+                .build();
+
+        var states = mapper.fromProto(List.of(proto), GUID.create(), GUID.create());
+
+        var loaded = List.copyOf(states.get("int").getStates().values());
+        assertEquals(2, loaded.size());
+        assertTrue(loaded.get(0).isReset());
+        assertTrue(loaded.get(1).isReset());
+    }
+
+    @Test
+    void internalResetItemIsNotSentBack() {
+        // A reset that arrived in the request is loaded unmodified: echoing it back would resend
+        // a clear the worker has already applied.
         var mapper = new InternalStateProtoMapper(KEY_SCHEMA, CODECS.getKeyCodec());
         TState proto = TState.newBuilder().setName("int").addStateItems(resetItem(1)).build();
 
-        var states = mapper.fromProto(List.of(proto), GUID.create(), GUID.create());
-        assertEquals(List.of(State.RESET), List.copyOf(states.get("int").getStates().values()));
+        var holder = mapper.fromProto(List.of(proto), GUID.create(), GUID.create()).get("int");
+
+        var modified = holder.collectModifiedStates();
+        assertTrue(modified.isEmpty());
+        assertEquals(0, mapper.toProto(holder, modified).getStateItemsCount());
     }
 
     @Test
@@ -232,6 +255,22 @@ class StateProtoMapperTest {
         TState out = mapper.toProto(holder, holder.collectModifiedStates());
         assertEquals(1, out.getStateItemsCount());
         assertFalse(out.getStateItems(0).getReset());
+        assertTrue(out.getStateItems(0).getState().isEmpty());
+    }
+
+    @Test
+    void internalStateWithEmptyPayloadGoesOutAsReset() {
+        // The exemption is scoped to the proto format, which an internal state never carries, and
+        // an all-default message encodes to exactly these bytes: the live path reaches the mapper
+        // this way.
+        var holder = new StatesHolder("int", KEY_SCHEMA, null);
+        holder.set(CODECS.getKeyCodec().decode(key(1)), new State(ByteString.EMPTY));
+
+        TState out = new InternalStateProtoMapper(KEY_SCHEMA, CODECS.getKeyCodec())
+                .toProto(holder, holder.collectModifiedStates());
+
+        assertEquals(1, out.getStateItemsCount());
+        assertTrue(out.getStateItems(0).getReset());
         assertTrue(out.getStateItems(0).getState().isEmpty());
     }
 

@@ -7,7 +7,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The value it returns is the same object the writable accessor hands out, but reading it here
  * does not make the state tracked: a state the computation only reads is not re-encoded at the
- * end of the request. The default of {@link #getOrDefault} does not become the state value.
+ * end of the request. The default of {@link #getOrDefault} is not attached to the key either, so
+ * a later {@link #get} still reports the state absent.
  *
  * @param <T> state value type.
  */

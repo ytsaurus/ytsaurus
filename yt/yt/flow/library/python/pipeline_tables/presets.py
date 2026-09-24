@@ -83,9 +83,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -109,9 +106,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -198,6 +192,41 @@ PIPELINE_TABLES_PRESET = {
                     "mount_config": {
                         "enable_lookup_hash_table": True,
                     },
+                    # The table holds a handful of fixed keys, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # Spreading them buys no throughput either: the hot key is a single row, and
+                    # a row lives in one tablet whatever the count. The minimum is overridden
+                    # together with the desired count, or an installation that raises it would
+                    # leave the pair contradictory and the master would reject it.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
+                },
+            },
+        },
+    },
+    "leader_election_lock": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    # A single tiny row rewritten on every lease ping.
+                    "in_memory_mode": "uncompressed",
+                    "mount_config": {
+                        "enable_lookup_hash_table": True,
+                    },
+                    # The table holds one row per election group, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # The minimum is overridden together with it: an installation that raises the
+                    # minimum would otherwise leave it above the desired count, and the master
+                    # rejects that pair outright.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
+                    "erasure_codec": "none",
+                    "compression_codec": "none",
                 },
             },
         },
@@ -276,18 +305,7 @@ PIPELINE_TABLES_PRESET = {
 PIPELINE_QUEUES_PRESET = {
     "controller_logs": {
         "$merge_presets": ["builtin:pipeline_ordered_table_preset"],
-        "clusters": {
-            "_all_data_clusters": {
-                "attributes": {
-                    "tablet_count": 1,
-                    "mount_config": {
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "max_data_ttl": 86400000,
-                    },
-                },
-            },
-        },
+        "clusters": {},
     },
 }
 

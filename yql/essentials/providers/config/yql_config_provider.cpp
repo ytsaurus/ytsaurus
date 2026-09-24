@@ -526,6 +526,10 @@ private:
                 return false;
             }
 
+            if (ForPartialTypeCheck_) {
+                return true;
+            }
+
             if (Types_.UdfBridgeBinaryPath.empty()) {
                 ctx.AddError(TIssue(pos, "udf_bridge is not available"));
                 return false;
@@ -891,6 +895,12 @@ private:
             }
             Types_.DeriveColumnOrder = (name == "OrderedColumns");
             Types_.OrderedColumns = (name == "OrderedColumns");
+        } else if (name == "ShowLinksInPlan" || name == "DisableShowLinksInPlan") {
+            if (!args.empty()) {
+                ctx.AddError(TIssue(pos, TStringBuilder() << "Expected no arguments, but got " << args.size()));
+                return false;
+            }
+            Types_.ShowLinksInPlan = (name == "ShowLinksInPlan");
         } else if (name == "DeriveColumnOrder" || name == "DisableDeriveColumnOrder") {
             if (!args.empty()) {
                 ctx.AddError(TIssue(pos, TStringBuilder() << "Expected no arguments, but got " << args.size()));

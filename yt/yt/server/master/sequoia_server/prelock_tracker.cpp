@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 

@@ -686,6 +686,10 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
         return !closeRequested.get() && !stash.isEof();
     }
 
+    boolean doIsEof() {
+        return stash.isEof();
+    }
+
     byte[] doRead() throws Exception {
         if (result.isCompletedExceptionally()) {
             result.get();

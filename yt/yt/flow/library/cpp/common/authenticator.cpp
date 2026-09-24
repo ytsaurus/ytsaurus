@@ -14,9 +14,10 @@
 #include <yt/yt/library/signature/validation/cypress_key_reader.h>
 #include <yt/yt/library/signature/validation/signature_validator.h>
 
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/cache/config.h>
-#include <yt/yt/client/cache/rpc.h>
 #include <yt/yt/client/signature/signature.h>
 #include <yt/yt/client/signature/validator.h>
 
@@ -66,6 +67,9 @@ constexpr auto AuthInfoRequestTimeout = TDuration::Seconds(5);
 constexpr std::string_view ProxySignatureUser = "yt-proxy";
 constexpr std::string_view ProxySignatureRealm = "yt-proxy-signature";
 constexpr std::string_view ProxySignatureBypassRealm = "yt-proxy-signature-bypass";
+
+//! Authentication realm reported for requests sent directly by a runner with its own YT credentials.
+constexpr std::string_view ClientCredentialsRealm = "yt-client-credentials";
 
 constexpr auto& TvmInfoUrlPrefix = NInternalUrls::TvmInfoUrlPrefix;
 
@@ -401,6 +405,75 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClientCredentialsAuthenticator
+    : public NRpc::IAuthenticator
+{
+public:
+    explicit TClientCredentialsAuthenticator(IConnectionPtr connection)
+        : Connection_(std::move(connection))
+    {
+        YT_VERIFY(Connection_);
+    }
+
+    bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
+    {
+        return IsDirectRequest(*context.Header);
+    }
+
+    TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
+        const NRpc::TAuthenticationContext& context) override
+    {
+        // The cluster validates the credentials and reports their owner; the proxy also rejects
+        // the request when the user named in the header does not match that owner.
+        TClientOptions options;
+        const auto& ext = context.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext);
+        if (!ext.token().empty()) {
+            options.Token = ext.token();
+        } else if (!ext.service_ticket().empty()) {
+            options.ServiceTicketAuth = New<TServiceTicketFixedAuth>(ext.service_ticket());
+        } else if (!ext.user_ticket().empty()) {
+            options.UserTicket = ext.user_ticket();
+        } else {
+            return MakeFuture<NRpc::TAuthenticationResult>(TError(
+                NRpc::EErrorCode::AuthenticationError,
+                "Direct request carries no token or ticket"));
+        }
+        if (context.Header->has_user()) {
+            options.User = context.Header->user();
+        }
+
+        TGetCurrentUserOptions getCurrentUserOptions;
+        getCurrentUserOptions.Timeout = AuthInfoRequestTimeout;
+        auto client = Connection_->CreateClient(options);
+        return client->GetCurrentUser(getCurrentUserOptions)
+            .Apply(BIND([] (const TErrorOr<TGetCurrentUserResult>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    YT_TLOG_DEBUG("Client credentials authentication failed")
+                        .With(resultOrError);
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::AuthenticationError,
+                        "Client credentials authentication failed")
+                        .With(resultOrError);
+                }
+                NRpc::TAuthenticationResult result;
+                result.User = resultOrError.Value().User;
+                result.Realm = std::string(ClientCredentialsRealm);
+                return result;
+            }));
+    }
+
+private:
+    //! Connection to the pipeline's YT cluster, which tells whom the credentials belong to.
+    const IConnectionPtr Connection_;
+};
+
+NRpc::IAuthenticatorPtr CreateClientCredentialsAuthenticator(IConnectionPtr connection)
+{
+    return New<TClientCredentialsAuthenticator>(std::move(connection));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPipelineAuthenticator
     : public IPipelineAuthenticator
 {
@@ -476,14 +549,15 @@ public:
 
     NRpc::IAuthenticatorPtr CreateYTControllerRpcAuthenticator() override
     {
-        return ProxySignatureAuthenticator_.Acquire();
+        return YTControllerAuthenticator_.Acquire();
     }
 
     void Initialize()
     {
         YT_VERIFY(NodeInfo_);
 
-        auto client = CreateClient(BuildConnectionConfig(), ClientOptions_);
+        Connection_ = NApi::NRpcProxy::CreateConnection(BuildConnectionConfig());
+        auto client = Connection_->CreateClient(ClientOptions_);
 
         auto pipelineObjectId = FetchPipelineObjectId(client);
         const auto& controllerAddress = NodeInfo_->RpcAddress;
@@ -506,7 +580,7 @@ public:
         NSignature::ISignatureValidatorPtr validator =
             New<NSignature::TSignatureValidator>(std::move(keyReader));
 
-        auto authenticator = New<TProxySignatureAuthenticator>(
+        auto proxySignatureAuthenticator = New<TProxySignatureAuthenticator>(
             std::move(validator),
             pipelineObjectId,
             controllerAddress,
@@ -517,7 +591,11 @@ public:
             .With("ControllerAddress", controllerAddress)
             .With("Required", Config_->RequireProxySignature);
 
-        ProxySignatureAuthenticator_.Store(std::move(authenticator));
+        // The proxy signature authenticator claims every request, so it must go last.
+        YTControllerAuthenticator_.Store(NRpc::CreateCompositeAuthenticator({
+            CreateClientCredentialsAuthenticator(Connection_),
+            std::move(proxySignatureAuthenticator),
+        }));
     }
 
     TPipelineAuthenticationDescriptionPtr GetPipelineAuthenticationDescription() override
@@ -591,7 +669,7 @@ public:
     {
         YT_VERIFY(ClientOptions_.Token.has_value());
         try {
-            auto client = CreateClient(BuildConnectionConfig(), ClientOptions_);
+            auto client = Connection_->CreateClient(ClientOptions_);
 
             TGetCurrentUserOptions options;
             options.Timeout = AuthInfoRequestTimeout;
@@ -666,10 +744,12 @@ private:
     IDynamicTvmServicePtr TvmService_;
     THmacTicketAuthPtr HmacTicketAuth_;
     TClientOptions ClientOptions_;
+    //! The node's own connection to the pipeline cluster; set once in #Initialize.
+    IConnectionPtr Connection_;
 
     NConcurrency::TSyncMap<std::string, NYTree::IMapNodePtr> Cache_;
 
-    TAtomicIntrusivePtr<NRpc::IAuthenticator> ProxySignatureAuthenticator_;
+    TAtomicIntrusivePtr<NRpc::IAuthenticator> YTControllerAuthenticator_;
 };
 
 IPipelineAuthenticatorPtr CreatePipelineAuthenticator(

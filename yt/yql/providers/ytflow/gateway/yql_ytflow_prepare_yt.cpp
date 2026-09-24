@@ -1,3 +1,4 @@
+#include "yql_ytflow_prepare_yt.h"
 #include "yql_ytflow_prepare.h"
 #include "yql_ytflow_prepare_common.h"
 #include "yql_ytflow_schema.h"
@@ -16,6 +17,7 @@
 #include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
 #include <yt/yql/providers/ytflow/integration/proto/yt.pb.h>
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_utils.h>
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/core/actions/bind.h>
@@ -86,6 +88,16 @@ public:
         auto value = GetConfig()->YtPartitionCount.Get();
         YQL_ENSURE(value, "Ytflow.YtPartitionCount pragma is not set");
         return *value;
+    }
+
+    TString GetAuth(const TString& cluster) const
+    {
+        return ::NYql::NYtflow::NPrivate::GetAuth(
+            cluster,
+            *GetConfig(),
+            *ConfigClusters,
+            GetYtTokenResolver(),
+            GetCredentials());
     }
 
     NYT::TFuture<void> EnsureExpectedYtNode(
@@ -236,7 +248,7 @@ public:
 
         auto client = GetClient(
             ConfigClusters->GetRealName(cluster),
-            ::NYql::NYtflow::NPrivate::GetAuth(cluster, config, *ConfigClusters));
+            GetAuth(cluster));
 
         path = ::NYql::NYtflow::NPrivate::CanonizeYtPath(
             std::move(path), config);
@@ -395,20 +407,46 @@ public:
     TOutputTablesAction()
     { }
 
+    struct TOutputTable
+    {
+        TString Cluster;
+        TString Path;
+        bool DoesExist;
+        bool Truncate;
+        TVector<TString> KeyColumns;
+        NYT::NTableClient::TTableSchemaPtr Schema;
+    };
+
     void Init(TExprNode::TPtr node, TContext& prepareCtx) override
     {
         TYtMixin::Init(prepareCtx);
 
         VisitPersistentSinkSettings(node, prepareCtx, [this, &prepareCtx](const ::google::protobuf::Any& sinkSettings) {
-            if (sinkSettings.Is<NProto::TQYTSinkMessage>()) {
-                auto& settings = QYTSinkSettings.emplace_back();
+            if (sinkSettings.Is<NProto::TYtQueueSinkMessage>()) {
+                NProto::TYtQueueSinkMessage settings;
                 sinkSettings.UnpackTo(&settings);
 
-                auto* rowType = ::NYql::NCommon::ParseTypeFromYson(
-                    TStringBuf(settings.GetRowType()), prepareCtx.ExprContext);
+                OutputTables.push_back({
+                    .Cluster = settings.GetCluster(),
+                    .Path = settings.GetPath(),
+                    .DoesExist = settings.GetDoesExist(),
+                    .Truncate = settings.GetTruncate(),
+                    .Schema = BuildTableSchema(::NYql::NCommon::ParseTypeFromYson(
+                        TStringBuf(settings.GetRowType()), prepareCtx.ExprContext)),
+                });
+            } else if (sinkSettings.Is<NProto::TYtSortedTableSinkMessage>()) {
+                NProto::TYtSortedTableSinkMessage settings;
+                sinkSettings.UnpackTo(&settings);
 
-                auto tableSchema = BuildTableSchema(rowType);
-                QYTSinkSchemas.push_back(std::move(tableSchema));
+                OutputTables.push_back({
+                    .Cluster = settings.GetCluster(),
+                    .Path = settings.GetPath(),
+                    .DoesExist = settings.GetDoesExist(),
+                    .Truncate = settings.GetTruncate(),
+                    .KeyColumns = {settings.GetKeyColumns().begin(), settings.GetKeyColumns().end()},
+                    .Schema = BuildTableSchema(::NYql::NCommon::ParseTypeFromYson(
+                        TStringBuf(settings.GetRowType()), prepareCtx.ExprContext)),
+                });
             }
         });
     }
@@ -422,7 +460,7 @@ public:
         YQL_CLOG(INFO, ProviderYtflow)
             << "Preparing output tables...";
 
-        for (ssize_t index = 0; index < std::ssize(QYTSinkSettings); ++index) {
+        for (ssize_t index = 0; index < std::ssize(OutputTables); ++index) {
             auto future = BIND(
                 &TOutputTablesAction::PrepareYtOutputTable,
                 NYT::MakeStrong(this),
@@ -452,27 +490,25 @@ private:
     {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
-        const auto& settings = QYTSinkSettings[sinkIndex];
-
-        TVector<TString> keyColumns(
-            settings.GetKeyColumns().begin(), settings.GetKeyColumns().end());
+        const auto& settings = OutputTables[sinkIndex];
+        const auto& keyColumns = settings.KeyColumns;
 
         const TStringBuf tableKind = keyColumns ? "sorted" : "ordered";
 
         YQL_CLOG(INFO, ProviderYtflow)
-            << "Preparing output yt " << tableKind << " table " << settings.GetPath()
+            << "Preparing output yt " << tableKind << " table " << settings.Path
             << " ...";
 
-        if (settings.GetDoesExist() && !settings.GetTruncate()) {
+        if (settings.DoesExist && !settings.Truncate) {
             YQL_CLOG(INFO, ProviderYtflow)
-                << "Skipped prepare of output yt " << tableKind << " table " << settings.GetPath();
+                << "Skipped prepare of output yt " << tableKind << " table " << settings.Path;
 
             auto client = GetClient(
-                ConfigClusters->GetRealName(settings.GetCluster()),
-                ::NYql::NYtflow::NPrivate::GetAuth(settings.GetCluster(), *GetConfig(), *ConfigClusters));
+                ConfigClusters->GetRealName(settings.Cluster),
+                GetAuth(settings.Cluster));
 
             auto path = ::NYql::NYtflow::NPrivate::CanonizeYtPath(
-                settings.GetPath(), *GetConfig());
+                settings.Path, *GetConfig());
 
             return EnsureYtTableMounted(
                 path,
@@ -482,8 +518,8 @@ private:
         }
 
         auto schema = keyColumns
-            ? ConvertToSortedTableCreateSchema(QYTSinkSchemas[sinkIndex], keyColumns)
-            : ConvertToQueueCreateSchema(QYTSinkSchemas[sinkIndex]);
+            ? ConvertToSortedTableCreateSchema(settings.Schema, keyColumns)
+            : ConvertToQueueCreateSchema(settings.Schema);
 
         auto attributes = NYT::NYTree::CreateEphemeralAttributes();
         attributes->Set("dynamic", true);
@@ -502,10 +538,10 @@ private:
 
         return CreateYtNode(
             NYT::NObjectClient::EObjectType::Table,
-            settings.GetPath(),
+            settings.Path,
             std::move(attributes),
             NYT::NYTree::CreateEphemeralAttributes(),
-            settings.GetCluster(),
+            settings.Cluster,
             *GetConfig(),
             /*force*/ true,
             NYql::NLog::CurrentLogContextPath(),
@@ -520,14 +556,39 @@ private:
                 YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
                 YQL_CLOG(INFO, ProviderYtflow)
-                    << "Prepared output yt " << tableKind << " table " << settings.GetPath();
+                    << "Prepared output yt " << tableKind << " table " << settings.Path;
             }).AsyncVia(invoker));
     }
 
 private:
-    TVector<NProto::TQYTSinkMessage> QYTSinkSettings;
-    TVector<NYT::NTableClient::TTableSchemaPtr> QYTSinkSchemas;
+    TVector<TOutputTable> OutputTables;
 };
+
+TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> BuildYqlPipelineTableAttributes(
+    bool createWorkerLogsTable)
+{
+    TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> result;
+
+    auto appendDefinitions = [&] (const auto& definitions) {
+        for (const auto& [name, definition] : definitions) {
+            result.emplace_back(
+                TString(name),
+                NYT::NFlow::BuildPipelineTableAttributes(definition));
+        }
+    };
+
+    const auto& definitions = NYT::NFlow::GetPipelineTableDefinitions();
+    appendDefinitions(definitions.Tables);
+    appendDefinitions(definitions.Queues);
+    if (createWorkerLogsTable) {
+        result.emplace_back(
+            TString(WORKER_LOGS_TABLE),
+            NYT::NFlow::BuildPipelineTableAttributes(
+                definitions.Queues.at(std::string(CONTROLLER_LOGS_TABLE))));
+    }
+
+    return result;
+}
 
 class TPipelineNodeAction
     : public IAction
@@ -638,389 +699,7 @@ public:
     TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>>
     GetTableAttributesList(bool createWorkerLogsTable)
     {
-        auto logsTableAttributes = BuildTableAttributes(
-            {
-                TField{
-                    .Name = "host",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "codec",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "$timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "$cumulative_data_weight",
-                    .Type = "int64"
-                }
-            },
-            NYT::NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("mount_config")
-                        .BeginMap()
-                            .Item("min_data_versions").Value(0)
-                            .Item("min_data_ttl").Value(0)
-                            .Item("max_data_ttl").Value(86400000)
-                        .EndMap()
-                    .Item("tablet_count").Value(1)
-                .EndMap()
-        );
-
-        TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> tableAttributesList = {
-            {"input_messages", BuildTableAttributes(
-                {
-                    TField{
-                        .Name = "computation_id",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "key",
-                        .Type = "any",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "message_id",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "system_timestamp",
-                        .Type = "uint64"
-                    }
-                },
-                NYT::NYTree::BuildYsonNodeFluently()
-                    .BeginMap()
-                        .Item("mount_config")
-                            .BeginMap()
-                                .Item("min_data_versions").Value(0)
-                                .Item("min_data_ttl").Value(0)
-                                .Item("row_merger_type").Value("watermark")
-                            .EndMap()
-                    .EndMap()
-            )},
-            {"compact_input_messages", BuildTableAttributes(
-                {
-                    TField{
-                        .Name = "deduplication_message_key",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "system_timestamp",
-                        .Type = "uint64"
-                    }
-                },
-                NYT::NYTree::BuildYsonNodeFluently()
-                    .BeginMap()
-                        .Item("mount_config")
-                            .BeginMap()
-                                .Item("min_data_versions").Value(0)
-                                .Item("min_data_ttl").Value(0)
-                                .Item("row_merger_type").Value("watermark")
-                            .EndMap()
-                    .EndMap()
-            )},
-            {"compact_output_messages", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "chunk_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string",
-                    .MaxInlineHunkSize = 128
-                },
-                TField{
-                    .Name = "data_codec",
-                    .Type = "int64"
-                },
-                TField{
-                    .Name = "processed_mask",
-                    .Type = "string"
-                }
-            })},
-            {"compact_partition_output_messages", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "chunk_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string",
-                    .MaxInlineHunkSize = 128
-                },
-                TField{
-                    .Name = "data_codec",
-                    .Type = "int64"
-                },
-                TField{
-                    .Name = "processed_mask",
-                    .Type = "string"
-                }
-            })},
-            {"states", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "name",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                },
-                TField{
-                    .Name = "compressed",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "compressed_patch",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "format",
-                    .Type = "any"
-                }
-            })},
-            {"partition_states", BuildTableAttributes({
-                 TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                 },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "name",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                },
-                TField{
-                    .Name = "compressed",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "compressed_patch",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "format",
-                    .Type = "any"
-                }
-            })},
-            {"key_visitor_states", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "is_lower",
-                    .Type = "boolean",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                }
-            })},
-            {"timers", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "message_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "system_timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "event_timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "trigger_timestamp",
-                    .Type = "uint64"
-                }
-            })},
-            {TString(CONTROLLER_LOGS_TABLE), logsTableAttributes},
-            {"flow_state", BuildTableAttributes({
-                TField{
-                    .Name = "sequence_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "flags",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "state_name",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "key_left",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "key_right",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"flow_state_obsolete", BuildTableAttributes({
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"flow_control", BuildTableAttributes({
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"partition_transactions", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "last_transaction_start_timestamp",
-                    .Type = "uint64"
-                }
-            })},
-            {"leases", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(key)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "subkey",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })}
-        };
-
-        if (createWorkerLogsTable) {
-            tableAttributesList.push_back({TString(WORKER_LOGS_TABLE), logsTableAttributes});
-        }
-
-        return tableAttributesList;
+        return BuildYqlPipelineTableAttributes(createWorkerLogsTable);
     }
 };
 
@@ -1037,8 +716,8 @@ public:
         TYtMixin::Init(prepareCtx);
 
         VisitPersistentSourceSettings(node, prepareCtx, [this](const ::google::protobuf::Any& sourceSettings) {
-            if (sourceSettings.Is<NProto::TQYTSourceMessage>()) {
-                auto& settings = QYTSourceSettings.emplace_back();
+            if (sourceSettings.Is<NProto::TYtQueueSourceMessage>()) {
+                auto& settings = YtQueueSourceSettings.emplace_back();
                 sourceSettings.UnpackTo(&settings);
             }
         });
@@ -1117,7 +796,7 @@ public:
         ] {
             TVector<NYT::TFuture<void>> futures;
 
-            for (ssize_t index = 0; index < std::ssize(QYTSourceSettings); ++index) {
+            for (ssize_t index = 0; index < std::ssize(YtQueueSourceSettings); ++index) {
                 auto future = BIND(
                     &TYtConsumersAction::RegisterYtConsumer,
                     NYT::MakeStrong(this),
@@ -1145,7 +824,7 @@ private:
     {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
-        const auto& settings = QYTSourceSettings[sourceIndex];
+        const auto& settings = YtQueueSourceSettings[sourceIndex];
 
         auto cluster = settings.GetCluster();
         auto clusterRealName = ConfigClusters->GetRealName(cluster);
@@ -1166,7 +845,7 @@ private:
 
         auto client = GetClient(
             clusterRealName,
-            ::NYql::NYtflow::NPrivate::GetAuth(cluster, *GetConfig(), *ConfigClusters));
+            GetAuth(cluster));
 
         NYT::NApi::TListQueueConsumerRegistrationsOptions listQueueConsumerRegistrationsOptions;
         listQueueConsumerRegistrationsOptions.Timeout = RpcTimeout;
@@ -1216,7 +895,7 @@ private:
     }
 
 private:
-    TVector<NProto::TQYTSourceMessage> QYTSourceSettings;
+    TVector<NProto::TYtQueueSourceMessage> YtQueueSourceSettings;
 };
 
 class TYtProducersAction
@@ -1227,13 +906,32 @@ public:
     TYtProducersAction()
     { }
 
-    void Init(TExprNode::TPtr /*node*/, TContext& prepareCtx) override
+    void Init(TExprNode::TPtr node, TContext& prepareCtx) override
     {
         TYtMixin::Init(prepareCtx);
+
+        VisitPersistentSinkSettings(node, prepareCtx, [this](const ::google::protobuf::Any& sinkSettings) {
+            if (!sinkSettings.Is<NProto::TYtQueueSinkMessage>()) {
+                return;
+            }
+
+            NProto::TYtQueueSinkMessage settings;
+            sinkSettings.UnpackTo(&settings);
+            if (ConfigClusters->GetRealName(settings.GetCluster()) !=
+                ::NYql::NYtflow::NPrivate::ResolvePipelineClusterName(
+                    *GetConfig(), *ConfigClusters))
+            {
+                AsyncQueueCluster = settings.GetCluster();
+            }
+        });
     }
 
     NYT::TFuture<void> Run(NYT::IInvokerPtr invoker) override
     {
+        if (!AsyncQueueCluster) {
+            return NYT::OKFuture;
+        }
+
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetSessionId());
 
         YQL_CLOG(INFO, ProviderYtflow)
@@ -1245,8 +943,9 @@ public:
             =,
             this,
             this_ = NYT::MakeStrong(this),
-            path = GetYtProducerPath(),
-            cluster = GetCluster(),
+            path = ::NYql::NYtflow::NPrivate::CanonizeYtRichPath(
+                GetYtProducerPath(), *GetConfig()).GetPath(),
+            cluster = *AsyncQueueCluster,
             config = GetConfig()
         ]() mutable {
             return CreateYtNode(
@@ -1311,7 +1010,7 @@ public:
     }
 
 private:
-    IYtflowGateway::TRunOptions RunOptions;
+    std::optional<TString> AsyncQueueCluster;
 };
 
 } // namespace NYql::NYtflow::NPrepare::NPrivate

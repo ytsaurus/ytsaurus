@@ -25,6 +25,9 @@ class State:
     def get_value(self, codec: Any, decode: Callable[[bytes], Any]) -> Any:
         """Value decoded from the wire bytes, memoized per |codec|: every accessor of that codec
         gets the same object, while an accessor of another one decodes the bytes anew.
+
+        Decoding anew takes the bytes as they arrived, so it drops a change made in place through
+        the previous codec.
         """
         if self.value is None or self.codec != codec:
             self.value = decode(self.state)
@@ -49,10 +52,6 @@ class State:
             return False
         self.state = encoded
         return True
-
-
-# Sentinel for reset state.
-STATE_RESET = State(reset=True, state=None)
 
 
 @dataclass
@@ -87,11 +86,12 @@ class StatesHolder(Generic[T]):
         self.key_schema = key_schema
         self.state_schema = state_schema
         self._states: Dict[tuple, tuple[UnversionedRow, T]] = {}
-        # Row keys changed during the current epoch: via set() (writes from state accessors), or
+        # Entries changed during the current epoch: via set() (writes from state accessors), or
         # in place through a mutable value, as found by collect_modified().
         # Keys populated from the incoming request via load() are intentionally excluded so that
-        # only modified states are sent back in the response.
-        self._modified: set = set()
+        # only modified states are sent back in the response.  The entry is kept, not just its
+        # key: a state attached over a pending reset must not turn that reset into a write.
+        self._modified: Dict[tuple, tuple[UnversionedRow, T]] = {}
 
     def _row_key(self, row: UnversionedRow) -> tuple:
         """Create a hashable key from an UnversionedRow."""
@@ -104,7 +104,7 @@ class StatesHolder(Generic[T]):
         """Set a value for key and mark it modified (so it is sent back in the response)."""
         row_key = self._row_key(key)
         self._states[row_key] = (key, value)
-        self._modified.add(row_key)
+        self._modified[row_key] = (key, value)
 
     def load(self, key: UnversionedRow, value: T):
         """Load a value from the request WITHOUT marking it modified.
@@ -125,19 +125,17 @@ class StatesHolder(Generic[T]):
 
     def modified_items(self):
         """Iterate over (key, value) pairs for states modified this epoch."""
-        for row_key in self._modified:
-            entry = self._states.get(row_key)
-            if entry is not None:
-                yield entry[0], entry[1]
+        for row, value in self._modified.values():
+            yield row, value
 
     def collect_modified(self) -> bool:
         """Re-encode the values handed out as mutable and report whether the holder has anything
         to send back: a value changed in place counts as modified, one that re-encodes to the
         bytes it arrived with does not.
         """
-        for row_key, (_, value) in self._states.items():
-            if value.sync_bytes():
-                self._modified.add(row_key)
+        for row_key, entry in self._states.items():
+            if entry[1].sync_bytes():
+                self._modified[row_key] = entry
         return self.has_modified()
 
     def has_modified(self) -> bool:

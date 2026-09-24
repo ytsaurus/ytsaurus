@@ -710,25 +710,31 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         table_profiling = self._get_table_profiling("//tmp/t")
 
-        def _check(expected_tag, expected_value, missing_tag=None, missing_value=None):
+        def _check(expected_tags, missing_tags=None):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-            if not table_profiling.has_projections_with_tags("commit/row_count", {expected_tag: expected_value}):
+            if not table_profiling.has_projections_with_tags("commit/row_count", expected_tags):
                 return False
-            if missing_tag is not None and \
-                    table_profiling.has_projections_with_tags("commit/row_count", {missing_tag: missing_value}):
+            if missing_tags is not None and \
+                    table_profiling.has_projections_with_tags("commit/row_count", missing_tags):
                 return False
             return True
 
-        wait(lambda: _check("table_path", "//tmp/t"), sleep_backoff=0.1)
+        wait(lambda: _check({"table_path": "//tmp/t"}), sleep_backoff=0.1)
 
         set("//sys/@config/tablet_manager/dynamic_table_profiling_mode", "tag")
         set("//tmp/t/@profiling_tag", "custom_tag")
         remount_table("//tmp/t")
-        wait(lambda: _check("table_tag", "custom_tag", "table_path", "//tmp/t"), sleep_backoff=0.1)
+        wait(lambda: _check({"table_tag": "custom_tag"}, {"table_path": "//tmp/t"}), sleep_backoff=0.1)
+
+        update_nodes_dynamic_config({"profiling_tag_export_mode": "both"}, path="tablet_node")
+        wait(lambda: _check({"table_tag": "custom_tag", "table_path": "tag:custom_tag"}), sleep_backoff=0.1)
+
+        update_nodes_dynamic_config({"profiling_tag_export_mode": "table_path"}, path="tablet_node")
+        wait(lambda: _check({"table_path": "tag:custom_tag"}, {"table_tag": "custom_tag"}), sleep_backoff=0.1)
 
         set("//tmp/t/@profiling_mode", "path")
         remount_table("//tmp/t")
-        wait(lambda: _check("table_path", "//tmp/t", "table_tag", "custom_tag"), sleep_backoff=0.1)
+        wait(lambda: _check({"table_path": "//tmp/t"}, {"table_tag": "custom_tag"}), sleep_backoff=0.1)
 
     @authors("akozhikhov")
     def test_simple_profiling_mode_inheritance(self):
@@ -1403,7 +1409,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert bundle_controller_config == get(config_path, authenticated_user="looser212")
 
     @authors("danilalexeev")
-    @not_implemented_in_sequoia
     def test_mount_permission_denied_by_ancestor(self):
         sync_create_cells(1)
         create("map_node", "//tmp/d")

@@ -10,16 +10,24 @@ namespace NYT::NFlow {
 TRuntimeInitContext::TRuntimeInitContext(
     IJobInitContextPtr underlying,
     TJobStateManagerPtr stateManager,
+    TComputationId computationId,
     TPartitionId partitionId,
     NYTree::IMapNodePtr parametersNode,
+    NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> staticResources,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    NHttp::IClientPtr httpClient,
+    NHttp::IClientPtr httpsClient)
     : Underlying_(std::move(underlying))
     , StateManager_(std::move(stateManager))
+    , ComputationId_(std::move(computationId))
     , PartitionId_(partitionId)
     , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , ParametersObject_(std::move(parametersObject))
     , StaticResources_(std::move(staticResources))
     , Profiler_(std::move(profiler))
+    , HttpClient_(std::move(httpClient))
+    , HttpsClient_(std::move(httpsClient))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TRuntimeInitContext::CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
@@ -47,10 +55,14 @@ IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
     return New<TRuntimeInitContext>(
         Underlying_->WithPrefix(prefix),
         StateManager_,
+        ComputationId_,
         PartitionId_,
         ParametersNode_,
+        ParametersObject_,
         StaticResources_,
-        Profiler_);
+        Profiler_,
+        HttpClient_,
+        HttpsClient_);
 }
 
 const std::string& TRuntimeInitContext::GetPrefix() const
@@ -61,6 +73,11 @@ const std::string& TRuntimeInitContext::GetPrefix() const
 NYTree::IMapNodePtr TRuntimeInitContext::GetParametersNode() const
 {
     return ParametersNode_;
+}
+
+NYTree::TYsonStructPtr TRuntimeInitContext::GetParametersObject() const
+{
+    return ParametersObject_;
 }
 
 IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const
@@ -75,6 +92,27 @@ IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceI
 NProfiling::TProfiler TRuntimeInitContext::GetProfiler() const
 {
     return Profiler_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpClient() const
+{
+    if (!HttpClient_) {
+        THROW_ERROR_EXCEPTION("HTTP client is not available in this init context");
+    }
+    return HttpClient_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpsClient() const
+{
+    if (!HttpsClient_) {
+        THROW_ERROR_EXCEPTION("HTTPS client is not available in this init context");
+    }
+    return HttpsClient_;
+}
+
+TComputationId TRuntimeInitContext::GetComputationId() const
+{
+    return ComputationId_;
 }
 
 TPartitionId TRuntimeInitContext::GetPartitionId() const

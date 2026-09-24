@@ -730,21 +730,26 @@ TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
 { }
 
 template <NMpl::CInvocable<void(const TError&)> TCallback>
-void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
+void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled, const NLogging::TLogger& Logger) const
 {
     if (Future_.IsSet()) {
         return;
     }
 
-    auto callback = BIND([onCanceled = std::forward<TCallback>(onCanceled)] (const TError& error) mutable {
+    auto callback = BIND([
+        onCanceled = std::forward<TCallback>(onCanceled),
+        Logger = Logger
+    ] (const TError& error) mutable {
         if (error.IsOK()) {
             return;
         }
 
         if (error.GetCode() == NYT::EErrorCode::Canceled) {
+            YT_TLOG_DEBUG("New job settling barrier cancelled")
+                .With(error);
             std::forward<TCallback>(onCanceled)(error);
         } else {
-            YT_TLOG_ALERT("Unexpected exception while waiting for in barrier")
+            YT_TLOG_ALERT("Unexpected exception while waiting for new job settling barrier")
                 .With(error);
         }
     });
@@ -2410,11 +2415,11 @@ void TJobTracker::WaitForNewSettleJobBarrier(TAllocationInfo& allocationInfo, co
 
                 AccountWaitingOnBarrier(/*created*/ true);
 
-                Barrier_.Wait(/*onCanceled*/ [jobTracker = &JobTracker_, Logger = this->Logger] (const TError& error) {
-                    YT_TLOG_DEBUG("Cancelled new job settling barrier")
-                        .With(error);
-                    jobTracker->CancelledSettleJobRequestWaitingOnBarrierCount_.Increment();
-                });
+                Barrier_.Wait(
+                    /*onCanceled*/ [jobTracker = &JobTracker_] (const TError& /*error*/) {
+                        jobTracker->CancelledSettleJobRequestWaitingOnBarrierCount_.Increment();
+                    },
+                    Logger);
             }
 
             ~TBarierAwaiter()
@@ -3316,16 +3321,16 @@ void TJobTracker::ProcessAllocationEvents(
     YT_TLOG_FATAL_UNLESS(operationInfo.JobsReady, "Unexpected allocation events during revival")
         .With("IncarnationId", IncarnationId_)
         .With("AllocationIds", [&] {
-                std::vector<TAllocationId> allocationIds;
-                for (const auto& abortedAllocationSummary : abortedAllocations) {
-                    allocationIds.push_back(abortedAllocationSummary.Id);
-                }
+            std::vector<TAllocationId> allocationIds;
+            for (const auto& abortedAllocationSummary : abortedAllocations) {
+                allocationIds.push_back(abortedAllocationSummary.Id);
+            }
 
-                for (const auto& finishedAllocationSummary : finishedAllocations) {
-                    allocationIds.push_back(finishedAllocationSummary.Id);
-                }
+            for (const auto& finishedAllocationSummary : finishedAllocations) {
+                allocationIds.push_back(finishedAllocationSummary.Id);
+            }
 
-                return allocationIds;
+            return allocationIds;
         }());
 
     // NB(pogorelov): We postpone non-empty allocation event processing until the next node heartbeat to not loose job result and respect job revival.

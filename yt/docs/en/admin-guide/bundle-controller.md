@@ -81,7 +81,7 @@ The zone config is located at `//sys/bundle_controller/controller/zones/zone_def
 
 The configuration of tablet nodes is specified in the `tablet_node_sizes` attribute. This is a map consisting of a single `regular` field (instance type). It looks like this:
 
-```
+```yson
 {
     "default_config" = {
         "cpu_limits" = {
@@ -121,7 +121,7 @@ In the current version, RPC proxy management is not fully supported.
 
 The RPC proxy configuration is specified in the `rpc_proxy_sizes` attribute. This is a map consisting of a single `regular` field (instance type). It looks like this:
 
-```
+```yson
  {
    "resource_guarantee" = {
         "net_bytes" = 0;
@@ -170,7 +170,7 @@ The `bundle_controller` section of the Bundle controller's static config contain
 
 For a bundle to be managed by the Bundle controller, it must have the `enable_bundle_controller = %true` and `zone = "zone_default"` attributes. You must also set the `bundle_controller_target_config` attribute with the following structure:
 
-```
+```yson
 {
     "cpu_limits" = {
         "lookup_thread_pool_size" = 2;
@@ -227,7 +227,7 @@ After adding instances to the cluster, mark them with the `bundle_controller_ann
 
 The `bundle_controller_annotations` attribute looks like this:
 
-```
+```yson
 {
     "allocated" = %true;
     "allocated_for_bundle" = "spare";

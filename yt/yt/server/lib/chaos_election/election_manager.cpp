@@ -44,13 +44,16 @@ inline static constexpr TStringBuf LastPingTimeColumn = "last_ping_time";
 
 TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
-    return New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema(TString(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema(TString(LeaderLeaseIdColumn), EValueType::String),
-        TColumnSchema(TString(LeaderNameColumn), EValueType::String),
-        TColumnSchema(TString(LeaseTimeoutColumn), EValueType::Uint64),
-        TColumnSchema(TString(LastPingTimeColumn), EValueType::Uint64),
-    });
+    return New<TTableSchema>(
+        std::vector<TColumnSchema>{
+            TColumnSchema(std::string(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(std::string(LeaderLeaseIdColumn), EValueType::String),
+            TColumnSchema(std::string(LeaderNameColumn), EValueType::String),
+            TColumnSchema(std::string(LeaseTimeoutColumn), EValueType::Uint64),
+            TColumnSchema(std::string(LastPingTimeColumn), EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +247,11 @@ private:
                 }
 
                 try {
-                    auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId))
+                    // NB: Probing must not prolong what it probes: attaching pings by default, and
+                    // a ping keeps the dead leader's lease alive while probes outrun its timeout.
+                    TChaosLeaseAttachOptions probeOptions;
+                    probeOptions.Ping = false;
+                    auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId, probeOptions))
                         .ValueOrThrow();
 
                     YT_TLOG_DEBUG("Existing leader lease is alive")
@@ -296,8 +303,6 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            // NB: Logged at info level: a group whose every attempt loses the commit never becomes
-            // led, and that must be visible on installations that write no debug log.
             YT_TLOG_INFO("Lock acquisition commit failed, will retry")
                 .With(commitResultOrError);
             return;

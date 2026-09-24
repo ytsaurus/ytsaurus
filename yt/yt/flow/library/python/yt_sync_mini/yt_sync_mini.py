@@ -27,15 +27,13 @@ from yt.wrapper.errors import YtResponseError
 
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_FILE_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_ORDERED_TABLE_PRESET
-from yt.yt.flow.library.python.pipeline_tables import PIPELINE_QUEUES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_QUEUES_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_SORTED_TABLE_PRESET
-from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES_PRESET
+from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
 
 log = logging.getLogger(__name__)
 
-# Pipeline-map-node attribute.
 PIPELINE_FORMAT_VERSION_ATTRIBUTE = "pipeline_format_version"
 CURRENT_PIPELINE_FORMAT_VERSION = 1
 
@@ -214,15 +212,20 @@ def _build_schema(columns):
     (``controller_logs``) is strict but not unique-keyed (no sort columns).
     """
     has_key_columns = any(column.get("sort_order") for column in columns)
+    attributes = copy.deepcopy(getattr(columns, "attributes", {}))
+    attributes.setdefault("strict", True)
+    attributes.setdefault("unique_keys", has_key_columns)
     return yson.to_yson_type(
         list(columns),
-        attributes={"strict": True, "unique_keys": has_key_columns},
+        attributes=attributes,
     )
 
 
-def _table_attributes(name, schema_columns, table_preset):
+def _table_attributes(name, schema_columns, table_preset, common_attributes=None):
     """Build the final ``attributes`` dict for a single inner table."""
     attrs = _resolve_attributes(table_preset, LOCAL_PRESETS)
+    if common_attributes:
+        _deep_merge(attrs, common_attributes)
     attrs["schema"] = _build_schema(schema_columns)
     return attrs
 
@@ -320,14 +323,17 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
     :param tablet_cell_bundle: bundle for the inner tables; ``None`` leaves the
         attribute unset, so the tables land in the cluster's default bundle.
     """
-    # 1. Pipeline map node.
+    # 1. Pipeline node.
     _retry_on_resolve_error(
         lambda: client.create(
-            "map_node",
+            "pipeline",
             path,
             recursive=True,
             ignore_existing=True,
-            attributes={PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION},
+            attributes={
+                PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION,
+                "initialize_tables": False,
+            },
         ),
         f"create pipeline node {path}",
     )
@@ -336,14 +342,20 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
     # NYT::NFlow::CreatePipelineNode semantics: either all tables are
     # created and visible to the controller, or none are).
     pipeline_root = path.rstrip("/")
-    items = list(PIPELINE_TABLES.items()) + list(PIPELINE_QUEUES.items())
+    table_definitions, queue_definitions = _get_pipeline_table_definitions()
+    items = list(table_definitions.items()) + list(queue_definitions.items())
     presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
 
     def create_inner_tables():
         with client.Transaction(type="master", attributes={"title": f"Create pipeline {path}"}):
             for name, descriptor in items:
                 table_preset = presets.get(name, {})
-                attributes = _table_attributes(name, descriptor["schema"], table_preset)
+                attributes = _table_attributes(
+                    name,
+                    descriptor["schema"],
+                    table_preset,
+                    descriptor["attributes"],
+                )
                 if tablet_cell_bundle is not None:
                     attributes["tablet_cell_bundle"] = tablet_cell_bundle
                 client.create(

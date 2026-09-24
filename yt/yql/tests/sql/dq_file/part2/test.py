@@ -12,6 +12,6 @@ def pytest_generate_tests(metafunc):
     return pytest_generate_tests_for_part(metafunc, current_part, part_count, data_path=DATA_PATH)
 
 
-@pytest.mark.parametrize('what', ['Results', 'ForceBlocks'])
+@pytest.mark.parametrize('what', ['Results', 'ForceBlocks', 'Plan'])
 def test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     return run_test(suite, case, cfg, tmpdir, what, yql_http_file_server)

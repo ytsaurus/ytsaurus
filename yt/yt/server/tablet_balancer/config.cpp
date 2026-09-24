@@ -2,7 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
-#include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/metrics_calculator.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -82,6 +82,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
+        .Default(false);
+    registrar.Parameter("enable_parameterized_size_reshard", &TThis::EnableParameterizedSizeReshard)
         .Default(false);
     registrar.Parameter("enable_parameterized_reshard_by_default", &TThis::EnableParameterizedReshardByDefault)
         .Default(false);

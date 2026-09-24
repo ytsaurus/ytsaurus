@@ -6,6 +6,7 @@ RECURSE(
     computation_cycles_and_buffers
     conflict_horizon
     diagnostic_tools
+    direct_controller_commands
     dyntable_conflicts
     dyntable_leases
     epoch_seqno_sync
@@ -66,8 +67,10 @@ ENDIF()
 IF (NOT OPENSOURCE)
     # Use replicated/chaos tables — out of yt_sync_mini's scope.
     RECURSE(
+        chaos_leases
         read_chaos_tables
         sorted_dynamic_table
+        write_chaos_sorted_table
     )
 
     RECURSE(

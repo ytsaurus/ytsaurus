@@ -1,5 +1,6 @@
 #pragma once
 
+#include "chunk_replica.h"
 #include "job.h"
 #include "job_controller.h"
 

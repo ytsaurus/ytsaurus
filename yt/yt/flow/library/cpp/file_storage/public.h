@@ -11,8 +11,7 @@ namespace NYT::NFlow::NFileStorage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Identifies an immutable materialized filesystem tree.
-// Equal ids must produce byte-identical payloads.
+// Identifies an immutable materialized filesystem tree within a local cache.
 YT_DEFINE_STRONG_TYPEDEF(TFileStorageObjectId, std::string);
 
 DECLARE_REFCOUNTED_STRUCT(TFileStorageConfig);

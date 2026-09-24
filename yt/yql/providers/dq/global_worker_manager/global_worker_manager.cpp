@@ -32,6 +32,8 @@
 #include <util/generic/scope.h>
 #include <util/random/shuffle.h>
 
+#include <algorithm>
+
 namespace NYql {
 
 using namespace NActors;
@@ -40,6 +42,30 @@ using namespace NThreading;
 using namespace NMonitoring;
 using EFileType = Yql::DqsProto::TFile::EFileType;
 using TFileResource = Yql::DqsProto::TFile;
+
+namespace {
+
+size_t ComputeTargetCapacity(const TVector<TResourceManagerOptions>& resourceUploaderOptions)
+{
+    size_t targetCapacity = 0;
+    for (const auto& options : resourceUploaderOptions) {
+        const auto configuredWorkerCapacity = options.YtBackend.GetWorkerCapacity();
+        YQL_ENSURE(configuredWorkerCapacity >= 0,
+            "Negative DQ worker capacity " << configuredWorkerCapacity
+                << " configured for cluster " << options.YtBackend.GetClusterName());
+
+        const auto jobs = static_cast<size_t>(options.YtBackend.GetMaxJobs());
+        const auto workerCapacity = static_cast<size_t>(Max(configuredWorkerCapacity, 1));
+        const auto backendCapacity = jobs * workerCapacity;
+        YQL_ENSURE(targetCapacity <= std::numeric_limits<size_t>::max() - backendCapacity,
+            "DQ target capacity overflow while adding cluster " << options.YtBackend.GetClusterName());
+        targetCapacity += backendCapacity;
+    }
+
+    return targetCapacity;
+}
+
+} // namespace
 
 union TDqResourceId {
     struct {
@@ -337,7 +363,8 @@ public:
            const TVector<TResourceManagerOptions>& resourceUploaderOptions,
            IMetricsRegistryPtr metricsRegistry,
            const NProto::TDqConfig::TScheduler& schedulerConfig,
-           TDuration scheduleInterval)
+           TDuration scheduleInterval,
+           TGlobalWorkerManagerActorIdOptions actorIdOptions)
        : TWorkerManagerCommon<TGlobalWorkerManager>(&TGlobalWorkerManager::Initialization)
         , Coordinator(coordinator)
         , LeaderResolver(std::make_shared<TSingleNodeResolver>())
@@ -351,9 +378,15 @@ public:
             Metrics->GetSubgroup("component", "requests")
                 ->GetCounter("AllocateWorkersWithoutExeFile", /*derivative=*/true))
         , Workers(Coordinator->GetNodeId(), Metrics, metricsRegistry->GetSensors()->GetSubgroup("counters", "workers"))
-        , Scheduler(NDq::IScheduler::Make(schedulerConfig, metricsRegistry))
+        , Scheduler(NDq::IScheduler::Make(
+            schedulerConfig,
+            metricsRegistry,
+            schedulerConfig.GetLimitRunningTasksPerUserPercent() > 0
+                ? ComputeTargetCapacity(resourceUploaderOptions)
+                : 0))
         , Revision(ToString(GetProgramCommitId()))
         , ResourceUploaderOptions(resourceUploaderOptions)
+        , ActorIdOptions(actorIdOptions)
         , WaitListSize(nullptr)
         , ScheduleInterval(scheduleInterval)
     { }
@@ -362,7 +395,7 @@ private:
 
 #define HHFunc(TEvType, HandleFunc)                                                 \
     case TEvType::EventType: {                                                      \
-        Y_SCOPE_EXIT(&) { UpdateMetrics(); };                                       \
+        Y_SCOPE_EXIT(&) { UpdateMetrics(/*updateRunningLimitedQueueSize*/ false); };\
         typename TEvType::TPtr* x = reinterpret_cast<typename TEvType::TPtr*>(&ev); \
         TString name(#TEvType);                                                     \
         name = name.substr(name.find_last_of(':')+1);                               \
@@ -428,7 +461,7 @@ private:
         typename T::TPtr& x = *(reinterpret_cast<typename T::TPtr*>(&ev)); \
         if (!x->Get()->Record.GetIsForwarded()) { \
             x->Get()->Record.SetIsForwarded(true); \
-            Send(x->Forward(MakeWorkerManagerActorID(LeaderId))); \
+            Send(x->Forward(GetGlobalWorkerManagerActorId(LeaderId))); \
         } \
         break; \
     }
@@ -461,7 +494,7 @@ private:
     void OnTick() {
         auto now = TInstant::Now();
         if (now - LastCleanTime > CleanInterval) {
-            Y_SCOPE_EXIT(&) { UpdateMetrics(); };
+            Y_SCOPE_EXIT(&) { UpdateMetrics(/*updateRunningLimitedQueueSize*/ true); };
             CleanUp(now);
             LastCleanTime = now;
         }
@@ -470,26 +503,44 @@ private:
     }
 
     void DoPassAway() override {
-        Y_SCOPE_EXIT(&) { UpdateMetrics(); };
+        Y_SCOPE_EXIT(&) { UpdateMetrics(/*updateRunningLimitedQueueSize*/ true); };
         for (const auto& sender: Scheduler->Cleanup()) {
             Send(sender, new TEvAllocateWorkersResponse("Shutdown in progress", NYql::NDqProto::StatusIds::UNAVAILABLE));
         }
     }
 
+    static TString FormatFile(const TFileResource& file) {
+        static constexpr const char* FileTypes[] = {"UDF", "USER", "EXE"};
+        const int typeIdx = static_cast<int>(file.GetObjectType());
+        const TString typeName = (typeIdx >= 0 && typeIdx < static_cast<int>(std::size(FileTypes))) ? FileTypes[typeIdx] : ToString(typeIdx);
+        return TStringBuilder()
+            << "name=" << file.GetName()
+            << " objectId=" << file.GetObjectId()
+            << " localPath=" << (file.GetLocalPath().empty() ? "<empty>" : file.GetLocalPath())
+            << " type=" << typeName
+            << " size=" << file.GetSize();
+    }
+
     TMaybe<TString> CheckFiles(const TVector<TFileResource>& files) {
+        YQL_CLOG(DEBUG, ProviderDq) << "CheckFiles: total=" << files.size();
         for (const auto& file : files) {
+            YQL_CLOG(DEBUG, ProviderDq) << "CheckFiles: " << FormatFile(file);
             if (file.GetObjectType() == Yql::DqsProto::TFile::EEXE_FILE) {
                 if (file.GetName().empty()) {
-                    return "Unnamed exe file " + file.ShortDebugString();
+                    return "Unnamed exe file " + FormatFile(file);
                 }
             } else {
-                if (!NFs::Exists(file.GetLocalPath())) {
-                    return "Unknown file " + file.ShortDebugString();
+                if (file.GetLocalPath().empty()) {
+                    YQL_CLOG(DEBUG, ProviderDq) << "CheckFiles: empty localPath, skipping existence check for " << FormatFile(file);
+                } else if (!NFs::Exists(file.GetLocalPath())) {
+                    YQL_CLOG(WARN, ProviderDq) << "CheckFiles: file not found at localPath=" << file.GetLocalPath()
+                        << " (this path is likely the client's local path, not the server's)";
+                    return "Unknown file: " + FormatFile(file);
                 }
             }
 
             if (file.GetObjectId().empty()) {
-                return "Empty objectId (md5, revision) for " + file.ShortDebugString();
+                return "Empty objectId (md5, revision) for " + FormatFile(file);
             }
         }
 
@@ -501,14 +552,28 @@ private:
             return file.GetObjectType() == Yql::DqsProto::TFile::EEXE_FILE;
         });
 
+        YQL_CLOG(TRACE, ProviderDq) << "MaybeUpload: isForwarded=" << isForwarded
+            << " files=" << files.size()
+            << " uploaderOptions=" << ResourceUploaderOptions.size();
+        for (const auto& file : files) {
+            YQL_CLOG(TRACE, ProviderDq) << "MaybeUpload file: " << FormatFile(file);
+        }
+
         if (isForwarded) {
             // Upload/validation was already performed by the previous GWM hop,
             // but the executable information is still present in the request.
+            YQL_CLOG(DEBUG, ProviderDq) << "MaybeUpload: skipping (isForwarded=true)";
             return std::make_pair(hasExeFile, "");
         }
 
-        if (auto error = CheckFiles(files)) {
+        auto error = CheckFiles(files);
+
+        if (error) {
             return std::make_pair(false, *error);
+        }
+
+        if (ResourceUploaderOptions.empty()) {
+            return std::make_pair(hasExeFile, "");
         }
 
         TVector<TResourceFile> preparedFiles;
@@ -626,6 +691,7 @@ private:
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(ev->Get()->Record.GetTraceId());
         auto [hasExeFile, err]  = MaybeUpload(ev->Get()->Record.GetIsForwarded(), TVector<TFileResource>(ev->Get()->Record.GetFiles().begin(), ev->Get()->Record.GetFiles().end()));
         if (!err.empty()) {
+            YQL_CLOG(INFO, ProviderDq) << "StartUploadAndForward, error " << err;
             Send(ev->Sender, new TEvAllocateWorkersResponse(err, NYql::NDqProto::StatusIds::EXTERNAL_ERROR));
             return;
         }
@@ -637,11 +703,12 @@ private:
         }
 
         if (!hasExeFile && LeaderRevision != Revision) {
+            YQL_CLOG(INFO, ProviderDq) << "StartUploadAndForward, Wrong revision " << LeaderRevision << ", " << Revision;
             Send(ev->Sender, new TEvAllocateWorkersResponse(
                 Sprintf("Wrong revision %s!=%s", LeaderRevision.c_str(), Revision.c_str()), NYql::NDqProto::StatusIds::UNSUPPORTED));
         } else {
             ev->Get()->Record.SetIsForwarded(true);
-            ctx.Send(ev->Forward(MakeWorkerManagerActorID(LeaderId)));
+            ctx.Send(ev->Forward(GetGlobalWorkerManagerActorId(LeaderId)));
         }
     }
 
@@ -700,6 +767,7 @@ private:
     void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx)
     {
         Y_UNUSED(ctx);
+        YQL_CLOG(INFO, ProviderDq) << "GWM received BecomeLeader epoch=" << ev->Get()->LeaderEpoch;
         if (TerminatingMode) {
             YQL_CLOG(INFO, ProviderDq) << "Skip Leader request in terminating mode";
             return;
@@ -724,6 +792,7 @@ private:
 
     void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
         Y_UNUSED(ctx);
+        YQL_CLOG(INFO, ProviderDq) << "GWM received BecomeFollower cookie=" << ev->Cookie;
         if (ev->Cookie == 1) {
             EnterTerminatingMode();
             return;
@@ -737,7 +806,9 @@ private:
         if (!LeaderPinger) {
             TResourceManagerOptions rmOptions;
             rmOptions.FileCache = LocalCriticalFiles;
-            LeaderPinger = RegisterChild(Coordinator->CreateServiceNodePinger(LeaderResolver, rmOptions));
+            LeaderPinger = RegisterChild(Coordinator->CreateServiceNodePinger(
+                LeaderResolver,
+                rmOptions));
         }
 
         YQL_CLOG(TRACE, ProviderDq) << " Following leader: " << LeaderId;
@@ -766,7 +837,14 @@ private:
 
     void Bootstrap(const TActorContext& ctx) {
         Y_UNUSED(ctx);
+        const auto& cfg = Coordinator->GetConfig();
+        YQL_CLOG(INFO, ProviderDq) << "GWM Bootstrap: acquiring lock"
+            << " lock_type=" << cfg.GetLockType()
+            << " cluster=" << cfg.GetClusterName()
+            << " prefix=" << cfg.GetPrefix()
+            << " lock_path=" << cfg.GetPrefix() << "/locks/gwm";
         LockId = RegisterChild(Coordinator->CreateLock("gwm", false));
+        YQL_CLOG(INFO, ProviderDq) << "GWM Bootstrap: lock actor registered, LockId=" << LockId;
     }
 
     TAutoPtr<IEventHandle> AfterRegister(const TActorId& self, const TActorId& parentId) override {
@@ -774,6 +852,11 @@ private:
     }
 
     void OnRegisterNodeStub(TEvRegisterNode::TPtr& ev, const NActors::TActorContext&) {
+        const auto& request = ev->Get()->Record.GetRequest();
+        YQL_CLOG(TRACE, ProviderDq) << "OnRegisterNodeStub (GWM Initialization): immediate empty response"
+            << " sender=" << ev->Sender
+            << " nodeId=" << request.GetNodeId()
+            << " role=" << request.GetRole();
         Send(ev->Sender, new TEvRegisterNodeResponse());
     }
 
@@ -783,8 +866,19 @@ private:
         auto nodeId = request.GetNodeId();
         auto workerId = NYql::NDqs::NExecutionHelpers::GuidFromProto(request.GetGuid());
         auto role = request.GetRole();
-
+        YQL_CLOG(TRACE, ProviderDq) << "OnRegisterNode (GWM Leader)"
+            << " sender=" << ev->Sender
+            << " nodeId=" << nodeId
+            << " role=" << role
+            << " workerId=" << GetGuidAsString(workerId)
+            << " requestRevision=" << request.GetRevision()
+            << " leaderRevision=" << Revision
+            << " leaderEpoch=" << LeaderEpoch;
         Y_SCOPE_EXIT(&) {
+            YQL_CLOG(TRACE, ProviderDq) << "OnRegisterNode: forwarding to nameservice"
+                << " sender=" << ev->Sender
+                << " nodeId=" << nodeId
+                << " role=" << role;
             ctx.Send(ev->Forward(NActors::GetNameserviceActorId()));
         };
 
@@ -804,6 +898,7 @@ private:
         }
 
         if (role != "worker_node") {
+            YQL_CLOG(DEBUG, ProviderDq) << "OnRegisterNode, mutableRequest->SetEpoch(LeaderEpoch), role " << role;
             mutableRequest->SetEpoch(LeaderEpoch);
             return;
         }
@@ -862,7 +957,8 @@ private:
 
     void OnAllocateWorkersRequestStub(TEvAllocateWorkersRequest::TPtr& ev, const NActors::TActorContext&) {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(ev->Get()->Record.GetTraceId());
-        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest initialization";
+        YQL_CLOG(WARN, ProviderDq) << "GWM still in Initialization (lock not yet acquired), rejecting allocation"
+            << " LockId=" << LockId;
         Send(ev->Sender, new TEvAllocateWorkersResponse("GWM: Waiting for initialization", NYql::NDqProto::StatusIds::UNAVAILABLE));
     }
 
@@ -873,19 +969,14 @@ private:
     void TryResume() {
         if (!Workers.Capacity() && ScheduleWaitCount > 0U) {
             Scheduler->ProcessAll([&] (const auto& item) {
+                YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TryResume, ProcessAll: All workers shutted down";
                 Send(item.Sender, new TEvAllocateWorkersResponse("All workers shutted down", NYql::NDqProto::StatusIds::OVERLOADED));
                 return true;
             });
 
             ScheduleWaitCount = 0U;
-            DeadOperations.clear();
         } else if (Workers.FreeSlots() >= ScheduleWaitCount) {
             Scheduler->Process(Workers.Capacity(), Workers.FreeSlots(), [&] (const auto& item) {
-                auto maybeDead = DeadOperations.find(item.Request.GetResourceId());
-                if (maybeDead != DeadOperations.end()) {
-                    DeadOperations.erase(maybeDead);
-                    return true; // remove from WaitList
-                }
                 auto candidates = Workers.TryAllocate(item);
                 if (!candidates.empty()) {
                     DoAllocate(item, candidates);
@@ -893,36 +984,61 @@ private:
                 return !candidates.empty();
             });
             ScheduleWaitCount = std::numeric_limits<size_t>::max();
-            DeadOperations.clear();
         }
     }
 
     void OnAllocateWorkersRequest(TEvAllocateWorkersRequest::TPtr& ev, const NActors::TActorContext& ctx) {
         Y_UNUSED(ctx);
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(ev->Get()->Record.GetTraceId());
-        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest";
+        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest"
+            << " isForwarded=" << ev->Get()->Record.GetIsForwarded()
+            << " files=" << ev->Get()->Record.GetFiles().size();
+        for (const auto& file : ev->Get()->Record.GetFiles()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "AllocateRequest file: " << FormatFile(file);
+        }
 
         TFailureInjector::Reach("allocate_workers_failure", [] { ::_exit(1); });
 
         const auto count = ev->Get()->Record.GetCount();
         Y_ASSERT(count != 0);
 
+        const auto runningTasksPerUserLimit = Scheduler->GetRunningTasksPerUserLimit();
+        if (runningTasksPerUserLimit > 0 && count > runningTasksPerUserLimit) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: Request exceeds per-user running limit"
+                << " (User: " << ev->Get()->Record.GetUser()
+                << ", Count: " << count
+                << ", Limit: " << runningTasksPerUserLimit << ")";
+            Send(ev->Sender, new TEvAllocateWorkersResponse(
+                TStringBuilder() << "Request needs " << count
+                    << " DQ slots, exceeding the per-user running limit of " << runningTasksPerUserLimit,
+                NYql::NDqProto::StatusIds::LIMIT_EXCEEDED));
+            return;
+        }
+
         if (!Workers.Capacity()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: Empty workers capacity";
             Send(ev->Sender, new TEvAllocateWorkersResponse("Empty workers capacity", NYql::NDqProto::StatusIds::OVERLOADED));
             return;
         }
 
         if (!Scheduler->Suspend(NDq::IScheduler::TWaitInfo(ev->Get()->Record, ev->Sender))) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: Too many dq operations";
             Send(ev->Sender, new TEvAllocateWorkersResponse("Too many dq operations", NYql::NDqProto::StatusIds::OVERLOADED));
             return;
         }
 
         auto [_, error]  = MaybeUpload(ev->Get()->Record.GetIsForwarded(), TVector<TFileResource>(ev->Get()->Record.GetFiles().begin(),ev->Get()->Record.GetFiles().end()));
         if (!error.empty()) {
+            YQL_CLOG(WARN, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: MaybeUpload error: " << error;
+            Scheduler->ProcessAll([&] (const auto& item) {
+                return item.Sender == ev->Sender &&
+                    item.Request.GetTraceId() == ev->Get()->Record.GetTraceId();
+            });
             Send(ev->Sender, new TEvAllocateWorkersResponse(error, NYql::NDqProto::StatusIds::EXTERNAL_ERROR));
             return;
         }
 
+        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: MarkDirty " << count;
         MarkDirty(count);
     }
 
@@ -943,6 +1059,7 @@ private:
     }
 
     void DoAllocate(const NDq::IScheduler::TWaitInfo& waitInfo, const TVector<TWorkerInfo::TPtr>& allocated) {
+        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::DoAllocate";
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(waitInfo.Request.GetTraceId());
         Y_ABORT_UNLESS(allocated.size() == waitInfo.Request.GetCount());
 
@@ -967,6 +1084,15 @@ private:
 
         auto resourceAllocator = waitInfo.Sender;
 
+        AllocatedResources[resourceId] = {
+            .ActorId = resourceAllocator,
+            .User = waitInfo.Request.GetUser(),
+            .Workers = allocated,
+            .UsedFiles = usedFiles,
+            .Clusters = clusters,
+            .StartTime = TInstant::Now(),
+        };
+
         auto response = MakeHolder<TEvAllocateWorkersResponse>(resourceId, allocated);
         waitInfo.Stat.FlushCounters(response->Record);
         Send(
@@ -976,21 +1102,17 @@ private:
 
         Subscribe(resourceAllocator.NodeId());
 
-        AllocatedResources[resourceId] = {
-            resourceAllocator,
-            allocated,
-            usedFiles,
-            clusters,
-            TInstant::Now()
-        };
-
         if (allocated.size() == 1) {
             Y_ABORT_UNLESS(clusters.size() == 1);
             IncrLiteralQueries(*clusters.begin());
         }
     }
 
-    void DropActorOrNode(const std::function<bool(TActorId actorId)>& check, const NActors::TActorContext&) {
+    void DropActorOrNode(
+        const std::function<bool(TActorId actorId)>& check,
+        const THashSet<TGUID>& failedWorkers = {})
+    {
+        YQL_CLOG(DEBUG, ProviderDq) << "DropActorOrNode";
         TVector<ui64> freeList;
         for (const auto& [k, v] : AllocatedResources) {
             if (check(v.ActorId)) {
@@ -999,7 +1121,7 @@ private:
         }
 
         for (auto resourceId : freeList) {
-            FreeResource(resourceId, {});
+            FreeResource(resourceId, failedWorkers);
         }
 
         Scheduler->ProcessAll([&] (const auto& item) {
@@ -1009,15 +1131,18 @@ private:
         MarkDirty();
     }
 
-    void OnUndelivered(TEvents::TEvUndelivered::TPtr& ev, const NActors::TActorContext& ctx)
+    void OnUndelivered(TEvents::TEvUndelivered::TPtr& ev, const NActors::TActorContext& /*ctx*/)
     {
         auto deadActor = ev->Sender;
+        YQL_CLOG(DEBUG, ProviderDq) << "OnUndelivered"
+            << " sender=" << deadActor
+            << " reason=" << ev->Get()->Reason;
         DropActorOrNode([&](TActorId actorId) {
             return actorId == deadActor;
-        }, ctx);
+        });
     }
 
-    void OnExecuterDisconnected(TEvInterconnect::TEvNodeDisconnected::TPtr& ev, const NActors::TActorContext& ctx)
+    void OnExecuterDisconnected(TEvInterconnect::TEvNodeDisconnected::TPtr& ev, const NActors::TActorContext& /*ctx*/)
     {
         YQL_CLOG(DEBUG, ProviderDq) << "OnExecuterDisconnected " << ev->Get()->NodeId;
 
@@ -1027,7 +1152,7 @@ private:
 
         DropActorOrNode([&](TActorId actorId) {
             return actorId.NodeId() == deadNode;
-        }, ctx);
+        });
     }
 
     void OnFreeWorkersStub(TEvFreeWorkersNotify::TPtr& ev, const NActors::TActorContext&) {
@@ -1036,11 +1161,13 @@ private:
     }
 
     void FreeResource(ui64 resourceId, const THashSet<TGUID>& failedWorkers) {
-        if (!AllocatedResources.contains(resourceId)) {
+        YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::FreeResource " << resourceId;
+        const auto resourceIt = AllocatedResources.find(resourceId);
+        if (resourceIt == AllocatedResources.end()) {
             return;
         }
 
-        auto& resource = AllocatedResources[resourceId];
+        auto& resource = resourceIt->second;
 
         auto now = TInstant::Now();
 
@@ -1059,23 +1186,33 @@ private:
         }
 
         Workers.UpdateResourceUseTime(now - resource.StartTime, resource.UsedFiles);
-        AllocatedResources.erase(resourceId);
+        Scheduler->ReleaseRunningTasks(resource.User, resource.Workers.size());
+        AllocatedResources.erase(resourceIt);
     }
 
-    void OnFreeWorkers(TEvFreeWorkersNotify::TPtr& ev, const TActorContext&) {
+    void OnFreeWorkers(TEvFreeWorkersNotify::TPtr& ev, const TActorContext& /*ctx*/) {
         auto resourceId = ev->Get()->Record.GetResourceId();
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(ev->Get()->Record.GetTraceId());
+        YQL_CLOG(DEBUG, ProviderDq) << "TEvFreeWorkersNotify " << resourceId;
+
+        THashSet<TGUID> failedWorkers;
+        for (const auto& workerGuid : ev->Get()->Record.GetFailedWorkerGuid()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Failed worker: " << workerGuid;
+            failedWorkers.insert(GetGuid(workerGuid));
+        }
+
+        if (resourceId == 0) {
+            // Zero id means the allocator died before it learned its resource id.
+            DropActorOrNode(
+                [&] (TActorId actorId) {
+                    return actorId == ev->Sender;
+                },
+                failedWorkers);
+            return;
+        }
+
         if (AllocatedResources.contains(resourceId)) {
-            YQL_LOG_CTX_ROOT_SESSION_SCOPE(ev->Get()->Record.GetTraceId());
-            YQL_CLOG(DEBUG, ProviderDq) << "TEvFreeWorkersNotify " << resourceId;
-            THashSet<TGUID> failedWorkers;
-            for (const auto& workerInfo : ev->Get()->Record.GetFailedWorkerGuid()) {
-                auto guid = GetGuid(workerInfo);
-                YQL_CLOG(DEBUG, ProviderDq) << "Failed worker: " << GetGuidAsString(guid);
-                failedWorkers.insert(guid);
-            }
             FreeResource(resourceId, failedWorkers);
-        } else {
-            DeadOperations.insert(resourceId);
         }
 
         MarkDirty();
@@ -1256,8 +1393,9 @@ private:
 
     void OnOperationStop(TEvOperationStop::TPtr& ev, const TActorContext& ctx) {
         Y_UNUSED(ctx);
+        YQL_CLOG(DEBUG, ProviderDq) << "OnOperationStop";
 
-        Scheduler->Process(Workers.Capacity(), Workers.FreeSlots(), [&] (const auto& item) {
+        Scheduler->ProcessAll([&] (const auto& item) {
             if (item.Request.GetTraceId() == ev->Get()->Record.GetRequest().GetOperationId()) {
                 Send(item.Sender, new TEvDqFailure(NYql::NDqProto::StatusIds::ABORTED, TIssue("Operation stopped by scheduler").SetCode(TIssuesIds::DQ_GATEWAY_ERROR, TSeverityIds::S_ERROR)));
                 return true;
@@ -1312,7 +1450,7 @@ private:
         } else {
             FillCriticalFiles(ev);
             ev->Get()->Record.SetIsForwarded(true);
-            ctx.Send(ev->Forward(MakeWorkerManagerActorID(LeaderId)));
+            ctx.Send(ev->Forward(GetGlobalWorkerManagerActorId(LeaderId)));
         }
     }
 
@@ -1398,15 +1536,21 @@ private:
         }
     }
 
-    void UpdateMetrics() {
+    void UpdateMetrics(bool updateRunningLimitedQueueSize) {
         if (!WaitListSize) {
             WaitListSize = Metrics->GetSubgroup("component", "lists")->GetCounter("WaitListSize");
         }
-        *WaitListSize = Scheduler->UpdateMetrics();
+        *WaitListSize = Scheduler->UpdateMetrics(updateRunningLimitedQueueSize);
         Workers.UpdateMetrics();
     }
 
 private:
+    TActorId GetGlobalWorkerManagerActorId(ui32 nodeId) const {
+        return ActorIdOptions.UseGlobalActorId
+            ? MakeGlobalWorkerManagerActorID(nodeId)
+            : MakeWorkerManagerActorID(nodeId);
+    }
+
     const ICoordinationHelper::TPtr Coordinator;
     const std::shared_ptr<TSingleNodeResolver> LeaderResolver;
     TActorId LeaderPinger;
@@ -1422,13 +1566,13 @@ private:
 
     struct TResourceInfo {
         TActorId ActorId;
+        TString User;
         TVector<TWorkerInfo::TPtr> Workers;
         THashSet<TString> UsedFiles;
         THashSet<TString> Clusters;
         TInstant StartTime;
     };
     THashMap<ui64, TResourceInfo> AllocatedResources;
-    THashSet<ui64> DeadOperations;
 
     ui32 LeaderId = static_cast<ui32>(-1);
     TString LeaderRevision;
@@ -1452,6 +1596,7 @@ private:
     THashMap<TString, TUploadingInfo> Uploading; // objectId -> objectName
 
     TVector<TResourceManagerOptions> ResourceUploaderOptions;
+    const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
 
     TList<TWorkerStopFilter> StopFilters;
 
@@ -1480,8 +1625,15 @@ NActors::IActor* CreateGlobalWorkerManager(
         const TVector<TResourceManagerOptions>& resourceUploaderOptions,
         IMetricsRegistryPtr metricsRegistry,
         const NProto::TDqConfig::TScheduler& schedulerConfig,
-        TDuration scheduleInterval) {
-    return new TGlobalWorkerManager(coordinator, resourceUploaderOptions, std::move(metricsRegistry), schedulerConfig, scheduleInterval);
+        TDuration scheduleInterval,
+        TGlobalWorkerManagerActorIdOptions actorIdOptions) {
+    return new TGlobalWorkerManager(
+        coordinator,
+        resourceUploaderOptions,
+        std::move(metricsRegistry),
+        schedulerConfig,
+        scheduleInterval,
+        actorIdOptions);
 }
 
 } // namespace NYql

@@ -72,3 +72,9 @@ func TestResolveConfig(t *testing.T) {
 	_, err = resolveAppConfig(&badConfig1)
 	require.Error(t, err, "bad user config type")
 }
+
+func TestLockFileMappings(t *testing.T) {
+	lockedBytes, failedBytes, err := lockFileMappings()
+	require.NoError(t, err)
+	require.Positive(t, lockedBytes+failedBytes)
+}

@@ -6,6 +6,7 @@
 #include "persisted_state_control.h"
 #include "spec.h"
 #include "stream_spec_storage_state.h"
+#include "stream_statistics.h"
 #include "timestamp_statistics.h"
 #include "traverse.h"
 
@@ -120,9 +121,11 @@ struct TJob
     std::string WorkerAddress;
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
+    //! The prerequisite the worker attaches to the commits of this job's epochs: a master
+    //! transaction of the leader under the Cypress backend, a chaos lease under the Chaos one.
     TLeaseId LeaseId;
     //! When set, the job is fenced by rows of the pipeline's leases dynamic table instead of a
-    //! lease transaction prerequisite (LeaseId stays null).
+    //! prerequisite (LeaseId stays null).
     //!
     //! The counterpart of #LeaseId for the dyntable backend: both are filled once the fence of
     //! this job exists — the rows are committed by their own transaction before the layout that
@@ -146,9 +149,22 @@ struct TNodePerformanceMetrics
     std::optional<double> CpuUsage30s;
     std::optional<double> CpuUsage10m;
 
-    i64 MemoryUsageCurrent{};
-    i64 MemoryUsage30s{};
-    i64 MemoryUsage10m{};
+    std::optional<i64> MemoryUsageCurrent;
+    std::optional<i64> MemoryUsage30s;
+    std::optional<i64> MemoryUsage10m;
+
+    std::optional<double> MessagesPerSecond30s;
+    std::optional<double> MessagesPerSecond10m;
+
+    //! When the job's rate counters were (re)started; the windowed rates above are measured from here.
+    std::optional<TInstant> MetricsStartTime;
+    //! True while the counters still cover the job's first iteration and will be marked steady once
+    //! it ends; such rates describe initialization, not steady-state work.
+    std::optional<bool> MetricsSteadyPending;
+
+    //! Versions of the worker binary and the pipeline spec the job was running with.
+    std::optional<std::string> FlowCoreVersion;
+    std::optional<TVersion> PipelineSpecVersion;
 
     REGISTER_YSON_STRUCT(TNodePerformanceMetrics);
 
@@ -269,6 +285,7 @@ struct TJobEntityLimitStatus
     i64 Limit{};
     i64 Used{};
     std::optional<i64> Pending;
+    std::optional<i64> Demand;
     //! Share of the time the job spent with this buffer blocking the epoch loop,
     //! averaged over the window from the spec. Normalized by the job lifetime, so
     //! a job blocked since its start reports ~1 however young it is.
@@ -298,6 +315,7 @@ struct TJobStatus
     i64 Epoch{};
 
     TFromPartitionTraverseDataPtr FromPartitionTraverseData;
+    TProcessingObservationPtr ProcessingObservation;
 
     TNodePerformanceMetricsPtr PerformanceMetrics;
     TNodeInputMetricsPtr InputMetrics;
@@ -390,7 +408,7 @@ DEFINE_REFCOUNTED_TYPE(TWorkerResourceStatus);
 struct TWorkerStatistics
     : public NYTree::TYsonStruct
 {
-    TLineageRates LineageRates;
+    TLineageRatios LineageRatios;
 
     REGISTER_YSON_STRUCT(TWorkerStatistics);
 
@@ -441,6 +459,9 @@ struct TWorkerSpec
     : public NYTree::TYsonStruct
 {
     THashSet<TResourceId> PreloadResources;
+    //! Incarnation of the worker that received these preloads. A new incarnation of the same
+    //! address has no preloaded resources, so the spec does not apply to it.
+    std::optional<TIncarnationId> WorkerIncarnationId;
 
     REGISTER_YSON_STRUCT(TWorkerSpec);
 
@@ -655,6 +676,80 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Aggregated observations of how much CPU per message a partition burned on two workers,
+//! see #NBalancer::TWorkerCoefEstimator. One per observed pair, |From| < |To|.
+struct TWorkerCoefEdge
+    : public NYTree::TYsonStructLite
+{
+    std::string From;
+    std::string To;
+    //! Weighted mean of the observed log(coef(To) / coef(From)).
+    double Obs{};
+    double Weight{};
+    TInstant UpdatedAt;
+
+    REGISTER_YSON_STRUCT_LITE(TWorkerCoefEdge);
+
+    static void Register(TRegistrar registrar);
+};
+
+//! Steady-state metrics last measured for a partition, kept across its jobs so that a freshly
+//! started job does not make the partition look weightless to the balancer.
+struct TPartitionMetricsHistory
+    : public NYTree::TYsonStruct
+{
+    //! Worker the metrics were measured on.
+    std::string WorkerAddress;
+    double CpuUsage{};
+    std::optional<double> MessagesPerSecond;
+    //! Implementation the metrics were measured with, see #TNodePerformanceMetrics.
+    std::optional<std::string> FlowCoreVersion;
+    std::optional<TVersion> PipelineSpecVersion;
+
+    REGISTER_YSON_STRUCT(TPartitionMetricsHistory);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionMetricsHistory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Persisted state of the CpuAware balancer of one worker group.
+struct TBalancerGroupState
+    : public NYTree::TYsonStruct
+{
+    //! Keyed by the pair: From, then To, with From < To.
+    THashMap<std::string, THashMap<std::string, TWorkerCoefEdge>> WorkerCoefEdges;
+    //! The last solution, log(coef) per worker.
+    THashMap<std::string, double> WorkerLogCoefs;
+    //! When each worker was last present in the group; absent workers are forgotten eventually.
+    THashMap<std::string, TInstant> WorkerLastSeen;
+
+    REGISTER_YSON_STRUCT(TBalancerGroupState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancerGroupState);
+
+struct TBalancerState
+    : public NYTree::TYsonStruct
+{
+    THashMap<TWorkerGroupId, TBalancerGroupStatePtr> Groups;
+    //! Kept out of the layout: workers have no use for it, and a layout row would make every one
+    //! of them rebuild its routing. An entry lives until the partition's next job matures.
+    THashMap<TPartitionId, TPartitionMetricsHistoryPtr> PartitionHistories;
+
+    REGISTER_YSON_STRUCT(TBalancerState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancerState);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobManagerState
     : public NYTree::TYsonStruct
 {
@@ -785,19 +880,6 @@ DEFINE_REFCOUNTED_TYPE(TStreamTraverseDataMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStreamSpeedStatistics
-    : public NYTree::TYsonStructLite
-{
-    double ProcessedMessagesPerSecond{};
-    double ProcessedBytesPerSecond{};
-
-    REGISTER_YSON_STRUCT_LITE(TStreamSpeedStatistics);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPipelineSpeedStatistics
     : public NYTree::TYsonStructLite
 {
@@ -833,12 +915,14 @@ struct TFlowEphemeralState
     THashMap<TPartitionId, TPartitionEphemeralStatePtr> Partitions;
     THashMap<TComputationId, THashMap<TStreamId, TStreamTraverseDataMetricsPtr>> StreamTraverseDataMetrics;
     THashMap<TWorkerGroupId, TSequenceId> MaxAppliedBalancerSequenceIds;
+    //! #TFlowLayout::Jobs grouped by worker incarnation, maintained by the layout mutation notifier.
+    //! Never trimmed by the registered workers: a worker that registers late still owns its jobs.
     THashMap<TIncarnationId, THashSet<TJobId>> WorkerIncarnationsJobs;
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
 
-    TLineageRates LineageRates;
+    TLineageRatios LineageRatios;
 
     THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 
@@ -879,6 +963,8 @@ struct TFlowState
     TPipelineTraverseDataPtr TraverseData;
 
     TJobManagerStatePtr JobManagerState;
+
+    TBalancerStatePtr BalancerState;
 
     // Used to warm up buffer demand on pipeline restart. Stored here to survive controller restarts.
     TPipelineSpeedStatistics SpeedStatistics;

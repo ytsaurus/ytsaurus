@@ -36,6 +36,15 @@ const NLogging::TLogger Logger("FlowClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetTargetPipelineState(const TFlowExecuteTarget& target, const TYPath& root, EPipelineState state)
+{
+    TSetTargetPipelineStateArg argument;
+    argument.TargetPipelineState = state;
+    FlowExecute(target, root, argument);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsGracefulUpdateFromEnv()
 {
     return FromString<bool>(GetEnv("YT_FLOW_GRACEFUL_UPDATE", "1"));
@@ -147,8 +156,8 @@ static TError MakeWaitPipelineStateTimeoutError(
         .With("timeout", waitTimeout);
 }
 
-static void WaitPipelineState(
-    NApi::IClientPtr client,
+static void DoWaitPipelineState(
+    const TFlowExecuteTarget& target,
     const TYPath& root,
     EPipelineState targetState,
     TDuration waitTimeout,
@@ -193,11 +202,11 @@ static void WaitPipelineState(
                     .WithIf(!lastError.IsOK(), lastError);
             }
 
-            NApi::TGetPipelineStateOptions options;
+            NApi::TFlowExecuteOptions options;
             options.Timeout = std::min(requestTimeout, deadline - now);
 
             try {
-                currentState = WaitFor(client->GetPipelineState(root, options)).ValueOrThrow().State;
+                currentState = FlowExecute(target, root, TGetPipelineStateArg(), options).PipelineState;
                 break;
             } catch (const std::exception& ex) {
                 lastError = TError(ex);
@@ -253,19 +262,18 @@ void WaitPipelineState(
         root,
         state,
         waitTimeout,
-        requestTimeout,
-        /*logReader*/ nullptr);
+        requestTimeout);
 }
 
 void WaitPipelineState(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const TYPath& root,
     EPipelineState state,
     TDuration waitTimeout,
     TDuration requestTimeout)
 {
-    WaitPipelineState(
-        std::move(client),
+    DoWaitPipelineState(
+        target,
         root,
         state,
         waitTimeout,
@@ -302,7 +310,7 @@ void RunPipeline(
 }
 
 void RunPipeline(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const TYPath& root,
     const TPipelineSpecPtr& spec,
     const TDynamicPipelineSpecPtr& dynamicSpec,
@@ -313,6 +321,7 @@ void RunPipeline(
     bool enablePipelineStopOrPause,
     const std::optional<TVanillaOperationHandle>& vanillaOperation)
 {
+    const auto& client = target.Client;
     if (!graceful) {
         graceful = IsGracefulUpdateFromEnv();
     }
@@ -344,9 +353,7 @@ void RunPipeline(
                 controllerLogReader.Open();
             }
 
-            auto currentState = WaitFor(client->GetPipelineState(root))
-                .ValueOrThrow()
-                .State;
+            auto currentState = FlowExecute(target, root, TGetPipelineStateArg()).PipelineState;
 
             if (currentState == EPipelineState::Completed) {
                 fatalError = true;
@@ -378,17 +385,15 @@ void RunPipeline(
 
                 if (currentState != desiredState && currentState != EPipelineState::Unknown) {
                     if (*graceful) {
-                        WaitFor(client->StopPipeline(root))
-                            .ThrowOnError();
+                        SetTargetPipelineState(target, root, EPipelineState::Stopped);
                         YT_TLOG_INFO("Sent stop");
                     } else {
-                        WaitFor(client->PausePipeline(root))
-                            .ThrowOnError();
+                        SetTargetPipelineState(target, root, EPipelineState::Paused);
                         YT_TLOG_INFO("Sent pause");
                     }
 
-                    WaitPipelineState(
-                        client,
+                    DoWaitPipelineState(
+                        target,
                         root,
                         desiredState,
                         waitTimeout,
@@ -407,10 +412,7 @@ void RunPipeline(
                 YT_TLOG_INFO("Setting flow core target to Controller")
                     .With("FlowCoreTarget", arg.FlowCoreTarget.Underlying());
 
-                auto resultYson = WaitFor(client->FlowExecute(root, "set-flow-core-target", NYson::ConvertToYsonString(arg)))
-                    .ValueOrThrow();
-
-                auto result = NYTree::ConvertTo<TSetFlowCoreTargetResult>(resultYson.Result);
+                auto result = FlowExecute(target, root, arg);
 
                 YT_TLOG_INFO("Updated flow core target")
                     .With("NewVersion", result.Version)
@@ -426,22 +428,18 @@ void RunPipeline(
                 // TODO: Enable strict validation later.
                 // arg.ValidateStrict = true;
 
-                auto resultYson = WaitFor(client->FlowExecute(root, "set-pipeline-specs", NYson::ConvertToYsonString(arg)))
-                    .ValueOrThrow();
-
-                auto result = NYTree::ConvertTo<TSetPipelineSpecsResult>(resultYson.Result);
+                auto result = FlowExecute(target, root, arg);
 
                 YT_TLOG_INFO("Updated pipeline specs")
                     .With("NewSpecVersion", result.SpecVersion)
                     .With("NewDynamicSpecVersion", result.DynamicSpecVersion);
             }
 
-            WaitFor(client->StartPipeline(root))
-                .ThrowOnError();
+            SetTargetPipelineState(target, root, EPipelineState::Completed);
             YT_TLOG_INFO("Sent start");
 
-            WaitPipelineState(
-                client,
+            DoWaitPipelineState(
+                target,
                 root,
                 EPipelineState::Working,
                 waitTimeout,
@@ -524,11 +522,12 @@ void TVanillaOperationHandle::ThrowIfTerminal() const
 ////////////////////////////////////////////////////////////////////////////////
 
 void WaitPipeline(
-    NApi::IClientPtr client,
+    const TFlowExecuteTarget& target,
     const TRichYPath& pipelinePath,
     TDuration controllerUnavailableTimeout,
     const std::optional<TVanillaOperationHandle>& vanillaOperation)
 {
+    const auto& client = target.Client;
     const auto& root = pipelinePath.GetPath();
 
     YT_TLOG_INFO("Wait for pipeline to complete")
@@ -545,15 +544,14 @@ void WaitPipeline(
             }
 
             while (true) {
-                auto status = WaitFor(client->GetPipelineState(root))
-                    .ValueOrThrow();
+                auto status = FlowExecute(target, root, TGetPipelineStateArg());
 
-                if (status.State == EPipelineState::Completed) {
+                if (status.PipelineState == EPipelineState::Completed) {
                     break;
                 }
 
                 YT_TLOG_INFO("Waiting pipeline to complete")
-                    .With("CurrentState", status.State)
+                    .With("CurrentState", status.PipelineState)
                     .With("Pipeline", pipelinePath);
 
                 controllerLogReader.Read();

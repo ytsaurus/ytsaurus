@@ -58,6 +58,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
+    yt/yql/library/token_resolver
     yt/yql/providers/dq/control
     yt/yql/providers/dq/gateway
     yt/yql/providers/dq/service

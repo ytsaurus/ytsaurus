@@ -202,7 +202,7 @@ public:
         } else {
             TStringStream stream;
             OutputParam(stream, value);
-            TCreateMessageGuard::GetBuildMessage().AppendValue({std::move(name)}, stream.Str());
+            TCreateMessageGuard::GetBuildMessage().AppendValue({name}, stream.Str());
         }
     }
 

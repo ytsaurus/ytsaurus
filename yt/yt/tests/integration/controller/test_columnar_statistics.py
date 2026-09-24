@@ -19,6 +19,18 @@ from yt.yson.yson_types import YsonEntity
 import pytest
 
 
+EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG = {
+    "%true": {
+        "data_node": {
+            "testing_options": {
+                "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
+                "columnar_statistics_read_timeout_fraction": 0.3,
+            },
+        },
+    },
+}
+
+
 class _TestColumnarStatisticsBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -27,7 +39,9 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },
@@ -38,17 +52,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             },
         },
         "heap_profiler_update_snapshot_period": 100,
-    }
-
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 5000,
-                    "columnar_statistics_read_timeout_fraction": 0.1,
-                },
-            },
-        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -878,7 +881,9 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },
@@ -895,16 +900,7 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "heap_profiler_update_snapshot_period": 100,
     }
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
-                    "columnar_statistics_read_timeout_fraction": 0.3,
-                },
-            },
-        },
-    }
+    DELTA_DYNAMIC_NODE_CONFIG = EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG
 
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
@@ -929,16 +925,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_DYNAMIC_NODE_CONFIG = {
-        "%true": {
-            "data_node": {
-                "testing_options": {
-                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
-                    "columnar_statistics_read_timeout_fraction": 0.3,
-                },
-            },
-        },
-    }
+    DELTA_DYNAMIC_NODE_CONFIG = EARLY_FINISH_DELTA_DYNAMIC_NODE_CONFIG
 
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
@@ -1191,8 +1178,6 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
         self._prepare_input_table(strict, optimize_for, erasure_codec, striped_erasure, use_groups)
 
-        create("table", "//tmp/t_out")
-
         columns_selectors = [
             [],
             ["small"],
@@ -1204,18 +1189,26 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             ["unknown1", "unknown2"],
         ]
 
-        for columns in columns_selectors:
-            op = map(
+        ops = []
+        for index, columns in enumerate(columns_selectors):
+            output_table = "//tmp/t_out_{}".format(index)
+            create("table", output_table)
+            ops.append(map(
                 in_="//tmp/t_in{{{}}}".format(",".join(columns)),
-                out="//tmp/t_out",
+                out=output_table,
                 command="cat > /dev/null",
                 spec={
                     "input_table_columnar_statistics": {
                         "mode": mode,
                     },
                 },
-            )
+                track=False,
+            ))
 
+        for op in ops:
+            op.track()
+
+        for columns, op in zip(columns_selectors, ops):
             progress = get(op.get_path() + "/@progress")
             input_statistics = progress["job_statistics_v2"]["data"]["input"]
             actual_uncompressed_data_size = self._get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
@@ -1234,8 +1227,8 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
                 estimated_uncompressed_data_size * (1 - delta),
                 max(estimated_uncompressed_data_size - 10, 0))
 
-            assert estimated_compressed_data_size_lower_bound <= actual_compressed_data_size <= estimated_compressed_data_size * (1 + delta)
-            assert estimated_uncompressed_data_size_lower_bound <= actual_uncompressed_data_size <= estimated_uncompressed_data_size * (1 + delta)
+            assert estimated_compressed_data_size_lower_bound <= actual_compressed_data_size <= estimated_compressed_data_size * (1 + delta), columns
+            assert estimated_uncompressed_data_size_lower_bound <= actual_uncompressed_data_size <= estimated_uncompressed_data_size * (1 + delta), columns
 
     @authors("apollo1321")
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])

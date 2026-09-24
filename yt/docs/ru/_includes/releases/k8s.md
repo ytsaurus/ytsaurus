@@ -58,15 +58,15 @@
 #### Исправления
 * Рефакторинг init-джобов от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/758
 * Исправление применения глобальных опций подов для UI и strawberry от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/737
-* API: minReadyInstanceCount должен быть int32 от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/746
+* API: `minReadyInstanceCount` должен быть int32 от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/746
 * Исправлена ошибка прокси с отсутствием TLS-томов во время rolling-обновления от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/751
 * Исправлена логика удаления подов и проверки готовности от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/756
-* Улучшена функция arePodsUpdatedToNewRevision для логики onDelete от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
-* Исправлена ошибка rollingUpdate для exec-нод и добавлен e2e-тест от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
+* Улучшена функция `arePodsUpdatedToNewRevision` для логики onDelete от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/759
+* Исправлена ошибка `rollingUpdate` для exec-нод и добавлен e2e-тест от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/773
 * Создание логгера клиента ytsaurus из логгера контроллера от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/800
 
 #### Тестирование
-* Очистка теста для устаревшего EnableAntiAffinity от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
+* Очистка теста для устаревшего `EnableAntiAffinity` от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/745
 * test: добавлен релиз 25.3 от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/752
 * Обновление helm в workflows от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/733
 * test/r8r: исправлена гонка при сборе событий от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/757
@@ -187,7 +187,7 @@
 * Проверка согласованности плана обновления от @koct9i в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/603
 * Добавлена prometheus-метрика ytop_strategy_on_delete_waiting_time_seconds от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/641
 * Исправлена ошибка в UpdatePreCheck планировщика от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/660
-* Улучшена функция arePodsUpdatedToNewRevision для логики onDelete от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
+* Улучшена функция `arePodsUpdatedToNewRevision` для логики onDelete от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/661
 * Добавлены контрольная сумма конфигурации и аннотация пода, обновлен e2e-тест onDelete от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/652
 * Добавлены ca, ds и msc в новую стратегию обновления от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/662
 * Изменено возвращаемое значение для некоторых компонентов с ComponentStatusReadyAfter от @qurname2 в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/663
@@ -459,7 +459,7 @@
 #### Прочее
 * Откат коммита «Disable stockpile by default» в https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/477
 
-Изменение, добавленное в 0.23.0, было откачено, так как при обновлении оператора оно приводило к обновлению всех компонентов всех существующих кластеров, при этом само изменение не является важным. Мы рассмотрим возможность сделать его опциональным в следующих релизах.
+Изменение, добавленное в 0.23.0, было отменено, так как при обновлении оператора оно приводило к обновлению всех компонентов всех существующих кластеров, при этом само изменение не является важным. Мы рассмотрим возможность сделать его опциональным в следующих релизах.
 
 
 {% endcut %}
@@ -1136,7 +1136,7 @@ data:
 - Поддержка мастеров в режиме host network.
 - Добавлен движок spyt в query tracker по умолчанию.
 - Включены ipv4 и ipv6 по умолчанию в chyt-контроллерах.
-- Стандартный CHYT-клик создается как tracked, а не untracked.
+- Стандартная CHYT-клика создается как tracked, а не untracked.
 - Проверка полного обновления не выполняется, если полное обновление не включено (флаг `enable_full_update` в спецификации).
 - Алгоритм обновления кластера улучшен. Если полное обновление необходимо для уже запущенных компонентов и были добавлены новые компоненты, оператор сначала запустит новые компоненты и только затем начнет полное обновление. Ранее такая реконфигурация не поддерживалась.
 - Добавлена опциональная поддержка TLS для native-rpc соединений.
@@ -1170,7 +1170,7 @@ data:
 - Поддержка TLS для RPC-прокси.
 
 **Исправления**
-- Исправлена ошибка при создании стандартного клика `CHYT` (`ch_public`).
+- Исправлена ошибка при создании стандартной клики `CHYT` (`ch_public`).
 
 {% endcut %}
 

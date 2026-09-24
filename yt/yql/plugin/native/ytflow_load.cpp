@@ -8,6 +8,7 @@ namespace NYT::NYqlPlugin {
 
 void ExtYtflow(
     const NYql::TGatewaysConfig& gatewaysConfig,
+    const NYql::TStaticGatewaysConfig& staticGatewaysConfig,
     const NKikimr::NMiniKQL::IFunctionRegistry* funcRegistry,
     TVector<NYql::TDataProviderInitializer>& dataProvidersInit,
     const NYql::TFileStoragePtr& fileStorage)
@@ -17,7 +18,9 @@ void ExtYtflow(
             .FunctionRegistry = funcRegistry,
             .FileStorage = fileStorage,
             .Config = std::make_shared<NYql::TYtflowGatewayConfig>(
-                gatewaysConfig.GetYtflow())
+                gatewaysConfig.GetYtflow()),
+            .StaticConfig = std::make_shared<NYql::TYtflowStaticGatewayConfig>(
+                staticGatewaysConfig.GetYtflow())
         });
 
         dataProvidersInit.push_back(

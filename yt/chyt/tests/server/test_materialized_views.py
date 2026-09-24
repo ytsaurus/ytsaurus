@@ -10,6 +10,7 @@ from yt_queue_agent_test_base import TestQueueAgentBase as _QueueAgentTestBase
 
 import yt.yson as yson
 
+import pytest
 import threading
 import time
 
@@ -61,6 +62,38 @@ class MaterializedViewsTestBase:
             for key in ("object_id", "next_row_index", "total_row_count")
         }
 
+    def _check_populate(self, source_expression, append_rows):
+        initial_rows = [{"key": i, "value": str(i)} for i in range(3)]
+        new_rows = [{"key": 3, "value": "3"}]
+        append_rows(initial_rows)
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100, "max_rows_per_refresh": 1}}}
+        with Clique(1, config_patch=config_patch) as clique:
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock("//tmp/target", mode="exclusive", tx=transaction_id)
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
+                    f'AS SELECT key, value FROM {source_expression}',
+                    settings={"chyt.materialized_view_populate": 1})
+                view_id = get(self._statement_path(clique) + "/@id")
+                progress_path = clique.materialized_views_path + "/progress/" + view_id
+                partitions = get(progress_path)["partitions"]
+                assert all(partition["next_row_index"] == 0 for partition in partitions)
+                assert sum(partition["total_row_count"] for partition in partitions) == len(initial_rows)
+                assert read_table("//tmp/target") == []
+            finally:
+                abort_transaction(transaction_id)
+
+            def target_rows():
+                return sorted(read_table("//tmp/target"), key=lambda row: row["key"])
+
+            wait(lambda: target_rows() == initial_rows)
+            append_rows(new_rows)
+            wait(lambda: target_rows() == initial_rows + new_rows)
+            wait(lambda: all(
+                partition["next_row_index"] == partition["total_row_count"]
+                for partition in get(progress_path)["partitions"]))
+
 
 class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
     # NB: ClickHouseTestBase forwards test_name/run_id, which TestQueueAgentBase.setup_class does not accept.
@@ -70,6 +103,19 @@ class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
 
 
 class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
+    @authors("buyval01")
+    @pytest.mark.parametrize("table_range", [False, True])
+    def test_populate(self, table_range):
+        source_path = "//tmp/source"
+        source_expression = '"//tmp/source"'
+        if table_range:
+            create("map_node", "//tmp/source_directory")
+            source_path = "//tmp/source_directory/part"
+            create("table", source_path, attributes={"schema": self.SCHEMA})
+            create("table", "//tmp/source_directory/empty", attributes={"schema": self.SCHEMA})
+            source_expression = 'concatYtTablesRange("//tmp/source_directory")'
+        self._check_populate(source_expression, lambda rows: write_table("<append=%true>" + source_path, rows))
+
     @authors("buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
@@ -314,6 +360,87 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             wait(lambda: len(get_refresh_queries()) == len(expected_rows))
 
     @authors("buyval01")
+    @pytest.mark.parametrize("partition_limit", [0, 1, 2, 10])
+    @pytest.mark.parametrize("idle_partition", [False, True])
+    def test_partition_refresh_round_limit(self, partition_limit, idle_partition):
+        create("map_node", "//tmp/source_directory")
+        partition_count = 5
+        source_rows = {}
+        for index in range(partition_count):
+            path = f"//tmp/source_directory/{index}"
+            source_id = create("table", path, attributes={"schema": self.SCHEMA})
+            row = None if idle_partition and index == 0 else {"key": index, "value": str(index)}
+            source_rows[source_id] = row
+            if row is not None:
+                write_table(path, [row])
+        failed_index = int(idle_partition)
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "materialized_view_consumer_commit_breakpoint": get_breakpoint_node("refresh_round"),
+                        "fail_materialized_view_refresh_query_response_for_partition": failed_index,
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 100,
+                    "max_partitions_per_refresh": partition_limit,
+                    "max_rows_per_refresh": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock("//tmp/target", mode="exclusive", tx=transaction_id)
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
+                    'AS SELECT key, value FROM concatYtTablesRange("//tmp/source_directory")',
+                    settings={"chyt.materialized_view_populate": 1})
+                view_id = get(self._statement_path(clique) + "/@id")
+                progress_path = clique.materialized_views_path + "/progress/" + view_id
+                progress = get(progress_path)
+                partitions = progress["partitions"]
+                partition_rows = [source_rows[partition["object_id"]] for partition in partitions]
+                assert progress["next_partition_index"] == 0
+                assert all(partition["next_row_index"] == 0 for partition in partitions)
+                assert sum(partition["total_row_count"] for partition in partitions) == (
+                    partition_count - int(idle_partition))
+                assert read_table("//tmp/target") == []
+            finally:
+                abort_transaction(transaction_id)
+
+            wait_breakpoint("refresh_round")
+            try:
+                progress = get(progress_path)
+                partitions = progress["partitions"]
+                task_indexes = [index for index, row in enumerate(partition_rows) if row is not None]
+                task_indexes = task_indexes[:partition_limit or partition_count]
+                if failed_index in task_indexes:
+                    assert partitions[failed_index]["last_error"]
+                final_offsets = [
+                    int(row is not None and index != failed_index)
+                    for index, row in enumerate(partition_rows)
+                ]
+                first_offsets = [
+                    offset if index in task_indexes else 0
+                    for index, offset in enumerate(final_offsets)
+                ]
+                assert [partition["next_row_index"] for partition in partitions] == first_offsets
+                assert progress["next_partition_index"] == (task_indexes[-1] + 1) % partition_count
+                assert len(read_table("//tmp/target")) == sum(first_offsets)
+            finally:
+                release_breakpoint("refresh_round")
+
+            wait(lambda: [partition["next_row_index"] for partition in get(progress_path)["partitions"]]
+                 == final_offsets)
+            expected_rows = sorted(
+                (row for row, offset in zip(partition_rows, final_offsets) if offset),
+                key=lambda row: row["key"])
+            assert sorted(read_table("//tmp/target"), key=lambda row: row["key"]) == expected_rows
+
+    @authors("buyval01")
     def test_table_range_background_refresh(self):
         create("map_node", "//tmp/source_directory")
         create("table", "//tmp/source_directory/initial", attributes={"schema": self.SCHEMA})
@@ -534,9 +661,18 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             {"name": "key", "type": "int64"},
             {"name": "value", "type": "int64"},
         ]
+        create("map_node", "//tmp/source_directory")
+        create("table", "//tmp/source_directory/good", attributes={"schema": self.SCHEMA})
+        create("table", "//tmp/source_directory/bad", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/int_target", attributes={"schema": int_schema})
         config_patch = {
             "yt": {
+                "settings": {
+                    "testing": {
+                        "materialized_view_consumer_commit_breakpoint":
+                            get_breakpoint_node("refresh_commit"),
+                    },
+                },
                 "materialized_views": {
                     "scan_period": 100,
                 },
@@ -546,32 +682,71 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
             clique.make_query(
                 'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
-                'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"')
+                'AS SELECT key, accurateCast(value, \'Int64\') AS value '
+                'FROM concatYtTablesRange("//tmp/source_directory")')
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
-            initial_last_update = get(progress_path)["partitions"][0].get("last_update")
+            good_part_id = get("//tmp/source_directory/good/@id")
+            bad_part_id = get("//tmp/source_directory/bad/@id")
 
-            write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
+            good_rows = [{"key": 1, "value": 42}]
+            # Use the target lock as a barrier so both source partitions are written before refresh starts.
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock_id = lock("//tmp/int_target", mode="exclusive", tx=transaction_id, waitable=True)["lock_id"]
+                wait(lambda: get(f"#{lock_id}/@state") == "acquired")
+                write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
+                write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
+            finally:
+                abort_transaction(transaction_id)
 
-            wait(
-                lambda: bool(get(progress_path)["last_error"]),
-                ignore_exceptions=True,
-                timeout=10)
-            assert read_table("//tmp/int_target") == []
-            progress = get(progress_path)
-            partition = progress["partitions"][0]
-            assert partition["next_row_index"] == 0
-            assert partition.get("last_update") == initial_last_update
-            assert partition["last_error"] == ""
+            wait_breakpoint("refresh_commit")
+            try:
+                assert read_table("//tmp/int_target") == good_rows
+                progress = get(progress_path)
+                partitions = {partition["object_id"]: partition for partition in progress["partitions"]}
+                assert progress["last_error"] == ""
+                assert partitions[good_part_id]["next_row_index"] == 1
+                assert partitions[good_part_id]["last_update"]
+                assert partitions[good_part_id]["last_error"] == ""
+                assert partitions[bad_part_id]["next_row_index"] == 0
+                assert not partitions[bad_part_id].get("last_update")
+                assert partitions[bad_part_id]["last_error"]
+                progress_revision = get(progress_path + "/@revision")
+            finally:
+                release_breakpoint("refresh_commit")
 
-            expected_rows = [{"key": 2, "value": 42}]
-            write_table("//tmp/source", [{"key": 2, "value": "42"}])
+            for _ in range(2):
+                wait(lambda: get(progress_path + "/@revision") > progress_revision, timeout=10)
+                assert get(progress_path)["last_error"] == ""
+                progress_revision = get(progress_path + "/@revision")
+            assert read_table("//tmp/int_target") == good_rows
+
+            write_table("<append=%true>//tmp/source_directory/good", [{"key": 3, "value": "invalid"}])
+            wait(lambda: all(partition["last_error"] for partition in get(progress_path)["partitions"]), timeout=10)
+            assert get(progress_path)["last_error"] == "All materialized view partitions are in a failed state"
+            assert read_table("//tmp/int_target") == good_rows
+
+            expected_rows = good_rows + [{"key": 2, "value": 43}]
+            write_table("//tmp/source_directory/bad", [{"key": 2, "value": "43"}])
             wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
             progress = get(progress_path)
-            partition = progress["partitions"][0]
+            partitions = {partition["object_id"]: partition for partition in progress["partitions"]}
             assert progress["last_error"] == ""
-            assert partition["last_error"] == ""
-            assert partition["last_update"] != initial_last_update
+            assert partitions[bad_part_id]["next_row_index"] == 1
+            assert partitions[bad_part_id]["last_update"]
+            assert partitions[bad_part_id]["last_error"] == ""
+            assert partitions[good_part_id]["last_error"]
+
+            write_table("//tmp/source_directory/good", [
+                {"key": 1, "value": "42"},
+                {"key": 3, "value": "44"},
+            ])
+            expected_rows += [{"key": 3, "value": 44}]
+            wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
+            progress = get(progress_path)
+            assert progress["last_error"] == ""
+            assert all(not partition["last_error"] for partition in progress["partitions"])
 
     @authors("buyval01")
     def test_background_refresh_parent_transaction_abort(self):
@@ -685,6 +860,13 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             enable_cumulative_data_weight_column=False,
             schema=self.SCHEMA,
             enable_dynamic_store_read=True)
+
+    @authors("buyval01")
+    def test_populate_queue(self):
+        self._create_queue_source(partition_count=2)
+        self._check_populate('"//tmp/source"', lambda rows: insert_rows("//tmp/source", [
+            {"$tablet_index": row["key"] % 2, **row} for row in rows
+        ]))
 
     @authors("buyval01")
     def test_queue_consumer_is_initialized_by_coordinator(self):
@@ -822,6 +1004,103 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
                 row["offset"]
                 for row in select_rows("[offset] from [{}]".format(consumer_path))
             ) == [3, 3])
+
+    @authors("buyval01")
+    def test_background_refresh_from_queue_handles_partition_failure(self):
+        self._create_queue_source(partition_count=2)
+        int_schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "int64"},
+        ]
+        create("table", "//tmp/int_target", attributes={"schema": int_schema})
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(
+                'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
+                'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"',
+                settings={"chyt.dynamic_table.enable_dynamic_store_read": 1})
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            insert_rows("//tmp/source", [
+                {"$tablet_index": 0, "key": 1, "value": "not-an-integer"},
+                {"$tablet_index": 1, "key": 2, "value": "42"},
+            ])
+
+            wait(lambda: read_table("//tmp/int_target") == [{"key": 2, "value": 42}], timeout=10)
+            progress = get(progress_path)
+            partitions = {
+                partition["partition_index"]: partition
+                for partition in progress["partitions"]
+            }
+            assert partitions[0]["next_row_index"] == 0
+            assert partitions[0]["last_error"]
+            assert partitions[1]["next_row_index"] == 1
+            assert partitions[1]["last_error"] == ""
+
+            def get_consumer_offsets():
+                return {
+                    row["partition_index"]: row["offset"]
+                    for row in select_rows("* from [{}]".format(consumer_path))
+                }
+
+            wait(lambda: get_consumer_offsets().get(1) == 1)
+            assert get_consumer_offsets().get(0, 0) == 0
+
+    @authors("buyval01")
+    def test_background_refresh_lost_query_response(self):
+        self._create_queue_source(partition_count=2)
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "fail_materialized_view_refresh_query_response_for_partition": 0,
+                    },
+                },
+                "materialized_views": {"scan_period": 100},
+            },
+        }
+
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+            target_id = get("//tmp/target/@id")
+            insert_rows("//tmp/source", [
+                {"$tablet_index": 0, "key": 1, "value": "lost response"},
+                {"$tablet_index": 1, "key": 2, "value": "success"},
+            ])
+
+            def get_partitions():
+                return {
+                    partition["partition_index"]: partition
+                    for partition in get(progress_path)["partitions"]
+                }
+
+            wait(lambda: get_partitions()[1]["next_row_index"] == 1, timeout=10)
+            wait(lambda: len([
+                row for row in read_table(clique.query_log_table_path)
+                if row.get("type") == "QueryFinish"
+                and row.get("is_initial_query") == 1
+                and target_id in row.get("query", "")
+            ]) >= 3)
+
+            assert read_table("//tmp/target") == [{"key": 2, "value": "success"}]
+            partitions = get_partitions()
+            assert partitions[0]["next_row_index"] == 0
+            assert "Testing lost" in partitions[0]["last_error"]
+
+            def get_consumer_offsets():
+                return {
+                    row["partition_index"]: row["offset"]
+                    for row in select_rows("* from [{}]".format(consumer_path))
+                }
+
+            wait(lambda: get_consumer_offsets().get(1) == 1)
+            assert get_consumer_offsets().get(0, 0) == 0
 
     @authors("buyval01")
     def test_queue_consumer_recovers_after_master_commit(self):

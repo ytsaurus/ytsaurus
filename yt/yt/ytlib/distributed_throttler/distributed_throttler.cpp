@@ -686,9 +686,9 @@ private:
 
         const auto& memberId = request->member_id();
 
-        context->SetRequestInfo("MemberId: %v, ThrottlerCount: %v",
-            memberId,
-            request->throttlers().size());
+        context->AnnotateRequest()
+            .With("MemberId", memberId)
+            .With("ThrottlerCount", request->throttlers().size());
 
         if (!request->throttlers().empty()) {
             // Get usages of member's throttlers.
@@ -714,9 +714,8 @@ private:
             UpdateMemberThrottlersLocalUsage(memberId, std::move(throttlerIdToLocalUsage));
         }
 
-        context->SetResponseInfo("MemberId: %v, ThrottlerCount: %v",
-            memberId,
-            response->throttlers().size());
+        context->AnnotateResponse()
+            .With("ThrottlerCount", response->throttlers().size());
 
         context->Reply();
     }
@@ -735,9 +734,9 @@ private:
         const auto& throttlerId = request->throttler_id();
         auto amount = request->amount();
 
-        context->SetRequestInfo("ThrottlerId: %v, Amount: %v",
-            throttlerId,
-            amount);
+        context->AnnotateRequest()
+            .With("ThrottlerId", throttlerId)
+            .With("Amount", amount);
 
         Throttle(throttlerId, amount).Subscribe(BIND([=] (const TError& error) {
             context->Reply(error);

@@ -6,12 +6,222 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSpackStartTimeObjectLayout(t *testing.T) {
+	if unsafe.Sizeof(uintptr(0)) != 8 {
+		t.Skip("64-bit layout check")
+	}
+	require.Equal(t, uintptr(48), unsafe.Sizeof(baseMetric{}))
+	require.Equal(t, uintptr(40), unsafe.Sizeof(MetricsOpts{}))
+}
+
+func TestSpackVersion13(t *testing.T) {
+	counter := NewCounter("requests", 42, WithRated(true), WithMemOnly(),
+		WithTimestamp(time.Unix(0x11223344, 0)),
+		WithTags(map[string]string{"host": "a\x00b", "sensor": "r\x00q"}))
+	metrics := NewMetrics([]Metric{counter.Snapshot()},
+		WithTimestamp(time.Unix(0x55667788, 0)),
+		WithCommonLabels(map[string]string{"host": "a\x00b"}))
+
+	// Layout from monlib/encode/spack/spack_v1_{encoder,decoder}.cpp:
+	// pool counts in the header and length-delimited strings.
+	expected := []byte{
+		0x53, 0x50, 0x03, 0x01, 0x18, 0x00, 0x00, 0x00,
+		0x02, 0x00, 0x00, 0x00, // name count
+		0x02, 0x00, 0x00, 0x00, // value count
+		0x01, 0x00, 0x00, 0x00, // metric count
+		0x01, 0x00, 0x00, 0x00, // point count
+		4, 'h', 'o', 's', 't', 6, 's', 'e', 'n', 's', 'o', 'r',
+		3, 'a', 0, 'b', 3, 'r', 0, 'q',
+		0x88, 0x77, 0x66, 0x55, // common time
+		1, 0, 0, // common label: host=a\0b
+		0x0e, 0x01, // RATE with timestamp, mem-only
+		1, 1, 1, // metric label: sensor=r\0q (host inherited)
+		0x44, 0x33, 0x22, 0x11, // timestamp
+		42, 0, 0, 0, 0, 0, 0, 0, // value
+	}
+	for _, compression := range []CompressionType{CompressionNone, CompressionLz4} {
+		t.Run(fmt.Sprint(compression), func(t *testing.T) {
+			want := bytes.Clone(expected)
+			want[7] = byte(compression)
+			if compression == CompressionLz4 {
+				want = append(want[:HeaderSize], compress(t, uint8(compression), string(expected[HeaderSize:]))...)
+			}
+			var buf bytes.Buffer
+			n, err := NewSpackEncoder(context.Background(), compression, &metrics, WithVersion13()).Encode(&buf)
+			require.NoError(t, err)
+			require.Equal(t, want, buf.Bytes())
+			require.Equal(t, len(want), n)
+		})
+	}
+}
+
+func TestSpackVersion14(t *testing.T) {
+	const commonStartSeconds uint32 = 0x11223344
+	const metricStartSeconds uint32 = 0x55667788
+	shared := NewCounter("shared", 10, WithRated(true), WithStartTime(commonStartSeconds))
+	gauge := NewGauge("gauge", 1, WithStartTime(metricStartSeconds))
+	own := NewCounter("own", 20, WithRated(true), WithStartTime(metricStartSeconds))
+	withoutStart := NewCounter("none", 30, WithRated(true), WithStartTime(0))
+	metrics := NewMetrics([]Metric{&shared, &gauge, own.Snapshot(), &withoutStart},
+		WithCommonStartTime(time.Unix(int64(commonStartSeconds), 0)))
+
+	expected := []byte{
+		0x53, 0x50, 0x04, 0x01, 0x18, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, // name count
+		0x04, 0x00, 0x00, 0x00, // value count
+		0x04, 0x00, 0x00, 0x00, // metric count
+		0x04, 0x00, 0x00, 0x00, // point count
+		6, 's', 'e', 'n', 's', 'o', 'r',
+		6, 's', 'h', 'a', 'r', 'e', 'd',
+		5, 'g', 'a', 'u', 'g', 'e',
+		3, 'o', 'w', 'n',
+		4, 'n', 'o', 'n', 'e',
+		0, 0, 0, 0, // common time
+		0x44, 0x33, 0x22, 0x11, // common start time
+		0,                // common labels
+		0x0d, 0, 1, 0, 0, // RATE with the common start time
+		10, 0, 0, 0, 0, 0, 0, 0,
+		0x05, 0, 1, 0, 1, // GAUGE ignores its start time
+		0, 0, 0, 0, 0, 0, 0xf0, 0x3f,
+		0x0d, 2, 0x88, 0x77, 0x66, 0x55, 1, 0, 2, // RATE with its own start time
+		20, 0, 0, 0, 0, 0, 0, 0,
+		0x0d, 0, 1, 0, 3, // RATE without a start time
+		30, 0, 0, 0, 0, 0, 0, 0,
+	}
+	for _, compression := range []CompressionType{CompressionNone, CompressionLz4} {
+		t.Run(fmt.Sprint(compression), func(t *testing.T) {
+			want := bytes.Clone(expected)
+			want[7] = byte(compression)
+			if compression == CompressionLz4 {
+				want = append(want[:HeaderSize], compress(t, uint8(compression), string(expected[HeaderSize:]))...)
+			}
+			var buf bytes.Buffer
+			n, err := NewSpackEncoder(context.Background(), compression, &metrics, WithVersion14()).Encode(&buf)
+			require.NoError(t, err)
+			require.Equal(t, want, buf.Bytes())
+			require.Equal(t, len(want), n)
+		})
+	}
+}
+
+func TestSpackVersion14ZeroCommonStartTimeUsesDefault(t *testing.T) {
+	metrics := NewMetrics(nil, WithCommonStartTime(time.Unix(0, 0)))
+	var buf bytes.Buffer
+	_, err := NewSpackEncoder(context.Background(), CompressionNone, &metrics, WithVersion14()).Encode(&buf)
+	require.NoError(t, err)
+	require.Equal(t, packageInitTimeSeconds, binary.LittleEndian.Uint32(buf.Bytes()[HeaderSize+4:]))
+}
+
+func readSpackStringPool(t *testing.T, r *bytes.Reader, count uint32) []string {
+	t.Helper()
+	pool := make([]string, count)
+	for i := range pool {
+		n, err := binary.ReadUvarint(r)
+		require.NoError(t, err)
+		require.LessOrEqual(t, n, uint64(r.Len()))
+		value := make([]byte, int(n))
+		_, err = io.ReadFull(r, value)
+		require.NoError(t, err)
+		pool[i] = string(value)
+	}
+	return pool
+}
+
+func TestSpackVersion13StringPools(t *testing.T) {
+	for _, label := range []string{"", "\x00", "a\x00b", "метрика", strings.Repeat("x", 127),
+		strings.Repeat("x", 128), strings.Repeat("x", 16383), strings.Repeat("x", 16384)} {
+		t.Run(fmt.Sprintf("%d/%q", len(label), label[:min(len(label), 8)]), func(t *testing.T) {
+			g := NewGauge("ignored", 1, WithUseNameTag(), WithTags(map[string]string{"name": label, label: label}))
+			metrics := NewMetrics([]Metric{&g}, WithCommonLabels(map[string]string{label: label}))
+			var buf bytes.Buffer
+			_, err := NewSpackEncoder(context.Background(), CompressionNone, &metrics, WithVersion13()).Encode(&buf)
+			require.NoError(t, err)
+			data := buf.Bytes()
+			require.Equal(t, uint32(2), binary.LittleEndian.Uint32(data[8:12]))
+			require.Equal(t, uint32(1), binary.LittleEndian.Uint32(data[12:16]))
+			r := bytes.NewReader(data[HeaderSize:])
+			require.Equal(t, []string{label, "name"}, readSpackStringPool(t, r, 2))
+			require.Equal(t, []string{label}, readSpackStringPool(t, r, 1))
+			rest, err := io.ReadAll(r)
+			require.NoError(t, err)
+			require.Equal(t, []byte{
+				0, 0, 0, 0, // common time
+				1, 0, 0, // common label
+				5, 0, 1, 1, 0, // GAUGE, flags, name=label
+				0, 0, 0, 0, 0, 0, 0xf0, 0x3f, // 1.0
+			}, rest)
+		})
+	}
+}
+
+func TestSpackVersion13SeriesAndPoolIndexes(t *testing.T) {
+	const count = 130 // Pool indexes cross the one-byte ULEB128 boundary.
+	list := make([]Metric, count)
+	values := make([]string, count)
+	for i := range list {
+		values[i] = fmt.Sprintf("m%d", i)
+		s := NewCounterSeries(values[i], []CounterPoint{
+			{Timestamp: time.Unix(2000, 0), Value: 42},
+			{Timestamp: time.Unix(2001, 0), Value: 43},
+		}, WithRated(true))
+		list[i] = &s
+	}
+	metrics := NewMetrics(list)
+	var buf bytes.Buffer
+	_, err := NewSpackEncoder(context.Background(), CompressionNone, &metrics, WithVersion13()).Encode(&buf)
+	require.NoError(t, err)
+	data := buf.Bytes()
+	require.Equal(t, uint32(1), binary.LittleEndian.Uint32(data[8:12]))
+	require.Equal(t, uint32(count), binary.LittleEndian.Uint32(data[12:16]))
+	require.Equal(t, uint32(count), binary.LittleEndian.Uint32(data[16:20]))
+	require.Equal(t, uint32(2*count), binary.LittleEndian.Uint32(data[20:24]))
+	r := bytes.NewReader(data[HeaderSize:])
+	require.Equal(t, []string{"sensor"}, readSpackStringPool(t, r, 1))
+	require.Equal(t, values, readSpackStringPool(t, r, count))
+	common := make([]byte, 5)
+	_, err = io.ReadFull(r, common)
+	require.NoError(t, err)
+	require.Equal(t, make([]byte, 5), common)
+	for i := range list {
+		prefix := make([]byte, 4)
+		_, err = io.ReadFull(r, prefix)
+		require.NoError(t, err)
+		require.Equal(t, []byte{0x0f, 0, 1, 0}, prefix) // RATE series, flags, label count and name index
+		index, err := binary.ReadUvarint(r)
+		require.NoError(t, err)
+		require.Equal(t, uint64(i), index)
+		points := make([]byte, 25)
+		_, err = io.ReadFull(r, points)
+		require.NoError(t, err)
+		require.Equal(t, []byte{
+			2,
+			0xd0, 7, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0,
+			0xd1, 7, 0, 0, 43, 0, 0, 0, 0, 0, 0, 0,
+		}, points)
+	}
+	require.Zero(t, r.Len())
+}
+
+func TestSpackVersion13Empty(t *testing.T) {
+	for _, metrics := range []*Metrics{nil, {}} {
+		var buf bytes.Buffer
+		n, err := NewSpackEncoder(context.Background(), CompressionNone, metrics, WithVersion13()).Encode(&buf)
+		require.NoError(t, err)
+		require.Equal(t, 29, n) // header, common time, label count
+		expected := make([]byte, 29)
+		copy(expected, []byte{0x53, 0x50, 0x03, 0x01, 24, 0})
+		require.Equal(t, expected, buf.Bytes())
+	}
+}
 
 func Test_metrics_encode(t *testing.T) {
 	expectHeader := []byte{

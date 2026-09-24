@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "master_table_schema.h"
-#include "secondary_index.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -11,6 +10,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
+
+#include <yt/yt/server/lib/tablet_server/public.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 

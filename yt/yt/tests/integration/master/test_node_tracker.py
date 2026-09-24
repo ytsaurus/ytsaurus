@@ -535,6 +535,7 @@ class TestRackDataCenterCells(TestRackDataCenter):
 
 ################################################################################
 
+
 class TestNodesThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 3

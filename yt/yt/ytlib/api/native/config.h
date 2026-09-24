@@ -271,6 +271,7 @@ struct TConnectionDynamicConfig
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
     NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
+    NChaosClient::TChaosLeaseCacheDynamicConfigPtr ChaosLeaseCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;

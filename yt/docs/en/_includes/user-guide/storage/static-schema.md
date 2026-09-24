@@ -72,14 +72,14 @@ The order between different types is not specified. For example, it makes no sen
 ### Schema examples { #schema_examples }
 
 {% cut "Schema of a static table after creation (unless explicitly stated otherwise)" %}
-  ```
+  ```yson
   <strict=%false>[]
   ```
 {% endcut %}
 
 {% cut "Automatically output schema for a table sorted by `key1; key2`." %}
 
-  ```
+  ```yson
   <strict=%false>[
     {
         name = "key1";
@@ -103,7 +103,7 @@ The order between different types is not specified. For example, it makes no sen
 {% endcut %}
 
 {% cut "Example of a schema for a sorted table." %}
-  ```
+  ```yson
   [
     {
       name = "key";
@@ -123,7 +123,7 @@ The order between different types is not specified. For example, it makes no sen
 
 {% cut "Example of a schema with grouping for columns that are often used together." %}
 
-  ```
+  ```yson
   [
     {
       name = "key";
@@ -146,7 +146,7 @@ The order between different types is not specified. For example, it makes no sen
 
 {% cut "Example of a schema for a table with logs." %}
 
-  ```
+  ```yson
   <strict=%false>[
    {
       "name" = "id";

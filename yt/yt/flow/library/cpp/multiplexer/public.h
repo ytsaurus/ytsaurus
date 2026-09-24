@@ -18,6 +18,9 @@ using TEmptyMultiplexerUserStatePtr = TIntrusivePtr<TEmptyMultiplexerUserState>;
 struct TDynamicTableMultiplexerParameters;
 using TDynamicTableMultiplexerParametersPtr = TIntrusivePtr<TDynamicTableMultiplexerParameters>;
 
+struct TDynamicMultiplexerParameters;
+using TDynamicMultiplexerParametersPtr = TIntrusivePtr<TDynamicMultiplexerParameters>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow

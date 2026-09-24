@@ -6,6 +6,26 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+namespace NYT::NRpc::NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBalancingExt;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NRpc::NProto
+
+namespace NYT::NYTree::NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingHeaderExt;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYTree::NProto
+
 namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +35,7 @@ NYT::NRpc::IChannelPtr CreateChaosCacheChannel(
     TChaosCacheChannelConfigPtr config);
 
 void SetChaosCacheStickyGroupBalancingHint(
-    const TReplicationCardId& replicationCardId,
+    const TChaosObjectId& chaosObjectId,
     NRpc::NProto::TBalancingExt* balancingHeaderExt);
 
 void SetChaosCacheCachingHeader(

@@ -694,7 +694,10 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
     YT_VERIFY(peerState.InFlightMutationDataSize >= 0);
 
     if (!rspOrError.IsOK()) {
-        YT_TLOG_EVENT(Logger, IsChannelFailureError(rspOrError) ? ELogLevel::Debug : ELogLevel::Warning, "Error logging mutations at follower")
+        YT_TLOG_EVENT(
+            Logger,
+            IsChannelFailureError(rspOrError) ? ELogLevel::Debug : ELogLevel::Warning,
+            "Error logging mutations at follower")
             .With("FollowerId", followerId)
             .With(rspOrError);
 

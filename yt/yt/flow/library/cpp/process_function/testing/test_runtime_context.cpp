@@ -109,9 +109,15 @@ TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetSpec(TComputationSpec
     return *this;
 }
 
-TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetDynamicParametersNode(IMapNodePtr node)
+TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetProcessingFunction(std::string name)
 {
-    DynamicParametersNode_ = std::move(node);
+    ProcessingFunction_ = std::move(name);
+    return *this;
+}
+
+TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetDynamicParameters(const TYsonStructPtr& parameters)
+{
+    DynamicParametersNode_ = ConvertTo<IMapNodePtr>(parameters);
     return *this;
 }
 
@@ -140,6 +146,12 @@ IRuntimeContextPtr TTestRuntimeContextBuilder::Build() const
             spec->OutputStreamIds.insert(streamId);
         }
     }
+    if (ProcessingFunction_) {
+        spec->ProcessingFunction = ProcessingFunction_;
+    }
+    THROW_ERROR_EXCEPTION_UNLESS(!DynamicParametersNode_ || spec->ProcessingFunction,
+        "Dynamic parameters parse into the type registered for the processing function; "
+        "name one via SetProcessingFunction");
 
     // Reuse the production runtime context so tests track production behavior exactly.
     auto context = New<TComputationRuntimeContext>(

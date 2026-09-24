@@ -307,6 +307,14 @@ class TestComputation(FlowTestBase):
         states = self.client.read_states(self.pipeline_path, computation_id="reader", limit=1000)
         return {entry["key"][1] for entry in states["key_states"]}
 
+    def _reader_sink_state_identities(self):
+        states = self.client.read_states(self.pipeline_path, computation_id="reader", limit=1000)
+        return {
+            entry["key"][1]
+            for entry in states["key_states"]
+            if any(name.startswith("/sinks/") for name in entry["states"])
+        }
+
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize("restart_federation", [False, True], ids=["live_controller", "restarted_controller"])
     def test_source_change_erases_old_state(self, restart_federation):
@@ -331,7 +339,7 @@ class TestComputation(FlowTestBase):
             # The original source read its partitions and persisted their per-source-key state.
             original_identities = self._layout_identities()
             assert original_identities, "expected at least one source partition"
-            wait(lambda: self._reader_state_identities() & original_identities, timeout=180)
+            wait(lambda: self._reader_sink_state_identities() & original_identities, timeout=180)
 
             self.client.stop_pipeline(self.pipeline_path)
             self.wait_pipeline_state("stopped")

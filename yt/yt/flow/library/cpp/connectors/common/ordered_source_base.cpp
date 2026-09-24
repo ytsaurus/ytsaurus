@@ -91,6 +91,19 @@ void TOrderedSourcePartitionState::SyncObsoleteOffsets()
     }
 }
 
+void TOrderedSourcePartitionState::NormalizeOffsets(
+    const std::function<TOffset(const TOffset&)>& normalizeOffset)
+{
+    CommittedOffsetExclusive = normalizeOffset(CommittedOffsetExclusive);
+    PersistedOffsetExclusive = normalizeOffset(PersistedOffsetExclusive);
+    PublishedOffsetExclusive = normalizeOffset(PublishedOffsetExclusive);
+    MaxOffsetExclusive = normalizeOffset(MaxOffsetExclusive);
+
+    // OffsetMemory keys remain version-specific. Switching formats with nonempty memory is readable,
+    // but a completed drain is required to preserve replay sequence numbers and exactly-once semantics.
+    EnsureInvariants();
+}
+
 void TOrderedSourcePartitionState::Register(TRegistrar registrar)
 {
     registrar.Parameter("committed_offset_exclusive", &TThis::CommittedOffsetExclusiveObsolete)
@@ -214,6 +227,14 @@ void TOrderedSourceBase::TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclu
         }
         State_->MaxOffsetIsConfirmed |= confirmed;
     }
+
+    if (confirmed && !SourceMaxOffsetObserved_ && newMaxOffsetExclusive == State_->MaxOffsetExclusive) {
+        // The first observed maximum is inventory, not an arrival interval.
+        auto now = TInstant::Now();
+        SourceTotalCount_.ResetRate(now);
+        SourceTotalBytes_.ResetRate(now);
+        SourceMaxOffsetObserved_ = true;
+    }
 }
 
 TOrderedSourceBase::TOrderedSourceBase(
@@ -236,6 +257,10 @@ void TOrderedSourceBase::Init(IInitContextPtr initContext)
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
     initContext->InitClient<TOrderedSourcePartitionState>(State_, "v0");
+
+    State_->NormalizeOffsets([this] (const TOffset& offset) {
+        return NormalizeOffset(offset);
+    });
 
     NextReadOffset_ = State_->PersistedOffsetExclusive;
     ReadEventWatermark_ = State_->PersistedEventWatermark;
@@ -349,11 +374,9 @@ std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimesta
     return State_->LastPersistedWriteTimestamp;
 }
 
-bool TOrderedSourceBase::AreOffsetsEquivalent(const TOffset& lhs, const TOffset& rhs) const
+TOffset TOrderedSourceBase::NormalizeOffset(const TOffset& offset) const
 {
-    return lhs == rhs ||
-        ConvertOffsetToLexicographicallyComparableString(lhs) ==
-        ConvertOffsetToLexicographicallyComparableString(rhs);
+    return offset;
 }
 
 void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
@@ -558,9 +581,7 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
 
     std::optional<TOffset> offsetLimitExclusive;
     if (IsDraining()) {
-        const bool publishedOffsetReached =
-            NextReadOffset_ >= State_->PublishedOffsetExclusive ||
-            AreOffsetsEquivalent(NextReadOffset_, State_->PublishedOffsetExclusive);
+        const bool publishedOffsetReached = NextReadOffset_ >= State_->PublishedOffsetExclusive;
         if (publishedOffsetReached) {
             return MakeFuture<std::vector<ISource::TMessageBatch>>({});
         } else {
@@ -653,7 +674,7 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     const bool wasEmptyRecently = State_->CommittedOffsetExclusive == State_->MaxOffsetExclusive &&
         State_->MaxOffsetIsConfirmed;
     inflight->Empty = wasEmptyRecently && IsFinite();
-    inflight->Suspended = AreOffsetsEquivalent(State_->CommittedOffsetExclusive, State_->PublishedOffsetExclusive) &&
+    inflight->Suspended = State_->CommittedOffsetExclusive == State_->PublishedOffsetExclusive &&
         (IsDraining() || inflight->Empty);
 
     const i64 offsetLag = DoGetEstimatedRowsAtOffset(State_->MaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(State_->CommittedOffsetExclusive);
@@ -676,8 +697,10 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
         inflight->InflightMetrics->LastIdleTimestamp = TSystemTimestamp(State_->LastIdleInstant.Seconds());
     }
 
-    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
-    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
+    if (SourceMaxOffsetObserved_) {
+        inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
+        inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
+    }
     if (auto backlogRate = EstimateBacklogRate()) {
         inflight->InflightMetrics->NewCountPerSec = std::max(
             inflight->InflightMetrics->NewCountPerSec.value_or(0),
@@ -705,11 +728,15 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     }
 
     YT_VERIFY(inflight->InflightMetrics->Count >= 0);
+    AdjustInflight(inflight);
     YT_TLOG_INFO("Built source inflight")
         .With("Inflight", NYson::ConvertToYsonString(inflight, NYson::EYsonFormat::Text))
         .With("State", NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text));
     return inflight;
 }
+
+void TOrderedSourceBase::AdjustInflight(const TInflightStreamTraverseDataPtr& /*inflight*/)
+{ }
 
 std::optional<TSystemTimestamp> TOrderedSourceBase::GetPersistedEventWatermark()
 {
@@ -759,9 +786,37 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
-    const bool empty = records.empty();
+    if (records.empty()) {
+        CleanUpInflightOffsets();
+        return {};
+    }
+
+    std::vector<TOffset> nextOffsets;
+    nextOffsets.reserve(records.size());
+    for (i64 recordIndex = 0; recordIndex < std::ssize(records); ++recordIndex) {
+        const auto& nextOffset = nextOffsets.emplace_back(GetNextOffset(records[recordIndex].Offset));
+        YT_TLOG_FATAL_UNLESS(records[recordIndex].Offset < nextOffset,
+            "Next record offset must advance")
+            .With("RecordOffset", records[recordIndex].Offset)
+            .With("NextOffset", nextOffset);
+        if (recordIndex + 1 < std::ssize(records)) {
+            YT_TLOG_FATAL_UNLESS(nextOffset <= records[recordIndex + 1].Offset,
+                "Record offsets must be ordered and non-overlapping")
+                .With("RecordOffset", records[recordIndex].Offset)
+                .With("NextOffset", nextOffset)
+                .With("FollowingRecordOffset", records[recordIndex + 1].Offset);
+        }
+    }
 
     auto seqNoProviderResult = NConcurrency::WaitFor(GetContext()->TimeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
+    YT_TLOG_FATAL_UNLESS(records.front().Offset >= NextReadOffset_,
+        "Record offset must not precede the next read offset")
+        .With("RecordOffset", records.front().Offset)
+        .With("NextReadOffset", NextReadOffset_);
+    YT_TLOG_FATAL_UNLESS(records.front().Offset >= State_->PersistedOffsetExclusive,
+        "Record offset must not precede the persisted boundary")
+        .With("RecordOffset", records.front().Offset)
+        .With("PersistedOffsetExclusive", State_->PersistedOffsetExclusive);
 
     auto minWriteTimestamp = InfinitySystemTimestamp;
     for (auto& record : records) {
@@ -771,21 +826,16 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
     std::vector<ISource::TMessageBatch> parsedMessages;
     for (i64 recordIndex = 0; recordIndex < std::ssize(records); ++recordIndex) {
         auto& record = records[recordIndex];
-        const bool isLastRecord = (recordIndex + 1 == std::ssize(records));
-        YT_VERIFY(record.Offset >= State_->PersistedOffsetExclusive);
-        YT_VERIFY(record.Offset >= NextReadOffset_,
-            Format("Record offset is out of range (Record: %v, NextReadOffset: %v)",
-            NYson::ConvertToYsonString(record.Offset, NYson::EYsonFormat::Text),
-            NextReadOffset_));
-        // Avoid allocating TUnversionedOwningRow for non-last records — use the next record's
-        // offset directly, since it equals GetNextOffset of the current record.
-        NextReadOffset_ = isLastRecord ? GetNextOffset(record.Offset) : records[recordIndex + 1].Offset;
+        NextReadOffset_ = nextOffsets[recordIndex];
         if (record.Meta && record.Meta->EventWatermark) {
             ReadEventWatermark_ = std::max(ReadEventWatermark_, record.Meta->EventWatermark);
         }
 
-        State_->OffsetMemory->Register(record.Offset, seqNoProviderResult.UniqueSeqNo);
-        auto extractedUniqueSeqNo = State_->OffsetMemory->Extract(record.Offset);
+        const auto& offsetMemoryKey = record.OffsetMemoryKey
+            ? *record.OffsetMemoryKey
+            : record.Offset;
+        State_->OffsetMemory->Register(offsetMemoryKey, seqNoProviderResult.UniqueSeqNo);
+        auto extractedUniqueSeqNo = State_->OffsetMemory->Extract(offsetMemoryKey);
         YT_TLOG_FATAL_UNLESS(seqNoProviderResult.UniqueSeqNo >= extractedUniqueSeqNo,
             "Expected that new generated unique seq no is greater than persisted")
             .With("NewGeneratedUniqueSeqNo", seqNoProviderResult.UniqueSeqNo)
@@ -885,11 +935,9 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
         }
         TryCollapseOffsetInfo(std::prev(InflightOffsets_.end()));
     }
-    if (!empty) {
-        State_->LastNotIdleInstant = TInstant::Now();
-        State_->LastIdleInstant = TInstant::Zero();
-        TryIncreaseMaxOffsetExclusive(NextReadOffset_, false);
-    }
+    State_->LastNotIdleInstant = TInstant::Now();
+    State_->LastIdleInstant = TInstant::Zero();
+    TryIncreaseMaxOffsetExclusive(NextReadOffset_, false);
     CleanUpInflightOffsets();
     return parsedMessages;
 }
@@ -898,8 +946,7 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
 
 TOffset TIntegerOffsetOrderedSourceBase::GetNextOffset(const TOffset& offset) const
 {
-    i64 intOffset = OffsetToInt(offset);
-    return IntToOffset(intOffset + 1);
+    return IntToOffset(OffsetToInt(offset) + 1);
 }
 
 std::string TIntegerOffsetOrderedSourceBase::ConvertOffsetToLexicographicallyComparableString(const TOffset& offset) const

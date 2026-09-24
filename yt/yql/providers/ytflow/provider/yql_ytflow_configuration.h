@@ -44,6 +44,7 @@ public:
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
 
     NCommon::TConfSetting<bool, Static> _FiniteStreams;
+    NCommon::TConfSetting<bool, Static> _YtUseSourceWatermark;
 
     NCommon::TConfSetting<uint64_t, Static> ControllerCount;
     NCommon::TConfSetting<double, Static> ControllerCpuLimit;
@@ -89,7 +90,6 @@ public:
     NCommon::TConfSetting<TString, Static> _MonitoringResolverTag;
     NCommon::TConfSetting<TString, Static> _MonitoringProject;
     NCommon::TConfSetting<TString, Static> _MonitoringCluster;
-    NCommon::TConfSetting<TString, Static> _UIOrigin;
 
     NCommon::TConfSetting<uint64_t, Static> YtPartitionCount;
     NCommon::TConfSetting<TDuration, Static> YtTtl;

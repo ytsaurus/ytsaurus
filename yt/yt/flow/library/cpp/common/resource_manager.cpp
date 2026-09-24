@@ -3,13 +3,12 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource.h>
+#include <yt/yt/flow/library/cpp/common/resource_status.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
-#include <yt/yt/flow/library/cpp/misc/ema.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/ema_counter.h>
 #include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/yt/memory/new.h>
@@ -59,47 +58,6 @@ public:
 private:
     const TError Error_;
     const IStatusErrorStatePtr ErrorState_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TResourceStatus
-{
-public:
-    explicit TResourceStatus()
-    { }
-
-    void Update(i64 morePushedToQueue, i64 moreFetchedFromQueue)
-    {
-        QueuePushedTotal_ += morePushedToQueue;
-        QueueFetchedTotal_ += moreFetchedFromQueue;
-        QueuePushCount_.Update(QueuePushedTotal_);
-        QueueFetchCount_.Update(QueueFetchedTotal_);
-        QueueSize_.Set(QueuePushedTotal_ - QueueFetchedTotal_);
-    }
-
-    TWorkerResourceStatusPtr Collect() const
-    {
-        auto status = New<TWorkerResourceStatus>();
-        status->QueueSize30s = QueueSize_.Average()[0];
-        status->QueueSize10m = QueueSize_.Average()[1];
-        status->QueueGrowthRate30s = QueueSize_.GrowthRate()[0];
-        status->QueueGrowthRate10m = QueueSize_.GrowthRate()[1];
-        status->QueuePushRate30s = QueuePushCount_.GetRate(0);
-        status->QueuePushRate10m = QueuePushCount_.GetRate(1);
-        status->QueueFetchRate30s = QueueFetchCount_.GetRate(0);
-        status->QueueFetchRate10m = QueueFetchCount_.GetRate(1);
-        return status;
-    }
-
-private:
-    static constexpr int TimeWindowsCount = 2;
-    static constexpr std::array<TDuration, TimeWindowsCount> TimeWindowDurations = {TDuration::Seconds(30), TDuration::Minutes(10)};
-    i64 QueuePushedTotal_ = 0;
-    i64 QueueFetchedTotal_ = 0;
-    TEmaCounter<double, TimeWindowsCount> QueuePushCount_{{TimeWindowDurations.begin(), TimeWindowDurations.end()}};
-    TEmaCounter<double, TimeWindowsCount> QueueFetchCount_{{TimeWindowDurations.begin(), TimeWindowDurations.end()}};
-    TMultiWindowEma<double, TimeWindowsCount, true> QueueSize_{{TimeWindowDurations}};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,8 +239,10 @@ public:
         {
             auto guard = Guard(Lock_);
 
-            for (const auto& [resourceId, resourceStatus] : ResourceStatuses_) {
-                EmplaceOrCrash(result, resourceId, resourceStatus.Collect());
+            // One instant for the whole snapshot keeps the resources consistent with each other.
+            const auto now = TInstant::Now();
+            for (auto& [resourceId, resourceStatus] : ResourceStatuses_) {
+                EmplaceOrCrash(result, resourceId, resourceStatus.Collect(now));
             }
             // Report resources whose load was scheduled, including a pending initial load.
             for (const auto& [resourceId, future] : ResourcesInitializationFutures_) {

@@ -20,6 +20,20 @@ from yt.yt.tools.pod_size_actualization.optimization.scripts.shared import (
 )
 
 MEDIUM = ContainerType(name="medium", cpu_limit=16.0, mem_limit=100.0, net_limit=400.0)
+EXPECTED_PRODUCTION_CLUSTERS = {
+    "arnold",
+    "freud",
+    "hahn",
+    "keynes",
+    "kolmogorov",
+    "markov",
+    "pythia",
+    "seneca-klg",
+    "seneca-sas",
+    "seneca-vla",
+    "vanga",
+    "zeno",
+}
 
 
 def node(count=10, cpu=1.0, memory=5.0, network=10.0, container_type=MEDIUM, zones=1):
@@ -43,6 +57,10 @@ def test_every_cluster_group_is_priced(group):
     assert sorted(prices) == ["a", "b", "c"]
     assert min(prices.values()) > 0
     assert max(prices.values()) == 1.0
+
+
+def test_all_production_clusters_are_configured():
+    assert set(cfg.cluster_to_group_map()) == EXPECTED_PRODUCTION_CLUSTERS
 
 
 def test_the_most_used_resource_is_the_most_expensive():

@@ -59,7 +59,8 @@ class TRegistry
 {
 public:
     using TParametersFactory = std::function<NYTree::TYsonStructPtr()>;
-    using TProcessFunctionFactory = std::function<IProcessFunctionBasePtr()>;
+    using TProcessFunctionFactory =
+        std::function<IProcessFunctionBasePtr(const TProcessFunctionContextPtr&)>;
     //! Recovers the optional #ISyncProcessFunction mix-in of a function instance without RTTI (a
     //! static cast fixed at registration, where the concrete type is known).
     using TProcessFunctionSyncViewer = std::function<ISyncProcessFunction*(IProcessFunctionBase*)>;
@@ -91,11 +92,23 @@ public:
         const TDynamicComputationContextPtr& dynamicContext);
 
     //! Instantiates the process function registered under |name|. Throws if |name| is unknown.
-    IProcessFunctionBasePtr CreateProcessFunction(const std::string& name) const;
+    IProcessFunctionBasePtr CreateProcessFunction(
+        const std::string& name,
+        const TProcessFunctionContextPtr& context) const;
 
     //! Returns |function|'s sync mix-in if it opted in, else null — resolved without RTTI from the
     //! registration of |name|. |function| must be an instance created by CreateProcessFunction(|name|).
     ISyncProcessFunction* ViewProcessFunctionAsSync(const std::string& name, const IProcessFunctionBasePtr& function) const;
+
+    //! Parses |spec|'s static `processing_function_parameters` into the type its processing
+    //! function registered (an absent block parses as an empty map).
+    NYTree::TYsonStructPtr ParseProcessFunctionParameters(const TComputationSpecPtr& spec) const;
+
+    //! Parses a dynamic `processing_function_parameters` node into the type |spec|'s processing
+    //! function registered (a null |parameters| parses as an empty map).
+    NYTree::TYsonStructPtr ParseDynamicProcessFunctionParameters(
+        const TComputationSpecPtr& spec,
+        const NYTree::IMapNodePtr& parameters) const;
 
     IComputationControllerPtr CreateComputationController(
         const TComputationControllerContextPtr& context,

@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
@@ -35,6 +36,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
     @Nullable
     private final YTreeMapNode config;
 
+    @Nullable
+    private final Compression codec;
+
     public StartShuffle(BuilderBase<?> builder) {
         super(builder);
         this.account = builder.account;
@@ -45,6 +49,7 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         this.schema = builder.schema;
         this.usePushBasedShuffle = builder.usePushBasedShuffle;
         this.config = builder.config;
+        this.codec = builder.codec;
     }
 
     public static StartShuffle.Builder builder() {
@@ -75,6 +80,10 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
         if (config != null) {
             builder.setConfig(ByteString.copyFrom(config.toBinary()));
         }
+
+        if (codec != null) {
+            builder.setCodec(codec.getValue());
+        }
     }
 
     @Override
@@ -86,7 +95,8 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
                 .setReplicationFactor(replicationFactor)
                 .setSchema(schema)
                 .setUsePushBasedShuffle(usePushBasedShuffle)
-                .setConfig(config);
+                .setConfig(config)
+                .setCodec(codec);
     }
 
     public static class Builder extends StartShuffle.BuilderBase<StartShuffle.Builder> {
@@ -119,6 +129,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
 
         @Nullable
         private YTreeMapNode config = null;
+
+        @Nullable
+        private Compression codec = null;
 
         public TBuilder setAccount(String account) {
             this.account = account;
@@ -160,6 +173,11 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             return self();
         }
 
+        public TBuilder setCodec(@Nullable Compression codec) {
+            this.codec = codec;
+            return self();
+        }
+
         @Override
         protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
             sb.append("account=").append(account).append(", ");
@@ -177,6 +195,9 @@ public class StartShuffle extends RequestBase<StartShuffle.Builder, StartShuffle
             }
             if (config != null) {
                 sb.append("config=").append(config).append(", ");
+            }
+            if (codec != null) {
+                sb.append("codec=").append(codec).append(", ");
             }
             super.writeArgumentsLogString(sb);
         }

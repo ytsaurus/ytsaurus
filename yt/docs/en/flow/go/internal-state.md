@@ -42,7 +42,7 @@ if err != nil {
 state.Value().Count++
 ```
 
-`ProtoState.Set()` still replaces the whole message and does not accept an empty one, and `Clear()` removes the state. An empty Protobuf message serializes to zero bytes, and zero bytes are the absence of a state: a `&T{}` default is not written, and a message whose fields were all unset deletes the state. `RawStateAccessor` hands out no mutable value: its `Get()` returns a copy of the bytes, and they are only written through `Set()`. [External State](external-state.md) states are not tracked in place either.
+`ProtoState.Set()` still replaces the whole message, and `Clear()` removes the state. An empty Protobuf message serializes to zero bytes, and zero bytes are the absence of a state: an `Or(&T{})` default is not written, while a message whose fields were all unset and a `Set(&T{})` both delete the state. `RawStateAccessor` hands out no mutable value: its `Get()` returns a copy of the bytes, and they are only written through `Set()`. [External State](external-state.md) states are not tracked in place either.
 
 A key has a single decoded value per batch, so opening the same state and key with another Go type returns an error. If a handler returned an error, the in-place changes don’t make it into the response to the worker. A state that Go serializes to bytes other than the ones it arrived with is rewritten canonically on the first read — once per key.
 
@@ -120,7 +120,7 @@ state, err := flow.OpenRawState(rt, "raw-state", timer)
 |---|---|---|
 | `Get()` | `([]byte, bool)` | Get the raw bytes. The second result distinguishes a saved state from a missing one |
 | `Or(fallback []byte)` | `[]byte` | Return the current value, or `fallback` if there is no state |
-| `Set(data []byte)` | `error` | Save the raw bytes |
+| `Set(data []byte)` | `error` | Save the raw bytes; empty bytes delete the state |
 | `Clear()` | `error` | Delete the state for the current key |
 
 The `Get` and `Or` methods don’t return an error: there is nothing to deserialize here.
@@ -173,13 +173,13 @@ Deserialization is performed on opening. Opening the same state and key again wi
 | `Empty()` | `bool` | Check whether the value is missing |
 | `Get()` | `(*T, bool)` | Get the mutable message. The second result distinguishes a saved state from a missing one |
 | `Or(fallback *T)` | `*T` | Return the current message, or write and return `fallback` if there is no state |
-| `Set(value *T)` | `error` | Replace the whole state value; an empty message cannot be written |
+| `Set(value *T)` | `error` | Replace the whole state value; an empty message deletes the state |
 | `Clear()` | — | Delete the state for the current key |
 | `ReadOnly()` | `ReadOnlyProtoState[T, PT]` | A read-only view |
 
 {% note info %}
 
-Unlike in Python, where `get_or_default()` without arguments returns an empty instance of the Proto class, in Go the default value is set explicitly — pass `&T{}` if you want to start with an empty message. An empty message serializes to zero bytes and is not written to the state.
+Unlike in Python, where `get_or_default()` without arguments returns an empty instance of the Proto class, in Go the default value is set explicitly — pass `&T{}` if you want to start with an empty message. An empty message serializes to zero bytes, and zero bytes mean the state is absent: such a message is not written for a key that has no state, and deletes the state of a key that has one. Note that a message whose every field holds its zero value is empty in exactly this sense.
 
 {% endnote %}
 

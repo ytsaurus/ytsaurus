@@ -1163,6 +1163,35 @@ TEST(TSpecTest, BalanceWeightsValidation)
             "{balance_weights = {disk = 1.0}}"))));
 }
 
+TEST(TSpecTest, RebalanceTargetDeviationValidation)
+{
+    // The ResourceQueue balancer seeds Step 2 below (1 - deviation) of the consumption, so anything
+    // from one up disables provisioning instead of widening the tolerance. The check runs when a
+    // spec is set, not when a stored one is parsed, and only for that balancer: the CpuAware
+    // balancer uses the field as a score threshold where any value is meaningful.
+    auto parse = [] (TStringBuf yson) {
+        return ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(yson));
+    };
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 1.0}}")),
+        "must be in [0, 1)");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = -0.1}}")),
+        "must be in [0, 1)");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateDynamicPipelineSpec(parse(
+            "{job_manager = {worker_group_override = {l40 = {balancer_type = resource_queue; rebalance_target_deviation = 1.0}}}}")),
+        "worker_group_override/l40");
+
+    EXPECT_NO_THROW(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 0.9}}")));
+    EXPECT_NO_THROW(
+        ValidateDynamicPipelineSpec(parse("{job_manager = {balancer_type = cpu_aware; rebalance_target_deviation = 2.0}}")));
+    // A stored spec of an older release with any value still parses.
+    EXPECT_NO_THROW(parse("{job_manager = {balancer_type = resource_queue; rebalance_target_deviation = 2.0}}"));
+}
+
 TEST(TSpecTest, EvenLoadThresholdsLegacyAliases)
 {
     // The flat CPU thresholds of older specs feed the CPU entry of the per-resource map.

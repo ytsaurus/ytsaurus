@@ -43,6 +43,9 @@ inline constexpr TStringBuf FlowStateObsoleteTableName = "flow_state_obsolete";
 inline constexpr TStringBuf FlowControlTableName = "flow_control";
 inline constexpr TStringBuf PartitionTransactionsTableName = "partition_transactions";
 inline constexpr TStringBuf LeasesTableName = "leases";
+//! Holds one row per election group for the chaos election backend (see NChaosElection). Empty
+//! under the Cypress backend, which locks a Cypress node instead.
+inline constexpr TStringBuf LeaderElectionLockTableName = "leader_election_lock";
 
 inline const std::vector InternalFlowTables{
     InputMessagesTableName,
@@ -58,7 +61,8 @@ inline const std::vector InternalFlowTables{
     FlowStateObsoleteTableName,
     FlowControlTableName,
     PartitionTransactionsTableName,
-    LeasesTableName};
+    LeasesTableName,
+    LeaderElectionLockTableName};
 
 ////////////////////////////////////////////////////////////////////////////////
 

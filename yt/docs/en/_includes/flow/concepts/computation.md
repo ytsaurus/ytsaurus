@@ -84,3 +84,7 @@ Each language offers its own set of interfaces for implementing a Computation:
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
 - [Computation (YQL)](../../../flow/yql/features.md)
+
+## Input filtering {#input-filter}
+
+`skip_if_expression` filters input messages before deduplication and user processing. Skipped messages do not enter the deduplication store. Matching messages are acknowledged without being passed to the handler, including when the entire batch is filtered out. Input statistics, including key distribution and heavy hitters, describe the original stream before filtering.

@@ -35,6 +35,9 @@ target_link_libraries(library-cpp-companion PUBLIC
   yutil
   cpp-companion-proto
   yt-library-process
+  library-profiling-solomon
+  yt-core-http
+  yt-core-https
   core-rpc-grpc
   library-cpp-common
   library-cpp-computation
@@ -82,6 +85,9 @@ target_link_libraries(library-cpp-companion.global PUBLIC
   yutil
   cpp-companion-proto
   yt-library-process
+  library-profiling-solomon
+  yt-core-http
+  yt-core-https
   core-rpc-grpc
   library-cpp-common
   library-cpp-computation

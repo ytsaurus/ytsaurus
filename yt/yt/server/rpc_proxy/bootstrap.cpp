@@ -387,12 +387,13 @@ void TBootstrap::DoStart()
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }
 
-    if (Config_->EnableShuffleService) {
+    {
         auto localServerAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
         ShuffleService_ = CreateShuffleService(
             GetWorkerInvoker(ShuffleExecutionPoolName, DefaultExecutionTag),
             RootClient_,
-            localServerAddress);
+            localServerAddress,
+            NativeAuthenticator_);
         RpcServer_->RegisterService(ShuffleService_);
         Connection_->RegisterShuffleService(localServerAddress);
     }

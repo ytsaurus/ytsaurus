@@ -1,6 +1,6 @@
 from yt.wrapper import yson
 
-from yt.yt.flow.tools.reshard_flow_tables.lib import key_sort_value, plan_leases_table
+from yt.yt.flow.tools.reshard_flow_tables.lib import key_sort_value, plan_leases_table, plan_partition_table
 
 
 def sort_keys(keys):
@@ -86,3 +86,16 @@ def test_unreadable_leases_table_is_planned_to_the_full_width():
     client = FakeClient(error=RuntimeError("no in-sync replicas"))
 
     assert plan_leases_table(client, ["a", "b"], "//pipeline", 3) == FULL_WIDTH
+
+
+# A pipeline whose spec carries no computations: the width of a partition table is a multiple of
+# their number, so planning one at all yields zero tablets, and the reshard fails on it later with
+# "Tablet count must be positive".
+def test_partition_table_of_a_pipeline_without_computations_is_skipped():
+    assert plan_partition_table([], "//pipeline/partition_states", 20) is None
+
+
+def test_leases_table_of_a_pipeline_without_computations_is_skipped():
+    client = FakeClient([{"key": "", "subkey": "expiration"}])
+
+    assert plan_leases_table(client, [], "//pipeline", 20) is None

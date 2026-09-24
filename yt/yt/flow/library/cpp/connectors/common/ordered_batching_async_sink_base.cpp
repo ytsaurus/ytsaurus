@@ -56,6 +56,12 @@ void TOrderedBatchingAsyncSinkBase::Init(IInitContextPtr initContext)
     DoInit(State_->ProducerId);
 }
 
+std::deque<TMessageId> TOrderedBatchingAsyncSinkBase::GetPendingBatchBoundsSnapshot()
+{
+    auto guard = Guard(Lock_);
+    return State_->BatchBounds;
+}
+
 void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
     const auto byteSize = message->ByteSize;
@@ -67,10 +73,10 @@ void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& mes
         .With("ByteSize", byteSize);
     auto guard = Guard(Lock_);
     if (message->MessageId <= State_->MaxPersistedMessageId) {
-        // Already persisted — call callback immediately.
         onDistributed();
         return;
     }
+    DistributeError_.ThrowOnError();
     if (message->MessageId <= LastMessageId_) {
         THROW_ERROR_EXCEPTION("Ids of messages passed to Distribute() must strictly increase")
             .With("message_id", message->MessageId)
@@ -88,10 +94,13 @@ void TOrderedBatchingAsyncSinkBase::Sync(NApi::IDynamicTableTransactionPtr /*tra
 {
     {
         auto guard = Guard(Lock_);
-        FlushBatch();
+        DistributeError_.ThrowOnError();
+        if (OldBounds_.empty()) {
+            FlushBatch();
+        }
         YT_VERIFY(PersistedRequests_.empty());
         PersistedRequests_ = std::exchange(DistributedRequests_, {});
-        YT_VERIFY(Request_.Batch.empty());
+        YT_VERIFY(Request_.Batch.empty() || Request_.Batch.back()->MessageId < OldBounds_.front());
     }
     for (const auto& request : PersistedRequests_) {
         YT_VERIFY(!request.Batch.empty());
@@ -134,6 +143,10 @@ void TOrderedBatchingAsyncSinkBase::Commit()
         }
     }
     for (auto& request : requests) {
+        {
+            auto guard = Guard(Lock_);
+            DistributeError_.ThrowOnError();
+        }
         YT_VERIFY(request.Batch.size() > 0);
         const auto minMessageId = request.Batch.front()->MessageId;
         const auto maxMessageId = request.Batch.back()->MessageId;
@@ -144,11 +157,24 @@ void TOrderedBatchingAsyncSinkBase::Commit()
             .With("Count", request.Batch.size())
             .With("ByteSize", request.ByteSize);
         auto future = DoDistribute(request.Batch, request.SeqNo);
-        future.Subscribe(BIND([weakThis = MakeWeak(this), request = std::move(request)] (const TError& error) mutable {
-            if (auto strongThis = weakThis.Lock(); strongThis && error.IsOK()) {
-                auto guard = Guard(strongThis->Lock_);
-                strongThis->DistributedRequests_.push_back(std::move(request));
+        const auto seqNo = request.SeqNo;
+        future.Subscribe(BIND([weakThis = MakeWeak(this), request = std::move(request), seqNo, minMessageId, maxMessageId] (const TError& error) mutable {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                return;
             }
+            auto guard = Guard(strongThis->Lock_);
+            if (!error.IsOK()) {
+                if (strongThis->DistributeError_.IsOK()) {
+                    strongThis->DistributeError_ = TError("Async sink distribute failed")
+                        .With("seq_no", seqNo)
+                        .With("min_message_id", minMessageId)
+                        .With("max_message_id", maxMessageId)
+                        .With(error);
+                }
+                return;
+            }
+            strongThis->DistributedRequests_.push_back(std::move(request));
         }));
     }
 }

@@ -152,7 +152,7 @@ A function can declare its own parameter structure — a regular `TYsonStruct` �
 - Static — `processing_function_parameters` in `spec`, read once in `Init` via `initContext->GetParameters<T>()`.
 - Dynamic — `processing_function_parameters` in `dynamic_spec`, read via `context->GetDynamicParameters<T>()` and reflect the latest reconfiguration.
 
-If the `processing_function_parameters` field is missing, the structure is filled with default values. `GetDynamicParameters<T>()` caches the result and reparses the node only when it changes (that is, on reconfiguration).
+Both blocks are parsed into the parameter types declared when registering the function (see below), so `T` in `GetParameters<T>()` / `GetDynamicParameters<T>()` must be the registered type — a mismatch throws. If the `processing_function_parameters` field is missing, the structure is filled with default values. The static block is parsed once at job init; the dynamic one is reparsed only when it changes (that is, on reconfiguration).
 
 You specify parameter types when registering the function via macro arguments: `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams)` for the static block, `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams, TDynamicParams)` also for the dynamic one. Then the corresponding `processing_function_parameters` block (in `spec` and `dynamic_spec`) is validated against the schema when loading the spec, just like `parameters` for `Computation`: an unknown field or incorrect type causes an error before the run. A block for which you didn’t declare a type (including for a parameterless `YT_FLOW_DEFINE_PROCESS_FUNCTION(function)`) is treated as empty — any passed field will be rejected.
 
@@ -197,7 +197,7 @@ In the spec:
 };
 ```
 
-In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParameters(...)`, and dynamic ones via `TTestRuntimeContextBuilder().SetDynamicParameters(...)`.
+In unit tests, set static parameters via `TTestStateEnvironment::SetStaticParameters(...)` — the passed struct is served to `GetParameters<T>()` as is. Dynamic ones go through the production path: name the function via `TTestRuntimeContextBuilder().SetProcessingFunction<TMyFunction>()` (it must be registered in the test binary) and pass the struct to `SetDynamicParameters(...)`; the context reparses it into the registered dynamic type.
 
 ## Registration {#registration}
 

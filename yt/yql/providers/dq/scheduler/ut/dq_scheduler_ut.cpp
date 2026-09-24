@@ -13,6 +13,22 @@ NYql::NDqProto::TAllocateWorkersRequest MakeRequest(ui32 count, const TString& u
     return request;
 }
 
+NYql::NProto::TDqConfig::TScheduler MakeRunningLimiterConfig() {
+    NYql::NProto::TDqConfig::TScheduler config;
+    config.SetLimitRunningTasksPerUserPercent(50);
+    return config;
+}
+
+IScheduler::TPtr MakeRunningLimiterScheduler(
+    size_t targetCapacity,
+    NYql::IMetricsRegistryPtr metricsRegistry = {})
+{
+    return IScheduler::Make(
+        MakeRunningLimiterConfig(),
+        std::move(metricsRegistry),
+        targetCapacity);
+}
+
 }
 
 Y_UNIT_TEST_SUITE(TSchedulerTest) {
@@ -75,8 +91,14 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         cfg.SetHistoryKeepingTime(1);
         cfg.SetLimitTasksPerWindow(true);
 
-        const auto scheduler = IScheduler::Make(cfg);
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensors));
         UNIT_ASSERT(scheduler);
+        const auto userLimited = sensors->GetSubgroup("component", "scheduler")
+            ->FindCounter("UserLimited");
+        UNIT_ASSERT(userLimited);
+        UNIT_ASSERT(userLimited->ForDerivative());
+        UNIT_ASSERT_VALUES_EQUAL(userLimited->Val(), 0);
 
         scheduler->Suspend({MakeRequest(3U, "user1"), {}});
         scheduler->Suspend({MakeRequest(3U, "user1"), {}});
@@ -89,9 +111,16 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             return true;
         };
 
-        scheduler->Process(11U, 7U, processor);
+        const auto now = TInstant::Now();
+        scheduler->Process(11U, 7U, processor, now);
 
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+        UNIT_ASSERT_VALUES_EQUAL(userLimited->Val(), 1);
+
+        scheduler->Process(11U, 7U, processor, now);
+
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+        UNIT_ASSERT_VALUES_EQUAL(userLimited->Val(), 2);
 
         const std::vector<size_t> expected = {3U};
         UNIT_ASSERT_VALUES_EQUAL(counts, expected);
@@ -274,9 +303,8 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     }
 
     Y_UNIT_TEST(ProcessAllFreesPerUserOperationSlot) {
-        // Regression test: ProcessAll is used on node disconnect (DropActorOrNode) and when all
-        // workers shut down (TryResume). It must decrement AwaitOperations the same way Process()
-        // does, otherwise per-user limits leak and new requests get OVERLOADED.
+        // Regression test: ProcessAll must decrement AwaitOperations the way Process() does,
+        // otherwise per-user limits leak and new requests get OVERLOADED.
         NYql::NProto::TDqConfig::TScheduler cfg;
         cfg.SetMaxOperationsPerUser(5);
         cfg.SetMaxOperations(1000);
@@ -295,9 +323,27 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, user), {}}));
     }
 
-    Y_UNIT_TEST(UpdateMetricsAfterRejectedLargeRequest) {
-        // A rejected user remains in AllocationsHistory and must not break metric updates.
-        // Also pins incremental AllocatedTotal across allocation, history expiry and Cleanup().
+    Y_UNIT_TEST(ZeroPerUserOperationLimitRejectsNewUser) {
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetMaxOperationsPerUser(0);
+
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensors));
+        const auto rejectionCounter = sensors->GetSubgroup("component", "scheduler")
+            ->GetCounter("PerUserQueueLimitRejections");
+
+        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user"), {}}));
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT(rejectionCounter->ForDerivative());
+        UNIT_ASSERT_VALUES_EQUAL(rejectionCounter->Val(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(
+            sensors->GetSubgroup("component", "scheduler")->GetCounter("KnownUsers")->Val(),
+            0);
+    }
+
+    // A large request rejected because LargeWaitList is full must not leave user state behind.
+    Y_UNIT_TEST(RejectedLargeRequestDoesNotCreateUserState) {
+        // Also pins aggregate metrics across allocation, history expiry and Cleanup().
         NYql::NProto::TDqConfig::TScheduler cfg;
         cfg.SetMaxOperations(1);
         cfg.SetHistoryKeepingTime(1);
@@ -305,12 +351,13 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         NYql::TSensorsGroupPtr sensorsPtr = MakeIntrusive<NYql::TSensorsGroup>();
         const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensorsPtr));
         UNIT_ASSERT(scheduler);
+        const auto rejectionCounter = sensorsPtr->GetSubgroup("component", "scheduler")
+            ->GetCounter("GlobalQueueLimitRejections");
 
-        // First large request fills the LargeWaitList (size becomes 1 == MaxOperations).
         UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
-
-        // Second large request from a brand-new user: rejected because LargeWaitList is full.
         UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        UNIT_ASSERT(rejectionCounter->ForDerivative());
+        UNIT_ASSERT_VALUES_EQUAL(rejectionCounter->Val(), 1);
 
         scheduler->UpdateMetrics();
 
@@ -319,7 +366,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user2"));
 
-        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 1);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
         const auto now = TInstant::Now();
@@ -328,9 +375,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->UpdateMetrics();
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
 
+        scheduler->ReleaseRunningTasks("user1", 3U);
         // The queue is already drained; this call only runs the history expiry sweep.
         scheduler->Process(3U, 0U, process, now + TDuration::Minutes(1));
         scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
         UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
@@ -342,6 +391,64 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->UpdateMetrics();
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+    }
+
+    Y_UNIT_TEST(PerUserMetrics) {
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetHistoryKeepingTime(1);
+        cfg.SetMaxOperations(1);
+        cfg.SetEnablePerUserMetrics(true);
+
+        NYql::TSensorsGroupPtr sensorsPtr = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensorsPtr));
+        const auto schedulerCounters = sensorsPtr->FindSubgroup("component", "scheduler");
+        UNIT_ASSERT(scheduler);
+        UNIT_ASSERT(schedulerCounters);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        const auto user1Counters = schedulerCounters->FindSubgroup("user", "user1");
+        UNIT_ASSERT(user1Counters);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 0);
+
+        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        const auto user2Counters = schedulerCounters->FindSubgroup("user", "user2");
+        UNIT_ASSERT(!user2Counters);
+
+        const auto now = TInstant::Now();
+        const auto process = [] (const IScheduler::TWaitInfo&) { return true; };
+        scheduler->Process(3U, 3U, process, now);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 3);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user1"), {}}));
+        scheduler->ProcessAll(process);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 3);
+
+        scheduler->ReleaseRunningTasks("user1", 3U);
+        scheduler->Process(3U, 0U, process, now + TDuration::Minutes(1));
+        UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 0);
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        const auto recreatedUser1Counters = schedulerCounters->FindSubgroup("user", "user1");
+        UNIT_ASSERT(recreatedUser1Counters);
+        scheduler->Process(3U, 3U, process, now + TDuration::Minutes(1));
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Allocated")->Val(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
+
+        scheduler->Cleanup();
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Await")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("AwaitOperations")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(recreatedUser1Counters->FindCounter("Allocated")->Val(), 0);
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
     }
 
     Y_UNIT_TEST(UseOnlyHalfForLargeInOverload) {
@@ -379,5 +486,450 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->Process(20U, workers = 5U, processor);
 
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 4U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterDisabledByDefault) {
+        const auto scheduler = IScheduler::Make();
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(12U, "user"), {}}));
+
+        ui32 allocatedCount = 0;
+        scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 12U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterDisabledByZeroPercent) {
+        NYql::NProto::TDqConfig::TScheduler config;
+        config.SetLimitRunningTasksPerUserPercent(0);
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(
+            config,
+            NYql::CreateMetricsRegistry(sensors),
+            /*targetCapacity*/ 42U);
+        const auto runningLimitedQueueSize = sensors->GetSubgroup("component", "scheduler")
+            ->GetCounter("RunningLimitedQueueSize");
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(43U, "user"), {}}));
+
+        ui32 allocatedCount = 0;
+        scheduler->Process(100U, 100U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 43U);
+
+        *runningLimitedQueueSize = 1;
+        scheduler->UpdateMetrics(/*updateRunningLimitedQueueSize*/ false);
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 0);
+    }
+
+    Y_UNIT_TEST(RunningLimiterRoundsUp) {
+        const auto scheduler = MakeRunningLimiterScheduler(21U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}));
+
+        ui32 allocatedCount = 0;
+        scheduler->Process(21U, 21U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 11U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        scheduler->Process(21U, 21U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterRoundsArbitraryPercentUp) {
+        auto config = MakeRunningLimiterConfig();
+        config.SetLimitRunningTasksPerUserPercent(20);
+        const auto scheduler = IScheduler::Make(
+            config,
+            /*metricsRegistry*/ {},
+            /*targetCapacity*/ 7U);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}));
+        scheduler->Process(7U, 7U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        scheduler->Process(7U, 7U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterAllowsExactLimitAndQueuesAboveIt) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+        const auto allocate = [] (const IScheduler::TWaitInfo&) {
+            return true;
+        };
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}));
+        scheduler->Process(20U, 20U, allocate);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        scheduler->Process(20U, 20U, allocate);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        scheduler->Process(20U, 20U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterQueuesUserAtLimitAndAllowsAnotherUser) {
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = MakeRunningLimiterScheduler(
+            20U,
+            NYql::CreateMetricsRegistry(sensors));
+        const auto runningLimitedQueueSize = sensors->GetSubgroup("component", "scheduler")
+            ->GetCounter("RunningLimitedQueueSize");
+        const auto allocate = [] (const IScheduler::TWaitInfo&) {
+            return true;
+        };
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user1"), {}}));
+        scheduler->Process(20U, 20U, allocate);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+
+        TVector<TString> allocatedUsers;
+        scheduler->Process(20U, 6U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedUsers.push_back(info.Request.GetUser());
+            return allocate(info);
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedUsers, TVector<TString>({"user2"}));
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            scheduler->UpdateMetrics(/*updateRunningLimitedQueueSize*/ false),
+            1U);
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 0);
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 1);
+
+        scheduler->ReleaseRunningTasks("user1", 10U);
+        scheduler->Process(20U, 20U, allocate);
+        scheduler->UpdateMetrics(/*updateRunningLimitedQueueSize*/ false);
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 1);
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 0);
+    }
+
+    Y_UNIT_TEST(RunningLimiterReleasesUserQuota) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+
+        scheduler->ReleaseRunningTasks("user", 4U);
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterPreservesRunningAfterHistoryExpires) {
+        auto config = MakeRunningLimiterConfig();
+        config.SetHistoryKeepingTime(1);
+        config.SetEnablePerUserMetrics(true);
+
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(config, NYql::CreateMetricsRegistry(sensors), /*targetCapacity*/ 20U);
+        const auto schedulerCounters = sensors->FindSubgroup("component", "scheduler");
+        UNIT_ASSERT(schedulerCounters);
+
+        const auto now = TInstant::Now();
+        const auto afterHistoryExpires = now + TDuration::Minutes(1);
+        const auto allocate = [] (const IScheduler::TWaitInfo&) { return true; };
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        scheduler->Process(20U, 20U, allocate, now);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 10);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 10);
+
+        scheduler->Process(20U, 10U, allocate, afterHistoryExpires);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 10);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 1);
+        const auto userCounters = schedulerCounters->FindSubgroup("user", "user");
+        UNIT_ASSERT(userCounters);
+        UNIT_ASSERT_VALUES_EQUAL(userCounters->FindCounter("Allocated")->Val(), 0);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        scheduler->Process(20U, 10U, allocate, afterHistoryExpires);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 10);
+
+        scheduler->ReleaseRunningTasks("user", 10U);
+        scheduler->Process(20U, 20U, allocate, afterHistoryExpires);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(userCounters->FindCounter("Allocated")->Val(), 1);
+
+        scheduler->ReleaseRunningTasks("user", 1U);
+        scheduler->Process(20U, 20U, allocate, afterHistoryExpires + TDuration::Minutes(1));
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 0);
+        UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user"));
+    }
+
+    Y_UNIT_TEST(RunningLimiterIgnoresReleaseForUnknownUser) {
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = MakeRunningLimiterScheduler(
+            20U,
+            NYql::CreateMetricsRegistry(sensors));
+        const auto runningTotal = sensors->GetSubgroup("component", "scheduler")
+            ->GetCounter("RunningTotal");
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+
+        scheduler->ReleaseRunningTasks("unknown", 2U);
+        scheduler->UpdateMetrics();
+
+        UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 4);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}));
+    }
+
+    Y_UNIT_TEST(RunningLimiterSaturatesUnaccountedRelease) {
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = MakeRunningLimiterScheduler(
+            20U,
+            NYql::CreateMetricsRegistry(sensors));
+        const auto runningTotal = sensors->GetSubgroup("component", "scheduler")
+            ->GetCounter("RunningTotal");
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+
+        scheduler->ReleaseRunningTasks("user", 11U);
+        scheduler->UpdateMetrics();
+
+        UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 0);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+
+        ui32 allocatedCount = 0;
+        scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 10U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 10);
+    }
+
+    Y_UNIT_TEST(RunningLimiterDoesNotReserveQueuedCapacity) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}));
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 2U);
+
+        ui32 allocatedCount = 0;
+        scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 6U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterUsesConfiguredTargetCapacity) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}));
+
+        TVector<ui32> allocatedCounts;
+        const auto allocate = [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCounts.push_back(info.Request.GetCount());
+            return true;
+        };
+
+        scheduler->Process(5U, 5U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+        UNIT_ASSERT(allocatedCounts.empty());
+
+        scheduler->Process(8U, 8U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCounts, TVector<ui32>({6U}));
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        scheduler->Process(8U, 8U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCounts, TVector<ui32>({6U, 4U}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        scheduler->Process(8U, 8U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimiterQueuesOversizedRequestWithoutBlockingOtherUser) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}));
+
+        TVector<TString> allocatedUsers;
+        scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedUsers.push_back(info.Request.GetUser());
+            return true;
+        });
+
+        UNIT_ASSERT_VALUES_EQUAL(allocatedUsers, TVector<TString>({"other-user"}));
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+    }
+
+    Y_UNIT_TEST(RunningLimitedSmallDoesNotReserveCapacityFromLarge) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "limited-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(8U, "other-user"), {}}));
+
+        ui32 limitedUserAllocated = 0;
+        ui32 otherUserAllocated = 0;
+        const auto allocate = [&] (const IScheduler::TWaitInfo& info) {
+            auto& allocated = info.Request.GetUser() == "limited-user"
+                ? limitedUserAllocated
+                : otherUserAllocated;
+            allocated += info.Request.GetCount();
+            return true;
+        };
+
+        scheduler->Process(20U, 10U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(limitedUserAllocated, 0U);
+        UNIT_ASSERT_VALUES_EQUAL(otherUserAllocated, 8U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+
+        scheduler->ReleaseRunningTasks("limited-user", 10U);
+        scheduler->Process(20U, 12U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(limitedUserAllocated, 1U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+    }
+
+    Y_UNIT_TEST(RunningLimitedLargeDoesNotReserveCapacityFromSmall) {
+        const auto scheduler = MakeRunningLimiterScheduler(20U);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "limited-user"), {}}));
+        for (int index = 0; index < 3; ++index) {
+            UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "other-user"), {}}));
+        }
+
+        ui32 limitedUserAllocated = 0;
+        ui32 otherUserAllocated = 0;
+        const auto allocate = [&] (const IScheduler::TWaitInfo& info) {
+            auto& allocated = info.Request.GetUser() == "limited-user"
+                ? limitedUserAllocated
+                : otherUserAllocated;
+            allocated += info.Request.GetCount();
+            return true;
+        };
+
+        scheduler->Process(20U, 3U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(limitedUserAllocated, 0U);
+        UNIT_ASSERT_VALUES_EQUAL(otherUserAllocated, 3U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+
+        scheduler->ReleaseRunningTasks("limited-user", 10U);
+        scheduler->Process(20U, 10U, allocate);
+        UNIT_ASSERT_VALUES_EQUAL(limitedUserAllocated, 2U);
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+    }
+
+    Y_UNIT_TEST(RunningMetricsAndCleanup) {
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = MakeRunningLimiterScheduler(
+            20U,
+            NYql::CreateMetricsRegistry(sensors));
+        const auto schedulerCounters = sensors->GetSubgroup("component", "scheduler");
+        const auto runningTotal = schedulerCounters->GetCounter("RunningTotal");
+        const auto runningLimitedQueueSize = schedulerCounters->GetCounter("RunningLimitedQueueSize");
+        const auto integralQueueSizeForLarge = schedulerCounters->GetCounter("IntegralQueueSizeForLarge");
+        UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user"));
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}));
+        scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        scheduler->UpdateMetrics();
+        UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 10);
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(integralQueueSizeForLarge->Val(), 2);
+
+        scheduler->Cleanup();
+        UNIT_ASSERT_VALUES_EQUAL(runningLimitedQueueSize->Val(), 0);
+        scheduler->UpdateMetrics(/*updateRunningLimitedQueueSize*/ false);
+        UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 0);
+    }
+
+    Y_UNIT_TEST(RunningLimiterNormalizesInvalidInputs) {
+        auto config = MakeRunningLimiterConfig();
+        config.SetLimitRunningTasksPerUserPercent(101);
+        const auto clampedScheduler = IScheduler::Make(
+            config,
+            /*metricsRegistry*/ {},
+            /*targetCapacity*/ 42U);
+        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(42U, "user"), {}}));
+        clampedScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        clampedScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(clampedScheduler->UpdateMetrics(), 1U);
+
+        config.SetLimitRunningTasksPerUserPercent(50);
+        const auto disabledScheduler = IScheduler::Make(config);
+        UNIT_ASSERT(disabledScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        ui32 allocatedCount = 0;
+        disabledScheduler->Process(1U, 1U, [&] (const IScheduler::TWaitInfo& info) {
+            allocatedCount += info.Request.GetCount();
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 1U);
+
+        config.SetLimitRunningTasksPerUserPercent(100);
+        const auto fullCapacityScheduler = IScheduler::Make(
+            config,
+            /*metricsRegistry*/ {},
+            /*targetCapacity*/ 42U);
+        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(42U, "user"), {}}));
+        fullCapacityScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        fullCapacityScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
+            return true;
+        });
+        UNIT_ASSERT_VALUES_EQUAL(fullCapacityScheduler->UpdateMetrics(), 1U);
     }
 }

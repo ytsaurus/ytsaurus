@@ -350,7 +350,7 @@ public:
         TSessionId sessionId,
         TChunkReplicaWithMediumList initialTargets,
         NNative::IClientPtr client,
-        const std::string& localHostName,
+        std::string localHostName,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
@@ -1369,7 +1369,7 @@ i64 TGroup::GetSize() const
 
 i64 TGroup::GetCumulativeBlockSize() const
 {
-    return Size_;
+    return CumulativeBlockSize_;
 }
 
 bool TGroup::IsWritten() const
@@ -1758,7 +1758,7 @@ IChunkWriterPtr CreateReplicationWriter(
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
     NNative::IClientPtr client,
-    const std::string& localHostName,
+    std::string localHostName,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -1769,7 +1769,7 @@ IChunkWriterPtr CreateReplicationWriter(
         sessionId,
         std::move(targets),
         std::move(client),
-        localHostName,
+        std::move(localHostName),
         std::move(throttler),
         std::move(blockCache),
         std::move(trafficMeter));

@@ -10,10 +10,12 @@ SRCS(
     experiments_ut.cpp
     job_monitoring_index_manager_ut.cpp
     input_statistics_collector_ut.cpp
+    job_phase_ut.cpp
     job_splitter_ut.cpp
     partition_keys_builder_ut.cpp
     partitioning_parameters_ut.cpp
     partitions_ut.cpp
+    push_based_shuffle_registry_ut.cpp
     universal_monitoring_descriptor_manager_ut.cpp
 )
 

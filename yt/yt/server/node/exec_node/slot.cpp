@@ -176,6 +176,20 @@ public:
         CleanProcessesFuture_.Reset();
     }
 
+    TFuture<void> BuildSlotRootDirectory() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
+
+        return RunPreparationAction(
+            /*actionName*/ "BuildSlotRootDirectory",
+            /*uncancelable*/ false,
+            [&] {
+                return Location_->BuildSlotRootDirectory(SlotIndex_);
+            });
+    }
+
     TFuture<void> RunJobProxy(
         NJobProxy::TJobProxyInternalConfigPtr config,
         TJobId jobId,
@@ -359,6 +373,7 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -375,6 +390,7 @@ public:
             [&] {
                 return VolumeManager_->PrepareVolume(
                     std::move(overlayDataArray),
+                    volumeParams,
                     options);
             });
     }
@@ -401,6 +417,7 @@ public:
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
         std::vector<TOverlayData> overlayDataArray,
+        const TBaseVolumeParamsPtr& volumeParams,
         const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -417,6 +434,7 @@ public:
             [&] {
                 return VolumeManager_->PrepareVolume(
                     std::move(overlayDataArray),
+                    volumeParams,
                     options);
             });
     }
@@ -453,7 +471,7 @@ public:
             [&] {
                 if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {
                     for (const auto& volume : volumeParams) {
-                        if (!volume->LayerArtifactKeys.empty()) {
+                        if (!volume->LayerArtifactKeys.GetAll().empty()) {
                             THROW_ERROR_EXCEPTION(
                                 "Cannot create fake non-root volume %v since it contains a layer",
                                 volume->VolumeId);
@@ -604,8 +622,7 @@ public:
     }
 
     TFuture<void> PrepareSandboxDirectories(
-        const TUserSandboxOptions& options,
-        bool hasRootVolume) override
+        const TUserSandboxOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -618,8 +635,7 @@ public:
             [&] {
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
-                    options,
-                    hasRootVolume);
+                    options);
             });
     }
 

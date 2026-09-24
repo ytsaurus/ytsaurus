@@ -6,7 +6,7 @@ from yt.environment.default_config import get_dynamic_node_config
 from yt_commands import (
     authors, create_dynamic_table, get_cell_tag, get_driver, get_singular_chunk_id, insert_rows, map_reduce, sync_create_cells,
     read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
-    start_transaction, write_table)
+    start_transaction, write_table, assert_true_for_all_cells, create_master_cell_group)
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionWithRemoteClustersBaseChecks
 
@@ -30,6 +30,24 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
 
     NUM_TEST_PARTITIONS = 3
     DOWNTIME_ALL_COMPONENTS = True
+
+    def check_master_cell_groups(self):
+        """Validate that existing master cell groups are replicated to a newly added cell."""
+        cell_tags = [11, 12]
+        group_id = create_master_cell_group("group", cell_tags)
+        path = "//sys/master_cell_groups/group"
+        set(path + "/@custom_attribute", "value")
+
+        yield
+
+        assert_true_for_all_cells(
+            self.Env,
+            lambda driver: (
+                get(path + "/@id", driver=driver) == group_id
+                and get(path + "/@name", driver=driver) == "group"
+                and get(path + "/@cell_tags", driver=driver) == cell_tags
+                and get(path + "/@custom_attribute", driver=driver) == "value"
+            ))
 
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(150)

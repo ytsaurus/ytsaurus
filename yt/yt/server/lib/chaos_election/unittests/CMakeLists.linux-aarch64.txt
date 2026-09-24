@@ -24,6 +24,7 @@ target_link_libraries(unittester-server-lib-chaos-election PUBLIC
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  yt-library-cypress_election
   server-lib-chaos_election
   yt-core-test_framework
   client-unittests-mock
@@ -46,6 +47,8 @@ target_link_options(unittester-server-lib-chaos-election PRIVATE
 
 target_sources(unittester-server-lib-chaos-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/unittests/chaos_lease_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/unittests/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/unittests/election_manager_ut.cpp
 )
 
 

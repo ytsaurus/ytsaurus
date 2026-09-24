@@ -14,3 +14,4 @@
 
 add_subdirectory(resource)
 add_subdirectory(all_states_cpp)
+add_subdirectory(http_client)

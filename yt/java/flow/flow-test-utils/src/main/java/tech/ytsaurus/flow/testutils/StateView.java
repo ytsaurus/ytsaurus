@@ -25,16 +25,18 @@ public final class StateView {
     StateView(
             Map<String, StatesHolder> externalHolders,
             Map<String, StatesHolder> internalHolders,
-            Map<String, TableSchema> externalStateSchemas
+            Map<String, TableSchema> requestExternalSchemas
     ) {
         this.externalHolders = externalHolders;
         this.internalHolders = internalHolders;
         // Backend gets shallow copies so the empty holders it creates for unknown state names stay
         // out of the metadata maps. Sharing the holder instances is safe because the accessors
-        // handed out are read-only views, which never add entries.
+        // handed out are read-only views, which never add entries. Those fabricated holders take
+        // the schema the request declared, so a state missing from this view — one the computation
+        // never modified, say — still reads with a default value, as it does in the computation.
         this.backend = new SnapshotStateBackend(
                 new LinkedHashMap<>(internalHolders), new LinkedHashMap<>(externalHolders),
-                externalStateSchemas, null);
+                requestExternalSchemas, null);
     }
 
     /**

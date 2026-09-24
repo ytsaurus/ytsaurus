@@ -16,8 +16,6 @@
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/proto/logger_config.pb.h>
 
-#include <library/cpp/digest/md5/md5.h>
-
 #include <util/folder/path.h>
 
 namespace NYT::NYqlPlugin {
@@ -287,7 +285,14 @@ void TDqManager::Start()
     Coordinator_->StartGlobalWorker(ActorSystem_, uploadResourcesOptions, MetricsRegistry_);
 
     // Wait here until the DQ component is ready
-    auto dqControlFactory = CreateDqControlFactory(grpcPort, uploadResourcesOptions[0].YtBackend.GetVanillaJobLite(), MD5::File(uploadResourcesOptions[0].YtBackend.GetVanillaJobLite()), true, {}, Config_->UdfsWithMd5, Config_->FileStorage);
+    auto dqControlFactory = CreateDqControlFactory(
+        grpcPort,
+        VanillaJobLite_->GetPath(),
+        VanillaJobLite_->GetMd5(),
+        /*enableStrip*/ true,
+        /*indexedUdfFilter*/ {},
+        Config_->UdfsWithMd5,
+        Config_->FileStorage);
     auto dqControl = dqControlFactory->GetControl();
     auto isDqReady = dqControl->IsReady({});
     YQL_LOG(INFO) << "DQ warmup initiated, current status: " << isDqReady;

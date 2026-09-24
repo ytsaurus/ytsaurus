@@ -54,9 +54,8 @@ TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation()
     auto process = New<TSimpleProcess>(TString(Entrypoint_->Executable), /*copyEnv*/ true);
     process->AddArguments(Entrypoint_->Args);
 
+    // Not logged: the config may carry HTTPS client credentials.
     auto configTxt = NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
-    YT_TLOG_INFO("Set companion config environment variable")
-        .With("Config", configTxt);
     process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
 
     for (const auto& [name, value] : Entrypoint_->Env) {

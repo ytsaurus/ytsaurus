@@ -71,15 +71,13 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         auto isCypressTransaction = request->is_cypress_transaction();
 
-        context->SetRequestInfo(
-            "ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, "
-            "Title: %v, Deadline: %v, IsCypressTransaction: %v",
-            parentId,
-            prerequisiteTransactionIds,
-            timeout,
-            title,
-            deadline,
-            isCypressTransaction);
+        context->AnnotateRequest()
+            .With("ParentId", parentId)
+            .With("PrerequisiteTransactionIds", prerequisiteTransactionIds)
+            .With("Timeout", timeout)
+            .With("Title", title)
+            .With("Deadline", deadline)
+            .With("IsCypressTransaction", isCypressTransaction);
 
         NTransactionServer::NProto::TReqStartTransaction hydraRequest;
         hydraRequest.mutable_attributes()->Swap(request->mutable_attributes());
@@ -111,9 +109,9 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
-            transactionId,
-            request->actions_size());
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("ActionCount", request->actions_size());
 
         if (context->GetMutationId()) {
             const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
@@ -150,12 +148,12 @@ private:
         auto boomerangWaveSize = request->boomerang_wave_size();
         auto boomerangMutationId = FromProto<TMutationId>(request->boomerang_mutation_id());
 
-        context->SetRequestInfo("TransactionIds: %v, DestinationCellTag: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v, BoomerangMutationId: %v)",
-            transactionIds,
-            destinationCellTag,
-            boomerangWaveId,
-            boomerangWaveSize,
-            boomerangMutationId);
+        context->AnnotateRequest()
+            .With("TransactionIds", transactionIds)
+            .With("DestinationCellTag", destinationCellTag)
+            .With("BoomerangWaveId", boomerangWaveId)
+            .With("BoomerangWaveSize", boomerangWaveSize)
+            .WithFormat("BoomerangMutationId", "%v)", boomerangMutationId);
 
         ValidateTransactionsAreCoordinatedByThisCell(transactionIds);
 
@@ -172,9 +170,9 @@ private:
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
         auto cellId = FromProto<TCellId>(request->cell_id());
 
-        context->SetRequestInfo("TransactionIds: %v, CellId: %v",
-            transactionIds,
-            cellId);
+        context->AnnotateRequest()
+            .With("TransactionIds", transactionIds)
+            .With("CellId", cellId);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateIssueLeasesMutation(context);
@@ -189,9 +187,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto lockableDynamicTables = FromProto<std::vector<std::pair<TCellTag, std::vector<TTableId>>>>(request->lockable_dynamic_tables());
 
-        context->SetRequestInfo("TransactionId: %v, LockableDynamicTables: %v",
-            transactionId,
-            lockableDynamicTables);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("LockableDynamicTables", lockableDynamicTables);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto mutation = transactionManager->CreateRegisterLockableDynamicTablesMutation(context);

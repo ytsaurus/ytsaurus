@@ -47,17 +47,17 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ProcessGossip)
     {
-        context->SetRequestInfo("InstanceId: %v, State: %v",
-            request->instance_id(),
-            static_cast<EInstanceState>(request->instance_state()));
+        context->AnnotateRequest()
+            .With("InstanceId", request->instance_id())
+            .With("State", static_cast<EInstanceState>(request->instance_state()));
 
         response->set_instance_id(ToString(Host_->GetConfig()->InstanceId));
         auto state = Host_->GetInstanceState();
         response->set_instance_state(ToProto(state));
 
-        context->SetResponseInfo("SelfInstanceId: %v, SelfState: %v",
-            Host_->GetConfig()->InstanceId,
-            state);
+        context->AnnotateResponse()
+            .With("SelfInstanceId", Host_->GetConfig()->InstanceId)
+            .With("SelfState", state);
 
         Host_->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
         context->Reply();
@@ -67,7 +67,8 @@ private:
     {
         auto paths = FromProto<std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>>(request->table_paths());
 
-        context->SetRequestInfo("Paths: %v", paths);
+        context->AnnotateRequest()
+            .With("Paths", paths);
 
         Host_->InvalidateCachedObjectAttributes(paths);
 
@@ -81,9 +82,9 @@ private:
         TSqlObjectInfo objectInfo;
         FromProto(&objectInfo, request->object_info());
 
-        context->SetRequestInfo("ObjectName: %v, Revision: %v",
-            objectName,
-            objectInfo.Revision);
+        context->AnnotateRequest()
+            .With("ObjectName", objectName)
+            .With("Revision", objectInfo.Revision);
 
         auto* storage = Host_->GetUserDefinedSqlObjectStorage();
         YT_VERIFY(storage);
@@ -98,9 +99,9 @@ private:
         auto objectName = request->object_name();
         auto revision = FromProto<NHydra::TRevision>(request->revision());
 
-        context->SetRequestInfo("ObjectName: %v, Revision: %v",
-            objectName,
-            revision);
+        context->AnnotateRequest()
+            .With("ObjectName", objectName)
+            .With("Revision", revision);
 
         auto* storage = Host_->GetUserDefinedSqlObjectStorage();
         YT_VERIFY(storage);
@@ -114,7 +115,8 @@ private:
     {
         const auto& configPath = request->config_path();
 
-        context->SetRequestInfo("ConfigPath: %v", configPath);
+        context->AnnotateRequest()
+            .With("ConfigPath", configPath);
 
         Host_->GetCypressObjectRepository()->RefreshSnapshot();
 
@@ -126,7 +128,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RefreshCypressObjectRepository)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         Host_->GetCypressObjectRepository()->RefreshSnapshot();
 

@@ -802,8 +802,8 @@ public:
         auto* response = &context->Response();
 
         const auto& agentId = request->agent_id();
-        context->SetRequestInfo("AgentId: %v",
-            agentId);
+        context->AnnotateRequest()
+            .With("AgentId", agentId);
 
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
@@ -874,7 +874,8 @@ public:
         response->set_config(ToProto(ConvertToYsonString(SchedulerConfig_)));
         response->set_scheduler_version(GetVersion());
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
     // TODO(arkady-e1ppa): This method is overly bloated. Split into several methods.
@@ -890,12 +891,11 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v, OperationCount: %v, Memory: %v/%v",
-            agentId,
-            incarnationId,
-            request->operations_size(),
-            request->controller_memory_usage(),
-            request->controller_memory_limit());
+        context->AnnotateRequest()
+            .With("AgentId", agentId)
+            .With("IncarnationId", incarnationId)
+            .With("OperationCount", request->operations_size())
+            .WithFormat("Memory", "%v/%v", request->controller_memory_usage(), request->controller_memory_limit());
 
         auto agent = GetMirroredAgentOrThrow(agentId);
 
@@ -1029,7 +1029,8 @@ public:
 
         response->set_operations_archive_version(Bootstrap_->GetScheduler()->GetOperationsArchiveVersion());
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
     void DoProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
@@ -1040,9 +1041,9 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v",
-            agentId,
-            incarnationId);
+        context->AnnotateRequest()
+            .With("AgentId", agentId)
+            .With("IncarnationId", incarnationId);
 
         auto agent = GetMirroredAgentOrThrow(agentId);
 
@@ -1070,7 +1071,8 @@ public:
             })
             .ThrowOnError();
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
 private:
@@ -1328,11 +1330,11 @@ private:
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
                     TError("Too few agents matching tag")
-                        .With(TErrorAttribute{"controller_agent_tag", tag})
-                        .With(TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag})
-                        .With(TErrorAttribute{"agents", agentsWithTag})
-                        .With(TErrorAttribute{"min_alive_agent_count", thresholds.Absolute})
-                        .With(TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative}));
+                        .With("controller_agent_tag", tag)
+                        .With("alive_agents", aliveAgentWithCurrentTag)
+                        .With("agents", agentsWithTag)
+                        .With("min_alive_agent_count", thresholds.Absolute)
+                        .With("min_alive_agent_ratio", thresholds.Relative));
             }
         }
 

@@ -114,8 +114,6 @@ public:
 
     //! Finds a chunk by id on specified location.
     //! Returns |nullptr| if no chunk exists.
-    //! NB: must not be called until the node is registered at master (because
-    //! we lack medium name-to-index mapping until that).
     /*!
      *  \note
      *  Thread affinity: any

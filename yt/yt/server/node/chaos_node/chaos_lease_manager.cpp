@@ -15,9 +15,17 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_leases_watcher.h>
+
 #include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/public.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -38,6 +46,8 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+static constexpr auto ChaosLeaseWatcherTimestampRetryPeriod = TDuration::MilliSeconds(50);
 
 TError CreateForbiddenStateTransitionError(
     EChaosLeaseManagerState currentState,
@@ -103,6 +113,7 @@ public:
         , ChaosLeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             Logger))
+        , ChaosLeasesWatcher_(slot->GetChaosLeasesWatcher())
         , State_(IsEvenCellTag()
             ? EChaosLeaseManagerState::Enabled
             : EChaosLeaseManagerState::Disabled)
@@ -242,6 +253,23 @@ public:
         }
     }
 
+    void OnChaosLeaseUpdated(TChaosLeaseId chaosLeaseId, TTimestamp timestamp) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* chaosLease = FindChaosLease(chaosLeaseId);
+        if (!chaosLease) {
+            YT_TLOG_DEBUG("Chaos lease is gone")
+                .With("ChaosLeaseId", chaosLeaseId);
+            return;
+        }
+
+        ChaosLeasesWatcher_->OnObjectUpdated(
+            chaosLeaseId,
+            chaosLease->ConvertToClientLease(),
+            timestamp);
+    }
+
     void HydraChaosNodeSetState(NChaosNode::NProto::TReqSetState* request)
     {
         auto nextState = FromProto<EChaosLeaseManagerState>(request->next_state());
@@ -265,10 +293,12 @@ public:
         for (const auto& protoChaosLease : request->chaos_leases()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoChaosLease.chaos_lease_id());
             auto* chaosLease = FindChaosLease(chaosLeaseId);
+            bool created = false;
             if (!chaosLease) {
                 createdLeaseIds.push_back(chaosLeaseId);
                 auto chaosLeaseHolder = std::make_unique<TChaosLease>(chaosLeaseId);
                 chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
+                created = true;
                 YT_TLOG_DEBUG("Chaos lease created for immigration")
                     .With("ChaosLeaseId", chaosLeaseId);
             }
@@ -304,6 +334,13 @@ public:
 
             YT_TLOG_DEBUG("Chaos lease migrated")
                 .With("ChaosLeaseId", chaosLeaseId);
+
+            if (created) {
+                ChaosLeasesWatcher_->RegisterObject(
+                    chaosLeaseId,
+                    chaosLease->ConvertToClientLease(),
+                    NTransactionClient::NullTimestamp);
+            }
         }
 
         std::sort(createdLeaseIds.begin(), createdLeaseIds.end());
@@ -369,6 +406,9 @@ private:
     const IYPathServicePtr OrchidService_;
 
     const ITransactionLeaseTrackerPtr ChaosLeaseTracker_;
+    const IChaosLeasesWatcherPtr ChaosLeasesWatcher_;
+
+    TFuture<void> ChaosLeaseWatcherTimestampInitializationFuture_;
 
     TEntityMap<TChaosLease> ChaosLeaseMap_;
     EChaosLeaseManagerState State_;
@@ -423,7 +463,6 @@ private:
         ChaosLeaseMap_.Clear();
     }
 
-
     void OnLeaderActive() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -442,6 +481,14 @@ private:
                 BIND(&TChaosLeaseManager::OnLeaseExpired, MakeWeak(this))
                     .Via(Slot_->GetEpochAutomatonInvoker()));
         }
+
+        ChaosLeasesWatcher_->Start(ConvertNodeLeasesToClientLeasesForWatcher());
+
+        ChaosLeaseWatcherTimestampInitializationFuture_ = BIND(
+            &TChaosLeaseManager::InitializeChaosLeaseWatcherTimestamps,
+            MakeStrong(this))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
     }
 
     void OnStopLeading() override
@@ -450,6 +497,13 @@ private:
 
         TChaosAutomatonPart::OnStopLeading();
 
+        if (ChaosLeaseWatcherTimestampInitializationFuture_) {
+            ChaosLeaseWatcherTimestampInitializationFuture_.Cancel(
+                TError("Chaos lease manager stopped leading"));
+            ChaosLeaseWatcherTimestampInitializationFuture_.Reset();
+        }
+
+        ChaosLeasesWatcher_->Stop();
         ChaosLeaseTracker_->Stop();
 
         for (const auto& [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
@@ -467,6 +521,7 @@ private:
 
         auto chaosLeaseHolder = ChaosLeaseMap_.Release(chaosLeaseId);
         chaosLeaseHolder->RemovePromise().Set();
+        ChaosLeasesWatcher_->OnObjectRemoved(chaosLeaseId);
     }
 
     void TryRemoveLeaseBottomUp(TChaosLease* chaosLease)
@@ -500,7 +555,8 @@ private:
 
         if (parentId) {
             auto* parent = GetChaosLeaseOrThrow(parentId);
-            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && parent->Coordinators().empty())
+            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval &&
+                parent->Coordinators().empty())
             {
                 TryRemoveLeaseBottomUp(parent);
             }
@@ -513,7 +569,9 @@ private:
     {
         auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
 
-        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
+        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval &&
+            chaosLease->Coordinators().empty())
+        {
             // COMPAT(gryzlov-ad)
             if (reign >= EChaosReign::ChaosLeaseRemoveLeaseOnlyAfterChildren) {
                 TryRemoveLeaseBottomUp(chaosLease);
@@ -654,17 +712,23 @@ private:
             }
         }
 
+        auto destinationCellId = GetKnownSiblingCellIdOrThrow();
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto mailbox = hiveManager->GetOrCreateCellMailbox(GetKnownSiblingCellIdOrThrow());
+        auto mailbox = hiveManager->GetOrCreateCellMailbox(destinationCellId);
         hiveManager->PostMessage(mailbox, req);
 
         // COMPAT(osidorkin)
         if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
             reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
         {
+            std::vector<std::pair<TChaosObjectId, TCellId>> migratedLeases;
+            migratedLeases.reserve(chaosLeases.size());
             for (auto* chaosLease : chaosLeases) {
+                migratedLeases.emplace_back(chaosLease->GetId(), destinationCellId);
                 ChaosLeaseMap_.Remove(chaosLease->GetId());
             }
+
+            ChaosLeasesWatcher_->OnObjectsMigrated(migratedLeases);
 
             CheckAllLeasesMigrated();
         }
@@ -731,18 +795,24 @@ private:
                 bool hasChaosLeases = false;
                 // COMPAT(osidorkin)
                 auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
+                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration &&
+                    reign < EChaosReign::WaitForChaosLeaseRemovalBeforeDisabling)
+                {
                     for (const auto& [_, chaosLease] : ChaosLeaseMap_) {
                         if (chaosLease->IsNormalState()) {
                             hasChaosLeases = true;
                             break;
                         }
                     }
-
                 }
 
                 MigrateAllChaosLeases();
                 State_ = nextState;
+
+                // COMPAT(shamteev)
+                if (reign >= EChaosReign::WaitForChaosLeaseRemovalBeforeDisabling) {
+                    hasChaosLeases = !ChaosLeaseMap_.empty();
+                }
 
                 if (!hasChaosLeases) {
                     MakeStateTransition(EChaosLeaseManagerState::Disabling, EChaosLeaseManagerState::Disabled);
@@ -807,9 +877,14 @@ private:
         ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 
         if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
+            context->AnnotateResponse()
+                .With("ChaosLeaseId", chaosLeaseId);
         }
+
+        ChaosLeasesWatcher_->RegisterObject(
+            chaosLeaseId,
+            chaosLease->ConvertToClientLease(),
+            NTransactionClient::NullTimestamp);
     }
 
     void OnLeaseExpired(TChaosLeaseId chaosLeaseId)
@@ -852,6 +927,40 @@ private:
             if (chaosLease->Coordinators().empty()) {
                 HandleChaosLeaseStateTransition(chaosLease);
             }
+        }
+    }
+
+    std::vector<IChaosLeasesWatcher::TSnapshot> ConvertNodeLeasesToClientLeasesForWatcher() const
+    {
+        std::vector<IChaosLeasesWatcher::TSnapshot> convertedLeases;
+        convertedLeases.reserve(ChaosLeaseMap_.GetSize());
+        for (const auto& [leaseId, lease] : ChaosLeaseMap_) {
+            convertedLeases.push_back(IChaosLeasesWatcher::TSnapshot{
+                .ObjectId = leaseId,
+                .Object = lease->ConvertToClientLease(),
+                .CacheTimestamp = NTransactionClient::NullTimestamp,
+            });
+        }
+
+        return convertedLeases;
+    }
+
+    void InitializeChaosLeaseWatcherTimestamps()
+    {
+        while (true) {
+            auto timestampOrError = WaitFor(
+                Slot_->GetTimestampProvider()->GenerateTimestamps());
+            if (timestampOrError.IsOK()) {
+                auto timestamp = timestampOrError.Value();
+                YT_TLOG_DEBUG("Initialized chaos lease watcher timestamps")
+                    .With("Timestamp", timestamp);
+                ChaosLeasesWatcher_->AdvanceObjectCacheTimestamps(timestamp);
+                return;
+            }
+
+            YT_TLOG_DEBUG("Failed to generate timestamp for chaos lease watcher; retrying")
+                .With(timestampOrError);
+            TDelayedExecutor::WaitForDuration(ChaosLeaseWatcherTimestampRetryPeriod);
         }
     }
 

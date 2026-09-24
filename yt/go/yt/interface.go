@@ -582,6 +582,10 @@ type ReadTablePartitionOptions struct {
 	// Format is YSON-serializable output format. If not specified "yson" will be used.
 	Format any `http:"output_format,omitnil"`
 
+	// TableSchema is used by the client-side Skiff decoder for strongly typed
+	// complex values. It is not sent to the server.
+	TableSchema *schema.Schema
+
 	*TransactionOptions
 	*AccessTrackingOptions
 }

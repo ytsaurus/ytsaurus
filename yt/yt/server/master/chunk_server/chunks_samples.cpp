@@ -4,12 +4,18 @@
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/yt/core/yson/string.h>
+
 #include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NChunkServer {

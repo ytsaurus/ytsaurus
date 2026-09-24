@@ -17,6 +17,7 @@ enum ESyntax {
     YTORM_QL = 10;
     PG = 11;
     SPYT = 12;
+    SPARK_SQL = 13;
 }
 
 enum ETaskAction {

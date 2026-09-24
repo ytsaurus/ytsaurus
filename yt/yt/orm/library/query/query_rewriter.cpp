@@ -1,8 +1,237 @@
 #include "query_rewriter.h"
 
+#include "misc.h"
+
+#include <yt/yt/library/query/base/expr_builder_base.h>
+
+#include <limits>
+#include <utility>
+
 namespace NYT::NOrm::NQuery {
 
 using namespace NQueryClient::NAst;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+enum class EComparisonResult
+{
+    Unsupported,
+    False,
+    True,
+};
+
+std::optional<TLiteralValue> TryExtractComparisonLiteral(const TExpressionList& expressions)
+{
+    if (auto value = TryExtractSingleLiteralValue(expressions)) {
+        return value;
+    }
+    if (std::ssize(expressions) == 1) {
+        auto* unary = expressions[0]->As<TUnaryOpExpression>();
+        if (unary && unary->Opcode == NQueryClient::EUnaryOp::Minus) {
+            if (auto value = TryExtractSingleLiteralValue(unary->Operand)) {
+                return std::visit([] (const auto& literal) -> std::optional<TLiteralValue> {
+                    using T = std::decay_t<decltype(literal)>;
+                    if constexpr (std::is_same_v<T, i64>) {
+                        if (literal != std::numeric_limits<i64>::min()) {
+                            return -literal;
+                        }
+                    } else if constexpr (std::is_same_v<T, double>) {
+                        return -literal;
+                    }
+                    return std::nullopt;
+                }, *value);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+EComparisonResult CompareLiterals(
+    const TLiteralValue& lhs,
+    const TLiteralValue& rhs,
+    NQueryClient::EBinaryOp opcode)
+{
+    auto result = NQueryClient::FoldConstants(
+        opcode,
+        New<NQueryClient::TLiteralExpression>(
+            NQueryClient::GetType(lhs),
+            NQueryClient::TOwningValue(NQueryClient::GetValue(lhs))),
+        New<NQueryClient::TLiteralExpression>(
+            NQueryClient::GetType(rhs),
+            NQueryClient::TOwningValue(NQueryClient::GetValue(rhs))));
+    if (!result || result->Type != NTableClient::EValueType::Boolean) {
+        return EComparisonResult::Unsupported;
+    }
+    return result->Data.Boolean ? EComparisonResult::True : EComparisonResult::False;
+}
+
+TExpressionPtr BuildNullAwarePredicate(
+    TObjectsHolder* holder,
+    TExpressionPtr expression,
+    TExpressionPtr reference,
+    bool matchesDefault)
+{
+    auto* isNull = holder->New<TBinaryOpExpression>(
+        NQueryClient::TSourceLocation(),
+        NQueryClient::EBinaryOp::Equal,
+        TExpressionList{reference},
+        TExpressionList{holder->New<TLiteralExpression>(NQueryClient::TSourceLocation(), TNullLiteralValue{})});
+    if (matchesDefault) {
+        return BuildOrExpression(holder, isNull, expression);
+    }
+    auto* notNull = holder->New<TUnaryOpExpression>(
+        NQueryClient::TSourceLocation(),
+        NQueryClient::EUnaryOp::Not,
+        TExpressionList{isNull});
+    return BuildAndExpression(holder, notNull, expression);
+}
+
+TExpressionPtr TryRewriteNullAsDefaultComparison(
+    TObjectsHolder* holder,
+    TBinaryOpExpression* binary,
+    const TReferenceDefaultValueGetter& getDefaultValue)
+{
+    if (!NQueryClient::IsRelationalBinaryOp(binary->Opcode)) {
+        return nullptr;
+    }
+    auto lhsLiteral = TryExtractComparisonLiteral(binary->Lhs);
+    auto rhsLiteral = TryExtractComparisonLiteral(binary->Rhs);
+    auto reference = TryExtractReference(binary->Lhs);
+    auto literal = rhsLiteral;
+    auto opcode = binary->Opcode;
+    const auto* referenceSide = &binary->Lhs;
+    if (!reference || !literal) {
+        reference = TryExtractReference(binary->Rhs);
+        literal = lhsLiteral;
+        opcode = NQueryClient::GetReversedBinaryOpcode(opcode);
+        referenceSide = &binary->Rhs;
+    }
+    if (!reference || !literal || std::holds_alternative<TNullLiteralValue>(*literal)) {
+        return nullptr;
+    }
+    auto* defaultExpression = getDefaultValue(*reference);
+    const auto* defaultValue = defaultExpression ? defaultExpression->As<TLiteralExpression>() : nullptr;
+    if (!defaultValue) {
+        return nullptr;
+    }
+    auto comparison = CompareLiterals(defaultValue->Value, *literal, opcode);
+    if (comparison == EComparisonResult::Unsupported) {
+        return nullptr;
+    }
+    if (comparison == CompareLiterals(TNullLiteralValue{}, *literal, opcode)) {
+        return binary;
+    }
+
+    auto* referenceExpression = (*referenceSide)[0];
+    if (opcode == NQueryClient::EBinaryOp::Equal) {
+        return holder->New<TInExpression>(
+            NQueryClient::TSourceLocation(),
+            TExpressionList{referenceExpression},
+            TLiteralValueTupleList{{TNullLiteralValue{}}, {*literal}});
+    }
+    return BuildNullAwarePredicate(holder, binary, referenceExpression, comparison == EComparisonResult::True);
+}
+
+TExpressionPtr TryRewriteNullAsDefaultIn(
+    TObjectsHolder* holder,
+    TInExpression* in,
+    const TReferenceDefaultValueGetter& getDefaultValue)
+{
+    auto reference = TryExtractReference(in->Expr);
+    if (!reference) {
+        return nullptr;
+    }
+    auto* defaultExpression = getDefaultValue(*reference);
+    const auto* defaultValue = defaultExpression ? defaultExpression->As<TLiteralExpression>() : nullptr;
+    if (!defaultValue) {
+        return nullptr;
+    }
+
+    bool matchesDefault = false;
+    bool containsNull = false;
+    for (const auto& tuple : in->Values) {
+        if (std::ssize(tuple) != 1) {
+            return nullptr;
+        }
+        if (std::holds_alternative<TNullLiteralValue>(tuple[0])) {
+            containsNull = true;
+            continue;
+        }
+        auto comparison = CompareLiterals(defaultValue->Value, tuple[0], NQueryClient::EBinaryOp::Equal);
+        if (comparison == EComparisonResult::Unsupported) {
+            return nullptr;
+        }
+        matchesDefault |= comparison == EComparisonResult::True;
+    }
+    if (matchesDefault == containsNull) {
+        return in;
+    }
+    auto values = in->Values;
+    if (matchesDefault) {
+        values.insert(values.begin(), TLiteralValueTuple{TNullLiteralValue{}});
+    } else {
+        std::erase_if(values, [] (const auto& tuple) {
+            return std::holds_alternative<TNullLiteralValue>(tuple[0]);
+        });
+        if (values.empty()) {
+            return holder->New<TLiteralExpression>(NQueryClient::TSourceLocation(), false);
+        }
+    }
+    return holder->New<TInExpression>(NQueryClient::TSourceLocation(), in->Expr, std::move(values));
+}
+
+TExpressionPtr TryWrapReferenceWithIfNull(
+    TObjectsHolder* holder,
+    TExpressionPtr expression,
+    const TReferenceDefaultValueGetter& getDefaultValue)
+{
+    auto* reference = expression->As<TReferenceExpression>();
+    if (!reference) {
+        return nullptr;
+    }
+    auto* defaultValue = getDefaultValue(reference->Reference);
+    if (!defaultValue) {
+        return nullptr;
+    }
+    return holder->New<TFunctionExpression>(
+        NQueryClient::TSourceLocation(),
+        "if_null",
+        TExpressionList{
+            expression,
+            defaultValue,
+        });
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionPtr RewriteNullAsDefaultPredicate(
+    TObjectsHolder* holder,
+    TExpressionPtr expression,
+    const TReferenceDefaultValueGetter& getDefaultValue)
+{
+    if (auto* function = expression->As<TFunctionExpression>(); function && function->FunctionName == "is_null") {
+        if (auto reference = TryExtractReference(function->Arguments);
+            reference && getDefaultValue(*reference))
+        {
+            return holder->New<TLiteralExpression>(NQueryClient::TSourceLocation(), false);
+        }
+    }
+    if (auto* binary = expression->As<TBinaryOpExpression>()) {
+        if (auto* rewritten = TryRewriteNullAsDefaultComparison(holder, binary, getDefaultValue)) {
+            return rewritten;
+        }
+    }
+    if (auto* in = expression->As<TInExpression>()) {
+        if (auto* rewritten = TryRewriteNullAsDefaultIn(holder, in, getDefaultValue)) {
+            return rewritten;
+        }
+    }
+    return TryWrapReferenceWithIfNull(holder, expression, getDefaultValue);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

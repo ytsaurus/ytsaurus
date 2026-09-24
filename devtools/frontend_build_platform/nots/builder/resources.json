@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-09-03T13:01:55Z",
+    "created": "2026-09-21T07:34:06.892Z",
     "pr": {
-      "id": 15488078,
-      "author": "baymer",
-      "summary": "FBP-3363 Log package script commands and duration"
+      "id": 15857833,
+      "author": "zaverden",
+      "summary": "FBP-2783: Move builder runtime out of build plugins"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:13488010877"
+      "uri": "sbr:13750200463"
     },
     "darwin-arm64": {
-      "uri": "sbr:13488006340"
+      "uri": "sbr:13750197125"
     },
     "linux": {
-      "uri": "sbr:13488021219"
+      "uri": "sbr:13750206714"
     },
     "linux-aarch64": {
-      "uri": "sbr:13488015890"
+      "uri": "sbr:13750203460"
     }
   }
 }

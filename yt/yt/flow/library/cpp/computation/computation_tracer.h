@@ -8,6 +8,16 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EEpochPartKind
+{
+    // Work on available input, including I/O and throttling.
+    Processing,
+    // Pipeline coordination or unclassified waiting.
+    Waiting,
+    WaitingForInput,
+    WaitingForOutput,
+};
+
 class IComputationTracer
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicPartitionTracerSpec>
@@ -28,7 +38,13 @@ public:
     //! Though reconfiguring and getting metrics are thread-safe.
     virtual NTracing::TTraceContextPtr CreateInitTraceContext() = 0;
     virtual NTracing::TTraceContextPtr StartEpochTraceContext(i64 epochId) = 0;
-    virtual NTracing::TTraceContextPtr CreateEpochPartTraceContext(TStringBuf partName) = 0;
+    // An unspecified kind inherits from the parent part, or defaults to Processing.
+    virtual NTracing::TTraceContextPtr CreateEpochPartTraceContext(
+        TStringBuf partName,
+        std::optional<EEpochPartKind> kind = std::nullopt) = 0;
+
+    //! Thread-safe.
+    virtual THashMap<EEpochPartKind, TPartState> GetPartStatesByKind() = 0;
 
     //! Thread-safe.
     virtual THashMap<std::string, TPartState> GetPartStates() = 0;

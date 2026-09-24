@@ -17,6 +17,7 @@ type baseMetric struct {
 	metricType metricType
 	tags       map[string]string
 	timestamp  *time.Time
+	startTime  uint32
 	useNameTag bool
 	memOnly    bool
 }
@@ -31,6 +32,7 @@ func newBaseMetric(name string, mType metricType, opts ...MetricOpt) baseMetric 
 		metricType: mType,
 		tags:       mOpts.tags,
 		timestamp:  mOpts.timestamp,
+		startTime:  mOpts.startTime,
 		useNameTag: mOpts.useNameTag,
 		memOnly:    mOpts.memOnly,
 	}
@@ -50,6 +52,16 @@ func (m *baseMetric) getType() metricType {
 
 func (m *baseMetric) getTimestamp() *time.Time {
 	return m.timestamp
+}
+
+func (m *baseMetric) getStartTime() uint32 {
+	return m.startTime
+}
+
+func (m *baseMetric) ensureStartTime() {
+	if m.startTime == 0 {
+		m.startTime = uint32(time.Now().Unix())
+	}
 }
 
 func (m *baseMetric) isMemOnly() bool {
@@ -87,6 +99,7 @@ func (m *baseMetric) copy() baseMetric {
 		metricType: m.metricType,
 		tags:       m.tags,
 		timestamp:  m.timestamp,
+		startTime:  m.startTime,
 		useNameTag: m.useNameTag,
 		memOnly:    m.memOnly,
 	}

@@ -16,8 +16,6 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
-
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
@@ -182,7 +180,7 @@ struct INodeTracker
     virtual THost* GetHostByName(const std::string& hostName) = 0;
 
     //! Returns all groups for a given node.
-    virtual TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) = 0;
+    virtual std::vector<std::string> GetGroupNamesForNode(const TNode* node) = 0;
 
     //! Sets the rack and notifies the subscribers.
     virtual void SetHostRack(THost* host, TRack* rack) = 0;

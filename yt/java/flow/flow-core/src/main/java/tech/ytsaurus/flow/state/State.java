@@ -15,8 +15,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
  * states share this shape.
  */
 public final class State implements YTreeConvertible {
-    public static final State RESET = new State(true, null);
-
     private final boolean reset;
     // The entry is request-local and single-threaded; set()/clear() replace the whole entry, so
     // neither representation outlives the other.
@@ -27,6 +25,15 @@ public final class State implements YTreeConvertible {
     // Encodes the value into the bytes: set for an entry created from a value, and for one whose
     // value was handed out as mutable.
     private @Nullable ByteStringCodec<Object> codec;
+
+    /**
+     * Creates a reset marker: the entry drops whatever value is stored for the key. Every
+     * marker is its own instance — the representations above are mutable, so none is shared.
+     * Created through {@link StatesHolder#clear} and {@link StatesHolder#loadReset}.
+     */
+    static State reset() {
+        return new State(true, null);
+    }
 
     public State(ByteString bytes) {
         this(false, Objects.requireNonNull(bytes, "Non-reset state must have bytes"));

@@ -100,6 +100,7 @@ YT_DEFINE_ERROR_ENUM(
     ((HunkStoreAllocationFailed)              (1746))
     ((TabletResharded)                        (1747))
     ((ReadOnlySmoothMovementStage)            (1748))
+    ((CellHasNoLeader)                        (1749))
 
     // Test error codes.
     ((TestingFailureBeforeWrite)              (1798))
@@ -226,11 +227,6 @@ DEFINE_ENUM(ETabletActionState,
     ((MountingAuxiliary)        (11))
     ((WaitingForSmoothMove)     (12))
     ((AbortingSmoothMove)       (13))
-);
-
-DEFINE_ENUM(ETabletServiceFeatures,
-    ((WriteGenerations)         (0))
-    ((SharedWriteLocks)         (1))
 );
 
 DEFINE_ENUM(ERowMergerType,

@@ -733,6 +733,11 @@ void TRepairChunkJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(256_MBs);
 
+    registrar.Parameter(
+        "enable_adaptive_repair_for_striped_erasure_chunks",
+        &TThis::EnableAdaptiveRepairForStripedErasureChunks)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         // Disable target allocation from master.
         config->Writer->UploadReplicationFactor = 1;

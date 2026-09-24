@@ -1797,6 +1797,27 @@
             "uri": "https://{canondata_backend}/1781765/19d33bb3e70ef18d8e2cd72a44b9d1af30a94ab2/resource.tar.gz#test.test_pg-tpch-q04-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[pragma-preserve_pool_on_length_materialization--Debug]": [
+        {
+            "checksum": "fb8f4a96d02dc19a51468355254a235d",
+            "size": 1396,
+            "uri": "https://{canondata_backend}/1031349/726b68e44b80e4f8528aba38fbb254f1a357feef/resource.tar.gz#test.test_pragma-preserve_pool_on_length_materialization--Debug_/opt.yql"
+        }
+    ],
+    "test.test[pragma-preserve_pool_on_length_materialization--Plan]": [
+        {
+            "checksum": "6d7f201973cc9690b41c4793ca27ff7d",
+            "size": 2606,
+            "uri": "https://{canondata_backend}/1031349/726b68e44b80e4f8528aba38fbb254f1a357feef/resource.tar.gz#test.test_pragma-preserve_pool_on_length_materialization--Plan_/plan.txt"
+        }
+    ],
+    "test.test[pragma-preserve_pool_on_length_materialization--Results]": [
+        {
+            "checksum": "81f3bad88b4d10d6260b685aeef11c20",
+            "size": 694,
+            "uri": "https://{canondata_backend}/1031349/726b68e44b80e4f8528aba38fbb254f1a357feef/resource.tar.gz#test.test_pragma-preserve_pool_on_length_materialization--Results_/results.txt"
+        }
+    ],
     "test.test[produce-process_with_python_as_struct-default.txt-Debug]": [
         {
             "checksum": "bf5f7e022a05c035e33c7554733bd206",

@@ -77,13 +77,13 @@ private:
         auto timeout = FromProto<TDuration>(request->timeout());
         auto deadline = request->has_deadline() ? std::optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
 
-        context->SetRequestInfo("Title: %v, ParentId: %v, PrerequisiteTransactionIds: %v, ReplicateToCellTags: %v, Timeout: %v, Deadline: %v",
-            title,
-            parentId,
-            prerequisiteTransactionIds,
-            replicateToCellTags,
-            timeout,
-            deadline);
+        context->AnnotateRequest()
+            .With("Title", title)
+            .With("ParentId", parentId)
+            .With("PrerequisiteTransactionIds", prerequisiteTransactionIds)
+            .With("ReplicateToCellTags", replicateToCellTags)
+            .With("Timeout", timeout)
+            .With("Deadline", deadline);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->StartCypressTransaction(context);
@@ -99,9 +99,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
 
-        context->SetRequestInfo("TransactionId: %v, PrerequisiteTransactionIds: %v",
-            transactionId,
-            prerequisiteTransactionIds);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("PrerequisiteTransactionIds", prerequisiteTransactionIds);
 
         if (context->GetMutationId()) {
             const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
@@ -125,9 +125,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool force = request->force();
 
-        context->SetRequestInfo("TransactionId: %v, Force: %v",
-            transactionId,
-            force);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("Force", force);
 
         if (context->GetMutationId()) {
             const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
@@ -152,10 +152,10 @@ private:
         bool pingAncestors = request->ping_ancestors();
         auto pingerAddress = YT_OPTIONAL_FROM_PROTO(*request, pinger_address);
 
-        context->SetRequestInfo("TransactionId: %v, PingAncestors: %v, PingerAddress: %v",
-            transactionId,
-            pingAncestors,
-            pingerAddress);
+        context->AnnotateRequest()
+            .With("TransactionId", transactionId)
+            .With("PingAncestors", pingAncestors)
+            .With("PingerAddress", pingerAddress);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         context->ReplyFrom(transactionManager->PingTransaction(transactionId, pingAncestors, pingerAddress));

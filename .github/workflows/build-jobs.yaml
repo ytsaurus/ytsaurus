@@ -22,6 +22,14 @@ on:
         default: false
         required: false
         type: boolean
+      build-flow:
+        default: false
+        required: false
+        type: boolean
+      build-flow-tests:
+        default: false
+        required: false
+        type: boolean
       build-query-tracker:
         default: false
         required: false
@@ -202,6 +210,15 @@ jobs:
               --targets "${TARGETS}"
           '
 
+      - name: Build flow (cmake, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow }}
+        run: |
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --targets "flow_server"
+          '
+
       - name: Build YQL agent (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
@@ -367,6 +384,15 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${INTEGRATION_TEST_TARGETS} -A --test-prepare
 
+      - name: Build flow tests dependencies (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow-tests && (matrix.build-type == 'relwithdebinfo') }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
+
           # Programs and C++ unit tests required by the exported Flow examples.
           FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
           for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/{cpp,go}/*/test; do
@@ -387,6 +413,21 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_PROGRAM_TARGETS}
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FLOW_CPP_UNITTEST_TARGETS}
+
+      - name: Build flow (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          FLOW_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
+
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ${FLOW_TARGETS}
+          fi
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}

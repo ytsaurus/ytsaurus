@@ -34,7 +34,7 @@ public:
         if (LimitReached_ && !ExpectValue_) {
             return;
         }
-        Writer_.OnStringScalar(value.substr(0, std::min(std::ssize(value), Limit_ - std::ssize(Result_))));
+        Writer_.OnStringScalar(value.substr(0, std::min(std::ssize(value), GetRemainingOutputSize())));
         Postprocess();
     }
 
@@ -85,8 +85,9 @@ public:
 
     void OnBeginList()
     {
-        Stack_.push_back(std::pair(ETokenType::List, !LimitReached_));
-        if (LimitReached_ && !ExpectValue_) {
+        const bool write = !LimitReached_ || ExpectValue_;
+        Stack_.push_back(std::pair(ETokenType::List, write));
+        if (!write) {
             return;
         }
         Writer_.OnBeginList();
@@ -115,8 +116,9 @@ public:
 
     void OnBeginMap()
     {
-        Stack_.push_back(std::pair(ETokenType::Map, !LimitReached_));
-        if (LimitReached_ && !ExpectValue_) {
+        const bool write = !LimitReached_ || ExpectValue_;
+        Stack_.push_back(std::pair(ETokenType::Map, write));
+        if (!write) {
             return;
         }
         Writer_.OnBeginMap();
@@ -128,7 +130,9 @@ public:
         if (LimitReached_) {
             return;
         }
-        Writer_.OnKeyedItem(name.substr(0, std::min(std::ssize(name), Limit_ - std::ssize(Result_))));
+        auto remainingOutputSize = Limit_ - std::ssize(Result_);
+        YT_ASSERT(remainingOutputSize > 0);
+        Writer_.OnKeyedItem(name.substr(0, std::min(std::ssize(name), remainingOutputSize)));
         // NB: Postprocess intentionally is not performed.
     }
 
@@ -145,8 +149,9 @@ public:
 
     void OnBeginAttributes()
     {
-        Stack_.push_back(std::pair(ETokenType::Attributes, !LimitReached_));
-        if (LimitReached_ && !ExpectValue_) {
+        const bool write = !LimitReached_ || ExpectValue_;
+        Stack_.push_back(std::pair(ETokenType::Attributes, write));
+        if (!write) {
             return;
         }
         Writer_.OnBeginAttributes();
@@ -171,6 +176,7 @@ public:
             return;
         }
         Writer_.OnRaw(yson, type);
+        Postprocess();
     }
 
 private:
@@ -185,11 +191,25 @@ private:
     TStringOutput OutputStream_;
     TYsonWriter Writer_;
 
+    i64 FlushAndGetOutputSize()
+    {
+        Writer_.Flush();
+        return std::ssize(Result_);
+    }
+
+    i64 GetRemainingOutputSize()
+    {
+        return std::max<i64>(Limit_ - FlushAndGetOutputSize(), 0);
+    }
+
+    bool IsLimitReached()
+    {
+        return FlushAndGetOutputSize() >= Limit_;
+    }
+
     void Postprocess()
     {
-        if (std::ssize(Result_) >= Limit_) {
-            LimitReached_ = true;
-        }
+        LimitReached_ = IsLimitReached();
         ExpectValue_ = false;
     }
 };

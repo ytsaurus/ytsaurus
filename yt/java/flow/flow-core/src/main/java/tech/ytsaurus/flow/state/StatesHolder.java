@@ -89,6 +89,17 @@ public class StatesHolder implements YTreeConvertible {
     }
 
     /**
+     * Clear the value stored for {@code key}: the entry becomes a reset marker. Marks the key as
+     * modified so the reset is included in the response sent back to the companion computation;
+     * a reset that arrived in the request is loaded by {@link #loadReset} instead.
+     *
+     * @param key UnversionedRow key.
+     */
+    public void clear(UnversionedRow key) {
+        set(key, State.reset());
+    }
+
+    /**
      * Load a value for key WITHOUT marking it as modified. Used to populate the holder from the
      * incoming request: such states must not be echoed back unless an accessor changes them.
      *
@@ -97,6 +108,18 @@ public class StatesHolder implements YTreeConvertible {
      */
     public void load(UnversionedRow key, State value) {
         this.states.put(key, value);
+    }
+
+    /**
+     * Load a reset marker for {@code key} WITHOUT marking it as modified: a reset that arrived in
+     * the request must not be echoed back, unlike one made by {@link #clear}. The worker does not
+     * send resets in a request — it omits a key that has no value — so this parses a field the
+     * protocol allows and the test harness produces when a state is seeded cleared.
+     *
+     * @param key UnversionedRow key.
+     */
+    public void loadReset(UnversionedRow key) {
+        load(key, State.reset());
     }
 
     /**

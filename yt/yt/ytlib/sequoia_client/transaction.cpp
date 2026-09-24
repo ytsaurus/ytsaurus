@@ -951,13 +951,6 @@ private:
         for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
             tabletCommitSession->PrepareRequests();
         }
-
-        for (const auto& [cellTag, masterCellCommitSession] : MasterCellCommitSessions_) {
-            for (auto tabletCellId : masterCellCommitSession->TabletCellIds) {
-                auto cellCommitSession = CellCommitSessionProvider_->GetCellCommitSession(tabletCellId);
-                cellCommitSession->GetCommitSignatureGenerator()->RegisterRequest();
-            }
-        }
     }
 
     TFuture<void> CommitMasterSessions()
@@ -1015,6 +1008,10 @@ private:
     TFuture<void> CommitTabletSessions()
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
+            tabletCommitSession->CalculateBatchSignatures();
+        }
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TabletCommitSessions_.size());

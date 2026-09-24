@@ -2,8 +2,10 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -575,4 +577,55 @@ func BenchmarkEncode(b *testing.B) {
 			}
 		}
 	})
+}
+
+const textBeforeBinaryText = "text-marshaler-wins"
+
+type textBeforeBinary struct{}
+
+func (textBeforeBinary) MarshalText() ([]byte, error) {
+	return []byte(textBeforeBinaryText), nil
+}
+
+func (textBeforeBinary) MarshalBinary() ([]byte, error) {
+	return nil, errors.New("MarshalBinary must not be used when MarshalText is implemented")
+}
+
+func (*textBeforeBinary) UnmarshalText(text []byte) error {
+	if string(text) != textBeforeBinaryText {
+		return errors.New("unexpected text representation")
+	}
+	return nil
+}
+
+func (*textBeforeBinary) UnmarshalBinary([]byte) error {
+	return errors.New("UnmarshalBinary must not be used when UnmarshalText is implemented")
+}
+
+type textBeforeBinaryRow struct {
+	Value textBeforeBinary `yson:"value"`
+}
+
+type timeRow struct {
+	Time time.Time `yson:"time"`
+}
+
+func TestEncodeMarshalerPriority(t *testing.T) {
+	_, rows, err := Encode([]any{&textBeforeBinaryRow{}})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0], 1)
+	require.Equal(t, textBeforeBinaryText, string(rows[0][0].Bytes()))
+}
+
+func TestEncodeTime(t *testing.T) {
+	in := timeRow{Time: time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)}
+
+	nameTable, rows, err := Encode([]any{&in})
+	require.NoError(t, err)
+	require.Equal(t, "2026-09-22T12:00:00Z", string(rows[0][0].Bytes()))
+
+	var out timeRow
+	require.NoError(t, NewDecoder(nameTable, nil).UnmarshalRow(rows[0], &out))
+	require.True(t, in.Time.Equal(out.Time))
 }

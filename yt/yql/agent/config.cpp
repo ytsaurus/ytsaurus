@@ -8,6 +8,10 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yql/plugin/process/config.h>
 
 #include <util/string/vector.h>
@@ -21,6 +25,14 @@ using namespace NSecurityClient;
 using namespace NAuth;
 using namespace NYqlClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTokenServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("unix_socket_path", &TThis::UnixSocketPath)
+        .NonEmpty();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +54,10 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
         .Default();
+    registrar.Parameter("use_token_resolver", &TThis::UseTokenResolver)
+        .Default(false);
+    registrar.Parameter("token_service", &TThis::TokenService)
+        .Default();
     registrar.Parameter("use_qtworker_yql_plugin", &TThis::UseQtWorkerYqlPlugin)
         .Default(false);
     registrar.Parameter("qtworker_inspector_port", &TThis::QtWorkerInspectorPort)
@@ -54,9 +70,24 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
+        if (config->UseTokenResolver && !config->TokenService) {
+            THROW_ERROR_EXCEPTION(
+                "\"token_service\" must be specified when \"use_token_resolver\" is true");
+        }
         if (config->UseQtWorkerYqlPlugin && !config->QtWorkerGatewaysConfigPath) {
             THROW_ERROR_EXCEPTION(
                 "\"qtworker_gateways_config_path\" must be specified when \"use_qtworker_yql_plugin\" is true");
+        }
+
+        if (config->ProcessPluginConfig->Enabled && !config->UseQtWorkerYqlPlugin) {
+            auto fileStorageConfig = config->FileStorageConfig->AsMap();
+            auto pathNode = fileStorageConfig->FindChild("path");
+            if (!pathNode ||
+                !NFS::IsAbsolutePath(pathNode->GetValue<TString>()))
+            {
+                THROW_ERROR_EXCEPTION(
+                    "\"file_storage.path\" must be an absolute path when process plugin is enabled");
+            }
         }
     });
 }

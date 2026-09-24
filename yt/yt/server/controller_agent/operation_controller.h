@@ -161,6 +161,8 @@ struct IOperationControllerHost
 
     virtual const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const = 0;
 
+    virtual const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const = 0;
+
     virtual void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) = 0;
     virtual void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) = 0;
     virtual void UpdateRunningAllocationsStatistics(

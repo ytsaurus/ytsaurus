@@ -1,6 +1,8 @@
 import io
 import os
+import shutil
 import tarfile
+import time
 
 import requests
 import pytest
@@ -240,6 +242,104 @@ class TestFileResourceLifecycle(FlowTestBase):
         return sum(1 for root, _, files in os.walk(cache_path) if "manifest.yson" in files and os.path.basename(root))
 
     @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("directory_last", [False, True])
+    @pytest.mark.parametrize("restart_workers", [False, True])
+    def test_static_spec_change_requires_new_discovery(self, directory_last, restart_workers):
+        old_directory = f"{self.work_yt_path}/old"
+        new_directory = f"{self.work_yt_path}/new"
+        self.client.create("map_node", old_directory)
+        self.write_cypress_file(f"{old_directory}/file", b"first")
+        provider_class = "TYTDirectoryLastFileProvider" if directory_last else "TYTFileProvider"
+        old_path = old_directory if directory_last else f"{old_directory}/file"
+        new_path = new_directory if directory_last else f"{new_directory}/file"
+        pipeline = self.prepare_pipeline(f"NYT::NFlow::{provider_class}", f"<cluster=primary>{old_path}")
+        config = get_yson_config(pipeline)
+        config["spec"]["resources"]["text"]["always_on"] = True
+        pipeline = self.dump_config_to_log_dir(config, "restart-pipeline.yson")
+        node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
+
+        def wait_active():
+            wait(
+                lambda: list(self.snapshot_state_counts("active").values()) == [2],
+                timeout=120,
+                ignore_exceptions=True,
+            )
+
+        def cached_payloads():
+            result = {}
+            for cache_path in cache_paths:
+                for directory, _, files in os.walk(cache_path):
+                    if "payload" not in directory.split(os.sep):
+                        continue
+                    for name in files:
+                        path = os.path.join(directory, name)
+                        stat = os.stat(path)
+                        result[path] = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            assert result
+            return result
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            worker_node_config_overrides=worker_overrides,
+            pipeline_binary_args={"--config": pipeline},
+        ) as federation:
+            self.write_input("before")
+            self.wait_output("before", "first")
+            wait_active()
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+            current = self.client.get_pipeline_spec(self.pipeline_path)
+            current["spec"]["resources"]["text"]["file_providers"]["file"]["parameters"][
+                "path"
+            ] = f"<cluster=primary>{new_path}"
+            self.client.set_pipeline_spec(self.pipeline_path, current["spec"], expected_version=current["version"])
+            federation.controllers[0].restart()
+            self.wait_pipeline_state("stopped")
+            if restart_workers:
+                for worker in federation.workers:
+                    worker.stop()
+                for directory, _, _ in os.walk(cache_paths[1]):
+                    os.chmod(directory, 0o700)
+                shutil.rmtree(cache_paths[1])
+                for worker in federation.workers:
+                    worker.start()
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_for_pipeline_description_error("File provider discovery failed")
+            view = self.resource_view()["file_providers"]
+            assert view.get("active_file_snapshot_id") is None
+            assert view.get("preparing_file_snapshot_id") is None
+            self.write_input("after-spec-change")
+            time.sleep(2)
+            assert not list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-spec-change'"))
+
+            self.client.create("map_node", new_directory)
+            self.write_cypress_file(f"{new_directory}/file", b"corrupt")
+            self.wait_for_pipeline_description_error("Test file resource rejected corrupt payload")
+            assert not list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-spec-change'"))
+            self.write_cypress_file(f"{new_directory}/file", b"second")
+            self.wait_output("after-spec-change", "second")
+            wait_active()
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped")
+            rows = list(self.client.select_rows(f"* from [{self.output_queue}] where input = 'after-spec-change'"))
+            assert rows and all(row["file_text"] == "second" for row in rows)
+            cached_before = cached_payloads()
+
+            current = self.client.get_pipeline_spec(self.pipeline_path)
+            current["spec"]["resources"]["text"]["always_on"] = False
+            self.client.set_pipeline_spec(self.pipeline_path, current["spec"], expected_version=current["version"])
+            self.client.start_pipeline(self.pipeline_path)
+            self.write_input("reused")
+            self.wait_output("reused", "second")
+            wait(
+                lambda: list(self.snapshot_state_counts("active").values()) == [1],
+                timeout=120,
+                ignore_exceptions=True,
+            )
+            assert cached_payloads() == cached_before
+
+    @pytest.mark.authors(["mikari"])
     def test_yt_file_update_and_snapshot_metrics(self):
         file_path = f"{self.work_yt_path}/file"
         self.publish_blob_revision(file_path, "001", {"file": b"first"})
@@ -306,6 +406,110 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_output("before", "first")
             self.write_cypress_file(file_path, b"second")
             self.wait_for_updated_output("updated", "second")
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("directory_last", [False, True])
+    @pytest.mark.parametrize("object_type", ["file", "table"])
+    def test_selected_file_reload_without_job_restart(self, directory_last, object_type):
+        directory = f"{self.work_yt_path}/versions"
+        self.client.create("map_node", directory)
+        file_path = f"{directory}/001"
+
+        def write_payload(payload):
+            if object_type == "file":
+                self.write_cypress_file(file_path, payload)
+            elif self.client.exists(file_path):
+                self.client.write_table(file_path, [{"filename": "file", "part_index": 0, "data": payload}])
+            else:
+                self.write_blob_file(file_path, payload)
+
+        write_payload(b"first")
+        provider_class = "TYTDirectoryLastFileProvider" if directory_last else "TYTFileProvider"
+        pipeline = self.prepare_pipeline(
+            f"NYT::NFlow::{provider_class}",
+            f"<cluster=primary>{directory if directory_last else file_path}",
+        )
+        config = get_yson_config(pipeline)
+        config["spec"]["resources"]["text"]["always_on"] = True
+        pipeline = self.dump_config_to_log_dir(config, "reload-pipeline.yson")
+        node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
+
+        def wait_for_reload(previous_id=None):
+            result = None
+
+            def converged():
+                nonlocal result
+                counts = self.snapshot_state_counts("active")
+                if len(counts) != 1:
+                    return False
+                snapshot_id, count = next(iter(counts.items()))
+                if count != 2 or snapshot_id == previous_id:
+                    return False
+                result = snapshot_id
+                return True
+
+            wait(converged, timeout=120, ignore_exceptions=True)
+            return result
+
+        def job_ids():
+            return set(
+                self.client.get_flow_view(
+                    self.pipeline_path, view_path="/state/execution_spec/layout/jobs", cache=False
+                )
+            )
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("before")
+            self.wait_output("before", "first")
+            first_id = wait_for_reload()
+            initial_jobs = job_ids()
+            assert initial_jobs
+            cached_before = [self.count_cached_objects(path) for path in cache_paths]
+
+            content_revision = self.client.get(f"{file_path}/@content_revision")
+            self.client.set(f"{file_path}/@reload_test", 1)
+            assert self.client.get(f"{file_path}/@content_revision") == content_revision
+            time.sleep(2)
+            assert self.snapshot_state_counts("active") == {first_id: 2}
+            assert [self.count_cached_objects(path) for path in cache_paths] == cached_before
+
+            write_payload(b"second")
+            second_id = wait_for_reload(first_id)
+            assert all(self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before))
+            self.write_input("after-reload")
+            row = self.wait_output("after-reload", "second")
+            assert row["file_snapshot_id"] == second_id
+
+            old_object_id = self.client.get(f"{file_path}/@id")
+            cached_before_replace = [self.count_cached_objects(path) for path in cache_paths]
+            with self.client.Transaction():
+                self.client.remove(file_path)
+                write_payload(b"replacement")
+            assert self.client.get(f"{file_path}/@id") != old_object_id
+            replacement_id = wait_for_reload(second_id)
+            assert all(
+                self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before_replace)
+            )
+            self.write_input("after-replace")
+            row = self.wait_output("after-replace", "replacement")
+            assert row["file_snapshot_id"] == replacement_id
+
+            write_payload(b"corrupt")
+            self.wait_for_pipeline_error("Test file resource rejected corrupt payload")
+            self.write_input("failed-reload")
+            self.wait_output("failed-reload", "replacement")
+
+            write_payload(b"third")
+            third_id = wait_for_reload(replacement_id)
+            self.write_input("recovered")
+            row = self.wait_output("recovered", "third")
+            assert row["file_snapshot_id"] == third_id
+            assert job_ids() == initial_jobs
 
     @pytest.mark.authors(["mikari"])
     def test_two_workers_report_independent_cache_and_rollout_state(self):

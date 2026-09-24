@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     absolute_limit_ut.cpp
     arrow_writer_ut.cpp
+    chaos_leases_watcher_client_ut.cpp
     chunk_client_fetcher_ut.cpp
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
@@ -18,6 +19,7 @@ SRCS(
     erasure_helpers_ut.cpp
     erasure_parts_reader_ut.cpp
     input_chunk_ut.cpp
+    job_phase_ut.cpp
     job_resources_ut.cpp
     journal_chunk_writer_ut.cpp
     memory_usage_tracker_ut.cpp

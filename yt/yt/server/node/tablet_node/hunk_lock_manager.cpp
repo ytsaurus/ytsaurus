@@ -129,6 +129,15 @@ public:
         }
     }
 
+    void ScheduleUnlockStaleHunkStores() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (UnlockExecutor_) {
+            UnlockExecutor_->ScheduleOutOfBand();
+        }
+    }
+
     void RegisterHunkStore(
         THunkStoreId hunkStoreId,
         TCellId hunkCellId,

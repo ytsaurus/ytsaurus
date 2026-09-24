@@ -87,7 +87,6 @@ public class RequestProcessorFunction implements RowFunction {
 
         if (!isSucceed(requestId, failedAttempts)) {
             state.setFailedAttempts(failedAttempts + 1);
-            accessor.set(state);
             long nextAttemptTime = System.currentTimeMillis() / 1000L + RETRY_DELAY_SECONDS;
             output.addTimer(nextAttemptTime, 0L);
             log.debug("Request failed, scheduling retry (requestId={}, failedAttempts={})",

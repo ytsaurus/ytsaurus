@@ -25,6 +25,20 @@ using NYqlPlugin::TYqlPluginConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTokenServiceConfig
+    : public NYTree::TYsonStruct
+{
+    std::string UnixSocketPath;
+
+    REGISTER_YSON_STRUCT(TTokenServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTokenServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TYqlAgentConfig
     : public TYqlPluginConfig
 {
@@ -39,6 +53,9 @@ struct TYqlAgentConfig
     std::optional<bool> AllowNotReleasedYqlVersions;
 
     std::vector<std::string> InsecureSecretPathSubjects;
+
+    bool UseTokenResolver;
+    TTokenServiceConfigPtr TokenService;
 
     bool UseQtWorkerYqlPlugin;
 

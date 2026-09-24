@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/core/actions/public.h>
+
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NScheduler::NStrategy {
@@ -18,6 +20,7 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
+        IInvokerPtr backgroundInvoker,
         const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
         const TJobResources& defaultMinSpareAllocationResources);

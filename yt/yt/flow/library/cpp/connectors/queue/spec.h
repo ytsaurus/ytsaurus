@@ -113,7 +113,8 @@ struct TQueueSinkTabletRoutingParameters
     //! Required with |TabletIndexRoutingHashExpression|; the hash reduction policy.
     std::optional<EQueueTabletIndexRoutingHashPolicy> TabletIndexRoutingHashPolicy;
 
-    //! Optional for the hash mode; when unset the target queue's @tablet_count is resolved at init.
+    //! Optional for the hash mode; when unset the target queue's @tablet_count is resolved on the
+    //! first non-empty write.
     std::optional<i64> TabletCount;
 
     REGISTER_YSON_STRUCT(TQueueSinkTabletRoutingParameters);

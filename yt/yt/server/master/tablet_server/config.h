@@ -160,6 +160,25 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStoresUpdateThrottlerConfig
+    : public NYTree::TYsonStruct
+{
+    NConcurrency::TThroughputThrottlerConfigPtr Throttler;
+
+    int BundleLimit;
+    double FlushRelativeLimit;
+    //! Relative limit for all tablet store update reasons except flushes.
+    double RegularRelativeLimit;
+
+    REGISTER_YSON_STRUCT(TStoresUpdateThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoresUpdateThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicCellHydraPersistenceSynchronizerConfig
     : public NYTree::TYsonStruct
 {
@@ -236,16 +255,11 @@ struct TDynamicTabletManagerConfig
     //! for balancing purposes.
     i64 TabletDataSizeFootprint;
 
-    //! Store chunk reader config for all dynamic tables.
+    //! COMPAT(ifsmirnov): legacy base IO configs are migrated to
+    //! the legacy_base_io_configs experiment during snapshot recovery.
     NTabletNode::TTabletStoreReaderConfigPtr StoreChunkReader;
-
-    //! Hunk chunk reader config for all dynamic tables.
     NTabletNode::TTabletHunkReaderConfigPtr HunkChunkReader;
-
-    //! Store chunk writer config for all dynamic tables.
     NTabletNode::TTabletStoreWriterConfigPtr StoreChunkWriter;
-
-    //! Hunk chunk writer config for all dynamic tables.
     NTabletNode::TTabletHunkWriterConfigPtr HunkChunkWriter;
 
     //! Hunk store writer config for all hunk storages.
@@ -341,6 +355,8 @@ struct TDynamicTabletManagerConfig
     bool ReplicateTableCollocations;
 
     int MaxChunksPerMountedTablet;
+
+    TStoresUpdateThrottlerConfigPtr StoresUpdateThrottler;
 
     i64 MaxUnversionedChunkSize;
 

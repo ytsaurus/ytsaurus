@@ -15,6 +15,8 @@ PEERDIR(
     yt/yt/flow/library/cpp/common/proto
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
+
 EXCLUDE_TAGS(GO_PROTO)
 
 IF (OPENSOURCE_PROJECT != "yt-cpp-sdk")

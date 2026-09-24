@@ -37,6 +37,7 @@ target_link_libraries(library-cpp-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
   contrib-libs-eigen
+  contrib-libs-openssl
   library-cpp-build_info
   cpp-yt-error
   cpp-yt-memory
@@ -52,7 +53,9 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/backtrace_ypath_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/compact_unversioned_owning_row.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/counter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/decayed_sum.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/debug_build_warning.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/destruction_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/deploy_url_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/identifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/cow_tree.cpp
@@ -69,6 +72,7 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/retryable_client_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/retryable_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/retryable_transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/self_signed_certificate.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/status_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/weighted_random.cpp
 )
@@ -93,6 +97,7 @@ target_link_libraries(library-cpp-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   contrib-libs-eigen
+  contrib-libs-openssl
   library-cpp-build_info
   cpp-yt-error
   cpp-yt-memory

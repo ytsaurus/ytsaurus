@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/bus/tcp/public.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 #include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/server_program/config.h>
@@ -63,6 +65,8 @@ struct TMasterCacheDynamicConfig
     : public TSingletonsDynamicConfig
 {
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
+
+    NRpc::TServerDynamicConfigPtr RpcServer;
 
     NCellMasterClient::TCellDirectorySynchronizerOverrideDynamicConfigPtr MasterCellDirectorySynchronizer;
 

@@ -36,6 +36,10 @@ Lineage устанавливается через метод `SetParents` / `set
 - [Python](../../../flow/python/computation.md#output-collector)
 - [Go](../../../flow/go/computation.md#output-collector)
 
+## Статистика преобразования {#conversion-statistics}
+
+Flow оценивает отношение выхода ко входу для каждой пары потоков, отдельно по количеству сообщений и размеру в байтах. Статистика учитывает обработанные сообщения, а не гарантированно доставленные.
+
 ## См. также
 
 - [Порядок обработки сообщений](../../../flow/concepts/ordering.md)

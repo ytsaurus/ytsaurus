@@ -623,6 +623,36 @@ TEST_F(TYTToCHConversionTest, OptionalSimpleType)
     }
 }
 
+TEST_F(TYTToCHConversionTest, TaggedString)
+{
+    auto stringType = SimpleLogicalType(ESimpleLogicalValueType::String);
+    const std::string value("foo\0bar", 7);
+    std::vector<TUnversionedValue> values = {MakeUnversionedStringValue(value)};
+
+    for (const auto& type : {
+        TaggedLogicalType("tag", stringType),
+        OptionalLogicalType(TaggedLogicalType("tag", stringType)),
+        TaggedLogicalType("tag", OptionalLogicalType(stringType)),
+        OptionalLogicalType(TaggedLogicalType("outer", TaggedLogicalType("inner", stringType))),
+    }) {
+        TComplexTypeFieldDescriptor descriptor(type);
+        auto expectedType = std::make_shared<DB::DataTypeString>();
+        ExpectTypeConversion(descriptor, type->IsNullable() ? DB::makeNullable(expectedType) : expectedType);
+        ExpectDataConversion(descriptor, values, {DB::Field(value)});
+        auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(values, TColumnSchema(/*name*/ "", type));
+        ExpectDataConversion(descriptor, ytColumn, {DB::Field(value)});
+
+        if (type->IsNullable()) {
+            ExpectDataConversion(descriptor, TUnversionedValues{MakeUnversionedNullValue()}, {DB::Field()});
+        }
+    }
+
+    TComplexTypeFieldDescriptor descriptor(OptionalLogicalType(
+        TaggedLogicalType("tag", OptionalLogicalType(stringType))));
+    std::vector<TString> ysons = {"#", "[#]", "[foo]"};
+    ExpectDataConversion(descriptor, ToYsonStringBufs(ysons), {DB::Field(), DB::Field(), DB::Field("foo")});
+}
+
 TEST_F(TYTToCHConversionTest, NullAndVoid)
 {
     // Nesting level is the number of optional<> wrappers around null or void.

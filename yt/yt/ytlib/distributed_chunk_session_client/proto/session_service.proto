@@ -4,6 +4,7 @@ import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
@@ -35,6 +36,7 @@ message TReqStartSession
     repeated fixed64 chunk_replicas = 3;
     required bytes journal_chunk_writer_options = 4 [(NYT.NYson.NProto.yson_string) = true];
     required bytes journal_chunk_writer_config = 5 [(NYT.NYson.NProto.yson_string) = true];
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
 }
 
 message TRspStartSession

@@ -2,6 +2,7 @@
 
 #include "computation_tracer.h"
 #include "event_timestamp_assigner.h"
+#include "message_filter.h"
 #include "meta_setter.h"
 #include "stores/compact_output_store.h"
 #include "stores/input_store.h"
@@ -55,6 +56,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/topological_ordering.h>
 
+#include <util/generic/scope.h>
 #include <util/string/join.h>
 
 namespace NYT::NFlow {
@@ -464,7 +466,7 @@ bool TComputationBase::UpdateTraverse(
 
     YT_TLOG_INFO("Built traverse")
         .With("TraverseData", ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
-    NodeTraverse_.Store(traverseData);
+    NodeTraverse_.Store(std::move(traverseData));
     YT_TLOG_INFO("Traverse updated")
         .With("IsFinished", isFinished);
 
@@ -515,12 +517,10 @@ std::vector<TStreamId> TComputationBase::BuildTopologicalStreamOrder(TComputatio
 TRootOutputCollector::TRootOutputCollector(
     TComputationSpecPtr spec,
     IMetaSetterPtr metaSetter,
-    bool supportsDistribute,
-    bool collectLineage)
+    bool supportsDistribute)
     : Spec_(std::move(spec))
     , MetaSetter_(std::move(metaSetter))
     , SupportsDistribute_(supportsDistribute)
-    , CollectLineage_(collectLineage)
 { }
 
 IOutputCollectorPtr TRootOutputCollector::SetParents(
@@ -544,7 +544,7 @@ void TRootOutputCollector::AddMessage(
         return;
     }
     auto setterResult = MetaSetter_->Fill(message, parents, messageIdSuffix);
-    if (distribute && CollectLineage_) {
+    if (distribute) {
         LineageAccumulator_.Add(message, setterResult.ActualParentMessageIds);
     }
     Result_.OutputMessages.push_back(std::move(message));
@@ -557,9 +557,7 @@ void TRootOutputCollector::AddMessage(
 void TRootOutputCollector::AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents)
 {
     auto setterResult = MetaSetter_->Fill(timer, parents);
-    if (CollectLineage_) {
-        LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
-    }
+    LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
     Result_.OutputTimers.push_back(std::move(timer));
     Result_.OutputTimersParentMessageIds.push_back(std::move(setterResult.ActualParentMessageIds));
 }
@@ -569,9 +567,7 @@ TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
     YT_VERIFY(!SupportsDistribute_ || Result_.OutputMessages.size() == Result_.OutputMessagesDistribute.size());
     YT_VERIFY(Result_.OutputTimers.size() == Result_.OutputTimersParentMessageIds.size());
-    if (CollectLineage_) {
-        Result_.LineageDelta = LineageAccumulator_.Finish();
-    }
+    Result_.LineageDelta = LineageAccumulator_.Finish();
     return std::exchange(Result_, TTransformResult{});
 }
 
@@ -671,7 +667,9 @@ TUniversalComputationBase::TUniversalComputationBase(
     , KeyVisitors_(CreateKeyVisitors())
     , Tracer_(CreateComputationTracer(GetContext(), GetSpec(), GetDynamicSpec()->Tracer))
     , EventTimestampAssigner_(CreateEventTimestampAssigner(GetSpec()->WatermarkStrategy->EventTimestampAssigner))
+    , Filter_(CreateMessageFilter(GetDynamicSpec()->SkipIfExpression))
     , StartTime_(TInstant::Now())
+    , InputSkippedByExpressionCounter_(GetContext()->Profiler.WithPrefix("/input_streams").Counter("/skipped_by_expression_count"))
     , RunIterationStartPromise_(NewPromise<void>())
     , BeforeCommitInIterationPromise_(NewPromise<void>())
     , RunIterationFinishPromise_(NewPromise<void>())
@@ -686,7 +684,7 @@ TUniversalComputationBase::TUniversalComputationBase(
 
     SubscribeOnReconfigure(BIND(
         [this] () {
-            for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+            for (const auto& [sinkId, sink] : Sinks_) {
                 auto dynamicSinkContext = New<TDynamicSinkContext>();
                 dynamicSinkContext->DynamicSinkSpec = GetOrDefault(GetDynamicSpec()->Sinks, sinkId, New<TDynamicSinkSpec>());
                 sink->Reconfigure(dynamicSinkContext);
@@ -709,6 +707,7 @@ TUniversalComputationBase::TUniversalComputationBase(
                 dynamicContext->Draining = GetDynamicSpec()->Draining;
                 visitor->Reconfigure(std::move(dynamicContext));
             }
+            Filter_->Reconfigure(GetDynamicSpec()->SkipIfExpression);
             OutputStore_->Reconfigure(GetDynamicSpec()->OutputStore);
             Tracer_->Reconfigure(GetDynamicSpec()->Tracer);
             auto dynamicManagerContext = New<TDynamicJobStateManagerContext>();
@@ -750,8 +749,9 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto status = New<TComputationStatus>();
-
     status->NodeTraverse = GetNodeTraverse();
+    status->ProcessingObservation = ProcessingObservation_.Acquire();
+    status->NonEmptyIterationCount = NonEmptyRunIterations_.load();
 
     {
         auto guard = Guard(LimitsLock_);
@@ -1252,6 +1252,32 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
     return inflights;
 }
 
+TUniversalComputationBase::TFilteredInputBatch TUniversalComputationBase::FilterInputBatch(
+    const IComputationRunContextPtr& context,
+    std::vector<TInputMessageConstPtr> messages)
+{
+    THashMap<TStreamId, TBatchStatistics> skippedStatistics;
+    if (Filter_->IsEnabled()) {
+        auto [kept, skipped, statistics] = Filter_->Partition(std::move(messages));
+        skippedStatistics = std::move(statistics);
+        if (!skipped.empty()) {
+            std::vector<TMessageId> skippedMessageIds;
+            skippedMessageIds.reserve(skipped.size());
+            for (const auto& message : skipped) {
+                skippedMessageIds.push_back(message->MessageId);
+            }
+            InputSkippedByExpressionCounter_.Increment(skippedMessageIds.size());
+            YT_TLOG_INFO("Skipped input messages by expression")
+                .With("Skipped", skipped.size())
+                .With("Kept", kept.size());
+            context->MarkPersisted(skippedMessageIds);
+            ClearAsynchronously(std::move(skipped));
+        }
+        messages = std::move(kept);
+    }
+    return {std::move(messages), std::move(skippedStatistics)};
+}
+
 void TUniversalComputationBase::RegisterInputBeforeProcessing(
     const std::vector<TInputMessageConstPtr>& inputMessages,
     const std::vector<TInputTimerConstPtr>& inputTimers,
@@ -1324,12 +1350,10 @@ void TUniversalComputationBase::RegisterInputBeforeProcessing(
     }
 }
 
-template <class TGetKey, class TMakeTrackerCallback>
+template <class TMakeTrackerCallback>
 void TUniversalComputationBase::DistributeOutputMessagesImpl(
     const IComputationRunContextPtr& context,
     std::span<const TOutputMessageConstPtr> messages,
-    const TDynamicComputationSpecPtr& dynamicSpec,
-    TGetKey&& getKey,
     TMakeTrackerCallback&& makeTrackerCallback)
 {
     OutputEventLagObserver_.ObserveBatch(messages);
@@ -1343,7 +1367,7 @@ void TUniversalComputationBase::DistributeOutputMessagesImpl(
             if (!sinkSpec->InputStreamIds.contains(outputMessage->StreamId)) {
                 continue;
             }
-            auto sink = GetOrCreateSink(sinkId, getKey(i), dynamicSpec);
+            auto sink = GetSink(sinkId);
             sink->Distribute(outputMessage, trackers.back().AddDestination());
         }
     }
@@ -1360,20 +1384,16 @@ void TUniversalComputationBase::DistributeOutputMessagesImpl(
 void TUniversalComputationBase::RegisterOutputMessages(
     const IComputationRunContextPtr& context,
     std::span<const TOutputMessageConstPtr> messages,
-    const std::optional<TKey>& parentKey,
-    const TDynamicComputationSpecPtr& dynamicSpec)
+    const std::optional<TKey>& parentKey)
 {
     if (messages.empty()) {
         return;
     }
 
+    ValidateOutputParentKey(parentKey);
     DistributeOutputMessagesImpl(
         context,
         messages,
-        dynamicSpec,
-        /*getKey*/ [&] (size_t) -> const std::optional<TKey>& {
-            return parentKey;
-        },
         /*makeTrackerCallback*/ [&] (size_t i) {
             return [pendingOutputs = PendingProcessedOutputs_, msg = TOutputMessageConstPtr(messages[i])] () mutable {
                 pendingOutputs->PushNormal(std::move(msg));
@@ -1397,6 +1417,7 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     GetThrottlerFactory()->SetPriority(priority.Underlying());
 
     auto epochTraceContext = Tracer_->StartEpochTraceContext(++RunIteration_);
+    ProcessingObservationAccumulator_.StartEpoch(Tracer_->GetPartStatesByKind());
     TTraceContextGuard epochTraceGuard(epochTraceContext);
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Start"));
     TPromise<void> promise;
@@ -1422,7 +1443,7 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     if (TimerStore_) {
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
     }
-    for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+    for (const auto& [_, sink] : Sinks_) {
         sink->UpdateWatermarkState(GetWatermarkState());
     }
     if (InputStore_) {
@@ -1494,18 +1515,19 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
     return GetTransactionManager()->CreateTransaction();
 }
 
-void TUniversalComputationBase::AddLineageDelta(TLineageDelta delta)
-{
-    if (const auto& tracker = GetContext()->JobLineageTracker) {
-        tracker->Add(std::move(delta));
-    }
-}
-
 void TUniversalComputationBase::Commit(
     IComputationRunContextPtr context,
     IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
+    bool committed = false;
+    auto publishObservation = Finally([&] {
+        if (committed) {
+            auto observation = ProcessingObservationAccumulator_.Commit(Tracer_->GetPartStatesByKind());
+            observation->SpecGeneration = GetSpecGeneration();
+            ProcessingObservation_.Store(std::move(observation));
+        }
+    });
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("FinalizeTransaction"));
@@ -1522,7 +1544,7 @@ void TUniversalComputationBase::Commit(
         for (const auto& [_, visitor] : KeyVisitors_) {
             visitor->Sync(transaction);
         }
-        for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+        for (const auto& [_, sink] : Sinks_) {
             sink->Sync(transaction);
         }
         RefreshBufferWarmupState();
@@ -1531,9 +1553,7 @@ void TUniversalComputationBase::Commit(
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
-        if (const auto& tracker = GetContext()->JobLineageTracker) {
-            tracker->Commit();
-        }
+        committed = true;
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("PostCommit"));
@@ -1549,7 +1569,7 @@ void TUniversalComputationBase::Commit(
         for (const auto& [_, visitor] : KeyVisitors_) {
             visitor->Commit();
         }
-        for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+        for (const auto& [_, sink] : Sinks_) {
             sink->Commit();
         }
         YT_TLOG_INFO("Transaction committed");
@@ -1565,6 +1585,13 @@ void TUniversalComputationBase::Commit(
                     "epoch is already committed and durable, only garbage collection is stuck");
         }
     }
+}
+
+void TUniversalComputationBase::NoteNonEmptyRunIteration()
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    NonEmptyRunIterations_.fetch_add(1);
 }
 
 void TUniversalComputationBase::FinishRunIteration()
@@ -1662,25 +1689,37 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
     return result;
 }
 
+void TUniversalComputationBase::RegisterResults(
+    const IInputContextPtr& inputs,
+    TLineageDelta lineageDelta,
+    THashMap<TStreamId, TBatchStatistics> skipped)
+{
+    auto statistics = AddLineageInputs(&lineageDelta, GetSpec(), *inputs, std::move(skipped));
+    ProcessingObservationAccumulator_.AddInputs(statistics.Count, statistics.ByteSize);
+    if (const auto& tracker = GetContext()->JobLineageTracker) {
+        tracker->Add(std::move(lineageDelta));
+    }
+}
+
 void TUniversalComputationBase::WaitForBackoff(
     const TDynamicComputationSpecPtr& dynamicSpec,
     const TCheckOutputLimitsResult& outputLimitsCheckResult,
     bool emptyInput) const
 {
     if (outputLimitsCheckResult.OutputStoreOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output store overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.OutputBufferOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.BlockedByController) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController", EEpochPartKind::WaitingForOutput));
         YT_TLOG_INFO("Blocked by controller epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (emptyInput) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty", EEpochPartKind::WaitingForInput));
         YT_TLOG_INFO("Empty epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
@@ -1728,11 +1767,10 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
 
     auto iterGuard = StartRunIteration(context);
 
-    const auto dynamicSpec = GetDynamicSpec();
-
     std::vector<TOutputMessageConstPtr> outputMessages;
     outputMessages.reserve(outputs.size());
     for (auto& [msg, key] : outputs) {
+        ValidateOutputParentKey(key);
         outputMessages.push_back(std::move(msg));
     }
 
@@ -1740,10 +1778,6 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
     DistributeOutputMessagesImpl(
         context,
         std::span<const TOutputMessageConstPtr>(outputMessages),
-        dynamicSpec,
-        /*getKey*/ [&] (size_t i) -> const std::optional<TKey>& {
-            return outputs[i].second;
-        },
         /*makeTrackerCallback*/ [&] (size_t i) {
             return [pendingOutputs = PendingProcessedOutputs_, msg = outputMessages[i]] () mutable {
                 pendingOutputs->PushInit(std::move(msg));
@@ -1751,6 +1785,34 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
         });
 
     FinishRunIteration();
+}
+
+void TUniversalComputationBase::InitSinks()
+{
+    const auto& dynamicSpec = GetDynamicSpec();
+    for (const auto& [sinkId, sinkSpec] : GetSpec()->Sinks) {
+        auto context = New<TSinkContext>();
+        static_cast<TComputationContextBase&>(*context) = *GetContext();
+        context->SinkId = sinkId;
+        context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
+        context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
+        context->Logger = context->Logger.WithTag("SinkId", sinkId);
+        context->SinkSpec = sinkSpec;
+
+        auto dynamicSinkContext = New<TDynamicSinkContext>();
+        dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
+        auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
+        sink->UpdateWatermarkState(GetWatermarkState());
+
+        const auto stateName = Format("sinks/%v", sinkId);
+        const auto initContext = StateManager_->CreateContext();
+        if (const auto& sourceKey = GetContext()->Partition->SourceKey) {
+            sink->Init(initContext->AsKey(*sourceKey)->WithPrefix(stateName));
+        } else {
+            sink->Init(initContext->AsPartition()->WithPrefix(stateName));
+        }
+        EmplaceOrCrash(Sinks_, sinkId, std::move(sink));
+    }
 }
 
 void TUniversalComputationBase::InitBufferWarmupState()
@@ -1822,6 +1884,8 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
     YT_TLOG_INFO("Starting execution");
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
 
+    ApplyPendingStates();
+    InitSinks();
     DoPrepare(context);
     InitBufferWarmupState();
 
@@ -1865,7 +1929,7 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
         FinishRunIteration();
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.InterruptedPartitionOutputMessages"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.InterruptedPartitionOutputMessages", EEpochPartKind::Waiting));
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
 
@@ -1905,7 +1969,7 @@ void TUniversalComputationBase::DoComplete(const IComputationRunContextPtr& cont
 
             isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
             FinishRunIteration();
-            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages"));
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages", EEpochPartKind::Waiting));
             TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
         }
     } else {
@@ -1969,12 +2033,13 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
 
     {
         auto transaction = PrepareTransaction(context);
+        // Release local state owners after draining callbacks; flushing them here would undo the erases.
+        ClearStateOwners();
         keyStates->Erase(transaction, keysToErase);
         partitionStates->Erase(transaction, partitionsToErase);
         if (!keyVisitorMutations.empty()) {
             keyVisitorStates->Write(transaction, keyVisitorMutations);
         }
-        StateManager_->Sync(transaction);
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
     }
 
@@ -1984,36 +2049,29 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
     YT_TLOG_INFO("Completed DoCleanup");
 }
 
-ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec)
+void TUniversalComputationBase::ClearStateOwners()
+{
+    Sinks_.clear();
+    BufferWarmupState_.Reset();
+    StateManager_->Clear();
+}
+
+void TUniversalComputationBase::ValidateOutputParentKey(const std::optional<TKey>& parentKey) const
+{
+    if (Sinks_.empty()) {
+        return;
+    }
+    THROW_ERROR_EXCEPTION_UNLESS(
+        parentKey == GetContext()->Partition->SourceKey,
+        "Sink parent key does not match partition source key")
+        .With("parent_key", parentKey)
+        .With("source_key", GetContext()->Partition->SourceKey);
+}
+
+ISinkPtr TUniversalComputationBase::GetSink(const TSinkId& sinkId) const
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
-
-    if (auto sink = GetOrDefault(GetOrDefault(Sinks_, sinkId), parentKey)) {
-        return sink;
-    }
-
-    auto context = New<TSinkContext>();
-    static_cast<TComputationContextBase&>(*context) = *GetContext();
-    context->SinkId = sinkId;
-    context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
-    context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
-    context->Logger = context->Logger.WithTag("SinkId", sinkId);
-    context->SinkId = sinkId;
-    context->SinkSpec = GetOrCrash(GetSpec()->Sinks, sinkId);
-    auto dynamicSinkContext = New<TDynamicSinkContext>();
-    dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
-    auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
-    sink->UpdateWatermarkState(GetWatermarkState());
-
-    const auto stateName = Format("sinks/%v", sinkId);
-    const auto initContext = StateManager_->CreateContext();
-    if (parentKey) {
-        sink->Init(initContext->AsKey(*parentKey)->WithPrefix(stateName));
-    } else {
-        sink->Init(initContext->AsPartition()->WithPrefix(stateName));
-    }
-    Sinks_[sinkId][parentKey] = sink;
-    return sink;
+    return GetOrCrash(Sinks_, sinkId);
 }
 
 THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorDrivenJoinerKeys(
@@ -2134,18 +2192,6 @@ void TUniversalComputationBase::PreloadKeyStates(const IInputContextPtr& inputCo
             StateManager_->PreloadVisitorDrivenJoiners(visitorDrivenJoinerKeys),
             }))
         .ThrowOnError();
-}
-
-std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> TUniversalComputationBase::GetAllSinks() const
-{
-    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
-    std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> result;
-    for (const auto& [sinkId, sinks] : Sinks_) {
-        for (const auto& [parentKey, sink] : sinks) {
-            result.push_back(std::tuple(sinkId, parentKey, sink));
-        }
-    }
-    return result;
 }
 
 auto TUniversalComputationBase::CreateStreamMessageCounters(const NProfiling::TProfiler& profiler, const TComputationSpecPtr& spec)

@@ -36,6 +36,13 @@ DEFINE_ENUM(ETabletWriteMode,
     ((Pull)           (1))
 );
 
+// COMPAT(ifsmirnov): YT-29282, migrate to TablePath and remove.
+DEFINE_ENUM(EProfilingTagExportMode,
+    (TableTag)
+    (Both)
+    (TablePath)
+);
+
 DEFINE_ENUM(EBackupStage,
     ((None)                           (0))
     ((TimestampReceived)              (1))
@@ -195,6 +202,8 @@ DECLARE_REFCOUNTED_STRUCT(ILsmInterop)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaCachePinger)
 DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryBuilder)
 
+DECLARE_REFCOUNTED_CLASS(TGlobalStoresUpdateThrottler)
+
 DECLARE_REFCOUNTED_STRUCT(IStructuredLogger)
 DECLARE_REFCOUNTED_STRUCT(IPerTabletStructuredLogger)
 
@@ -232,6 +241,7 @@ DECLARE_REFCOUNTED_STRUCT(TStoreFlusherConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreFlusherDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreCompactorConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreCompactorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TGlobalStoresUpdateThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(TStoreTrimmerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkChunkSweeperDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerConfig)

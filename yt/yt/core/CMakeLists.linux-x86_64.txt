@@ -128,7 +128,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/lz.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/lzma.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/snappy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/zlib.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/compression/zstd.cpp

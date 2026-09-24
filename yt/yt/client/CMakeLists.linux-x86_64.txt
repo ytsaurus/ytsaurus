@@ -111,6 +111,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/shuffle_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/table_partition_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/address_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_base.cpp
@@ -125,7 +126,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/journal_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/journal_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/request_annotations.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/request_tags.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_batch_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/row_stream.cpp
@@ -156,6 +157,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chunk_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chunk_client/read_limit.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/chunk_client/ready_event_reader_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/chunk_client/timing_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/file_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/journal_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/journal_client/config.cpp

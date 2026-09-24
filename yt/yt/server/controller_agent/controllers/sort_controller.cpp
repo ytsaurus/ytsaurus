@@ -248,7 +248,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, CreationIndex);
     DEFINE_BYVAL_RO_PROPERTY(EPartitionDispatchDecision, DispatchDecision);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Maniac, false);
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ReducingPartitionCompleted, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PartitionProcessingCompletedAndAccounted, false);
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, AssignedNodeId, InvalidNodeId);
 
@@ -305,7 +305,7 @@ void TFinalPartition::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, CreationIndex_);
     PHOENIX_REGISTER_FIELD(2, DispatchDecision_);
     PHOENIX_REGISTER_FIELD(3, Maniac_);
-    PHOENIX_REGISTER_FIELD(4, ReducingPartitionCompleted_);
+    PHOENIX_REGISTER_FIELD(4, PartitionProcessingCompletedAndAccounted_);
     PHOENIX_REGISTER_FIELD(5, AssignedNodeId_);
 }
 
@@ -1012,7 +1012,24 @@ protected:
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
                 return;
             }
-            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetInputChunkPoolIndex());
+
+            auto partitionIndex = *stripe->GetInputChunkPoolIndex();
+            const auto& partition = Controller_->UnorderedFinalPartitions_[partitionIndex];
+            // A replay may start while reducers are still running. They can finish using input
+            // they have already read, and their results can be registered before the replay
+            // produces an incompatible stripe. Recheck completion here even though new replays
+            // are suppressed for completed partitions; their pools must not be reopened.
+            // Canceling unnecessary replays throughout the pipeline would require removing
+            // pending jobs and aborting running producers, while preserving producers whose
+            // output is still needed by other consumers. This check also handles in-flight replays.
+            if (partition->IsPartitionProcessingCompletedAndAccounted()) {
+                YT_TLOG_INFO("Ignoring chunk mapping invalidation for a completed partition")
+                    .With("PartitionIndex", partitionIndex)
+                    .With(error);
+                return;
+            }
+
+            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, partitionIndex);
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
             // Let's live like this a bit, and then maybe move it inside pool.
             descriptor->DestinationPool->Reset(cookie, stripe, descriptor->ChunkMapping);
@@ -1148,6 +1165,16 @@ protected:
         bool CanLoseJobs() const override
         {
             return Controller_->Spec_->EnableIntermediateOutputRecalculation;
+        }
+
+        bool IsJobOutputNeeded(const TCompletedJobPtr& completedJob) const override
+        {
+            if (IsFinal()) {
+                return TTask::IsJobOutputNeeded(completedJob);
+            }
+
+            auto partitionIndex = *completedJob->InputStripe->GetInputChunkPoolIndex();
+            return !Controller_->UnorderedFinalPartitions_[partitionIndex]->IsPartitionProcessingCompletedAndAccounted();
         }
 
         void SetIsFinalSort(bool isFinalSort)
@@ -1521,20 +1548,12 @@ protected:
 
         void AbortAllActiveJoblets(const TError& error, int partitionIndex)
         {
-            const auto& partition = Controller_->UnorderedFinalPartitions_[partitionIndex];
-            if (partition->IsReducingPartitionCompleted()) {
-                YT_TLOG_INFO("Chunk mapping has been invalidated, but the partition has already finished")
-                    .With("PartitionIndex", partitionIndex)
-                    .With(error);
-                return;
-            }
             YT_TLOG_INFO("Aborting all jobs in partition because of chunk mapping invalidation")
                 .With("PartitionIndex", partitionIndex)
                 .With(error);
             std::vector<TJobletPtr> partitionJoblets(ActiveJoblets_[partitionIndex].begin(), ActiveJoblets_[partitionIndex].end());
             for (const auto& joblet : partitionJoblets) {
                 Controller_->AbortJob(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
-                InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
                 auto tableIndex = Controller_->GetRowCountLimitTableIndex();
@@ -1557,7 +1576,6 @@ protected:
             Partitions_.push_back(std::move(partition));
 
             EnsureVectorIndex(ActiveJoblets_, partitionIndex);
-            EnsureVectorIndex(InvalidatedJoblets_, partitionIndex);
             EnsureVectorIndex(JobOutputs_, partitionIndex);
 
             Controller_->UpdateTask(this);
@@ -1617,9 +1635,6 @@ protected:
 
         //! Partition index -> list of active joblets.
         std::vector<THashSet<TJobletPtr>> ActiveJoblets_;
-
-        //! Partition index -> list of invalidated joblets.
-        std::vector<THashSet<TJobletPtr>> InvalidatedJoblets_;
 
         struct TJobOutput
         {
@@ -1683,9 +1698,7 @@ protected:
 
             auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
-            if (!InvalidatedJoblets_[partitionIndex].contains(joblet)) {
-                JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
-            }
+            JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
 
             return result;
         }
@@ -2472,11 +2485,11 @@ protected:
 
     void OnFinalPartitionCompleted(const TFinalPartitionPtr& partition)
     {
-        if (partition->IsReducingPartitionCompleted()) {
+        if (partition->IsPartitionProcessingCompletedAndAccounted()) {
             return;
         }
 
-        partition->SetReducingPartitionCompleted(true);
+        partition->SetPartitionProcessingCompletedAndAccounted(true);
 
         ++CompletedPartitionCount_;
 
@@ -2793,7 +2806,7 @@ protected:
             GetOutputTablePaths().size(),
             ExpectedPartitionCount_);
         chunkPoolOptions.Logger = Logger().WithTag("Name", name);
-        if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
+        if (Options_->EnableSortedMergeInSortJobSizeAdjustment) {
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }
 
@@ -3225,9 +3238,7 @@ void TSortControllerBase::TSortedMergeTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, SortedMergeChunkPools_);
     PHOENIX_REGISTER_FIELD(6, ActiveJoblets_,
         .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
-    PHOENIX_REGISTER_FIELD(7, InvalidatedJoblets_,
-        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
-    PHOENIX_REGISTER_FIELD(8, JobOutputs_);
+    PHOENIX_REGISTER_FIELD(7, JobOutputs_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask);
@@ -4426,8 +4437,8 @@ private:
                     MapperSinkEdges_.end());
 
                 bool useJobSizeAdjuster = Spec_->Ordered
-                    ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
-                    : Config_->EnablePartitionMapJobSizeAdjustment;
+                    ? Options_->EnableOrderedPartitionMapJobSizeAdjustment
+                    : Options_->EnablePartitionMapJobSizeAdjustment;
 
                 auto chunkPool = CreateRootPartitionPool(
                     useJobSizeAdjuster

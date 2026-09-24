@@ -78,6 +78,8 @@
 #include <yt/yt/ytlib/api/native/client_impl.h>
 #include <yt/yt/ytlib/api/native/sync_replica_cache.h>
 
+#include <yt/yt/client/chaos_client/chaos_lease_cache.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/hive/transaction_participant.h>
@@ -180,6 +182,7 @@ public:
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
+    MOCK_METHOD(const NChaosClient::IChaosLeaseCachePtr&, GetChaosLeaseCache, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosResidencyCachePtr&, GetChaosResidencyCache, (), (override));
     MOCK_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, (), (override));
     MOCK_METHOD(const NJobProberClient::TJobShellDescriptorCachePtr&, GetJobShellDescriptorCache, (), (override));

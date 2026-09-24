@@ -224,6 +224,13 @@ class StdStringViewPrinter:
 class SharedPointerPrinter:
     "Print a shared_ptr or weak_ptr"
 
+    @staticmethod
+    def _refcount(value):
+        if value.type.strip_typedefs().code == gdb.TYPE_CODE_INT:
+            return value
+        # Older libc++ control blocks store std::atomic<long> counters.
+        return value['__a_']['__a_value']
+
     def __init__ (self, typename, val):
         self.typename = typename
         self.val = val
@@ -235,8 +242,8 @@ class SharedPointerPrinter:
         state = 'empty'
         refcounts = self.val['__cntrl_']
         if refcounts != 0:
-            usecount = refcounts['__shared_owners_']['__a_']['__a_value'] + 1
-            weakcount = refcounts['__shared_weak_owners_']['__a_']['__a_value']
+            usecount = self._refcount(refcounts['__shared_owners_']) + 1
+            weakcount = self._refcount(refcounts['__shared_weak_owners_'])
             if usecount == 0:
                 state = 'expired, weak %d' % weakcount
             else:

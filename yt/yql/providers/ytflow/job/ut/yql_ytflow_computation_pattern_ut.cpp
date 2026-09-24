@@ -206,13 +206,19 @@ void WriteUpdateStateLambda(TTempFileHandle& file)
             "YtflowInputStream",
             programBuilder.NewStreamType(itemType));
         TCallableBuilder stateBuilder(env, "YtflowInputState", stateType);
+        TCallableBuilder watermarkBuilder(
+            env,
+            "YtflowInputWatermark",
+            programBuilder.NewDataType(NUdf::TDataType<NUdf::TTimestamp>::Id));
         auto stream = TRuntimeNode(streamBuilder.Build(), /*isImmediate*/ false);
         auto state = TRuntimeNode(stateBuilder.Build(), /*isImmediate*/ false);
+        auto watermark = TRuntimeNode(watermarkBuilder.Build(), /*isImmediate*/ false);
         auto output = programBuilder.NewTuple({
             state,
             programBuilder.NewEmptyList(timerInfoType),
         });
-        return programBuilder.Seq({stream, output}, output.GetStaticType());
+
+        return programBuilder.Seq({stream, watermark, output}, output.GetStaticType());
     });
 }
 
@@ -452,7 +458,7 @@ public:
         IUpdateStateComputationGraphWithCodecs& updateStateGraph,
         IPostprocessComputationGraphWithCodecs& postprocessGraph) const
     {
-        updateStateGraph.SetInput({}, std::nullopt);
+        updateStateGraph.SetInput({}, std::nullopt, /*inputWatermark*/ 0);
         auto updateStateOutput = updateStateGraph.GetOutput();
         updateStateGraph.ResetInput();
 
@@ -512,6 +518,18 @@ private:
     ui32 Position = 0;
 };
 
+class TUncachebleOp final : public NKikimr::NMiniKQL::TExternalComputationNode {
+    using TBase = TExternalComputationNode;
+
+public:
+    using TBase::TBase;
+
+private:
+    bool IsSuitableForCache() const final {
+        return false;
+    }
+};
+
 bool BuildCorePatternAndGetSuitability()
 {
     using namespace NKikimr::NMiniKQL;
@@ -522,19 +540,18 @@ bool BuildCorePatternAndGetSuitability()
     TProgramBuilder programBuilder(env, *registry);
     TCallableBuilder callableBuilder(
         env,
-        "MultiHoppingCore",
+        "UncachebleOp",
         programBuilder.NewDataType(NUdf::TDataType<bool>::Id));
     auto root = TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
 
     TExploringNodeVisitor explorer;
     explorer.Walk(root.GetNode(), env.GetNodeStack());
     auto nodeFactory = GetCompositeWithBuiltinFactory({
-        [](TCallable& callable, const TComputationNodeFactoryContext& ctx) {
-            if (callable.GetType()->GetName() == "MultiHoppingCore") {
-                return static_cast<IComputationNode*>(
-                    new TExternalComputationNode(ctx.Mutables));
+        [](TCallable& callable, const TComputationNodeFactoryContext& ctx) -> IComputationNode* {
+            if (callable.GetType()->GetName() == "UncachebleOp") {
+                return new TUncachebleOp(ctx.Mutables);
             }
-            return static_cast<IComputationNode*>(nullptr);
+            return nullptr;
         },
     });
     auto runtimeSettings = MakeRuntimeSettings();
@@ -1054,6 +1071,12 @@ TEST(TYtflowShareableNodeTest, InputStateIsGraphLocal)
         CheckScalarExternalNodeIsGraphLocal("YtflowInputState"));
 }
 
+TEST(TYtflowShareableNodeTest, InputWatermarkIsGraphLocal)
+{
+    ASSERT_NO_FATAL_FAILURE(
+        CheckScalarExternalNodeIsGraphLocal("YtflowInputWatermark"));
+}
+
 TEST(TYtflowShareableNodeTest, InputKeyIsGraphLocal)
 {
     ASSERT_NO_FATAL_FAILURE(
@@ -1125,6 +1148,7 @@ TEST(TShareableFileNodeTest, AllowedCallablesAreSuitableAndCloneable)
 
     ASSERT_NO_FATAL_FAILURE(checkInput("YtflowInputStream", /*stream*/ true));
     ASSERT_NO_FATAL_FAILURE(checkInput("YtflowInputState", /*stream*/ false));
+    ASSERT_NO_FATAL_FAILURE(checkInput("YtflowInputWatermark", /*stream*/ false));
     ASSERT_NO_FATAL_FAILURE(checkInput("YtflowInputKey", /*stream*/ false));
     ASSERT_NO_FATAL_FAILURE(checkInput(
         "YtflowInputMaxHopStartTime",

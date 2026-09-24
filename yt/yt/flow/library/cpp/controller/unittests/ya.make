@@ -7,16 +7,21 @@ SRCS(
     chunked_modification_ut.cpp
     compact_rebalance_actions_ut.cpp
     config_ut.cpp
+    controller_service_ut.cpp
     controller_ut.cpp
     dyntable_election_manager_ut.cpp
     job_manager_ut.cpp
-    lineage_rate_aggregator_ut.cpp
+    lineage_aggregator_ut.cpp
     partitioning_ut.cpp
     resource_balancer_ut.cpp
     state_manager_ut.cpp
+    worker_coef_estimator_ut.cpp
+    yt_connector_ut.cpp
 )
 
 PEERDIR(
+    library/cpp/testing/common
+    yt/yt/library/auth
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/controller/unittests/mock
     yt/yt/flow/library/cpp/controller
@@ -33,3 +38,5 @@ PEERDIR(
 SIZE(MEDIUM)
 
 END()
+
+RECURSE_FOR_TESTS(balancer_simulation)

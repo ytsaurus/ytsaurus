@@ -1,12 +1,14 @@
-# Livy server
+# Livy-сервер {#livy-server}
 
 {% note alert %}
 
-Начиная с SPYT 2.10.0 и Query Tracker 0.4 интеграция через Livy больше не поддерживается. Если вы используете Livy, перейдите на [SPYT Connect](../../../../../user-guide/data-processing/spyt/connect.md#migration).
+Начиная с SPYT 2.10.0 и Query Tracker 0.4 интеграция через Livy больше не поддерживается.
+
+Для работы через Query Tracker используйте [SPYT Connect](../../../../../user-guide/data-processing/spyt/connect.md#migration).
 
 {% endnote %}
 
-Начиная с версии 1.74.0 в SPYT доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker/about.md) для выполнения Spark SQL запросов в {{product-name}}.
+В версиях SPYT начиная с 1.74.0 и ниже 2.10.0 доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker/about.md) для выполнения Spark SQL запросов в {{product-name}}.
 
 Дистрибутив Livy уже включен в релизный образ SPYT и помещается на кластер {{product-name}} по пути `//home/spark/livy/livy.tgz`.
 
@@ -38,8 +40,10 @@ $ spark-launch-yt ... --enable-livy --livy-max-sessions 5 --livy-driver-cores 1 
 
 Для работы с {{product-name}} при инициализации Livy сессии в `spark_conf` необходимо указать два конфигурационных параметра — путь к Java (`spark.yt.jars`) и Python (`spark.yt.pyFiles`) библиотекам:
 
+В примере ниже замените все три вхождения `<spyt-version>` на версию SPYT, установленную на вашем кластере. Для Livy требуется версия ниже 2.10.0.
+
 ```python
-data = {'kind': 'spark', 'conf': {'spark.yt.version': '{{spyt-version}}', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spyt.zip'}}
+data = {'kind': 'spark', 'conf': {'spark.yt.version': '<spyt-version>', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/<spyt-version>/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/<spyt-version>/spyt.zip'}}
 req = requests.post(host + '/sessions', data=json.dumps(data))
 resp = req.json()
 ```

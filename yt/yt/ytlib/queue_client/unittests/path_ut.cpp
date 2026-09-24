@@ -64,6 +64,15 @@ TEST(TQueueClientPathTest, StringRoundConversion)
     EXPECT_EQ(TConsumerReference(ToString(consumerRef)), consumerRef);
 }
 
+TEST(TQueueClientPathTest, StringConversionFlushesShortAttributesBeforePath)
+{
+    TRichYPath path("//p");
+    path.SetCluster("c");
+    path.SetQueueConsumerName("q");
+
+    EXPECT_EQ(ToString(TConsumerReference(path)), "<\"cluster\"=\"c\";\"queue_consumer_name\"=\"q\";>//p");
+}
+
 TEST(TQueueClientPathTest, BadObjects)
 {
     TRichYPath path("//my/path");

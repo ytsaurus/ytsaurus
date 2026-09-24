@@ -6,7 +6,9 @@ SRCS(
     backtrace_ypath_service.cpp
     compact_unversioned_owning_row.cpp
     counter.cpp
+    decayed_sum.cpp
     debug_build_warning.cpp
+    destruction_context.cpp
     deploy_url_provider.cpp
     identifier.cpp
     cow_tree.cpp
@@ -24,12 +26,14 @@ SRCS(
     retryable_client_spec.cpp
     retryable_client.cpp
     retryable_transaction.cpp
+    self_signed_certificate.cpp
     status_profiler.cpp
     weighted_random.cpp
 )
 
 PEERDIR(
     contrib/libs/eigen
+    contrib/libs/openssl
     library/cpp/build_info
     library/cpp/yt/error
     library/cpp/yt/memory

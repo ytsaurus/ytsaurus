@@ -24,7 +24,7 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 

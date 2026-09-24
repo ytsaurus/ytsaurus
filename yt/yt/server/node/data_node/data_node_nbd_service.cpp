@@ -83,10 +83,10 @@ private:
         auto size = FromProto<i64>(request->size());
         auto fsType = FromProto<NYT::NNbd::EFilesystemType>(request->fs_type());
 
-        context->SetRequestInfo("SessionId: %v, Size: %v, FsType: %v",
-            sessionId,
-            size,
-            fsType);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("Size", size)
+            .With("FsType", fsType);
 
         if (TypeFromId(sessionId.ChunkId) != EObjectType::NbdChunk) {
             THROW_ERROR_EXCEPTION("Invalid chunk type in session id")
@@ -117,8 +117,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto session = GetSessionOrThrow(sessionId);
 
@@ -133,11 +133,11 @@ private:
         auto length = FromProto<i64>(request->length());
         auto cookie = FromProto<ui64>(request->cookie());
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x",
-            sessionId,
-            offset,
-            length,
-            cookie);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", cookie);
 
         auto session = GetSessionOrThrow(sessionId);
         auto future = session->Read(offset, length, cookie).Apply(BIND([response] (const TBlock& block) {
@@ -148,10 +148,9 @@ private:
         auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
-            sessionId,
-            cookie,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .WithFormat("Cookie", "%x", cookie)
+            .With("ShouldCloseSession", shouldCloseSession);
 
         context->ReplyFrom(future);
     }
@@ -166,12 +165,12 @@ private:
 
         YT_VERIFY(blocks.size() == 1);
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x, Flush: %v",
-            sessionId,
-            offset,
-            blocks[0].Size(),
-            cookie,
-            flush);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("Offset", offset)
+            .With("Length", blocks[0].Size())
+            .WithFormat("Cookie", "%x", cookie)
+            .With("Flush", flush);
 
         auto session = GetSessionOrThrow(sessionId);
         auto writeFuture = session->Write(offset, blocks[0], cookie);
@@ -187,10 +186,9 @@ private:
         auto shouldCloseSession = ShouldCloseSession(session);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
-            sessionId,
-            cookie,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .WithFormat("Cookie", "%x", cookie)
+            .With("ShouldCloseSession", shouldCloseSession);
 
         context->ReplyFrom(future);
     }
@@ -200,10 +198,10 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto cookie = FromProto<ui64>(request->cookie());
 
-        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
-            sessionId,
-            cookie,
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .WithFormat("Cookie", "%x", cookie)
+            .With("SubrequestCount", request->subrequests_size());
 
         auto session = GetSessionOrThrow(sessionId);
 
@@ -218,10 +216,9 @@ private:
         response->set_cookie(cookie);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
-            sessionId,
-            cookie,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .WithFormat("Cookie", "%x", cookie)
+            .With("ShouldCloseSession", shouldCloseSession);
 
         // Issue single batched read — one lock + one IOEngine_->Read call for all subrequests.
         context->ReplyFrom(session->ReadBatch(subrequests, cookie).Apply(BIND([response] (const std::vector<NChunkClient::TBlock>& blocks) {
@@ -239,10 +236,10 @@ private:
 
         YT_VERIFY(attachments.size() == static_cast<size_t>(request->subrequests_size()));
 
-        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
-            sessionId,
-            cookie,
-            request->subrequests_size());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .WithFormat("Cookie", "%x", cookie)
+            .With("SubrequestCount", request->subrequests_size());
 
         auto session = GetSessionOrThrow(sessionId);
 
@@ -257,10 +254,9 @@ private:
         response->set_cookie(cookie);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
-            sessionId,
-            cookie,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .WithFormat("Cookie", "%x", cookie)
+            .With("ShouldCloseSession", shouldCloseSession);
 
         context->ReplyFrom(AllSucceeded(writeFutures).AsVoid());
     }
@@ -270,9 +266,9 @@ private:
         auto sessionId = FromProto<TSessionId>(request->session_id());
         auto cookie = request->cookie();
 
-        context->SetRequestInfo("SessionId: %v, Cookie: %x",
-            sessionId,
-            cookie);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .WithFormat("Cookie", "%x", cookie);
 
         auto session = GetSessionOrThrow(sessionId);
 
@@ -280,10 +276,9 @@ private:
         response->set_cookie(cookie);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
-            sessionId,
-            cookie,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .WithFormat("Cookie", "%x", cookie)
+            .With("ShouldCloseSession", shouldCloseSession);
 
         context->ReplyFrom(session->Flush(cookie));
     }
@@ -292,8 +287,8 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v",
-            sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         bool shouldCloseSession = false;
         try {
@@ -309,9 +304,8 @@ private:
 
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
-            sessionId,
-            shouldCloseSession);
+        context->AnnotateResponse()
+            .With("ShouldCloseSession", shouldCloseSession);
 
         context->Reply();
     }
