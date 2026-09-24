@@ -393,6 +393,23 @@ std::vector<std::pair<std::string, NNative::IClientPtr>> TQueryContext::GetRemot
     // never resolve the corresponding table metadata itself. In that case the
     // client cache is still empty, while the remote transactions transmitted in
     // the secondary query header are the authoritative list of remote clusters.
+    if (QueryKind == EQueryKind::SecondaryQuery) {
+        for (const auto& [cluster, locks] : RemoteSnapshotLocks) {
+            Y_UNUSED(locks);
+            if (!RemoteReadTransactionIds.contains(cluster)) {
+                THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
+                    .With("cluster", cluster);
+            }
+        }
+        for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
+            Y_UNUSED(transactionId);
+            if (!RemoteSnapshotLocks.contains(cluster)) {
+                THROW_ERROR_EXCEPTION("Missing snapshot locks for remote cluster in secondary query")
+                    .With("cluster", cluster);
+            }
+        }
+    }
+
     for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
         Y_UNUSED(transactionId);
         Client(cluster);

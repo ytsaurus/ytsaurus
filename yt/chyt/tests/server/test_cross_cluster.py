@@ -1,10 +1,11 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import (authors, create, create_dynamic_table, exists, get_driver, insert_rows,
+from yt_commands import (alter_table, authors, create, create_dynamic_table, exists, get_driver, insert_rows,
                          raises_yt_error, remove, sync_create_cells, sync_flush_table,
                          sync_mount_table, write_table)
 from yt.common import wait
 import yt.yson as yson
+from yt_env_setup import MASTERS_SERVICE, Restarter
 
 from base import ClickHouseTestBase, Clique
 
@@ -263,6 +264,47 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
 
             assert clique.make_query("select * from `remote_0://tmp/schema_cache`") == rows
             wait(lambda: hit_counter.get_delta() > before)
+
+            updated_schema = schema + [{"name": "value", "type": "string"}]
+            alter_table("//tmp/schema_cache", schema=updated_schema, driver=remote_driver)
+            assert clique.make_query("select * from `remote_0://tmp/schema_cache`") == [
+                {"key": 1, "value": None},
+            ]
+
+    def test_missing_remote_metadata_in_secondary_query(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [{"name": "key", "type": "int64"}]
+        create("table", "//tmp/missing_remote_metadata", attributes={"schema": schema}, driver=remote_driver)
+        write_table("//tmp/missing_remote_metadata", [{"key": 1}], driver=remote_driver)
+
+        with Clique(2) as clique:
+            for setting, error in [
+                (
+                    "chyt.testing.omit_remote_read_transaction_in_secondary_query",
+                    "Missing remote read transaction in secondary query",
+                ),
+                (
+                    "chyt.testing.omit_remote_snapshot_locks_in_secondary_query",
+                    "Missing snapshot locks for remote cluster in secondary query",
+                ),
+            ]:
+                with raises_yt_error(error):
+                    clique.make_query(
+                        "select * from `remote_0://tmp/missing_remote_metadata`",
+                        settings={setting: 1})
+
+    def test_unreachable_remote_cluster(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [{"name": "key", "type": "int64"}]
+        create("table", "//tmp/unreachable", attributes={"schema": schema}, driver=remote_driver)
+        write_table("//tmp/unreachable", [{"key": 1}], driver=remote_driver)
+
+        with Clique(1) as clique:
+            with Restarter(self.remote_envs[0], MASTERS_SERVICE):
+                with raises_yt_error():
+                    clique.make_query("select * from `remote_0://tmp/unreachable`")
+
+            assert clique.make_query("select 1 as value") == [{"value": 1}]
 
     def test_partitioned_tables(self):
         remote_0_driver = get_driver(cluster="remote_0")
