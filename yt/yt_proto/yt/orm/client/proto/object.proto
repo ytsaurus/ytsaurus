@@ -990,7 +990,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31066.
+// Next field 31067.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1157,7 +1157,12 @@ extend google.protobuf.FieldOptions
     optional TJoinedColumnOption joined_column = 31050;
 
     // Field (in the same message) that actually stores the content of this field in raw protobuf format as bytes.
+    // Legacy two-field form; prefer |protobuf_storage| for new models.
     optional string raw_protobuf = 31051;
+
+    // Store this message-typed field as raw protobuf bytes in a codegen-synthesized column.
+    // Single-field form of |raw_protobuf|: the storage column is not visible in the client proto.
+    optional bool protobuf_storage = 31066;
 
     // Each predicate is an ORM QL expression over field's attribute.
     // Alias `value` can be used instead of spelling out full attribute path in the expression.
