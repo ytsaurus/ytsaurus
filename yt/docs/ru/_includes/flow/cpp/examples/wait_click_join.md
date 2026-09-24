@@ -22,7 +22,7 @@
 
 ## Чтение данных
 
-Здесь все достаточно стандартно: так как данные уже лежат в необходимом формате во входной очереди, то вполне достаточно использовать связку `TSwiftPassthroughSourceComputation + TQueueSource`. Регистрируются `action_reader`, который генерирует поток `action`, и `hit_reader`, который генерирует поток `hit`.
+Здесь все достаточно стандартно: так как данные уже лежат в необходимом формате во входной очереди, то вполне достаточно использовать связку `TSwiftPassthroughOrderedSourceComputation + TQueueSource`. Регистрируются `action_reader`, который генерирует поток `action`, и `hit_reader`, который генерирует поток `hit`.
 Однако, для правильной работы пайплайна необходимо правильно настроить работу со временем. Для этого у обоих `SourceComputation` нужно заполнить `watermark_strategy`:
 - Нужно заполнить `event_timestamp` соответствующим временем. Для этого мы используем `event_timestamp_assigner`. Для `action_reader` мы указываем колонку `action_time`, а для `hit_reader` &mdash; `hit_time`.
 - Мы явным образом указываем `watermark_generator/out_of_orderness_bound` в `10s` - ключевой параметр для эвристики по оценке [вотермарка](../../../../flow/concepts/glossary.md#timestamps-and-watermarks). Значение указано лишь для тестов, для реальных задач нужно выбирать значение на основе свойств вычитываемого потока.
@@ -98,7 +98,7 @@
             };
             "sinks" = {
                 "queue" = {
-                    "sink_class_name" = "NYT::NFlow::TQueueSink";
+                    "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
                     "input_stream_ids" = ["joined_action"];
                     "parameters" = {
                     };
@@ -123,7 +123,7 @@
 
 - В `group_by_schema` дополнительно к `hit_id` и `hit_time` указан `hash` &mdash; для правильной работы алгоритма [партиционирования](../../../../flow/concepts/glossary.md#partition)
 - Для работы пайплайна нужен [таймер](../../../../flow/concepts/glossary.md#timer) для закрытия хита &mdash; поэтому регистрируется `timer` в `timers`. Мы не указываем дополнительных настроек, так как таймеры по умолчанию используют `event_time` и входные стримы.
-- Для отправки `joined_event` в упорядоченную динтаблицу (которая может быть на другом кластере) используется асинхронный `TQueueSink`.
+- Для отправки `joined_event` в упорядоченную динтаблицу (которая может быть на другом кластере) используется асинхронный `TAsyncQueueSink`.
 
 Сам джойн реализован как [process function](../../../../flow/cpp/process-functions.md) `TJoinFunction` (наследник `IProcessFunction` — обрабатывает сообщения и таймеры поэлементно), которую исполняет встроенный `TProcessFunctionComputation`; в спеке он задаётся через `processing_function`, а `wait_for_actions` передаётся в `processing_function_parameters`. Код рекомендуется читать в самом репозитории в силу его непрерывного улучшения. Ключевые идеи:
 - В момент появления первого события по ключу создается таймер для его закрытия.

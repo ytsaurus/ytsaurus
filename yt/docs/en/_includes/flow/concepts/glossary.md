@@ -122,7 +122,7 @@ To ensure scalability of the data processing workflow, Flow splits each [computa
 
 The input stream to a specific [computation](#computation) can be quite large, so for parallel data processing, the [computation](#computation) is split into multiple partitions. Approximate stream limits per partition: no more than 1 MB/s and no more than 1000 messages per second.
 
-Thanks to the `group_by` option, the input stream to a [computation](#computation) is grouped, and data with the same [key](#key) will always go to a specific partition. For this, each partition is assigned a key range `[LowerKey; UpperKey)`.
+Thanks to the `group_by_schema` field in the [computation](#computation) [spec](../../../flow/concepts/spec.md), the input stream is grouped, and data with the same [key](#key) will always go to a specific partition. For this, each partition is assigned a key range `[LowerKey; UpperKey)`.
 
 ### Job {#job}
 

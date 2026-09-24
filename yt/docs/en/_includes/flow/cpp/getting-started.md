@@ -38,11 +38,11 @@ For more details on message conversion, see [Process functions (C++)](../../../f
 
 ### 2. Define the state {#define-state}
 
-If a [computation](../../../flow/concepts/glossary.md#stream-and-computation) works with a [state](../../../flow/concepts/glossary.md#state), define a class that inherits from `TStateBase`:
+If a [computation](../../../flow/concepts/glossary.md#stream-and-computation) works with a [state](../../../flow/concepts/glossary.md#state), define a class that inherits from `NYTree::TYsonStruct`:
 
 ```cpp
 struct TWordCountState
-    : public TStateBase
+    : public NYTree::TYsonStruct
 {
     i64 Count{};
 
