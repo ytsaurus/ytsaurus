@@ -163,7 +163,8 @@ private:
         TStringBuf action)
     {
         auto path = NYPath::TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
-        context->SetRequestInfo("Path: %v", path);
+        context->AnnotateRequest()
+            .With("Path", path);
 
         auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(
             context->GetAuthenticationIdentity());
