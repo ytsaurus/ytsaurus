@@ -1,7 +1,7 @@
 #include "push_based_shuffle_service.h"
 
 #include "private.h"
-#include "push_based_shuffle_manager.h"
+#include "push_based_shuffle_registry.h"
 
 #include <yt/yt/server/lib/controller_agent/push_based_shuffle_service_proxy.h>
 
@@ -29,21 +29,21 @@ class TPushBasedShuffleService
     : public TServiceBase
 {
 public:
-    TPushBasedShuffleService(TPushBasedShuffleManagerPtr manager, IAuthenticatorPtr authenticator)
+    TPushBasedShuffleService(TPushBasedShuffleRegistryPtr registry, IAuthenticatorPtr authenticator)
         : TServiceBase(
-            manager->GetInvoker(),
+            registry->GetInvoker(),
             TPushBasedShuffleServiceProxy::GetDescriptor(),
             ControllerAgentLogger(),
             TServiceOptions{
                 .Authenticator = std::move(authenticator),
             })
-        , Manager_(std::move(manager))
+        , Registry_(std::move(registry))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetShuffleWriteSession));
     }
 
 private:
-    const TPushBasedShuffleManagerPtr Manager_;
+    const TPushBasedShuffleRegistryPtr Registry_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetShuffleWriteSession)
     {
@@ -60,7 +60,7 @@ private:
             .With("PartitionIndex", partitionIndex)
             .With("ExcludedSessionId", excludedSessionId);
 
-        auto pool = Manager_->GetShufflePoolOrThrow(incarnationId, operationId);
+        auto pool = Registry_->GetShufflePoolOrThrow(incarnationId, operationId);
 
         context->ReplyFrom(pool->GetSession(partitionIndex, excludedSessionId)
             .Apply(BIND([context] (const TErrorOr<TSessionDescriptor>& sessionOrError) {
@@ -71,17 +71,17 @@ private:
                     .With("SessionId", session.SessionId)
                     .With("SequencerNode", session.SequencerNode);
             })
-                .AsyncVia(Manager_->GetInvoker())));
+                .AsyncVia(Registry_->GetInvoker())));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreatePushBasedShuffleService(
-    TPushBasedShuffleManagerPtr manager,
+    TPushBasedShuffleRegistryPtr registry,
     IAuthenticatorPtr authenticator)
 {
-    return New<TPushBasedShuffleService>(std::move(manager), std::move(authenticator));
+    return New<TPushBasedShuffleService>(std::move(registry), std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

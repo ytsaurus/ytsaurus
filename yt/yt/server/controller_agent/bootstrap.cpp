@@ -217,7 +217,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreatePushBasedShuffleService(
-        ControllerAgent_->GetPushBasedShuffleManager(),
+        ControllerAgent_->GetPushBasedShuffleRegistry(),
         NativeAuthenticator_));
 }
 

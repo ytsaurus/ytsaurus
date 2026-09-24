@@ -99,7 +99,7 @@ public:
     void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
     const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const override;
 
-    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const override;
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const override;
 
     void Disconnect(const TError& error) override;
 

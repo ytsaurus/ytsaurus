@@ -202,9 +202,9 @@ const TJobTrackerOperationHandlerPtr& TOperationControllerHost::GetJobTrackerOpe
     return JobTrackerOperationHandler_;
 }
 
-const TPushBasedShuffleManagerPtr& TOperationControllerHost::GetPushBasedShuffleManager() const
+const TPushBasedShuffleRegistryPtr& TOperationControllerHost::GetPushBasedShuffleRegistry() const
 {
-    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleManager();
+    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleRegistry();
 }
 
 void TOperationControllerHost::Disconnect(const TError& error)

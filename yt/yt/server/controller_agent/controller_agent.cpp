@@ -11,7 +11,7 @@
 #include "operation_controller.h"
 #include "operation_controller_host.h"
 #include "private.h"
-#include "push_based_shuffle_manager.h"
+#include "push_based_shuffle_registry.h"
 #include "scheduling_context.h"
 #include "universal_monitoring_descriptor_manager.h"
 
@@ -240,7 +240,7 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
-        , PushBasedShuffleManager_(New<TPushBasedShuffleManager>(Config_))
+        , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>(Config_))
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
@@ -425,11 +425,11 @@ public:
         return JobTracker_.Get();
     }
 
-    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return PushBasedShuffleManager_;
+        return PushBasedShuffleRegistry_;
     }
 
     const TMediumDirectoryPtr& GetMediumDirectory() const
@@ -467,7 +467,7 @@ public:
         ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
-        PushBasedShuffleManager_->UpdateConfig(Config_);
+        PushBasedShuffleRegistry_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -1209,7 +1209,7 @@ private:
     const TOperationEventReporterPtr OperationEventsReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
-    const TPushBasedShuffleManagerPtr PushBasedShuffleManager_;
+    const TPushBasedShuffleRegistryPtr PushBasedShuffleRegistry_;
 
     bool Connected_ = false;
     bool ConnectScheduled_ = false;
@@ -1514,7 +1514,7 @@ private:
 
         // TODO(pogorelov): Do not call it directly, subscribe on signal when job tracker becomes stable.
         JobTracker_->OnSchedulerConnected(IncarnationId_);
-        PushBasedShuffleManager_->OnSchedulerConnected(IncarnationId_);
+        PushBasedShuffleRegistry_->OnSchedulerConnected(IncarnationId_);
 
         SchedulerConnected_.Fire(IncarnationId_);
     }
@@ -1564,7 +1564,7 @@ private:
         CancelableControlInvoker_.Reset();
 
         JobTracker_->Cleanup();
-        PushBasedShuffleManager_->Cleanup();
+        PushBasedShuffleRegistry_->Cleanup();
 
         ExecNodeDescriptorsByTagsCache_->Clear();
 
@@ -2507,9 +2507,9 @@ TJobTracker* TControllerAgent::GetJobTracker() const
     return Impl_->GetJobTracker();
 }
 
-const TPushBasedShuffleManagerPtr& TControllerAgent::GetPushBasedShuffleManager() const
+const TPushBasedShuffleRegistryPtr& TControllerAgent::GetPushBasedShuffleRegistry() const
 {
-    return Impl_->GetPushBasedShuffleManager();
+    return Impl_->GetPushBasedShuffleRegistry();
 }
 
 bool TControllerAgent::IsConnected() const

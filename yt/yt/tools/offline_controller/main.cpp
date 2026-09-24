@@ -106,7 +106,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const override
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const override
     {
         YT_UNIMPLEMENTED();
     }

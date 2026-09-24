@@ -17,11 +17,11 @@ namespace NYT::NControllerAgent {
 
 //! Routes a shuffle write session request to the session pool of its operation, rejecting
 //! a stale incarnation. Pools are built and owned by operation controllers.
-class TPushBasedShuffleManager
+class TPushBasedShuffleRegistry
     : public TRefCounted
 {
 public:
-    explicit TPushBasedShuffleManager(const TControllerAgentConfigPtr& config);
+    explicit TPushBasedShuffleRegistry(const TControllerAgentConfigPtr& config);
 
     //! \note Thread affinity: any
     const IInvokerPtr& GetInvoker() const;
@@ -70,7 +70,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleManager)
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
