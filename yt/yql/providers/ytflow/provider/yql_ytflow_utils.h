@@ -10,13 +10,13 @@
 #include <utility>
 
 
+namespace google::protobuf {
+
+class Any;
+
+} // namespace google::protobuf
+
 namespace NYql {
-
-namespace NYtflow::NProto {
-
-class TQYTSinkMessage;
-
-} // namespace NYtflow::NProto
 
 IDataProvider* GetDataProvider(
     const TExprNode& node,
@@ -58,7 +58,7 @@ bool TryGetYtSinkSettings(
     const TExprNode& node,
     TExprContext& ctx,
     const TTypeAnnotationContext& typeCtx,
-    NYtflow::NProto::TQYTSinkMessage& settings);
+    ::google::protobuf::Any& settings);
 
 bool IsYtflowProviderInput(const TExprNode& node);
 

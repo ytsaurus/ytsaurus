@@ -1272,7 +1272,8 @@ select DateTime::Format('{datetime_format}')(DateTime::FromSeconds(value)) as ti
 
 
 class TestYtflowRemoteCluster(TestYtflowBase):
-    NUM_REMOTE_CLUSTERS = 1
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
         "state_read_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/consumer_registrations"),
@@ -1302,6 +1303,128 @@ class TestYtflowRemoteCluster(TestYtflowBase):
                 real_name=remote_env.id,
                 proxy_url=remote_env.get_http_proxy_address(),
             ))
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_remote_read_and_write(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+        self._write_yt_table(input_path, rows, cluster="remote_0")
+
+        if kind == "sorted_table":
+            output_path = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into remote_0.`{output_path}`
+select key, value from remote_0.`{input_path}`
+order by key;
+""")
+        else:
+            output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+            run_query(f"""
+insert into remote_0.`{output_path}`
+select * from remote_0.`{input_path}`;
+""")
+
+        self._assert_yt_table_content(output_path, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_local_read_and_local_and_remote_writes(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        if kind == "sorted_table":
+            local_path = self._allocate_yt_table_path()
+            remote_path = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into `{local_path}`
+select key, value from `{input_path}` order by key;
+
+replace into remote_0.`{remote_path}`
+select key, value from `{input_path}` order by key;
+""")
+        else:
+            local_path = self._create_yt_table(dict(schema=schema))
+            remote_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+            run_query(f"""
+insert into `{local_path}`
+select * from `{input_path}`;
+
+insert into remote_0.`{remote_path}`
+select * from `{input_path}`;
+""")
+
+        self._assert_yt_table_content(local_path, rows)
+        self._assert_yt_table_content(remote_path, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_write_to_two_remote_clusters(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        if kind == "queue":
+            output_0 = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+            output_1 = self._create_yt_table(dict(schema=schema), cluster="remote_1")
+
+            with raises_yt_error("Writing into several remote YT queues"):
+                run_query(f"""
+insert into remote_0.`{output_0}`
+select * from `{input_path}`;
+
+insert into remote_1.`{output_1}`
+select * from `{input_path}`;
+""")
+        else:
+            output_0 = self._allocate_yt_table_path()
+            output_1 = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into remote_0.`{output_0}`
+select key, value from `{input_path}` order by key;
+
+replace into remote_1.`{output_1}`
+select key, value from `{input_path}` order by key;
+""")
+
+            self._assert_yt_table_content(output_0, rows, cluster="remote_0")
+            self._assert_yt_table_content(output_1, rows, cluster="remote_1")
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
