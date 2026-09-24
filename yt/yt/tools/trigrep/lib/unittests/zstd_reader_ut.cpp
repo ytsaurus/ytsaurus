@@ -55,6 +55,19 @@ std::vector<std::string> ReadZstdLogFrames(const std::string& fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TZstdReaderTest, EmptyFile)
+{
+    auto fileName = GenerateRandomLogFileName();
+    {
+        TFileOutput output{TString(fileName)};
+    }
+
+    auto reader = CreateSequentialZstdReader(fileName);
+    EXPECT_EQ(reader->GetTotalInputSize(), 0);
+    EXPECT_EQ(reader->TryBeginNextFrame(), nullptr);
+    EXPECT_EQ(reader->TryBeginNextFrame(), nullptr);
+}
+
 TEST(TZstdReaderTest, AllowBreakLines)
 {
     auto fileName = GenerateRandomLogFileName();
