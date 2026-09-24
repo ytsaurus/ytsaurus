@@ -1874,9 +1874,9 @@ ESealPriority GetChunkSealPriority(const TChunk* chunk)
         case EChunkFormat::JournalDistributed:
             return ESealPriority::JournalDistributed;
         default:
-            YT_LOG_ALERT("Unexpected journal chunk format encountered in chunk sealer (ChunkId: %v, ChunkFormat: %v)",
-                chunk->GetId(),
-                chunk->GetChunkFormat());
+            YT_TLOG_ALERT("Unexpected journal chunk format encountered in chunk sealer")
+                .With("ChunkId", chunk->GetId())
+                .With("ChunkFormat", chunk->GetChunkFormat());
             return TEnumTraits<ESealPriority>::GetMaxValue();
     }
 }

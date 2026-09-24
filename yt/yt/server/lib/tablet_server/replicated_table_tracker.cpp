@@ -1100,11 +1100,10 @@ public:
                 return;
             }
 
-            YT_LOG_DEBUG("Effective preferred sync replica clusters changed; resetting switch cooldown "
-                "(TableId: %v, OldClusters: %v, NewClusters: %v)",
-                Id_,
-                LastPreferredSyncReplicaClusters_,
-                preferredSyncReplicaClusters);
+            YT_TLOG_DEBUG("Effective preferred sync replica clusters changed; resetting switch cooldown")
+                .With("TableId", Id_)
+                .With("OldClusters", LastPreferredSyncReplicaClusters_)
+                .With("NewClusters", preferredSyncReplicaClusters);
 
             LastPreferredSyncReplicaClusters_ = preferredSyncReplicaClusters;
             for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
