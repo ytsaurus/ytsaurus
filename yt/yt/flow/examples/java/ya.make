@@ -1,6 +1,7 @@
 RECURSE(
     async_request
     external_state_join
+    noop
     shuffle
     static_table_join
     wait_click_join

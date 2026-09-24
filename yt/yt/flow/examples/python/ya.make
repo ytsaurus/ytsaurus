@@ -3,6 +3,7 @@ RECURSE(
     batch_compaction
     docker_vanilla_companion
     external_state_join
+    noop
     retryable_async_request
     shuffle
     static_table_join
