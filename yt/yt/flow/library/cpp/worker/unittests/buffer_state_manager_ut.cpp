@@ -982,6 +982,7 @@ TEST_F(TBufferManagerTest, SparseOutputProbeUsesHalfPoolShareAndShrinks)
 
     EXPECT_GT(output->GetLimitBytes(), 4 * Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
     EXPECT_LE(output->GetLimitBytes(), JobLimit);
+    EXPECT_EQ(output->GetDemandBytes(), Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
 
     usage.CumulativeByteOut = usage.CumulativeByteIn;
     output->SetOfferedRawRate(0, 0);
@@ -1071,6 +1072,83 @@ TEST_F(TBufferManagerTest, DemandBackedOversubscriptionMayScaleBelowV2Floor)
 
     EXPECT_EQ(outputs.at(TStreamId("output_a"))->GetLimitBytes(), Pool / 2);
     EXPECT_EQ(outputs.at(TStreamId("output_b"))->GetLimitBytes(), Pool / 2);
+    EXPECT_EQ(outputs.at(TStreamId("output_a"))->GetDemandBytes(), 3_MB);
+    EXPECT_EQ(outputs.at(TStreamId("output_b"))->GetDemandBytes(), 3_MB);
+}
+
+TEST_F(TBufferManagerTest, StreamDemandExcludesOverridesAndPrecedesPoolScaling)
+{
+    constexpr i64 Pool = 4_MB;
+    constexpr i64 Floor = 3_MB;
+    Spec_->V2Floor = NYTree::TSize(Floor);
+    for (const auto& side : {Spec_->InputBuffer, Spec_->OutputBuffer}) {
+        side->FairSharePool = NYTree::TSize(1_MB);
+        side->JobLimit = NYTree::TSize(16_MB);
+        side->WorkerGroupFairSharePoolOverrides[TWorkerGroupId("small")] = NYTree::TSize(2_MB);
+        side->WorkerGroupFairSharePoolOverrides[TWorkerGroupId("large")] = NYTree::TSize(Pool);
+        side->JobOverrides[TComputationId("computation")][TStreamId("override")] = NYTree::TSize(100_MB);
+    }
+    auto manager = CreateManager({TWorkerGroupId("small"), TWorkerGroupId("large")});
+    std::vector<TStreamLimitUsageStatePtr> inputs;
+    std::vector<TStreamLimitUsageStatePtr> outputs;
+    for (const auto& stream : {"a", "b", "override"}) {
+        auto jobId = TJobId(TGuid::Create());
+        auto states = manager->RegisterJob(jobId, CreateJobSpec(TStreamId(stream), TStreamId(stream)));
+        auto input = states.Input.at(TStreamId(stream));
+        auto output = states.Output.at(TStreamId(stream));
+        EXPECT_FALSE(input->GetDemandBytes());
+        EXPECT_FALSE(output->GetDemandBytes());
+        input->Update(TStreamUsage{.PendingInflatedBytes = 1_MB});
+        Manage(manager);
+        if (TStringBuf(stream) == "override") {
+            EXPECT_FALSE(input->GetDemandBytes());
+            EXPECT_FALSE(output->GetDemandBytes());
+            EXPECT_EQ(input->GetLimitBytes(), 100_MB);
+            EXPECT_EQ(output->GetLimitBytes(), 100_MB);
+        } else {
+            EXPECT_EQ(input->GetDemandBytes(), Floor);
+            EXPECT_EQ(output->GetDemandBytes(), Floor);
+            inputs.push_back(input);
+            outputs.push_back(output);
+        }
+    }
+    EXPECT_LE(inputs[0]->GetLimitBytes() + inputs[1]->GetLimitBytes(), Pool);
+    EXPECT_LE(outputs[0]->GetLimitBytes() + outputs[1]->GetLimitBytes(), Pool);
+    EXPECT_GT(*inputs[0]->GetDemandBytes() + *inputs[1]->GetDemandBytes(), Pool);
+    EXPECT_GT(*outputs[0]->GetDemandBytes() + *outputs[1]->GetDemandBytes(), Pool);
+}
+
+TEST_F(TBufferManagerTest, DemandClearsOnReconfiguration)
+{
+    auto manager = CreateManager();
+    auto states = manager->RegisterJob(TJobId(TGuid::Create()), CreateJobSpec(TStreamId("input"), TStreamId("output")));
+    auto input = states.Input.at(TStreamId("input"));
+    auto output = states.Output.at(TStreamId("output"));
+    Manage(manager);
+    EXPECT_EQ(input->GetDemandBytes(), 0);
+    EXPECT_EQ(output->GetDemandBytes(), static_cast<i64>(Spec_->V2Floor));
+
+    auto overridden = CloneYsonStruct(Spec_);
+    overridden->OutputBuffer->JobOverrides[TComputationId("computation")][TStreamId("output")] = NYTree::TSize(100_MB);
+    manager->Reconfigure(overridden);
+    EXPECT_FALSE(output->GetDemandBytes());
+    Manage(manager);
+    EXPECT_FALSE(output->GetDemandBytes());
+
+    auto disabled = CloneYsonStruct(Spec_);
+    disabled->EnableV2 = false;
+    manager->Reconfigure(disabled);
+    EXPECT_FALSE(input->GetDemandBytes());
+    EXPECT_FALSE(output->GetDemandBytes());
+    Manage(manager);
+    EXPECT_FALSE(input->GetDemandBytes());
+    EXPECT_FALSE(output->GetDemandBytes());
+
+    manager->Reconfigure(CloneYsonStruct(Spec_));
+    EXPECT_FALSE(output->GetDemandBytes());
+    Manage(manager);
+    EXPECT_EQ(input->GetDemandBytes(), 0);
+    EXPECT_EQ(output->GetDemandBytes(), static_cast<i64>(Spec_->V2Floor));
 }
 
 // Speculative output probes share at most half the output pool.

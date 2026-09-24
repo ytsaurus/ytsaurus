@@ -115,6 +115,17 @@ i64 TStreamLimitUsageState::GetLimitBytes() const
     return LimitBytes_.load(std::memory_order_relaxed);
 }
 
+void TStreamLimitUsageState::SetDemandBytes(std::optional<i64> demandBytes)
+{
+    DemandBytes_.store(demandBytes.value_or(-1), std::memory_order_relaxed);
+}
+
+std::optional<i64> TStreamLimitUsageState::GetDemandBytes() const
+{
+    auto demandBytes = DemandBytes_.load(std::memory_order_relaxed);
+    return demandBytes >= 0 ? std::optional<i64>(demandBytes) : std::nullopt;
+}
+
 i64 TStreamLimitUsageState::GetInflationPerMessage() const
 {
     return InflationPerMessage_;
