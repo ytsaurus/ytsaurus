@@ -3,12 +3,14 @@ package solomon
 import "time"
 
 type MetricsOpts struct {
-	useNameTag   bool
-	tags         map[string]string
-	timestamp    *time.Time
-	memOnly      bool
-	rated        bool
-	commonLabels map[string]string
+	tags            map[string]string
+	timestamp       *time.Time
+	commonLabels    map[string]string
+	startTime       uint32
+	commonStartTime uint32
+	useNameTag      bool
+	memOnly         bool
+	rated           bool
 }
 
 type MetricOpt func(*MetricsOpts)
@@ -34,6 +36,20 @@ func WithNameTag(useNameTag bool) func(*MetricsOpts) {
 func WithTimestamp(t time.Time) func(*MetricsOpts) {
 	return func(m *MetricsOpts) {
 		m.timestamp = &t
+	}
+}
+
+// WithStartTime sets the start time of a rate or rate histogram in Unix seconds.
+func WithStartTime(seconds uint32) func(*MetricsOpts) {
+	return func(m *MetricsOpts) {
+		m.startTime = seconds
+	}
+}
+
+// WithCommonStartTime sets the common start time used by SPACK 1.4.
+func WithCommonStartTime(t time.Time) func(*MetricsOpts) {
+	return func(m *MetricsOpts) {
+		m.commonStartTime = uint32(t.Unix())
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
@@ -18,12 +19,14 @@ var (
 )
 
 type Registry struct {
-	separator    string
-	prefix       string
-	tags         map[string]string
-	rated        bool
-	useNameTag   bool
-	streamFormat StreamFormat
+	separator          string
+	prefix             string
+	tags               map[string]string
+	rated              bool
+	trackRateStartTime bool
+	useNameTag         bool
+	startTime          uint32
+	streamFormat       StreamFormat
 
 	subregistries map[string]*Registry
 	m             *sync.Mutex
@@ -37,6 +40,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 	r := &Registry{
 		separator:    ".",
 		useNameTag:   false,
+		startTime:    uint32(time.Now().Unix()),
 		streamFormat: StreamSpack,
 
 		subregistries: make(map[string]*Registry),
@@ -51,6 +55,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 		r.prefix = opts.Prefix
 		r.tags = opts.Tags
 		r.rated = opts.Rated
+		r.trackRateStartTime = opts.TrackRateStartTime
 		r.useNameTag = opts.UseNameTag
 		r.streamFormat = opts.StreamFormat
 		for _, collector := range opts.Collectors {
@@ -65,11 +70,13 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 // Rated returns copy of registry with rated set to desired value.
 func (r Registry) Rated(rated bool) metrics.Registry {
 	return &Registry{
-		separator:  r.separator,
-		prefix:     r.prefix,
-		tags:       r.tags,
-		rated:      rated,
-		useNameTag: r.useNameTag,
+		separator:          r.separator,
+		prefix:             r.prefix,
+		tags:               r.tags,
+		rated:              rated,
+		trackRateStartTime: r.trackRateStartTime,
+		useNameTag:         r.useNameTag,
+		startTime:          r.startTime,
 
 		subregistries: r.subregistries,
 		m:             r.m,
@@ -197,12 +204,14 @@ func (r *Registry) newSubregistry(prefix string, tags map[string]string) *Regist
 	}
 
 	subregistry := &Registry{
-		separator:    r.separator,
-		prefix:       prefix,
-		tags:         tags,
-		rated:        r.rated,
-		useNameTag:   r.useNameTag,
-		streamFormat: r.streamFormat,
+		separator:          r.separator,
+		prefix:             prefix,
+		tags:               tags,
+		rated:              r.rated,
+		trackRateStartTime: r.trackRateStartTime,
+		useNameTag:         r.useNameTag,
+		startTime:          r.startTime,
+		streamFormat:       r.streamFormat,
 
 		subregistries: r.subregistries,
 		m:             r.m,
@@ -223,6 +232,9 @@ func (r *Registry) registerMetric(s Metric) Metric {
 	if r.rated {
 		Rated(s)
 	}
+	if r.trackRateStartTime {
+		ensureRateStartTime(s)
+	}
 
 	key := r.metricKey(s.getID())
 
@@ -239,6 +251,17 @@ func (r *Registry) registerMetric(s Metric) Metric {
 	} else {
 		r.metrics.Store(key, s)
 		return s
+	}
+}
+
+func ensureRateStartTime(s Metric) {
+	switch m := s.(type) {
+	case *Counter:
+		m.ensureStartTime()
+	case *FuncCounter:
+		m.ensureStartTime()
+	case *Histogram:
+		m.ensureStartTime()
 	}
 }
 

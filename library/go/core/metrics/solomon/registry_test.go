@@ -46,7 +46,7 @@ func TestRegistry_Gather(t *testing.T) {
 	s, err := r.Gather()
 	assert.NoError(t, err)
 
-	expected := &Metrics{}
+	expected := &Metrics{commonStartTime: r.startTime}
 	r.metrics.Range(func(_, s any) bool {
 		expected.metrics = append(expected.metrics, s.(Metric))
 		return true
@@ -89,6 +89,65 @@ func TestRegistry_Gather(t *testing.T) {
 			t.Fatalf("unexpected metric type: %T", sen)
 		}
 	}
+}
+
+func TestRegistryStartTimes(t *testing.T) {
+	root := NewRegistry(NewRegistryOpts().SetTrackRateStartTime(true))
+	root.startTime = 42
+	r := root.Rated(true).(*Registry)
+
+	before := uint32(time.Now().Unix())
+	r.Counter("counter")
+	histogram := NewHistogram("histogram", nil, nil, 0, WithRated(true))
+	r.AddMetric(&histogram)
+	gauge := NewGauge("gauge", 0)
+	r.AddMetric(&gauge)
+	explicit := NewCounter("explicit", 0, WithRated(true), WithStartTime(7))
+	r.AddMetric(&explicit)
+	after := uint32(time.Now().Unix())
+
+	got, err := r.Gather()
+	require.NoError(t, err)
+	require.Equal(t, uint32(42), got.commonStartTime)
+
+	for _, metric := range got.List() {
+		startTime := metric.getStartTime()
+		switch metric.Name() {
+		case "counter", "histogram":
+			require.GreaterOrEqual(t, startTime, before)
+			require.LessOrEqual(t, startTime, after)
+		case "explicit":
+			require.Equal(t, uint32(7), startTime)
+		case "gauge":
+			require.Zero(t, startTime)
+		}
+	}
+}
+
+func TestRegistryTrackRateStartTime(t *testing.T) {
+	before := uint32(time.Now().Unix())
+	r := NewRegistry(NewRegistryOpts().SetTrackRateStartTime(true))
+	counter := r.Rated(false).Counter("counter").(Metric)
+	funcCounter := r.FuncCounter("func_counter", func() int64 { return 0 }).(Metric)
+	histogram := NewHistogram("histogram", nil, nil, 0)
+	r.AddMetric(&histogram)
+	gauge := r.Gauge("gauge").(Metric)
+	after := uint32(time.Now().Unix())
+
+	for _, metric := range []Metric{counter, funcCounter, &histogram} {
+		startTime := metric.getStartTime()
+		require.GreaterOrEqual(t, startTime, before)
+		require.LessOrEqual(t, startTime, after)
+	}
+	require.Zero(t, gauge.getStartTime())
+
+	startTime := counter.getStartTime()
+	Rated(counter)
+	require.Equal(t, typeRated, counter.getType())
+	require.Equal(t, startTime, counter.getStartTime())
+
+	plain := NewRegistry(NewRegistryOpts()).Counter("plain").(Metric)
+	require.Zero(t, plain.getStartTime())
 }
 
 func TestDoubleRegistration(t *testing.T) {

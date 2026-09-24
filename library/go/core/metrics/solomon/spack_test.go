@@ -9,10 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSpackStartTimeObjectLayout(t *testing.T) {
+	if unsafe.Sizeof(uintptr(0)) != 8 {
+		t.Skip("64-bit layout check")
+	}
+	require.Equal(t, uintptr(48), unsafe.Sizeof(baseMetric{}))
+	require.Equal(t, uintptr(40), unsafe.Sizeof(MetricsOpts{}))
+}
 
 func TestSpackVersion13(t *testing.T) {
 	counter := NewCounter("requests", 42, WithRated(true), WithMemOnly(),
@@ -53,6 +62,63 @@ func TestSpackVersion13(t *testing.T) {
 			require.Equal(t, len(want), n)
 		})
 	}
+}
+
+func TestSpackVersion14(t *testing.T) {
+	const commonStartSeconds uint32 = 0x11223344
+	const metricStartSeconds uint32 = 0x55667788
+	shared := NewCounter("shared", 10, WithRated(true), WithStartTime(commonStartSeconds))
+	gauge := NewGauge("gauge", 1, WithStartTime(metricStartSeconds))
+	own := NewCounter("own", 20, WithRated(true), WithStartTime(metricStartSeconds))
+	withoutStart := NewCounter("none", 30, WithRated(true), WithStartTime(0))
+	metrics := NewMetrics([]Metric{&shared, &gauge, own.Snapshot(), &withoutStart},
+		WithCommonStartTime(time.Unix(int64(commonStartSeconds), 0)))
+
+	expected := []byte{
+		0x53, 0x50, 0x04, 0x01, 0x18, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, // name count
+		0x04, 0x00, 0x00, 0x00, // value count
+		0x04, 0x00, 0x00, 0x00, // metric count
+		0x04, 0x00, 0x00, 0x00, // point count
+		6, 's', 'e', 'n', 's', 'o', 'r',
+		6, 's', 'h', 'a', 'r', 'e', 'd',
+		5, 'g', 'a', 'u', 'g', 'e',
+		3, 'o', 'w', 'n',
+		4, 'n', 'o', 'n', 'e',
+		0, 0, 0, 0, // common time
+		0x44, 0x33, 0x22, 0x11, // common start time
+		0,                // common labels
+		0x0d, 0, 1, 0, 0, // RATE with the common start time
+		10, 0, 0, 0, 0, 0, 0, 0,
+		0x05, 0, 1, 0, 1, // GAUGE ignores its start time
+		0, 0, 0, 0, 0, 0, 0xf0, 0x3f,
+		0x0d, 2, 0x88, 0x77, 0x66, 0x55, 1, 0, 2, // RATE with its own start time
+		20, 0, 0, 0, 0, 0, 0, 0,
+		0x0d, 0, 1, 0, 3, // RATE without a start time
+		30, 0, 0, 0, 0, 0, 0, 0,
+	}
+	for _, compression := range []CompressionType{CompressionNone, CompressionLz4} {
+		t.Run(fmt.Sprint(compression), func(t *testing.T) {
+			want := bytes.Clone(expected)
+			want[7] = byte(compression)
+			if compression == CompressionLz4 {
+				want = append(want[:HeaderSize], compress(t, uint8(compression), string(expected[HeaderSize:]))...)
+			}
+			var buf bytes.Buffer
+			n, err := NewSpackEncoder(context.Background(), compression, &metrics, WithVersion14()).Encode(&buf)
+			require.NoError(t, err)
+			require.Equal(t, want, buf.Bytes())
+			require.Equal(t, len(want), n)
+		})
+	}
+}
+
+func TestSpackVersion14ZeroCommonStartTimeUsesDefault(t *testing.T) {
+	metrics := NewMetrics(nil, WithCommonStartTime(time.Unix(0, 0)))
+	var buf bytes.Buffer
+	_, err := NewSpackEncoder(context.Background(), CompressionNone, &metrics, WithVersion14()).Encode(&buf)
+	require.NoError(t, err)
+	require.Equal(t, packageInitTimeSeconds, binary.LittleEndian.Uint32(buf.Bytes()[HeaderSize+4:]))
 }
 
 func readSpackStringPool(t *testing.T, r *bytes.Reader, count uint32) []string {
