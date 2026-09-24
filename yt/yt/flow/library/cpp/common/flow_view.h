@@ -285,6 +285,7 @@ struct TJobEntityLimitStatus
     i64 Limit{};
     i64 Used{};
     std::optional<i64> Pending;
+    std::optional<i64> Demand;
     //! Share of the time the job spent with this buffer blocking the epoch loop,
     //! averaged over the window from the spec. Normalized by the job lifetime, so
     //! a job blocked since its start reports ~1 however young it is.

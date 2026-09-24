@@ -440,7 +440,7 @@ public:
 
                 status->RetryableErrors = std::move(JobRootStatusProfiler_->GetStatus().Errors);
 
-                // Limit/Used/Pending are all reported in inflated bytes (raw payload plus the
+                // Limit/Used/Pending/Demand are all reported in inflated bytes (raw payload plus the
                 // per-message technical cost), so back-pressure and status read in the same units.
                 auto fillBufferLimits = [] (const auto& name, const NFlow::TStreamLimitUsageStateMap& states, auto& allLimits) {
                     if (states.empty()) {
@@ -453,6 +453,7 @@ public:
                         entityLimitStatus.Limit = state->GetLimitBytes();
                         entityLimitStatus.Used = usage.GetInflatedInflightBytes(state->GetInflationPerMessage());
                         entityLimitStatus.Pending = usage.PendingInflatedBytes;
+                        entityLimitStatus.Demand = state->GetDemandBytes();
                     }
                 };
 

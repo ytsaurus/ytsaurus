@@ -62,6 +62,7 @@ class Test(FlowTestBase):
         fixed_input=False,
         fail_before_commit=False,
         broken_queue_computation=False,
+        buffer_state_manager=None,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -117,6 +118,8 @@ class Test(FlowTestBase):
         self.patch_config(pipeline_config)
         if worker_lease_timeout is not None:
             pipeline_config["dynamic_spec"]["job_manager"]["lost_job_timeout"] = worker_lease_timeout
+        if buffer_state_manager is not None:
+            pipeline_config["dynamic_spec"].setdefault("job_tracker", {})["buffer_state_manager"] = buffer_state_manager
 
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
 
@@ -159,6 +162,11 @@ class Test(FlowTestBase):
             consumer_class=consumer_class,
             fixed_input=True,
             broken_queue_computation=True,
+            buffer_state_manager={
+                "enable_v2": True,
+                "manage_period": "100ms",
+                "output_buffer": {"job_overrides": {"processor": {"processed_data": 16 * 1024 * 1024}}},
+            },
         )
 
         with self.start_flow_process_federation(
@@ -239,15 +247,46 @@ class Test(FlowTestBase):
                 assert output_bytes > 0
                 assert input_bytes > 0
 
+            def check_buffer_demand(job_status, computation_id, enabled):
+                observed = set()
+                for side in ("input", "output"):
+                    for name, streams in job_status.get(side + "_limits", {}).items():
+                        for stream_id, limit in streams.items():
+                            managed = name in ("input_buffer_bytes", "output_buffer_bytes")
+                            overridden = (
+                                computation_id == "processor"
+                                and name == "output_buffer_bytes"
+                                and stream_id == "processed_data"
+                            )
+                            if enabled and managed and not overridden:
+                                if limit.get("demand") is None or limit["demand"] < 0:
+                                    return False
+                            elif "demand" in limit:
+                                return False
+                            observed.add((name, stream_id))
+                return {
+                    "reader": {
+                        ("output_buffer_bytes", "data"),
+                        ("output_store_bytes", "data"),
+                        ("output_store_count", "data"),
+                    },
+                    "processor": {("input_buffer_bytes", "data"), ("output_buffer_bytes", "processed_data")},
+                    "consumer": {("input_buffer_bytes", "processed_data")},
+                }[computation_id] <= observed
+
             def check_input_limits(job_status):
                 input_buffer = job_status.get("input_limits", {}).get("input_buffer_bytes", {})
-                return sum(v.get("used", 0) for v in input_buffer.values()) > 0
+                return sum(v.get("used", 0) for v in input_buffer.values()) > 0 and check_buffer_demand(
+                    job_status, "processor", True
+                )
 
             wait(lambda: find_job_status("processor", check_input_limits), timeout=180)
 
             def get_output_limits_checker(name):
                 def checker(job_status, name=name):
-                    return sum(v.get("used", 0) for v in job_status.get("output_limits", {}).get(name, {}).values()) > 0
+                    return sum(
+                        v.get("used", 0) for v in job_status.get("output_limits", {}).get(name, {}).values()
+                    ) > 0 and check_buffer_demand(job_status, "reader", True)
 
                 return checker
 
@@ -268,7 +307,14 @@ class Test(FlowTestBase):
 
             # Verify the runtime-to-heartbeat path, including a consumer that emits nothing.
             for computation in ("reader", "processor", "consumer"):
-                wait(lambda: find_job_status(computation, check_processing_observation), timeout=180)
+                wait(
+                    lambda: find_job_status(
+                        computation,
+                        lambda status: check_processing_observation(status)
+                        and check_buffer_demand(status, computation, True),
+                    ),
+                    timeout=180,
+                )
                 status = find_job_status(computation, check_processing_observation)
                 observation = status["processing_observation"]
                 assert observation["sequence"] > 0
@@ -326,6 +372,7 @@ class Test(FlowTestBase):
             # The status envelope may advance before the computation applies the new spec.
             dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
             dynamic_spec["spec"]["computations"]["processor"]["skip_if_expression"] = "false"
+            dynamic_spec["spec"]["job_tracker"]["buffer_state_manager"]["enable_v2"] = False
             self.client.set_pipeline_dynamic_spec(
                 self.pipeline_path,
                 dynamic_spec["spec"],
@@ -344,11 +391,22 @@ class Test(FlowTestBase):
                 lambda: find_job_status(
                     "processor",
                     lambda status: check_processing_observation(status)
+                    and check_buffer_demand(status, "processor", False)
                     and get_cycle(status) > published_cycle
                     and status["processing_observation"]["sequence"] > retained_observation["sequence"]
                     and status["processing_observation"]["spec_generation"] >= reconfigured["epoch"],
                 ),
                 timeout=180,
+            )
+            wait(
+                lambda: all(
+                    find_job_status(
+                        computation,
+                        lambda status: check_buffer_demand(status, computation, False),
+                    )
+                    for computation in ("reader", "consumer")
+                ),
+                timeout=60,
             )
 
             # Lineage statistics are sent independently from regular job status heartbeats.
