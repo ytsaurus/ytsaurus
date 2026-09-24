@@ -198,7 +198,8 @@ void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
 void TJobEnvironmentConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("start_uid", &TThis::StartUid)
-        .Default(10000);
+        .Default(10000)
+        .GreaterThan(0);
 
     registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
         .Default(TDuration::Seconds(1));

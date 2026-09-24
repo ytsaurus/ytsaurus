@@ -1740,6 +1740,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
+        .TargetUserId = options.TargetUserId,
         .ThreadLimit = options.ThreadLimit,
     };
 

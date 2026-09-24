@@ -170,6 +170,24 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::optional<int> GetUserJobUserId(
+    const TJobProxyInternalConfigPtr& config,
+    const TUserJobSpec& userJobSpec,
+    EJobEnvironmentType jobEnvironmentType)
+{
+    if (config->DoNotSetUserId || jobEnvironmentType != EJobEnvironmentType::Porto) {
+        return std::nullopt;
+    }
+
+    auto userId = userJobSpec.enable_fixed_user_id()
+        ? config->JobEnvironment->StartUid
+        : config->JobEnvironment->StartUid + config->SlotIndex;
+    YT_VERIFY(userId > 0);
+    return userId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static std::string CreateNamedPipePath()
 {
     std::string name = CreateGuidAsString();
@@ -203,17 +221,19 @@ public:
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
         , JobIOConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig())
+        , JobEnvironmentType_(Config_->JobEnvironment.GetType())
+        , UserId_(GetUserJobUserId(Config_, UserJobSpec_, JobEnvironmentType_))
         , UserJobEnvironment_(Host_->CreateUserJobEnvironment(
             TJobSpecEnvironmentOptions{
                 .EnablePortoMemoryTracking = UserJobSpec_.use_porto_memory_tracking(),
                 .EnableCoreDumps = UserJobSpec_.has_core_table_spec(),
                 .EnableGpuCoreDumps = UserJobSpec_.enable_cuda_gpu_core_dump(),
                 .EnablePorto = TranslateEnablePorto(FromProto<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto())),
+                .TargetUserId = UserId_,
                 .ThreadLimit = UserJobSpec_.thread_limit()
             }))
         , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
-        , JobEnvironmentType_(Config_->JobEnvironment.GetType())
         , PipeIOPool_(CreateThreadPool(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
@@ -247,17 +267,6 @@ public:
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckThrashing, MakeWeak(this)),
             Config_->JobEnvironment->JobThrashingDetector->CheckPeriod);
-
-        // User job usually runs by per-slot users: yt_slot_{N}.
-        // Which is not available for single-user, non-privileged or testing setup.
-        if (!Config_->DoNotSetUserId && JobEnvironmentType_ == EJobEnvironmentType::Porto) {
-            if (UserJobSpec_.enable_fixed_user_id()) {
-                // TODO(ignat): use root or introduce special uid for this case.
-                UserId_ = Config_->JobEnvironment->StartUid;
-            } else {
-                UserId_ = Config_->JobEnvironment->StartUid + Config_->SlotIndex;
-            }
-        }
 
         if (!Config_->BusServer->UnixDomainSocketPath) {
             THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
@@ -611,21 +620,19 @@ private:
 
     const TJobProxyInternalConfigPtr Config_;
     const NScheduler::TJobIOConfigPtr JobIOConfig_;
+    const EJobEnvironmentType JobEnvironmentType_;
+    const std::optional<int> UserId_;
     const IUserJobEnvironmentPtr UserJobEnvironment_;
 
     std::vector<int> Ports_;
 
     TPromise<void> JobErrorPromise_;
 
-    const EJobEnvironmentType JobEnvironmentType_;
-
     const IThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
     std::string InputPipePath_;
-
-    std::optional<int> UserId_;
 
     std::atomic<bool> Prepared_ = false;
     std::atomic<bool> Woodpecker_ = false;
