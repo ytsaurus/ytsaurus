@@ -705,13 +705,13 @@ private:
         bool fetchReshard,
         bool fetchMove);
 
-    static THashMap<TTableId, TTableSettings> FetchActualTableSettings(
+    THashMap<TTableId, TTableSettings> FetchActualTableSettings(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIdsToFetch,
         const THashMap<TTableId, TCellTag>& tableIdToCellTag,
-        const IMulticellThrottlerPtr& throttler);
+        const IMulticellThrottlerPtr& throttler) const;
 
-    static THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
+    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
         const NApi::NNative::IClientPtr& client,
         const THashSet<TTableId>& tableIds,
         const THashSet<TTableId>& tableIdsToFetchPivotKeys,
@@ -719,7 +719,7 @@ private:
         const IMulticellThrottlerPtr& throttler,
         bool fetchPerformanceCounters,
         bool parameterizedBalancingEnabledDefault = false,
-        THashSet<TTableId> tableIdsWithParameterizedBalancing = {});
+        THashSet<TTableId> tableIdsWithParameterizedBalancing = {}) const;
 
     void FetchReplicaModes(
         const TBundleSnapshotPtr& bundleSnapshot,
@@ -2078,7 +2078,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIdsToFetch,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
-    const IMulticellThrottlerPtr& throttler)
+    const IMulticellThrottlerPtr& throttler) const
 {
     auto cellTagToBatch = FetchTableAttributes(
         client,
@@ -2086,6 +2086,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
         /*tableIdsToFetchPivotKeys*/ {},
         tableIdToCellTag,
         throttler,
+        Config_.Acquire()->UseInternalApi,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_balancing_attributes(true);
         });
@@ -2129,7 +2130,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
     const IMulticellThrottlerPtr& throttler,
     bool fetchPerformanceCounters,
     bool parameterizedBalancingEnabledDefault,
-    THashSet<TTableId> tableIdsWithParameterizedBalancing)
+    THashSet<TTableId> tableIdsWithParameterizedBalancing) const
 {
     // There is no point in tableIdsWithParameterizedBalancing if parameterized balancing is enabled by default.
     YT_VERIFY(!parameterizedBalancingEnabledDefault || tableIdsWithParameterizedBalancing.empty());
@@ -2140,6 +2141,7 @@ THashMap<TTableId, TTableStatisticsResponse> TBundleState::FetchTableStatistics(
         tableIdsToFetchPivotKeys,
         tableIdToCellTag,
         throttler,
+        Config_.Acquire()->UseInternalApi,
         [fetchPerformanceCounters] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
             if (fetchPerformanceCounters) {

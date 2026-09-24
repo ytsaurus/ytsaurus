@@ -160,6 +160,7 @@ struct TBundleStateProviderConfig
     : public NYTree::TYsonStruct
 {
     bool FetchTabletCellsFromSecondaryMasters;
+    bool UseInternalApi;
     bool UseStatisticsReporter;
     NYPath::TYPath StatisticsTablePath;
 

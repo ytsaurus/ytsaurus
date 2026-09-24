@@ -13,6 +13,7 @@ SRCS(
     cypress_transaction_service.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    internal_api_service.cpp
     master_connector.cpp
     master_proxy.cpp
     node_proxy.cpp
