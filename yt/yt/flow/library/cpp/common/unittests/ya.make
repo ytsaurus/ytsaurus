@@ -27,6 +27,7 @@ SRCS(
     resource_manager_ut.cpp
     resource_status_ut.cpp
     schema_ut.cpp
+    select_literals_ut.cpp
     spec_ut.cpp
     state_ut.cpp
     state_cache_ut.cpp
@@ -44,6 +45,7 @@ PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/library/profiling/solomon
+    yt/yt/library/query/base
     yt/yt/library/query/engine
 )
 
