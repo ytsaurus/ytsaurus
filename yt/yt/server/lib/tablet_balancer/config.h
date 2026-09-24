@@ -58,6 +58,7 @@ struct TParameterizedBalancingConfig
     : public NYTree::TYsonStruct
 {
     std::string Metric;
+    std::vector<std::string> Metrics;
     std::optional<bool> EnableReshard;
     std::optional<bool> PerTableUniform;
     std::optional<int> MaxActionCount;
@@ -68,6 +69,8 @@ struct TParameterizedBalancingConfig
     std::optional<int> MinTabletsPerMoveRecomputationWorker;
     std::vector<TClusterName> ReplicaClusters;
     TComponentFactorConfigPtr Factors;
+
+    std::vector<std::string> GetMetrics() const;
 
     REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
 

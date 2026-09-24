@@ -67,77 +67,143 @@ double ExtractMetricValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParameterizedMetricsCalculator::TParameterizedMetricsCalculator(
-    std::string metric,
+TParameterizedMetricsEvaluator::TParameterizedMetricsEvaluator(
+    std::vector<std::string> metrics,
     std::vector<std::string> performanceCountersKeys,
-    TTableSchemaPtr performanceCountersTableSchema,
     const TLogger& logger)
     : PerformanceCountersKeys_(std::move(performanceCountersKeys))
-    , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
-    , Metric_(std::move(metric))
     , Logger(logger)
+    , Metrics_(std::move(metrics))
 {
-    auto newMetric = ReplaceAliases(Metric_);
-    YT_TLOG_DEBUG_IF(newMetric != Metric_, "Replaced aliases in parameterized balancing metric")
-        .With("OldMetric", Metric_)
-        .With("NewMetric", newMetric);
-    Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
-        ParseSource(newMetric, EParseMode::Expression),
-        ParameterizedBalancingAttributes);
-}
-
-THashMap<TTabletId, double> TParameterizedMetricsCalculator::GetTableMetrics(const TTable* table) const
-{
-    THashMap<TTabletId, double> tabletToMetric;
-    for (const auto& tablet : table->Tablets) {
-        EmplaceOrCrash(tabletToMetric, tablet->Id, GetTabletMetric(tablet));
+    if (Metrics_.empty() || std::ssize(Metrics_) > MaxMetricCount) {
+        THROW_ERROR_EXCEPTION("Unsupported number of metrics: expected between 1 and %v",
+            MaxMetricCount)
+            .With("metric_count", Metrics_.size());
     }
-    return tabletToMetric;
+
+    Evaluators_.reserve(Metrics_.size());
+
+    for (const auto& metric : Metrics_) {
+        auto newMetric = ReplaceAliases(metric);
+
+        YT_TLOG_DEBUG_IF(newMetric != metric, "Replaced aliases in parameterized balancing metric")
+            .With("OldMetric", metric)
+            .With("NewMetric", newMetric);
+
+        Evaluators_.emplace_back(
+            NOrm::NQuery::CreateOrmExpressionEvaluator(
+                ParseSource(newMetric, EParseMode::Expression),
+                ParameterizedBalancingAttributes));
+    }
 }
 
-double TParameterizedMetricsCalculator::GetTabletMetric(const TTabletPtr& tablet) const
+std::array<double, MaxMetricCount> TParameterizedMetricsEvaluator::EvaluateTabletMetrics(
+    const TTabletPtr& tablet,
+    const TTableSchemaPtr& schema) const
 {
-    return GetTabletMetric(tablet, PerformanceCountersTableSchema_);
-}
+    std::array<double, MaxMetricCount> values = {};
 
-double TParameterizedMetricsCalculator::GetTabletMetric(const TTabletPtr& tablet, const TTableSchemaPtr& schema) const
-{
     if (tablet->State == ETabletState::Unmounted) {
-        return 0.0;
+        return values;
     }
-
-    auto rowBuffer = New<TRowBuffer>();
-    auto value = Evaluator_->Evaluate({
-            ConvertToYsonString(tablet->Statistics.OriginalNode),
-            tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, schema)
-        },
-        rowBuffer)
-        .ValueOrThrow();
 
     auto tableId = tablet->Table
         ? tablet->Table->Id
         : NullObjectId;
 
-    return ExtractMetricValue(value, Metric_, tablet->Id, tableId);
-}
+    auto rowBuffer = New<TRowBuffer>();
 
-DEFINE_REFCOUNTED_TYPE(TParameterizedMetricsCalculator)
+    for (int index = 0; index < std::ssize(Evaluators_); ++index) {
+        auto rawValue = Evaluators_[index]->Evaluate({
+            ConvertToYsonString(tablet->Statistics.OriginalNode),
+            tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, schema)
+        },
+        rowBuffer).ValueOrThrow();
+
+        auto value = ExtractMetricValue(rawValue, Metrics_[index], tablet->Id, tableId);
+        if (value < 0.0) {
+            THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", value)
+                .With("tablet_metric_value", value)
+                .With("tablet_id", tablet->Id)
+                .With("table_id", tableId)
+                .With("metric_index", index)
+                .With("metric_formula", Metrics_[index])
+                .With("metric_formulas", Metrics_);
+        }
+
+        values[index] = value;
+    }
+
+    return values;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicaMetricsCalculator
-    : public TParameterizedMetricsCalculator
+template <int MetricSize>
+TParameterizedMetricsCalculator<MetricSize>::TParameterizedMetricsCalculator(
+    std::vector<std::string> metrics,
+    std::vector<std::string> performanceCountersKeys,
+    TTableSchemaPtr performanceCountersTableSchema,
+    const TLogger& logger)
+    : TParameterizedMetricsEvaluator(
+        std::move(metrics),
+        std::move(performanceCountersKeys),
+        logger)
+    , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
 {
+    YT_VERIFY(std::ssize(Metrics_) == MetricSize);
+}
+
+template <int MetricSize>
+THashMap<TTabletId, TGenericMetric<MetricSize>> TParameterizedMetricsCalculator<MetricSize>::GetTableMetrics(const TTable* table) const
+{
+    THashMap<TTabletId, TMetric> tabletToMetric;
+    for (const auto& tablet : table->Tablets) {
+        EmplaceOrCrash(tabletToMetric, tablet->Id, GetTabletMetric(tablet));
+    }
+
+    return tabletToMetric;
+}
+
+template <int MetricSize>
+TGenericMetric<MetricSize> TParameterizedMetricsCalculator<MetricSize>::GetTabletMetric(const TTabletPtr& tablet) const
+{
+    return CalculateTabletMetric(tablet, PerformanceCountersTableSchema_);
+}
+
+template <int MetricSize>
+TGenericMetric<MetricSize> TParameterizedMetricsCalculator<MetricSize>::CalculateTabletMetric(const TTabletPtr& tablet, const TTableSchemaPtr& schema) const
+{
+    if (tablet->State == ETabletState::Unmounted) {
+        return TMetric::Zero();
+    }
+
+    auto metricValues = EvaluateTabletMetrics(tablet, schema);
+    std::array<double, MetricSize> values;
+    std::copy_n(metricValues.begin(), MetricSize, values.begin());
+
+    return TMetric(values);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <int MetricSize>
+class TReplicaMetricsCalculator
+    : public TParameterizedMetricsCalculator<MetricSize>
+{
+    using TBase = TParameterizedMetricsCalculator<MetricSize>;
+    using TMetric = typename TBase::TMetric;
+
 public:
     TReplicaMetricsCalculator(
-        std::string metric,
+        std::vector<std::string> metrics,
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
         const TLogger& logger,
         bool enableVerboseLogging)
-        : TParameterizedMetricsCalculator(
-            std::move(metric),
+        : TBase(
+            std::move(metrics),
             std::move(performanceCountersKeys),
             std::move(performanceCountersTableSchema),
             logger)
@@ -146,16 +212,16 @@ public:
         , EnableVerboseLogging_(enableVerboseLogging)
     { }
 
-    THashMap<TTabletId, double> GetTableMetrics(const TTable* table) const override
+    THashMap<TTabletId, TMetric> GetTableMetrics(const TTable* table) const override
     {
         if (table->AlienTables.empty()) {
             YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics as only major table metrics")
                 .With("TableId", table->Id);
-            return TParameterizedMetricsCalculator::GetTableMetrics(table);
+            return TBase::GetTableMetrics(table);
         }
 
         if (DoMinorTablesHaveSamePivotKeys(table)) {
-            return TParameterizedMetricsCalculator::GetTableMetrics(table);
+            return TBase::GetTableMetrics(table);
         }
 
         YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics by approximate metrics of minor tables")
@@ -172,7 +238,7 @@ public:
         auto majorTabletSizes = getTabletSizes(table);
         auto majorMetrics = GetTabletMetrics(
             static_cast<const TTableBase*>(table),
-            PerformanceCountersTableSchema_);
+            TBase::PerformanceCountersTableSchema_);
 
         for (const auto& [cluster, minorTables] : table->AlienTables) {
             auto schema = GetOrCrash(ClusterPerformanceCountersTableSchemas_, cluster);
@@ -193,7 +259,7 @@ public:
             }
         }
 
-        THashMap<TTabletId, double> metrics;
+        THashMap<TTabletId, TMetric> metrics;
         for (int index = 0; index < std::ssize(table->Tablets); ++index) {
             EmplaceOrCrash(metrics, table->Tablets[index]->Id, majorMetrics[index]);
         }
@@ -207,11 +273,11 @@ private:
     const bool EnableVerboseLogging_;
     mutable int LogMessageCount_ = 0;
 
-    double GetTabletMetric(const TTabletPtr& tablet) const override
+    TMetric GetTabletMetric(const TTabletPtr& tablet) const override
     {
         YT_VERIFY(tablet->Table);
 
-        double metric = TParameterizedMetricsCalculator::GetTabletMetric(tablet);
+        auto metric = TBase::GetTabletMetric(tablet);
         if (tablet->Table->AlienTables.empty()) {
             return metric;
         }
@@ -220,7 +286,7 @@ private:
             auto schema = GetOrCrash(ClusterPerformanceCountersTableSchemas_, cluster);
             for (const auto& minorTable : minorTables) {
                 YT_VERIFY(std::ssize(tablet->Table->Tablets) == std::ssize(minorTable->Tablets));
-                metric += TParameterizedMetricsCalculator::GetTabletMetric(
+                metric += TBase::CalculateTabletMetric(
                     minorTable->Tablets[tablet->Index],
                     schema);
             }
@@ -236,13 +302,14 @@ private:
         return metric;
     }
 
-    std::vector<double> GetTabletMetrics(const TTableBase* table, const TTableSchemaPtr& schema) const
+    std::vector<TMetric> GetTabletMetrics(const TTableBase* table, const TTableSchemaPtr& schema) const
     {
-        std::vector<double> metrics;
+        std::vector<TMetric> metrics;
         for (const auto& tablet : table->Tablets) {
             YT_VERIFY(std::ssize(metrics) == tablet->Index);
-            metrics.push_back(TParameterizedMetricsCalculator::GetTabletMetric(tablet, schema));
+            metrics.push_back(TBase::CalculateTabletMetric(tablet, schema));
         }
+
         return metrics;
     }
 
@@ -267,27 +334,42 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicaMetricsCalculator)
-DECLARE_REFCOUNTED_CLASS(TReplicaMetricsCalculator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParameterizedMetricsCalculatorPtr CreateReplicaMetricsCalculator(
-    std::string metric,
+template <int MetricSize>
+std::unique_ptr<TParameterizedMetricsCalculator<MetricSize>> CreateReplicaMetricsCalculator(
+    std::vector<std::string> metrics,
     std::vector<std::string> performanceCountersKeys,
     NTableClient::TTableSchemaPtr performanceCountersTableSchema,
     THashMap<TClusterName, NTableClient::TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
     const NLogging::TLogger& logger,
     bool enableVerboseLogging)
 {
-    return New<TReplicaMetricsCalculator>(
-        std::move(metric),
+    return std::make_unique<TReplicaMetricsCalculator<MetricSize>>(
+        std::move(metrics),
         std::move(performanceCountersKeys),
         std::move(performanceCountersTableSchema),
         std::move(perClusterPerformanceCountersTableSchemas),
         logger,
         enableVerboseLogging);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define INSTANTIATE_METRICS_CALCULATOR(size) \
+    template class TParameterizedMetricsCalculator<size>; \
+    template std::unique_ptr<TParameterizedMetricsCalculator<size>> CreateReplicaMetricsCalculator<size>( \
+        std::vector<std::string>, \
+        std::vector<std::string>, \
+        NTableClient::TTableSchemaPtr, \
+        THashMap<TClusterName, NTableClient::TTableSchemaPtr>, \
+        const NLogging::TLogger&, \
+        bool);
+
+YT_FOR_EACH_METRIC_SIZE(INSTANTIATE_METRICS_CALCULATOR)
+
+#undef INSTANTIATE_METRICS_CALCULATOR
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,11 +11,23 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TMetric = TGenericMetric<1>;
+
 constexpr double MetricError = 1e-10;
 
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "BalancingHelpersUnittest");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TMetric> MakeMetricsVector(std::initializer_list<double> metricValues)
+{
+    std::vector<TMetric> result(ssize(metricValues));
+    for (int index = 0; index < ssize(metricValues); ++index) {
+        result[index] = TMetric(std::array{metricValues.begin()[index]});
+    }
+
+    return result;
+}
 
 auto MakeSimpleKey(int first, const std::string& second)
 {
@@ -122,14 +134,16 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AreMetricsEqual(double lhs, double rhs)
+bool AreMetricsEqual(TMetric lhs, TMetric rhs)
 {
-    return lhs <= rhs + MetricError && rhs <= lhs + MetricError;
+    double lhsTotalValue = lhs.GetTotalValue();
+    double rhsTotalValue = rhs.GetTotalValue();
+    return lhsTotalValue <= rhsTotalValue + MetricError && rhsTotalValue <= lhsTotalValue + MetricError;
 }
 
 bool AreMetricsEqual(
-    const std::vector<double>& leftMetrics,
-    const std::vector<double>& rightMetrics)
+    const std::vector<TMetric>& leftMetrics,
+    const std::vector<TMetric>& rightMetrics)
 {
     EXPECT_EQ(std::ssize(leftMetrics), std::ssize(rightMetrics));
     if (std::ssize(leftMetrics) != std::ssize(rightMetrics)) {
@@ -138,31 +152,28 @@ bool AreMetricsEqual(
 
     for (int index = 0; index < std::ssize(leftMetrics); ++index) {
         EXPECT_TRUE(AreMetricsEqual(leftMetrics[index], rightMetrics[index]));
-        if (!AreMetricsEqual(leftMetrics[index], rightMetrics[index])) {
-            return false;
-        }
     }
     return true;
 }
 
-auto GetTotalMettric(const std::vector<double>& metrics)
+auto GetTotalMetric(const std::vector<TMetric>& metrics)
 {
     return std::accumulate(
         metrics.begin(),
         metrics.end(),
-        0.0,
-        [] (double x, const auto& metric) {
-            return x + metric;
+        TMetric(std::array{0.0}),
+        [] (TMetric x, const auto& metric) {
+            return metric + x;
         });
 }
 
 class TCalculateMajorMetricsBetweenSamePivotsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*rightMetrics*/ std::vector<double>,
+        /*rightMetrics*/ std::vector<TMetric>,
         /*leftSizes*/ std::vector<i64>,
         /*rightSizes*/ std::vector<i64>,
-        /*metrics*/ std::vector<double>>>
+        /*metrics*/ std::vector<TMetric>>>
 { };
 
 TEST_P(TCalculateMajorMetricsBetweenSamePivotsTest, Simple)
@@ -174,7 +185,7 @@ TEST_P(TCalculateMajorMetricsBetweenSamePivotsTest, Simple)
     auto expectedMetrics = std::get<3>(params);
 
     auto actualMetrics = CalculateMajorMetricsBetweenSamePivots(
-        TRange<double>(rightMetrics.begin(), rightMetrics.end()),
+        TRange<TMetric>(rightMetrics.begin(), rightMetrics.end()),
         TRange<i64>(leftSizes.begin(), leftSizes.end()),
         TRange<i64>(rightSizes.begin(), rightSizes.end()),
         Logger(),
@@ -184,11 +195,11 @@ TEST_P(TCalculateMajorMetricsBetweenSamePivotsTest, Simple)
         << "actualMetrics: " << ToString(actualMetrics)
         << "; expectedMetrics: " << ToString(expectedMetrics);
 
-    auto actualTotalMetric = GetTotalMettric(actualMetrics);
-    auto expectedTotalMetric = GetTotalMettric(rightMetrics);
-    EXPECT_TRUE(AreMetricsEqual(GetTotalMettric(actualMetrics), GetTotalMettric(rightMetrics)))
-        << "actualTotalMetric: " << actualTotalMetric
-        << "; expectedTotalMetric: " << expectedTotalMetric;
+    auto actualTotalMetric = GetTotalMetric(actualMetrics);
+    auto expectedTotalMetric = GetTotalMetric(rightMetrics);
+    EXPECT_TRUE(AreMetricsEqual(GetTotalMetric(actualMetrics), GetTotalMetric(rightMetrics)))
+        << "actualTotalMetric: " << actualTotalMetric.GetTotalValue()
+        << "; expectedTotalMetric: " << expectedTotalMetric.GetTotalValue();
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -196,40 +207,40 @@ INSTANTIATE_TEST_SUITE_P(
     TCalculateMajorMetricsBetweenSamePivotsTest,
     ::testing::Values(
         std::tuple(
-            std::vector<double>{40, 20, 60, 40},
+            MakeMetricsVector({40, 20, 60, 40}),
             std::vector<i64>{100, 20, 100, 20},
             std::vector<i64>{100, 20, 100, 20},
-            std::vector<double>{40, 20, 60, 40}),
+            MakeMetricsVector({40, 20, 60, 40})),
         std::tuple(
-            std::vector<double>{60, 100},
+            MakeMetricsVector({60, 100}),
             std::vector<i64>{0, 0, 0, 0},
             std::vector<i64>{10, 10},
-            std::vector<double>{30, 30, 50, 50}),
+            MakeMetricsVector({30, 30, 50, 50})),
         std::tuple(
-            std::vector<double>{40, 20, 60, 40},
+            MakeMetricsVector({40, 20, 60, 40}),
             std::vector<i64>{10, 10},
             std::vector<i64>{0, 0, 0, 0},
-            std::vector<double>{60, 100}),
+            MakeMetricsVector({60, 100})),
         std::tuple(
-            std::vector<double>{100},
+            MakeMetricsVector({100}),
             std::vector<i64>{0, 100, 0, 25, 0},
             std::vector<i64>{20},
-            std::vector<double>{0, 80, 0, 20, 0}),
+            MakeMetricsVector({0, 80, 0, 20, 0})),
         std::tuple(
-            std::vector<double>{24, 6, 66, 105},
+            MakeMetricsVector({24, 6, 66, 105}),
             std::vector<i64>{30, 30, 15, 10, 35},
             std::vector<i64>{30, 10, 15, 25},
-            std::vector<double>{16, 14, 44, 29, 98}),
+            MakeMetricsVector({16, 14, 44, 29, 98})),
         std::tuple(
-            std::vector<double>{44, 28, 98},
+            MakeMetricsVector({44, 28, 98}),
             std::vector<i64>{15, 25},
             std::vector<i64>{15, 10, 35},
-            std::vector<double>{65, 105}),
-            std::tuple(
-                std::vector<double>{0},
-                std::vector<i64>{40},
-                std::vector<i64>{0},
-                std::vector<double>{0})));
+            MakeMetricsVector({65, 105})),
+        std::tuple(
+            MakeMetricsVector({0}),
+            std::vector<i64>{40},
+            std::vector<i64>{0},
+            MakeMetricsVector({0}))));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,12 +256,12 @@ auto MakePivotKeys(const std::vector<int>& values)
 class TCalculateMajorMetricsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*rightMetrics*/ std::vector<double>,
+        /*rightMetrics*/ std::vector<TMetric>,
         /*leftSizes*/ std::vector<i64>,
         /*rightSizes*/ std::vector<i64>,
         /*leftPivotKeys*/ std::vector<int>,
         /*rightPivotKeys*/ std::vector<int>,
-        /*metrics*/ std::vector<double>>>
+        /*metrics*/ std::vector<TMetric>>>
 { };
 
 TEST_P(TCalculateMajorMetricsTest, Simple)
@@ -272,11 +283,11 @@ TEST_P(TCalculateMajorMetricsTest, Simple)
         << "actualMetrics: " << ToString(actualMetrics)
         << "; expectedMetrics: " << ToString(expectedMetrics);
 
-    auto actualTotalMetric = GetTotalMettric(actualMetrics);
-    auto expectedTotalMetric = GetTotalMettric(rightMetrics);
-    EXPECT_TRUE(AreMetricsEqual(GetTotalMettric(actualMetrics), GetTotalMettric(rightMetrics)))
-        << "actualTotalMetric: " << actualTotalMetric
-        << "; expectedTotalMetric: " << expectedTotalMetric;
+    auto actualTotalMetric = GetTotalMetric(actualMetrics);
+    auto expectedTotalMetric = GetTotalMetric(rightMetrics);
+    EXPECT_TRUE(AreMetricsEqual(GetTotalMetric(actualMetrics), GetTotalMetric(rightMetrics)))
+        << "actualTotalMetric: " << actualTotalMetric.GetTotalValue()
+        << "; expectedTotalMetric: " << expectedTotalMetric.GetTotalValue();
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -284,33 +295,33 @@ INSTANTIATE_TEST_SUITE_P(
     TCalculateMajorMetricsTest,
     ::testing::Values(
         std::tuple(
-            std::vector<double>{40, 20, 60, 40},
+            MakeMetricsVector({40, 20, 60, 40}),
             std::vector<i64>{100, 20, 100, 20},
             std::vector<i64>{15, 100, 15, 200},
             std::vector<int>{1, 2, 3, 4},
             std::vector<int>{1, 2, 3, 4},
-            std::vector<double>{40, 20, 60, 40}),
+            MakeMetricsVector({40, 20, 60, 40})),
         std::tuple(
-            std::vector<double>{100},
+            MakeMetricsVector({100}),
             std::vector<i64>{0, 100, 0, 25, 0},
             std::vector<i64>{20},
             std::vector<int>{1, 2, 3, 4, 5},
             std::vector<int>{1},
-            std::vector<double>{0, 80, 0, 20, 0}),
+            MakeMetricsVector({0, 80, 0, 20, 0})),
         std::tuple(
-            std::vector<double>{40},
+            MakeMetricsVector({40}),
             std::vector<i64>{0},
             std::vector<i64>{0},
             std::vector<int>{1},
             std::vector<int>{1},
-            std::vector<double>{40}),
+            MakeMetricsVector({40})),
         std::tuple(
-            std::vector<double>{840, 420, 1260, 840, 2100},
+            MakeMetricsVector({840, 420, 1260, 840, 2100}),
             std::vector<i64>{200, 20, 95, 85, 20, 15},
             std::vector<i64>{20, 10, 30, 20, 50},
             std::vector<int>{1, 3, 5, 7, 9, 10},
             std::vector<int>{1, 4, 6, 8, 10},
-            std::vector<double>{1600, 160, 760, 680, 160, 2100})));
+            MakeMetricsVector({1600, 160, 760, 680, 160, 2100}))));
 
 ////////////////////////////////////////////////////////////////////////////////
 
