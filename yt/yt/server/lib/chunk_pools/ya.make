@@ -14,6 +14,7 @@ SRCS(
     job_size_tracker.cpp
     multi_chunk_pool.cpp
     ordered_chunk_pool.cpp
+    push_based_shuffle_chunk_pool.cpp
     resource.cpp
     shuffle_chunk_pool.cpp
     sorted_chunk_pool.cpp

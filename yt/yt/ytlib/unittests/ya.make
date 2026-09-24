@@ -17,6 +17,7 @@ SRCS(
     encoding_writer_ut.cpp
     erasure_helpers_ut.cpp
     erasure_parts_reader_ut.cpp
+    input_chunk_ut.cpp
     job_phase_ut.cpp
     job_resources_ut.cpp
     journal_chunk_writer_ut.cpp

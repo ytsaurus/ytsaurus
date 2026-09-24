@@ -50,6 +50,7 @@ target_sources(server-lib-chunk_pools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/job_size_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/multi_chunk_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/ordered_chunk_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/push_based_shuffle_chunk_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/resource.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/shuffle_chunk_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/sorted_chunk_pool.cpp
