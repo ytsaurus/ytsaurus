@@ -35,16 +35,72 @@
 #include <util/stream/tee.h>
 #include <util/string/cast.h>
 
+#include <atomic>
+
 using namespace NYql;
 
 namespace {
-// Runs a YQL/SQL program through the DQ engine with a YT file data source.
+
+class TFallbackDqGateway final: public IDqGateway {
+public:
+    size_t GetExecutePlanCalls() const {
+        return ExecutePlanCalls_.load();
+    }
+
+    NThreading::TFuture<void> OpenSession(const TString&, const TString&) final {
+        return NThreading::MakeFuture();
+    }
+
+    NThreading::TFuture<TResult> ExecutePlan(
+        const TString&,
+        NDqs::TPlan&&,
+        const TVector<TString>&,
+        const THashMap<TString, TString>&,
+        const THashMap<TString, TString>&,
+        const TDqSettings::TPtr&,
+        const TDqProgressWriter&,
+        const THashMap<TString, TString>&,
+        bool,
+        ui64) final
+    {
+        ++ExecutePlanCalls_;
+
+        TResult result;
+        result.SetSuccess();
+        result.Fallback = true;
+        result.Timeout = true;
+        result.AddIssue(TIssue("Fatal Error").SetCode(TIssuesIds::DQ_GATEWAY_ERROR, TSeverityIds::S_ERROR));
+        result.AddIssue(TIssue("Execution timeout").SetCode(TIssuesIds::DQ_GATEWAY_ERROR, TSeverityIds::S_ERROR));
+        return NThreading::MakeFuture(std::move(result));
+    }
+
+private:
+    std::atomic_size_t ExecutePlanCalls_ = 0;
+};
+
+const TString EvaluateForCode = R"(
+USE plato;
+
+$values = (
+    SELECT AGGREGATE_LIST(key)
+    FROM AS_TABLE([<|key:"value"|>])
+);
+
+DEFINE ACTION $emit($value) AS
+    SELECT $value;
+END DEFINE;
+
+EVALUATE FOR $value IN $values DO $emit($value);
+)";
+
+// Runs a YQL/SQL program through the DQ engine with optional YT file data sources.
 // maxTasksPerOperation sets the DQ limit on tasks per query.
 bool RunDqProgram(
     const TString& code,
     ui32 maxTasksPerOperation,
     const THashMap<TString, TString>& tableFiles,
-    TString* errorsMessage = nullptr)
+    TString* errorsMessage = nullptr,
+    IDqGateway::TPtr dqGateway = {})
 {
     NLog::YqlLoggerScope logger("cerr", false);
 
@@ -86,9 +142,11 @@ bool RunDqProgram(
     auto dqTaskTransformFactory = NYql::CreateCompositeTaskTransformFactory({
         NYql::CreateCommonDqTaskTransformFactory()
     });
-    auto dqGateway = CreateLocalDqGateway(
-        functionRegistry.Get(), dqCompFactory, dqTaskTransformFactory,
-        {}, false, MakeIntrusive<NYql::NDq::TDqAsyncIoFactory>());
+    if (!dqGateway) {
+        dqGateway = CreateLocalDqGateway(
+            functionRegistry.Get(), dqCompFactory, dqTaskTransformFactory,
+            {}, false, MakeIntrusive<NYql::NDq::TDqAsyncIoFactory>());
+    }
 
     auto storage = NYql::CreateAsyncFileStorage({});
     dataProvidersInit.push_back(
@@ -361,5 +419,24 @@ SELECT key FROM Input;
     bool ok = RunDqProgram(code, /*maxTasksPerOperation=*/0, tableFiles, &errorMessage);
     UNIT_ASSERT_C(!ok, "Expected failure: too many stages");
     UNIT_ASSERT_STRING_CONTAINS(errorMessage, "stages exceeds the limit");
+}
+
+Y_UNIT_TEST(EvaluateForReportsDqExecutionIssuesWhenFallbackIsForbidden) {
+    THashMap<TString, TString> tableFiles;
+    auto dqGateway = MakeIntrusive<TFallbackDqGateway>();
+
+    TString errorMessage;
+    bool ok = RunDqProgram(
+        EvaluateForCode,
+        /*maxTasksPerOperation=*/100,
+        tableFiles,
+        &errorMessage,
+        dqGateway);
+
+    UNIT_ASSERT_C(!ok, "Expected forced DQ evaluation failure");
+    UNIT_ASSERT_C(dqGateway->GetExecutePlanCalls() > 0, "Expected the query to reach DQ gateway execution");
+    UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Gateway Error");
+    UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Fatal Error");
+    UNIT_ASSERT_STRING_CONTAINS(errorMessage, "Execution timeout");
 }
 }
