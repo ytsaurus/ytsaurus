@@ -18,6 +18,7 @@ message AutoCompleteApplicationConfig {
     optional TvmConfig TvmConfig = 1;
     optional ClusterMappingConfig ClusterMappingConfig = 2;
     repeated string DisabledChecks = 3;
+    optional uint32 LimitStrictnessFactor = 4 [default = 1];
 }
 
 message CodeAssistTelemetryConfig {
