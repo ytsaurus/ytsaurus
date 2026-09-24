@@ -158,7 +158,7 @@ The `row_index`, `range_index`, and `key_switch`representations are only support
 
 Input data stream showing all the control attributes in a YSON format reduce job:
 
-```json
+```yson
 <"table_index"=0;>#;
 <"range_index"=0;>#;
 <"row_index"=2;>#;

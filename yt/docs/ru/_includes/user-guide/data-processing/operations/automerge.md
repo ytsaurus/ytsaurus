@@ -56,7 +56,7 @@
 Пример спецификации с режимом `relaxed`: 
 
 
-```yaml
+```yson
 {
   input_table_paths = [ "//tmp/input_table" ];
   output_table_paths = [ "//tmp/output_table" ];
@@ -70,7 +70,7 @@
 ```
 Пример спецификации с режимом `manual`:
 
-```yaml
+```yson
 {
   input_table_paths = [ "//tmp/input_table" ];
   output_table_paths = [ "//tmp/output_table" ];

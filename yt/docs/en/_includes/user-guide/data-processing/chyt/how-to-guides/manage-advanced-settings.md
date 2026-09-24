@@ -109,7 +109,7 @@ The rules for converting an {{clickhouse}} XML configuration to a CHYT YSON conf
 
 |
 
-```json
+```yson
 {
     foo = 42;
     bar = "qwe";

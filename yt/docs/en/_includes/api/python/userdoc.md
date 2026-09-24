@@ -117,7 +117,7 @@ A configuration file in the second version has the following structure:
 
 Example of a configuration with profiles in YSON format:
 
-```
+```yson
 {
     "default_profile"="dev";
     "profiles"={

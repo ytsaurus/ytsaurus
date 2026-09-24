@@ -109,7 +109,7 @@
 
 |
 
-```json
+```yson
 {
     foo = 42;
     bar = "qwe";

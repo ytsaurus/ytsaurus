@@ -51,7 +51,7 @@ Moreover, even if there are no column restrictions, metadata can still provide i
 
 Consider a toy example:
 Suppose a table contains two rows and has the following ACE:
-```
+```yson
 {
     action = allow;
     subjects = [vasya];
@@ -66,7 +66,7 @@ Vasya reads the table and sees only one row. From this, it can be concluded that
 
 Suppose an ACL with the following ACE is set on the table:
 
-```bash
+```yson
 {
     action = allow;
     subjects = [username];

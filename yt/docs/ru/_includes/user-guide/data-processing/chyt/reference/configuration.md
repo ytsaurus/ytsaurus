@@ -31,7 +31,7 @@
 - `table_writer` — [конфигурация Table Writer](../../../../../user-guide/storage/io-configuration.md#table_writer).
 
 - `table_attribute_cache` — конфигурация кеша атрибутов таблиц. Данный кеш существенно повышает отзывчивость CHYT, но на текущий момент потенциально может приводить к неконсистентным чтениям (в таблице данные уже появились, а CHYT их еще не видит). Чтобы отключить данный кеш, можно воспользоваться конфигурацией:
-  ```
+  ```yson
   {read_from=follower;expire_after_successful_update_time=0;expire_after_failed_update_time=0;refresh_time=0;expire_after_access_time=0}
   ```
 - `create_table_default_attributes` [`{optimize_for = scan}`] — атрибуты по умолчанию, с которыми будут создаваться таблицы при `CREATE`-запросах в CHYT.
@@ -91,7 +91,7 @@
 ```
 
 
-```json
+```yson
 {
     foo = 42;
     bar = "qwe";
@@ -140,7 +140,7 @@ select dictGet('OS', 'OS', toUInt64(38)) as os_name,
 
 Ниже приведен пример полной конфигурации, которую можно указать c помощью команды `set-speclet`.
 
-```json
+```yson
 {
     instance_count = 1;
     query_settings = {

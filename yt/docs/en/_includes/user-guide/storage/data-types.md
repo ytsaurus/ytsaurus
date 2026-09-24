@@ -85,15 +85,15 @@ The table lists the supported types and their representation in the `type`/`type
 
 Schema example:
 
-```
+```yson
 type_v3=utf8
 ```
 
-```
+```yson
 type_v3=bool
 ```
 
-```
+```yson
 type_v3=yson
 ```
 
@@ -155,7 +155,7 @@ To define this type in a schema, specify the following keys:
 
 Schema example:
 
-```
+```yson
 type_v3={
     type_name=decimal;
     precision=10;
@@ -226,14 +226,14 @@ To define type `optional`, specify the keys below:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=optional;
   item=string;
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=optional;
   item={
@@ -254,14 +254,14 @@ To define the type in the schema, specify the keys below:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=list;
   item=string;
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=list;
   item={
@@ -284,7 +284,7 @@ To define this type in a schema, specify the following keys:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=struct;
   members=[
@@ -315,7 +315,7 @@ To define this type, you need to specify the following keys in the schema:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=tuple;
   elements=[
@@ -349,7 +349,7 @@ To define this type, specify the following keys in a schema:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=variant;
   members=[
@@ -365,7 +365,7 @@ type_v3={
 }
 ```
 
-```
+```yson
 type_v3={
   type_name=variant;
   elements=[
@@ -396,7 +396,7 @@ To define this type, specify the following keys in a schema:
 
 Schema example:
 
-```
+```yson
 type_v3={
   type_name=dict;
   key=int64;
@@ -422,7 +422,7 @@ To define this type, specify the following keys in a schema:
 
 The web UI can display images and play audio when viewing a table or YQL query results in Query Tracker. To enable this, set the column type to `tagged<string>` via `type_v3`, and specify the media tag in the `tag` field:
 
-```
+```yson
 type_v3={
   type_name=tagged;
   tag="image/svg";
@@ -594,25 +594,25 @@ If `T` is an `optional` type, then `optional<T>` is represented as follows:
 
 Example values of type `optional<int64>`:
 
-```
+```yson
 #
 ```
 
-```
+```yson
 -42
 ```
 
 Example values of type `optional<optional<int64>>`:
 
-```
+```yson
 #
 ```
 
-```
+```yson
 [ # ]
 ```
 
-```
+```yson
 [ -42 ]
 ```
 
@@ -622,11 +622,11 @@ The `list<T>` type is encoded as a YSON list whose elements are encoded represen
 
 Example values of type `list<int64>`:
 
-```
+```yson
 []
 ```
 
-```
+```yson
 [42; -1;]
 ```
 
@@ -643,11 +643,11 @@ The struct is represented by a YSON dictionary where field names serve as keys a
 
 Example values for the `struct<Foo:int64;Bar:optional<utf8>>` type:
 
-```
+```yson
 {Foo=42;Bar=#;}
 ```
 
-```
+```yson
 {Foo=-5;Bar="minus five";}
 ```
 
@@ -661,12 +661,12 @@ and the fields are considered to have an empty `optional` value.
 
 Example values for the `struct<Foo:int64;Bar:optional<utf8>>` type:
 
-```
+```yson
 [42; #;]
 [42]
 ```
 
-```
+```yson
 [-5;"minus five";]
 ```
 
@@ -676,11 +676,11 @@ The `tuple` type is encoded as a fixed-length YSON list. The i-th position conta
 
 Example values for the `tuple<int64;optional<utf8>>` type:
 
-```
+```yson
 [42; #;]
 ```
 
-```
+```yson
 [-5;"minus five";]
 ```
 
@@ -695,15 +695,15 @@ The unnamed option is represented by a YSON list of length 2 that includes the f
 
 Example values for the `variant<int64;optional<utf8>>` type:
 
-```
+```yson
 [0; 42]
 ```
 
-```
+```yson
 [1; #]
 ```
 
-```
+```yson
 [1; "foo bar";]
 ```
 
@@ -720,15 +720,15 @@ The named option is represented by a YSON list of length 2 that includes the fol
 
 Example values for the `variant<Foo:int64;Bar:optional<utf8>>` type:
 
-```
+```yson
 [Foo; 42]
 ```
 
-```
+```yson
 [Bar; #]
 ```
 
-```
+```yson
 [Bar; "foo bar";]
 ```
 
@@ -743,15 +743,15 @@ The named option is represented by a YSON list of length 2 that includes the fol
 
 Example values for the `variant<Foo:int64;Bar:optional<utf8>>` type:
 
-```
+```yson
 [0; 42]
 ```
 
-```
+```yson
 [1; #]
 ```
 
-```
+```yson
 [1; "foo bar";]
 ```
 
@@ -761,11 +761,11 @@ By default, the `dict` type is represented as a YSON list in which each item is 
 
 Example values of the `dict<int32;string>` type:
 
-```
+```yson
 [[1;"one"];[4;"four"]]
 ```
 
-```
+```yson
 []
 ```
 
@@ -783,7 +783,7 @@ See [above](#yson_dict)
 
 Example values of the `dict<string;int32>` type:
 
-```
+```yson
 [["one";1];["four";4]]
 ```
 
@@ -795,7 +795,7 @@ If the YSON format option `string_keyed_dict_mode=named` is set, a different rep
 
 Example values of the `dict<string;int32>` type:
 
-```
+```yson
 {one=1; four=4}
 ```
 

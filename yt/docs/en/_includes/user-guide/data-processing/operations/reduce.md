@@ -81,7 +81,7 @@ We recommend using the Reduce operation with the `enable_key_guarantee=%false` o
 
 ## Example specification
 
-```yaml
+```yson
 {
   data_size_per_job = 1000000;
   reduce_by = ["key"];

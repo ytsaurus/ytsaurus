@@ -37,7 +37,7 @@ The cluster throttlers configuration is stored in the `//sys/cluster_throttlers`
 
 ### Configuration example { #config-example }
 
-```
+```yson
 {
     "enabled" = %true;
     "update_period" = 5000;

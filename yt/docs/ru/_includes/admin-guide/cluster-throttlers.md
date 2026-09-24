@@ -37,7 +37,7 @@ Cluster throttlers — это механизм квотирования вход
 
 ### Пример конфигурации { #config-example }
 
-```
+```yson
 {
     "enabled" = %true;
     "update_period" = 5000;

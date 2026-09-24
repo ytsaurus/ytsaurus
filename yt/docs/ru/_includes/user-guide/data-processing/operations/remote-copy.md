@@ -29,7 +29,7 @@
 
 ## Пример спецификации
 
-```yaml
+```yson
 {
   pool = "my_cool_pool";
   network_name = "fastbone";
