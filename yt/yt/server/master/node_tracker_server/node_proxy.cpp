@@ -182,7 +182,7 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-        auto* node = GetThisImpl();
+        const auto* node = GetThisImpl();
         bool isGood = node->HasAliveLocalState();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 

@@ -454,9 +454,9 @@ public:
         return host;
     }
 
-    TCompactVector<std::string, 4> GetGroupNamesForNode(TNode* node) override
+    std::vector<std::string> GetGroupNamesForNode(const TNode* node) override
     {
-        TCompactVector<std::string, 4> result;
+        std::vector<std::string> result;
         auto groups = GetGroupsForNode(node);
         for (const auto& group : groups) {
             result.push_back(group->Id);
@@ -2992,7 +2992,7 @@ private:
         Alerts_ = std::move(alerts);
     }
 
-    TNodeGroupList GetGroupsForNode(TNode* node)
+    TNodeGroupList GetGroupsForNode(const TNode* node)
     {
         TNodeGroupList result;
         for (auto& group : NodeGroups_) {
