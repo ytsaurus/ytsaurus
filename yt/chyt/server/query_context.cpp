@@ -247,6 +247,21 @@ TQueryContext::TQueryContext(
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
+        for (const auto& [cluster, locks] : RemoteSnapshotLocks) {
+            Y_UNUSED(locks);
+            if (!RemoteReadTransactionIds.contains(cluster)) {
+                THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
+                    .With("cluster", cluster);
+            }
+        }
+        for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
+            Y_UNUSED(transactionId);
+            if (!RemoteSnapshotLocks.contains(cluster)) {
+                THROW_ERROR_EXCEPTION("Missing snapshot locks for remote cluster in secondary query")
+                    .With("cluster", cluster);
+            }
+        }
+
         if (secondaryQueryHeader->RuntimeVariables) {
             RuntimeVariables_->MergeFrom(secondaryQueryHeader->RuntimeVariables);
         }
@@ -385,43 +400,6 @@ TTimestamp TQueryContext::GetDynamicTableReadTimestamp(const std::optional<std::
             .With("cluster", *cluster);
     }
     return it->second;
-}
-
-std::vector<std::pair<std::string, NNative::IClientPtr>> TQueryContext::GetRemoteClients() const
-{
-    // A secondary query reads chunk specs prepared by the initial query and may
-    // never resolve the corresponding table metadata itself. In that case the
-    // client cache is still empty, while the remote transactions transmitted in
-    // the secondary query header are the authoritative list of remote clusters.
-    if (QueryKind == EQueryKind::SecondaryQuery) {
-        for (const auto& [cluster, locks] : RemoteSnapshotLocks) {
-            Y_UNUSED(locks);
-            if (!RemoteReadTransactionIds.contains(cluster)) {
-                THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
-                    .With("cluster", cluster);
-            }
-        }
-        for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
-            Y_UNUSED(transactionId);
-            if (!RemoteSnapshotLocks.contains(cluster)) {
-                THROW_ERROR_EXCEPTION("Missing snapshot locks for remote cluster in secondary query")
-                    .With("cluster", cluster);
-            }
-        }
-    }
-
-    for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
-        Y_UNUSED(transactionId);
-        Client(cluster);
-    }
-
-    auto readerGuard = ReaderGuard(ClientLock_);
-    std::vector<std::pair<std::string, NNative::IClientPtr>> clients;
-    clients.reserve(RemoteClients_.size());
-    for (const auto& [cluster, client] : RemoteClients_) {
-        clients.emplace_back(cluster, client);
-    }
-    return clients;
 }
 
 TQuerySettingsPtr TQueryContext::GetContextSettings(DB::ContextPtr context) const
