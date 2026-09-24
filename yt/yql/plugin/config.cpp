@@ -278,6 +278,8 @@ void TDQManagerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("yt_coordinator", &TThis::YTCoordinator)
         .DefaultNew();
+    registrar.Parameter("scheduler", &TThis::Scheduler)
+        .Default(GetEphemeralNodeFactory()->CreateMap());
     registrar.Parameter("interconnect_settings", &TThis::ICSettings)
         .Default(GetEphemeralNodeFactory()->CreateMap());
 }

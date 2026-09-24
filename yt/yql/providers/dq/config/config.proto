@@ -167,6 +167,12 @@ message TDqConfig {
         optional uint32 LimiterDenumerator = 7 [default = 2];
         optional uint32 MaxRequestsPerTick = 8 [default = 200, deprecated = true];
         optional bool EnablePerUserMetrics = 9 [default = false];
+        // Percent of configured target capacity, rounded up; zero disables.
+        // Only running tasks count towards the limit.
+        // Requests larger than the limit are rejected without retries, allowing fallback.
+        // Values above 100 are logged and clamped to 100.
+        // A zero target capacity disables the limit.
+        optional uint32 LimitRunningTasksPerUserPercent = 10 [default = 0];
     }
 
     optional TScheduler Scheduler = 10;
