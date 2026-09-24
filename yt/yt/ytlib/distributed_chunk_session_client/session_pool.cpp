@@ -694,12 +694,12 @@ private:
         }
 
         sealScheduled.Subscribe(BIND_NO_PROPAGATE(
-                &TDistributedChunkSessionPool::OnChunkSealScheduled,
-                MakeStrong(this),
-                slotCookie,
-                sessionId,
-                chunkId)
-                .Via(SerializedInvoker_));
+            &TDistributedChunkSessionPool::OnChunkSealScheduled,
+            MakeStrong(this),
+            slotCookie,
+            sessionId,
+            chunkId)
+            .Via(SerializedInvoker_));
     }
 
     void OnChunkSealScheduled(
@@ -744,7 +744,7 @@ private:
             return;
         }
 
-        TDuration retryBackoff = sealRetryBackoff->GetBackoff();
+        auto retryBackoff = sealRetryBackoff->GetBackoff();
 
         YT_TLOG_WARNING("Failed to schedule chunk sealing; retrying")
             .With("SlotCookie", slotCookie)

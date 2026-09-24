@@ -48,8 +48,6 @@ public:
         try {
             DoWrite(rows);
         } catch (const std::exception& ex) {
-            // The interface reports a rejected batch through the ready event rather than
-            // by throwing, and the failure stays there for every later call.
             ReadyEvent_ = MakeFuture(TError(ex));
             return false;
         }
@@ -123,7 +121,6 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
-    // The number of columns is bounded. Keep it as a member to avoid allocations.
     std::vector<bool> WrittenIds_;
 
     //! Logical mapper output: every row is counted once, no matter how many physical

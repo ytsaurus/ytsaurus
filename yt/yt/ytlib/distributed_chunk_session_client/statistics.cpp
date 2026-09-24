@@ -220,6 +220,7 @@ void FormatValue(
         summary.RecordCount,
         summary.PhysicalCompressedDataSize);
 }
+
 void PrintTo(
     const TDistributedChunkSessionProgress& progress,
     std::ostream* os)

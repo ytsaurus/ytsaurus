@@ -222,9 +222,6 @@ public:
         writerOptions->ReadQuorum = quorums.ReadQuorum;
         writerOptions->WriteQuorum = quorums.WriteQuorum;
 
-        // The journal writer config (sequencer batch/flush knobs) and pool config (e.g.
-        // max_active_sessions_per_slot) come from the handle's push config. The quorums above
-        // stay derived from the replication factor regardless.
         auto writerConfig = pushConfig->JournalWriter;
         auto poolConfig = pushConfig->SessionPool;
 

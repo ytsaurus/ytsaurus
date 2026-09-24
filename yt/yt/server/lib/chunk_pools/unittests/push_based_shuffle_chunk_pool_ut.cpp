@@ -87,7 +87,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RegisterAfterFinishAborts)
             pool->RegisterChunkWriteSession(
                 /*partitionIndex*/ 0,
                 MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42)),
-                {});
+                /*replicas*/ {});
         } catch (...) {
         }
     }, "!Finished");
@@ -106,7 +106,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, InvalidPartitionIndexAborts)
             pool->RegisterChunkWriteSession(
                 /*partitionIndex*/ 1,
                 MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42)),
-                {});
+                /*replicas*/ {});
         } catch (...) {
         }
     }, "partitionIndex >= 0");
@@ -121,10 +121,10 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, DuplicateChunkWriteSessionAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
-            pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+            pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         } catch (...) {
         }
     }, "EmplaceOrCrash");
@@ -139,7 +139,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, UpdateFinishedChunkWriteSessionAbort
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSession(chunkId, {});
 
         try {
@@ -158,7 +158,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, UpdateWithoutRecordProgressAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
             pool->UpdateChunkWriteSession(chunkId, {
@@ -178,7 +178,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, NegativeExactStatisticsAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
             pool->UpdateChunkWriteSession(chunkId, {
@@ -198,7 +198,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RegressingExactStatisticsAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->UpdateChunkWriteSession(chunkId, {
             .DataWeight = 2,
             .CompressedDataSize = 2,
@@ -229,7 +229,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, EmptyRecordsAbort)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
             pool->UpdateChunkWriteSession(chunkId, {
@@ -251,7 +251,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, NegativeSealRecordCountAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
             pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(-1));
@@ -269,7 +269,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, NegativeSealCompressedDataSizeAborts
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         try {
             pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(0, -1));
@@ -287,7 +287,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealRecordCountBehindReportedProgres
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->UpdateChunkWriteSession(chunkId, {
             .DataWeight = 2,
             .CompressedDataSize = 2,
@@ -309,7 +309,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealCompressedDataSizeBehindReported
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->UpdateChunkWriteSession(chunkId, {
             .DataWeight = 2,
             .CompressedDataSize = 2,
@@ -334,7 +334,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, OverflowingSealFallbackEstimateAbort
             .Logger = GetTestLogger(),
         });
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(1, 2));
     }, "std::isfinite\\(result\\)");
 }
@@ -351,7 +351,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, OverflowingSealFallbackRowCountAbort
             .Logger = GetTestLogger(),
         });
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(2, 2));
     }, "rhs <= std::numeric_limits<i64>::max\\(\\) / lhs");
 }
@@ -416,7 +416,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RepeatedExactFinishAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSession(chunkId, {});
 
         try {
@@ -435,7 +435,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealFinishAfterExactFinishAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSession(chunkId, {});
 
         try {
@@ -454,7 +454,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, ExactFinishAfterSealFinishAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary());
 
         try {
@@ -473,7 +473,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RepeatedSealFinishAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary());
 
         try {
@@ -493,8 +493,8 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, BuilderStatisticsOverflowAborts)
             GetTestLogger());
         auto firstChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
         auto secondChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, {});
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, secondChunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, /*replicas*/ {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, secondChunkId, /*replicas*/ {});
         pool->FinishChunkWriteSession(firstChunkId, {
             .DataWeight = std::numeric_limits<i64>::max(),
             .CompressedDataSize = 1,
@@ -529,8 +529,8 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, ObservedStatisticsOverflowAborts)
 
         // Distinct partitions, so the per-partition builders cannot overflow first and the
         // pool-wide sample is the only accumulator left.
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, {});
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, secondChunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, /*replicas*/ {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, secondChunkId, /*replicas*/ {});
         pool->FinishChunkWriteSession(firstChunkId, {
             .DataWeight = std::numeric_limits<i64>::max(),
             .CompressedDataSize = 1,
@@ -561,7 +561,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealEstimateOverflowAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
         pool->UpdateChunkWriteSession(chunkId, {
             .DataWeight = std::numeric_limits<i64>::max() - 1,
             .CompressedDataSize = 1,
@@ -586,7 +586,7 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealWithEmptyRecordsAborts)
             /*maxDataSliceCountPerJob*/ 10,
             GetTestLogger());
         auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
         // A sealed chunk cannot hold records without occupying compressed bytes.
         try {
@@ -606,7 +606,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, AcceptsSealPaddingWithoutNewRecords)
         /*maxDataSliceCountPerJob*/ 10,
         GetTestLogger());
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->UpdateChunkWriteSession(chunkId, {
         .DataWeight = 40,
         .CompressedDataSize = 20,
@@ -669,7 +669,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, SplitsConfirmedRecordsAtTargetAndFlushesR
     auto output = pool->GetOutput(0);
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
 
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->UpdateChunkWriteSession(chunkId, {
         .DataWeight = 250,
         .CompressedDataSize = 125,
@@ -756,8 +756,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, CorrectsLargeApproximateSplitBoundary)
     auto firstChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto secondChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
 
-    pool->RegisterChunkWriteSession(0, firstChunkId, {});
-    pool->RegisterChunkWriteSession(0, secondChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, secondChunkId, /*replicas*/ {});
     pool->FinishChunkWriteSession(firstChunkId, {
         .DataWeight = builderSize,
         .CompressedDataSize = builderSize,
@@ -790,9 +790,9 @@ TEST_F(TPushBasedShuffleChunkPoolTest, CombinesInterleavedRangesAndHonorsSliceLi
     auto firstChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto secondChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto thirdChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, firstChunkId, {});
-    pool->RegisterChunkWriteSession(0, secondChunkId, {});
-    pool->RegisterChunkWriteSession(0, thirdChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, secondChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, thirdChunkId, /*replicas*/ {});
 
     pool->UpdateChunkWriteSession(firstChunkId, {
         .DataWeight = 20,
@@ -892,7 +892,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, EstimatesSealedSuffixFromSameSession)
         GetTestLogger());
     auto output = pool->GetOutput(0);
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->UpdateChunkWriteSession(chunkId, {
         .DataWeight = 40,
         .CompressedDataSize = 20,
@@ -935,8 +935,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, EstimatesSealedSuffixFromPoolSample)
         GetTestLogger());
     auto sampledChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto sealedChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, sampledChunkId, {});
-    pool->RegisterChunkWriteSession(1, sealedChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sampledChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, sealedChunkId, /*replicas*/ {});
 
     pool->FinishChunkWriteSession(sampledChunkId, {
         .DataWeight = 40,
@@ -977,8 +977,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, ApproximatesLargeStatisticsWithoutOverflo
         GetTestLogger());
     auto sampledChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto sealedChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, sampledChunkId, {});
-    pool->RegisterChunkWriteSession(1, sealedChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sampledChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, sealedChunkId, /*replicas*/ {});
 
     const i64 maxValue = std::numeric_limits<i64>::max();
     const i64 halfMaxValue = maxValue / 2;
@@ -996,7 +996,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, ApproximatesLargeStatisticsWithoutOverflo
 
     auto output = pool->GetOutput(1);
     ASSERT_EQ(1, output->GetJobCounter()->GetPending());
-    IChunkPoolOutput::TCookie cookie = output->Extract();
+    auto cookie = output->Extract();
     ASSERT_NE(IChunkPoolOutput::NullCookie, cookie);
     auto stripeList = output->GetStripeList(cookie);
     const auto& chunkSlice =
@@ -1016,8 +1016,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, EstimatesSealedSuffixWithoutSample)
         GetTestLogger());
     auto firstChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto secondChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, firstChunkId, {});
-    pool->RegisterChunkWriteSession(0, secondChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, firstChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, secondChunkId, /*replicas*/ {});
     pool->FinishChunkWriteSessionFromSeal(firstChunkId, MakeSealSummary(5, 100));
     pool->FinishChunkWriteSessionFromSeal(secondChunkId, MakeSealSummary(2, 10));
     pool->GetInput()->Finish();
@@ -1057,7 +1057,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, FlushesSameChunkRangesByTarget)
         /*maxDataSliceCountPerJob*/ 1,
         GetTestLogger());
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->UpdateChunkWriteSession(chunkId, {
         .DataWeight = 60,
         .CompressedDataSize = 60,
@@ -1095,8 +1095,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, ExtrapolationKeepsOneBytePerRecord)
         GetTestLogger());
     auto sampledChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     auto sealedChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, sampledChunkId, {});
-    pool->RegisterChunkWriteSession(1, sealedChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sampledChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, sealedChunkId, /*replicas*/ {});
 
     // A one-byte sample extrapolated over many records would round down to nothing
     // without the floor.
@@ -1166,7 +1166,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresConfiguredSealFallbacks)
         .Logger = GetTestLogger(),
     });
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->GetInput()->Finish();
 
     TBlobOutput output;
@@ -1211,7 +1211,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, AcceptsMaximumRepresentableSealFallbackEs
         .Logger = GetTestLogger(),
     });
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
 
     EXPECT_NO_THROW(pool->FinishChunkWriteSessionFromSeal(
         chunkId,
@@ -1249,8 +1249,8 @@ TEST_F(TPushBasedShuffleChunkPoolTest, ValidatesSessionLifecycle)
     };
     const auto sealSummary = MakeSealSummary(3, 90);
 
-    pool->RegisterChunkWriteSession(0, exactChunkId, {});
-    pool->RegisterChunkWriteSession(0, sealedChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, exactChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sealedChunkId, /*replicas*/ {});
 
     pool->UpdateChunkWriteSession(exactChunkId, exactStatistics);
     EXPECT_NO_THROW(pool->UpdateChunkWriteSession(exactChunkId, exactStatistics));
@@ -1292,7 +1292,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, SerializesDistributedJournalInputChunkMet
         .RowCount = 200,
     };
 
-    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->FinishChunkWriteSession(chunkId, statistics);
     pool->GetInput()->Finish();
 
@@ -1331,9 +1331,9 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresLiveSessionsAndOpenBuilder)
     // This session stays without progress until after the load, so that its first range
     // exercises the counters of a partition that is untouched at save time.
     auto idleChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, exactChunkId, {});
-    pool->RegisterChunkWriteSession(0, sealedChunkId, {});
-    pool->RegisterChunkWriteSession(1, idleChunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, exactChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sealedChunkId, /*replicas*/ {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 1, idleChunkId, /*replicas*/ {});
 
     const TDistributedChunkSessionProgress exactPrefixStatistics{
         .DataWeight = 40,
@@ -1438,7 +1438,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RequeuesImmutableJobAfterFailureAbortAndL
         /*maxDataSliceCountPerJob*/ 10,
         GetTestLogger());
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-    pool->RegisterChunkWriteSession(0, chunkId, {});
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
     pool->FinishChunkWriteSession(chunkId, {
         .DataWeight = 10,
         .CompressedDataSize = 5,

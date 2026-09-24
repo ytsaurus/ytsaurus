@@ -267,9 +267,7 @@ public:
 
         i64 missingRecordCount = summary.RecordCount - session.Progress.RecordCount;
         // NB: Sealed compressed data size accounts for on-disk padding, so it may exceed
-        // the sequencer-reported size even when the seal brings no new records. Such a
-        // difference is expected and is dropped, since there are no records to attribute
-        // it to and the already emitted slices carry the reported sizes.
+        // the sequencer-reported size even when the seal brings no new records.
         i64 missingCompressedDataSize =
             summary.PhysicalCompressedDataSize - session.Progress.CompressedDataSize;
 
@@ -546,6 +544,10 @@ private:
         }
 
     private:
+        TPushBasedShuffleChunkPool* Owner_ = nullptr;
+        bool IsCompleted_ = false;
+        TJobBuilder Builder_;
+
         void AppendRangeAndUpdateCounters(TChunkRange range)
         {
             if (Builder_.Ranges.empty()) {
@@ -558,13 +560,23 @@ private:
             }
         }
 
-        TPushBasedShuffleChunkPool* Owner_ = nullptr;
-        bool IsCompleted_ = false;
-        TJobBuilder Builder_;
-
         PHOENIX_DECLARE_FRIEND();
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOutput, 0x2f5dc106);
     };
+
+    TPushBasedShuffleChunkPoolOptions Options_;
+    TSerializableLogger Logger;
+
+    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
+    TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
+
+    std::vector<TIntrusivePtr<TOutput>> Outputs_;
+
+    i64 FinishedSessionCount_ = 0;
+    bool JobsFinalized_ = false;
+
+    THashMap<TChunkId, TChunkWriteSessionState> Sessions_;
+    TDistributedChunkSessionProgress ObservedStatistics_;
 
     void ApplyExactProgress(
         TChunkWriteSessionState* session,
@@ -633,20 +645,6 @@ private:
             output->CheckCompleted();
         }
     }
-
-    TPushBasedShuffleChunkPoolOptions Options_;
-    TSerializableLogger Logger;
-
-    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
-    TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
-
-    std::vector<TIntrusivePtr<TOutput>> Outputs_;
-
-    i64 FinishedSessionCount_ = 0;
-    bool JobsFinalized_ = false;
-
-    THashMap<TChunkId, TChunkWriteSessionState> Sessions_;
-    TDistributedChunkSessionProgress ObservedStatistics_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPushBasedShuffleChunkPool, 0x9a83b742);

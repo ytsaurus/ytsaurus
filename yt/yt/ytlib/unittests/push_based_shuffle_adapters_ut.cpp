@@ -270,7 +270,6 @@ TEST(ShuffleWriterAdapter, FailedWriteIsSticky)
     underlyingWriter->SetWriteFailed(TError("Shuffle writer failed"));
     EXPECT_FALSE(adapter->GetReadyEvent().GetOrCrash().IsOK());
 
-    // The failure of the underlying write sticks just like a rejected batch.
     EXPECT_FALSE(adapter->Write(TRange<TUnversionedRow>(rows)));
     EXPECT_FALSE(adapter->GetReadyEvent().GetOrCrash().IsOK());
     EXPECT_EQ(std::ssize(underlyingWriter->GetRows()), 1);

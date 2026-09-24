@@ -27,4 +27,6 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(
     IInvokerPtr invoker,
     NLogging::TLogger logger = DistributedChunkSessionLogger());
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDistributedChunkSessionClient
