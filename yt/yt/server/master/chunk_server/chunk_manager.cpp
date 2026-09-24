@@ -2457,7 +2457,9 @@ public:
         std::optional<int> hintIndex,
         TObjectId hintId) override
     {
-        if (!GetDynamicConfig()->AllowOffshoreMedia) {
+        // NOTE: Foreign object replication cannot crash, should handle
+        // existing objects and happens before applying dynamic config.
+        if (!GetDynamicConfig()->AllowOffshoreMedia && !hintId) {
             THROW_ERROR_EXCEPTION("S3 media creation is not allowed");
         }
 
