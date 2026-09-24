@@ -1964,7 +1964,7 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevi
         Format("%v/%v/%v", TFileProviderId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Preparing))));
 }
 
-TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecChanges)
+TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsOnlyForUnchangedProviderSpecs)
 {
     TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
     TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
@@ -2017,10 +2017,19 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecCh
         {{"left", "changed-left"}, {"right", "right"}},
         TDuration::Hours(1));
     changed->Init(changedStateManager->CreateContext());
-    ASSERT_TRUE(changed->BuildTargetRevision());
-    EXPECT_EQ(
-        GetLatestFileSnapshot(changed->BuildTargetRevision())->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
-        "left-v1");
+    EXPECT_FALSE(changed->BuildTargetRevision());
+
+    auto changedResourceStateManager = New<TStateManagerMock>();
+    changedResourceStateManager->SetStorage(stateManager->GetStorage());
+    auto changedResource = MakeNamedController(
+        queue->GetInvoker(),
+        CreateSyncStatusProfiler(),
+        {{"left", "left"}, {"right", "right"}},
+        TDuration::Hours(1));
+    changedResource->GetSpec()->AlwaysOn = true;
+    changedResource->Init(changedResourceStateManager->CreateContext());
+    EXPECT_FALSE(changedResource->BuildTargetRevision());
+
     auto incompatibleStateManager = New<TStateManagerMock>();
     incompatibleStateManager->SetStorage(stateManager->GetStorage());
     auto incompatible = MakeNamedController(
