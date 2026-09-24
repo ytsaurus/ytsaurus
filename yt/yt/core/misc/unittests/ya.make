@@ -28,6 +28,7 @@ SRCS(
     duration_moving_average_ut.cpp
     ema_counter_ut.cpp
     enum_ut.cpp
+    error_serialization_to_proto_ut.cpp
     error_ut.cpp
     fair_scheduler_ut.cpp
     fair_share_hierarchical_queue_ut.cpp
