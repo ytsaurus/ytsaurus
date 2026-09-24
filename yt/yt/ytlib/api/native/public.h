@@ -1,12 +1,27 @@
 #pragma once
 
+#include <yt/yt/ytlib/tablet_client/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <concepts>
+
 namespace NYT::NApi::NNative {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+concept CTwoPhaseTableRequest =
+    std::same_as<TRequest, NTabletClient::NProto::TReqMount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqUnmount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqRemount> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqFreeze> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqUnfreeze> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqReshard>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
