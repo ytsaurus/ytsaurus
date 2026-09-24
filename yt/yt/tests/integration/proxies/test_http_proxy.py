@@ -1713,7 +1713,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             self._execute_command("GET", "get_table_columnar_statistics", params)
 
     @authors("galtsev")
-    @pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate", "brotly"])
+    @pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate", "br"])
     def test_partition_tables(self, encoding):
         create("table", self.SUSPENDING_TABLE)
         write_table(self.SUSPENDING_TABLE, [{"column_1": 1, "column_2": "foo"}])
