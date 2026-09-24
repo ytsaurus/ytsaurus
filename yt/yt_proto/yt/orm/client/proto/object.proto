@@ -25,6 +25,11 @@ message TWatchLogOption
     repeated string required_tags = 4;
     // List of excluded tags.
     repeated string excluded_tags = 5;
+
+    // Detect actual changes of aggregated attributes in update events, reading old values if needed,
+    // and allow aggregated attributes in selectors.
+    // Otherwise, any store to an aggregated attribute is reported as a possible change.
+    optional bool enable_aggregated_attribute_changes = 11;
 }
 
 message THistoryAttribute
