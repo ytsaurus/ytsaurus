@@ -109,6 +109,15 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
+    registrar.Parameter(
+        "omit_remote_read_transaction_in_secondary_query",
+        &TThis::OmitRemoteReadTransactionInSecondaryQuery)
+        .Default(false);
+    registrar.Parameter(
+        "omit_remote_snapshot_locks_in_secondary_query",
+        &TThis::OmitRemoteSnapshotLocksInSecondaryQuery)
+        .Default(false);
+
     registrar.Parameter("hang_control_invoker", &TThis::HangControlInvoker)
         .Default(false);
 

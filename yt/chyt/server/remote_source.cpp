@@ -1,5 +1,6 @@
 #include "remote_source.h"
 
+#include "config.h"
 #include "logging_transform.h"
 #include "query_analyzer.h"
 #include "query_context.h"
@@ -297,6 +298,13 @@ DB::Pipe CreateRemoteSource(
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
     queryHeader->RuntimeVariables = queryContext->ForkRuntimeVarialbes();
+
+    if (queryContext->SessionSettings->Testing->OmitRemoteReadTransactionInSecondaryQuery) {
+        queryHeader->RemoteReadTransactionIds.clear();
+    }
+    if (queryContext->SessionSettings->Testing->OmitRemoteSnapshotLocksInSecondaryQuery) {
+        queryHeader->RemoteSnapshotLocks.clear();
+    }
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 

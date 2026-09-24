@@ -157,6 +157,9 @@ struct TTestingSettings
     bool ThrowExceptionAfterRefreshCommit;
     i64 SubqueryAllocationSize;
 
+    bool OmitRemoteReadTransactionInSecondaryQuery;
+    bool OmitRemoteSnapshotLocksInSecondaryQuery;
+
     bool HangControlInvoker;
 
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
