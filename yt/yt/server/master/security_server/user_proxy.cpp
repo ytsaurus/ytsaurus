@@ -287,15 +287,15 @@ private:
                     auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
 
                     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                    auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
+                    auto nodeHostCellTags = multicellManager->GetNodeHostMasterCells();
 
-                    for (auto portalCellTag : portalCellTags) {
-                        if (portalCellTag == multicellManager->GetCellTag()) {
+                    for (auto nodeHostCellTag : nodeHostCellTags) {
+                        if (nodeHostCellTag == multicellManager->GetCellTag()) {
                             continue;
                         }
 
                         auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
-                            multicellManager->GetMasterChannelOrThrow(portalCellTag, NHydra::EPeerKind::Follower));
+                            multicellManager->GetMasterChannelOrThrow(nodeHostCellTag, NHydra::EPeerKind::Follower));
                         asyncResults.push_back(proxy.ExecuteAs(userNameToForward, TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
                     }
                 }
