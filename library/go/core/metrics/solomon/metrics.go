@@ -31,7 +31,10 @@ func (r Registry) Gather() (*Metrics, error) {
 		return nil, err
 	}
 
-	return &Metrics{metrics: metrics}, nil
+	return &Metrics{
+		metrics:         metrics,
+		commonStartTime: r.startTime,
+	}, nil
 }
 
 func NewMetrics(metrics []Metric, opts ...MetricOpt) Metrics {
@@ -41,9 +44,10 @@ func NewMetrics(metrics []Metric, opts ...MetricOpt) Metrics {
 	}
 
 	return Metrics{
-		metrics:      metrics,
-		timestamp:    mopts.timestamp,
-		commonLabels: mopts.commonLabels,
+		metrics:         metrics,
+		timestamp:       mopts.timestamp,
+		commonLabels:    mopts.commonLabels,
+		commonStartTime: mopts.commonStartTime,
 	}
 }
 
@@ -108,6 +112,7 @@ type Metric interface {
 	getType() metricType
 	getNameTag() string
 	getTimestamp() *time.Time
+	getStartTime() uint32
 	isMemOnly() bool
 	getID() string
 
@@ -158,9 +163,10 @@ var (
 )
 
 type Metrics struct {
-	metrics      []Metric
-	timestamp    *time.Time
-	commonLabels map[string]string
+	metrics         []Metric
+	timestamp       *time.Time
+	commonLabels    map[string]string
+	commonStartTime uint32
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -193,13 +199,22 @@ func (s Metrics) SplitToChunks(maxChunkSize int) []Metrics {
 
 	chunks := make([]Metrics, 0, len(s.metrics)/maxChunkSize+1)
 	for chunk := range slices.Chunk(s.metrics, maxChunkSize) {
-		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp, commonLabels: s.commonLabels})
+		chunks = append(chunks, Metrics{
+			metrics:         chunk,
+			timestamp:       s.timestamp,
+			commonLabels:    s.commonLabels,
+			commonStartTime: s.commonStartTime,
+		})
 	}
 	return chunks
 }
 
 func (s *Metrics) SetTimestamp(timestamp time.Time) {
 	s.timestamp = &timestamp
+}
+
+func (s *Metrics) SetCommonStartTime(startTime time.Time) {
+	s.commonStartTime = uint32(startTime.Unix())
 }
 
 func (s *Metrics) SetCommonLabels(labels map[string]string) {

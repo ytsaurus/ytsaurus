@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"time"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
@@ -18,13 +19,17 @@ const (
 	version11 spackVersion = 0x0101
 	version12 spackVersion = 0x0102
 	version13 spackVersion = 0x0103
+	version14 spackVersion = 0x0104
 )
 
 type spackFlag byte
 
 const (
-	memOnlyFlag spackFlag = 0b0000_0001
+	memOnlyFlag   spackFlag = 0b0000_0001
+	startTimeFlag spackFlag = 0b0000_0010
 )
+
+var packageInitTimeSeconds = uint32(time.Now().Unix())
 
 func writeUint8(w io.Writer, v uint8) error {
 	if bw, ok := w.(io.ByteWriter); ok {
@@ -75,7 +80,8 @@ func writeULEB128(w io.Writer, value uint32) error {
 }
 
 type spackMetric struct {
-	flags uint8
+	flags     uint8
+	startTime uint32
 
 	nameValueIndex uint32
 	labelsCount    uint32
@@ -216,6 +222,11 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion, labelsBuf [
 	if _, err := w.Write(hdr[:]); err != nil {
 		return xerrors.Errorf("write types and flags failed: %w", err)
 	}
+	if s.flags&uint8(startTimeFlag) != 0 {
+		if err := writeUint32LE(w, s.startTime); err != nil {
+			return xerrors.Errorf("write start time failed: %w", err)
+		}
+	}
 
 	if version == version12 {
 		if err := writeULEB128(w, s.nameValueIndex); err != nil {
@@ -250,6 +261,18 @@ func (s *spackMetric) calculateMetricFlags() uint8 {
 	return flags
 }
 
+func (s *spackMetric) addStartTimeFlag(commonStartTime uint32) {
+	mType := s.metric.getType()
+	startTime := s.metric.getStartTime()
+	if startTime == 0 || (mType != typeRated && mType != typeRatedHistogram) {
+		return
+	}
+	s.startTime = startTime
+	if startTime != commonStartTime && startTime != 0 {
+		s.flags |= uint8(startTimeFlag)
+	}
+}
+
 func (s *spackMetric) getMetricNameValue(name string) string {
 	value := s.metric.Name()
 
@@ -275,15 +298,23 @@ func WithVersion13() func(*spackEncoder) {
 	}
 }
 
+// WithVersion14 enables rate start times in addition to the SPACK 1.3 format.
+func WithVersion14() func(*spackEncoder) {
+	return func(se *spackEncoder) {
+		se.version = version14
+	}
+}
+
 type labelIdxPair struct {
 	nameIdx  uint32
 	valueIdx uint32
 }
 
 type spackEncoder struct {
-	context     context.Context
-	compression uint8
-	version     spackVersion
+	context         context.Context
+	compression     uint8
+	version         spackVersion
+	commonStartTime uint32
 
 	nameCounter  uint32
 	valueCounter uint32
@@ -309,12 +340,16 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 	valuesHint := len(metrics.metrics) + namesHint
 
 	se := &spackEncoder{
-		context:     ctx,
-		compression: uint8(compression),
-		version:     version11,
-		metrics:     *metrics,
-		namesIdx:    make(map[string]uint32, namesHint),
-		valuesIdx:   make(map[string]uint32, valuesHint),
+		context:         ctx,
+		compression:     uint8(compression),
+		version:         version11,
+		commonStartTime: packageInitTimeSeconds,
+		metrics:         *metrics,
+		namesIdx:        make(map[string]uint32, namesHint),
+		valuesIdx:       make(map[string]uint32, valuesHint),
+	}
+	if metrics.commonStartTime != 0 {
+		se.commonStartTime = metrics.commonStartTime
 	}
 	if n := len(metrics.metrics); n > 0 {
 		se.labelsBuf.Grow(n * namesHint)
@@ -353,6 +388,15 @@ func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
 		}
 		for idx, metric := range se.metrics.metrics {
 			if err := se.processMetricV13(&spackMetrics[idx], metric); err != nil {
+				return nil, err
+			}
+		}
+	case version14:
+		if err := se.processCommonLabelsLengthPrefixed(); err != nil {
+			return nil, err
+		}
+		for idx, metric := range se.metrics.metrics {
+			if err := se.processMetricV14(&spackMetrics[idx], metric); err != nil {
 				return nil, err
 			}
 		}
@@ -492,6 +536,14 @@ func (se *spackEncoder) processMetricV13(m *spackMetric, metric Metric) error {
 	return nil
 }
 
+func (se *spackEncoder) processMetricV14(m *spackMetric, metric Metric) error {
+	if err := se.processMetricV13(m, metric); err != nil {
+		return err
+	}
+	m.addStartTimeFlag(se.commonStartTime)
+	return nil
+}
+
 func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 	if cerr := se.context.Err(); cerr != nil {
 		return 0, xerrors.Errorf("streamSpack context error: %w", cerr)
@@ -527,6 +579,11 @@ func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
 	err = se.writeCommonTime(cw)
 	if err != nil {
 		return written, xerrors.Errorf("writeCommonTime failed: %w", err)
+	}
+	if se.version == version14 {
+		if err = writeUint32LE(cw, se.commonStartTime); err != nil {
+			return written, xerrors.Errorf("writeCommonStartTime failed: %w", err)
+		}
 	}
 
 	err = se.writeCommonLabels(cw)
@@ -566,7 +623,7 @@ func (se *spackEncoder) writeHeader(w io.Writer) error {
 
 	namesSize := uint32(se.labelNamePool.Len())
 	valuesSize := uint32(se.labelValuePool.Len())
-	if se.version == version13 {
+	if se.version == version13 || se.version == version14 {
 		// Since 1.3 these header fields count strings, not bytes.
 		namesSize = se.nameCounter
 		valuesSize = se.valueCounter
