@@ -24,19 +24,20 @@ using namespace NTableClient;
 TParameterizedResharderConfig TParameterizedResharderConfig::MergeWith(
     const TParameterizedBalancingConfigPtr& groupConfig) const
 {
+    auto metrics = groupConfig->GetMetrics();
     return TParameterizedResharderConfig{
-        .Metric = groupConfig->Metric.empty()
-            ? Metric
-            : groupConfig->Metric
+        .Metrics = metrics.empty()
+            ? Metrics
+            : std::move(metrics),
     };
 }
 
 void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
 {
     builder->AppendFormat(
-        "EnableReshardByDefault: %v, Metric: %v",
+        "EnableReshardByDefault: %v, Metrics: %v",
         config.EnableReshardByDefault,
-        config.Metric);
+        config.Metrics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,11 +58,10 @@ public:
             .WithTag("Group", groupName))
         , Config_(std::move(config))
         , GroupName_(std::move(groupName))
-        , Calculator_(New<TParameterizedMetricsCalculator>(
-            Config_.Metric,
+        , MetricsEvaluator_(
+            Config_.Metrics,
             std::move(performanceCountersKeys),
-            Bundle_->PerformanceCountersTableSchema,
-            Logger))
+            Logger)
     {
         YT_TLOG_DEBUG("Reporting parameterized resharder config")
             .With("Config", Config_);
@@ -160,7 +160,7 @@ private:
     const TLogger Logger;
     const TParameterizedResharderConfig Config_;
     const TGroupName GroupName_;
-    TParameterizedMetricsCalculatorPtr Calculator_;
+    const TParameterizedMetricsEvaluator MetricsEvaluator_;
 
     mutable int LogMessageCount_ = 0;
 
@@ -421,19 +421,14 @@ private:
         const TTablePtr& table,
         const TTableTabletBalancerConfigPtr& config) const
     {
-        TTableStatistics statistics {};
+        TTableStatistics statistics{};
 
         for (const auto& tablet : table->Tablets) {
             statistics.TabletSizes.push_back(GetTabletBalancingSize(tablet));
             statistics.TableSize += statistics.TabletSizes.back();
 
-            auto tabletMetric = Calculator_->GetTabletMetric(tablet);
-            if (tabletMetric < 0.0) {
-                THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
-                    .With("tablet_metric_value", tabletMetric)
-                    .With("tablet_id", tablet->Id)
-                    .With("metric_formula", Config_.Metric);
-            }
+            auto metricValues = MetricsEvaluator_.EvaluateTabletMetrics(tablet, Bundle_->PerformanceCountersTableSchema);
+            double tabletMetric = std::accumulate(metricValues.begin(), metricValues.end(), 0.0);
 
             statistics.TabletMetrics.push_back(tabletMetric);
             statistics.TableMetric += tabletMetric;
@@ -469,6 +464,10 @@ private:
             // NB(dave11ar): For accuracy purposes.
             statistics.DesiredTabletSize = statistics.DesiredTabletMetric * statistics.TableSize / statistics.TableMetric;
         }
+
+        // A desired metric can correspond to less than one byte. Integer truncation
+        // must not leave a zero divisor for |SplitTablet| and |MergeTablets|.
+        statistics.DesiredTabletSize = std::max<i64>(1, statistics.DesiredTabletSize);
 
         statistics.MinTabletSize = statistics.DesiredTabletSize / 1.9;
         statistics.MaxTabletSize = statistics.DesiredTabletSize * 1.9;

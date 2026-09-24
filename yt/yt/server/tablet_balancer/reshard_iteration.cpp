@@ -327,7 +327,7 @@ public:
             BundleSnapshot_->PerformanceCountersKeys,
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
-                .Metric = DynamicConfig_->DefaultParameterizedMetric,
+                .Metrics = {DynamicConfig_->DefaultParameterizedMetric},
             }.MergeWith(groupConfig->Parameterized),
             GroupName_,
             Logger());

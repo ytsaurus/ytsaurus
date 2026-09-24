@@ -81,6 +81,221 @@ void FillObjectIdsInBundleHolder(const TBundleHolderPtr& bundle)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TParameterizedBalancingConfigTest, LegacyMetricRoundTrip)
+{
+    auto config = ConvertTo<TParameterizedBalancingConfigPtr>(TYsonStringBuf("{metric=\"legacy\";}"));
+    const std::vector<std::string> expected = {"legacy"};
+
+    EXPECT_EQ(config->GetMetrics(), expected);
+    EXPECT_NO_THROW(config->Postprocess());
+    auto restored = ConvertTo<TParameterizedBalancingConfigPtr>(ConvertToYsonString(config));
+    EXPECT_EQ(restored->GetMetrics(), expected);
+    EXPECT_EQ(restored->Metric, "legacy");
+    EXPECT_TRUE(restored->Metrics.empty());
+    EXPECT_EQ(TParameterizedReassignSolverConfig().MergeWith(restored).Metrics, expected);
+    EXPECT_EQ(TParameterizedResharderConfig().MergeWith(restored).Metrics, expected);
+}
+
+TEST(TParameterizedBalancingConfigTest, MetricCounts)
+{
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        SCOPED_TRACE(metricCount);
+        auto config = New<TParameterizedBalancingConfig>();
+        config->Metrics.assign(metricCount, "1");
+        EXPECT_NO_THROW(config->Postprocess());
+        auto restored = ConvertTo<TParameterizedBalancingConfigPtr>(ConvertToYsonString(config));
+        EXPECT_EQ(restored->GetMetrics(), config->Metrics);
+        EXPECT_EQ(TParameterizedReassignSolverConfig().MergeWith(restored).Metrics, config->Metrics);
+        EXPECT_EQ(TParameterizedResharderConfig().MergeWith(restored).Metrics, config->Metrics);
+    }
+}
+
+TEST(TParameterizedBalancingConfigTest, MetricsOverrideLegacyMetric)
+{
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        SCOPED_TRACE(metricCount);
+        auto config = New<TParameterizedBalancingConfig>();
+        config->Metric = "legacy";
+        config->Metrics.assign(metricCount, "1");
+        EXPECT_NO_THROW(config->Postprocess());
+        EXPECT_EQ(config->GetMetrics(), config->Metrics);
+
+        auto restored = ConvertTo<TParameterizedBalancingConfigPtr>(ConvertToYsonString(config));
+        EXPECT_EQ(restored->Metric, "legacy");
+        EXPECT_EQ(restored->GetMetrics(), config->Metrics);
+        EXPECT_EQ(TParameterizedReassignSolverConfig().MergeWith(restored).Metrics, config->Metrics);
+        EXPECT_EQ(TParameterizedResharderConfig().MergeWith(restored).Metrics, config->Metrics);
+
+        restored->Metrics.clear();
+        EXPECT_EQ(restored->GetMetrics(), std::vector<std::string>{"legacy"});
+    }
+}
+
+TEST(TParameterizedBalancingConfigTest, InvalidMetrics)
+{
+    auto config = New<TParameterizedBalancingConfig>();
+    config->Metrics.assign(MaxMetricCount + 1, "1");
+    EXPECT_THROW_WITH_SUBSTRING(config->Postprocess(), "At most");
+    config->Metric = "legacy";
+    EXPECT_THROW_WITH_SUBSTRING(config->Postprocess(), "At most");
+}
+
+TEST(TParameterizedBalancingConfigTest, DefaultMetrics)
+{
+    auto config = New<TParameterizedBalancingConfig>();
+    config->Postprocess();
+    EXPECT_TRUE(config->GetMetrics().empty());
+    const std::vector<std::string> expected = {"1", "2", "3"};
+    auto solverConfig = TParameterizedReassignSolverConfig{.Metrics = expected};
+    auto resharderConfig = TParameterizedResharderConfig{.Metrics = expected};
+    EXPECT_EQ(solverConfig.MergeWith(config).Metrics, expected);
+    EXPECT_EQ(resharderConfig.MergeWith(config).Metrics, expected);
+}
+
+TEST(TParameterizedBalancingConfigTest, BundleMetricOverridesDefaultMetric)
+{
+    auto config = New<TParameterizedBalancingConfig>();
+    config->Metric = "bundle";
+    const auto solverConfig = TParameterizedReassignSolverConfig{.Metrics = {"global"}};
+    const auto resharderConfig = TParameterizedResharderConfig{.Metrics = {"global"}};
+
+    const std::vector<std::string> legacyMetric = {"bundle"};
+    EXPECT_EQ(solverConfig.MergeWith(config).Metrics, legacyMetric);
+    EXPECT_EQ(resharderConfig.MergeWith(config).Metrics, legacyMetric);
+
+    config->Metrics = {"first", "second"};
+    EXPECT_EQ(solverConfig.MergeWith(config).Metrics, config->Metrics);
+    EXPECT_EQ(resharderConfig.MergeWith(config).Metrics, config->Metrics);
+}
+
+TEST(TParameterizedBalancingFactoryTest, InvalidMetricCount)
+{
+    auto bundle = New<TTabletCellBundle>("test");
+    auto groupConfig = New<TParameterizedBalancingConfig>();
+    groupConfig->Postprocess();
+
+    for (int metricCount : {0, MaxMetricCount + 1}) {
+        SCOPED_TRACE(metricCount);
+        auto solverConfig = TParameterizedReassignSolverConfig{}.MergeWith(groupConfig);
+        auto resharderConfig = TParameterizedResharderConfig{}.MergeWith(groupConfig);
+        solverConfig.Metrics.assign(metricCount, "1");
+        resharderConfig.Metrics = solverConfig.Metrics;
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateParameterizedReassignSolver(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                solverConfig,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger()),
+            "Unsupported number of metrics");
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateReplicaReassignSolver(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                solverConfig,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger()),
+            "Unsupported number of metrics");
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateParameterizedResharder(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                resharderConfig,
+                DefaultGroupName,
+                Logger()),
+            "Unsupported number of metrics");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TReplicaMetricsCalculatorTest, IncludesMinorTableMetrics)
+{
+    for (bool samePivotKeys : {true, false}) {
+        SCOPED_TRACE(samePivotKeys);
+        auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{config={enable_parameterized=%true};tablets=["
+                "{tablet_index=1;cell_index=1;statistics={memory_size=0;compressed_data_size=4;uncompressed_data_size=4;partition_count=1}};"
+                "{tablet_index=2;cell_index=1;statistics={memory_size=0;compressed_data_size=3;uncompressed_data_size=3;partition_count=1}};"
+                "{tablet_index=3;cell_index=2;statistics={memory_size=0;compressed_data_size=1;uncompressed_data_size=1;partition_count=1}}]}];"
+            "cells=[{cell_index=1;memory_size=0;node_address=home};{cell_index=2;memory_size=0;node_address=home}];"
+            "nodes=[{node_address=home;memory_used=0;memory_limit=100}]}"));
+        FillObjectIdsInBundleHolder(bundleHolder);
+        auto bundle = bundleHolder->CreateBundle();
+        const auto& table = bundle->Tables.begin()->second;
+
+        for (int index = 0; index < std::ssize(table->Tablets); ++index) {
+            NTableClient::TUnversionedOwningRowBuilder builder;
+            if (index > 0) {
+                builder.AddValue(NTableClient::MakeUnversionedInt64Value(index * 10, 0));
+            }
+            table->PivotKeys.push_back(builder.FinishRow());
+        }
+
+        auto config = TParameterizedReassignSolverConfig{.MaxMoveActionCount = 1}.MergeWith(
+            GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+        auto createSolver = [&] {
+            return CreateReplicaReassignSolver(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger());
+        };
+        EXPECT_TRUE(createSolver()->BuildActionDescriptors().empty());
+
+        bundle->PerClusterPerformanceCountersTableSchemas.emplace("replica", bundle->PerformanceCountersTableSchema);
+        for (int replicaIndex = 0; replicaIndex < 2; ++replicaIndex) {
+            auto minorTable = New<TAlienTable>(
+                "//minor",
+                MakeObjectId(EObjectType::Table, replicaIndex + 100),
+                MinValidCellTag,
+                NullObjectId);
+            minorTable->PivotKeys = samePivotKeys
+                ? table->PivotKeys
+                : std::vector{table->PivotKeys[0], table->PivotKeys[2]};
+            const auto minorSizes = samePivotKeys ? std::vector<i64>{4, 3, 1} : std::vector<i64>{7, 1};
+            for (int index = 0; index < std::ssize(minorSizes); ++index) {
+                auto tablet = New<TTablet>(
+                    MakeObjectId(EObjectType::Tablet, 100 + replicaIndex * 10 + index),
+                    /*table*/ nullptr);
+                tablet->Index = index;
+                tablet->State = ETabletState::Mounted;
+                tablet->Statistics = table->Tablets.front()->Statistics;
+                tablet->Statistics.CompressedDataSize = minorSizes[index];
+                tablet->Statistics.UncompressedDataSize = minorSizes[index];
+                tablet->Statistics.MemorySize = minorSizes[index] * (replicaIndex + 1);
+                tablet->Statistics.OriginalNode = ConvertTo<INodePtr>(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("memory_size").Value(tablet->Statistics.MemorySize)
+                    .EndMap());
+                tablet->PerformanceCounters = TYsonString(TYsonStringBuf("{}"));
+                minorTable->Tablets.push_back(tablet);
+            }
+            table->AlienTables["replica"].push_back(minorTable);
+        }
+
+        for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+            SCOPED_TRACE(metricCount);
+            config.Metrics.assign(metricCount, "double([/statistics/memory_size])");
+            auto actions = createSolver()->BuildActionDescriptors();
+            ASSERT_EQ(actions.size(), 1u);
+            EXPECT_EQ(actions[0].TabletId, MakeObjectId(EObjectType::Tablet, 2));
+            EXPECT_EQ(actions[0].TabletCellId, MakeObjectId(EObjectType::TabletCell, 2));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTestMoveDescriptor
     : public TYsonStruct
 {
@@ -556,6 +771,201 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TParameterizedBalancingTest, OppositeComponentImbalancesTriggerBalancing)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+        "tables=[{config={enable_parameterized=%true};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=2;uncompressed_data_size=0;compressed_data_size=0;partition_count=1}};"
+            "{tablet_index=2;cell_index=1;"
+                "statistics={memory_size=16;uncompressed_data_size=2;compressed_data_size=2;partition_count=1}};"
+            "{tablet_index=3;cell_index=2;"
+                "statistics={memory_size=2;uncompressed_data_size=18;compressed_data_size=18;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home1};{cell_index=2;node_address=home2}];"
+        "nodes=[{node_address=home1};{node_address=home2}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    auto config = TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = 1,
+    }.MergeWith(GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+
+    // Normalized node/cell metrics are (1.8, 0.2) and (0.2, 1.8).
+    // Their totals are equal, but moving tablet 1 improves the objective.
+    // Check the node and cell triggers independently; 100 disables the other trigger.
+    for (bool triggerByNode : {false, true}) {
+        config.NodeDeviationThreshold = triggerByNode ? 0.1 : 100;
+        config.CellDeviationThreshold = triggerByNode ? 100 : 0.1;
+        for (int metricCount = 2; metricCount <= MaxMetricCount; ++metricCount) {
+            SCOPED_TRACE(Format("MetricCount: %v, TriggerByNode: %v", metricCount, triggerByNode));
+            config.Metrics.assign(metricCount, "0");
+            config.Metrics.front() = "double([/statistics/memory_size])";
+            config.Metrics.back() = "double([/statistics/uncompressed_data_size])";
+
+            auto descriptors = ReassignTabletsParameterized(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger());
+
+            ASSERT_EQ(descriptors.size(), 1u);
+            EXPECT_EQ(descriptors[0].TabletId, MakeObjectId(EObjectType::Tablet, 1));
+            EXPECT_EQ(descriptors[0].TabletCellId, MakeObjectId(EObjectType::TabletCell, 2));
+        }
+    }
+}
+
+TEST(TParameterizedBalancingTest, MoveToCellWithLargerTotalMetricOnSameNode)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+        "tables=[{config={enable_parameterized=%true};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=10;uncompressed_data_size=0;compressed_data_size=0;partition_count=1}};"
+            "{tablet_index=2;cell_index=1;"
+                "statistics={memory_size=50;uncompressed_data_size=1;compressed_data_size=1;partition_count=1}};"
+            "{tablet_index=3;cell_index=2;"
+                "statistics={memory_size=0;uncompressed_data_size=80;compressed_data_size=80;partition_count=1}};"
+            "{tablet_index=4;cell_index=3;"
+                "statistics={memory_size=40;uncompressed_data_size=19;compressed_data_size=19;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home};{cell_index=2;node_address=home};"
+            "{cell_index=3;node_address=home}];"
+        "nodes=[{node_address=home}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    auto config = TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = 1,
+    }.MergeWith(GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+
+    // Cell totals are 0.61, 0.80, and 0.59. Moving tablet 1 to cell 2 is the unique
+    // best move: it improves the sum of squared components by 0.1 despite the larger total.
+    for (int metricCount = 2; metricCount <= MaxMetricCount; ++metricCount) {
+        SCOPED_TRACE(metricCount);
+        config.Metrics.assign(metricCount, "0");
+        config.Metrics.front() = "double([/statistics/memory_size])";
+        config.Metrics.back() = "double([/statistics/uncompressed_data_size])";
+
+        auto descriptors = ReassignTabletsParameterized(
+            bundle,
+            /*performanceCountersKeys*/ {},
+            config,
+            DefaultGroupName,
+            /*metricTracker*/ nullptr,
+            GetWorkerPool(),
+            Logger());
+
+        ASSERT_EQ(descriptors.size(), 1u);
+        EXPECT_EQ(descriptors[0].TabletId, MakeObjectId(EObjectType::Tablet, 1));
+        EXPECT_EQ(descriptors[0].TabletCellId, MakeObjectId(EObjectType::TabletCell, 2));
+    }
+}
+
+TEST(TParameterizedBalancingTest, SameNodePruningRespectsTableCellMetrics)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+        "tables=[{table_index=1;config={enable_parameterized=%true};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=2;uncompressed_data_size=2;compressed_data_size=2;partition_count=1}};"
+            "{tablet_index=2;cell_index=1;"
+                "statistics={memory_size=8;uncompressed_data_size=8;compressed_data_size=8;partition_count=1}}]};"
+            "{table_index=2;config={enable_parameterized=%true};tablets=["
+            "{tablet_index=3;cell_index=2;"
+                "statistics={memory_size=20;uncompressed_data_size=20;compressed_data_size=20;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home};{cell_index=2;node_address=home}];"
+        "nodes=[{node_address=home}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    auto config = TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = 1,
+    }.MergeWith(GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+
+    // Cell 2 dominates cell 1 componentwise (20 versus 10), but has no tablets
+    // of table 1. With the per-table cell factor enabled, moving tablet 1 there
+    // improves the full objective despite increasing the overall cell imbalance.
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        config.Metrics.assign(metricCount, "0");
+        config.Metrics.back() = "double([/statistics/memory_size])";
+
+        for (double tableCellFactor : {0.0, 1.0}) {
+            SCOPED_TRACE(Format("MetricCount: %v, TableCellFactor: %v", metricCount, tableCellFactor));
+            config.Factors->TableCell = tableCellFactor;
+
+            auto descriptors = ReassignTabletsParameterized(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger());
+
+            if (tableCellFactor == 0) {
+                EXPECT_TRUE(descriptors.empty());
+            } else {
+                ASSERT_EQ(descriptors.size(), 1u);
+                EXPECT_EQ(descriptors[0].TabletId, MakeObjectId(EObjectType::Tablet, 1));
+                EXPECT_EQ(descriptors[0].TabletCellId, MakeObjectId(EObjectType::TabletCell, 2));
+            }
+        }
+    }
+}
+
+TEST(TParameterizedBalancingTest, ZeroComponentsRespectDeviationThresholds)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+        "tables=[{config={enable_parameterized=%true};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=1;uncompressed_data_size=1;compressed_data_size=1;partition_count=1}};"
+            "{tablet_index=2;cell_index=1;"
+                "statistics={memory_size=10;uncompressed_data_size=10;compressed_data_size=10;partition_count=1}};"
+            "{tablet_index=3;cell_index=2;"
+                "statistics={memory_size=9;uncompressed_data_size=9;compressed_data_size=9;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home1};{cell_index=2;node_address=home2}];"
+        "nodes=[{node_address=home1};{node_address=home2}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    auto config = TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = 1,
+    }.MergeWith(GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+
+    // The imbalance (11 versus 9) is below the 50% threshold but above 10%.
+    // Leading zero components must neither trigger balancing nor hide this imbalance.
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        config.Metrics.assign(metricCount, "0");
+        config.Metrics.back() = "double([/statistics/memory_size])";
+
+        for (double threshold : {0.5, 0.1}) {
+            SCOPED_TRACE(Format("MetricCount: %v, DeviationThreshold: %v", metricCount, threshold));
+            config.NodeDeviationThreshold = threshold;
+            config.CellDeviationThreshold = threshold;
+
+            auto descriptors = ReassignTabletsParameterized(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                DefaultGroupName,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger());
+
+            if (threshold == 0.5) {
+                EXPECT_TRUE(descriptors.empty());
+            } else {
+                ASSERT_EQ(descriptors.size(), 1u);
+                EXPECT_EQ(descriptors[0].TabletId, MakeObjectId(EObjectType::Tablet, 1));
+                EXPECT_EQ(descriptors[0].TabletCellId, MakeObjectId(EObjectType::TabletCell, 2));
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTestReassignTabletsParameterized
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
@@ -644,6 +1054,47 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
 
     std::sort(cellSizes.begin(), cellSizes.end());
     EXPECT_EQ(cellSizes, expectedSizes);
+}
+
+TEST_P(TTestReassignTabletsParameterized, ZeroPaddedMetrics)
+{
+    const auto& params = GetParam();
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    const auto& table = bundle->Tables.begin()->second;
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
+    auto config = TParameterizedReassignSolverConfig{
+        .MaxMoveActionCount = std::get<2>(params),
+    }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized);
+
+    ASSERT_EQ(config.Metrics.size(), 1u);
+    for (int minTabletsPerWorker : {1, 128}) {
+        config.MinTabletsPerMoveRecomputationWorker = minTabletsPerWorker;
+        std::vector<TMoveDescriptor> reference;
+        for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+            SCOPED_TRACE(Format("MetricCount: %v, MinTabletsPerWorker: %v", metricCount, minTabletsPerWorker));
+            config.Metrics.resize(metricCount, "0");
+            auto descriptors = ReassignTabletsParameterized(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                group,
+                /*metricTracker*/ nullptr,
+                GetWorkerPool(),
+                Logger());
+
+            if (metricCount == 1) {
+                reference = descriptors;
+            } else {
+                ASSERT_EQ(descriptors.size(), reference.size());
+                for (int index = 0; index < std::ssize(reference); ++index) {
+                    EXPECT_EQ(descriptors[index].TabletId, reference[index].TabletId);
+                    EXPECT_EQ(descriptors[index].TabletCellId, reference[index].TabletCellId);
+                }
+            }
+        }
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1202,6 +1653,98 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     EXPECT_EQ(expectedDescriptorsIt, expected.end());
 }
 
+TEST_P(TTestMergeSplitTabletsParameterized, MultimetricMatchesScalarSum)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(GetParam())));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    const auto& table = bundle->Tables.begin()->second;
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
+    auto config = TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized);
+    config.Metrics.clear();
+    std::string scalarFormula;
+
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        SCOPED_TRACE(metricCount);
+        config.Metrics.push_back(metricCount % 2 == 1
+            ? "double([/statistics/memory_size])"
+            : "double([/statistics/uncompressed_data_size])");
+        if (!scalarFormula.empty()) {
+            scalarFormula += " + ";
+        }
+        scalarFormula += config.Metrics.back();
+
+        auto scalarConfig = config;
+        scalarConfig.Metrics = {scalarFormula};
+        auto scalarResharder = CreateParameterizedResharder(
+            bundle,
+            /*performanceCountersKeys*/ {},
+            scalarConfig,
+            group,
+            Logger());
+        auto multimetricResharder = CreateParameterizedResharder(
+            bundle,
+            /*performanceCountersKeys*/ {},
+            config,
+            group,
+            Logger());
+
+        for (const auto& [id, currentTable] : bundle->Tables) {
+            auto expected = scalarResharder->BuildTableActionDescriptors(currentTable);
+            auto actual = multimetricResharder->BuildTableActionDescriptors(currentTable);
+            ASSERT_EQ(expected.size(), actual.size());
+            for (int index = 0; index < std::ssize(expected); ++index) {
+                EXPECT_EQ(expected[index].Tablets, actual[index].Tablets);
+                EXPECT_EQ(expected[index].TabletCount, actual[index].TabletCount);
+                EXPECT_EQ(expected[index].DataSize, actual[index].DataSize);
+                EXPECT_EQ(expected[index].Priority, actual[index].Priority);
+            }
+        }
+    }
+}
+
+TEST(TParameterizedResharderTest, DesiredTabletSizeBelowOneByte)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={enable_reshard=%true}}}};"
+        "tables=[{config={enable_parameterized=%true;desired_tablet_metric=1};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=0;uncompressed_data_size=1;compressed_data_size=1;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home}];"
+        "nodes=[{node_address=home}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    const auto& table = bundle->Tables.begin()->second;
+    auto config = TParameterizedResharderConfig{}.MergeWith(
+        GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized);
+
+    for (int metricCount = 1; metricCount <= MaxMetricCount; ++metricCount) {
+        config.Metrics.assign(metricCount, "2");
+        for (bool useDesiredTabletCount : {false, true}) {
+            SCOPED_TRACE(Format("MetricCount: %v, UseDesiredTabletCount: %v", metricCount, useDesiredTabletCount));
+            table->TableConfig->DesiredTabletCount.reset();
+            if (useDesiredTabletCount) {
+                table->TableConfig->DesiredTabletCount = 2 * metricCount;
+            }
+
+            // Either configuration yields a desired size below one byte. The size
+            // divisor must stay positive, while the metric still determines the split count.
+            auto resharder = CreateParameterizedResharder(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                DefaultGroupName,
+                Logger());
+            auto descriptors = resharder->BuildTableActionDescriptors(table);
+
+            ASSERT_EQ(descriptors.size(), 1u);
+            EXPECT_EQ(descriptors[0].Tablets, std::vector<TTabletId>{MakeObjectId(EObjectType::Tablet, 1)});
+            EXPECT_EQ(descriptors[0].TabletCount, 2 * metricCount);
+            EXPECT_EQ(descriptors[0].DataSize, 1);
+        }
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(
     TTestMergeSplitTabletsParameterized,
     TTestMergeSplitTabletsParameterized,
@@ -1414,6 +1957,54 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
     EXPECT_THROW_WITH_SUBSTRING(
         resharder->BuildTableActionDescriptors(table),
         ToString(std::get<1>(params)));
+}
+
+TEST_P(TTestMergeSplitTabletsParameterizedErrors, NegativeComponentWithPositiveTotal)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(GetParam())));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    const auto& table = bundle->Tables.begin()->second;
+    auto group = table->TableConfig->Group.value_or(DefaultGroupName);
+    auto config = TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized);
+
+    for (int metricCount = 2; metricCount <= MaxMetricCount; ++metricCount) {
+        SCOPED_TRACE(metricCount);
+        for (int index = 0; index < metricCount; ++index) {
+            SCOPED_TRACE(index);
+            config.Metrics.assign(metricCount, "100");
+            config.Metrics[index] = "-1";
+            auto resharder = CreateParameterizedResharder(
+                bundle,
+                /*performanceCountersKeys*/ {},
+                config,
+                group,
+                Logger());
+
+            EXPECT_THROW_WITH_SUBSTRING(
+                resharder->BuildTableActionDescriptors(table),
+                "Tablet metric must be nonnegative");
+
+            auto solverConfig = TParameterizedReassignSolverConfig{}.MergeWith(
+                GetOrCrash(bundle->Config->Groups, group)->Parameterized);
+            solverConfig.Metrics = config.Metrics;
+            for (auto createSolver : {&CreateParameterizedReassignSolver, &CreateReplicaReassignSolver}) {
+                SCOPED_TRACE(createSolver == &CreateReplicaReassignSolver ? "replica" : "parameterized");
+                auto solver = createSolver(
+                    bundle,
+                    /*performanceCountersKeys*/ {},
+                    solverConfig,
+                    group,
+                    /*metricTracker*/ nullptr,
+                    GetWorkerPool(),
+                    Logger());
+
+                EXPECT_THROW_WITH_SUBSTRING(
+                    solver->BuildActionDescriptors(),
+                    "Tablet metric must be nonnegative");
+            }
+        }
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(

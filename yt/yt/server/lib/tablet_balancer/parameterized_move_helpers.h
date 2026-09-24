@@ -9,8 +9,6 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/library/query/base/public.h>
-
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +54,7 @@ struct TParameterizedReassignSolverConfig
     double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;
     int MinTabletsPerMoveRecomputationWorker = 128;
-    std::string Metric;
+    std::vector<std::string> Metrics;
     TComponentFactorConfigPtr Factors = TComponentFactorConfig::MakeDefaultIdentity();
 
     TParameterizedReassignSolverConfig MergeWith(
