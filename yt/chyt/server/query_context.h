@@ -167,7 +167,6 @@ public:
         const std::optional<std::string>& cluster) const;
     NTransactionClient::TTimestamp GetDynamicTableReadTimestamp(
         const std::optional<std::string>& cluster) const;
-    std::vector<std::pair<std::string, NApi::NNative::IClientPtr>> GetRemoteClients() const;
 
     TQuerySettingsPtr GetContextSettings(DB::ContextPtr context) const;
 
