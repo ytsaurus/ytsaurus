@@ -1,4 +1,4 @@
-#include "push_based_shuffle_manager.h"
+#include "push_based_shuffle_registry.h"
 
 #include "config.h"
 #include "private.h"
@@ -20,24 +20,24 @@ constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPushBasedShuffleManager::TPushBasedShuffleManager(const TControllerAgentConfigPtr& config)
+TPushBasedShuffleRegistry::TPushBasedShuffleRegistry(const TControllerAgentConfigPtr& config)
     : ThreadPool_(CreateThreadPool(
         config->PushBasedShuffleManager->ThreadCount,
         "PushShuffle"))
     , Invoker_(ThreadPool_->GetInvoker())
 { }
 
-const IInvokerPtr& TPushBasedShuffleManager::GetInvoker() const
+const IInvokerPtr& TPushBasedShuffleRegistry::GetInvoker() const
 {
     return Invoker_;
 }
 
-void TPushBasedShuffleManager::UpdateConfig(const TControllerAgentConfigPtr& config)
+void TPushBasedShuffleRegistry::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     ThreadPool_->SetThreadCount(config->PushBasedShuffleManager->ThreadCount);
 }
 
-void TPushBasedShuffleManager::OnSchedulerConnected(TIncarnationId incarnationId)
+void TPushBasedShuffleRegistry::OnSchedulerConnected(TIncarnationId incarnationId)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -48,7 +48,7 @@ void TPushBasedShuffleManager::OnSchedulerConnected(TIncarnationId incarnationId
         .With("DroppedShuffleCount", droppedShuffleCount);
 }
 
-void TPushBasedShuffleManager::Cleanup()
+void TPushBasedShuffleRegistry::Cleanup()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -58,7 +58,7 @@ void TPushBasedShuffleManager::Cleanup()
         .With("DroppedShuffleCount", droppedShuffleCount);
 }
 
-int TPushBasedShuffleManager::ResetIncarnation(TIncarnationId incarnationId)
+int TPushBasedShuffleRegistry::ResetIncarnation(TIncarnationId incarnationId)
 {
     decltype(IdToPool_) stalePools;
 
@@ -72,7 +72,7 @@ int TPushBasedShuffleManager::ResetIncarnation(TIncarnationId incarnationId)
     return std::ssize(stalePools);
 }
 
-void TPushBasedShuffleManager::RegisterShuffle(
+void TPushBasedShuffleRegistry::RegisterShuffle(
     TIncarnationId incarnationId,
     TOperationId operationId,
     TWeakPtr<IDistributedChunkSessionPool> pool)
@@ -93,7 +93,7 @@ void TPushBasedShuffleManager::RegisterShuffle(
         .With("OperationId", operationId);
 }
 
-void TPushBasedShuffleManager::UnregisterShuffle(TIncarnationId incarnationId, TOperationId operationId)
+void TPushBasedShuffleRegistry::UnregisterShuffle(TIncarnationId incarnationId, TOperationId operationId)
 {
     bool unregistered = false;
 
@@ -111,7 +111,7 @@ void TPushBasedShuffleManager::UnregisterShuffle(TIncarnationId incarnationId, T
         .With("OperationId", operationId);
 }
 
-IDistributedChunkSessionPoolPtr TPushBasedShuffleManager::GetShufflePoolOrThrow(
+IDistributedChunkSessionPoolPtr TPushBasedShuffleRegistry::GetShufflePoolOrThrow(
     TIncarnationId incarnationId,
     TOperationId operationId) const
 {
@@ -138,7 +138,7 @@ IDistributedChunkSessionPoolPtr TPushBasedShuffleManager::GetShufflePoolOrThrow(
     return pool;
 }
 
-void TPushBasedShuffleManager::ValidateIncarnation(TIncarnationId incarnationId) const
+void TPushBasedShuffleRegistry::ValidateIncarnation(TIncarnationId incarnationId) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 

@@ -26,7 +26,7 @@ SRCS(
     partitioning_parameters_evaluator.cpp
     private.cpp
     program.cpp
-    push_based_shuffle_manager.cpp
+    push_based_shuffle_registry.cpp
     push_based_shuffle_service.cpp
     scheduling_context.cpp
     snapshot_builder.cpp

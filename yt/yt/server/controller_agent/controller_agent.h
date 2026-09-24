@@ -118,7 +118,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const TPushBasedShuffleManagerPtr& GetPushBasedShuffleManager() const;
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const;
 
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;

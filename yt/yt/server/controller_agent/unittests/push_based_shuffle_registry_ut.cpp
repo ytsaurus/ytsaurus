@@ -1,13 +1,13 @@
 #include <yt/yt/server/controller_agent/config.h>
-#include <yt/yt/server/controller_agent/push_based_shuffle_manager.h>
+#include <yt/yt/server/controller_agent/push_based_shuffle_registry.h>
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NControllerAgent {
 namespace {
@@ -45,9 +45,9 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(const TSessionProgressUpdate& update), ProgressUpdated);
 };
 
-TPushBasedShuffleManagerPtr CreateManager()
+TPushBasedShuffleRegistryPtr CreateRegistry()
 {
-    return New<TPushBasedShuffleManager>(New<TControllerAgentConfig>());
+    return New<TPushBasedShuffleRegistry>(New<TControllerAgentConfig>());
 }
 
 TIncarnationId MakeIncarnationId()
@@ -62,148 +62,148 @@ TOperationId MakeOperationId()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPushBasedShuffleManagerTest, RejectsRequestWhileDisconnected)
+TEST(TPushBasedShuffleRegistryTest, RejectsRequestWhileDisconnected)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto operationId = MakeOperationId();
 
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(MakeIncarnationId(), operationId),
+        registry->GetShufflePoolOrThrow(MakeIncarnationId(), operationId),
         EErrorCode::AgentDisconnected);
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(TIncarnationId(), operationId),
+        registry->GetShufflePoolOrThrow(TIncarnationId(), operationId),
         EErrorCode::AgentDisconnected);
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->RegisterShuffle(MakeIncarnationId(), operationId, New<TFakeSessionPool>()),
+        registry->RegisterShuffle(MakeIncarnationId(), operationId, New<TFakeSessionPool>()),
         EErrorCode::AgentDisconnected);
 }
 
-TEST(TPushBasedShuffleManagerTest, RejectsStaleIncarnation)
+TEST(TPushBasedShuffleRegistryTest, RejectsStaleIncarnation)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
-    manager->OnSchedulerConnected(incarnationId);
+    registry->OnSchedulerConnected(incarnationId);
 
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(MakeIncarnationId(), operationId),
+        registry->GetShufflePoolOrThrow(MakeIncarnationId(), operationId),
         EErrorCode::IncarnationMismatch);
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->RegisterShuffle(MakeIncarnationId(), operationId, New<TFakeSessionPool>()),
+        registry->RegisterShuffle(MakeIncarnationId(), operationId, New<TFakeSessionPool>()),
         EErrorCode::IncarnationMismatch);
 }
 
-TEST(TPushBasedShuffleManagerTest, ReturnsRegisteredPool)
+TEST(TPushBasedShuffleRegistryTest, ReturnsRegisteredPool)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
+    registry->OnSchedulerConnected(incarnationId);
 
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
-    EXPECT_EQ(manager->GetShufflePoolOrThrow(incarnationId, operationId), pool);
+    EXPECT_EQ(registry->GetShufflePoolOrThrow(incarnationId, operationId), pool);
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(incarnationId, MakeOperationId()),
+        registry->GetShufflePoolOrThrow(incarnationId, MakeOperationId()),
         NRpc::EErrorCode::TransientFailure);
 }
 
-TEST(TPushBasedShuffleManagerTest, RejectsDuplicateRegistration)
+TEST(TPushBasedShuffleRegistryTest, RejectsDuplicateRegistration)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
+    registry->OnSchedulerConnected(incarnationId);
 
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
     EXPECT_THROW_WITH_SUBSTRING(
-        manager->RegisterShuffle(incarnationId, operationId, New<TFakeSessionPool>()),
+        registry->RegisterShuffle(incarnationId, operationId, New<TFakeSessionPool>()),
         "already has a registered push-based shuffle");
-    EXPECT_EQ(manager->GetShufflePoolOrThrow(incarnationId, operationId), pool);
+    EXPECT_EQ(registry->GetShufflePoolOrThrow(incarnationId, operationId), pool);
 }
 
-TEST(TPushBasedShuffleManagerTest, ReportsExpiredPool)
+TEST(TPushBasedShuffleRegistryTest, ReportsExpiredPool)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
-    manager->OnSchedulerConnected(incarnationId);
+    registry->OnSchedulerConnected(incarnationId);
 
-    manager->RegisterShuffle(incarnationId, operationId, New<TFakeSessionPool>());
+    registry->RegisterShuffle(incarnationId, operationId, New<TFakeSessionPool>());
 
     EXPECT_THROW_WITH_SUBSTRING(
-        manager->GetShufflePoolOrThrow(incarnationId, operationId),
+        registry->GetShufflePoolOrThrow(incarnationId, operationId),
         "no longer has a shuffle session pool");
 }
 
-TEST(TPushBasedShuffleManagerTest, UnregisterDropsRegistration)
+TEST(TPushBasedShuffleRegistryTest, UnregisterDropsRegistration)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->OnSchedulerConnected(incarnationId);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
-    manager->UnregisterShuffle(incarnationId, operationId);
+    registry->UnregisterShuffle(incarnationId, operationId);
 
     EXPECT_THROW_WITH_SUBSTRING(
-        manager->GetShufflePoolOrThrow(incarnationId, operationId),
+        registry->GetShufflePoolOrThrow(incarnationId, operationId),
         "has no registered push-based shuffle");
 
-    EXPECT_NO_THROW(manager->RegisterShuffle(incarnationId, operationId, pool));
+    EXPECT_NO_THROW(registry->RegisterShuffle(incarnationId, operationId, pool));
 }
 
-TEST(TPushBasedShuffleManagerTest, IgnoresStaleUnregistration)
+TEST(TPushBasedShuffleRegistryTest, IgnoresStaleUnregistration)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->OnSchedulerConnected(incarnationId);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
-    manager->UnregisterShuffle(MakeIncarnationId(), operationId);
+    registry->UnregisterShuffle(MakeIncarnationId(), operationId);
 
-    EXPECT_EQ(manager->GetShufflePoolOrThrow(incarnationId, operationId), pool);
+    EXPECT_EQ(registry->GetShufflePoolOrThrow(incarnationId, operationId), pool);
 }
 
-TEST(TPushBasedShuffleManagerTest, ReconnectDropsRegistrations)
+TEST(TPushBasedShuffleRegistryTest, ReconnectDropsRegistrations)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->OnSchedulerConnected(incarnationId);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
     auto nextIncarnationId = MakeIncarnationId();
-    manager->OnSchedulerConnected(nextIncarnationId);
+    registry->OnSchedulerConnected(nextIncarnationId);
 
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(incarnationId, operationId),
+        registry->GetShufflePoolOrThrow(incarnationId, operationId),
         EErrorCode::IncarnationMismatch);
     EXPECT_THROW_WITH_SUBSTRING(
-        manager->GetShufflePoolOrThrow(nextIncarnationId, operationId),
+        registry->GetShufflePoolOrThrow(nextIncarnationId, operationId),
         "has no registered push-based shuffle");
 }
 
-TEST(TPushBasedShuffleManagerTest, CleanupDropsRegistrations)
+TEST(TPushBasedShuffleRegistryTest, CleanupDropsRegistrations)
 {
-    auto manager = CreateManager();
+    auto registry = CreateRegistry();
     auto incarnationId = MakeIncarnationId();
     auto operationId = MakeOperationId();
     auto pool = New<TFakeSessionPool>();
-    manager->OnSchedulerConnected(incarnationId);
-    manager->RegisterShuffle(incarnationId, operationId, pool);
+    registry->OnSchedulerConnected(incarnationId);
+    registry->RegisterShuffle(incarnationId, operationId, pool);
 
-    manager->Cleanup();
+    registry->Cleanup();
 
     EXPECT_THROW_WITH_ERROR_CODE(
-        manager->GetShufflePoolOrThrow(incarnationId, operationId),
+        registry->GetShufflePoolOrThrow(incarnationId, operationId),
         EErrorCode::AgentDisconnected);
 }
 
