@@ -305,7 +305,14 @@ struct TReplicaCounters
 {
     TReplicaCounters() = default;
 
-    explicit TReplicaCounters(const NProfiling::TProfiler& profiler);
+    TReplicaCounters(
+        const NProfiling::TProfiler& profiler,
+        NTabletClient::ETableReplicaMode mode);
+
+    void SetMode(NTabletClient::ETableReplicaMode mode);
+
+    NProfiling::TGauge SyncReplicaCount;
+    NProfiling::TGauge AsyncReplicaCount;
 
     NProfiling::TGauge LagRowCount;
     NProfiling::TTimeGauge LagTime;
@@ -513,7 +520,9 @@ public:
     TPullRowsCounters* GetPullRowsCounters(const std::optional<std::string>& userTag);
     TFetchTableRowsCounters* GetFetchTableRowsCounters(const std::optional<std::string>& userTag);
 
-    TReplicaCounters GetReplicaCounters(const std::string& cluster);
+    TReplicaCounters GetReplicaCounters(
+        const std::string& cluster,
+        NTabletClient::ETableReplicaMode mode);
 
     TTablePullerCounters* GetTablePullerCounters();
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);

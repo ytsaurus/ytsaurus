@@ -7,7 +7,8 @@ from .test_replicated_dynamic_tables import (
 from yt_env_setup import parametrize_external
 from yt_commands import (
     authors, wait, get, generate_uuid,
-    sync_mount_table, sync_unmount_table, create_table_replica, sync_enable_table_replica, sync_disable_table_replica,
+    sync_mount_table, sync_unmount_table, create_table_replica,
+    sync_enable_table_replica, sync_disable_table_replica, sync_alter_table_replica_mode,
     insert_rows, select_rows, remove, generate_timestamp, sync_unfreeze_table)
 
 from flaky import flaky
@@ -131,6 +132,46 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
+
+    @authors("ifsmirnov")
+    def test_replica_count(self):
+        self._create_cells()
+
+        self._create_replicated_table(
+            "//tmp/t",
+            self.SIMPLE_SCHEMA_SORTED,
+            enable_profiling=True,
+            dynamic_store_auto_flush_period=None,
+        )
+
+        create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/sync_replica",
+            attributes={"mode": "sync"})
+        async_replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/async_replica",
+            attributes={"mode": "async"})
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+
+        def get_replica_count(mode):
+            tags = {
+                "table_path": "//tmp/t",
+                "replica_cluster": self.REPLICA_CLUSTER_NAME,
+                "mode": mode,
+            }
+            if not tablet_profiling.has_projections_with_tags("replica/replica_count", tags):
+                return None
+            return tablet_profiling.get_counter("replica/replica_count", tags=tags)
+
+        wait(lambda: [get_replica_count("sync"), get_replica_count("async")] == [1, 1])
+
+        sync_alter_table_replica_mode(async_replica_id, "sync")
+
+        wait(lambda: [get_replica_count("sync"), get_replica_count("async")] == [2, 0])
 
     @authors("ifsmirnov")
     @flaky(max_runs=5)
