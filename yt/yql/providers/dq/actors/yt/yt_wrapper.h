@@ -16,6 +16,13 @@
 
 namespace NYql {
 
+    struct TFileMd5Result {
+        TString Digest;
+        TMaybe<bool> ContentMd5Matches;
+    };
+
+    TFileMd5Result ComputeFileMd5(const TFile& file, const TString& contentMd5);
+
     template <ui32 EventType, typename... Args>
     struct TGenericYtCommand
        : public std::tuple<Args...>,
@@ -57,8 +64,8 @@ namespace NYql {
     using TEvGetJob = TGenericYtCommand<TYtEvents::ES_GET_JOB, NYT::NScheduler::TOperationId, NYT::NJobTrackerClient::TJobId, NYT::NApi::TGetJobOptions>;
     using TEvGetJobResponse = TGenericYtResponse<TYtEvents::ES_GET_JOB_RESPONSE, NYT::TErrorOr<TString>>;
 
-    using TEvWriteFile = TGenericYtCommand<TYtEvents::ES_WRITE_FILE, TFile, NYT::NYPath::TRichYPath, THashMap<TString, NYT::TNode>, NYT::NApi::TFileWriterOptions>;
-    using TEvWriteFileResponse = TGenericYtResponse<TYtEvents::ES_WRITE_FILE_RESPONSE, NYT::TErrorOr<void>>;
+    using TEvWriteFile = TGenericYtCommand<TYtEvents::ES_WRITE_FILE, TFile, NYT::NYPath::TRichYPath, THashMap<TString, NYT::TNode>, NYT::NApi::TFileWriterOptions, TString>;
+    using TEvWriteFileResponse = TGenericYtResponse<TYtEvents::ES_WRITE_FILE_RESPONSE, NYT::TErrorOr<void>, TMaybe<bool>>;
 
     using TEvReadFile = TGenericYtCommand<TYtEvents::ES_READ_FILE, NYT::NYPath::TRichYPath, TString, NYT::NApi::TFileReaderOptions>;
     using TEvReadFileResponse = TGenericYtResponse<TYtEvents::ES_READ_FILE_RESPONSE, NYT::TErrorOr<void>>;
