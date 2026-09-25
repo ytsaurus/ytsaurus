@@ -1612,9 +1612,25 @@ void TFlowView::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TSharedRef CompressFlowViewYson(const TYsonString& ysonString, NCompression::ECodec codec)
+TYsonString SerializeFlowViewByPath(
+    const TFlowViewPtr& flowView,
+    const TYPath& path)
 {
-    return NCompression::GetCodec(codec)->Compress(TSharedRef::FromString(ysonString.ToString()));
+    auto result = TryGetAny(flowView->SerializeAsYsonString().AsStringBuf(), path);
+    if (!result) {
+        THROW_ERROR_EXCEPTION("Flow view has no node at %v", path);
+    }
+    return TYsonString(std::move(*result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompressedFlowView CompressFlowViewYson(const TYsonString& ysonString, NCompression::ECodec codec)
+{
+    return {
+        .Data = NCompression::GetCodec(codec)->Compress(TSharedRef::FromString(ysonString.ToString())),
+        .Codec = codec,
+    };
 }
 
 static NCompression::ECodec GetFlowViewCacheCodec(const TFlowViewPtr& flowView)
@@ -1643,7 +1659,7 @@ void TFlowViewKeeper::Init(TFlowStatePtr state, TFlowEphemeralStatePtr ephemeral
     CachedYsonString_ = FlowView_->SerializeAsYsonString();
     CachedYsonIndex_ = TIndexedYsonString::Build(CachedYsonString_, FlowViewHybridLeafSizeThreshold);
     CachedCompressionCodec_ = GetFlowViewCacheCodec(FlowView_);
-    CachedCompressedFlowView_ = CompressFlowViewYson(CachedYsonString_, CachedCompressionCodec_);
+    CachedCompressedFlowView_ = CompressFlowViewYson(CachedYsonString_, CachedCompressionCodec_).Data;
 }
 
 void TFlowViewKeeper::Reset()
@@ -1741,11 +1757,7 @@ TYsonString TFlowViewKeeper::GetYsonStringByPath(const NYPath::TYPath& path, boo
         return index->GetByPath(path);
     }
     // Fresh (uncached) view: extract the sub-path by streaming, without an index.
-    auto result = NYTree::TryGetAny(GetYsonString(cache).AsStringBuf(), path);
-    if (!result) {
-        THROW_ERROR_EXCEPTION("Flow view has no node at %v", path);
-    }
-    return TYsonString(std::move(*result));
+    return SerializeFlowViewByPath(GetFlowView(), path);
 }
 
 TYsonString TFlowViewKeeper::GetYsonString(bool cache) const
@@ -1771,10 +1783,7 @@ TCompressedFlowView TFlowViewKeeper::GetCompressedYsonString() const
 TCompressedFlowView TFlowViewKeeper::CompressYson(const TYsonString& yson) const
 {
     auto codec = GetFlowViewCacheCodec(GetFlowView());
-    return TCompressedFlowView{
-        .Data = CompressFlowViewYson(yson, codec),
-        .Codec = codec,
-    };
+    return CompressFlowViewYson(yson, codec);
 }
 
 void TFlowViewKeeper::RebuildNodeCache(const IInvokerPtr& invoker)
@@ -1786,7 +1795,7 @@ void TFlowViewKeeper::RebuildNodeCache(const IInvokerPtr& invoker)
     auto indexFuture = BIND(&TIndexedYsonString::Build, ysonString, FlowViewHybridLeafSizeThreshold)
         .AsyncVia(invoker)
         .Run();
-    auto compressed = CompressFlowViewYson(ysonString, codec);
+    auto compressed = CompressFlowViewYson(ysonString, codec).Data;
     auto ysonIndex = WaitForFast(indexFuture).ValueOrThrow();
     {
         auto guard = Guard(Lock_);

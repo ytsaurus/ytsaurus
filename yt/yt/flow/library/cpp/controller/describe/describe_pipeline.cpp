@@ -185,6 +185,7 @@ TString FormatWorkerBuildInfo(const TFlowViewPtr& flowView)
 void FillFlowCoreTargetMessage(
     const TFlowViewPtr& flowView,
     const std::string& controllerFlowCoreVersion,
+    const TFlowCoreBuildInfo& controllerBuildInfo,
     std::vector<TMessage>& messages)
 {
     const auto& flowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget->GetValue();
@@ -220,7 +221,7 @@ void FillFlowCoreTargetMessage(
     }
     markdownText.AppendString(FormatRunnerBuildInfo(flowCoreTarget));
     markdownText.AppendChar('\n');
-    markdownText.AppendString(FormatControllerBuildInfo(controllerFlowCoreVersion, *GetFlowCoreBuildInfo()));
+    markdownText.AppendString(FormatControllerBuildInfo(controllerFlowCoreVersion, controllerBuildInfo));
     markdownText.AppendChar('\n');
     if (auto worker = FormatWorkerBuildInfo(flowView); !worker.empty()) {
         markdownText.AppendString(worker);
@@ -727,7 +728,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
             markdownText.AppendFormat("Deploy stage: [%v](%v)\n\n", arguments.DeployStageUrl, arguments.DeployStageUrl);
         }
 
-        markdownText.AppendFormat("FlowViewAge: %v\n\n", TInstant::Now() - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
+        markdownText.AppendFormat("FlowViewAge: %v\n\n", arguments.Now - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
 
         message.MarkdownText = markdownText.Flush();
     }
@@ -739,7 +740,11 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
         message.Level = ELogLevel::Warning;
     }
 
-    FillFlowCoreTargetMessage(flowView, arguments.ControllerFlowCoreVersion, pipeline.Messages);
+    FillFlowCoreTargetMessage(
+        flowView,
+        arguments.ControllerFlowCoreVersion,
+        *arguments.ControllerBuildInfo,
+        pipeline.Messages);
 
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     auto computationBaseDescriptions = MakeComputationDescriptions(
@@ -771,7 +776,7 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
 
     // Count UnstablePartitionCount: partitions with no running job OR job inited < 5 min ago.
     const TDuration unstableThreshold = TDuration::Minutes(5);
-    const TInstant now = TInstant::Now();
+    const TInstant now = arguments.Now;
     for (const auto& [partitionId, computationId] : partitionToComputation) {
         auto* compDesc = pipeline.Computations.FindPtr(computationId);
         if (!compDesc) {

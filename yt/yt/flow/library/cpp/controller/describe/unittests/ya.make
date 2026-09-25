@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/testing/common
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/controller/unittests/mock
     yt/yt/flow/library/cpp/controller

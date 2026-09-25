@@ -12,5 +12,5 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(reanimate_vanilla_operation)
-add_subdirectory(ui_test_controller)
+add_subdirectory(lib)
+add_subdirectory(pipeline)

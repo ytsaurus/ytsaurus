@@ -155,7 +155,7 @@ protected:
             NYT::NBus::NTcp::CreateBusServer(NYT::NBus::NTcp::TBusServerConfig::CreateTcp(Port_)));
         Server_->RegisterService(CreateControllerService(
             FlowExecutor_,
-            New<TFakePipelineAuthenticator>(Connection_),
+            New<TFakePipelineAuthenticator>(Connection_)->CreateYTControllerRpcAuthenticator(),
             Queue_->GetInvoker()));
         Server_->Start();
     }
