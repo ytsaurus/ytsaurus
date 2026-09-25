@@ -39,6 +39,7 @@ target_link_libraries(flow_server PUBLIC
   library-cpp-companion
   library-cpp-computation
   flow-extensions-http
+  flow-extensions-kafka
   cpp-connectors-queue
   cpp-connectors-random
   cpp-connectors-servicelog

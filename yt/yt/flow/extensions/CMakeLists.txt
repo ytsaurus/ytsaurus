@@ -13,3 +13,4 @@
 # changes in this file.
 
 add_subdirectory(http)
+add_subdirectory(kafka)
