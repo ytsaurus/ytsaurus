@@ -20,6 +20,16 @@ namespace NYql {
 
 using TFileResource = Yql::DqsProto::TFile;
 
+namespace {
+
+struct TPreparedFile {
+    TString Path;
+    TString ObjectId;
+    TString ContentMd5;
+};
+
+} // namespace
+
 class TDqControl : public IDqControl {
 
 public:
@@ -30,18 +40,21 @@ public:
     { }
 
     // after call, forking process in not allowed
-    bool IsReady(const TMap<TString, TString>& additinalFiles) override {
+    bool IsReady(const TFileMap& additionalFiles) override {
         Yql::DqsProto::IsReadyRequest request;
         for (const auto& file : Files) {
             *request.AddFiles() = file;
         }
 
-        for (const auto& [path, objectId] : additinalFiles){
+        for (const auto& [path, file] : additionalFiles) {
             TFileResource r;
             r.SetLocalPath(path);
             r.SetObjectType(Yql::DqsProto::TFile::EUDF_FILE);
-            r.SetObjectId(objectId);
+            r.SetObjectId(file.ObjectId);
             r.SetSize(TFile(path, OpenExisting | RdOnly).GetLength());
+            if (!file.ContentMd5.empty()) {
+                r.SetContentMd5(file.ContentMd5);
+            }
             *request.AddFiles() = r;
         }
 
@@ -96,29 +109,30 @@ public:
             TString path = vanillaLitePath;
             TString objectId = GetProgramCommitId();
 
-            TString newPath, newObjectId;
-            std::tie(newPath, newObjectId) = GetPathAndObjectId(path, objectId, vanillaLiteMd5);
+            const auto preparedFile = PrepareFile(path, objectId, vanillaLiteMd5);
 
             TFileResource vanillaLite;
-            vanillaLite.SetLocalPath(newPath);
+            vanillaLite.SetLocalPath(preparedFile.Path);
             vanillaLite.SetName(vanillaLitePath.substr(vanillaLitePath.rfind('/') + 1));
             vanillaLite.SetObjectType(Yql::DqsProto::TFile::EEXE_FILE);
-            vanillaLite.SetObjectId(newObjectId);
-            vanillaLite.SetSize(TFile(newPath, OpenExisting | RdOnly).GetLength());
+            vanillaLite.SetObjectId(preparedFile.ObjectId);
+            vanillaLite.SetSize(TFile(preparedFile.Path, OpenExisting | RdOnly).GetLength());
+            vanillaLite.SetContentMd5(preparedFile.ContentMd5);
             Files.push_back(vanillaLite);
         }
 
         for (const auto& [path, objectId] : udfs){
             YQL_CLOG(DEBUG, ProviderDq) << "DQ control, adding file: " << path << " with objectId " << objectId;
-            TString newPath, newObjectId;
-            std::tie(newPath, newObjectId) = GetPathAndObjectId(path, objectId, objectId);
+            const auto preparedFile = PrepareFile(path, objectId, objectId);
 
-            YQL_CLOG(DEBUG, ProviderDq) << "DQ control, rewrite path/objectId: " << newPath << ", " << newObjectId;
+            YQL_CLOG(DEBUG, ProviderDq) << "DQ control, rewrite path/objectId: "
+                << preparedFile.Path << ", " << preparedFile.ObjectId;
             TFileResource r;
-            r.SetLocalPath(newPath);
+            r.SetLocalPath(preparedFile.Path);
             r.SetObjectType(Yql::DqsProto::TFile::EUDF_FILE);
-            r.SetObjectId(newObjectId);
-            r.SetSize(TFile(newPath, OpenExisting | RdOnly).GetLength());
+            r.SetObjectId(preparedFile.ObjectId);
+            r.SetSize(TFile(preparedFile.Path, OpenExisting | RdOnly).GetLength());
+            r.SetContentMd5(preparedFile.ContentMd5);
             Files.push_back(r);
         }
     }
@@ -136,9 +150,13 @@ public:
     }
 
 private:
-    std::tuple<TString, TString> GetPathAndObjectId(const TString& path, const TString& objectId, const TString& md5 = {}) {
+    TPreparedFile PrepareFile(const TString& path, const TString& objectId, const TString& md5 = {}) {
         if (!EnableStrip) {
-            return std::make_tuple(path, objectId);
+            // The provided MD5 may have been computed before the file snapshot was created.
+            return {
+                .Path = path,
+                .ObjectId = objectId,
+            };
         }
 
         TFileLinkPtr& fileLink = FileLinks[objectId];
@@ -146,7 +164,11 @@ private:
             fileLink = FileStorage->PutFileStripped(path, md5);
         }
 
-        return std::make_tuple(fileLink->GetPath(), objectId + DqStrippedSuffied());
+        return {
+            .Path = fileLink->GetPath(),
+            .ObjectId = objectId + DqStrippedSuffied(),
+            .ContentMd5 = fileLink->GetMd5(),
+        };
     }
 
     int Threads;

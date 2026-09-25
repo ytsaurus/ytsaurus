@@ -33,6 +33,27 @@ using namespace NYT::NApi;
 using namespace NActors;
 
 namespace NYql {
+    TFileMd5Result ComputeFileMd5(const TFile& file, const TString& contentMd5)
+    {
+        char buf[32768];
+        MD5 md5;
+        i64 size;
+        i64 offset = 0;
+        while ((size = file.Pread(buf, sizeof(buf), offset)) > 0) {
+            md5.Update(buf, size);
+            offset += size;
+        }
+
+        char digestBuf[33];
+        TFileMd5Result result{
+            .Digest = md5.End(digestBuf),
+        };
+        if (!contentMd5.empty()) {
+            result.ContentMd5Matches = result.Digest == contentMd5;
+        }
+        return result;
+    }
+
     struct TRequest: public NYT::TRefCounted {
         const TActorId SelfId;
         const TActorId Sender;
@@ -364,33 +385,30 @@ namespace NYql {
             NYPath::TRichYPath remotePath = std::get<1>(*ev->Get());
             THashMap<TString, NYT::TNode> attributes = std::get<2>(*ev->Get());
             TFileWriterOptions writerOptions = std::get<3>(*ev->Get());
+            const TString contentMd5 = std::get<4>(*ev->Get());
             auto requestId = ev->Get()->RequestId;
 
             auto nodePathTmp = remotePath.GetPath() + ".tmp";
             auto nodePath = remotePath.GetPath();
             auto request = NewRequest<TWriteFileRequest>(requestId, ev->Sender, ctx);
             writerOptions.ComputeMD5 = true;
+            TMaybe<bool> contentMd5Matches;
 
             try {
                 Y_ENSURE(file.IsOpen());
 
                 i64 localFileSize = file.GetLength();
-                TString digest;
 
-                if (writerOptions.ComputeMD5) {
-                    char buf[32768];
-                    MD5 md5;
-                    i64 size, offset = 0;
-                    auto md5Start = TInstant::Now();
-                    while ((size = file.Pread(buf, sizeof(buf), offset)) > 0) {
-                        md5.Update(buf, size);
-                        offset += size;
-                    }
-                    char digestBuf[33];
-                    digest = md5.End(digestBuf);
-                    YQL_CLOG(DEBUG, ProviderDq) << "Local MD5 for " << nodePath << ": " << digest
-                        << " elapsed=" << (TInstant::Now() - md5Start).Seconds() << " sec"
-                        << " size=" << offset;
+                auto md5Start = TInstant::Now();
+                auto md5Result = ComputeFileMd5(file, contentMd5);
+                auto digest = std::move(md5Result.Digest);
+                contentMd5Matches = md5Result.ContentMd5Matches;
+                YQL_CLOG(DEBUG, ProviderDq) << "Local MD5 for " << nodePath << ": " << digest
+                    << " elapsed=" << (TInstant::Now() - md5Start).Seconds() << " sec"
+                    << " size=" << localFileSize;
+                if (contentMd5Matches.Defined() && !*contentMd5Matches) {
+                    YQL_CLOG(WARN, ProviderDq) << "Content MD5 hint mismatch for " << nodePath
+                        << ": computed=" << digest << " provided=" << contentMd5;
                 }
 
                 YQL_CLOG(INFO, ProviderDq) << "OnFileWrite path=" << nodePath
@@ -500,20 +518,20 @@ namespace NYql {
 
                         return OKFuture;
                     }))
-                    .Apply(BIND([request, requestId](const TErrorOr<void>& err)
+                    .Apply(BIND([request, requestId, contentMd5Matches](const TErrorOr<void>& err)
                     {
                         if (auto req = request.Lock()) {
                             if (!err.IsOK()) {
                                 YQL_CLOG(WARN, ProviderDq) << "OnFileWrite failed for " << req->NodePath
                                     << ": " << ToString(err);
                             }
-                            req->Complete(new TEvWriteFileResponse(requestId, err));
+                            req->Complete(new TEvWriteFileResponse(requestId, err, contentMd5Matches));
                         }
                     })));
             } catch (const std::exception& ex) {
                 YQL_CLOG(WARN, ProviderDq) << "OnFileWrite exception for " << nodePath << ": " << ex.what();
                 if (auto req = request.Lock()) {
-                    req->Complete(new TEvWriteFileResponse(requestId, ex));
+                    req->Complete(new TEvWriteFileResponse(requestId, ex, contentMd5Matches));
                 }
             }
         }

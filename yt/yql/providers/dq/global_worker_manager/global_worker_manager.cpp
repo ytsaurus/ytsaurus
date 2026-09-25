@@ -625,6 +625,7 @@ private:
             TResourceFile preparedFile;
             preparedFile.ObjectId = objectId;
             preparedFile.LocalFileName = fileName;
+            preparedFile.ContentMd5 = file.GetContentMd5();
             preparedFile.Attributes["file_name"] = preparedFile.GetRemoteFileName();
             preparedFile.File = ::TFile(localPath, RdOnly | OpenExisting);
             preparedFile.RemoteFileName = objectId;

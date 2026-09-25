@@ -21,6 +21,7 @@ SRCS(
     node_id_allocator_ut.cpp
     nodeid_cleaner_ut.cpp
     yt_resource_manager_ut.cpp
+    yt_wrapper_ut.cpp
 )
 
 YQL_LAST_ABI_VERSION()

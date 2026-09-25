@@ -15,7 +15,14 @@ class IDqControl : public TThrRefBase {
 public:
     using TPtr = TIntrusivePtr<IDqControl>;
 
-    virtual bool IsReady(const TMap<TString, TString>& udfs = TMap<TString, TString>())= 0;
+    struct TAdditionalFile {
+        TString ObjectId;
+        TString ContentMd5;
+    };
+
+    using TFileMap = TMap<TString, TAdditionalFile>;
+
+    virtual bool IsReady(const TFileMap& files = {}) = 0;
 };
 
 using IDqControlPtr = TIntrusivePtr<IDqControl>;

@@ -33,6 +33,7 @@ namespace NYql {
     {
         TString ObjectId;
         TString LocalFileName;
+        TString ContentMd5;
         TMaybe<TString> RemoteFileName;
         THashMap<TString, TString> Attributes;
         TFile File;
