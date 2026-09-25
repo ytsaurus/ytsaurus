@@ -156,6 +156,18 @@ cd yt/yt/flow
 ya make examples/go/word_count bin/flow_server
 ```
 
+## Подключение SDK как Go-модуля {#go-module}
+
+Вне сборки репозитория SDK — это Go-модуль `go.ytsaurus.tech/yt/go/flow`. Он выпускается вместе с остальными компонентами Flow в версии образа `flow_server`, поэтому закрепляйте версию того релиза, который запускаете:
+
+```bash
+go get go.ytsaurus.tech/yt/go/flow@vX.Y.Z
+```
+
+Модуль сам называет нужный ему релиз `go.ytsaurus.tech/yt/go`, и `go get` его подтягивает. Не закрепляйте `go.ytsaurus.tech/yt/go` ниже этого релиза: более ранние релизы ещё содержат пакеты `flow` сами, и сборка падает с `ambiguous import`.
+
+Соберите бинарь пайплайна через `go build` и запустите его, как описано ниже, передав в `--flow-bin` `flow_server` того же релиза — например, из образа `ghcr.io/ytsaurus/flow:X.Y.Z`.
+
 ## Запуск пайплайна {#launch}
 
 Собранный бинарь запускается командой:
