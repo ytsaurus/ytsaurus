@@ -7,8 +7,8 @@
 //
 // Args: {message count} in {100, 10000}; items/sec = messages.
 
+#include <yt/yt/flow/library/cpp/companion/client/state_codec.h>
 #include <yt/yt/flow/library/cpp/companion/companion_computation_base.h>
-#include <yt/yt/flow/library/cpp/companion/state_codec.h>
 
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 

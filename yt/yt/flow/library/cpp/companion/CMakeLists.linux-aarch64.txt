@@ -14,7 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(client)
 add_subdirectory(proto)
+add_subdirectory(manager)
+add_subdirectory(resources)
 add_subdirectory(server)
 add_subdirectory(unittests)
 add_subdirectory(benchmark)
@@ -36,32 +39,16 @@ target_link_libraries(library-cpp-companion PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-companion-proto
-  yt-library-process
-  library-profiling-solomon
-  yt-core-http
-  yt-core-https
-  core-rpc-grpc
+  cpp-companion-client
+  cpp-companion-manager
+  cpp-companion-resources
   library-cpp-common
   library-cpp-computation
   library-cpp-misc
 )
 
 target_sources(library-cpp-companion PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_client_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_computation_base.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_entrypoint.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_model.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_resource.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/java_companion_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/java_process_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_process_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_singleton_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/jvm_options.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/process_manager_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/swift_map_companion_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/swift_ordered_source_companion_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/transform_companion_computation.cpp
@@ -87,12 +74,9 @@ target_link_libraries(library-cpp-companion.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-companion-proto
-  yt-library-process
-  library-profiling-solomon
-  yt-core-http
-  yt-core-https
-  core-rpc-grpc
+  cpp-companion-client
+  cpp-companion-manager
+  cpp-companion-resources
   library-cpp-common
   library-cpp-computation
   library-cpp-misc

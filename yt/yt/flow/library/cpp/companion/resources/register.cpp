@@ -1,0 +1,15 @@
+#include "public.h"
+
+#include "companion_resource.h"
+
+#include <yt/yt/flow/library/cpp/common/registry.h>
+
+namespace NYT::NFlow::NCompanion {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_FLOW_DEFINE_RESOURCE(TCompanionResource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCompanion

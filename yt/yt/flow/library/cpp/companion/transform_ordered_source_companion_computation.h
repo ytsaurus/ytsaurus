@@ -1,8 +1,9 @@
 #pragma once
 
 #include "companion_computation_base.h"
-#include "companion_model.h"
 #include "public.h"
+
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 

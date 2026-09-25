@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/flow/library/cpp/companion/public.h>
+#include <yt/yt/flow/library/cpp/companion/client/public.h>
 
 namespace NYT::NFlow::NCompanionServer {
 

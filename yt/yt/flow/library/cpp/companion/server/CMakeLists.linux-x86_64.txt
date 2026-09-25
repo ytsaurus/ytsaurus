@@ -34,7 +34,7 @@ target_link_libraries(cpp-companion-server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-companion
+  cpp-companion-client
   library-cpp-computation
   cpp-process_function-host
   library-profiling-solomon

@@ -11,8 +11,8 @@
 #include <yt/yt/flow/library/cpp/common/runtime_context.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 

@@ -1,6 +1,6 @@
 #include "swift_map_companion_computation.h"
 
-#include "companion_model.h"
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 namespace NYT::NFlow::NCompanion {
 

@@ -4,7 +4,7 @@
 #include <yt/yt/flow/library/cpp/companion/server/server_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
 
-#include <yt/yt/flow/library/cpp/companion/config.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
