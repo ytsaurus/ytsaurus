@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, print_debug, wait, retry, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
@@ -13,7 +13,7 @@ from yt_commands import (
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import parts_to_uuid
-from yt_gpu_layers_helpers import GpuCheckBase
+from yt_gpu_layers_helpers import GpuCheckBase, make_gpu_check_layer_cache_config
 import yt.yson as yson
 
 import datetime
@@ -983,10 +983,8 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
+        "data_node": make_gpu_check_layer_cache_config(),
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "gpu_manager": {
                 "driver_version": "0",
                 "testing": {
@@ -1047,7 +1045,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
 
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_fail(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
@@ -1056,7 +1054,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1087,7 +1084,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_job_error(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_success")
 
         op = run_test_vanilla(
@@ -1096,7 +1093,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1123,12 +1119,12 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_gpu_check_stderr_on_gpu_check_success(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
 
         update_controller_agent_config(
             "vanilla_operation_options/gpu_check",
             {
-                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "layer_paths": ["//tmp/gpu_check/0", ROOTFS_LAYER_PATH],
                 "binary_path": "/gpu_check/gpu_check_args",
                 "binary_args": ["-Y"],
             }
@@ -1141,7 +1137,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
             },
             task_patch={
                 "gpu_limit": 1,
-                "layer_paths": ["//tmp/base_layer"],
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
             },
@@ -1157,7 +1152,7 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
     @authors("bystrovserg")
     @pytest.mark.timeout(180)
     def test_has_gpu_check_stderr_in_archive_features(self):
-        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.setup_gpu_layer_and_reset_nodes()
         self.setup_gpu_check_options(binary_path="/gpu_check/gpu_check_fail")
 
         op = run_test_vanilla(
@@ -1166,7 +1161,6 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
             },
             task_patch={
-                "layer_paths": ["//tmp/base_layer"],
                 "gpu_limit": 1,
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,

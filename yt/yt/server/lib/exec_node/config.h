@@ -784,10 +784,6 @@ struct TJobProxyConfig
 
     bool JobProxySendHeartbeatBeforeAbort;
 
-    //! This is a special testing option.
-    //! Instead of actually setting root fs, it just provides special environment variable.
-    bool TestRootFS;
-
     //! This option is used for testing purposes only.
     //! It runs job shell under root user instead of slot user.
     bool TestPollJobShell;

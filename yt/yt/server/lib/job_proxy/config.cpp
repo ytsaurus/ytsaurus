@@ -367,9 +367,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("ahead_memory_reserve", &TThis::AheadMemoryReserve)
         .Default(100_MB);
 
-    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
-        .Default(false);
-
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 

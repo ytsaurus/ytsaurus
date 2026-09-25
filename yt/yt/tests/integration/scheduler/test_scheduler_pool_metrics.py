@@ -628,6 +628,7 @@ class TestPoolMetrics(YTEnvSetup):
             fixed_tags={"tree": "default", "pool": "research"})
         total_time_counter = research_profiler.counter("scheduler/pools/metrics/total_time")
         exec_time_counter = research_profiler.counter("scheduler/pools/metrics/exec_time")
+        prepare_time_counter = research_profiler.counter("scheduler/pools/metrics/prepare_time")
 
         wait_breakpoint()
 
@@ -649,8 +650,15 @@ class TestPoolMetrics(YTEnvSetup):
 
         wait(lambda: get_total_time_delta() == 0, sleep_backoff=1)
 
-        # Total and exec times should not differ much.
-        assert total_time_counter.get() - exec_time_counter.get() < 3000
+        # Aborting the job triggers another attempt, so prepare_time includes
+        # both preparations. Layer setup can dominate each one. Exclude
+        # prepare_time when bounding otherwise unaccounted time; these counters
+        # are collected independently and may differ slightly.
+        # TODO(pogorelov): Recheck the 3000 ms bound without subtracting
+        # prepare_time once local tests run in an outer container with layer
+        # locations on tmpfs, as in CI.
+        non_job_time = total_time_counter.get() - exec_time_counter.get() - prepare_time_counter.get()
+        assert abs(non_job_time) < 3000
 
     @authors("eshcherbin")
     def test_operation_count_by_preemption_priority(self):

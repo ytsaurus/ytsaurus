@@ -2369,6 +2369,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 class TestUserJobIOTracking(TestJobIOTrackingBase):
     ENABLE_MULTIDAEMON = False  # Check structured logs.
     USE_PORTO = True
+    JOB_DISK_PATH = "/yt_test_disk"
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -2387,6 +2388,15 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
             },
         },
     }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        config["exec_node"].setdefault("root_fs_binds", []).append({
+            "internal_path": cls.JOB_DISK_PATH,
+            "external_path": cls.default_disk_path,
+            "read_only": False,
+        })
 
     @authors("gepardo")
     @pytest.mark.timeout(300)
@@ -2412,7 +2422,7 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
                 dd if={0}/myfile of={0}/myfile2 count=400 bs=1024 iflag=direct oflag=direct && \
                 dd if=/dev/urandom of={0}/myfile3 count=400 bs=1024 oflag=direct && \
                 sync && \
-                cat""".format(self.default_disk_path),
+                cat""".format(self.JOB_DISK_PATH),
         )
 
         # If this test failed on your virtual machine, please check your local porto version.
