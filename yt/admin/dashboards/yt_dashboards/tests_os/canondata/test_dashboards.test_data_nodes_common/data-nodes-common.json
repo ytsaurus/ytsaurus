@@ -846,11 +846,131 @@
             "type": "timeseries"
         },
         {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 4,
+                "y": 46
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.999, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p99.9",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.99, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p99",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.95, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p95",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.9, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p90",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.75, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p75",
+                    "refId": "E"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.5, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p50",
+                    "refId": "F"
+                }
+            ],
+            "title": "Network out throttling",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 12,
+                "y": 46
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.999, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p99.9",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.99, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p99",
+                    "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.95, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p95",
+                    "refId": "C"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.9, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p90",
+                    "refId": "D"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.75, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p75",
+                    "refId": "E"
+                },
+                {
+                    "datasource": null,
+                    "expr": "quantile(0.5, rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_writes\", host=~\"$host\", band=~\"\", bucket=~\"\", encrypted=~\"\", network=~\"\"}[$__rate_interval]))",
+                    "legendFormat": "p50",
+                    "refId": "F"
+                }
+            ],
+            "title": "Network in throttling",
+            "type": "timeseries"
+        },
+        {
             "gridPos": {
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 46
+                "y": 54
             },
             "options": {
                 "content": "Rpc server requests",
@@ -876,7 +996,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 49
+                "y": 57
             },
             "targets": [
                 {
@@ -936,7 +1056,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 49
+                "y": 57
             },
             "targets": [
                 {
@@ -996,7 +1116,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 49
+                "y": 57
             },
             "targets": [
                 {
@@ -1056,7 +1176,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 57
+                "y": 65
             },
             "targets": [
                 {
@@ -1116,7 +1236,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 57
+                "y": 65
             },
             "targets": [
                 {
@@ -1176,7 +1296,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 57
+                "y": 65
             },
             "targets": [
                 {
@@ -1236,7 +1356,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 65
+                "y": 73
             },
             "targets": [
                 {
@@ -1296,7 +1416,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 65
+                "y": 73
             },
             "targets": [
                 {
@@ -1356,7 +1476,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 65
+                "y": 73
             },
             "targets": [
                 {
@@ -1416,7 +1536,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 73
+                "y": 81
             },
             "targets": [
                 {
@@ -1476,7 +1596,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 73
+                "y": 81
             },
             "targets": [
                 {
@@ -1536,7 +1656,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 73
+                "y": 81
             },
             "targets": [
                 {
@@ -1596,7 +1716,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 81
+                "y": 89
             },
             "targets": [
                 {
@@ -1656,7 +1776,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 81
+                "y": 89
             },
             "targets": [
                 {
@@ -1716,7 +1836,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 81
+                "y": 89
             },
             "targets": [
                 {
@@ -1776,7 +1896,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 89
+                "y": 97
             },
             "targets": [
                 {
@@ -1836,7 +1956,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 89
+                "y": 97
             },
             "targets": [
                 {
@@ -1896,7 +2016,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 89
+                "y": 97
             },
             "targets": [
                 {
@@ -1944,7 +2064,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 97
+                "y": 105
             },
             "options": {
                 "content": "Rpc server attachments",
@@ -1975,7 +2095,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 100
+                "y": 108
             },
             "targets": [
                 {
@@ -2009,7 +2129,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 100
+                "y": 108
             },
             "targets": [
                 {
@@ -2043,7 +2163,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 100
+                "y": 108
             },
             "targets": [
                 {
@@ -2060,7 +2180,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 108
+                "y": 116
             },
             "options": {
                 "content": "CPU",
@@ -2086,7 +2206,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 111
+                "y": 119
             },
             "targets": [
                 {
@@ -2146,7 +2266,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 111
+                "y": 119
             },
             "targets": [
                 {
@@ -2206,7 +2326,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 111
+                "y": 119
             },
             "targets": [
                 {
@@ -2254,7 +2374,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 119
+                "y": 127
             },
             "options": {
                 "content": "BusXferFS Thread",
@@ -2280,7 +2400,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 122
+                "y": 130
             },
             "targets": [
                 {
@@ -2340,7 +2460,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 122
+                "y": 130
             },
             "targets": [
                 {
@@ -2400,7 +2520,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 122
+                "y": 130
             },
             "targets": [
                 {
@@ -2460,7 +2580,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 130
+                "y": 138
             },
             "targets": [
                 {
@@ -2520,7 +2640,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 130
+                "y": 138
             },
             "targets": [
                 {
@@ -2580,7 +2700,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 138
+                "y": 146
             },
             "targets": [
                 {
@@ -2640,7 +2760,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 138
+                "y": 146
             },
             "targets": [
                 {
@@ -2688,7 +2808,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 146
+                "y": 154
             },
             "options": {
                 "content": "StorageLight Thread",
@@ -2714,7 +2834,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 149
+                "y": 157
             },
             "targets": [
                 {
@@ -2774,7 +2894,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 149
+                "y": 157
             },
             "targets": [
                 {
@@ -2834,7 +2954,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 149
+                "y": 157
             },
             "targets": [
                 {
@@ -2894,7 +3014,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 157
+                "y": 165
             },
             "targets": [
                 {
@@ -2954,7 +3074,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 157
+                "y": 165
             },
             "targets": [
                 {
@@ -3014,7 +3134,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 165
+                "y": 173
             },
             "targets": [
                 {
@@ -3074,7 +3194,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 165
+                "y": 173
             },
             "targets": [
                 {
@@ -3122,7 +3242,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 173
+                "y": 181
             },
             "options": {
                 "content": "StorageHeavy Thread",
@@ -3148,7 +3268,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 176
+                "y": 184
             },
             "targets": [
                 {
@@ -3208,7 +3328,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 176
+                "y": 184
             },
             "targets": [
                 {
@@ -3268,7 +3388,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 176
+                "y": 184
             },
             "targets": [
                 {
@@ -3328,7 +3448,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 184
+                "y": 192
             },
             "targets": [
                 {
@@ -3388,7 +3508,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 184
+                "y": 192
             },
             "targets": [
                 {
@@ -3448,7 +3568,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 192
+                "y": 200
             },
             "targets": [
                 {
@@ -3508,7 +3628,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 192
+                "y": 200
             },
             "targets": [
                 {
@@ -3556,7 +3676,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 200
+                "y": 208
             },
             "options": {
                 "content": "System jobs",
@@ -3587,7 +3707,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 4,
-                "y": 203
+                "y": 211
             },
             "targets": [
                 {
@@ -3626,7 +3746,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 12,
-                "y": 203
+                "y": 211
             },
             "targets": [
                 {
@@ -3686,7 +3806,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 211
+                "y": 219
             },
             "targets": [
                 {
@@ -3746,7 +3866,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 211
+                "y": 219
             },
             "targets": [
                 {
@@ -3806,7 +3926,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 211
+                "y": 219
             },
             "targets": [
                 {
@@ -3866,7 +3986,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 0,
-                "y": 219
+                "y": 227
             },
             "targets": [
                 {
@@ -3926,7 +4046,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 8,
-                "y": 219
+                "y": 227
             },
             "targets": [
                 {
@@ -3986,7 +4106,7 @@
                 "h": 8,
                 "w": 8,
                 "x": 16,
-                "y": 219
+                "y": 227
             },
             "targets": [
                 {
@@ -4034,7 +4154,7 @@
                 "h": 3,
                 "w": 24,
                 "x": 0,
-                "y": 227
+                "y": 235
             },
             "options": {
                 "content": "IO",
@@ -4060,7 +4180,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 230
+                "y": 238
             },
             "targets": [
                 {
@@ -4090,7 +4210,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 230
+                "y": 238
             },
             "targets": [
                 {
@@ -4125,7 +4245,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 238
+                "y": 246
             },
             "targets": [
                 {
@@ -4159,7 +4279,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 238
+                "y": 246
             },
             "targets": [
                 {
@@ -4193,7 +4313,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 246
+                "y": 254
             },
             "targets": [
                 {
@@ -4227,7 +4347,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 246
+                "y": 254
             },
             "targets": [
                 {
@@ -4261,7 +4381,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 254
+                "y": 262
             },
             "targets": [
                 {
@@ -4295,7 +4415,7 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 254
+                "y": 262
             },
             "targets": [
                 {

@@ -197,6 +197,15 @@ def _build_versions(d, backend):
             .cell("Server connections",
                 _build_percentile_sensor(
                     _build_sensor("OutThrottlerValueRate", "yt.bus.server_connections")))
+        .row()
+            .cell("Network out throttling",
+                _build_percentile_sensor(
+                    _build_sensor("NetworkOutThrottling", "yt.data_node.net_throttled_reads.rate"))
+            )
+            .cell("Network in throttling",
+                _build_percentile_sensor(
+                    _build_sensor("NetworkInThrottling", "yt.data_node.net_throttled_writes.rate"))
+            )
     )
 
     d.add(Rowset().row(height=3).cell("", Text("Rpc server requests")))
