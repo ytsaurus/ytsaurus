@@ -588,8 +588,6 @@ private:
 
     inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
     inline static const std::string NodeAttributeUserTags = "user_tags";
-    inline static const std::string NodeAttributeDecommissioned = "decommissioned";
-    inline static const std::string NodeAttributeBanned = "banned";
     inline static const std::string NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
     inline static const std::string ProxyAttributeRole = "role";
     inline static const std::string AccountAttributeResourceLimits = "resource_limits";
@@ -628,16 +626,22 @@ private:
         ChangedNodeAnnotationCounter_.Increment(mutations.ChangedNodeAnnotations.size());
         SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedNodeAnnotations);
 
-        // NB: Decommission must be set before user tags. Newly assigned node must be decommissioned
-        // when it receives its tags, otherwise tablet cells may prematurely occupy the new node.
+        // NB: Decommission maintenance must be added before user tags. Newly assigned node must be
+        // decommissioned when it receives its tags, otherwise tablet cells may prematurely occupy it.
         ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
-        SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
+        ApplyNodeMaintenance(
+            EMaintenanceType::Decommission,
+            mutations.ChangedDecommissionedFlag,
+            mutations.NodeDecommissionMaintenanceComments);
 
         ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
         SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
 
         ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
-        SetNodeAttributes(transaction, NodeAttributeBanned, mutations.ChangedBannedFlag);
+        ApplyNodeMaintenance(
+            EMaintenanceType::Ban,
+            mutations.ChangedBannedFlag,
+            mutations.NodeBanMaintenanceComments);
 
         ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
         SetNodeAttributes(transaction, NodeAttributeEnableBundleBalancer, mutations.ChangedEnableBundleBalancerFlag);
@@ -1832,6 +1836,57 @@ private:
         const THashMap<std::string, TAttribute>& attributes)
     {
         SetInstanceAttributes(transaction, TabletNodesPath, attributeName, attributes);
+    }
+
+    void ApplyNodeMaintenance(
+        EMaintenanceType maintenanceType,
+        const THashMap<std::string, TBundleMutation<bool>>& changes,
+        const THashMap<std::string, std::string>& comments)
+    {
+        const auto& client = Bootstrap_->GetClient();
+
+        TMaintenanceFilter removeFilter;
+        removeFilter.Type = maintenanceType;
+        if (GetDynamicConfig()->RemoveMaintenanceRequestsOnlyByCurrentUser) {
+            removeFilter.User = TMaintenanceFilter::TByUser::TMine{};
+        } else {
+            removeFilter.User = TMaintenanceFilter::TByUser::TAll{};
+        }
+
+        std::vector<TCallback<TFuture<void>()>> callbacks;
+        std::vector<std::string> bundleNames;
+        for (const auto& [nodeAddress, change] : changes) {
+            if (change.Mutation) {
+                auto comment = GetOrCrash(comments, nodeAddress);
+                callbacks.push_back(BIND([=] {
+                    return client->AddMaintenance(
+                        EMaintenanceComponent::ClusterNode,
+                        nodeAddress,
+                        maintenanceType,
+                        comment)
+                        .AsVoid();
+                }));
+            } else {
+                callbacks.push_back(BIND([=] {
+                    return client->RemoveMaintenance(
+                        EMaintenanceComponent::ClusterNode,
+                        nodeAddress,
+                        removeFilter)
+                        .AsVoid();
+                }));
+            }
+
+            bundleNames.push_back(change.BundleName);
+        }
+
+        auto results = WaitFor(CancelableRunWithBoundedConcurrency(
+            callbacks,
+            GetDynamicConfig()->MaxConcurrentCypressWriteRequests))
+            .ValueOrThrow();
+
+        for (const auto& [result, bundleName] : Zip(results, bundleNames)) {
+            MoveBundleToJailAndThrowOnError(result, bundleName);
+        }
     }
 
     template <class TAttribute>

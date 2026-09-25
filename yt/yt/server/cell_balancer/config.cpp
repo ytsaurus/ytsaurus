@@ -158,6 +158,10 @@ void TBundleControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_concurrent_cypress_write_requests", &TThis::MaxConcurrentCypressWriteRequests)
         .Default(50);
+    registrar.Parameter(
+        "remove_maintenance_requests_only_by_current_user",
+        &TThis::RemoveMaintenanceRequestsOnlyByCurrentUser)
+        .Default(false);
     registrar.Parameter("max_released_nodes_per_iteration", &TThis::MaxReleasedNodesPerIteration)
         .Default(50);
 

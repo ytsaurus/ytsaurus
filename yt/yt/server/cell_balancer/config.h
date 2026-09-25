@@ -145,6 +145,9 @@ struct TBundleControllerDynamicConfig
 
     int MaxConcurrentCypressWriteRequests;
 
+    // Restricts maintenance removal to requests created by the current user.
+    bool RemoveMaintenanceRequestsOnlyByCurrentUser;
+
     // Limits the number of nodes which are released via decommission.
     // Used to throttle tablet cell restart rate.
     int MaxReleasedNodesPerIteration;
