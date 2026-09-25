@@ -183,6 +183,8 @@ func (id NodeID) YPath() ypath.Path {
 
 type Revision uint64
 
+type CellTag uint16
+
 type OperationID guid.GUID
 
 var NullOperationID = OperationID(guid.FromHalves(0, 0))

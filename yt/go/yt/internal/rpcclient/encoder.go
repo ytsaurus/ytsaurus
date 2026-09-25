@@ -40,6 +40,8 @@ func (feature rpcProxyFeature) String() string {
 
 // Encoder is adapter between typed and untyped layer of API.
 type Encoder struct {
+	ClockClusterTag yt.CellTag
+
 	StartCall func() *Call
 
 	Invoke            CallInvoker
@@ -2673,6 +2675,9 @@ func (e *Encoder) GenerateTimestamp(
 ) (ts yt.Timestamp, err error) {
 	req := &rpc_proxy.TReqGenerateTimestamps{
 		Count: nil, // todo
+	}
+	if e.ClockClusterTag != 0 {
+		req.ClockClusterTag = ptr.Int32(int32(e.ClockClusterTag))
 	}
 
 	call := e.newCall(MethodGenerateTimestamps, NewGenerateTimestampRequest(req), nil)

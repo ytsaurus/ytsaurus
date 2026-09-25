@@ -42,6 +42,7 @@ GO_TEST_SRCS(
     mutation_retrier_test.go
     object_type_test.go
     retrier_test.go
+    timestamp_test.go
 )
 
 END()
