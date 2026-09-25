@@ -1545,9 +1545,8 @@ public:
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
-        // Good enough.
         auto replicaCount = std::ssize(chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
-        UpdateNonSequoiaChunkReplicaCount(chunk, -replicaCount);
+        UpdateMasterStoredChunkReplicaCount(chunk, -replicaCount);
 
         // Unregister chunk replicas from all known locations including non-online nodes.
         // Schedule removal jobs.
@@ -2846,8 +2845,8 @@ private:
 
     TChunkTreeBalancer ChunkTreeBalancer_;
 
-    int NonSequoiaBlobReplicaCount_ = 0;
-    int NonSequoiaJournalReplicaCount_ = 0;
+    int MasterStoredBlobReplicaCount_ = 0;
+    int MasterStoredJournalReplicaCount_ = 0;
 
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
@@ -6207,12 +6206,12 @@ private:
         }
     }
 
-    void UpdateNonSequoiaChunkReplicaCount(TChunk* chunk, int delta)
+    void UpdateMasterStoredChunkReplicaCount(TChunk* chunk, int delta)
     {
         if (chunk->IsJournal()) {
-            NonSequoiaJournalReplicaCount_ += delta;
+            MasterStoredJournalReplicaCount_ += delta;
         } else {
-            NonSequoiaBlobReplicaCount_ += delta;
+            MasterStoredBlobReplicaCount_ += delta;
         }
     }
 
@@ -6249,7 +6248,7 @@ private:
 
                 // We may have replicas from non-online nodes here.
                 auto replicaCount = std::ssize(chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
-                UpdateNonSequoiaChunkReplicaCount(chunk, replicaCount);
+                UpdateMasterStoredChunkReplicaCount(chunk, replicaCount);
 
                 runner.Add(chunk);
 
@@ -6578,8 +6577,8 @@ private:
         ChunkViewMap_.Clear();
         ForeignChunks_.clear();
 
-        NonSequoiaJournalReplicaCount_ = 0;
-        NonSequoiaBlobReplicaCount_ = 0;
+        MasterStoredJournalReplicaCount_ = 0;
+        MasterStoredBlobReplicaCount_ = 0;
 
         ChunkRequisitionRegistry_.Clear();
 
@@ -7328,9 +7327,7 @@ private:
             .With("Address", node->GetDefaultAddress())
             .With("Reason", reason);
 
-        if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
-            UpdateNonSequoiaChunkReplicaCount(chunk, 1);
-        }
+        UpdateMasterStoredChunkReplicaCount(chunk, 1);
 
         ScheduleChunkRefresh(chunk);
         ScheduleChunkSeal(chunk);
@@ -7416,7 +7413,7 @@ private:
 
         ScheduleChunkRefresh(chunk);
 
-        UpdateNonSequoiaChunkReplicaCount(chunk, -1);
+        UpdateMasterStoredChunkReplicaCount(chunk, -1);
     }
 
     std::pair<TChunkLocation*, TDomesticMedium*> FindLocationAndMediumOnProcessChunk(
@@ -7760,10 +7757,8 @@ private:
             buffer.AddCounter("/erasure_chunk_count", ErasureChunkCount_);
             buffer.AddCounter("/regular_chunk_count", RegularChunkCount_);
 
-            // These are not actually non-Sequoia, but chunk replicas that are stored on master
-            // (they can be stored in Sequoia as well).
-            buffer.AddGauge("/non_sequoia_blob_chunk_replica_count", NonSequoiaBlobReplicaCount_);
-            buffer.AddGauge("/non_sequoia_journal_chunk_replica_count", NonSequoiaJournalReplicaCount_);
+            buffer.AddGauge("/master_stored_blob_chunk_replica_count", MasterStoredBlobReplicaCount_);
+            buffer.AddGauge("/master_stored_journal_chunk_replica_count", MasterStoredJournalReplicaCount_);
 
             buffer.AddGauge("/chunk_view_count", ChunkViewMap_.GetSize());
             buffer.AddCounter("/chunk_views_created", ChunkViewsCreated_);
