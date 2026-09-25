@@ -114,6 +114,34 @@ TEST(TKafkaClientConfigTest, RequiresBrokers)
     EXPECT_NO_THROW(Parse<TKafkaClientConfig>("{bootstrap_servers=\"broker:9092\"}"));
 }
 
+TEST(TKafkaClientConfigTest, DerivesTheClusterIdentityFromTheBrokersByDefault)
+{
+    auto config = Parse<TKafkaClientConfig>(R"({bootstrap_servers="a:9092,b:9092"})");
+
+    EXPECT_TRUE(config->ClusterName.empty());
+    EXPECT_EQ(GetKafkaClusterIdentity(config), "a:9092,b:9092");
+}
+
+TEST(TKafkaClientConfigTest, TakesTheClusterIdentityFromTheClusterName)
+{
+    // The broker list may then change without touching the source partition keys.
+    auto config = Parse<TKafkaClientConfig>(R"({bootstrap_servers="a:9092,b:9092";cluster_name=main})");
+    auto moved = Parse<TKafkaClientConfig>(R"({bootstrap_servers="c:9092";cluster_name=main})");
+
+    EXPECT_EQ(GetKafkaClusterIdentity(config), "main");
+    EXPECT_EQ(GetKafkaClusterIdentity(moved), "main");
+}
+
+TEST(TKafkaClientConfigTest, KeepsTheIdentityWhenTheClusterNameSpellsTheOldBrokers)
+{
+    // The migration path for a pipeline that already has state: name the cluster after the broker list
+    // its keys were derived from, then change the broker list.
+    auto before = Parse<TKafkaClientConfig>(R"({bootstrap_servers="a:9092"})");
+    auto after = Parse<TKafkaClientConfig>(R"({bootstrap_servers="b:9092";cluster_name="a:9092"})");
+
+    EXPECT_EQ(GetKafkaClusterIdentity(before), GetKafkaClusterIdentity(after));
+}
+
 TEST(TKafkaClientConfigTest, RejectsReservedExtraConfigKeys)
 {
     // Keys the connector owns are applied after extra_config, so a value here would be silently

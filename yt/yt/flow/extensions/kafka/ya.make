@@ -9,6 +9,7 @@ ADDINCL(
 )
 
 SRCS(
+    helpers.cpp
     kafka_client.cpp
     kafka_info.cpp
     read_session.cpp

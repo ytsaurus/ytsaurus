@@ -548,8 +548,8 @@ TKafkaSourceController::TKafkaSourceController(
     TSourceControllerContextPtr context,
     TDynamicSourceControllerContextPtr dynamicContext)
     : TSourceControllerBase(std::move(context), std::move(dynamicContext))
-    , BootstrapServers_(
-        GetContext()->GetStaticResource(KafkaClientDefaultResourceId)->As<TKafkaClient>()->GetBootstrapServers())
+    , ClusterIdentity_(
+        GetContext()->GetStaticResource(KafkaClientDefaultResourceId)->As<TKafkaClient>()->GetClusterIdentity())
     , Info_(New<TKafkaInfoController>(
         GetParameters(),
         GetContext()->GetStaticResource(KafkaClientDefaultResourceId)->As<TKafkaClient>(),
@@ -599,7 +599,7 @@ std::optional<THashMap<TKey, IMapNodePtr>> TKafkaSourceController::ListKeys()
 
 std::string TKafkaSourceController::GetSourceIdentity() const
 {
-    return MakeSourceIdentity({BootstrapServers_, GetParameters()->Topic});
+    return MakeSourceIdentity({ClusterIdentity_, GetParameters()->Topic});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
