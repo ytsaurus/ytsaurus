@@ -268,17 +268,17 @@ TQueryContext::TQueryContext(
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
-        for (const auto& [cluster, locks] : RemoteSnapshotLocks) {
-            Y_UNUSED(locks);
+        for (const auto& cluster : RemoteClusters_) {
             if (!RemoteReadTransactionIds.contains(cluster)) {
                 THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
                     .With("cluster", cluster);
             }
-        }
-        for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
-            Y_UNUSED(transactionId);
             if (!RemoteSnapshotLocks.contains(cluster)) {
                 THROW_ERROR_EXCEPTION("Missing snapshot locks for remote cluster in secondary query")
+                    .With("cluster", cluster);
+            }
+            if (!RemoteDynamicTableReadTimestamps.contains(cluster)) {
+                THROW_ERROR_EXCEPTION("Missing dynamic table read timestamp for remote cluster")
                     .With("cluster", cluster);
             }
         }
@@ -448,7 +448,11 @@ TTransactionId TQueryContext::GetReadTransactionId(const std::optional<std::stri
         return ReadTransactionId;
     }
     auto it = RemoteReadTransactionIds.find(*cluster);
-    return it == RemoteReadTransactionIds.end() ? NullTransactionId : it->second;
+    if (it == RemoteReadTransactionIds.end()) {
+        THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
+            .With("cluster", *cluster);
+    }
+    return it->second;
 }
 
 TTimestamp TQueryContext::GetDynamicTableReadTimestamp(const std::optional<std::string>& cluster) const
