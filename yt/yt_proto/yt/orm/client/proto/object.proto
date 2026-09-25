@@ -655,21 +655,6 @@ extend google.protobuf.FileOptions
     // If true, treats default value and field absence as equal.
     optional bool compare_absent_value_as_default = 30056;
 
-    // Exposes the /control/partition_objects method on the schema object. Edition flag: defaults on
-    // at edition 1+; an installation below edition 1 (or pinning it |= false|) keeps the control
-    // field dropped. The codegen drops the schema control field unless the effective value is set.
-    optional bool enable_schema_partition_objects = 30062 [(edition_flag) = {
-        at_edition: 1
-        description: "Expose /control/partition_objects on the schema object."
-    }];
-    // Exposes the /control/watch_log_info method on the schema object. Edition flag: defaults on at
-    // edition 1+; an installation below edition 1 (or pinning it |= false|) keeps the control field
-    // dropped. The codegen drops the schema control field unless the effective value is set.
-    optional bool enable_schema_watch_log_info = 30060 [(edition_flag) = {
-        at_edition: 1
-        description: "Expose /control/watch_log_info on the schema object."
-    }];
-
     // Adds the |tags| field to TAccessControlEntry. Edition flag: defaults on at edition 7+; an
     // installation below edition 7 (or pinning it |= false|) keeps the field dropped.
     optional bool enable_acl_entry_tags = 30066 [(edition_flag) = {
