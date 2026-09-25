@@ -430,6 +430,11 @@ void TMkFsConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("type", &TThis::Type)
         .Default("ext4");
+    registrar.Parameter("lazy_initialization", &TThis::LazyInitialization)
+        .Default(false);
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .Default()
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -438,9 +443,31 @@ void TMkFsAsRootTool::operator()(const TMkFsConfigPtr& config) const
 {
     // Child process
     TrySetUid(0);
-    execl("/usr/sbin/mke2fs", "/usr/sbin/mke2fs", "-F", "-q", "-t", config->Type.c_str(), config->Path.c_str(), (void*)nullptr);
 
-    THROW_ERROR_EXCEPTION("Failed to make filesystem for %v: execl failed",
+    std::vector<const char*> args{
+        "/usr/sbin/mke2fs",
+        "-F",
+        "-q",
+        "-t",
+        config->Type.c_str(),
+    };
+    if (config->LazyInitialization) {
+        // Do not eagerly zero the inode tables and journal; the kernel does it lazily after mount.
+        args.push_back("-E");
+        args.push_back("lazy_itable_init=1,lazy_journal_init=1");
+    }
+    TString blockSize;
+    if (config->BlockSize) {
+        blockSize = ToString(*config->BlockSize);
+        args.push_back("-b");
+        args.push_back(blockSize.c_str());
+    }
+    args.push_back(config->Path.c_str());
+    args.push_back(nullptr);
+
+    execv(args[0], const_cast<char* const*>(args.data()));
+
+    THROW_ERROR_EXCEPTION("Failed to make filesystem for %v: execv failed",
         config->Path).With(TError::FromSystem());
 }
 
