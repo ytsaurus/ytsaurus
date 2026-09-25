@@ -12,10 +12,15 @@ SRCS(
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
+    cell_master/cypress_integration.cpp
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
     cell_master/hydra_facade.cpp
     cell_master/hive_profiling_manager.cpp
+    cell_master/master_cell_group.cpp
+    cell_master/master_cell_group_manager.cpp
+    cell_master/master_cell_group_proxy.cpp
+    cell_master/master_cell_group_type_handler.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp

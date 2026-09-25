@@ -202,6 +202,10 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("max_master_cell_group_count", &TThis::MaxMasterCellGroupCount)
+        .GreaterThan(0)
+        .Default(10);
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 

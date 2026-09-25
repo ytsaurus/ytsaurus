@@ -2315,6 +2315,15 @@ def remove_network_project(name, **kwargs):
     remove("//sys/network_projects/" + name, **kwargs)
 
 
+def create_master_cell_group(name, cell_tags, **kwargs):
+    kwargs["type"] = "master_cell_group"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    kwargs["attributes"]["cell_tags"] = cell_tags
+    return execute_command("create", kwargs, parse_yson=True)
+
+
 def create_proxy_role(name, proxy_kind, **kwargs):
     kwargs["type"] = "proxy_role"
     if "attributes" not in kwargs:
