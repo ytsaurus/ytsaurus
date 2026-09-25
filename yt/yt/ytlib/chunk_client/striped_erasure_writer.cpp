@@ -45,7 +45,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         std::vector<IChunkWriterPtr> writers)
         : Config_(std::move(config))
-        , Codec_(NErasure::GetCodec(codecId))
+        , Codec_(NErasure::GetCodecOrThrow(codecId))
         , SessionId_(sessionId)
         , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(std::move(writers))
@@ -56,9 +56,10 @@ public:
             workloadDescriptor.GetPriority()))
         , BlockReorderer_(Config_)
     {
-        YT_VERIFY(std::ssize(Writers_) == Codec_->GetTotalPartCount());
+        const auto& codecParams = Codec_->GetParams();
+        YT_VERIFY(std::ssize(Writers_) == codecParams.TotalPartCount);
 
-        for (int index = 0; index < Codec_->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < codecParams.TotalPartCount; ++index) {
             PlacementExt_.add_part_infos();
         }
 
@@ -245,7 +246,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return blockSize * Codec_->GetTotalPartCount() / Codec_->GetDataPartCount();
+        const auto& codecParams = Codec_->GetParams();
+        return blockSize * codecParams.TotalPartCount / codecParams.DataPartCount;
     }
 
     bool UpdateWindowSize(i64 delta)
@@ -344,7 +346,7 @@ private:
             segmentSize += block.Size();
 
             // segmentSize / dataPartCount >= desiredSegmentPartSize
-            auto desiredSegmentSize = Config_->DesiredSegmentPartSize * Codec_->GetDataPartCount();
+            auto desiredSegmentSize = Config_->DesiredSegmentPartSize * Codec_->GetParams().DataPartCount;
             if (segmentSize >= desiredSegmentSize || FlushQueue_.empty()) {
                 // Small segments are bad, so if the rest of the group is small enough,
                 // we add it to last segment.
@@ -414,11 +416,12 @@ private:
 
         i64 dataSize;
 
-        auto dataPartCount = Codec_->GetDataPartCount();
-        if (Codec_->IsBytewise()) {
+        const auto& codecParams = Codec_->GetParams();
+        auto dataPartCount = codecParams.DataPartCount;
+        if (codecParams.Bytewise) {
             dataSize = RoundUp<i64>(segmentSize, dataPartCount);
         } else {
-            dataSize = RoundUp<i64>(segmentSize, dataPartCount * Codec_->GetWordSize());
+            dataSize = RoundUp<i64>(segmentSize, dataPartCount * codecParams.WordSize);
         }
 
         auto partSize = dataSize / dataPartCount;
@@ -441,7 +444,7 @@ private:
         auto parityParts = Codec_->Encode(dataParts);
 
         std::vector<TBlock> parts;
-        parts.reserve(Codec_->GetTotalPartCount());
+        parts.reserve(codecParams.TotalPartCount);
         for (const auto& part : dataParts) {
             parts.push_back(TBlock(part));
         }

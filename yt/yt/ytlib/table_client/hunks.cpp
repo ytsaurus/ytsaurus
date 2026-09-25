@@ -2371,7 +2371,7 @@ public:
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
 
         if (auto codecId = Underlying_->GetErasureCodecId(); codecId != NErasure::ECodec::None) {
-            DataPartCount_ = NErasure::GetCodec(codecId)->GetDataPartCount();
+            DataPartCount_ = NErasure::GetCodecOrThrow(codecId)->GetParams().DataPartCount;
         }
     }
 

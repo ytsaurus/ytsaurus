@@ -1630,8 +1630,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto codecId = ConvertTo<NErasure::ECodec>(value);
             if (codecId != NErasure::ECodec::None) {
-                auto* codec = NErasure::GetCodec(codecId);
-                if (!codec->IsBytewise()) {
+                auto* codec = NErasure::GetCodecOrThrow(codecId);
+                if (!codec->GetParams().Bytewise) {
                     THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure hunks",
                         codecId);
                 }

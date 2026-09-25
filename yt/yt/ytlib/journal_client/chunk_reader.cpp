@@ -82,7 +82,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
 NErasure::TPartIndexList GetPartIndexesToRead(TChunkId chunkId, NErasure::ICodec* codec)
 {
     if (TypeFromId(chunkId) == EObjectType::ErasureJournalChunk) {
-        int dataPartCount = codec->GetDataPartCount();
+        int dataPartCount = codec->GetParams().DataPartCount;
         NErasure::TPartIndexList result;
         result.resize(dataPartCount);
         std::iota(result.begin(), result.end(), 0);
@@ -349,7 +349,7 @@ IChunkReaderPtr CreateChunkReader(
             std::move(remoteReaderOptions),
             std::move(chunkReaderHost),
             chunkId,
-            NErasure::GetCodec(codecId),
+            NErasure::GetCodecOrThrow(codecId),
             std::move(replicas));
     }
 }

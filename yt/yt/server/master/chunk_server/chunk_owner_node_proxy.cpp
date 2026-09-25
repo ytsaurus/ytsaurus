@@ -126,7 +126,7 @@ static void PopulateChunkSpecWithReplicas(
     auto erasureCodecId = FromProto<NErasure::ECodec>(chunkSpec->erasure_codec());
     auto firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
         ? std::numeric_limits<int>::max() // all replicas are feasible
-        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
+        : NErasure::GetCodecOrThrow(erasureCodecId)->GetParams().DataPartCount;
 
     for (auto replica : chunkReplicas) {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {

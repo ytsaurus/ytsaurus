@@ -220,7 +220,7 @@ void ExecTest(TTestCase testCase)
     TFastRng64 rng(27);
     const auto rows = GenerateRandomRows(rng, TotalRowCount, RowByteSize);
 
-    auto* codec = NErasure::GetCodec(NErasure::ECodec::IsaReedSolomon_3_3);
+    auto* codec = NErasure::GetCodecOrThrow(NErasure::ECodec::IsaReedSolomon_3_3);
     auto encodedRows = NJournalClient::EncodeErasureJournalRows(codec, rows);
 
     EXPECT_EQ(encodedRows.size(), 6u);

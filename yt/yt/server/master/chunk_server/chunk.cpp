@@ -173,8 +173,8 @@ i64 TChunk::GetPartDiskSpace() const
     auto result = GetDiskSpace();
     auto codecId = GetErasureCodec();
     if (codecId != NErasure::ECodec::None) {
-        auto* codec = NErasure::GetCodec(codecId);
-        result /= codec->GetTotalPartCount();
+        auto* codec = NErasure::GetCodecOrThrow(codecId);
+        result /= codec->GetParams().TotalPartCount;
     }
 
     return result;
@@ -588,8 +588,8 @@ bool TChunk::IsAvailable() const
 
         case EObjectType::ErasureChunk:
         case EObjectType::ErasureJournalChunk: {
-            auto* codec = NErasure::GetCodec(GetErasureCodec());
-            int dataPartCount = codec->GetDataPartCount();
+            auto* codec = NErasure::GetCodecOrThrow(GetErasureCodec());
+            int dataPartCount = codec->GetParams().DataPartCount;
             NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
             for (auto replica : storedReplicas) {
                 missingIndexSet.reset(replica.GetReplicaIndex());
@@ -687,9 +687,9 @@ void TChunk::Seal(const TChunkSealInfo& info)
     // An approximation.
     auto diskSpace = info.uncompressed_data_size();
     if (IsErasure()) {
-        auto* codec = NErasure::GetCodec(GetErasureCodec());
+        auto* codec = NErasure::GetCodecOrThrow(GetErasureCodec());
         // NB: Chunk seal info contains statistics from a single replica hence we multiply.
-        diskSpace *= codec->GetTotalPartCount();
+        diskSpace *= codec->GetParams().TotalPartCount;
     }
 
     SetDiskSpace(diskSpace);
@@ -724,10 +724,10 @@ int TChunk::GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitio
     }
 
     if (IsErasure()) {
-        auto* codec = NErasure::GetCodec(GetErasureCodec());
+        const auto& codecParams = NErasure::GetCodecOrThrow(GetErasureCodec())->GetParams();
         return mediumReplicationPolicy.GetDataPartsOnly()
-            ? codec->GetDataPartCount()
-            : codec->GetTotalPartCount();
+            ? codecParams.DataPartCount
+            : codecParams.TotalPartCount;
     } else {
         return mediumReplicationPolicy.GetReplicationFactor();
     }
@@ -745,8 +745,8 @@ int TChunk::GetMaxReplicasPerFailureDomain(
         }
 
         case EObjectType::ErasureChunk: {
-            auto* codec = NErasure::GetCodec(GetErasureCodec());
-            return codec->GetGuaranteedRepairablePartCount();
+            auto* codec = NErasure::GetCodecOrThrow(GetErasureCodec());
+            return codec->GetParams().GuaranteedRepairablePartCount;
         }
 
         case EObjectType::JournalChunk:

@@ -535,8 +535,8 @@ i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
         // data size is assumed to be split evenly between data parts.
         auto codecId = InputChunk_->GetErasureCodec();
         if (codecId != NErasure::ECodec::None) {
-            auto* codec = NErasure::GetCodec(codecId);
-            int dataPartCount = codec->GetDataPartCount();
+            auto* codec = NErasure::GetCodecOrThrow(codecId);
+            int dataPartCount = codec->GetParams().DataPartCount;
             result = (result + dataPartCount - 1) / dataPartCount;
         }
     } else if (PartIndex_ != replicaPartIndex) {
@@ -712,8 +712,8 @@ std::vector<TInputChunkSlicePtr> CreateInputChunkSlicesFromCompleteErasureChunk(
     i64 uncompressedDataSize = inputChunk->GetUncompressedDataSize();
     i64 rowCount = inputChunk->GetRowCount();
 
-    auto* codec = NErasure::GetCodec(codecId);
-    int dataPartCount = codec->GetDataPartCount();
+    auto* codec = NErasure::GetCodecOrThrow(codecId);
+    int dataPartCount = codec->GetParams().DataPartCount;
 
     for (int partIndex = 0; partIndex < dataPartCount; ++partIndex) {
         i64 sliceLowerRowIndex = rowCount * partIndex / dataPartCount;

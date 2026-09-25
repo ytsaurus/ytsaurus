@@ -544,7 +544,7 @@ private:
     TPartIndexList GetErasedIndices(const TPartIndexList& availableIndices) const
     {
         TPartIndexSet set;
-        for (int index = 0; index < Reader_->Codec_->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < Reader_->Codec_->GetParams().TotalPartCount; ++index) {
             set.insert(index);
         }
         for (int index : availableIndices) {

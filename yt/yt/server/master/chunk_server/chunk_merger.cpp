@@ -1759,7 +1759,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         ? outputChunk->GetAggregatedReplicationFactor(
             chunkIdWithIndexes.MediumIndex,
             chunkRequisitionRegistry)
-        : NErasure::GetCodec(erasureCodec)->GetTotalPartCount();
+        : NErasure::GetCodecOrThrow(erasureCodec)->GetParams().TotalPartCount;
 
     // TODO(gritukan): Support external media in chunk merger.
     auto* medium = chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex);
