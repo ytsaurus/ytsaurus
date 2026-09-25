@@ -285,6 +285,7 @@ private:
     {
         const TNodeAddress Address;
         TMetric Metric;
+        double MetricTotal = 0.0;
         i64 FreeNodeMemory = 0;
         i64 CellMemoryLimit;
         int Index;
@@ -321,6 +322,25 @@ private:
         TTabletInfo* Tablet;
 
         TMetric MetricDiff;
+    };
+
+    struct TTabletMoveBaseline
+    {
+        TMetric TabletNodeMetric;
+        TMetric TabletTableNodeMetric;
+        TMetric TabletCellMetric;
+        TMetric TabletTableCellMetric;
+        TMetric DoubledTabletMetric;
+        TMetric TableCellFactor;
+        TMetric TableNodeFactor;
+    };
+
+    // Reused only while evaluating destinations for one tablet against unchanged loads.
+    struct TMoveTabletContext
+    {
+        TNodeInfo* DestinationNode = nullptr;
+        TMetric MetricDiffBeforeDestinationCell;
+        double MetricImprovementUpperBound = 0.0;
     };
 
     const TTabletCellBundlePtr Bundle_;
@@ -508,6 +528,10 @@ private:
         }
 
         CalculateAndApplyTableFactors();
+
+        for (auto& [address, node] : Nodes_) {
+            node.MetricTotal = node.Metric.GetTotalValue();
+        }
 
         for (int index = 0; index < std::ssize(Cells_); ++index) {
             SortedCellIndexes_.emplace_back(index);
@@ -781,11 +805,30 @@ private:
              destinationCell->Node->SafeFreeMemoryAmount <= destinationCell->Node->FreeNodeMemory - size);
     }
 
+    Y_FORCE_INLINE TTabletMoveBaseline ComputeTabletBaseline(const TTabletInfo& tablet) const
+    {
+        TTabletMoveBaseline baseline;
+
+        baseline.TabletNodeMetric = tablet.Metric * NodeFactor_;
+        baseline.TabletCellMetric = tablet.Metric * CellFactor_;
+        baseline.DoubledTabletMetric = tablet.Metric * 2;
+
+        baseline.TableCellFactor = TableCellFactors_[tablet.TableIndex];
+        baseline.TableNodeFactor = TableNodeFactors_[tablet.TableIndex];
+
+        baseline.TabletTableCellMetric = tablet.Metric * baseline.TableCellFactor;
+        baseline.TabletTableNodeMetric = tablet.Metric * baseline.TableNodeFactor;
+
+        return baseline;
+    }
+
     //! Generates an action moving |tablet| to |cell|. Returns |false| when the pruning
     //! heuristic suggests stopping the iteration.
     Y_FORCE_INLINE bool TryMoveTablet(
         TTabletInfo* tablet,
         TTabletCellInfo* cell,
+        const TTabletMoveBaseline& baseline,
+        TMoveTabletContext* context,
         TBoundedPriorityQueue<TMoveActionInfo>* moveActions)
     {
         double bestDiscardedCost = moveActions->GetBestDiscardedCost();
@@ -825,24 +868,30 @@ private:
             return true;
         }
 
-        TMetric newMetricDiff;
+        if (context->DestinationNode != destinationNode) {
+            TMetric newMetricDiff;
 
-        if (sourceNode != destinationNode) {
-            newMetricDiff +=
-                (sourceNode->Metric - destinationNode->Metric - tablet->Metric * NodeFactor_) * NodeFactor_;
+            if (sourceNode != destinationNode) {
+                newMetricDiff +=
+                    (sourceNode->Metric - destinationNode->Metric - baseline.TabletNodeMetric) * NodeFactor_;
+
+                newMetricDiff +=
+                    (TableByNodeMetric_(tableIndex, sourceNode->Index) -
+                        TableByNodeMetric_(tableIndex, destinationNode->Index) -
+                        baseline.TabletTableNodeMetric) *
+                    baseline.TableNodeFactor * TableNormalizingCoefficient_;
+            }
+
+            newMetricDiff += (sourceCell->Metric - baseline.TabletCellMetric) * CellFactor_;
 
             newMetricDiff +=
-                (TableByNodeMetric_(tableIndex, sourceNode->Index) -
-                    TableByNodeMetric_(tableIndex, destinationNode->Index) -
-                    tablet->Metric * TableNodeFactors_[tableIndex]) *
-                TableNodeFactors_[tableIndex] * TableNormalizingCoefficient_;
+                (TableByCellMetric_(tableIndex, sourceCell->Index) - baseline.TabletTableCellMetric) *
+                baseline.TableCellFactor * TableNormalizingCoefficient_;
+
+            context->DestinationNode = destinationNode;
+            context->MetricDiffBeforeDestinationCell = newMetricDiff;
+            context->MetricImprovementUpperBound = (newMetricDiff * baseline.DoubledTabletMetric).GetTotalValue();
         }
-
-        newMetricDiff += (sourceCell->Metric - tablet->Metric * CellFactor_) * CellFactor_;
-
-        newMetricDiff +=
-            (TableByCellMetric_(tableIndex, sourceCell->Index) - tablet->Metric * TableCellFactors_[tableIndex]) *
-            TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
 
         // NB(dave11ar, ifsmirnov): Sorting nodes by their total metric does not guarantee
         // that the bound below decreases for subsequent nodes, even with a single metric,
@@ -850,22 +899,23 @@ private:
         // With multiple metrics, component weights can also break this monotonicity.
         // Stopping the search here may therefore miss a better action, but we consider
         // this heuristic good enough to keep the search inexpensive.
-        if ((newMetricDiff * (tablet->Metric * 2)).GetTotalValue() < bestDiscardedCost) {
-            // Current value of newMetricDiff takes into account the "positive" part
+        if (context->MetricImprovementUpperBound < bestDiscardedCost) {
+            // The cached metric difference takes into account the "positive" part
             // (a certain tablet was moved from a certain node&cell) and partly
             // the "negative" part (a certain tablet is moved to a certain node).
-            // It overestimates the final newMetricDiff value. If this overestimate
+            // It overestimates the final metric improvement. If this overestimate
             // is below best discarded cost then the current action can be discarded.
             // Stopping the search for further actions is a heuristic; see the caveat above.
             return false;
         }
 
+        auto newMetricDiff = context->MetricDiffBeforeDestinationCell;
         newMetricDiff -= cell->Metric * CellFactor_;
 
         newMetricDiff -=
-            TableByCellMetric_(tableIndex, cell->Index) * TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
+            TableByCellMetric_(tableIndex, cell->Index) * baseline.TableCellFactor * TableNormalizingCoefficient_;
 
-        newMetricDiff *= tablet->Metric * 2;
+        newMetricDiff *= baseline.DoubledTabletMetric;
 
         YT_TLOG_DEBUG_IF(
             Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
@@ -931,7 +981,9 @@ private:
         if (BestActionInfo_.SourceCell->Node != BestActionInfo_.DestinationCell->Node) {
             BestActionInfo_.Tablet->NodeIndex = BestActionInfo_.DestinationCell->Node->Index;
             BestActionInfo_.SourceCell->Node->Metric -= BestActionInfo_.Tablet->Metric * NodeFactor_;
+            BestActionInfo_.SourceCell->Node->MetricTotal = BestActionInfo_.SourceCell->Node->Metric.GetTotalValue();
             BestActionInfo_.DestinationCell->Node->Metric += BestActionInfo_.Tablet->Metric * NodeFactor_;
+            BestActionInfo_.DestinationCell->Node->MetricTotal = BestActionInfo_.DestinationCell->Node->Metric.GetTotalValue();
 
             TableByNodeMetric_(BestActionInfo_.Tablet->TableIndex, BestActionInfo_.SourceCell->Node->Index) -=
                 BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
@@ -1026,17 +1078,21 @@ private:
 
         ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
+                auto baseline = ComputeTabletBaseline(tablet);
                 auto* sourceCell = &Cells_[tablet.CellIndex];
 
                 if (std::find(bannedNodes.begin(), bannedNodes.end(), sourceCell->Node) != bannedNodes.end()) {
+                    TMoveTabletContext context;
                     for (auto cellIndex : SortedCellIndexes_) {
-                        if (!TryMoveTablet(&tablet, &Cells_[cellIndex], moveActions)) {
+                        if (!TryMoveTablet(&tablet, &Cells_[cellIndex], baseline, &context, moveActions)) {
                             break;
                         }
                     }
                 } else {
+                    std::array<TMoveTabletContext, 2> contexts;
                     for (auto* cell : invalidatedCells) {
-                        TryMoveTablet(&tablet, cell, moveActions);
+                        auto* context = &contexts[cell->Node == bannedNodes[0] ? 0 : 1];
+                        TryMoveTablet(&tablet, cell, baseline, context, moveActions);
                     }
                 }
             }
@@ -1049,8 +1105,10 @@ private:
 
         ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
+                auto baseline = ComputeTabletBaseline(tablet);
+                TMoveTabletContext context;
                 for (auto cellIndex : SortedCellIndexes_) {
-                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex], moveActions)) {
+                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex], baseline, &context, moveActions)) {
                         break;
                     }
                 }
@@ -1061,7 +1119,7 @@ private:
     bool TryFindBestAction()
     {
         std::sort(SortedCellIndexes_.begin(), SortedCellIndexes_.end(), [&] (auto lhs, auto rhs) {
-            return Cells_[lhs].Node->Metric.GetTotalValue() < Cells_[rhs].Node->Metric.GetTotalValue();
+            return Cells_[lhs].Node->MetricTotal < Cells_[rhs].Node->MetricTotal;
         });
 
         if (MoveActions_.IsEmpty()) {

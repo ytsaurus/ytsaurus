@@ -113,12 +113,16 @@ std::array<double, MaxMetricCount> TParameterizedMetricsEvaluator::EvaluateTable
 
     auto rowBuffer = New<TRowBuffer>();
 
+    auto statistics = ConvertToYsonString(tablet->Statistics.OriginalNode);
+    auto performanceCounters = tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, schema);
+    std::vector<NOrm::NQuery::TNonOwningAttributePayload> attributePayloads{
+        TYsonStringBuf(statistics),
+        TYsonStringBuf(performanceCounters),
+    };
+
     for (int index = 0; index < std::ssize(Evaluators_); ++index) {
-        auto rawValue = Evaluators_[index]->Evaluate({
-            ConvertToYsonString(tablet->Statistics.OriginalNode),
-            tablet->GetPerformanceCountersYson(PerformanceCountersKeys_, schema)
-        },
-        rowBuffer).ValueOrThrow();
+        auto rawValue = Evaluators_[index]->Evaluate(attributePayloads, rowBuffer)
+            .ValueOrThrow();
 
         auto value = ExtractMetricValue(rawValue, Metrics_[index], tablet->Id, tableId);
         if (value < 0.0) {
