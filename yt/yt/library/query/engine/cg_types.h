@@ -108,7 +108,6 @@ struct TTypeBuilder<bool>
 template <>
 struct TTypeBuilder<TRowHeader>
 {
-public:
     enum Fields
     {
         Count,
@@ -126,7 +125,6 @@ public:
 template <>
 struct TTypeBuilder<TRow>
 {
-public:
     using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
@@ -144,7 +142,6 @@ public:
 template <>
 struct TTypeBuilder<TMutableRow>
 {
-public:
     using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
@@ -162,7 +159,6 @@ public:
 template <>
 struct TTypeBuilder<TExpressionClosure>
 {
-public:
     using TOpaqueValues = TTypeBuilder<void* const*>;
     using TBuffer = TTypeBuilder<TExpressionContext*>;
 
@@ -185,7 +181,6 @@ public:
 template <>
 struct TTypeBuilder<TJoinComparers>
 {
-public:
     enum Fields
     {
         PrefixEqComparer,
@@ -213,7 +208,6 @@ public:
 template <>
 struct TTypeBuilder<TNestedExecutionContext>
 {
-public:
     enum Fields
     {
         ExpressionContext,

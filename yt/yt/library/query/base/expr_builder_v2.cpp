@@ -84,7 +84,7 @@ struct TAliasResolver
     { }
 };
 
-struct TExpressionBuilderV2
+class TExpressionBuilderV2
     : public TExpressionBuilder
 {
 public:

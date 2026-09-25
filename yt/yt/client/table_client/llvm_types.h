@@ -18,7 +18,6 @@ using llvm::ArrayRef;
 template <>
 struct TTypeBuilder<NYT::NTableClient::TUnversionedValueData>
 {
-public:
     using TBoolean = TTypeBuilder<char>;
     using TInt64 = TTypeBuilder<i64>;
     using TUint64 = TTypeBuilder<ui64>;
@@ -72,7 +71,6 @@ public:
 template <>
 struct TTypeBuilder<NYT::NTableClient::TUnversionedValue>
 {
-public:
     using TId = TTypeBuilder<ui16>;
     using TType = TTypeBuilder<ui8>;
     using TAggregate = TTypeBuilder<ui8>;

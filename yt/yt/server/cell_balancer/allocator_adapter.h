@@ -11,7 +11,6 @@ namespace NYT::NCellBalancer {
 struct IAllocatorAdapter
     : public TRefCounted
 {
-public:
     virtual bool IsNewAllocationAllowed(
         const TBundleInfoPtr& /*bundleInfo*/,
         const std::string& /*dataCenterName*/,

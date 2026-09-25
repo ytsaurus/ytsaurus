@@ -62,7 +62,6 @@ bool operator==(const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs)
 
 struct TChunkInfo
 {
-public:
     TChunkInfo(
         TChunk* chunk,
         std::optional<i64> rowIndex = {},

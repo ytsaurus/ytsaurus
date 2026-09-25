@@ -301,7 +301,6 @@ struct TRootDirectoryBuilderTool
 struct TMkFsConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::string Path;
     std::string Type;
 
@@ -328,7 +327,6 @@ struct TMkFsAsRootTool
 struct TChangeOomScoreAdjAsRootConfig
     : public NYTree::TYsonStruct
 {
-public:
     pid_t Pid;
     int Score;
 

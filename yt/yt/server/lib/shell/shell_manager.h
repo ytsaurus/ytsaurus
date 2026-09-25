@@ -23,7 +23,6 @@ namespace NYT::NShell {
 
 struct TShellManagerConfig
 {
-public:
     std::string PreparationDir;
     std::string WorkingDir;
 

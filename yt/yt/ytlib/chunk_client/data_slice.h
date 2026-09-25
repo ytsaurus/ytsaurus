@@ -12,7 +12,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDataSlice
+class TDataSlice
     : public TRefCounted
 {
 public:
