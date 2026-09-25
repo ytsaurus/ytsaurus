@@ -4,6 +4,7 @@
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
 
 using namespace NYql::NDq;
+using ESuspendStatus = IScheduler::ESuspendStatus;
 
 namespace {
 NYql::NDqProto::TAllocateWorkersRequest MakeRequest(ui32 count, const TString& user) {
@@ -311,16 +312,48 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto scheduler = IScheduler::Make(cfg);
         UNIT_ASSERT(scheduler);
         const TString user = "user1";
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, user), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, user), {}}).Status == ESuspendStatus::Accepted);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
         scheduler->ProcessAll([](const IScheduler::TWaitInfo&) { return true; });
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
         for (int i = 0; i < 5; ++i) {
             UNIT_ASSERT_C(
-                scheduler->Suspend({MakeRequest(3U, user), {}}),
+                scheduler->Suspend({MakeRequest(3U, user), {}}).Status == ESuspendStatus::Accepted,
                 TStringBuilder() << "Failed on iteration " << i);
         }
-        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, user), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, user), {}}).Status == ESuspendStatus::PerUserLimit);
+    }
+
+    Y_UNIT_TEST(SuspendReportsLimitAndCounts) {
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetMaxOperations(2);
+        cfg.SetMaxOperationsPerUser(2);
+
+        NYql::TSensorsGroupPtr sensors = MakeIntrusive<NYql::TSensorsGroup>();
+        const auto scheduler = IScheduler::Make(cfg, NYql::CreateMetricsRegistry(sensors));
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+
+        const auto perUserLimit = scheduler->Suspend({MakeRequest(3U, "user1"), {}});
+        UNIT_ASSERT(perUserLimit.Status == ESuspendStatus::PerUserLimit);
+        UNIT_ASSERT_VALUES_EQUAL(perUserLimit.WaitingOperations, 2);
+        UNIT_ASSERT_VALUES_EQUAL(perUserLimit.Limit, 2);
+
+        const auto globalLimit = scheduler->Suspend({MakeRequest(3U, "user2"), {}});
+        UNIT_ASSERT(globalLimit.Status == ESuspendStatus::GlobalLimit);
+        UNIT_ASSERT_VALUES_EQUAL(globalLimit.WaitingOperations, 2);
+        UNIT_ASSERT_VALUES_EQUAL(globalLimit.Limit, 2);
+
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+        const auto perUserLimitAfterSmall = scheduler->Suspend({MakeRequest(3U, "user1"), {}});
+        UNIT_ASSERT(perUserLimitAfterSmall.Status == ESuspendStatus::PerUserLimit);
+        UNIT_ASSERT_VALUES_EQUAL(perUserLimitAfterSmall.WaitingOperations, 3);
+
+        const auto counters = sensors->FindSubgroup("component", "scheduler");
+        UNIT_ASSERT(counters);
+        UNIT_ASSERT_VALUES_EQUAL(counters->FindCounter("PerUserQueueLimitRejections")->Val(), 2);
+        UNIT_ASSERT_VALUES_EQUAL(counters->FindCounter("GlobalQueueLimitRejections")->Val(), 1);
     }
 
     Y_UNIT_TEST(ZeroPerUserOperationLimitRejectsNewUser) {
@@ -332,7 +365,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto rejectionCounter = sensors->GetSubgroup("component", "scheduler")
             ->GetCounter("PerUserQueueLimitRejections");
 
-        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user"), {}}).Status == ESuspendStatus::PerUserLimit);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
         UNIT_ASSERT(rejectionCounter->ForDerivative());
         UNIT_ASSERT_VALUES_EQUAL(rejectionCounter->Val(), 1);
@@ -354,8 +387,8 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto rejectionCounter = sensorsPtr->GetSubgroup("component", "scheduler")
             ->GetCounter("GlobalQueueLimitRejections");
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
-        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user2"), {}}).Status == ESuspendStatus::GlobalLimit);
         UNIT_ASSERT(rejectionCounter->ForDerivative());
         UNIT_ASSERT_VALUES_EQUAL(rejectionCounter->Val(), 1);
 
@@ -382,7 +415,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("KnownUsers")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(3U, 3U, process, now + TDuration::Minutes(1));
         scheduler->UpdateMetrics();
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 3);
@@ -405,14 +438,14 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(scheduler);
         UNIT_ASSERT(schedulerCounters);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         const auto user1Counters = schedulerCounters->FindSubgroup("user", "user1");
         UNIT_ASSERT(user1Counters);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 3);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 1);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 0);
 
-        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user2"), {}}).Status == ESuspendStatus::GlobalLimit);
         const auto user2Counters = schedulerCounters->FindSubgroup("user", "user2");
         UNIT_ASSERT(!user2Counters);
 
@@ -423,7 +456,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Allocated")->Val(), 3);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->ProcessAll(process);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("Await")->Val(), 0);
         UNIT_ASSERT_VALUES_EQUAL(user1Counters->FindCounter("AwaitOperations")->Val(), 0);
@@ -436,7 +469,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user1"));
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 0);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         const auto recreatedUser1Counters = schedulerCounters->FindSubgroup("user", "user1");
         UNIT_ASSERT(recreatedUser1Counters);
         scheduler->Process(3U, 3U, process, now + TDuration::Minutes(1));
@@ -491,7 +524,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     Y_UNIT_TEST(RunningLimiterDisabledByDefault) {
         const auto scheduler = IScheduler::Make();
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(12U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(12U, "user"), {}}).Status == ESuspendStatus::Accepted);
 
         ui32 allocatedCount = 0;
         scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
@@ -512,7 +545,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto runningLimitedQueueSize = sensors->GetSubgroup("component", "scheduler")
             ->GetCounter("RunningLimitedQueueSize");
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(43U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(43U, "user"), {}}).Status == ESuspendStatus::Accepted);
 
         ui32 allocatedCount = 0;
         scheduler->Process(100U, 100U, [&] (const IScheduler::TWaitInfo& info) {
@@ -528,7 +561,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
 
     Y_UNIT_TEST(RunningLimiterRoundsUp) {
         const auto scheduler = MakeRunningLimiterScheduler(21U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}).Status == ESuspendStatus::Accepted);
 
         ui32 allocatedCount = 0;
         scheduler->Process(21U, 21U, [&] (const IScheduler::TWaitInfo& info) {
@@ -537,7 +570,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         });
 
         UNIT_ASSERT_VALUES_EQUAL(allocatedCount, 11U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(21U, 21U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -552,12 +585,12 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             /*metricsRegistry*/ {},
             /*targetCapacity*/ 7U);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(7U, 7U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(7U, 7U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -570,13 +603,13 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             return true;
         };
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, allocate);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, allocate);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, allocate);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
     }
@@ -592,11 +625,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             return true;
         };
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, allocate);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user2"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, "user2"), {}}).Status == ESuspendStatus::Accepted);
 
         TVector<TString> allocatedUsers;
         scheduler->Process(20U, 6U, [&] (const IScheduler::TWaitInfo& info) {
@@ -623,11 +656,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     Y_UNIT_TEST(RunningLimiterReleasesUserQuota) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -654,7 +687,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto afterHistoryExpires = now + TDuration::Minutes(1);
         const auto allocate = [] (const IScheduler::TWaitInfo&) { return true; };
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, allocate, now);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("AllocatedTotal")->Val(), 10);
@@ -669,7 +702,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT(userCounters);
         UNIT_ASSERT_VALUES_EQUAL(userCounters->FindCounter("Allocated")->Val(), 0);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 10U, allocate, afterHistoryExpires);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
         UNIT_ASSERT_VALUES_EQUAL(schedulerCounters->FindCounter("RunningTotal")->Val(), 10);
@@ -697,7 +730,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto runningTotal = sensors->GetSubgroup("component", "scheduler")
             ->GetCounter("RunningTotal");
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -706,7 +739,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->UpdateMetrics();
 
         UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 4);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}).Status == ESuspendStatus::Accepted);
     }
 
     Y_UNIT_TEST(RunningLimiterSaturatesUnaccountedRelease) {
@@ -717,7 +750,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto runningTotal = sensors->GetSubgroup("component", "scheduler")
             ->GetCounter("RunningTotal");
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -726,7 +759,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         scheduler->UpdateMetrics();
 
         UNIT_ASSERT_VALUES_EQUAL(runningTotal->Val(), 0);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}).Status == ESuspendStatus::Accepted);
 
         ui32 allocatedCount = 0;
         scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
@@ -741,8 +774,8 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
     Y_UNIT_TEST(RunningLimiterDoesNotReserveQueuedCapacity) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user1"), {}}).Status == ESuspendStatus::Accepted);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 2U);
 
         ui32 allocatedCount = 0;
@@ -756,7 +789,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
 
     Y_UNIT_TEST(RunningLimiterUsesConfiguredTargetCapacity) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(6U, "user"), {}}).Status == ESuspendStatus::Accepted);
 
         TVector<ui32> allocatedCounts;
         const auto allocate = [&] (const IScheduler::TWaitInfo& info) {
@@ -772,18 +805,18 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
         UNIT_ASSERT_VALUES_EQUAL(allocatedCounts, TVector<ui32>({6U}));
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(4U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(8U, 8U, allocate);
         UNIT_ASSERT_VALUES_EQUAL(allocatedCounts, TVector<ui32>({6U, 4U}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(8U, 8U, allocate);
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
     }
 
     Y_UNIT_TEST(RunningLimiterQueuesOversizedRequestWithoutBlockingOtherUser) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(11U, "user"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "other-user"), {}}).Status == ESuspendStatus::Accepted);
 
         TVector<TString> allocatedUsers;
         scheduler->Process(20U, 20U, [&] (const IScheduler::TWaitInfo& info) {
@@ -797,13 +830,13 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
 
     Y_UNIT_TEST(RunningLimitedSmallDoesNotReserveCapacityFromLarge) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "limited-user"), {}}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(8U, "other-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "limited-user"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(8U, "other-user"), {}}).Status == ESuspendStatus::Accepted);
 
         ui32 limitedUserAllocated = 0;
         ui32 otherUserAllocated = 0;
@@ -828,14 +861,14 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
 
     Y_UNIT_TEST(RunningLimitedLargeDoesNotReserveCapacityFromSmall) {
         const auto scheduler = MakeRunningLimiterScheduler(20U);
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "limited-user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "limited-user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "limited-user"), {}}).Status == ESuspendStatus::Accepted);
         for (int index = 0; index < 3; ++index) {
-            UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "other-user"), {}}));
+            UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "other-user"), {}}).Status == ESuspendStatus::Accepted);
         }
 
         ui32 limitedUserAllocated = 0;
@@ -870,12 +903,12 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         const auto integralQueueSizeForLarge = schedulerCounters->GetCounter("IntegralQueueSizeForLarge");
         UNIT_ASSERT(!schedulerCounters->FindSubgroup("user", "user"));
 
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(10U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}));
-        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}));
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(2U, "user"), {}}).Status == ESuspendStatus::Accepted);
         scheduler->Process(20U, 20U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -897,11 +930,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             config,
             /*metricsRegistry*/ {},
             /*targetCapacity*/ 42U);
-        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(42U, "user"), {}}));
+        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(42U, "user"), {}}).Status == ESuspendStatus::Accepted);
         clampedScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
-        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(clampedScheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         clampedScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
@@ -909,7 +942,7 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
 
         config.SetLimitRunningTasksPerUserPercent(50);
         const auto disabledScheduler = IScheduler::Make(config);
-        UNIT_ASSERT(disabledScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(disabledScheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         ui32 allocatedCount = 0;
         disabledScheduler->Process(1U, 1U, [&] (const IScheduler::TWaitInfo& info) {
             allocatedCount += info.Request.GetCount();
@@ -922,11 +955,11 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
             config,
             /*metricsRegistry*/ {},
             /*targetCapacity*/ 42U);
-        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(42U, "user"), {}}));
+        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(42U, "user"), {}}).Status == ESuspendStatus::Accepted);
         fullCapacityScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });
-        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(1U, "user"), {}}));
+        UNIT_ASSERT(fullCapacityScheduler->Suspend({MakeRequest(1U, "user"), {}}).Status == ESuspendStatus::Accepted);
         fullCapacityScheduler->Process(42U, 42U, [] (const IScheduler::TWaitInfo&) {
             return true;
         });

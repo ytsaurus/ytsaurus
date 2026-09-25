@@ -260,7 +260,7 @@ private:
             info.UserInfo->GetRunning() + info.Request.GetCount() > RunningTasksPerUserLimit;
     }
 
-    bool Suspend(TWaitInfo&& info) final {
+    TSuspendResult Suspend(TWaitInfo&& info) final {
         const auto& user = info.Request.GetUser();
         // Reuse the lookup context for insertion to avoid hashing a new user twice.
         THistoryMap::insert_ctx insertCtx = nullptr;
@@ -273,13 +273,21 @@ private:
                 if (Counters) {
                     *Counters->PerUserQueueLimitRejections += 1;
                 }
-                return false;
+                return {
+                    .Status = ESuspendStatus::PerUserLimit,
+                    .WaitingOperations = userAwaitOperations,
+                    .Limit = MaxOperationsPerUser,
+                };
             }
             if (LargeWaitList.size() >= MaxOperations) {
                 if (Counters) {
                     *Counters->GlobalQueueLimitRejections += 1;
                 }
-                return false;
+                return {
+                    .Status = ESuspendStatus::GlobalLimit,
+                    .WaitingOperations = LargeWaitList.size(),
+                    .Limit = MaxOperations,
+                };
             }
         }
 
@@ -299,7 +307,7 @@ private:
         (info.Request.GetCount() > 1U ? LargeWaitList : SmallWaitList).emplace_back(
             std::move(info),
             &userIt->second);
-        return true;
+        return {};
     }
 
     size_t GetRunningTasksPerUserLimit() const final {

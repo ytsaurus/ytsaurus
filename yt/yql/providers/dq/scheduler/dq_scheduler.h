@@ -32,7 +32,19 @@ public:
         TWaitInfo(const NYql::NDqProto::TAllocateWorkersRequest& record, const NActors::TActorId& sender);
     };
 
-    virtual bool Suspend(TWaitInfo&& info) = 0;
+    enum class ESuspendStatus {
+        Accepted,
+        PerUserLimit,
+        GlobalLimit,
+    };
+
+    struct TSuspendResult {
+        ESuspendStatus Status = ESuspendStatus::Accepted;
+        ui64 WaitingOperations = 0;
+        ui64 Limit = 0;
+    };
+
+    virtual TSuspendResult Suspend(TWaitInfo&& info) = 0;
 
     virtual size_t GetRunningTasksPerUserLimit() const = 0;
 
