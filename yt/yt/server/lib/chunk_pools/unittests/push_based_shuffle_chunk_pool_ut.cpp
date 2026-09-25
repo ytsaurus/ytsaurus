@@ -93,6 +93,26 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RegisterAfterFinishAborts)
     }, "!Finished");
 }
 
+TEST_F(TPushBasedShuffleChunkPoolDeathTest, FinishWithUnfinishedSessionAborts)
+{
+    EXPECT_DEATH({
+        auto pool = CreatePool(
+            /*partitionCount*/ 1,
+            /*targetUncompressedDataSizePerJob*/ 1000,
+            /*maxDataSliceCountPerJob*/ 10,
+            GetTestLogger());
+        pool->RegisterChunkWriteSession(
+            /*partitionIndex*/ 0,
+            MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42)),
+            /*replicas*/ {});
+
+        try {
+            pool->GetInput()->Finish();
+        } catch (...) {
+        }
+    }, "FinishedSessionCount_ == std::ssize\\(Sessions_\\)");
+}
+
 TEST_F(TPushBasedShuffleChunkPoolDeathTest, InvalidPartitionIndexAborts)
 {
     EXPECT_DEATH({
@@ -901,11 +921,10 @@ TEST_F(TPushBasedShuffleChunkPoolTest, EstimatesSealedSuffixFromSameSession)
         .RowCount = 200,
     });
 
-    pool->GetInput()->Finish();
+    pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(5, 999));
     EXPECT_EQ(0, output->GetJobCounter()->GetPending());
 
-    pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(5, 999));
-
+    pool->GetInput()->Finish();
     ASSERT_EQ(1, output->GetJobCounter()->GetPending());
     auto cookie = output->Extract();
     ASSERT_NE(IChunkPoolOutput::NullCookie, cookie);
@@ -1167,7 +1186,6 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresConfiguredSealFallbacks)
     });
     auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
     pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
-    pool->GetInput()->Finish();
 
     TBlobOutput output;
     TSaveContext saveContext(&output);
@@ -1185,6 +1203,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresConfiguredSealFallbacks)
     Load(loadContext, pool);
 
     pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(5, 101));
+    pool->GetInput()->Finish();
 
     auto restoredOutput = pool->GetOutput(0);
     ASSERT_EQ(1, restoredOutput->GetJobCounter()->GetPending());
@@ -1365,7 +1384,6 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresLiveSessionsAndOpenBuilder)
     };
     pool->UpdateChunkWriteSession(exactChunkId, exactPrefixStatistics);
     pool->UpdateChunkWriteSession(sealedChunkId, sealedPrefixStatistics);
-    pool->GetInput()->Finish();
 
     TBlobOutput output;
     TSaveContext saveContext(&output);
@@ -1398,6 +1416,7 @@ TEST_F(TPushBasedShuffleChunkPoolTest, RestoresLiveSessionsAndOpenBuilder)
         sealedChunkId,
         MakeSealSummary(3, 999)));
     ASSERT_NO_THROW(pool->FinishChunkWriteSession(idleChunkId, idleFinalStatistics));
+    pool->GetInput()->Finish();
     EXPECT_EQ(3, pool->GetTotalDataSliceCount());
     EXPECT_EQ(2, pool->GetTotalJobCount());
 
