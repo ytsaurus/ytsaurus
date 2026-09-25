@@ -906,11 +906,7 @@ public:
 
         if (context->hasInsertionTable() || QueryContext_->CreatedTablePath.has_value()) {
             for (const auto& table : Tables_) {
-                if (table->Path.GetCluster()) {
-                    THROW_ERROR_EXCEPTION("Cross-cluster tables are supported only in SELECT queries")
-                        .With("cluster", *table->Path.GetCluster())
-                        .With("path", table->Path.GetPath());
-                }
+                ValidateTablePathForModification(table->Path);
             }
         }
 
@@ -1181,11 +1177,7 @@ public:
         }
         const auto& table = Tables_.front();
         auto& path = table->Path;
-        if (path.GetCluster()) {
-            THROW_ERROR_EXCEPTION("Writing to a cross-cluster table is not supported")
-                .With("cluster", *path.GetCluster())
-                .With("path", path.GetPath());
-        }
+        ValidateTablePathForModification(path);
 
         bool overwrite = !path.GetAppend(/*defaultValue*/ true);
 
@@ -1460,6 +1452,7 @@ public:
             Tables_.size());
 
         const auto& table = Tables_.front();
+        ValidateTablePathForModification(table->Path);
         THROW_ERROR_EXCEPTION_IF(table->Dynamic,
             "TRUNCATE is not supported for dynamic tables");
 
@@ -1660,6 +1653,7 @@ private:
     {
         auto* queryContext = GetQueryContext(context);
 
+        ValidateTablePathForModification(Tables_[0]->Path);
         const auto& client = queryContext->Client();
         const auto& path = Tables_[0]->Path.GetPath();
 
@@ -1707,6 +1701,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     }
 
     TRichYPath path = TRichYPath::Parse(TString(args.relative_data_path));
+    ValidateTablePathForModification(path);
 
     YT_TLOG_INFO("Creating table from CH engine")
         .With("Path", path)

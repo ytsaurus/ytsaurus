@@ -80,6 +80,40 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
             value_column = next(column for column in description if column["name"] == "value")
             assert value_column["type"].startswith("LowCardinality")
 
+    def test_sorted_remote_table_slicing(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [
+            {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+        ]
+        rows = [{"key": key} for key in range(4) for _ in range(8)]
+        create("table", "//tmp/sorted", attributes={"schema": schema}, driver=remote_driver)
+        write_table(
+            "//tmp/sorted",
+            rows,
+            table_writer={"block_size": 64},
+            driver=remote_driver)
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_read_range_inferring": True,
+                    },
+                },
+                "subquery": {
+                    "min_slice_data_weight": 1,
+                },
+            },
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            assert clique.make_query("""
+                select key, count(*) as count
+                from `remote_0://tmp/sorted`
+                where key between 1 and 2
+                group by key
+                order by key
+            """) == [{"key": 1, "count": 8}, {"key": 2, "count": 8}]
+
     def test_rejects_remote_writes(self):
         remote_driver = get_driver(cluster="remote_0")
         schema = [{"name": "key", "type": "int64"}]
@@ -93,6 +127,23 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
             with raises_yt_error("Cross-cluster tables are supported only in SELECT queries"):
                 clique.make_query(
                     "insert into `//tmp/output` select * from `remote_0://tmp/static`")
+
+    def test_rejects_remote_truncate(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [{"name": "key", "type": "int64"}]
+        path = "//tmp/truncate_target"
+
+        create("table", path, attributes={"schema": schema})
+        create("table", path, attributes={"schema": schema}, driver=remote_driver)
+        write_table(path, [{"key": 1}])
+        write_table(path, [{"key": 2}], driver=remote_driver)
+
+        with Clique(1) as clique:
+            with raises_yt_error("Cross-cluster tables are supported only in SELECT queries"):
+                clique.make_query(f"truncate table `remote_0:{path}`")
+
+            assert clique.make_query(f"select * from `{path}`") == [{"key": 1}]
+            assert clique.make_query(f"select * from `remote_0:{path}`") == [{"key": 2}]
 
     def test_sorted_dynamic_table_with_dynamic_store(self):
         remote_driver = get_driver(cluster="remote_0")
@@ -292,6 +343,14 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
                     clique.make_query(
                         "select * from `remote_0://tmp/missing_remote_metadata`",
                         settings={setting: 1})
+
+            with raises_yt_error("Missing remote read transaction in secondary query"):
+                clique.make_query(
+                    "select * from `remote_0://tmp/missing_remote_metadata`",
+                    settings={
+                        "chyt.testing.omit_remote_read_transaction_in_secondary_query": 1,
+                        "chyt.testing.omit_remote_snapshot_locks_in_secondary_query": 1,
+                    })
 
     def test_unreachable_remote_cluster(self):
         remote_driver = get_driver(cluster="remote_0")

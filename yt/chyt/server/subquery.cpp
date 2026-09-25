@@ -1110,15 +1110,33 @@ std::vector<TSubquery> BuildThreadSubqueries(
         YT_VERIFY(queryAnalysisResult.KeyColumnCount);
         TComparator comparator(std::vector<ESortOrder>(*queryAnalysisResult.KeyColumnCount, ESortOrder::Ascending));
 
-        // TODO(achulkov2): Make using this fetcher configurable? Not sure whether it could cause degradations. IMO it should make things better.
-        auto chunkSliceFetcher = CreateChunkSliceFetcher(
-            queryContext->Host->GetConfig()->Subquery->ChunkSliceFetcher,
-            queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
-            queryContext->Host->GetClickHouseFetcherInvoker(),
-            /*chunkScraper*/ nullptr,
-            queryContext->Client(),
-            queryContext->RowBuffer,
-            queryContext->Logger);
+        std::vector<IChunkSliceFetcherPtr> chunkSliceFetchers;
+        std::vector<int> tableIndexToFetcherIndex;
+        THashMap<std::optional<std::string>, int> clusterToFetcherIndex;
+        tableIndexToFetcherIndex.reserve(queryInput.InputTables.size());
+
+        for (const auto& table : queryInput.InputTables) {
+            auto cluster = table->Path.GetCluster();
+            auto [it, inserted] = clusterToFetcherIndex.emplace(
+                cluster,
+                static_cast<int>(chunkSliceFetchers.size()));
+            if (inserted) {
+                auto client = queryContext->Client(cluster);
+                chunkSliceFetchers.push_back(CreateChunkSliceFetcher(
+                    queryContext->Host->GetConfig()->Subquery->ChunkSliceFetcher,
+                    client->GetNativeConnection()->GetNodeDirectory(),
+                    queryContext->Host->GetClickHouseFetcherInvoker(),
+                    /*chunkScraper*/ nullptr,
+                    client,
+                    queryContext->RowBuffer,
+                    queryContext->Logger.WithTag("Cluster", cluster.value_or("local"))));
+            }
+            tableIndexToFetcherIndex.push_back(it->second);
+        }
+
+        auto chunkSliceFetcher = CreateCombiningChunkSliceFetcher(
+            std::move(chunkSliceFetchers),
+            std::move(tableIndexToFetcherIndex));
 
         chunkPool = CreateSortedChunkPool(
             TSortedChunkPoolOptions{

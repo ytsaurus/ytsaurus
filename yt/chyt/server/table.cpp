@@ -172,6 +172,15 @@ void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf
     FormatValue(builder, table->Path, spec);
 }
 
+void ValidateTablePathForModification(const TRichYPath& path)
+{
+    if (path.GetCluster()) {
+        THROW_ERROR_EXCEPTION("Cross-cluster tables are supported only in SELECT queries")
+            .With("cluster", *path.GetCluster())
+            .With("path", path.GetPath());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void RemoveIncompatibleSortOrder(TTablePtr& table)
