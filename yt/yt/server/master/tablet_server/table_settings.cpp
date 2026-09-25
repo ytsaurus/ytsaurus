@@ -25,6 +25,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/core/ytree/node.h>
+
 #include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NTabletServer {
@@ -81,6 +83,24 @@ void ValidateHunkStorageJournalAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class TConfigPtr>
+IMapNodePtr GetRawConfigAttribute(const IAttributeDictionary& attributes, TStringBuf key)
+{
+    auto node = GetEphemeralNodeFactory()->CreateMap();
+    if (auto yson = attributes.FindYson(key)) {
+        node = ConvertTo<IMapNodePtr>(yson);
+    }
+    // Validate that the raw node is a well-formed config.
+    ConvertTo<TConfigPtr>(node);
+    return node;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableSettings GetTableSettings(
     TTableNode* table,
     const IObjectManagerPtr& objectManager,
@@ -128,10 +148,9 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare store reader config.
     try {
-        result.Provided.StoreReaderConfig = UpdateYsonStruct(
-            dynamicConfig->StoreChunkReader,
-            // TODO(babenko): rename to store_chunk_reader
-            tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
+        result.Provided.StoreReaderConfig = GetRawConfigAttribute<TTabletStoreReaderConfigPtr>(
+            tableAttributes,
+            EInternedAttributeKey::ChunkReader.Unintern());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing store reader config")
             .With(ex);
@@ -139,9 +158,9 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare hunk reader config.
     try {
-        result.Provided.HunkReaderConfig = UpdateYsonStruct(
-            dynamicConfig->HunkChunkReader,
-            tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
+        result.Provided.HunkReaderConfig = GetRawConfigAttribute<TTabletHunkReaderConfigPtr>(
+            tableAttributes,
+            EInternedAttributeKey::HunkChunkReader.Unintern());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk reader config")
             .With(ex);
@@ -202,21 +221,26 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare store writer config.
     try {
-        auto config = CloneYsonStruct(dynamicConfig->StoreChunkWriter);
+        auto config = GetEphemeralNodeFactory()->CreateMap();
         if (primaryMedium->IsDomestic()) {
             const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
-            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+            config->AddChild(
+                "prefer_local_host",
+                ConvertToNode(mediumConfig->PreferLocalHostForDynamicTables));
         }
         if (dynamicConfig->IncreaseUploadReplicationFactor ||
             table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
         {
-            config->UploadReplicationFactor = replicationFactor;
+            config->AddChild(
+                "upload_replication_factor",
+                ConvertToNode(replicationFactor));
         }
 
-        result.Provided.StoreWriterConfig = UpdateYsonStruct(
+        result.Provided.StoreWriterConfig = PatchNode(
             config,
-            // TODO(babenko): rename to store_chunk_writer
-            tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
+            GetRawConfigAttribute<TTabletStoreWriterConfigPtr>(
+                tableAttributes,
+                EInternedAttributeKey::ChunkWriter.Unintern()))->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing store writer config")
             .With(ex);
@@ -224,16 +248,22 @@ TTableSettings GetTableSettings(
 
     // Parse and prepare hunk writer config.
     try {
-        auto config = CloneYsonStruct(dynamicConfig->HunkChunkWriter);
+        auto config = GetEphemeralNodeFactory()->CreateMap();
         if (primaryMedium->IsDomestic()) {
             const auto& mediumConfig = primaryMedium->AsDomestic()->Config();
-            config->PreferLocalHost = mediumConfig->PreferLocalHostForDynamicTables;
+            config->AddChild(
+                "prefer_local_host",
+                ConvertToNode(mediumConfig->PreferLocalHostForDynamicTables));
         }
-        config->UploadReplicationFactor = replicationFactor;
+        config->AddChild(
+            "upload_replication_factor",
+            ConvertToNode(replicationFactor));
 
-        result.Provided.HunkWriterConfig = UpdateYsonStruct(
+        result.Provided.HunkWriterConfig = PatchNode(
             config,
-            tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
+            GetRawConfigAttribute<TTabletHunkWriterConfigPtr>(
+                tableAttributes,
+                EInternedAttributeKey::HunkChunkWriter.Unintern()))->AsMap();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing hunk writer config")
             .With(ex);

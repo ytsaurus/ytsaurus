@@ -1459,11 +1459,11 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 } else {
                     Save(context, false);
                 }
-                Save(context, *providedSettings.StoreReaderConfig);
-                Save(context, *providedSettings.HunkReaderConfig);
-                Save(context, *providedSettings.StoreWriterConfig);
+                Save(context, ConvertToYsonString(providedSettings.StoreReaderConfig));
+                Save(context, ConvertToYsonString(providedSettings.HunkReaderConfig));
+                Save(context, ConvertToYsonString(providedSettings.StoreWriterConfig));
                 Save(context, *providedSettings.StoreWriterOptions);
-                Save(context, *providedSettings.HunkWriterConfig);
+                Save(context, ConvertToYsonString(providedSettings.HunkWriterConfig));
                 Save(context, *providedSettings.HunkWriterOptions);
                 Save(context, ConvertToYsonString(providedSettings.TabletBalancerConfig));
 
@@ -1514,11 +1514,31 @@ void TTablet::AsyncLoad(TLoadContext& context)
     }
 
     RawSettings_.CreateNewProvidedConfigs();
-    Load(context, *providedSettings.StoreReaderConfig);
-    Load(context, *providedSettings.HunkReaderConfig);
-    Load(context, *providedSettings.StoreWriterConfig);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::RawIOConfigNodes) {
+        providedSettings.StoreReaderConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        providedSettings.HunkReaderConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        providedSettings.StoreWriterConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    } else {
+        auto storeReaderConfig = New<TTabletStoreReaderConfig>();
+        auto hunkReaderConfig = New<TTabletHunkReaderConfig>();
+        auto storeWriterConfig = New<TTabletStoreWriterConfig>();
+        Load(context, *storeReaderConfig);
+        Load(context, *hunkReaderConfig);
+        Load(context, *storeWriterConfig);
+        providedSettings.StoreReaderConfig = ConvertToNode(storeReaderConfig)->AsMap();
+        providedSettings.HunkReaderConfig = ConvertToNode(hunkReaderConfig)->AsMap();
+        providedSettings.StoreWriterConfig = ConvertToNode(storeWriterConfig)->AsMap();
+    }
     Load(context, *providedSettings.StoreWriterOptions);
-    Load(context, *providedSettings.HunkWriterConfig);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::RawIOConfigNodes) {
+        providedSettings.HunkWriterConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    } else {
+        auto hunkWriterConfig = New<TTabletHunkWriterConfig>();
+        Load(context, *hunkWriterConfig);
+        providedSettings.HunkWriterConfig = ConvertToNode(hunkWriterConfig)->AsMap();
+    }
     Load(context, *providedSettings.HunkWriterOptions);
 
     // COMPAT(navasardianna)

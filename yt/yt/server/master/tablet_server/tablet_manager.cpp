@@ -121,6 +121,7 @@
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/tree_builder.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
@@ -185,6 +186,56 @@ using TTabletResources = NTabletServer::TTabletResources;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = TabletServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+INodePtr ComputeNonDefaultConfigPatch(
+    const INodePtr& configNode,
+    const INodePtr& defaultNode)
+{
+    // COMPAT(ifsmirnov): Delete this function when the reign is removed.
+    static_cast<void>(EMasterReign::LegacyBaseIOConfigs);
+
+    if (defaultNode && AreNodesEqual(configNode, defaultNode)) {
+        return nullptr;
+    }
+
+    if (configNode->GetType() == ENodeType::Map &&
+        defaultNode &&
+        defaultNode->GetType() == ENodeType::Map)
+    {
+        auto result = GetEphemeralNodeFactory()->CreateMap();
+        const auto& defaultMap = defaultNode->AsMap();
+        for (const auto& [key, child] : configNode->AsMap()->GetChildren()) {
+            auto childPatch = ComputeNonDefaultConfigPatch(
+                child,
+                defaultMap->FindChild(key));
+            if (childPatch) {
+                result->AddChild(key, childPatch);
+            }
+        }
+        return result->GetChildCount() > 0 ? result : nullptr;
+    }
+
+    return CloneNode(configNode);
+}
+
+template <class TConfigPtr>
+IMapNodePtr ComputeNonDefaultConfigPatch(
+    const TConfigPtr& config,
+    const TConfigPtr& defaultConfig)
+{
+    auto patch = ComputeNonDefaultConfigPatch(
+        ConvertToNode(config),
+        ConvertToNode(defaultConfig));
+    return patch
+        ? patch->AsMap()
+        : GetEphemeralNodeFactory()->CreateMap();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2850,6 +2901,9 @@ private:
     // COMPAT(ifsmirnov)
     int NonAvenueTabletCount_ = 0;
 
+    // COMPAT(ifsmirnov): LegacyBaseIOConfigs.
+    bool MigrateLegacyBaseIOConfigs_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TCounter& GetUserChunkConstraintValidationErrorCounter(const std::string& userName)
@@ -4296,11 +4350,55 @@ private:
 
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
+
+        if (context.GetVersion() < EMasterReign::LegacyBaseIOConfigs) {
+            MigrateLegacyBaseIOConfigs_ = true;
+        }
     }
 
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(ifsmirnov): LegacyBaseIOConfigs.
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (MigrateLegacyBaseIOConfigs_ && multicellManager->IsPrimaryMaster()) {
+            static const std::string LegacyExperimentName = "legacy_base_io_configs";
+
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            auto dynamicConfig = CloneYsonStruct(configManager->GetConfig());
+            const auto& config = dynamicConfig->TabletManager;
+            auto ioConfigTemplatePatch = New<NTabletNode::TTableIOConfigPatch>();
+            ioConfigTemplatePatch->StoreReaderConfig = ComputeNonDefaultConfigPatch(
+                config->StoreChunkReader,
+                New<NTabletNode::TTabletStoreReaderConfig>());
+            ioConfigTemplatePatch->HunkReaderConfig = ComputeNonDefaultConfigPatch(
+                config->HunkChunkReader,
+                New<NTabletNode::TTabletHunkReaderConfig>());
+            ioConfigTemplatePatch->StoreWriterConfig = ComputeNonDefaultConfigPatch(
+                config->StoreChunkWriter,
+                New<NTabletNode::TTabletStoreWriterConfig>());
+            ioConfigTemplatePatch->HunkWriterConfig = ComputeNonDefaultConfigPatch(
+                config->HunkChunkWriter,
+                New<NTabletNode::TTabletHunkWriterConfig>());
+
+            auto experiment = ConvertTo<NTabletNode::TTableConfigExperimentPtr>(
+                BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("fraction").Value(1.0)
+                        .Item("auto_apply").Value(false)
+                        .Item("patch").BeginMap()
+                            .Item("io_config_template_patch").Value(ioConfigTemplatePatch)
+                        .EndMap()
+                    .EndMap());
+            config->TableConfigExperiments[LegacyExperimentName] = std::move(experiment);
+            configManager->SetConfig(ConvertToNode(dynamicConfig));
+
+            YT_LOG_INFO("Migrated legacy base IO configs to table config experiment "
+                "(ExperimentName: %v, IOConfigTemplatePatch: %v)",
+                LegacyExperimentName,
+                ConvertToYsonString(ioConfigTemplatePatch, EYsonFormat::Text));
+        }
 
         InitBuiltins();
 
@@ -4354,6 +4452,7 @@ private:
 
         DefaultTabletCellBundle_ = nullptr;
         NonAvenueTabletCount_ = 0;
+        MigrateLegacyBaseIOConfigs_ = false;
     }
 
     void SetZeroState() override
