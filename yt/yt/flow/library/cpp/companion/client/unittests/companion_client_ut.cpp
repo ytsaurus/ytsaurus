@@ -2,9 +2,9 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_client.h>
-#include <yt/yt/flow/library/cpp/companion/companion_client_detail.h>
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_client.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_client_detail.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
 #include <yt/yt/flow/library/cpp/common/resource.h>

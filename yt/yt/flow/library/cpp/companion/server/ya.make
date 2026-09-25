@@ -22,7 +22,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/library/cpp/companion
+    yt/yt/flow/library/cpp/companion/client
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/process_function/host
     yt/yt/library/profiling/solomon

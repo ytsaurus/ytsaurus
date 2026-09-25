@@ -9,7 +9,7 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
 #include "runtime_context.h"

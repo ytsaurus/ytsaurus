@@ -1,10 +1,11 @@
 #pragma once
 
-#include "companion_client.h"
-#include "companion_manager.h"
-#include "companion_model.h"
-#include "companion_resource.h"
 #include "public.h"
+
+#include <yt/yt/flow/library/cpp/companion/client/companion_client.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/manager/companion_manager.h>
+#include <yt/yt/flow/library/cpp/companion/resources/companion_resource.h>
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
 
 #include <functional>

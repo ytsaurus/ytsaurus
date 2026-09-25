@@ -1,5 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
-#include <yt/yt/flow/library/cpp/companion/jvm_options.h>
+#include <yt/yt/flow/library/cpp/companion/manager/jvm_options.h>
 
 #include <util/system/env.h>
 

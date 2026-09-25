@@ -1,5 +1,6 @@
 #include "transform_companion_computation.h"
-#include "companion_model.h"
+
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/flow/library/cpp/common/external_metrics_reporter.h>
 

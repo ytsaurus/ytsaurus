@@ -3,20 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
-    companion_client_detail.cpp
     companion_computation_base.cpp
-    companion_entrypoint.cpp
-    companion_manager.cpp
-    companion_model.cpp
-    companion_resource.cpp
-    java_companion_manager.cpp
-    java_process_manager.cpp
-    companion_process_manager.cpp
-    companion_proxy.cpp
-    companion_singleton_state.cpp
-    config.cpp
-    jvm_options.cpp
-    process_manager_base.cpp
     GLOBAL register.cpp
     swift_map_companion_computation.cpp
     swift_ordered_source_companion_computation.cpp
@@ -25,14 +12,9 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/library/cpp/companion/proto
-
-    yt/yt/library/process
-    yt/yt/library/profiling/solomon
-
-    yt/yt/core/http
-    yt/yt/core/https
-    yt/yt/core/rpc/grpc
+    yt/yt/flow/library/cpp/companion/client
+    yt/yt/flow/library/cpp/companion/manager
+    yt/yt/flow/library/cpp/companion/resources
 
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/computation
@@ -42,6 +24,9 @@ PEERDIR(
 END()
 
 RECURSE(
+    client
+    manager
+    resources
     server
 )
 

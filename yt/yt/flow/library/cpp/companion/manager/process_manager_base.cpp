@@ -1,7 +1,7 @@
 #include "process_manager_base.h"
 
-#include "companion_singleton_state.h"
-#include "config.h"
+#include <yt/yt/flow/library/cpp/companion/client/companion_singleton_state.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 

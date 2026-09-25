@@ -3,8 +3,8 @@
 #include <yt/yt/flow/library/cpp/companion/server/monitoring.h>
 #include <yt/yt/flow/library/cpp/companion/server/server.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

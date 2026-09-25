@@ -1,10 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_client.h>
-#include <yt/yt/flow/library/cpp/companion/companion_manager.h>
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
-#include <yt/yt/flow/library/cpp/companion/companion_resource.h>
-#include <yt/yt/flow/library/cpp/companion/process_manager_base.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_client.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/manager/companion_manager.h>
+#include <yt/yt/flow/library/cpp/companion/manager/process_manager_base.h>
 
 #include <yt/yt/flow/library/cpp/common/spec.h>
 

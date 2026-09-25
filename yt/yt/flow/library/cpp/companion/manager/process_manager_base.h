@@ -1,7 +1,8 @@
 #pragma once
 
-#include "companion_client.h"
 #include "public.h"
+
+#include <yt/yt/flow/library/cpp/companion/client/companion_client.h>
 
 #include <yt/yt/core/misc/config.h>
 

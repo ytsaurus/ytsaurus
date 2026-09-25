@@ -12,9 +12,9 @@
 #include "queue_log_writer.h"
 #include "root_clients_cache.h"
 
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
-#include <yt/yt/flow/library/cpp/companion/companion_singleton_state.h>
-#include <yt/yt/flow/library/cpp/companion/config.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_singleton_state.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 #include <yt/yt/flow/library/cpp/controller/config.h>
 #include <yt/yt/flow/library/cpp/controller/controller.h>

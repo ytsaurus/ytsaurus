@@ -1,7 +1,7 @@
 #include "companion_resource.h"
 
-#include "companion_manager.h"
-#include "companion_model.h"
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/manager/companion_manager.h>
 
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>

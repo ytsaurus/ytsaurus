@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/core/actions/future.h>
 

@@ -1,5 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage_state.h>

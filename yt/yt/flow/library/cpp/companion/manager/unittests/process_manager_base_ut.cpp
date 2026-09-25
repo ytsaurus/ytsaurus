@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_singleton_state.h>
-#include <yt/yt/flow/library/cpp/companion/config.h>
-#include <yt/yt/flow/library/cpp/companion/process_manager_base.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_singleton_state.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
+#include <yt/yt/flow/library/cpp/companion/manager/process_manager_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 

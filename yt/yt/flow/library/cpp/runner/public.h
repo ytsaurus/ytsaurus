@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yt/yt/flow/library/cpp/common/public.h>
-#include <yt/yt/flow/library/cpp/companion/public.h>
+#include <yt/yt/flow/library/cpp/companion/client/public.h>
 #include <yt/yt/flow/library/cpp/controller/public.h>
 #include <yt/yt/flow/library/cpp/worker/public.h>
 

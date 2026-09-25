@@ -10,7 +10,7 @@
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
 

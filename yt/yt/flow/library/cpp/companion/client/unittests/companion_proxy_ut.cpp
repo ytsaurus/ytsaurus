@@ -1,5 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

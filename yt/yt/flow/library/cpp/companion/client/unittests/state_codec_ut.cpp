@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
-#include <yt/yt/flow/library/cpp/companion/state_codec.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/state_codec.h>
 
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 

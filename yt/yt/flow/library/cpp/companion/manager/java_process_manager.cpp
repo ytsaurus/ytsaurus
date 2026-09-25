@@ -1,7 +1,7 @@
 #include "java_process_manager.h"
 #include "jvm_options.h"
 
-#include "config.h"
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 

@@ -3,7 +3,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
-#include <yt/yt/flow/library/cpp/companion/java_companion_manager.h>
+#include <yt/yt/flow/library/cpp/companion/manager/java_companion_manager.h>
 
 namespace NYT::NFlow::NDescribe {
 

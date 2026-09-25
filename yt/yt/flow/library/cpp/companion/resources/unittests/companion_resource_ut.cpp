@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
-#include <yt/yt/flow/library/cpp/companion/companion_resource.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/resources/companion_resource.h>
 
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>

@@ -4,7 +4,7 @@
 
 #include <yt/yt/flow/library/cpp/controller/config.h>
 
-#include <yt/yt/flow/library/cpp/companion/config.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
 

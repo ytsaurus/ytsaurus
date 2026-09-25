@@ -1,11 +1,12 @@
 #include "companion_manager.h"
 
-#include "companion_client_detail.h"
 #include "companion_entrypoint.h"
 #include "companion_process_manager.h"
-#include "companion_singleton_state.h"
-#include "config.h"
-#include "private.h"
+
+#include <yt/yt/flow/library/cpp/companion/client/companion_client_detail.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_singleton_state.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
+#include <yt/yt/flow/library/cpp/companion/client/private.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 

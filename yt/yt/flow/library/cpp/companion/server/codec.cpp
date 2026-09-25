@@ -1,6 +1,6 @@
 #include "codec.h"
 
-#include <yt/yt/flow/library/cpp/companion/state_codec.h>
+#include <yt/yt/flow/library/cpp/companion/client/state_codec.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 

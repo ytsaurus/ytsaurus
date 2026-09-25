@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/companion/config.h>
+#include <yt/yt/flow/library/cpp/companion/client/config.h>
 
 namespace NYT::NFlow::NCompanionServer {
 

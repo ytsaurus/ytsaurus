@@ -4,7 +4,7 @@
 
 #include "companion_client.h"
 
-#include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_proxy.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/config.h>

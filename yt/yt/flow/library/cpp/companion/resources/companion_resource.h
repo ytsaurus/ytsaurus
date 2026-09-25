@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include "companion_client.h"
-#include "companion_model.h"
+#include <yt/yt/flow/library/cpp/companion/client/companion_client.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/flow/library/cpp/resources/resource_base.h>
 

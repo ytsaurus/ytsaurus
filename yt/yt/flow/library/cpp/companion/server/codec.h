@@ -6,7 +6,7 @@
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
-#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+#include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
