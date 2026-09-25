@@ -786,6 +786,20 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPushBasedShuffleManagerConfig
+    : public NYTree::TYsonStruct
+{
+    int ThreadCount;
+
+    REGISTER_YSON_STRUCT(TPushBasedShuffleManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDockerRegistryConfig
     : public NYTree::TYsonStruct
 {
@@ -1299,6 +1313,8 @@ struct TControllerAgentConfig
     bool ReleaseFailedJobOnException;
 
     TJobTrackerConfigPtr JobTracker;
+
+    TPushBasedShuffleManagerConfigPtr PushBasedShuffleManager;
 
     THashSet<std::string> NetworkProjectsAllowedForOffloading;
 

@@ -56,15 +56,19 @@ public:
         TDistributedChunkSessionPoolConfigPtr config,
         TCreateControllerCallback createController,
         TSendChunkSealRequestCallback sendChunkSealRequest,
+        int slotCount,
         IInvokerPtr invoker,
         IDistributedChunkSessionSealMonitorPtr sealMonitor,
         TLogger logger = DistributedChunkSessionLogger())
         : Config_(std::move(config))
         , CreateController_(std::move(createController))
         , SendChunkSealRequest_(std::move(sendChunkSealRequest))
+        , SlotCount_(slotCount)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(std::move(logger))
     {
+        YT_VERIFY(slotCount > 0);
+
         if (sealMonitor) {
             SealSubscription_ = sealMonitor->Subscribe(BIND_NO_PROPAGATE(
                 &TDistributedChunkSessionPool::OnChunksSealed,
@@ -78,6 +82,10 @@ public:
         std::optional<TSessionId> excludedSessionId) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (auto error = CheckSlotCookie(slotCookie); !error.IsOK()) {
+            return MakeFuture<TSessionDescriptor>(error);
+        }
 
         return BIND_NO_PROPAGATE(
             &TDistributedChunkSessionPool::DoGetSession,
@@ -93,6 +101,9 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        CheckSlotCookie(slotCookie)
+            .ThrowOnError();
+
         SerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
             &TDistributedChunkSessionPool::DoFinalizeSlot,
             MakeStrong(this),
@@ -102,6 +113,10 @@ public:
     TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (auto error = CheckSlotCookie(slotCookie); !error.IsOK()) {
+            return MakeFuture<std::vector<TSlotChunkInfo>>(error);
+        }
 
         return BIND_NO_PROPAGATE(
             &TDistributedChunkSessionPool::DoGetSlotChunks,
@@ -165,6 +180,7 @@ private:
     const TDistributedChunkSessionPoolConfigPtr Config_;
     const TCreateControllerCallback CreateController_;
     const TSendChunkSealRequestCallback SendChunkSealRequest_;
+    const int SlotCount_;
     const IInvokerPtr SerializedInvoker_;
     const TLogger Logger;
 
@@ -240,6 +256,21 @@ private:
             .SessionId = entry.StartedSession.SessionId,
             .SequencerNode = entry.StartedSession.SequencerNode,
         });
+    }
+
+    TError CheckSlotCookie(int slotCookie) const
+    {
+        if (slotCookie < 0 || slotCookie >= SlotCount_) {
+            YT_TLOG_ALERT("Invalid slot cookie")
+                .With("SlotCookie", slotCookie)
+                .With("SlotCount", SlotCount_);
+            return TError(
+                "Invalid slot cookie %v: expected a value in [0, %v)",
+                slotCookie,
+                SlotCount_);
+        }
+
+        return {};
     }
 
     TFuture<TSessionDescriptor> DoGetSession(
@@ -825,6 +856,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     TDistributedChunkSessionPoolConfigPtr config,
     TDistributedChunkSessionControllerConfigPtr controllerConfig,
     TTransactionId transactionId,
+    int slotCount,
     NApi::TJournalChunkWriterOptionsPtr writerOptions,
     NApi::TJournalChunkWriterConfigPtr writerConfig,
     IInvokerPtr invoker,
@@ -884,6 +916,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
         std::move(config),
         std::move(createController),
         std::move(sendChunkSealRequest),
+        slotCount,
         std::move(invoker),
         std::move(sealMonitor),
         std::move(logger));
@@ -899,6 +932,7 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(
         std::move(config),
         std::move(options.CreateController),
         std::move(options.SendChunkSealRequest),
+        options.SlotCount,
         std::move(invoker),
         std::move(options.SealMonitor),
         std::move(logger));

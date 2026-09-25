@@ -234,6 +234,7 @@ public:
             std::move(poolConfig),
             std::move(controllerConfig),
             Transaction_->GetId(),
+            /*slotCount*/ PartitionCount_,
             std::move(writerOptions),
             std::move(writerConfig),
             SerializedInvoker_,

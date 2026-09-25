@@ -99,6 +99,8 @@ public:
     void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
     const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const override;
 
+    const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const override;
+
     void Disconnect(const TError& error) override;
 
     void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) override;
