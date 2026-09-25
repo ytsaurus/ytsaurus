@@ -364,9 +364,8 @@ public:
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);
 
-    // COMPAT(shakurov): delete the #branchIsOk parameters.
-    TInstant GetTouchTime(bool branchIsOk = false) const;
-    void SetTouchTime(TInstant touchTime, bool branchIsOk = false);
+    TInstant GetTouchTime() const;
+    void SetTouchTime(TInstant touchTime);
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 

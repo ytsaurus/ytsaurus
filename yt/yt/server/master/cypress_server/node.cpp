@@ -58,19 +58,18 @@ TCypressNode::TCypressNode(TVersionedNodeId id)
     }
 }
 
-TInstant TCypressNode::GetTouchTime(bool branchIsOk) const
+TInstant TCypressNode::GetTouchTime() const
 {
-    YT_TLOG_ALERT_AND_THROW_UNLESS(
-        branchIsOk || IsTrunk(),
+    YT_TLOG_ALERT_AND_THROW_UNLESS(IsTrunk(),
         "Attempted to access the touch time of a branch")
         .With("NodeId", GetVersionedId());
 
     return TouchTime_;
 }
 
-void TCypressNode::SetTouchTime(TInstant touchTime, bool branchIsOk)
+void TCypressNode::SetTouchTime(TInstant touchTime)
 {
-    YT_VERIFY(branchIsOk || IsTrunk());
+    YT_VERIFY(IsTrunk());
     TouchTime_ = touchTime;
 }
 

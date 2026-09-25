@@ -3227,18 +3227,6 @@ private:
                 Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(node);
             }
 
-            // COMPAT(shakurov)
-            if (node->TryGetExpirationTimeoutProperties()) {
-                if (node->IsTrunk() && !node->GetTouchTime()) {
-                    const auto* hydraContext = GetCurrentHydraContext();
-                    node->SetTouchTime(hydraContext->GetTimestamp());
-                } else if (!node->IsTrunk() && node->GetTouchTime(/*branchIsOk*/ true)) {
-                    node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
-                }
-            } else {
-                node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
-            }
-
             if (node->IsTrunk() && node->TryGetExpirationTimeoutProperties()) {
                 Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(node);
             }
