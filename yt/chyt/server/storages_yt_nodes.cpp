@@ -126,6 +126,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         auto lockRsps = cluster
             ? queryContext->TryAcquireSnapshotLocks(pathsToLock, *cluster)
             : queryContext->TryAcquireSnapshotLocks(pathsToLock);
+        YT_VERIFY(lockRsps.size() == nodes.size());
         std::vector<INodePtr> lockedNodes;
         lockedNodes.reserve(nodes.size());
         for (int i : std::views::iota(0, std::ssize(nodes))) {

@@ -758,6 +758,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
                 }
             }
             auto lockResults = TryAcquireSnapshotLocks(pathsToLock, cluster);
+            YT_VERIFY(lockResults.size() == pathsToLock.size());
             for (const auto& [index, path] : SEnumerate(pathsToLock)) {
                 if (!lockResults[index].IsOK()) {
                     snapshot.emplace(path, TError(lockResults[index]));
@@ -812,6 +813,8 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             .ThrowOnError();
         auto permissionResults = WaitFor(permissionResultsFuture).ValueOrThrow();
         auto attributes = WaitFor(attributesFuture).ValueOrThrow();
+        YT_VERIFY(permissionResults.size() == fetchablePaths.size());
+        YT_VERIFY(attributes.size() == fetchablePaths.size());
         for (const auto& [index, path] : SEnumerate(fetchablePaths)) {
             if (!permissionResults[index].IsOK()) {
                 snapshot.emplace(path, TError(permissionResults[index]));
@@ -1257,6 +1260,8 @@ std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(
             GetOrCrash(RemoteReadTransactionIds, cluster),
             Logger))
             .ValueOrThrow();
+        YT_VERIFY(lockResults.size() == pathsToLock.size());
+        YT_VERIFY(indicesToLock.size() == pathsToLock.size());
         for (const auto& [lockIndex, path] : SEnumerate(pathsToLock)) {
             auto resultIndex = indicesToLock[lockIndex];
             if (lockResults[lockIndex].IsOK()) {
