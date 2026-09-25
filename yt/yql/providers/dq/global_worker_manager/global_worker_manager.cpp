@@ -377,6 +377,12 @@ public:
         , AllocateWorkersWithoutExeFileCounter(
             Metrics->GetSubgroup("component", "requests")
                 ->GetCounter("AllocateWorkersWithoutExeFile", /*derivative=*/true))
+        , OverloadedTotal(Metrics->GetSubgroup("component", "overload")
+            ->GetCounter("Total", /*derivative=*/ true))
+        , RejectedNoWorkers(Metrics->GetSubgroup("component", "overload")
+            ->GetCounter("NoWorkers", /*derivative=*/ true))
+        , RejectedAfterWorkersLost(Metrics->GetSubgroup("component", "overload")
+            ->GetCounter("WorkersLost", /*derivative=*/ true))
         , Workers(Coordinator->GetNodeId(), Metrics, metricsRegistry->GetSensors()->GetSubgroup("counters", "workers"))
         , Scheduler(NDq::IScheduler::Make(
             schedulerConfig,
@@ -969,8 +975,11 @@ private:
     void TryResume() {
         if (!Workers.Capacity() && ScheduleWaitCount > 0U) {
             Scheduler->ProcessAll([&] (const auto& item) {
-                YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TryResume, ProcessAll: All workers shutted down";
-                Send(item.Sender, new TEvAllocateWorkersResponse("All workers shutted down", NYql::NDqProto::StatusIds::OVERLOADED));
+                const TString error = "All DQ workers became unavailable while the operation was waiting";
+                YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TryResume, ProcessAll: " << error;
+                *OverloadedTotal += 1;
+                *RejectedAfterWorkersLost += 1;
+                Send(item.Sender, new TEvAllocateWorkersResponse(error, NYql::NDqProto::StatusIds::OVERLOADED));
                 return true;
             });
 
@@ -1016,14 +1025,27 @@ private:
         }
 
         if (!Workers.Capacity()) {
-            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: Empty workers capacity";
-            Send(ev->Sender, new TEvAllocateWorkersResponse("Empty workers capacity", NYql::NDqProto::StatusIds::OVERLOADED));
+            const TString error = "No DQ workers are available to run the operation";
+            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: " << error;
+            *OverloadedTotal += 1;
+            *RejectedNoWorkers += 1;
+            Send(ev->Sender, new TEvAllocateWorkersResponse(error, NYql::NDqProto::StatusIds::OVERLOADED));
             return;
         }
 
-        if (!Scheduler->Suspend(NDq::IScheduler::TWaitInfo(ev->Get()->Record, ev->Sender))) {
-            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: Too many dq operations";
-            Send(ev->Sender, new TEvAllocateWorkersResponse("Too many dq operations", NYql::NDqProto::StatusIds::OVERLOADED));
+        const auto suspendResult = Scheduler->Suspend(NDq::IScheduler::TWaitInfo(ev->Get()->Record, ev->Sender));
+        if (suspendResult.Status != NDq::IScheduler::ESuspendStatus::Accepted) {
+            const bool perUserLimit = suspendResult.Status == NDq::IScheduler::ESuspendStatus::PerUserLimit;
+            const TString error = TStringBuilder()
+                << "Too many dq operations: "
+                << (perUserLimit
+                    ? "per-user queue limit reached"
+                    : "global large-operation queue limit reached")
+                << " (waiting: " << suspendResult.WaitingOperations
+                << ", limit: " << suspendResult.Limit << ")";
+            YQL_CLOG(DEBUG, ProviderDq) << "TGlobalWorkerManager::TEvAllocateWorkersRequest: " << error;
+            *OverloadedTotal += 1;
+            Send(ev->Sender, new TEvAllocateWorkersResponse(error, NYql::NDqProto::StatusIds::OVERLOADED));
             return;
         }
 
@@ -1561,6 +1583,9 @@ private:
     THistogramPtr LatencyHistogram;
     const TDynamicCounters::TCounterPtr AllocateWorkersWithExeFileCounter;
     const TDynamicCounters::TCounterPtr AllocateWorkersWithoutExeFileCounter;
+    const TDynamicCounters::TCounterPtr OverloadedTotal;
+    const TDynamicCounters::TCounterPtr RejectedNoWorkers;
+    const TDynamicCounters::TCounterPtr RejectedAfterWorkersLost;
     THashMap<TString,NMonitoring::TDynamicCounters::TCounterPtr> LiteralQueries;
     TWorkersStorage Workers;
 
