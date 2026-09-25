@@ -251,6 +251,7 @@ std::vector<TTablePtr> FetchTables(
         auto clusterAttributes = cluster
             ? queryContext->GetObjectAttributesSnapshot(paths, *cluster)
             : queryContext->GetObjectAttributesSnapshot(paths);
+        YT_VERIFY(clusterAttributes.size() == indices.size());
         for (const auto& [resultIndex, pathIndex] : SEnumerate(indices)) {
             attributesOrErrors[pathIndex] = std::move(clusterAttributes[resultIndex]);
         }
