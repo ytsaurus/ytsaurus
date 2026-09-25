@@ -17,6 +17,7 @@
 
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
@@ -136,54 +137,19 @@ private:
     {
         YT_TLOG_INFO("Opening file reader");
 
-        TUserObject userObject(Path_);
-
-        GetUserObjectBasicAttributes(
+        auto fileInfo = FetchFileObjectInfo(
             Client_,
-            {&userObject},
+            Path_,
             Transaction_ ? Transaction_->GetId() : NullTransactionId,
-            Logger,
-            EPermission::Read,
-            TGetUserObjectBasicAttributesOptions{
+            TFetchFileObjectInfoOptions{
                 .SuppressAccessTracking = Options_.SuppressAccessTracking,
                 .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal,
-            });
-
-        if (userObject.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                Path_,
-                EObjectType::File,
-                userObject.Type);
-        }
+            },
+            Logger);
+        auto& userObject = fileInfo.UserObject;
 
         Id_ = userObject.ObjectId;
-
-        {
-            YT_TLOG_INFO("Requesting extended file attributes");
-
-            auto proxy = CreateObjectServiceReadProxy(
-                Client_,
-                EMasterChannelKind::Follower,
-                userObject.ExternalCellTag);
-            auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
-                "account",
-                "revision",
-            });
-            AddCellTagToSyncWith(req, userObject.ObjectId);
-            SetTransactionId(req, userObject.ExternalTransactionId);
-            SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
-            SetSuppressExpirationTimeoutRenewal(req, Options_.SuppressExpirationTimeoutRenewal);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of file %v",
-                Path_);
-            const auto& rsp = rspOrError.Value();
-
-            auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
-            Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
-            userObject.Account = attributes->Get<std::string>("account");
-        }
+        Revision_ = fileInfo.Revision;
 
         auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
 
