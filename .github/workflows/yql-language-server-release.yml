@@ -24,8 +24,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          path: ytsaurus
 
   build:
     strategy:
@@ -48,17 +46,19 @@ jobs:
           echo "$HOME"
           ls .
           ls "$HOME"
+          ls "$HOME/ytsaurus"
+          ls "$HOME/ytsaurus/ytsaurus"
 
       - name: Build (${{ matrix.target-platform }})
         run: |
           ls
 
-          OUTPUT="$HOME/ytsaurus-build-${{ matrix.target-platform}}"
+          OUTPUT="$HOME/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
           mkdir -p "$OUTPUT"
 
           ls
 
-          cd "$HOME/ytsaurus"
+          cd "$HOME/ytsaurus/ytsaurus"
 
           ls
 
