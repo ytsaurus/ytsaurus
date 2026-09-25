@@ -24,6 +24,7 @@
 #include <util/system/tempfile.h>
 #include <util/system/defaults.h>
 #include <util/system/fstat.h>
+#include <util/system/fs.h>
 #include <util/folder/path.h>
 #include <util/folder/tempdir.h>
 #include <util/string/cast.h>
@@ -178,6 +179,36 @@ namespace NYql {
         driver.TmpDir = tmpDir;
         driver.Parameters = params;
         return Run(driver);
+    }
+
+    TString RunProgramExpectError(const TString& programSrc, const THashMap<TString, TString>& tables) {
+        TStringStream errors;
+        TRunSingleProgram driver(programSrc, errors);
+        driver.Tables = tables;
+
+        auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
+        UNIT_ASSERT_C(!driver.Run(functionRegistry.Get()), "Program was expected to fail");
+        return errors.Str();
+    }
+
+    TString CreateSymlinkProgram(TStringBuf mode) {
+        return TStringBuilder()
+            << "(\n"
+            << "(let sink (DataSink 'yt 'plato))\n"
+            << "(let world (Write! world sink (Key '('link (String 'Link)) '('target (String 'Target))) (Void) '('('mode '" << mode << "))))\n"
+            << "(let world (Commit! world sink))\n"
+            << "(return world)\n"
+            << ")\n";
+    }
+
+    TString DropSymlinkProgram(TStringBuf mode) {
+        return TStringBuilder()
+            << "(\n"
+            << "(let sink (DataSink 'yt 'plato))\n"
+            << "(let world (Write! world sink (Key '('link (String 'Link))) (Void) '('('mode '" << mode << "))))\n"
+            << "(let world (Commit! world sink))\n"
+            << "(return world)\n"
+            << ")\n";
     }
 
     static const TStringBuf KSV_ATTRS =
@@ -784,6 +815,152 @@ namespace NYql {
             auto res = RunProgram(s, THashMap<TString, TString>(), "", params);
             UNIT_ASSERT_VALUES_EQUAL(res.size(), 1);
             UNIT_ASSERT_NO_DIFF(R"__({"Write"=[{"Type"=["TupleType";[["DataType";"String"];["OptionalType";["DataType";"Int32"]];["ListType";["DataType";"Uint32"]];["DictType";["DataType";"Int32"];["DataType";"Bool"]];["StructType";[["a";["VoidType"]];["b";["DataType";"Double"]]]];["VariantType";["TupleType";[["DataType";"Int32"];["DataType";"Bool"]]]]]];"Data"=["bar";["33"];["1";"2";"3"];[["7";%true];["12";%false]];["Void";"-1.7"];["0";"8"]]}]})__", res[0]);
+        }
+    }
+
+    Y_UNIT_TEST_SUITE(SymlinkExecutionYqlExpr) {
+        Y_UNIT_TEST(CreateSymlink) {
+            TTempFileHandle targetFile;
+            TTempFileHandle targetAttrs(targetFile.Name() + ".attr");
+            TTempDir linkDir;
+            const TString linkPath = (TFsPath(linkDir.Name()) / "link").GetPath();
+
+            targetFile.Write("data", 4);
+            targetFile.FlushData();
+            targetAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            targetAttrs.FlushData();
+
+            RunProgram(CreateSymlinkProgram("create_symlink"), {
+                {"yt.plato.Link", linkPath},
+                {"yt.plato.Target", targetFile.Name()},
+            });
+
+            UNIT_ASSERT(TFsPath(linkPath).IsSymlink());
+            UNIT_ASSERT(TFsPath(linkPath + ".attr").IsSymlink());
+            UNIT_ASSERT_VALUES_EQUAL(TFsPath(linkPath).ReadLink().GetPath(), targetFile.Name());
+            UNIT_ASSERT_VALUES_EQUAL(TFsPath(linkPath + ".attr").ReadLink().GetPath(), targetFile.Name() + ".attr");
+        }
+
+        Y_UNIT_TEST(DropSymlink) {
+            TTempFileHandle targetFile;
+            TTempFileHandle targetAttrs(targetFile.Name() + ".attr");
+            TTempDir linkDir;
+            const TString linkPath = (TFsPath(linkDir.Name()) / "link").GetPath();
+
+            targetAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            targetAttrs.FlushData();
+            UNIT_ASSERT(NFs::SymLink(targetFile.Name(), linkPath));
+            UNIT_ASSERT(NFs::SymLink(targetFile.Name() + ".attr", linkPath + ".attr"));
+
+            RunProgram(DropSymlinkProgram("drop_symlink"), {{"yt.plato.Link", linkPath}});
+
+            UNIT_ASSERT(!TFsPath(linkPath).IsSymlink());
+            UNIT_ASSERT(!TFsPath(linkPath + ".attr").IsSymlink());
+        }
+
+        Y_UNIT_TEST(DropDanglingSymlink) {
+            TTempDir linkDir;
+            const TString linkPath = (TFsPath(linkDir.Name()) / "link").GetPath();
+            const TString missingTarget = (TFsPath(linkDir.Name()) / "missing").GetPath();
+
+            UNIT_ASSERT(NFs::SymLink(missingTarget, linkPath));
+            UNIT_ASSERT(NFs::SymLink(missingTarget + ".attr", linkPath + ".attr"));
+
+            RunProgram(DropSymlinkProgram("drop_symlink"), {{"yt.plato.Link", linkPath}});
+
+            UNIT_ASSERT(!TFsPath(linkPath).IsSymlink());
+            UNIT_ASSERT(!TFsPath(linkPath + ".attr").IsSymlink());
+        }
+
+        Y_UNIT_TEST(CreateSymlinkIfNotExistsPreservesLink) {
+            TTempFileHandle originalTarget;
+            TTempFileHandle originalTargetAttrs(originalTarget.Name() + ".attr");
+            TTempFileHandle newTarget;
+            TTempFileHandle newTargetAttrs(newTarget.Name() + ".attr");
+            TTempDir linkDir;
+            const TString linkPath = (TFsPath(linkDir.Name()) / "link").GetPath();
+
+            originalTargetAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            originalTargetAttrs.FlushData();
+            newTargetAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            newTargetAttrs.FlushData();
+            UNIT_ASSERT(NFs::SymLink(originalTarget.Name(), linkPath));
+            UNIT_ASSERT(NFs::SymLink(originalTarget.Name() + ".attr", linkPath + ".attr"));
+
+            RunProgram(CreateSymlinkProgram("create_symlink_if_not_exists"), {
+                {"yt.plato.Link", linkPath},
+                {"yt.plato.Target", newTarget.Name()},
+            });
+
+            UNIT_ASSERT_VALUES_EQUAL(TFsPath(linkPath).ReadLink().GetPath(), originalTarget.Name());
+            UNIT_ASSERT_VALUES_EQUAL(TFsPath(linkPath + ".attr").ReadLink().GetPath(), originalTarget.Name() + ".attr");
+        }
+
+        Y_UNIT_TEST(DropSymlinkIfExistsAcceptsMissingPath) {
+            TTempDir linkDir;
+            const TString linkPath = (TFsPath(linkDir.Name()) / "link").GetPath();
+
+            RunProgram(DropSymlinkProgram("drop_symlink_if_exists"), {{"yt.plato.Link", linkPath}});
+
+            UNIT_ASSERT(!TFsPath(linkPath).Exists());
+            UNIT_ASSERT(!TFsPath(linkPath).IsSymlink());
+        }
+    }
+
+    Y_UNIT_TEST_SUITE(SymlinkValidationYqlExpr) {
+        Y_UNIT_TEST(CreateSymlinkRequiresExistingTarget) {
+            TTempDir tempDir;
+            const TString linkPath = (TFsPath(tempDir.Name()) / "link").GetPath();
+            const TString targetPath = (TFsPath(tempDir.Name()) / "missing").GetPath();
+
+            const auto errors = RunProgramExpectError(CreateSymlinkProgram("create_symlink"), {
+                {"yt.plato.Link", linkPath},
+                {"yt.plato.Target", targetPath},
+            });
+
+            UNIT_ASSERT_C(errors.Contains("Target \"Target\" does not exist."), errors);
+        }
+
+        Y_UNIT_TEST(CreateSymlinkRejectsExistingLinkPath) {
+            TTempFileHandle linkFile;
+            TTempFileHandle linkAttrs(linkFile.Name() + ".attr");
+            TTempFileHandle targetFile;
+            TTempFileHandle targetAttrs(targetFile.Name() + ".attr");
+
+            linkAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            linkAttrs.FlushData();
+            targetAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            targetAttrs.FlushData();
+
+            const auto errors = RunProgramExpectError(CreateSymlinkProgram("create_symlink"), {
+                {"yt.plato.Link", linkFile.Name()},
+                {"yt.plato.Target", targetFile.Name()},
+            });
+
+            UNIT_ASSERT_C(errors.Contains("\"Link\" already exists."), errors);
+        }
+
+        Y_UNIT_TEST(DropSymlinkRejectsTable) {
+            TTempFileHandle tableFile;
+            TTempFileHandle tableAttrs(tableFile.Name() + ".attr");
+
+            tableAttrs.Write(KSV_ATTRS.data(), KSV_ATTRS.size());
+            tableAttrs.FlushData();
+
+            const auto errors = RunProgramExpectError(
+                DropSymlinkProgram("drop_symlink"), {{"yt.plato.Link", tableFile.Name()}});
+
+            UNIT_ASSERT_C(errors.Contains("\"Link\" is not a symlink."), errors);
+        }
+
+        Y_UNIT_TEST(DropSymlinkRequiresExistingPath) {
+            TTempDir tempDir;
+            const TString linkPath = (TFsPath(tempDir.Name()) / "link").GetPath();
+
+            const auto errors = RunProgramExpectError(
+                DropSymlinkProgram("drop_symlink"), {{"yt.plato.Link", linkPath}});
+
+            UNIT_ASSERT_C(errors.Contains("Symlink \"Link\" does not exist."), errors);
         }
     }
 
