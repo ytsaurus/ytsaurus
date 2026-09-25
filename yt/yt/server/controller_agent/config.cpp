@@ -45,9 +45,6 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("enable_snapshot_cycle_after_materialization", &TThis::EnableSnapshotCycleAfterMaterialization)
         .Default(false);
 
-    registrar.Parameter("rootfs_test_layers", &TThis::RootfsTestLayers)
-        .Default();
-
     registrar.Parameter("delay_in_unregistration", &TThis::DelayInUnregistration)
         .Default();
 

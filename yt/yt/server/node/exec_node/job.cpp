@@ -2546,8 +2546,6 @@ void TJob::PrepareWorkspace()
         .GpuCheckOptions = NeedsGpuCheck()
             ? std::make_optional(GetGpuCheckOptions())
             : std::nullopt,
-
-        .TestRootFS = Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS,
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -3530,8 +3528,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
         ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(
             ESandboxKind::User,
-            FSSecretary_->GetRootVolume(),
-            Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS);
+            FSSecretary_->GetRootVolume());
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
         ExecAttributes_.JobProxySocketPath = userSlot->GetJobProxyUnixDomainSocketPath();

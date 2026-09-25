@@ -1,6 +1,6 @@
 import yt_queries
 
-from yt_env_setup import YTEnvSetup, get_sanitizer_type
+from yt_env_setup import YTEnvSetup, get_sanitizer_type, ROOTFS_LAYER_PATH
 
 from yt_commands import (create, get, set, write_file)
 
@@ -84,9 +84,6 @@ class TestQueriesYqlBase(YTEnvSetup):
 
         DELTA_NODE_CONFIG = {
             "exec_node": {
-                "job_proxy": {
-                    "test_root_fs": True,
-                },
                 "slot_manager": {
                     "job_environment": {
                         "type": "porto",
@@ -171,14 +168,14 @@ leak:*ToPySecureParam*
         self._setup_files(authenticated_user=kwargs.get("authenticated_user"))
 
         query_prefix = f"""
-pragma yt.LayerPaths = "{self._sanitizer_stuff_archive_yt_path}";
+pragma yt.LayerPaths = "{self._sanitizer_stuff_archive_yt_path},{ROOTFS_LAYER_PATH}";
 pragma yt.JobEnv = '{{
-    ASAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    MSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    LSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    TSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    UBSAN_SYMBOLIZER_PATH = "$(RootFS)/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
-    LSAN_OPTIONS = "malloc_context_size=200:suppressions=$(RootFS)/{SANITIZER_STUFF_PATH}/{SUPPRESSIONS_FILENAME}";
+    ASAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    MSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    LSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    TSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    UBSAN_SYMBOLIZER_PATH = "/{SANITIZER_STUFF_PATH}/{LLVM_SYMBOLIZER_FILENAME}";
+    LSAN_OPTIONS = "malloc_context_size=200:suppressions=/{SANITIZER_STUFF_PATH}/{SUPPRESSIONS_FILENAME}";
 }}';
 """
 

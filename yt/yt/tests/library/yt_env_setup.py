@@ -68,6 +68,12 @@ from typing import Optional
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
+_MR_PORTO_LAYER_DIR = "//layers"
+_MR_PORTO_LAYER_FILES = {
+    "system_layer_path": "exec.tar.gz",
+    "default_layer_path": "rootfs.tar.gz",
+}
+ROOTFS_LAYER_PATH = _MR_PORTO_LAYER_DIR + "/" + _MR_PORTO_LAYER_FILES["default_layer_path"]
 
 ##################################################################
 
@@ -175,6 +181,44 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
         OUTPUT_PATH = SANDBOX_ROOTDIR
 
     return bin_paths
+
+
+class _YtrecipeToolsBinaryMount:
+    def __init__(self, bin_path):
+        # The job shell rbinds this directory as /yt_runtime.
+        self.path = os.path.join(bin_path, "ytserver-tools")
+        self.symlink_target = os.readlink(self.path)
+        self.connection = None
+        self.volume = None
+
+    def mount(self):
+        from porto import Connection
+
+        binary_path = os.path.realpath(self.path)
+        if not os.path.isfile(binary_path):
+            raise RuntimeError("ytserver-tools does not resolve to a regular file: " + self.path)
+
+        self.connection = Connection()
+        try:
+            self.volume = self.connection.CreateVolume(backend="bind", storage=binary_path, read_only="true")
+            # Porto file volumes need a regular file at the link target.
+            os.unlink(self.path)
+            with open(self.path, "wb"):
+                pass
+            self.connection.LinkVolume(self.volume.path, "self", self.path, read_only=True)
+        except Exception:
+            self.close()
+            raise
+
+    def close(self):
+        if self.volume is not None:
+            self.volume.Destroy()
+            self.volume = None
+            self.connection = None
+        if not os.path.islink(self.path):
+            if os.path.lexists(self.path):
+                os.unlink(self.path)
+            os.symlink(self.symlink_target, self.path)
 
 
 def search_binary_path(binary_name):
@@ -425,7 +469,6 @@ class YTEnvSetup(object):
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
     JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
-    USE_CUSTOM_ROOTFS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     USE_PERMISSION_CACHE = True
@@ -480,7 +523,7 @@ class YTEnvSetup(object):
     # But in some cases it prevent some problems.
     # https://ytsaurus.tech/internal/uhTGXN0x7MtRVT
     # Option can be removed after repairing yt/yt/tests/integration/node.
-    # If COPY_YTSERVER is None, YT_OUTPUT env is checked and if it is set, ytserver is copied.
+    # If COPY_YTSERVER is None, ytrecipe uses symlinks and local tests copy ytserver.
     COPY_YTSERVER: Optional[bool] = None
 
     @classmethod
@@ -752,7 +795,7 @@ class YTEnvSetup(object):
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
-            jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
+            jobs_environment_type=cls._get_effective_job_environment_type(),
             use_slot_user_id=use_slot_user_id,
             native_client_supported=True,
             master_count=cls.get_param("NUM_MASTERS", index),
@@ -899,6 +942,60 @@ class YTEnvSetup(object):
         return False
 
     @classmethod
+    def _get_effective_job_environment_type(cls):
+        return "porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE
+
+    @classmethod
+    def _should_setup_mr_porto_layers(cls, cluster_index):
+        return (
+            cls.get_param("NUM_SCHEDULERS", cluster_index) > 0
+            and cls._get_effective_job_environment_type() == "porto"
+        )
+
+    @classmethod
+    def _get_mr_porto_layer_paths(cls):
+        return {
+            key: _MR_PORTO_LAYER_DIR + "/" + file_name
+            for key, file_name in _MR_PORTO_LAYER_FILES.items()
+        }
+
+    @classmethod
+    def _upload_mr_porto_layers_to_cypress(cls, driver):
+        layer_dir = "rootfs"
+        for file_name in _MR_PORTO_LAYER_FILES.values():
+            layer_path = os.path.join(layer_dir, file_name)
+            assert os.path.isfile(layer_path), f"MR Porto layer {layer_path} is missing"
+
+        if not yt_commands.exists(_MR_PORTO_LAYER_DIR, driver=driver):
+            yt_commands.create("map_node", _MR_PORTO_LAYER_DIR, driver=driver)
+
+        nodes = yt_commands.get("//sys/cluster_nodes", attributes=["flavors"], driver=driver)
+        data_node_count = sum(
+            "data" in node.attributes.get("flavors", ["data"])
+            for node in nodes.values()
+        )
+        assert data_node_count > 0, "Cannot upload MR Porto layers without data nodes"
+        replication_factor = min(2, data_node_count)
+
+        for file_name in _MR_PORTO_LAYER_FILES.values():
+            cypress_path = _MR_PORTO_LAYER_DIR + "/" + file_name
+            assert not yt_commands.exists(cypress_path, driver=driver), \
+                f"MR Porto layer {cypress_path} already exists"
+            yt_commands.create(
+                "file",
+                cypress_path,
+                attributes={"replication_factor": replication_factor},
+                driver=driver)
+            with open(os.path.join(layer_dir, file_name), "rb") as layer_file:
+                yt_commands.write_file(cypress_path, layer_file.read(), driver=driver)
+
+            for chunk_id in yt_commands.get(cypress_path + "/@chunk_ids", driver=driver):
+                wait(lambda chunk_id=chunk_id: len({
+                    str(replica) for replica in yt_commands.get(
+                        "#{}/@stored_replicas".format(chunk_id), driver=driver)
+                }) >= replication_factor, timeout=60)
+
+    @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
@@ -925,6 +1022,7 @@ class YTEnvSetup(object):
         cls.test_name = test_name
 
         cls.liveness_checkers = []
+        cls._ytrecipe_tools_binary_mount = None
 
         log_rotator = Checker(reopen_logs)
         log_rotator.daemon = True
@@ -974,7 +1072,24 @@ class YTEnvSetup(object):
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
         try:
+            if os.environ.get("YT_OUTPUT") is not None and cls._get_effective_job_environment_type() == "porto":
+                tools_path = os.path.join(cls.bin_path, "ytserver-tools")
+                # COPY_YTSERVER=True puts a regular hardlink here; the directory rbind exposes it.
+                # Otherwise ytrecipe uses a symlink to ytserver-all outside bin, so bind the file.
+                if os.path.islink(tools_path):
+                    cls._ytrecipe_tools_binary_mount = _YtrecipeToolsBinaryMount(cls.bin_path)
+                    cls._ytrecipe_tools_binary_mount.mount()
             cls.start_envs()
+            for cluster_index, env in enumerate(cls.combined_envs):
+                if env is None or not cls._should_setup_mr_porto_layers(cluster_index):
+                    continue
+
+                assert not cls.get_param("DEFER_SECONDARY_CELL_START", cluster_index), \
+                    "MR Porto layers do not support DEFER_SECONDARY_CELL_START"
+                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+                yt_commands.wait_for_nodes(driver=driver)
+                yt_commands.wait_for_chunk_replicator_enabled(driver=driver)
+                cls._upload_mr_porto_layers_to_cypress(driver)
         except:  # noqa
             cls.teardown_class()
             raise
@@ -1168,14 +1283,6 @@ class YTEnvSetup(object):
                             attributes={"value": {}},
                             force=True,
                             driver=driver)
-
-        if cls.USE_CUSTOM_ROOTFS:
-            yt_commands.create("map_node", "//layers")
-
-            yt_commands.create("file", "//layers/exec.tar.gz", attributes={"replication_factor": 1})
-            yt_commands.write_file("//layers/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-            yt_commands.create("file", "//layers/rootfs.tar.gz", attributes={"replication_factor": 1})
-            yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
     @classmethod
     def _setup_sequoia_tables(cls, cluster_index):
@@ -1375,10 +1482,9 @@ class YTEnvSetup(object):
         node_flavors_length = len(cls.DELTA_NODE_FLAVORS)
         assert node_flavors_length == 0 or cls.NUM_NODES == node_flavors_length
 
+        auto_setup_mr_porto_layers = cls._should_setup_mr_porto_layers(cluster_index)
         for index, config in enumerate(configs["node"]):
             cls._apply_effective_config_patch(config, "DELTA_NODE_CONFIG", cluster_index)
-            if cls.USE_CUSTOM_ROOTFS:
-                update_inplace(config, get_custom_rootfs_delta_node_config())
 
             # TODO(khlebnikov) move "breakpoints" out of "tmp" which shouldn't be shared.
             shared_dir = os.path.join(cluster_path, "tmp")
@@ -1396,6 +1502,18 @@ class YTEnvSetup(object):
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_node_config(config, cluster_index)
+
+            yt_output = os.environ.get("YT_OUTPUT")
+            if auto_setup_mr_porto_layers and yt_output:
+                # Ytrecipe binds YT_OUTPUT from the outer job's tmpfs. Each Porto
+                # MR test imports a large rootfs layer there; charging unpacking
+                # to Porto's daemon cgroup can starve it and stall the import.
+                # This flag charges the import to "self" without moving the files.
+                # It also keeps the tmpfs layer location enabled after import failures.
+                output_path = os.path.realpath(yt_output)
+                for location in config["data_node"]["volume_manager"]["layer_locations"]:
+                    if os.path.commonpath((output_path, os.path.realpath(location["path"]))) == output_path:
+                        location.setdefault("resides_on_tmpfs", True)
 
         for index, config in enumerate(configs["chaos_node"]):
             cls._apply_effective_config_patch(config, "DELTA_CHAOS_NODE_CONFIG", cluster_index)
@@ -1526,18 +1644,23 @@ class YTEnvSetup(object):
 
     @classmethod
     def teardown_class(cls):
-        if cls.liveness_checkers:
-            for checker in cls.liveness_checkers:
-                checker.stop()
+        try:
+            if cls.liveness_checkers:
+                for checker in cls.liveness_checkers:
+                    checker.stop()
 
-        for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
-            if env is None:
-                continue
-            env.stop()
-            env.remove_runtime_data()
+            for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
+                if env is None:
+                    continue
+                env.stop()
+                env.remove_runtime_data()
 
-        yt_commands.terminate_drivers()
-        gc.collect()
+            yt_commands.terminate_drivers()
+            gc.collect()
+        finally:
+            if cls._ytrecipe_tools_binary_mount is not None:
+                cls._ytrecipe_tools_binary_mount.close()
+                cls._ytrecipe_tools_binary_mount = None
 
         class_duration = time() - cls._start_time
         class_limit = (2 if is_sanitizer_build() else 1) * cls.CLASS_TEST_LIMIT
@@ -1648,6 +1771,10 @@ class YTEnvSetup(object):
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator_enabled(driver=driver)
 
+        controller_agent_config = {}
+        if self._should_setup_mr_porto_layers(cluster_index):
+            update_inplace(controller_agent_config, self._get_mr_porto_layer_paths())
+
         if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
             for response in yt_commands.execute_batch(
                 [
@@ -1655,18 +1782,7 @@ class YTEnvSetup(object):
                         "create",
                         path="//sys/controller_agents/config",
                         type="document",
-                        attributes={
-                            "value": {
-                                "testing_options": {
-                                    "rootfs_test_layers": [
-                                        "//layers/exec.tar.gz",
-                                        "//layers/rootfs.tar.gz",
-                                    ]
-                                    if self.USE_CUSTOM_ROOTFS
-                                    else [],
-                                },
-                            }
-                        },
+                        attributes={"value": controller_agent_config},
                         force=True,
                     ),
                     yt_commands.make_batch_request(
@@ -2695,19 +2811,6 @@ class YTEnvSetup(object):
         yt_commands.set("//sys/cluster_nodes/@config", new_config)
         for node in nodes:
             wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == new_config[node])
-
-
-def get_custom_rootfs_delta_node_config():
-    return {
-        "exec_node": {
-            "slot_manager": {
-                "do_not_set_user_id": True,
-                "job_environment": {
-                    "use_exec_from_layer": True,
-                },
-            },
-        }
-    }
 
 
 def get_service_component_name(service):

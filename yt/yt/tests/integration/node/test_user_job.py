@@ -4,6 +4,7 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     NODES_SERVICE,
     is_asan_build,
+    ROOTFS_LAYER_PATH,
 )
 
 
@@ -21,7 +22,8 @@ from yt_commands import (
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
     heal_exec_node,
-    make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
+    make_random_string, raises_yt_error, update_controller_agent_config,
+    remove_default_layer_path, update_scheduler_config,
     get_supported_erasure_codecs)
 
 from yt_operations_archive_helpers import get_job_from_archive
@@ -84,27 +86,16 @@ class TestSandboxPath(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_proxy": {
-                "test_root_fs": False,
-            },
-        },
-    }
-
-    def setup_files(self):
-        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
     @authors("krasovav")
     @pytest.mark.parametrize("has_root_fs", [False, True])
     def test_sandbox_path(self, has_root_fs):
-        self.setup_files()
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
+
+        if not has_root_fs:
+            # TODO(pogorelov): Remove rootless cases once every job has a root volume.
+            remove_default_layer_path()
 
         op = map(
             command="[ -d tmpfs ] && findmnt -o FSTYPE -T tmpfs | grep tmpfs >&2",
@@ -114,7 +105,6 @@ class TestSandboxPath(YTEnvSetup):
                 "mapper": {
                     "tmpfs_size": 1024 * 1024,
                     "tmpfs_path": "tmpfs",
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"] if has_root_fs else [],
                 },
                 "max_failed_job_count": 1,
             },
@@ -1398,24 +1388,17 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # The operation should fail with rootfs overflow.
         root_volume_size = file_size // 2
 
-        layers = []
-        if has_root_volume:
-            create("file", "//tmp/exec.tar.gz")
-            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-            create("file", "//tmp/rootfs.tar.gz")
-            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
-            layers = [{"path": "//tmp/rootfs.tar.gz"}, {"path": "//tmp/exec.tar.gz"}]
-
         volumes = {
             "root": {
                 "disk_request": {
                     "type": "local_disk",
                     "disk_space": root_volume_size,
                 },
-                "layers": layers,
             },
         }
+
+        if not has_root_volume:
+            remove_default_layer_path()
 
         with raises_yt_error('Failed to build file "large_file" in sandbox "user": disk space limit is too small'):
             map(
@@ -1468,8 +1451,6 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # The operation should fail with VolumeSizeLimitExceeded error.
         non_root_volume_size = file_size // 2
 
-        non_root_path = "/slot/sandbox" if has_root_volume else "/sandbox"
-
         volumes = {
             "non-root": {
                 "disk_request": {
@@ -1479,16 +1460,14 @@ class TestArtifactCacheBypass(YTEnvSetup):
             },
         }
 
+        non_root_path = "/slot/sandbox" if has_root_volume else "/sandbox"
         job_volume_mounts = [{"volume_id": "non-root", "mount_path": non_root_path}]
 
         if has_root_volume:
-            create("file", "//tmp/exec.tar.gz")
-            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-            create("file", "//tmp/rootfs.tar.gz")
-            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
-            volumes["root"] = {"layers": [{"path": "//tmp/rootfs.tar.gz"}, {"path": "//tmp/exec.tar.gz"}]}
+            volumes["root"] = {}
             job_volume_mounts.append({"volume_id": "root", "mount_path": "/"})
+        else:
+            remove_default_layer_path()
 
         with raises_yt_error(code=yt_error_codes.VolumeSizeLimitExceeded):
             map(
@@ -1862,15 +1841,15 @@ class TestUserJobIsolation(YTEnvSetup):
     @pytest.mark.parametrize("restrict_porto_place", [False, True])
     def test_create_container_with_explicit_place(self, restrict_porto_place):
         op = run_test_vanilla(
-            # Here default place (no place) is used.
-            command=with_breakpoint("portoctl exec -L 'nonexistent_layer' container command='ls' place='/nonexistent' 1>&2; BREAKPOINT"),
+            # Use an existing place so that unrestricted creation reaches layer lookup.
+            command=with_breakpoint("portoctl exec -L 'nonexistent_layer' container command='ls' place='/home/slot' 1>&2; BREAKPOINT"),
             task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
         )
 
         job_id = wait_breakpoint()[0]
 
         if restrict_porto_place:
-            assert b"Cannot start container: Permission:(Place /nonexistent is not permitted)\n" in get_job_stderr(op.id, job_id)
+            assert b"Cannot start container: Permission:(Place /home/slot is not permitted)\n" in get_job_stderr(op.id, job_id)
         else:
             assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
 
@@ -1997,14 +1976,11 @@ class TestFixedUser(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
+                "do_not_set_user_id": False,
                 "job_environment": {
                     "type": "porto",
-                    "do_not_set_user_id": False,
                     "start_uid": 19500,
                 },
-            },
-            "job_proxy": {
-                "test_root_fs": True,
             },
         },
         "job_resource_manager": {
@@ -2026,7 +2002,7 @@ class TestFixedUser(YTEnvSetup):
             job_count=2,
             task_patch={
                 "enable_fixed_user_id": True,
-                "layer_paths": ["//tmp/base_layer"],
+                "layer_paths": ["//tmp/base_layer", ROOTFS_LAYER_PATH],
             })
 
         job_ids = wait_breakpoint(job_count=2)
@@ -3973,9 +3949,6 @@ class TestConsecutiveJobAbortsPorto(YTEnvSetup):
                     "test_gpu_count": 1,
                 },
             },
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -4475,9 +4448,6 @@ class TestSlotManagerResurrect(YTEnvSetup):
                     },
                 },
             },
-            "job_proxy": {
-                "test_root_fs": True,
-            },
         },
     }
 
@@ -4531,7 +4501,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
                 command="sleep {}".format(time),
                 task_patch={
                     "max_failed_job_count": 1,
-                    "layer_paths": ["//tmp/layer"]
+                    "layer_paths": ["//tmp/layer", ROOTFS_LAYER_PATH]
                 }
             )
 
@@ -4781,7 +4751,7 @@ class TestPortoFuseDevice(YTEnvSetup):
     @authors("ignat")
     def test_fuse_device(self):
         op = run_test_vanilla(
-            command=with_breakpoint("stat /dev/fuse >&2; BREAKPOINT"),
+            command=with_breakpoint("test -c /dev/fuse && echo FUSE_DEVICE_AVAILABLE >&2; BREAKPOINT"),
             task_patch={
                 "enable_fuse": True,
             },
@@ -4789,7 +4759,7 @@ class TestPortoFuseDevice(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        assert b"File: /dev/fuse" in get_job_stderr(op.id, job_id)
+        assert b"FUSE_DEVICE_AVAILABLE" in get_job_stderr(op.id, job_id)
 
 
 ##################################################################

@@ -66,10 +66,6 @@ struct TTestingOptions
     //! Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
 
-    //! If this option is set, these layers are used in all the user jobs
-    //! and all the rootfs's become writable.
-    std::vector<NYPath::TRichYPath> RootfsTestLayers;
-
     //! If this option is set, controller agent sleeps for this duration before performing actual unregistration.
     std::optional<TDuration> DelayInUnregistration;
 

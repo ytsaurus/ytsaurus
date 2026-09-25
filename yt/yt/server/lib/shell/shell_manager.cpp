@@ -375,7 +375,6 @@ private:
         auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
-            auto toolPathOrError = ResolveBinaryPath(std::string(NTools::ToolsProgramName));
         }
 
         if (IsDirEmpty(toolDirectory)) {
@@ -383,7 +382,8 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
             THashMap<std::string, std::string> volumeProperties;
-            volumeProperties["backend"] = "bind";
+            // Preserve volumes mounted inside the tools directory.
+            volumeProperties["backend"] = "rbind";
             volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 

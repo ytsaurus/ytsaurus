@@ -1,12 +1,13 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
-    write_file, write_table, get_job, abort_job, poll_job_shell,
+    write_file, write_table, get_job, get_job_spec, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config, update_controller_agent_config,
     wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
     make_random_string, sync_create_cells, get_allocation_id_from_job_id,
+    remove_default_layer_path,
     create_domestic_medium, create_account, set_account_disk_space_limit,
 )
 
@@ -28,6 +29,22 @@ import zstandard as zstd
 
 from builtins import set as Set
 from collections import Counter
+
+
+def rootfs_layers(*paths):
+    # Porto lists layers from top to bottom, so the base rootfs goes last.
+    return [{"path": path} for path in (*paths, ROOTFS_LAYER_PATH)]
+
+
+def get_job_root_volume_layer_paths(job_id):
+    job_spec = yson.loads(get_job_spec(job_id))
+    layers = job_spec["job_spec_ext"]["user_job_spec"]["root_volume_layers"]
+    return [layer["data_source"]["path"] for layer in layers]
+
+
+def filter_layer_cache_logs(lines, layer_path):
+    artifact_path = "ArtifactPath: {},".format(layer_path)
+    return [line for line in lines if artifact_path in line]
 
 
 def _make_random_uds_path() -> str:
@@ -80,9 +97,6 @@ class TestPortoLayersBase(TestLayersBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -151,7 +165,7 @@ class TestLayers(TestPortoLayersBase):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="./static_cat && ls $YT_ROOT_FS 1>&2",
+                command="./static_cat && ls / 1>&2",
                 file="//tmp/static_cat",
                 spec={
                     "max_failed_job_count": 1,
@@ -159,13 +173,9 @@ class TestLayers(TestPortoLayersBase):
                         "volumes": {
                             "1": {
                                 "layers": [
-                                    {
-                                        "path": "//tmp/layer1",
-                                    },
-                                    {
-                                        "path": "//tmp/corrupted_layer",
-                                    }
-                                ],
+                                    {"path": "//tmp/layer1"},
+                                    {"path": "//tmp/corrupted_layer"},
+                                ] + ([{"path": ROOTFS_LAYER_PATH}] if volume_type == "root" else []),
                                 "disk_request": None if volume_type == "root" else {
                                     "type": volume_type,
                                     "disk_space": 1024 * 1024
@@ -196,21 +206,21 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        layer_path = "/" if volume_type == "root" else "/sandbox"
+        layers = [{"path": "//tmp/layer1" + layer_compression}]
+        if volume_type == "root":
+            layers.append({"path": ROOTFS_LAYER_PATH})
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls {} 1>&2".format(layer_path),
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
                     "volumes": {
                         "1": {
-                            "layers": [
-                                {
-                                    "path": "//tmp/layer1" + layer_compression
-                                }
-                            ],
+                            "layers": layers,
                             "disk_request": None if volume_type == "root" else {
                                 "type": volume_type,
                                 "disk_space": 1024 * 1024
@@ -241,24 +251,21 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        layer_path = "/" if volume_type == "root" else "/sandbox"
+        layers = [{"path": "//tmp/layer1"}, {"path": "//tmp/layer2"}]
+        if volume_type == "root":
+            layers.append({"path": ROOTFS_LAYER_PATH})
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls {} 1>&2".format(layer_path),
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
                     "volumes": {
                         "1": {
-                            "layers": [
-                                {
-                                    "path": "//tmp/layer1"
-                                },
-                                {
-                                    "path": "//tmp/layer2"
-                                }
-                            ],
+                            "layers": layers,
                             "disk_request": None if volume_type == "root" else {
                                 "type": volume_type,
                                 "disk_space": 1024 * 1024
@@ -293,7 +300,7 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2; cd $YT_ROOT_FS; cd ..; ls tmpfs local_disk 1>&2",
+            command="./static_cat && ls -d /tmpfs /local_disk 1>&2 && ls /tmpfs /local_disk 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -358,7 +365,7 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2 && cd $YT_ROOT_FS && cd .. && ls 1>&2 && cd outer && ls 1>&2 && cd inner && ls 1>&2",
+            command="./static_cat && ls -d /outer /outer/inner 1>&2 && ls /outer /outer/inner 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -423,7 +430,7 @@ class TestLayers(TestPortoLayersBase):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="./static_cat && ls $YT_ROOT_FS 1>&2",
+                command="./static_cat && ls / 1>&2",
                 file="//tmp/static_cat",
                 spec={
                     "max_failed_job_count": 1,
@@ -431,13 +438,9 @@ class TestLayers(TestPortoLayersBase):
                         "volumes": {
                             "1": {
                                 "layers": [
-                                    {
-                                        "path": "//tmp/layer1"
-                                    },
-                                    {
-                                        "path": "//tmp/bad_layer"
-                                    }
-                                ],
+                                    {"path": "//tmp/layer1"},
+                                    {"path": "//tmp/bad_layer"},
+                                ] + ([{"path": ROOTFS_LAYER_PATH}] if volume_type == "root" else []),
                                 "disk_request": None if volume_type == "root" else {
                                     "type": volume_type,
                                     "disk_space": 1024 * 1024
@@ -463,15 +466,16 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        remove_default_layer_path()
         op = map(
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2",
+            command=with_breakpoint("./static_cat && echo MAPPER_RAN >&2; BREAKPOINT"),
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
-                "default_base_layer_path": "//tmp/layer1",
-                "layer_paths": ["//tmp/layer2"],
+                "default_base_layer_path": ROOTFS_LAYER_PATH,
                 "mapper": {
                     "tmpfs_path": ".",
                     "tmpfs_size": 1024 * 1024,
@@ -479,10 +483,12 @@ class TestLayers(TestPortoLayersBase):
             },
         )
 
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        for job_id in job_ids:
-            assert b"static-bin" in op.read_stderr(job_id)
+        job_id, = wait_breakpoint()
+        # The controller agent prepends the system layer independently of the operation spec.
+        assert get_job_root_volume_layer_paths(job_id)[1:] == [ROOTFS_LAYER_PATH]
+        release_breakpoint(job_id=job_id)
+        op.track()
+        assert b"MAPPER_RAN" in op.read_stderr(job_id)
 
     @authors("galtsev")
     @pytest.mark.timeout(600)
@@ -493,26 +499,34 @@ class TestLayers(TestPortoLayersBase):
         create("table", "//tmp/t_out")
 
         write_table("//tmp/t_in", [{"k": 0}], sorted_by="k")
+        remove_default_layer_path()
         op = map_reduce(
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            mapper_command="./static_cat && ls $YT_ROOT_FS 1>&2",
-            reducer_command="if [ ! -e $YT_ROOT_FS/test ]; then exit 1; fi; cat",
+            mapper_command=with_breakpoint("./static_cat && echo MAPPER_RAN >&2; BREAKPOINT", "mapper"),
+            reducer_command=with_breakpoint("if [ ! -e /test ]; then exit 1; fi; cat; BREAKPOINT", "reducer"),
             mapper_file=["//tmp/static_cat"],
             sort_by=["k"],
             spec={
                 "max_failed_job_count": 1,
-                "default_base_layer_path": "//tmp/layer1",
+                "default_base_layer_path": ROOTFS_LAYER_PATH,
                 "reducer": {
-                    "layer_paths": ["//tmp/layer2"],
+                    "layer_paths": ["//tmp/layer2", ROOTFS_LAYER_PATH],
                 },
             },
         )
 
-        job_ids = op.list_jobs()
-        assert len(job_ids) == 1
-        for job_id in job_ids:
-            assert b"static-bin" in op.read_stderr(job_id)
+        mapper_job_id, = wait_breakpoint(breakpoint_name="mapper")
+        assert get_job_root_volume_layer_paths(mapper_job_id)[1:] == [ROOTFS_LAYER_PATH]
+        release_breakpoint(breakpoint_name="mapper", job_id=mapper_job_id)
+
+        reducer_job_id, = wait_breakpoint(breakpoint_name="reducer")
+        assert get_job_root_volume_layer_paths(reducer_job_id)[1:] == ["//tmp/layer2", ROOTFS_LAYER_PATH]
+        release_breakpoint(breakpoint_name="reducer", job_id=reducer_job_id)
+
+        op.track()
+        assert b"MAPPER_RAN" in op.read_stderr(mapper_job_id)
 
     @authors("ngc224")
     def test_layer_with_environment_formatter(self):
@@ -526,14 +540,14 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $CUSTOM_ROOT_FS 1>&2",
+            command="./static_cat && test -x \"$CUSTOM_SANDBOX/static_cat\" && ls / 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                     "environment": {
-                        "CUSTOM_ROOT_FS": "$(RootFS)",
+                        "CUSTOM_SANDBOX": "$(SandboxPath)",
                     },
                 },
             },
@@ -559,11 +573,11 @@ class TestLayers(TestPortoLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat file 1>&2 && ls $YT_ROOT_FS 1>&2",
+            command="./static_cat file 1>&2 && ls / 1>&2",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                     "file_paths": ["//tmp/static_cat", "//tmp/file"],
                 },
             },
@@ -597,21 +611,10 @@ class TestRootFS(TestLayersBase):
         }
     }
 
-    def setup_files(self):
-        create("file", "//tmp/exec.tar.gz")
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz")
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
     @authors("ignat")
     def test_homedir(self):
-        self.setup_files()
-
         op = run_test_vanilla(
             with_breakpoint('set -e; test -d /home/yt_slot_0; touch /home/yt_slot_0/my_file; ls /slot/home >&2; BREAKPOINT'),
-            task_patch={
-                "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
-            },
         )
 
         job_ids = wait_breakpoint()
@@ -695,7 +698,7 @@ class TestProbingLayer(TestPortoLayersBase):
         self.create_tables(job_count)
 
         command = (
-            "if test -e $YT_ROOT_FS/test; then "
+            "if test -e /test; then "
             "    sed 's/LAYER/control/'; sleep 0.1; "
             "else "
             "    sed 's/LAYER/treatment/'; "
@@ -726,7 +729,7 @@ class TestProbingLayer(TestPortoLayersBase):
         self.create_tables(job_count)
 
         command = (
-            "if test -e $YT_ROOT_FS/test; then "
+            "if test -e /test; then "
             "    sed 's/LAYER/control/g'; sleep 0.1; "
             "else "
             "    sed 's/LAYER/treatment/g'; exit 1; "
@@ -761,7 +764,7 @@ class TestProbingLayer(TestPortoLayersBase):
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
-        {"mapper": {"layer_paths": ["//tmp/layer2"]}},
+        {"mapper": {"layer_paths": ["//tmp/layer2", ROOTFS_LAYER_PATH]}},
         {"max_speculative_job_count_per_task": 0},
         {"try_avoid_duplicating_jobs": True},
     ])
@@ -773,7 +776,7 @@ class TestProbingLayer(TestPortoLayersBase):
         self.create_tables(job_count)
 
         command = (
-            "if test -e $YT_ROOT_FS/test; then "
+            "if test -e /test; then "
             "    sed 's/LAYER/control/g'; "
             "else "
             "    sed 's/LAYER/treatment/g'; "
@@ -801,7 +804,7 @@ class TestProbingLayer(TestPortoLayersBase):
         self.create_tables(job_count)
 
         command = (
-            "if test -e $YT_ROOT_FS/test; then "
+            "if test -e /test; then "
             "    sed 's/LAYER/control/'; "
             "else "
             "    sed 's/LAYER/treatment/'; "
@@ -834,7 +837,7 @@ class TestProbingLayer(TestPortoLayersBase):
             for treatment_failure_rate in range(2, 5):
 
                 command = (
-                    f"if test -e $YT_ROOT_FS/test; then "
+                    f"if test -e /test; then "
                     f"    if [ $(($RANDOM % {control_failure_rate})) -eq 0 ]; then "
                     f"        exit 1; "
                     f"    fi; "
@@ -870,7 +873,7 @@ class TestProbingLayer(TestPortoLayersBase):
 class TestDockerImage(TestPortoLayersBase):
     INPUT_TABLE = "//tmp/input_table"
     OUTPUT_TABLE = "//tmp/output_table"
-    COMMAND = "test -e $YT_ROOT_FS/test && test -e $YT_ROOT_FS/static-bin"
+    COMMAND = "test -e /test && test -e /static-bin"
     IMAGE = "tmp/test-image"
     TAG_DOCUMENT_PATH = f"//{IMAGE}/_tags"
 
@@ -914,7 +917,7 @@ class TestDockerImage(TestPortoLayersBase):
         self.create_tables()
 
         tag = "tag"
-        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2"]})
+        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH]})
 
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}")
 
@@ -925,7 +928,7 @@ class TestDockerImage(TestPortoLayersBase):
         self.create_tables()
 
         tag = "tag"
-        self.create_mock_docker_image({tag: ["//tmp/layer1"]})
+        self.create_mock_docker_image({tag: ["//tmp/layer1", ROOTFS_LAYER_PATH]})
 
         self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
 
@@ -936,7 +939,7 @@ class TestDockerImage(TestPortoLayersBase):
         self.create_tables()
 
         default_docker_tag = "latest"
-        self.create_mock_docker_image({default_docker_tag: ["//tmp/layer1", "//tmp/layer2"]})
+        self.create_mock_docker_image({default_docker_tag: ["//tmp/layer1", "//tmp/layer2", ROOTFS_LAYER_PATH]})
 
         self.run_map(f"{TestDockerImage.IMAGE}")
 
@@ -1019,9 +1022,6 @@ class TestLayerCacheEviction(TestLayerCacheBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1034,8 +1034,9 @@ class TestLayerCacheEviction(TestLayerCacheBase):
                 "cache_capacity_fraction": 1.0,
                 "layer_locations": [
                     {
-                        # Size of unpacked layer layers/static-bin.tar is 3207704.
-                        "quota": 4 * 1024 * 1024,
+                        # The three unpacked layers total about 224 MB. Leave
+                        # room for active volumes and filesystem overhead.
+                        "quota": 384 * 1024 * 1024,
                     },
                 ],
             },
@@ -1070,14 +1071,15 @@ class TestLayerCacheEviction(TestLayerCacheBase):
             spec={
                 "fail_on_job_restart": True,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                 },
             },
         )
 
-        logs = self._get_node_debug_logs("Layer added to cache")
+        # Count only the user layer; the system and rootfs layers are cached too.
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 1
-        logs = self._get_node_debug_logs("Layer removed from cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer removed from cache"), "//tmp/layer1")
         assert len(logs) == 0
 
         # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
@@ -1088,8 +1090,8 @@ class TestLayerCacheEviction(TestLayerCacheBase):
 
         layer_missed_count = cache_missed_counter.get_delta()
 
-        # We touch layer from cache when creating overlay volume.
-        assert cache_hit_counter.get_delta() == 1
+        # The aggregate hit counter includes the user, system, and rootfs layers.
+        assert cache_hit_counter.get_delta() == 3
 
         map(
             in_="//tmp/t_in",
@@ -1098,22 +1100,22 @@ class TestLayerCacheEviction(TestLayerCacheBase):
             spec={
                 "fail_on_job_restart": True,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                 },
             },
         )
 
-        logs = self._get_node_debug_logs("Layer added to cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 1
-        logs = self._get_node_debug_logs("Layer removed from cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer removed from cache"), "//tmp/layer1")
         assert len(logs) == 0
 
         # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
         wait(lambda: finished_job_counter.get_delta() == 2)
 
         assert cache_missed_counter.get_delta() == layer_missed_count
-        # We touch layer from cache when creating overlay volume, so we expect it should be +2 from previous delta (1 + 2).
-        assert cache_hit_counter.get_delta() > 2
+        # Each layer is hit once in the first map and twice in the second.
+        wait(lambda: cache_hit_counter.get_delta() > 8)
 
 
 class TestLayerCacheResurrection(TestLayerCacheBase):
@@ -1121,9 +1123,6 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1177,16 +1176,16 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                 },
             },
         )
 
         job_id, = wait_breakpoint(job_count=1)
 
-        logs = self._get_node_debug_logs("Layer added to cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 1
-        logs = self._get_node_debug_logs("Layer removed from cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer removed from cache"), "//tmp/layer1")
         assert len(logs) == 1
 
         # Wait some time for sensors to be collected.
@@ -1204,19 +1203,18 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                 },
             },
         )
 
         # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
         wait(lambda: finished_job_counter.get_delta() == 1)
-        # We touch layer from cache when creating overlay volume, so we expect it should be +2 from previous delta (1 + 2).
         assert cache_hit_counter.get_delta() > cache_hit_count
 
-        logs = self._get_node_debug_logs("Layer added to cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer added to cache"), "//tmp/layer1")
         assert len(logs) == 2
-        logs = self._get_node_debug_logs("Layer removed from cache")
+        logs = filter_layer_cache_logs(self._get_node_debug_logs("Layer removed from cache"), "//tmp/layer1")
         assert len(logs) == 2
 
         release_breakpoint()
@@ -1388,9 +1386,6 @@ class TestTmpfsLayerCache(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1463,12 +1458,12 @@ class TestTmpfsLayerCache(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls / 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -1500,9 +1495,6 @@ class TestTmpfsLayers(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1579,12 +1571,12 @@ class TestTmpfsLayers(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat && ls $YT_ROOT_FS/dir 1>&2",
+            command="./static_cat && ls /dir 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/upper_layer", "//tmp/lower_layer"],
+                    "layer_paths": ["//tmp/upper_layer", "//tmp/lower_layer", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -1606,9 +1598,6 @@ class TestJobSetup(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1657,11 +1646,11 @@ class TestJobSetup(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/setup_output_file >&2",
+            command="/static-bin/static-cat /setup_output_file >&2",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/layer1"],
+                    "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                     "job_count": 1,
                 },
             },
@@ -1682,9 +1671,6 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -1733,7 +1719,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
 
         op = run_test_vanilla(
             command="sleep 1",
-            task_patch={"layer_paths": ["//tmp/layer"]},
+            task_patch={"layer_paths": ["//tmp/layer", ROOTFS_LAYER_PATH]},
         )
 
         wait(lambda: op.list_jobs())
@@ -1758,15 +1744,10 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            # This test_root_fs is for compatibility with 23.2 for now.
-            "test_root_fs": True,
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
                 },
-            },
-            "job_proxy": {
-                "test_root_fs": True,
             },
         },
         "job_resource_manager": {
@@ -1834,11 +1815,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/empty_squashfs.img"],
+                        "layer_paths": ["//tmp/empty_squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -1861,11 +1842,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="ls $YT_ROOT_FS/dir 1>&2",
+            command="ls /dir 1>&2",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -1899,11 +1880,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="ls $YT_ROOT_FS 1>&2",
+            command="ls / 1>&2",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/corrupted_squashfs.img"],
+                    "layer_paths": ["//tmp/corrupted_squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -1937,11 +1918,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
+                command="ls / 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer"],
+                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -1972,11 +1953,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
+                command="ls / 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/incompatible_layer"],
+                        "layer_paths": ["//tmp/incompatible_layer", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2001,11 +1982,11 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
+                command="ls / 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/invalid_layer"],
+                        "layer_paths": ["//tmp/invalid_layer", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2042,7 +2023,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             spec={
                 "fail_on_job_restart": True,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -2073,7 +2054,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             spec={
                 "fail_on_job_restart": True,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -2115,9 +2096,6 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2237,6 +2215,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             set("//tmp/squashfs.img/@access_method", "nbd")
         else:
             layer_paths = ["<access_method=nbd>//tmp/squashfs.img"]
+        layer_paths.append(ROOTFS_LAYER_PATH)
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -2250,11 +2229,11 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             },
         }
 
-        command = "ls $YT_ROOT_FS/dir 1>&2"
+        command = "ls /dir 1>&2"
 
         if use_disk_request:
             # In case of NBD disk save output of ls to disk.
-            command = "ls $YT_ROOT_FS/dir | tee $YT_ROOT_FS/ls_output.txt 1>&2"
+            command = "ls /dir | tee /ls_output.txt 1>&2"
 
             spec["mapper"]["disk_request"] = {
                 "medium_name": "ssd_nbd",
@@ -2391,11 +2370,11 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="ls $YT_ROOT_FS 1>&2",
+            command="ls / 1>&2",
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/corrupted_squashfs.img"],
+                    "layer_paths": ["//tmp/corrupted_squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -2433,11 +2412,11 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS 1>&2",
+                command="ls / 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer"],
+                        "layer_paths": ["//tmp/squashfs.img", "//tmp/corrupted_layer", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2481,7 +2460,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                 "max_failed_job_count": 1,
                 "job_count": self.NUM_USER_SLOTS,
                 "mapper": {
-                    "layer_paths": ["//tmp/squashfs.img"],
+                    "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                 },
             },
         )
@@ -2509,9 +2488,6 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2575,12 +2551,12 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "fail_on_job_restart": True,
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2592,9 +2568,6 @@ class TestInvalidAttributeValues(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2624,11 +2597,11 @@ class TestInvalidAttributeValues(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2646,11 +2619,11 @@ class TestInvalidAttributeValues(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "max_failed_job_count": 1,
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2670,9 +2643,6 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -2740,10 +2710,10 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2794,10 +2764,10 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2829,10 +2799,10 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
+                command="ls /dir 1>&2",
                 spec={
                     "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
+                        "layer_paths": ["//tmp/squashfs.img", ROOTFS_LAYER_PATH],
                     },
                 },
             )
@@ -2874,10 +2844,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
     }
 
     def setup_files(self):
-        create("file", "//tmp/exec.tar.gz")
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz")
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
         create("file", "//tmp/sandbox.img", attributes={"filesystem": "squashfs", "access_method": "local"})
         write_file("//tmp/sandbox.img", open("layers/sandbox.img", "rb").read())
@@ -2908,7 +2874,9 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
+                    # Explicit layer_paths suppresses default_layer_path;
+                    # sandbox.img needs the base rootfs to run the mapper.
+                    "layer_paths": ["//tmp/sandbox.img", ROOTFS_LAYER_PATH],
                     # "disk_space_limit": 1024 * 1024,
                 },
                 "enable_root_volume_disk_quota": True,
@@ -2929,7 +2897,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     "file_paths": ["//tmp/mapper.sh"],
                     "copy_files": True,
                     # "disk_space_limit": 1024 * 1024,
@@ -2947,7 +2914,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     "file_paths": [yson.to_yson_type("//tmp/mapper.sh", attributes={"file_name" : "tmpfs/mapper.sh"})],
                     "copy_files": True,
                     "tmpfs_path": "tmpfs",
@@ -2973,7 +2939,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     # "disk_space_limit": 1024 * 1024,
                 },
                 "enable_root_volume_disk_quota": True,
@@ -3036,10 +3001,6 @@ class TestVirtualSandbox(YTEnvSetup):
     }
 
     def setup_files(self):
-        create("file", "//tmp/exec.tar.gz")
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz")
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -3064,7 +3025,6 @@ class TestVirtualSandbox(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     # "disk_space_limit": 1024 * 1024,
                 },
                 "enable_root_volume_disk_quota": True,
@@ -3087,7 +3047,6 @@ class TestVirtualSandbox(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     "tmpfs_path": ".",
                     "tmpfs_size": 1024 * 1024,
                     # "disk_space_limit": 1024 * 1024,
@@ -3106,7 +3065,6 @@ class TestVirtualSandbox(YTEnvSetup):
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
-                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     "tmpfs_path": "tmpfs",
                     "file_paths": [yson.to_yson_type("//tmp/mapper.sh", attributes={"file_name" : "tmpfs/mapper.sh"})],
                     "tmpfs_size": 1024 * 1024,
@@ -3213,11 +3171,11 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
             out="//tmp/t_out",
             command=(
                 "cat; "
-                "if [ -f my_volume/marker ]; then "
+                "if [ -f /sandbox/my_volume/marker ]; then "
                 "  echo 'REUSED' >&2; "
                 "else "
                 "  echo 'FRESH' >&2; "
-                "  echo 'marker_content' > my_volume/marker; "
+                "  echo 'marker_content' > /sandbox/my_volume/marker; "
                 "fi"
             ),
             spec={
@@ -3227,7 +3185,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
+                            "layers": rootfs_layers("//tmp/layer1"),
                         },
                         "data": data_volume_spec,
                     },
@@ -3269,11 +3227,11 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
             out="//tmp/t_out",
             command=(
                 "cat; "
-                "if [ -f my_volume/marker ]; then "
+                "if [ -f /sandbox/my_volume/marker ]; then "
                 "  echo 'REUSED' >&2; "
                 "else "
                 "  echo 'FRESH' >&2; "
-                "  echo 'marker_content' > my_volume/marker; "
+                "  echo 'marker_content' > /sandbox/my_volume/marker; "
                 "fi"
             ),
             spec={
@@ -3283,7 +3241,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
+                            "layers": rootfs_layers("//tmp/layer1"),
                         },
                         "data": {
                             "disk_request": {
@@ -3324,11 +3282,11 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
             command=(
                 "cat; "
                 "REUSABLE='FRESH'; NONREUSABLE='FRESH'; "
-                "if [ -f reusable_vol/marker ]; then REUSABLE='REUSED'; fi; "
-                "if [ -f nonreusable_vol/marker ]; then NONREUSABLE='REUSED'; fi; "
+                "if [ -f /sandbox/reusable_vol/marker ]; then REUSABLE='REUSED'; fi; "
+                "if [ -f /sandbox/nonreusable_vol/marker ]; then NONREUSABLE='REUSED'; fi; "
                 "echo \"reusable=$REUSABLE nonreusable=$NONREUSABLE\" >&2; "
-                "echo 'marker' > reusable_vol/marker; "
-                "echo 'marker' > nonreusable_vol/marker"
+                "echo 'marker' > /sandbox/reusable_vol/marker; "
+                "echo 'marker' > /sandbox/nonreusable_vol/marker"
             ),
             spec={
                 "max_failed_job_count": 1,
@@ -3337,7 +3295,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
+                            "layers": rootfs_layers("//tmp/layer1"),
                         },
                         "reusable": {
                             "disk_request": {
@@ -3389,7 +3347,15 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="cat; echo $YT_ROOT_FS >&2",
+            command=(
+                "cat; "
+                "if [ -f /yt_root_reuse_marker ]; then "
+                "  echo REUSED >&2; "
+                "else "
+                "  echo FRESH >&2; "
+                "  echo marker_content > /yt_root_reuse_marker; "
+                "fi"
+            ),
             spec={
                 "max_failed_job_count": 1,
                 "data_size_per_job": 1,
@@ -3397,7 +3363,7 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
+                            "layers": rootfs_layers("//tmp/layer1"),
                             # allow_reusing defaults to False
                         },
                     },
@@ -3416,23 +3382,13 @@ class TestVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
 
         stderrs = [op.read_stderr(job_id).decode("utf-8").strip() for job_id in job_ids]
 
-        assert stderrs[0] != stderrs[1], \
-            f"Both jobs should use different root volume paths when allow_reusing=False, but got: {stderrs[0]}"
-        assert stderrs[0] != "", "Root volume path should not be empty"
-        assert stderrs[1] != "", "Root volume path should not be empty"
+        assert stderrs.count("FRESH") == 2, \
+            f"Each job should receive a fresh root volume when allow_reusing=False, got: {stderrs}"
 
 
 class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
-    # test_root_fs=False is required to exercise real root filesystem code paths
-    # (the root volume is actually used by job_proxy as job's rootfs). This
-    # configuration is intentionally scoped to this suite only: enabling it
-    # globally on _TestVolumeReuseInAllocationBase would affect unrelated
-    # volume-reuse tests that don't need a real rootfs.
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": False,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -3447,17 +3403,8 @@ class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
         },
     }
 
-    def setup_files(self):
-        super().setup_files()
-        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
     @authors("pogorelov")
     def test_root_volume_reused_with_allow_reusing(self):
-        self.setup_files()
-
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
@@ -3465,7 +3412,7 @@ class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
 
         # Test root volume reuse with allow_reusing=True.
         # The first job writes a marker into the root volume. The second job must
-        # observe it; comparing $YT_ROOT_FS paths alone is insufficient since a
+        # observe it; comparing volume paths alone is insufficient since a
         # removed volume can be recreated at the same path.
         op = map(
             in_="//tmp/t_in",
@@ -3486,10 +3433,6 @@ class TestRootVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [
-                                {"path": "//tmp/exec.tar.gz"},
-                                {"path": "//tmp/rootfs.tar.gz"},
-                            ],
                             "allow_reusing": True,
                         },
                     },
@@ -3534,11 +3477,11 @@ class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
             command=(
                 "cat; "
                 "OUTER='FRESH'; INNER='FRESH'; "
-                "if [ -f outer_vol/marker ]; then OUTER='REUSED'; fi; "
-                "if [ -f outer_vol/inner_vol/marker ]; then INNER='REUSED'; fi; "
+                "if [ -f /sandbox/outer_vol/marker ]; then OUTER='REUSED'; fi; "
+                "if [ -f /sandbox/outer_vol/inner_vol/marker ]; then INNER='REUSED'; fi; "
                 "echo \"outer=$OUTER inner=$INNER\" >&2; "
-                "echo 'marker' > outer_vol/marker; "
-                "echo 'marker' > outer_vol/inner_vol/marker"
+                "echo 'marker' > /sandbox/outer_vol/marker; "
+                "echo 'marker' > /sandbox/outer_vol/inner_vol/marker"
             ),
             spec={
                 "max_failed_job_count": 1,
@@ -3547,7 +3490,7 @@ class TestNestedVolumeReuseInAllocation(_TestVolumeReuseInAllocationBase):
                 "mapper": {
                     "volumes": {
                         "root": {
-                            "layers": [{"path": "//tmp/layer1"}],
+                            "layers": rootfs_layers("//tmp/layer1"),
                         },
                         "outer": {
                             "disk_request": {
@@ -3647,11 +3590,11 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 
         op = run_test_vanilla(
             with_breakpoint(
-                "if [ -f my_volume/marker ]; then "
+                "if [ -f /sandbox/my_volume/marker ]; then "
                 "  echo 'REUSED' >&2; "
                 "else "
                 "  echo 'FRESH' >&2; "
-                "  echo 'marker_content' > my_volume/marker; "
+                "  echo 'marker_content' > /sandbox/my_volume/marker; "
                 "fi; "
                 "BREAKPOINT"
             ),
@@ -3660,7 +3603,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
                 "gang_options": {},
                 "volumes": {
                     "root": {
-                        "layers": [{"path": "//tmp/layer1"}],
+                        "layers": rootfs_layers("//tmp/layer1"),
                     },
                     "data": {
                         "disk_request": {
@@ -3732,11 +3675,11 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 
         op = run_test_vanilla(
             with_breakpoint(
-                "if [ -f my_volume/marker ]; then "
+                "if [ -f /sandbox/my_volume/marker ]; then "
                 "  echo 'REUSED' >&2; "
                 "else "
                 "  echo 'FRESH' >&2; "
-                "  echo 'marker_content' > my_volume/marker; "
+                "  echo 'marker_content' > /sandbox/my_volume/marker; "
                 "fi; "
                 "BREAKPOINT"
             ),
@@ -3745,7 +3688,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
                 "gang_options": {},
                 "volumes": {
                     "root": {
-                        "layers": [{"path": "//tmp/layer1"}],
+                        "layers": rootfs_layers("//tmp/layer1"),
                     },
                     "data": {
                         "disk_request": {
@@ -3861,9 +3804,6 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -3931,6 +3871,11 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
 
         return [line for line in logfile if _filter(line)]
 
+    def _get_user_layer_import_logs(self, node_index=0):
+        return filter_layer_cache_logs(
+            self._get_node_debug_logs("Layer added to cache", node_index=node_index),
+            "//tmp/layer1")
+
 
 class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
     @authors("pogorelov")
@@ -3941,7 +3886,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         # class because YTEnvSetup keeps a single cluster per test class,
         # so we must measure the delta of "Layer added to cache" entries,
         # not the absolute count.
-        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+        initial_imports = len(self._get_user_layer_import_logs())
 
         op = vanilla(
             track=False,
@@ -3950,7 +3895,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
                     "task_a": {
                         "job_count": 2,
                         "command": with_breakpoint("BREAKPOINT"),
-                        "layer_paths": ["//tmp/layer1"],
+                        "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                     },
                 },
                 "enable_multiple_jobs_in_allocation": True,
@@ -3975,7 +3920,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         # "Layer preparation is not needed" early exit, even though the SLRU
         # cache evicted the layer due to quota (the TLayerPtr stored in
         # PreparedLayers_ pins the on-disk layer for the whole allocation).
-        logs = self._get_node_debug_logs("Layer added to cache")
+        logs = self._get_user_layer_import_logs()
         new_imports = len(logs) - initial_imports
         assert new_imports == 1, \
             "Layer should be imported exactly once for the whole allocation; " \
@@ -4005,7 +3950,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         # Capture the baseline before this test runs an operation; sibling
         # test methods in the same class share the node debug log because
         # YTEnvSetup keeps a single cluster per test class.
-        initial_imports = len(self._get_node_debug_logs("Layer added to cache"))
+        initial_imports = len(self._get_user_layer_import_logs())
 
         op = vanilla(
             track=False,
@@ -4014,7 +3959,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
                     "task_a": {
                         "job_count": 2,
                         "command": with_breakpoint("BREAKPOINT"),
-                        "layer_paths": ["//tmp/layer1"],
+                        "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
                     },
                 },
                 "enable_multiple_jobs_in_allocation": True,
@@ -4042,7 +3987,7 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         # job in a fresh allocation must re-import the layer from scratch.
         assert get_allocation_id_from_job_id(job_id1) != get_allocation_id_from_job_id(job_id2)
 
-        logs = self._get_node_debug_logs("Layer added to cache")
+        logs = self._get_user_layer_import_logs()
 
         # Each fresh allocation must re-import the layer exactly once: with
         # job_count=2 and allocation_job_count_limit=1 we get exactly two
@@ -4069,7 +4014,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
             job_count=2,
             task_patch={
                 "gang_options": {},
-                "layer_paths": ["//tmp/layer1"],
+                "layer_paths": ["//tmp/layer1", ROOTFS_LAYER_PATH],
             },
             spec={
                 "enable_multiple_jobs_in_allocation": True,
@@ -4089,7 +4034,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
         reused_node_index = self.Env.get_node_index_by_address(reused_job_address)
 
         reused_node_initial_imports = len(
-            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+            self._get_user_layer_import_logs(node_index=reused_node_index)
         )
 
         current_incarnation = get(op.get_orchid_path() + "/controller/operation_incarnation")
@@ -4113,7 +4058,7 @@ class TestLayerReuseInAllocationOfGangOperation(TestLayerReuseInAllocationBase):
         assert len(new_job_ids_in_reused_alloc) == 1
 
         reused_node_final_imports = len(
-            self._get_node_debug_logs("Layer added to cache", node_index=reused_node_index)
+            self._get_user_layer_import_logs(node_index=reused_node_index)
         )
 
         delta = reused_node_final_imports - reused_node_initial_imports

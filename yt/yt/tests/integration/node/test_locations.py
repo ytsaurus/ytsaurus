@@ -686,7 +686,6 @@ class TestCacheLocationQuotaOverflow(CacheLocationOverflowBase):
 
 class TestSlotLocationOverflow(YTEnvSetup):
     USE_PORTO = True
-    USE_CUSTOM_ROOTFS = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

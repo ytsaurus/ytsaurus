@@ -542,7 +542,6 @@ private:
 
         newJobProxyConfigTemplate->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
         newJobProxyConfigTemplate->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
-        newJobProxyConfigTemplate->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
         newJobProxyConfigTemplate->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
 
         newJobProxyConfigTemplate->CoreWatcher = GetConfig()->ExecNode->JobProxy->CoreWatcher;

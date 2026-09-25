@@ -3606,6 +3606,13 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
             wait(lambda: get("{}/{}".format(orchid_config_path, path), default=None) == value)
 
 
+def remove_default_layer_path():
+    remove("//sys/controller_agents/config/default_layer_path", force=True)
+    for agent in ls("//sys/controller_agents/instances"):
+        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
+        wait(lambda: get(orchid_config_path + "/default_layer_path", default=None) is None)
+
+
 @contextlib.contextmanager
 def remember_controller_agent_config():
     old_config = get("//sys/controller_agents/config")

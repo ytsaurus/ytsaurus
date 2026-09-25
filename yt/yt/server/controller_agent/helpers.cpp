@@ -521,11 +521,6 @@ void EnrichLayers(
     };
 
     auto enrichRootVolumeLayers = [&] (TVolumePtr& rootVolume, bool isSidecar) {
-        if (!config->TestingOptions->RootfsTestLayers.empty()) {
-            rootVolume->Layers = makeLayersFromRichYPaths(config->TestingOptions->RootfsTestLayers);
-            return;
-        }
-
         if (!isSidecar && spec->DockerImage) {
             NYT::NControllerAgent::NControllers::TDockerImageSpec dockerImage(*spec->DockerImage, config->DockerRegistry);
 
