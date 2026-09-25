@@ -43,18 +43,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
+      - name: Debug
+        run: |
+          echo "$HOME"
+          ls .
+          ls "$HOME"
+
       - name: Build (${{ matrix.target-platform }})
         run: |
-          ls # TODO(vityaman): debug
+          ls
 
           OUTPUT="$HOME/ytsaurus-build-${{ matrix.target-platform}}"
           mkdir -p "$OUTPUT"
 
-          ls # TODO(vityaman): debug
+          ls
 
           cd "$HOME/ytsaurus"
 
-          ls # TODO(vityaman): debug
+          ls
 
           ./ya make \
             --ignore-recurses \
