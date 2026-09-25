@@ -7,6 +7,8 @@ import (
 	"go.ytsaurus.tech/yt/go/flow"
 )
 
+// [BEGIN main]
+
 type urlMessage struct {
 	flow.YSONMessage
 	Host string `yson:"host"`
@@ -33,3 +35,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// [END main]

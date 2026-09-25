@@ -96,9 +96,11 @@ Flow provides a shared two-level (uncompressed + compressed) LRU cache for state
 - **C++**: the client `TMutableStateKeyClient<TState>` (read-write) or `TJoinedStateKeyClient<TState>` (read-only) returns the accessor `TStateAccessor<TState>` / `TConstStateAccessor<TState>`; the same key client works with both internal and external states. [Learn more →](../../../flow/cpp/state.md)
 - **Java**: YsonStateAccessor, ProtoStateAccessor, ExternalStateAccessor. [Learn more →](../../../flow/java/state.md)
 - **Python**: ctx.state(), ctx.external_state(), ctx.proto_state(). [Learn more →](../../../flow/python/state.md)
+- **Go**: `flow.OpenYSONState`, `flow.OpenProtoState`, `flow.OpenExternalState`, and `flow.OpenJoinedExternalState` open a keyed state accessor. [Learn more →](../../../flow/go/state.md)
 
 ## See also
 
 - [Working with states (C++)](../../../flow/cpp/state.md)
 - [Working with states (Java)](../../../flow/java/state.md)
 - [Working with states (Python)](../../../flow/python/state.md)
+- [Working with states (Go)](../../../flow/go/state.md)

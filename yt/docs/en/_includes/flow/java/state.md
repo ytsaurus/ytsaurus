@@ -283,7 +283,9 @@ The `clear()` method removes the state for the given key. Make sure to call it a
 
 ## Binding to group_by_schema {#group-by}
 
-The key that you use to access the state is defined by the `group_by_schema` field in the computation spec. The state accessor automatically extracts the key from the provided message or timer.
+In `TTransformCompanionComputation`, the key used to access state is defined by `group_by_schema` in the computation spec. The state accessor extracts it from the message or timer.
+
+`TTransformOrderedSourceCompanionComputation` does not support `group_by_schema`. Its internal state uses the source partition key, so messages from one partition share that state. See [Computation (Java)](../../../flow/java/computation.md#sourcecomputation) for choosing a SourceComputation class.
 
 For more details on `group_by_schema` and its impact on state handling, see the [Stateful computations](../../../flow/concepts/stateful.md) section.
 

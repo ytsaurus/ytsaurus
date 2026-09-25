@@ -84,7 +84,7 @@ func (*hitParsingFunction) OnMessage(
 
 Source-компьютейшен создаётся конструктором `flow.NewRowSourceComputation` (или `flow.NewBatchSourceComputation`) и регистрируется в пайплайне через `pipeline.Add`. Отдельный параметр фильтрации не требуется — решение о публикации принимается в функции обработки:
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
 
 Тип компьютейшена — это то, чем он был создан: сорс отличается от трансформа только тем, каким он объявляется воркеру. Поэтому флаг `distribute` учитывается ровно у тех компьютейшенов, которые созданы source-конструкторами.
 

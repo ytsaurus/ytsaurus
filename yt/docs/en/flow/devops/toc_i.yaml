@@ -1,0 +1,17 @@
+items:
+  - name: Operations overview
+    href: index.md
+  - name: State table choice
+    href: state-tables-choice.md
+  - name: Diagnostics
+    href: diagnostics.md
+  - name: Profiling
+    href: profiling.md
+  - name: Troubleshooting
+    href: troubleshooting.md
+  - name: Slow processing
+    href: problems/slow-processing.md
+  - name: Vanilla operations
+    include:
+      mode: link
+      path: vanilla/toc_i.yaml

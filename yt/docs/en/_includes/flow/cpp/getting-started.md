@@ -36,28 +36,9 @@ YT_FLOW_DEFINE_YSON_MESSAGE(TWordMessage);
 
 For more details on message conversion, see [Process functions (C++)](../../../flow/cpp/process-functions.md).
 
-### 2. Define the state {#define-state}
+### 2. Prepare external state {#define-state}
 
-If a [computation](../../../flow/concepts/glossary.md#stream-and-computation) works with a [state](../../../flow/concepts/glossary.md#state), define a class that inherits from `NYTree::TYsonStruct`:
-
-```cpp
-struct TWordCountState
-    : public NYTree::TYsonStruct
-{
-    i64 Count{};
-
-    REGISTER_YSON_STRUCT(TWordCountState);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("count", &TThis::Count)
-            .Default(0);
-    }
-};
-```
-
-For more details on working with states, see [Working with states (C++)](../../../flow/cpp/state.md).
-
+In this example, the counters live in an external {{product-name}} table, and `TWordCountFunction` reads and updates them through `TMutableStateKeyClient<TSimpleExternalState>`. You don't need a separate state class: create the table in step 8 and configure `TSimpleExternalStateManager` in the step 6 spec. For details, see [Working with states (C++)](../../../flow/cpp/state.md).
 ### 3. Implement a process function for the [Source](../../../flow/concepts/glossary.md#source) {#implement-source}
 
 Implement C++ user logic only as a [process function](../../../flow/cpp/process-functions.md). For element-wise processing, inherit from `IProcessFunction` and implement `ProcessMessage`:
@@ -202,26 +183,29 @@ For more details on the spec format, see [Spec & DynamicSpec](../../../flow/conc
 
 ### 7. Build the project {#build}
 
-Add the dependencies to your project’s `ya.make` and build it:
+The code fragments above explain the checked-in Word Count example; they aren't a standalone project. Build the example from the repository. Its dependencies are listed in [ya.make]({{source-root}}/yt/yt/flow/examples/cpp/word_count/ya.make):
 
 ```bash
-ya make path/to/your/project
+ya make yt/yt/flow/examples/cpp/word_count
 ```
+
+The binary is `yt/yt/flow/examples/cpp/word_count/word_count`. The simplified step 6 spec omits `min_word_length`, so the default `0` applies; the checked-in config sets it to `4`. If you move the process functions into another namespace, use their fully qualified names in the spec's `processing_function` fields.
 
 ### 8. Create objects in YT {#create-yt-objects}
 
 Before you run the pipeline, you need to create:
 - An input queue (if it doesn’t exist yet).
+- A consumer for the input queue, registered on it.
 - A state table (for `ExternalState`).
-- A pipeline object with [Flow inner tables](../../../flow/concepts/glossary.md#inner-pipeline-tables).
+{% if audience == "internal" %}- A pipeline object with [Flow inner tables](../../../flow/concepts/glossary.md#inner-pipeline-tables).{% endif %}
 
-{% if audience == "internal" %}To create the objects, use the [YtSync]({{yt-sync-docs}}/) utility (the pipeline spec is described [here]({{yt-sync-docs}}/pipeline_specification)).{% endif %}
+{% if audience == "internal" %}To create the objects, use the [YtSync]({{yt-sync-docs}}/) utility (the pipeline spec is described [here]({{yt-sync-docs}}/pipeline_specification)).{% else %}For a working example of creating the queue, consumer, and state table, see [Prepare the pipeline](../../../flow/quickstart.md#prepare) in the quick start. The C++ runner creates the pipeline and internal tables on first launch; for a separate preparation step, see [Creating a pipeline](../../../flow/concepts/pipeline-object.md#create).{% endif %}
 
 ### 9. Run and test {#run-and-test}
 
-Run the pipeline and monitor its operation in the {{product-name}} UI, following the path of your `pipeline`.
+{% if audience == "internal" %}Run the pipeline and monitor its operation in the {{product-name}} UI, following the path of your `pipeline`.{% else %}Save the YSON from step 6 as `<config.yson>`. Replace the queue, consumer, and external state table paths, then add `cluster_url`, the pipeline `path`, and a `vanilla` block with `enable = %true`, your scheduler `pool`, and `worker = {"count" = 1;}`, as shown in [Prepare the pipeline](../../../flow/quickstart.md#prepare). Launch the built binary with `--config <config.yson>` as in [Validate and launch](../../../flow/quickstart.md#launch). Check the state with `yt --proxy <cluster> flow get-pipeline-state <pipeline_path>`, where `<pipeline_path>` is the `path` value from your config; the CLI should print `working`.{% endif %}
 
-For detailed information about releases and pipeline management, read the [Releases and pipeline management](../../../flow/release/basic-rules.md) section.
+Before you release a new version, read [Release and table change rules](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules). For lifecycle commands, see [Pipeline operations](../../../flow/devops/vanilla/pipeline-operations.md).
 
 ## See also
 

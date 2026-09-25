@@ -64,6 +64,8 @@ For more on specs, see the [Spec, DynamicSpec, and Config](../../../flow/concept
 
 In Python, you create a `SourceComputation` by passing `source=True` to `Pipeline.add()`. You filter [messages](../../../flow/concepts/glossary.md#message) inside the Process Function using the [distribute](../../../flow/python/distribute.md) flag.
 
+For deterministic processing without user state, set `TSwiftOrderedSourceCompanionComputation` in the static spec. If the source uses internal state or nondeterministic logic, use `TTransformOrderedSourceCompanionComputation`: the worker materializes its output and commits that output atomically with state and the source offset. The internal-state key is the source partition key.
+
 ### Parameters
 
 | Parameter | Required | Description |
@@ -157,7 +159,7 @@ In a Swift computation the grouping and the parent assignment must be determinis
 #### Example of a batch function
 
 ```python
-from yt.yt.flow.library/python/companion.computation import BatchFunction
+from yt.yt.flow.library.python.companion.computation import BatchFunction
 
 
 class X2BatchMapper(BatchFunction):

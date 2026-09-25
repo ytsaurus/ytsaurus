@@ -17,7 +17,9 @@
 
 Точка входа: создание пайплайна, регистрация единственного компьютейшена и запуск.
 
-{% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/word_count/main.go)
+
+{% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `word_count_mapper.go` {#word-count-mapper-go}
 

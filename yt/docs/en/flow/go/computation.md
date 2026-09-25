@@ -37,7 +37,7 @@ For a source, `TSwiftOrderedSourceCompanionComputation` is suitable only for det
 
 A computation is created by a constructor and registered in `flow.Pipeline` through `pipeline.Add`. Here is an example from [Shuffle](examples/shuffle.md), where the companion serves both ends of the pipeline — the source and the transform:
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
 
 The constructors take two required parameters:
 

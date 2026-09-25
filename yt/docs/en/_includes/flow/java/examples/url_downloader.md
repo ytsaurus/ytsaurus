@@ -82,19 +82,19 @@ You declare typed streams via `ComputationProvider` (the `getStreams()` method).
 
 {% endlist %}
 
-### NodeCompanionMain
+### PipelineMain
 
-This is the entry point for the companion based on Spring Boot.
+This single entry point starts the pipeline or serves as its companion, depending on `YT_FLOW_MODE`.
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/NodeCompanionMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/PipelineMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/NodeCompanionMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/PipelineMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
 
 {% endlist %}
 

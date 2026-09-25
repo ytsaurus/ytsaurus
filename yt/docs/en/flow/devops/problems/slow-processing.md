@@ -1,3 +1,3 @@
-# {{product-name}} Flow processing cannot keep up
+# Slow processing in {{product-name}} Flow
 
-{% include notitle [_](../../../_includes/flow/devops/problem-slow-processing.md) %}
+If lag rises while jobs remain active, start with [diagnostics](../diagnostics.md), then follow [slow-processing troubleshooting](../troubleshooting.md#slow-processing). It covers buffer observations, locating the slow computation, and safe next steps.

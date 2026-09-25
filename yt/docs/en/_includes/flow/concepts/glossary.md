@@ -144,7 +144,7 @@ Flow interacts with external systems (queues, tables, etc.) via [connectors](#co
 
 ### Connector {#connector}
 
-A component that connects the pipeline to an external system by reading messages from the connector’s [source](#source) and/or writing messages to the connector’s [sink](#sink). A connector can include both a [source](#source) and a [sink](#sink) (for example, in the case of [QYT](../../../flow/connectors/queue.md)) or only a [source](#source) (for example, in the case of [static table](../../../flow/connectors/static-table.md)).
+A component that connects the pipeline to an external system by reading messages from the connector’s [source](#source) and/or writing messages to the connector’s [sink](#sink). A connector can include both a [source](#source) and a [sink](#sink) (for example, in the case of [QYT](../../../flow/connectors/queue.md)) or only a [source](#source) (for example, in the case of [ServiceLog](../../../flow/connectors/servicelog.md)).
 
 In code and specs, sources and sinks are described directly. The connector itself doesn’t exist as an entity; it’s more of a logical grouping element for sources and sinks by the external system that’s being interacted with.
 
@@ -202,7 +202,7 @@ A component responsible for creating and maintaining the current sizes of all (o
 
 ### Companion {#companion}
 
-A separate process launched on the same host as the [worker](#worker) and executing user code in [Python](../../../flow/python/getting-started.md), [Java or Kotlin](../../../flow/java/getting-started.md). It interacts with the [worker](#worker) via gRPC. It lets you implement [computations](#computation) in languages other than C++.
+A separate process launched on the same host as the [worker](#worker) and executing user code in [Python](../../../flow/python/getting-started.md), [Go](../../../flow/go/getting-started.md), [Java or Kotlin](../../../flow/java/getting-started.md), or C++. It interacts with the [worker](#worker) via gRPC. It runs [computations](#computation) outside the worker process, including non-C++ implementations and C++ code through the [C++ companion](../../../flow/concepts/companion.md#cpp-companion).
 
 For more details, see the [Companion](../../../flow/concepts/companion.md) section.
 

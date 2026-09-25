@@ -84,7 +84,7 @@ A transform filters a message by simply not collecting it: don’t call `AddMess
 
 A source computation is created by the `flow.NewRowSourceComputation` constructor (or `flow.NewBatchSourceComputation`) and registered in the pipeline through `pipeline.Add`. No separate filtering parameter is needed — the decision about publishing is made in the processing function:
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
 
 The type of a computation is whatever created it: a source differs from a transform only in how it is declared to the worker. The `distribute` flag is therefore taken into account for exactly those computations that were created by the source constructors.
 

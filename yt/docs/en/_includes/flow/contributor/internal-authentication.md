@@ -45,7 +45,7 @@ The controller knows its own `ControllerAddress`: it’s the address that the co
 A new leader controller checks that the cluster can connect to it through the RPC proxy: it sends a flow command to itself at the published address (leadership confirmation) and gives up leadership if the command does not arrive. The check is skipped in two cases:
 
 - Automatically, if the cluster requires TLS to connect to the controller and the controller bus server has no TLS certificate and key. This is because Flow does not currently support running in {{product-name}} with encryption enabled.
-- If the `YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION=1` environment variable is set — a testing workaround for a cluster that cannot connect to the controller at all. Set the variable in the controller process environment; for a vanilla operation, set it in the runner environment and list it in [`secret_env`](../../../flow/release/security.md#secrets).
+- If the `YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION=1` environment variable is set — a testing workaround for a cluster that cannot connect to the controller at all. Set the variable in the controller process environment; for a vanilla operation, set it in the runner environment and list it in [`secret_env`](../../../flow/devops/vanilla/security.md#secrets).
 
 In both cases the pipeline processes data, but user flow commands (`yt flow`, SDK clients) and the UI do not work.
 
@@ -64,7 +64,7 @@ In both cases the pipeline processes data, but user flow commands (`yt flow`, SD
 
 **Accepted threats / out of scope:**
 
-- **Man-in-the-middle on the proxy → controller channel.** We don’t protect against this. Inside a data center, it’s not an issue at all; across data centers, it’s currently acceptable and can be strengthened later (SECREVIEW-8749). An attacker who can observe this traffic can already read the user’s OAuth token and impersonate them directly, so the signature adds nothing against such an attacker. This also covers reuse of an intercepted signature (you need to observe the traffic to intercept it).
+- **Interception on the proxy → controller channel.** A request signature does not encrypt the channel. An observer of this traffic can obtain the user token; use a protected network path for this connection.
 - **Compromise of the cluster signing key.** Out of scope; handled by the {{product-name}} signature infrastructure (key rotation, distribution of trusted public keys).
 
 ## Authentication within pipeline nodes {#inside-pipeline}
@@ -107,12 +107,12 @@ As with proxy → controller, authentication is one-time: a fresh ticket is incl
 
 ## Direct runner → controller authentication {#client-to-controller}
 
-A runner in the [direct mode](../../../flow/release/cli.md#direct-controller-commands) skips the RPC proxy: it reads the leader controller address from the pipeline's `flow_control` table (which requires `read` on the pipeline, like the proxy path) and sends the command to the controller itself. Nobody has checked the caller before the request reaches the controller, so the controller performs both the authentication and the authorization.
+A runner in the [direct mode](../../../flow/tools/cli.md#direct-controller-commands) skips the RPC proxy: it reads the leader controller address from the pipeline's `flow_control` table (which requires `read` on the pipeline, like the proxy path) and sends the command to the controller itself. Nobody has checked the caller before the request reaches the controller, so the controller performs both the authentication and the authorization.
 
 ### Scheme {#client-scheme}
 
-- **Credentials.** The runner sends the same {{product-name}} credentials it uses with the proxy: the token (or a service or user ticket). No new secret or signature is involved.
-- **Authentication.** The runner marks a direct request with a `ytflow-direct` entry in `TCustomMetadataExt`, and the controller tells these requests apart from the ones forwarded by the proxy by that mark. Credentials alone do not tell: on a cluster with TVM the proxy forwards requests with a service ticket of its own. On such a request the controller builds a client of the pipeline's cluster with the credentials the request carries and calls `get_current_user` through the RPC proxy. The proxy validates the token with whatever authentication the cluster uses (Cypress tokens, OAuth, IAM) and returns the owner; the request then runs on behalf of that user. When the runner also sends a user name, the proxy rejects the request unless the name matches the token owner. A marked request with neither a token nor a ticket is rejected.
+- **Credentials.** The runner sends the same {{product-name}} credentials it uses with the proxy: the token{% if audience == "internal" %} (or a service or user ticket){% endif %}. No new secret or signature is involved.
+- **Authentication.** The runner marks a direct request with a `ytflow-direct` entry in `TCustomMetadataExt`, and the controller tells these requests apart from the ones forwarded by the proxy by that mark. {% if audience == "internal" %}Credentials alone do not tell: on a cluster with TVM the proxy forwards requests with a service ticket of its own. {% endif %}On such a request the controller builds a client of the pipeline's cluster with the credentials the request carries and calls `get_current_user` through the RPC proxy. The proxy validates the token with whatever authentication the cluster uses (Cypress tokens, OAuth, IAM) and returns the owner; the request then runs on behalf of that user. When the runner also sends a user name, the proxy rejects the request unless the name matches the token owner. A marked request {% if audience == "internal" %}with neither a token nor a ticket{% else %}without a token{% endif %} is rejected.
 - **Authorization.** The controller then calls `check_permission` with its own client for that user on the pipeline node: `read` for queries and `write` for mutations. Without the permission the command is rejected. Requests forwarded by the proxy skip this step: the proxy has already made the same check. Only the `flow_execute` command accepts a direct request: the other controller methods, which do not know the required permission, reject a request marked as direct.
 - **A request without the mark.** It does not count as direct and goes to the proxy signature check; the direct mode does not change that path. A controller with `require_proxy_signature = %true` rejects such a request, there being no signature. A controller with `require_proxy_signature = %false` runs it unauthenticated, as it did before the direct mode, so the checks of the direct mode protect only together with `require_proxy_signature = %true`.
 

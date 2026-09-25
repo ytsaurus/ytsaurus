@@ -8,7 +8,7 @@ This section walks you through the steps to implement and run your own pipeline 
 
 No matter which language you choose, creating a pipeline involves the following steps:
 
-1. **Try the [Quick start](../../flow/quickstart.md)** — run a minimal NoOp pipeline to get familiar with the Flow infrastructure.
+1. **Try the [Quick start](../../flow/quickstart.md)** — run the C++ Word Count pipeline to get familiar with the Flow infrastructure.
 
 2. **Review the basic concepts**. Read the [glossary](../../flow/concepts/glossary.md) to understand the Flow model: pipelines, streams, computations, and messages.
 
@@ -18,6 +18,7 @@ No matter which language you choose, creating a pipeline involves the following 
    - C++: [WordCount](../../flow/cpp/examples/word_count.md), [Shuffle](../../flow/cpp/examples/shuffle.md), [WaitClickJoin](../../flow/cpp/examples/wait_click_join.md)
    - Java: [WordCount](../../flow/java/examples/wordcount.md), [Shuffle](../../flow/java/examples/shuffle.md), [WaitClickJoin](../../flow/java/examples/wait_click_join.md)
    - Python: [WordCount](../../flow/python/examples/wordcount.md), [Shuffle](../../flow/python/examples/shuffle.md), [WaitClickJoin](../../flow/python/examples/wait_click_join.md)
+   - Go: [WordCount](../../flow/go/examples/wordcount.md), [Shuffle](../../flow/go/examples/shuffle.md), [WaitClickJoin](../../flow/go/examples/wait_click_join.md)
    - YQL: [Quick start](../../flow/yql/getting-started.md)
 
 5. **Check out the available [connectors](../../flow/connectors/about.md)** — queues, static tables{% if audience == "internal" %}, Logbroker{% endif %}, and others.
@@ -32,8 +33,9 @@ No matter which language you choose, creating a pipeline involves the following 
    - [C++](../../flow/cpp/testing.md)
    - [Java](../../flow/java/testing.md)
    - [Python](../../flow/python/testing.md)
+   - [Go](../../flow/go/testing.md)
 
-10. **Run the pipeline** and monitor it via the {{product-name}} UI. For details on releases, read [Releases and pipeline management](../../flow/release/basic-rules.md).
+10. **Run the pipeline** and inspect its state with `yt flow get-pipeline-state <pipeline_path>`. For release rules, read [Release and table change rules](../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
 ## See also
 

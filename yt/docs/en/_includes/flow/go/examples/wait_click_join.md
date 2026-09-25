@@ -24,7 +24,9 @@ Both input streams are grouped by `hit_id` and `hit_time`, so everything that be
 
 The entry point: creating the pipeline, registering the only computation, and starting it.
 
-{% code '/yt/yt/flow/examples/go/wait_click_join/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/wait_click_join/main.go)
+
+{% code '/yt/yt/flow/examples/go/wait_click_join/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `join_function.go` {#join-function-go}
 

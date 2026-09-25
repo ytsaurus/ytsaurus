@@ -20,7 +20,9 @@
 
 Точка входа: создание пайплайна и регистрация обоих компьютейшенов.
 
-{% code '/yt/yt/flow/examples/go/async_request/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/async_request/main.go)
+
+{% code '/yt/yt/flow/examples/go/async_request/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `state_keeper.go` {#state-keeper-go}
 

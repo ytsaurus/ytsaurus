@@ -1,3 +1,14 @@
 items:
-  - name: Running in a docker environment
+  - name: Initial deployment
+    href: initial-deploy.md
+  - name: Running in Docker
     href: docker-environment.md
+  - name: Pipeline operations
+    href: pipeline-operations.md
+  - name: Diagnostics
+    include:
+      mode: link
+      path: diagnostics/toc_i.yaml
+  - include:
+      mode: merge
+      path: toc_release_security_i.yaml

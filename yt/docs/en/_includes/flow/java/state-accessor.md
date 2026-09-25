@@ -13,7 +13,7 @@ You can think of each row in the state table as having two parts: key columns an
 
 ![](../../../flow/_images/state_line_example.svg)
 
-The key columns in the state table must match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation) that uses this state.
+For `TTransformCompanionComputation`, the key columns in the state table match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation). For the internal state of `TTransformOrderedSourceCompanionComputation`, the source partition key is used instead; this SourceComputation does not support `group_by_schema`.
 
 The value columns are available for reading and modifying through `StateAccessor`. The format in which you can read and modify these values in Java code depends on the `StateAccessor` implementation.
 

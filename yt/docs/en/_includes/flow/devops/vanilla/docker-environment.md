@@ -1,6 +1,6 @@
 # Running in a docker environment
 
-The simplest way to run a Flow pipeline is a single {{product-name}} [vanilla operation](../../../../user-guide/data-processing/operations/vanilla.md) that hosts both the controller and the workers: add a `vanilla` block to `pipeline.yson`, and the runner validates the spec, creates the operation, and starts the pipeline. This page covers clusters where operation jobs execute in docker images (the CRI job environment) — how a typical opensource {{product-name}} installation runs in Kubernetes: there are no porto layers, and the cluster name does not resolve out of the box. All of this affects how runtimes (a JRE, a Python interpreter) get into the jobs and how the pipeline components find the cluster.
+The simplest way to run a Flow pipeline is a single {{product-name}} [vanilla operation](../../../../user-guide/data-processing/operations/vanilla.md) that hosts both the controller and the workers: add a `vanilla` block to `pipeline.yson`, and the runner validates the spec, creates the operation, and starts the pipeline. This page covers clusters where operation jobs execute in docker images (the CRI job environment) — how a typical opensource {{product-name}} installation runs in Kubernetes: there are no porto layers, and the cluster name does not resolve out of the box. All of this affects how a JRE or other OS dependencies get into the jobs and how the pipeline components find the cluster.
 
 ## Job environment {#job-environment}
 
@@ -20,7 +20,7 @@ The environment of a vanilla task is set by the `docker_image` field of the task
 Two rules:
 
 * An image name without a registry (`eclipse-temurin:17-jre`) resolves against the cluster's internal docker registry, and the operation fails to start if the image is not uploaded there. For Docker Hub images, use the full path with the `docker.io/library/` prefix.
-* Static binaries — `flow_server`, C++ and Go pipelines — need no image: they run in the default job environment. An image is needed when the job must contain a runtime: a JRE for the Java companion or a Python interpreter.
+* Static binaries — `flow_server`, C++ and Go pipelines — need no image: they run in the default job environment. The Python pipeline built with `ya make` carries its own interpreter and SDK. Use an image when the job needs a JRE for the Java companion or other OS dependencies.
 
 ## Cluster name resolution {#cluster-name}
 
@@ -109,36 +109,9 @@ The runner uploads the binary into the cluster's file cache on every deploy, so 
 
 - Python
 
-  The companion needs a Python interpreter inside the job. Two ways to deliver it:
+  The Python pipeline binary built with `ya make` acts as both launcher and companion. With `vanilla.enable = %true`, the runner ships that binary into the worker's `local_files` as `py_companion` and sets each generic `TCompanionManager` entrypoint to `./py_companion`. It replaces any `entrypoint` executable or arguments specified in the config, so a configured `/usr/local/bin/python3 main.py` command is not used in this launch path.
 
-  * **A self-contained launcher.** The launcher and the SDK archive are shipped into the job via the worker's `local_files`; no image is needed:
-
-    ```yson
-    "resources" = {
-        "CompanionManager" = {
-            "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
-            "parameters" = {"entrypoint" = {"executable" = "./py_companion";};};
-        };
-    };
-    ```
-
-  * **A docker image with Python and the SDK.** Set the image in the tasks' `docker_image`, ship the pipeline code via the worker's `local_files`, and start the image's interpreter:
-
-    ```yson
-    "resources" = {
-        "CompanionManager" = {
-            "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
-            "parameters" = {
-                "entrypoint" = {
-                    "executable" = "/usr/local/bin/python3";
-                    "args" = ["main.py"];
-                };
-            };
-        };
-    };
-    ```
-
-  The launch is the same in both cases:
+  The self-contained launcher needs no image for Python or the Flow SDK. Set `docker_image` if the job needs other OS dependencies; the companion entrypoint remains `./py_companion`. [Build the Python pipeline](../../../../flow/python/getting-started.md#build) and launch it with:
 
   ```bash
   ./pipeline --config pipeline.yson --flow-bin flow_server.stripped
@@ -176,5 +149,7 @@ The runner uploads the binary into the cluster's file cache on every deploy, so 
 
 ## See also
 
+- [Initial deployment](../../../../flow/devops/vanilla/initial-deploy.md)
+- [Basic pipeline operations](../../../../flow/devops/vanilla/pipeline-operations.md)
 - [The companion](../../../../flow/concepts/companion.md)
 - [Spec and DynamicSpec](../../../../flow/concepts/spec.md)

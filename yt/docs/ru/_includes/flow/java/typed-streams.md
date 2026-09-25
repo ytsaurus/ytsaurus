@@ -60,7 +60,7 @@ POJO-классы для стримов описываются с помощью
 
 `@Column` позволяет задать имя колонки через атрибут `name`, а также указать тип колонки через атрибут `columnDefinition`.
 
-Атрибут `columnDefinition` принимает строку с именем Type V3. [Полный список типов](../../../flow/user-guide/storage/data-types#schema).
+Атрибут `columnDefinition` принимает строку с именем Type V3. [Полный список типов](../../../user-guide/storage/data-types.md#schema).
 
 ### Регистрация стримов
 

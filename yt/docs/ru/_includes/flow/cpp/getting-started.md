@@ -36,28 +36,9 @@ YT_FLOW_DEFINE_YSON_MESSAGE(TWordMessage);
 
 Подробнее о конвертации сообщений см. раздел [Process function (C++)](../../../flow/cpp/process-functions.md).
 
-### 2. Определите стейт {#define-state}
+### 2. Подготовьте внешний стейт {#define-state}
 
-Если [компьютейшен](../../../flow/concepts/glossary.md#stream-and-computation) работает со [стейтом](../../../flow/concepts/glossary.md#state), определите класс-наследник от `NYTree::TYsonStruct`:
-
-```cpp
-struct TWordCountState
-    : public NYTree::TYsonStruct
-{
-    i64 Count{};
-
-    REGISTER_YSON_STRUCT(TWordCountState);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("count", &TThis::Count)
-            .Default(0);
-    }
-};
-```
-
-Подробнее о работе со стейтами см. [Работа со стейтами (C++)](../../../flow/cpp/state.md).
-
+В этом примере счётчики хранятся во внешней таблице {{product-name}}, а `TWordCountFunction` читает и обновляет их через `TMutableStateKeyClient<TSimpleExternalState>`. Отдельный класс стейта не нужен: таблицу вы создадите на шаге 8, а `TSimpleExternalStateManager` укажете в спеке на шаге 6. Подробнее см. [Работа со стейтами (C++)](../../../flow/cpp/state.md).
 ### 3. Реализуйте process function для [Source](../../../flow/concepts/glossary.md#source) {#implement-source}
 
 Пользовательскую логику на C++ реализуйте только как [process function](../../../flow/cpp/process-functions.md). Для поэлементной обработки унаследуйтесь от `IProcessFunction` и реализуйте `ProcessMessage`:
@@ -202,26 +183,29 @@ int main(int argc, const char** argv)
 
 ### 7. Соберите проект {#build}
 
-Добавьте зависимости в `ya.make` вашего проекта и соберите:
+Фрагменты кода выше поясняют готовый пример Word Count, но не образуют отдельный проект. Соберите пример из репозитория; его зависимости заданы в [ya.make]({{source-root}}/yt/yt/flow/examples/cpp/word_count/ya.make):
 
 ```bash
-ya make path/to/your/project
+ya make yt/yt/flow/examples/cpp/word_count
 ```
+
+Бинарь появится по пути `yt/yt/flow/examples/cpp/word_count/word_count`. Упрощённая спека из шага 6 не задаёт `min_word_length`, поэтому используется значение по умолчанию `0`; конфиг в репозитории задаёт `4`. Если вы перенесёте process function'ы в другое пространство имён, укажите их полные имена в полях `processing_function` спеки.
 
 ### 8. Создайте объекты в YT {#create-yt-objects}
 
 Перед запуском необходимо создать:
 - Входную очередь (если она ещё не существует).
+- Консьюмера входной очереди, зарегистрированного на ней.
 - Таблицу стейтов (для `ExternalState`).
-- Объект пайплайна с [внутренними таблицами Flow](../../../flow/concepts/glossary.md#inner-pipeline-tables).
+{% if audience == "internal" %}- Объект пайплайна с [внутренними таблицами Flow](../../../flow/concepts/glossary.md#inner-pipeline-tables).{% endif %}
 
-{% if audience == "internal" %}Для создания объектов используйте утилиту [YtSync]({{yt-sync-docs}}/) (спецификация пайплайна описана [здесь]({{yt-sync-docs}}/pipeline_specification)).{% endif %}
+{% if audience == "internal" %}Для создания объектов используйте утилиту [YtSync]({{yt-sync-docs}}/) (спецификация пайплайна описана [здесь]({{yt-sync-docs}}/pipeline_specification)).{% else %}Как создать очередь, консьюмера и таблицу стейтов, показано в разделе [Подготовьте пайплайн](../../../flow/quickstart.md#prepare) быстрого старта. C++-раннер при первом запуске создаёт пайплайн и его внутренние таблицы; если хотите создать их заранее, см. [Создание пайплайна](../../../flow/concepts/pipeline-object.md#create).{% endif %}
 
 ### 9. Запустите и протестируйте {#run-and-test}
 
-Запустите пайплайн и следите за его работой через UI {{product-name}} по пути вашего `pipeline`.
+{% if audience == "internal" %}Запустите пайплайн и следите за его работой через UI {{product-name}} по пути вашего `pipeline`.{% else %}Сохраните YSON из шага 6 в `<config.yson>`. Замените в нём пути к очереди, консьюмеру и внешней таблице стейтов, затем добавьте `cluster_url`, путь `path` к пайплайну и секцию `vanilla` с `enable = %true`, параметром `pool` с именем вашего пула и `worker = {"count" = 1;}`, как показано в разделе [Подготовьте пайплайн](../../../flow/quickstart.md#prepare). Запустите собранный бинарь с `--config <config.yson>`, как в разделе [Проверьте и запустите](../../../flow/quickstart.md#launch). Проверьте состояние командой `yt --proxy <cluster> flow get-pipeline-state <pipeline_path>`, где `<pipeline_path>` — значение `path` из конфига; CLI должен вывести `working`.{% endif %}
 
-Детально про релизы и управление пайплайном можно прочитать в разделе [Релизы и управление пайплайном](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
+Перед выкаткой новой версии прочитайте [Правила выкатки и изменения таблиц](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules); команды управления пайплайном приведены в разделе [Операции с пайплайном](../../../flow/devops/vanilla/pipeline-operations.md).
 
 ## См. также
 

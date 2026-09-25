@@ -1,6 +1,6 @@
 # Quick start with {{product-name}} Flow (YQL)
 
-Use YQL over Flow to describe a [pipeline](../../../flow/concepts/glossary.md#pipeline) for streaming data processing as a declarative SQL query — without writing code in [C++](../../../flow/cpp/getting-started.md), [Java](../../../flow/java/getting-started.md), or [Python](../../../flow/python/getting-started.md). The pipeline runs as a vanilla operation on the selected {{product-name}} cluster.
+Use YQL over Flow to describe a [pipeline](../../../flow/concepts/glossary.md#pipeline) for streaming data processing as a declarative SQL query — without writing code in [C++](../../../flow/cpp/getting-started.md), [Java](../../../flow/java/getting-started.md), [Python](../../../flow/python/getting-started.md), or [Go](../../../flow/go/getting-started.md). The pipeline runs as a vanilla operation on the selected {{product-name}} cluster.
 
 {% note warning %}
 
@@ -34,6 +34,7 @@ You control a YQL over Flow query with a set of pragmas:
 | `PRAGMA Ytflow.PipelineDirectory = "...";` | Path to the directory with pipelines in {{product-name}} |
 | `PRAGMA Ytflow.PipelineName = "...";` | Pipeline name. Full path: `{pipeline_directory}/{pipeline_name}` |
 | `PRAGMA Ytflow.WorkerCount = "...";` | Number of worker jobs for the vanilla operation |
+| `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Reuses computation patterns across graphs in one worker. Default is `false` |
 {% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Path to the [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) consumer (only when reading from Logbroker) |
 {% endif %}
 

@@ -15,6 +15,8 @@
 По всем вопросам обращайтесь в чат в Yandex Messenger [YT Flow Public](https://nda.ya.ru/t/MBW0Jgy-7bH78f)
 
 В случае вопроса со сложным контекстом или найденного бага создавайте тикет в очереди [YTFLOWSUPPORT](https://nda.ya.ru/t/X7imi95a7gKE5Y).
+{% else %}
+При любых сложностях с {{product-name}} Flow создавайте [GitHub Issues](https://github.com/ytsaurus/ytsaurus/issues).
 {% endif %}
 
 ## Свойства системы {#properties}

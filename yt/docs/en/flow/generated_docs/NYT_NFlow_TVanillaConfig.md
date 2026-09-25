@@ -33,9 +33,11 @@ The maximum number of failed jobs after which the vanilla operation fails. ||
 || `wait_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `5m`
 Timeout for waiting for pipeline states during a graceful stop of the previous vanilla operation. ||
+{% if audience == "internal" %}
 || `solomon_resolver_tag` | **Type**: `std::string`
 **Default value**: `ytflow_vanilla_common`
 Tag for the Solomon resolver, written into the operation annotations. ||
+{% endif %}
 || `alias` | **Type**: `std::optional<std::string>`
 An explicit alias for the vanilla operation. If not set, it is generated as `*flow-runner <cluster>:<path>`. ||
 || `title` | **Type**: `std::optional<std::string>`

@@ -3,3 +3,5 @@ items:
     href: about.md
   - name: С чего начать
     href: start.md
+  - name: Быстрый старт
+    href: quickstart.md

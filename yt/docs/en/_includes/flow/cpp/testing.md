@@ -12,7 +12,7 @@ C++ [workers](../../../flow/concepts/glossary.md#worker) currently don't have a 
 
 ## See also
 
-- [Basic release rules](../../../flow/release/basic-rules.md)
+- [Basic release rules](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)
 - [Testing (Java)](../../../flow/java/testing.md)
 - [Testing (Python)](../../../flow/python/testing.md)
 - [Quick start (C++)](../../../flow/cpp/getting-started.md)
