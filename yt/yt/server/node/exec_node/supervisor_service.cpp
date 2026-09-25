@@ -15,10 +15,12 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
-#include <yt/yt/server/lib/job_proxy/config.h>
-#include <yt/yt/server/lib/job_proxy/public.h>
+#include <yt/yt/server/lib/controller_agent/push_based_shuffle_service_proxy.h>
 
 #include <yt/yt/server/lib/job_agent/structs.h>
+
+#include <yt/yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
@@ -115,6 +117,7 @@ public:
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ValidateSignature)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetShuffleWriteSession));
     }
 
 private:
@@ -510,6 +513,42 @@ private:
 
         context->SetResponseInfo("JobId: %v, Valid: %v", jobId, isValid);
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetShuffleWriteSession)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        int partitionIndex = request->partition_index();
+
+        context->SetRequestInfo("JobId: %v, PartitionIndex: %v",
+            jobId,
+            partitionIndex);
+
+        auto job = GetSchedulerJobOrThrow(jobId);
+        auto connector = job->GetControllerAgentConnector();
+        if (!connector) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "Job %v is not affiliated with a controller agent",
+                jobId);
+        }
+
+        NControllerAgent::TPushBasedShuffleServiceProxy proxy(connector->GetChannel());
+        auto req = proxy.GetShuffleWriteSession();
+        req->SetTimeout(context->GetTimeout());
+        ToProto(req->mutable_controller_agent_incarnation_id(), connector->GetDescriptor().IncarnationId);
+        ToProto(req->mutable_operation_id(), job->GetOperationId());
+        ToProto(req->mutable_job_id(), jobId);
+        req->set_partition_index(partitionIndex);
+        if (request->has_excluded_session_id()) {
+            *req->mutable_excluded_session_id() = request->excluded_session_id();
+        }
+
+        context->ReplyFrom(req->Invoke()
+            .Apply(BIND([context] (const NControllerAgent::TPushBasedShuffleServiceProxy::TRspGetShuffleWriteSessionPtr& rsp) {
+                *context->Response().mutable_session_id() = rsp->session_id();
+                *context->Response().mutable_sequencer_node() = rsp->sequencer_node();
+            })));
     }
 };
 

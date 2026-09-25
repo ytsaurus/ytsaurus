@@ -48,6 +48,8 @@ protected:
     std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>> ValueConsumers_;
     std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
 
+    bool HasShuffleWriter_ = false;
+
     std::vector<NChunkClient::IChunkWriter::TWriteBlocksOptions> OutputWriteBlocksOptions_;
 };
 

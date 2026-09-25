@@ -1022,6 +1022,12 @@ TJobResult TJobProxy::RunJob()
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(SupervisorChannel_);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
+        RetryingSupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(
+            Config_->UseRetryingChannels
+                ? SupervisorChannel_
+                : CreateRetryingChannel(Config_->RetryingChannel, SupervisorChannel_));
+        RetryingSupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
+
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
@@ -1196,6 +1202,27 @@ TJobResult TJobProxy::RunJob()
     }
 
     return job->Run();
+}
+
+TFuture<NDistributedChunkSessionClient::TSessionDescriptor> TJobProxy::GetShuffleWriteSession(
+    int partitionIndex,
+    std::optional<NChunkClient::TSessionId> excludedSessionId) const
+{
+    auto req = RetryingSupervisorProxy_->GetShuffleWriteSession();
+    ToProto(req->mutable_job_id(), GetJobId());
+    req->set_partition_index(partitionIndex);
+    if (excludedSessionId) {
+        ToProto(req->mutable_excluded_session_id(), *excludedSessionId);
+    }
+
+    return req->Invoke()
+        .Apply(BIND([] (const TSupervisorServiceProxy::TRspGetShuffleWriteSessionPtr& rsp) {
+            return NDistributedChunkSessionClient::TSessionDescriptor{
+                .SessionId = FromProto<NChunkClient::TSessionId>(rsp->session_id()),
+                .SequencerNode = FromProto<NNodeTrackerClient::TNodeDescriptor>(
+                    rsp->sequencer_node()),
+            };
+        }));
 }
 
 NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(

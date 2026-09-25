@@ -44,6 +44,9 @@ class TJobProfilerSpec;
 
 class TPartitionJobSpecExt;
 
+class TPushBasedShuffleSortReaderSpec;
+class TValidTaskJobIndexes;
+
 class TControllerAgentDescriptor;
 
 } // namespace NProto

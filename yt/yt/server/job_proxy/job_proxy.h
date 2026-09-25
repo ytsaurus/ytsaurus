@@ -86,6 +86,10 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
+    TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetShuffleWriteSession(
+        int partitionIndex,
+        std::optional<NChunkClient::TSessionId> excludedSessionId) const override;
+
     NApi::NNative::IConnectionPtr CreateNativeConnection(
         NApi::NNative::TConnectionCompoundConfigPtr config,
         NApi::NNative::TConnectionOptions options = {}) const override;
@@ -157,6 +161,7 @@ private:
 
     NRpc::IChannelPtr SupervisorChannel_;
     std::unique_ptr<NExecNode::TSupervisorServiceProxy> SupervisorProxy_;
+    std::unique_ptr<NExecNode::TSupervisorServiceProxy> RetryingSupervisorProxy_;
 
     NApi::NNative::IClientPtr Client_;
 

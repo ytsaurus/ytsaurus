@@ -53,20 +53,59 @@ public:
     {
         TSimpleJobBase::Initialize();
 
-        auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
-
         TotalRowCount_ = JobSpecExt_.input_row_count();
 
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
-        auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
-        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = JobSpecExt_.output_table_specs(0);
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
 
+        TNameTablePtr nameTable;
+        if (SortJobSpecExt_.has_push_based_shuffle_sort_reader()) {
+            nameTable = FromProto<TNameTablePtr>(
+                SortJobSpecExt_.push_based_shuffle_sort_reader().intermediate_stream_name_table());
+            InitializePushBasedShuffleReaderFactory(nameTable, outputSchema->GetSortColumns());
+        } else {
+            nameTable = TNameTable::FromKeyColumns(
+                FromProto<TKeyColumns>(SortJobSpecExt_.key_columns()));
+            InitializePartitionSortReaderFactory(
+                nameTable,
+                outputSchema,
+                Host_->GetJobSpecHelper()->GetDataSourceDirectory(),
+                Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors());
+        }
+
+        InitializeWriterFactory(nameTable, outputSchema, outputSpec);
+    }
+
+    double GetProgress() const override
+    {
+        auto total = TotalRowCount_;
+        if (total == 0) {
+            YT_TLOG_WARNING("Total row count is zero");
+            return 0;
+        } else {
+            // Split progress evenly between reading and writing.
+            double progress =
+                0.5 * Reader_->GetDataStatistics().row_count() / total +
+                0.5 * Writer_->GetDataStatistics().row_count() / total;
+            YT_TLOG_DEBUG("Progress requested")
+                .WithFormat("Progress", "%lf", progress);
+            return progress;
+        }
+    }
+
+private:
+    const TSortJobSpecExt& SortJobSpecExt_;
+
+    void InitializePartitionSortReaderFactory(
+        const TNameTablePtr& nameTable,
+        const TTableSchemaPtr& outputSchema,
+        const TDataSourceDirectoryPtr& dataSourceDirectory,
+        std::vector<TDataSliceDescriptor> dataSliceDescriptors)
+    {
         ReaderFactory_ = [
             =,
             this,
@@ -89,7 +128,32 @@ public:
                 ChunkReadOptions_,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
+    }
 
+    void InitializePushBasedShuffleReaderFactory(
+        TNameTablePtr nameTable,
+        TSortColumns outputSortColumns)
+    {
+        ReaderFactory_ = [
+            this,
+            nameTable = std::move(nameTable),
+            outputSortColumns = std::move(outputSortColumns)
+        ] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+            return CreatePushBasedShuffleSortReader(
+                JobSpecExt_,
+                SortJobSpecExt_.push_based_shuffle_sort_reader(),
+                nameTable,
+                outputSortColumns,
+                Host_->GetChunkReaderHost(),
+                BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)));
+        };
+    }
+
+    void InitializeWriterFactory(
+        const TNameTablePtr& nameTable,
+        const TTableSchemaPtr& outputSchema,
+        const TTableOutputSpec& outputSpec)
+    {
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
@@ -132,26 +196,6 @@ public:
                 Host_->GetOutBandwidthThrottler());
         };
     }
-
-    double GetProgress() const override
-    {
-        auto total = TotalRowCount_;
-        if (total == 0) {
-            YT_TLOG_WARNING("Total row count is zero");
-            return 0;
-        } else {
-            // Split progress evenly between reading and writing.
-            double progress =
-                0.5 * Reader_->GetDataStatistics().row_count() / total +
-                0.5 * Writer_->GetDataStatistics().row_count() / total;
-            YT_TLOG_DEBUG("Progress requested")
-                .WithFormat("Progress", "%lf", progress);
-            return progress;
-        }
-    }
-
-private:
-    const TSortJobSpecExt& SortJobSpecExt_;
 
     void InitializeReader() override
     {

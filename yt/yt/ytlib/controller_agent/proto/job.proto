@@ -7,6 +7,7 @@ import "yt/ytlib/scheduler/proto/input_query.proto";
 import "yt/ytlib/scheduler/proto/resources.proto";
 
 import "yt/ytlib/chunk_client/proto/data_source.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
@@ -614,6 +615,62 @@ message TJobResultExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPushBasedShuffleWriterSpec
+{
+    message TSeededSession
+    {
+        required int32 partition_index = 1;
+        required NYT.NChunkClient.NProto.TSessionId session_id = 2;
+        // TODO(apollo1321): With many sessions, full descriptors inflate the job spec sent
+        // over the network. Pass node ids instead: the exec node already has every node
+        // descriptor and can fill them in, in a phase like PreparingNodeDirectory.
+        required NNodeTrackerClient.NProto.TNodeDescriptor sequencer_node = 3;
+    }
+
+    required int32 task_job_index = 1;
+
+    // NYT::NPushBasedShuffleClient::TShuffleWriterConfig.
+    required bytes writer_config = 2;
+
+    repeated TSeededSession seeded_sessions = 3;
+
+    // Full schema: rows are validated and typed against it.
+    required NTableClient.NProto.TTableSchemaExt intermediate_stream_schema = 4;
+
+    // NCompression::ECodec.
+    required int32 codec = 5;
+}
+
+// Wrapped since repeated fields have no presence.
+message TValidTaskJobIndexes
+{
+    repeated int32 task_job_indexes = 1;
+}
+
+message TPushBasedShuffleSortReaderSpec
+{
+    // NYT::NPushBasedShuffleClient::TPartitionReaderConfig.
+    required bytes partition_reader_config = 1;
+
+    // NYT::NPushBasedShuffleClient::TSortReaderConfig.
+    required bytes sort_reader_config = 2;
+
+    required int32 read_quorum = 3;
+
+    // Names only: the writer has already validated the values.
+    required NTableClient.NProto.TNameTableExt intermediate_stream_name_table = 4;
+
+    // NCompression::ECodec.
+    required int32 codec = 5;
+
+    required int32 sort_thread_count = 6;
+
+    // Final sort only: drops records of other attempts.
+    optional TValidTaskJobIndexes valid_task_job_indexes = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Map jobs.
 /*
  * Conceptually map is the simplest operation.
@@ -654,6 +711,8 @@ message TMergeJobSpecExt
 
     // For EJobType::SortedMerge, used for row comparison.
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 3;
+
+    optional TValidTaskJobIndexes push_based_shuffle_valid_task_job_indexes = 4;
 }
 
 message TShallowMergeJobSpecExt
@@ -716,6 +775,8 @@ message TPartitionJobSpecExt
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 12;
 
     optional bool use_sequential_reader = 13 [default = true];
+
+    optional TPushBasedShuffleWriterSpec push_based_shuffle_writer = 14;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -740,6 +801,8 @@ message TSortJobSpecExt
     repeated string key_columns = 5;
 
     reserved 6;
+
+    optional TPushBasedShuffleSortReaderSpec push_based_shuffle_sort_reader = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -777,6 +840,11 @@ message TReduceJobSpecExt
     optional int64 foreign_table_lookup_data_weight_threshold = 8 [default = 268435456];
 
     optional bool disable_sorted_input = 7 [default = false];
+
+    oneof push_based_shuffle_reader {
+        TPushBasedShuffleSortReaderSpec push_based_shuffle_sort_reader = 9;
+        TValidTaskJobIndexes push_based_shuffle_valid_task_job_indexes = 10;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

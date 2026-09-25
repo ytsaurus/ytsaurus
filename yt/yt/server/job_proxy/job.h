@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
+
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
@@ -123,6 +125,10 @@ struct IJobHost
     virtual NApi::NNative::IConnectionPtr CreateNativeConnection(
         NApi::NNative::TConnectionCompoundConfigPtr config,
         NApi::NNative::TConnectionOptions options = {}) const = 0;
+
+    virtual TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetShuffleWriteSession(
+        int partitionIndex,
+        std::optional<NChunkClient::TSessionId> excludedSessionId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

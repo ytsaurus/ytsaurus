@@ -473,6 +473,7 @@ protected:
             /*readQuorum*/ 2,
             TComparator({ESortOrder::Ascending}),
             identityColumnIds,
+            /*onInputFetched*/ BIND([] { }),
             ActionQueue_->GetInvoker(),
             ActionQueue_->GetInvoker());
         for (const auto& chunk : chunks) {
