@@ -3144,7 +3144,7 @@ private:
                     increment(&statistics->IOPerMedium[mediumIndex], location.io_statistics());
                 }
                 statistics->ChunkReplicaCount += nodeStatistics.total_stored_chunk_count();
-                statistics->FullNodeCount += nodeStatistics.full() ? 1 : 0;
+                statistics->FullNodeCount += nodeStatistics.full();
             };
             updateStatistics(&AggregatedNodeStatistics_);
 
