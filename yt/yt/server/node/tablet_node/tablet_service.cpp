@@ -246,7 +246,9 @@ private:
             auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
             if (replicationEra && *replicationEra != era) {
                 if (era == InvalidReplicationEra) {
-                    THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is identifying replication era");
+                    THROW_ERROR_EXCEPTION(
+                        NTabletClient::EErrorCode::TabletReplicationEraIsUnknown,
+                        "Direct write is not allowed: replica is identifying replication era");
                 }
 
                 if (*replicationEra > era) {
