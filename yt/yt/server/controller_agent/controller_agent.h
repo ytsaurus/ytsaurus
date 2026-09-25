@@ -68,6 +68,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const IInvokerPtr& GetPushBasedShuffleInvoker();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetExecNodesUpdateInvoker();
 
     /*!

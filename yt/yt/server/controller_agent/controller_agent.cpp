@@ -212,6 +212,7 @@ public:
         , ChunkScraperHeavyThreadPool_(CreateThreadPool(Config_->ChunkScraperHeavyThreadCount, "ChunkScraperHeavy"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
+        , PushBasedShuffleThreadPool_(CreateThreadPool(Config_->PushBasedShuffle->ThreadCount, "PushShuffle"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
@@ -240,7 +241,7 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
-        , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>(Config_))
+        , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
@@ -397,6 +398,13 @@ public:
         return StatisticsOffloadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetPushBasedShuffleInvoker()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleThreadPool_->GetInvoker();
+    }
+
     const IInvokerPtr& GetExecNodesUpdateInvoker()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -465,9 +473,9 @@ public:
 
         ControllerThreadPool_->SetThreadCount(Config_->ControllerThreadCount);
         ChunkScraperHeavyThreadPool_->SetThreadCount(Config_->ChunkScraperHeavyThreadCount);
+        PushBasedShuffleThreadPool_->SetThreadCount(Config_->PushBasedShuffle->ThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
-        PushBasedShuffleRegistry_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -1198,6 +1206,7 @@ private:
     const IThreadPoolPtr ChunkScraperHeavyThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
+    const IThreadPoolPtr PushBasedShuffleThreadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
@@ -2485,6 +2494,11 @@ const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()
 const IInvokerPtr& TControllerAgent::GetStatisticsOffloadInvoker()
 {
     return Impl_->GetStatisticsOffloadInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetPushBasedShuffleInvoker()
+{
+    return Impl_->GetPushBasedShuffleInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetExecNodesUpdateInvoker()
