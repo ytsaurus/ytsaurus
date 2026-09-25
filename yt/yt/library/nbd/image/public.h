@@ -1,15 +1,14 @@
 #pragma once
 
-#include <yt/yt/library/nbd/chunk/public.h>
-
 #include <library/cpp/yt/memory/ref_counted.h>
 
-namespace NYT::NNbd::NChunk {
+namespace NYT::NNbd::NImage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IChunkHandler)
+DECLARE_REFCOUNTED_STRUCT(TImageBlockDeviceConfig)
+DECLARE_REFCOUNTED_STRUCT(TFileSystemBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd::NChunk
+} // namespace NYT::NNbd::NImage

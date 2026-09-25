@@ -1,12 +1,12 @@
 #pragma once
 
+#include <yt/yt/library/nbd/dynamic_table/public.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NNbd::NDynamicTable {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(TDynamicTableBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

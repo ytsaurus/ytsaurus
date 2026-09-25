@@ -5,7 +5,6 @@
 
 #include <yt/yt/server/node/exec_node/artifact.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
 #include <yt/yt/server/lib/nbd/image/public.h>
 
@@ -13,6 +12,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/rpc/public.h>
 

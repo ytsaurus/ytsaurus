@@ -87,7 +87,6 @@ struct TNbdServerConfig
     TIdsConfigPtr InternetDomainSocket;
     TUdsConfigPtr UnixDomainSocket;
     int ThreadCount;
-    // For testing purposes.
     TNbdTestOptionsPtr TestOptions;
 
     //! When set, an HTTP server is exposed on this port: a REST API for managing devices, plus a

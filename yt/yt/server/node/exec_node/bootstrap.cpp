@@ -29,7 +29,6 @@
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
@@ -48,6 +47,8 @@
 
 #include <yt/yt/client/signature/generator.h>
 #include <yt/yt/client/signature/validator.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 

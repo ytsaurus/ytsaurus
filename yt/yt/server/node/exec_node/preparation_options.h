@@ -4,11 +4,12 @@
 #include "volume_helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
 #include <yt/yt/server/lib/nbd/image/public.h>
 
 #include <yt/yt/ytlib/exec_node/public.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/actions/callback.h>
 

@@ -5,8 +5,6 @@
 #include <yt/yt/server/lib/io/public.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
-
 #include <yt/yt/server/node/data_node/location.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -21,6 +19,8 @@
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/actions/signal.h>
 

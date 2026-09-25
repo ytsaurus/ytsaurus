@@ -1,5 +1,4 @@
 #include "dynamic_table_block_device.h"
-#include "config.h"
 
 #include <yt/yt/server/lib/nbd/block_device_detail.h>
 
@@ -11,6 +10,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt/library/nbd/dynamic_table/config.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
