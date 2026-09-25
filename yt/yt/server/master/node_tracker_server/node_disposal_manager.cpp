@@ -256,6 +256,7 @@ private:
         location->SetBeingDisposed(true);
 
         auto node = location->GetNode();
+        auto registrationRevision = node->GetRegistrationRevision();
 
         chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), locationIndex)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
@@ -289,10 +290,16 @@ private:
                     return;
                 }
 
-                auto prepareSequoiaRequest = BIND([locationIndex, nodeId, sequoiaReplicas = std::move(replicasOrError.Value())] {
+                auto prepareSequoiaRequest = BIND([
+                    locationIndex,
+                    nodeId,
+                    registrationRevision,
+                    sequoiaReplicas = std::move(replicasOrError.Value())
+                ] {
                     auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
                     sequoiaRequest->set_node_id(ToProto(nodeId));
                     sequoiaRequest->set_caused_by_node_disposal(true);
+                    sequoiaRequest->set_registration_revision(ToProto(registrationRevision));
                     for (const auto& replica : sequoiaReplicas) {
                         TChunkRemoveInfo chunkRemoveInfo;
 

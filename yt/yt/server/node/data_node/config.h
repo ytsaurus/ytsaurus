@@ -568,6 +568,9 @@ struct TDataNodeTestingOptions
     // To simulate node registration retries.
     std::optional<int> MinEpochToStartHeartbeats;
 
+    //! Simulate old nodes that do not send registration revisions in heartbeats.
+    bool OmitHeartbeatRegistrationRevision;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);

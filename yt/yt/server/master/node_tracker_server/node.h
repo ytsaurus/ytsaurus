@@ -290,6 +290,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastJobHeartbeatTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStateChangeTime);
 
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, RegistrationRevision);
+
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 

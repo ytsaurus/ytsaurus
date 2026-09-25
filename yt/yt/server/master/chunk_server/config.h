@@ -363,6 +363,10 @@ struct TDynamicDataNodeTrackerConfig
     bool RejectSimultaneousFullHeartbeats;
     bool RejectSimultaneousIncrementalHeartbeats;
 
+    // When disabled, registration revision mismatches are alerted but heartbeats are not rejected.
+    // Enable only after upgrading nodes to send revisions; missing revisions are rejected too.
+    bool EnableRegistrationRevisionValidation;
+
     TDuration ExpectedDataNodeHeartbeatDuration;
 
     TDynamicDataNodeTrackerTestingConfigPtr Testing;
