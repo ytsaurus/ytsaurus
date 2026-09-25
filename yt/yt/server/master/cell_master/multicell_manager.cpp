@@ -383,6 +383,18 @@ public:
         return RoleMasterCells_[cellRole];
     }
 
+    TCellTagSet GetNodeHostMasterCells() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(MasterCellRolesLock_);
+
+        auto cellTags = RoleMasterCells_[EMasterCellRole::CypressNodeHost];
+        const auto& sequoiaNodeHostCellTags = RoleMasterCells_[EMasterCellRole::SequoiaNodeHost];
+        cellTags.insert(sequoiaNodeHostCellTags.begin(), sequoiaNodeHostCellTags.end());
+        return cellTags;
+    }
+
     int GetRoleMasterCellCount(EMasterCellRole cellRole) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

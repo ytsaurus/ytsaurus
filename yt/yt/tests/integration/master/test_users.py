@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, exists, remove,
+    authors, wait, create, ls, get, set, exists, remove, get_driver,
     create_account, create_network_project,
     create_user, create_group, create_tablet_cell_bundle, make_ace,
     add_member, remove_member, remove_group, remove_user,
@@ -1111,3 +1111,20 @@ class TestUsersMulticell(TestUsers):
         create("table", "//tmp/p/t", authenticated_user="u")
         wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=2)
         assert self._get_last_seen_time("u") - last_seen < datetime.timedelta(seconds=2)
+
+    @authors("danilalexeev")
+    def test_last_seen_via_sequoia_node_host(self):
+        cell_descriptor_path = "//sys/@config/multicell_manager/cell_descriptors/12"
+        original_descriptor = get(cell_descriptor_path)
+        set(cell_descriptor_path, {"roles": ["sequoia_node_host"]})
+
+        try:
+            create_user("u")
+            wait(lambda: exists("//sys/users/u", driver=get_driver(2)))
+            last_seen = self._get_last_seen_time("u")
+
+            get("//sys/@cell_id", authenticated_user="u", driver=get_driver(2))
+
+            wait(lambda: self._get_last_seen_time("u") > last_seen, timeout=10)
+        finally:
+            set(cell_descriptor_path, original_descriptor)
