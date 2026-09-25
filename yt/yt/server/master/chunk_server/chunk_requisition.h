@@ -28,7 +28,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings specifying how a chunk or a chunk owner should be replicated over a medium.
-struct TReplicationPolicy
+class TReplicationPolicy
 {
 public:
     constexpr TReplicationPolicy()
@@ -425,7 +425,7 @@ public:
     };
 
     template <class B, std::sentinel_for<B> E>
-    struct TEntryRange
+    class TEntryRange
         : public std::ranges::view_interface<TEntryRange<B, E>>
     {
     public:

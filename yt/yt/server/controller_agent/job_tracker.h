@@ -312,7 +312,6 @@ private:
 
     struct TNodeInfo
     {
-    public:
         TNodeJobs Jobs;
         NConcurrency::TLease Lease;
 

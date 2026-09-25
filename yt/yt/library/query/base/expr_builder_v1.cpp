@@ -516,7 +516,7 @@ struct TUntypedExpression
     bool IsConstant;
 };
 
-struct TExpressionBuilderV1
+class TExpressionBuilderV1
     : public TExpressionBuilder
 {
 public:

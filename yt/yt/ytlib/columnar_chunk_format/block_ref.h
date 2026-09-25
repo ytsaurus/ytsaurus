@@ -19,7 +19,7 @@ struct TBlockRef
     TRef BlockSegmentsMeta;
 };
 
-struct TColumnBase
+class TColumnBase
 {
 public:
     TColumnBase() = default;

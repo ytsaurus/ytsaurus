@@ -135,7 +135,7 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSerializableUserRequestLimitsOptions
+class TSerializableUserRequestLimitsOptions
     : public NYTree::TYsonStruct
 {
 public:

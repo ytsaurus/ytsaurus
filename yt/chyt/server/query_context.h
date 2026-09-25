@@ -40,7 +40,6 @@ namespace NYT::NClickHouseServer {
 struct TStorageContext
     : public TRefCounted
 {
-public:
     int Index = -1;
     TQueryContext* QueryContext;
     TQuerySettingsPtr Settings;
@@ -67,7 +66,7 @@ DB::ContextMutablePtr PrepareContextForQuery(
 
 //! Context for whole query. Shared by all select queries from YT tables in query
 //! (including subqueries).
-struct TQueryContext
+class TQueryContext
     : public TRefCounted
 {
 public:

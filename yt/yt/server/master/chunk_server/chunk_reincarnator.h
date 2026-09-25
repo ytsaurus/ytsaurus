@@ -32,7 +32,7 @@ void Deserialize(TChunkReincarnationOptions& options, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReincarnationJob
+class TReincarnationJob
     : public TJob
 {
 public:

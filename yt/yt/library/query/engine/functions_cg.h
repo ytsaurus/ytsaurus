@@ -136,7 +136,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TExternalFunctionCodegen
+class TExternalFunctionCodegen
     : public TFunctionCodegenBase
 {
 public:
@@ -199,7 +199,7 @@ private:
     const bool UseFunctionContext_;
 };
 
-struct TExternalAggregateCodegen
+class TExternalAggregateCodegen
     : public IAggregateCodegen
 {
 public:
