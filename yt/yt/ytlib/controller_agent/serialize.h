@@ -132,6 +132,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropLegacyDataSliceRepresentation)     (302401))
     ((DropInvalidatedJoblets)                (302402))
     ((JobPhaseSpacing)                       (302403))
+    ((RlsAuthenticatedUser)                  (302404))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

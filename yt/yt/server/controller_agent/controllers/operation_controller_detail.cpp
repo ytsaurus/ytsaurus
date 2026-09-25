@@ -7924,6 +7924,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                                 file.Schema,
                                 file.RowLevelAcl,
+                                AuthenticatedUser_,
                                 Logger().WithTag("Path", file.GetPath()));
 
                             YT_TLOG_INFO_IF(file.RlsReadSpec, "User file has non-trivial RLS read spec")
