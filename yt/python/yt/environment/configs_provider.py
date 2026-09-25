@@ -369,6 +369,14 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "multi": multidaemon_config,
     }
 
+    if yt_config.chaos_node_count > 0:
+        # Master configs are built before cache addresses are allocated.
+        replication_card_cache_config = cluster_configuration["cluster_connection"]["replication_card_cache"]
+        cell_tags = [master_configs["primary_cell_tag"]] + master_configs["secondary_cell_tags"]
+        for cell_tag in cell_tags:
+            for master_config in master_configs[cell_tag]:
+                master_config["cluster_connection"]["replication_card_cache"] = deepcopy(replication_card_cache_config)
+
     return cluster_configuration
 
 
