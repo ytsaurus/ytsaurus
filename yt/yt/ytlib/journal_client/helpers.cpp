@@ -1,6 +1,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <yt/yt/client/journal_client/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -42,42 +44,18 @@ void ValidateJournalAttributes(
     int readQuorum,
     int writeQuorum)
 {
-    if (readQuorum < 1) {
-        THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be less than 1");
-    }
-    if (writeQuorum < 1) {
-        THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be less than 1");
-    }
     if (codecId == NErasure::ECodec::None) {
-        ValidateReplicationFactor(replicationFactor);
-        if (readQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (writeQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (readQuorum + writeQuorum <= replicationFactor) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum <= replication_factor");
-        }
+        NJournalClient::ValidateReplicatedJournalAttributes(
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
     } else {
-        auto* codec = NErasure::GetCodec(codecId);
-        if (!codec->IsBytewise()) {
-            THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure journals",
-                codecId);
-        }
-        if (replicationFactor != 1) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals");
-        }
-        if (readQuorum > codec->GetTotalPartCount()) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than total part count");
-        }
-        if (writeQuorum > codec->GetTotalPartCount()) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be greater than total part count");
-        }
-        int quorumThreshold = 2 * codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount() - 1;
-        if (readQuorum + writeQuorum <= quorumThreshold) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum <= 2 * total_parts - guraranteed_repairable_parts - 1");
-        }
+        NJournalClient::ValidateErasureJournalAttributes(
+            codecId,
+            NErasure::GetCodec(codecId)->GetParams(),
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
     }
 }
 
