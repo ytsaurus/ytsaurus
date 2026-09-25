@@ -23,11 +23,11 @@ jobs:
     strategy:
       matrix:
         target-platform:
-          - DEFAULT-LINUX-X86_64
-          - DEFAULT-LINUX-AARCH64
-          - DEFAULT-DARWIN-ARM64
-          - DEFAULT-DARWIN-X86_64
-          - DEFAULT-WIN-X86_64
+          - default-linux-x86_64
+          - default-linux-aarch64
+          - default-darwin-arm64
+          - default-darwin-x86_64
+          - default-win-x86_64
       max-parallel: 1
     name: Build (${{ matrix.target-platform }})
     runs-on: ubuntu-latest
@@ -38,7 +38,6 @@ jobs:
 
       - name: Debug
         run: |
-          set -x
           echo "$HOME"
           pwd
           ls .
@@ -49,17 +48,10 @@ jobs:
 
       - name: Build (${{ matrix.target-platform }})
         run: |
-          ls
-
           OUTPUT="$HOME/work/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
           mkdir -p "$OUTPUT"
 
-          ls
-
           cd "$HOME/work/ytsaurus/ytsaurus"
-
-          ls
-
           ./ya make \
             --build=release \
             -DSTRIP=yes \
