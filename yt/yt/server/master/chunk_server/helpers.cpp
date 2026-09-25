@@ -1817,9 +1817,9 @@ i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec)
         return dataSize;
     }
 
-    auto* codec = NErasure::GetCodec(erasureCodec);
-    auto dataPartCount = codec->GetDataPartCount();
-    auto totalPartCount = codec->GetTotalPartCount();
+    const auto& codecParams = NErasure::GetCodecOrThrow(erasureCodec)->GetParams();
+    auto dataPartCount = codecParams.DataPartCount;
+    auto totalPartCount = codecParams.TotalPartCount;
 
     return dataSize * totalPartCount / dataPartCount;
 }

@@ -573,7 +573,7 @@ private:
                 ReplicationFactor_ = attributes->Get<int>("replication_factor");
                 ReplicaCount_ = ErasureCodec_ == NErasure::ECodec::None
                     ? ReplicationFactor_
-                    : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
+                    : NErasure::GetCodecOrThrow(ErasureCodec_)->GetParams().TotalPartCount;
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
                 Account_ = attributes->Get<std::string>("account");
@@ -1120,15 +1120,16 @@ private:
         void HandleBatch(const TBatchPtr& batch)
         {
             if (ErasureCodec_ != NErasure::ECodec::None) {
-                auto* codec = NErasure::GetCodec(ErasureCodec_);
+                auto* codec = NErasure::GetCodecOrThrow(ErasureCodec_);
                 batch->ErasureRows = EncodeErasureJournalRows(codec, batch->Rows);
 
                 if (Config_->ValidateErasureCoding) {
                     YT_TLOG_DEBUG("Validating erasure coding");
 
                     const auto& originalRows = batch->ErasureRows;
-                    auto erasedPartCount = codec->GetGuaranteedRepairablePartCount();
-                    auto dataPartCount = codec->GetDataPartCount();
+                    const auto& codecParams = codec->GetParams();
+                    auto erasedPartCount = codecParams.GuaranteedRepairablePartCount;
+                    auto dataPartCount = codecParams.DataPartCount;
 
                     std::vector<int> erasedParts(erasedPartCount);
                     std::iota(erasedParts.begin(), erasedParts.end(), 0);

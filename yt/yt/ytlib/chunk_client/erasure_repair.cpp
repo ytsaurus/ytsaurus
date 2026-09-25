@@ -260,7 +260,7 @@ private:
 
         // Validate repaired parts checksums.
         if (placementExt.part_checksums_size() != 0) {
-            YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetTotalPartCount());
+            YT_VERIFY(placementExt.part_checksums_size() == Codec_->GetParams().TotalPartCount);
 
             for (int index = 0; index < std::ssize(Writers_); ++index) {
                 TChecksum repairedPartChecksum = writerConsumers[index]->GetPartChecksum();
@@ -447,7 +447,7 @@ public:
                 ParityPartSplitInfo_.GetBlockRanges(erasedIndex, PlacementExt_));
         }
 
-        auto dataPartCount = Codec_->GetDataPartCount();
+        auto dataPartCount = Codec_->GetParams().DataPartCount;
 
         std::vector<TPartRange> repairRanges;
 
@@ -568,7 +568,7 @@ private:
         std::vector<TBlock> result(BlockIndexes_.size());
         int partBlockSaverIndex = 0;
         int partReaderIndex = 0;
-        for (int partIndex = 0; partIndex < Codec_->GetDataPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < Codec_->GetParams().DataPartCount; ++partIndex) {
             auto blocksPlacementInPart = DataBlocksPlacementInParts_[partIndex];
 
             std::vector<TBlock> blocks;

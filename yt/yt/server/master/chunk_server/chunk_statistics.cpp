@@ -87,7 +87,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
 {
     TChunkStatistics result;
 
-    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
+    auto* codec = NErasure::GetCodecOrThrow(chunk->GetErasureCodec());
 
     TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
@@ -329,8 +329,9 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsForMedium(
     int replicationFactor = replicationPolicy.GetReplicationFactor();
     YT_VERIFY(0 <= replicationFactor && replicationFactor <= 1);
 
-    int totalPartCount = codec->GetTotalPartCount();
-    int dataPartCount = codec->GetDataPartCount();
+    const auto& codecParams = codec->GetParams();
+    int totalPartCount = codecParams.TotalPartCount;
+    int dataPartCount = codecParams.DataPartCount;
 
     NErasure::TPartIndexSet temporarilyUnavailableIndexes;
     auto temporarilyUnavailableMissingStatus = EChunkStatus::None;
@@ -410,7 +411,7 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsForMedium(
     auto temporarilyUnavailablePartCount = static_cast<i64>(temporarilyUnavailableIndexes.count());
     auto shouldPromoteTemporarilyUnavailableParts =
         temporarilyUnavailablePartCount + reserveForAdditionalRackFailures >
-            codec->GetGuaranteedRepairablePartCount();
+            codecParams.GuaranteedRepairablePartCount;
     if (erasedIndexes.any() || shouldPromoteTemporarilyUnavailableParts) {
         result.Status |= temporarilyUnavailableMissingStatus;
         erasedIndexes |= temporarilyUnavailableIndexes;
@@ -494,8 +495,9 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsCrossMedia(
         }
     }
 
-    auto totalPartCount = codec->GetTotalPartCount();
-    auto dataPartCount = codec->GetDataPartCount();
+    const auto& codecParams = codec->GetParams();
+    auto totalPartCount = codecParams.TotalPartCount;
+    auto dataPartCount = codecParams.DataPartCount;
 
     auto crossMediaDataMissing = false;
     auto crossMediaParityMissing = false;

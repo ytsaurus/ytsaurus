@@ -424,7 +424,7 @@ private:
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
-        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
+        auto erasureCodec = NErasure::GetCodecOrThrow(erasureCodecId);
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
         auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
@@ -454,11 +454,12 @@ private:
         auto remoteWriterOptions = New<TRemoteWriterOptions>();
         remoteWriterOptions->AllowAllocatingNewTargetNodes = false;
 
+        const auto& codecParams = erasureCodec->GetParams();
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
             outputSessionId,
-            erasureCodec->GetTotalPartCount(),
-            erasureCodec->GetTotalPartCount(),
+            codecParams.TotalPartCount,
+            codecParams.TotalPartCount,
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ {},
@@ -652,7 +653,7 @@ private:
         ICodec* erasureCodec)
     {
         i64 parityPartsSize = 0;
-        auto firstParityBlockIndex = erasureCodec->GetDataPartCount();
+        auto firstParityBlockIndex = erasureCodec->GetParams().DataPartCount;
         for (auto index = firstParityBlockIndex; index < placementExt.part_infos_size(); ++index) {
             for (auto size : placementExt.get_idx_part_infos(index).segment_sizes()) {
                 parityPartsSize += size;
@@ -693,7 +694,7 @@ private:
         i64 partIndex)
     {
         std::vector<i64> blockSizes;
-        if (partIndex < erasureCodec->GetDataPartCount()) {
+        if (partIndex < erasureCodec->GetParams().DataPartCount) {
             int blockCount = placementExt.part_infos(partIndex).block_sizes_size();
             for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
                 blockSizes.push_back(

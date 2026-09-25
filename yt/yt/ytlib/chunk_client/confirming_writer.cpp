@@ -281,7 +281,7 @@ private:
                 Throttler_);
         }
 
-        auto* erasureCodec = GetCodec(Options_->ErasureCodec);
+        auto* erasureCodec = GetCodecOrThrow(Options_->ErasureCodec);
         // NB(psushin): we don't ask master for new erasure replicas,
         // because we cannot guarantee proper replica placement.
         auto options = CloneYsonStruct(Options_);

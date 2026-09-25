@@ -904,7 +904,7 @@ private:
                 .With("ReplicationReaderFailureTimeout", readerConfig->ReplicationReaderFailureTimeout);
 
             std::vector<IChunkReaderAllowingRepairPtr> readers;
-            for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
+            for (int partIndex = 0; partIndex < codec->GetParams().TotalPartCount; ++partIndex) {
                 readers.push_back(CreateReader(partIndex));
             }
             TFuture<void> future;
@@ -1014,7 +1014,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec());
-        auto* codec = NErasure::GetCodec(codecId);
+        auto* codec = NErasure::GetCodecOrThrow(codecId);
         auto decommission = JobSpecExt_.decommission();
         auto rowCount = JobSpecExt_.has_row_count() ? std::make_optional<i64>(JobSpecExt_.row_count()) : std::nullopt;
 
@@ -2700,7 +2700,7 @@ private:
         bodyChunkSealInfo.set_row_count(bodyChunkLogicalRowCount);
 
         auto readQuorumInfoIndex = IsErasure()
-            ? ReadQuorum_ - NErasure::GetCodec(ErasureCodecId_)->GetGuaranteedRepairablePartCount()
+            ? ReadQuorum_ - NErasure::GetCodecOrThrow(ErasureCodecId_)->GetParams().GuaranteedRepairablePartCount
             : ReadQuorum_ - 1;
         *totalRowCount = replicaInfos[readQuorumInfoIndex].row_count();
 
@@ -2803,7 +2803,7 @@ private:
     std::vector<std::vector<TSharedRef>> PrepareParts(const std::vector<TSharedRef>& rows)
     {
         if (IsErasure()) {
-            auto* codec = NErasure::GetCodec(ErasureCodecId_);
+            auto* codec = NErasure::GetCodecOrThrow(ErasureCodecId_);
             return EncodeErasureJournalRows(codec, rows);
         } else {
             return std::vector<std::vector<TSharedRef>>(ReplicationFactor_, rows);
@@ -2819,7 +2819,7 @@ private:
             .With("SessionId", writeSessionId);
 
         if (IsErasure()) {
-            auto* erasureCodec = NErasure::GetCodec(ErasureCodecId_);
+            auto* erasureCodec = NErasure::GetCodecOrThrow(ErasureCodecId_);
 
             auto options = New<TRemoteWriterOptions>();
             options->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();

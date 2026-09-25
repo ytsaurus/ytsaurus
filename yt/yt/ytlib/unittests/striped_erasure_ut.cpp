@@ -33,8 +33,8 @@ TChunk WriteErasureChunk(
     const std::vector<TSharedRef>& blocks,
     TErasureWriterConfigPtr config = New<TErasureWriterConfig>())
 {
-    auto* codec = NErasure::GetCodec(codecId);
-    auto totalPartCount = codec->GetTotalPartCount();
+    auto* codec = NErasure::GetCodecOrThrow(codecId);
+    auto totalPartCount = codec->GetParams().TotalPartCount;
 
     std::vector<IChunkWriterPtr> writers;
     std::vector<TMemoryWriterPtr> memoryWriters;
@@ -193,8 +193,8 @@ DEFINE_REFCOUNTED_TYPE(TInterceptingMemoryWriter)
 
 TEST(TStripedErasureTest, FailureWhileClosing)
 {
-    auto* codec = NErasure::GetCodec(NErasure::ECodec::ReedSolomon_3_3);
-    auto totalPartCount = codec->GetTotalPartCount();
+    auto* codec = NErasure::GetCodecOrThrow(NErasure::ECodec::ReedSolomon_3_3);
+    auto totalPartCount = codec->GetParams().TotalPartCount;
 
     std::vector<IChunkWriterPtr> writers;
     std::vector<TInterceptingMemoryWriterPtr> memoryWriters;

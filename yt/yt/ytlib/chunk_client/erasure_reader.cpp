@@ -276,7 +276,7 @@ private:
         const std::vector<int>& blockIndexes,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers) override
     {
-        NErasure::TPartIndexList existingPartIndices(Codec_->GetDataPartCount());
+        NErasure::TPartIndexList existingPartIndices(Codec_->GetParams().DataPartCount);
         std::iota(existingPartIndices.begin(), existingPartIndices.end(), 0);
 
         auto session = New<TAdaptiveErasureRepairingSession>(

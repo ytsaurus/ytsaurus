@@ -241,14 +241,14 @@ public:
         : Config_(std::move(config))
         , SessionId_(sessionId)
         , CodecId_(codecId)
-        , Codec_(NErasure::GetCodec(CodecId_))
+        , Codec_(NErasure::GetCodecOrThrow(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
-        , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetWordSize()))
+        , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetParams().WordSize))
         , ReadyEvent_(OKFuture)
         , Writers_(writers)
         , BlockReorderer_(Config_)
     {
-        YT_VERIFY(std::ssize(writers) == Codec_->GetTotalPartCount());
+        YT_VERIFY(std::ssize(writers) == Codec_->GetParams().TotalPartCount);
         YT_ASSERT_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
@@ -422,7 +422,7 @@ bool TErasureWriter::WriteBlock(
     }
 
     if (Config_->ErasureStripeSize &&
-        AccumulatedSize_ >= *Config_->ErasureStripeSize * Codec_->GetDataPartCount())
+        AccumulatedSize_ >= *Config_->ErasureStripeSize * Codec_->GetParams().DataPartCount)
     {
         ReadyEvent_ = ReadyEvent_.Apply(
             BIND(&TErasureWriter::Flush, MakeStrong(this), options, Passed(std::move(Blocks_)))
@@ -469,13 +469,15 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(
 {
     YT_ASSERT_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
 
-    std::vector<std::vector<TBlock>> parityBlocks(Codec_->GetParityPartCount());
+    const auto& codecParams = Codec_->GetParams();
+
+    std::vector<std::vector<TBlock>> parityBlocks(codecParams.ParityPartCount);
 
     TBlockGroupReader reader(groups);
     while (!reader.Empty()) {
         i64 blockSize;
         auto codecInput = reader.Read(ErasureWindowSize_, &blockSize);
-        blockSize = RoundUp<i64>(blockSize, Codec_->GetWordSize());
+        blockSize = RoundUp<i64>(blockSize, codecParams.WordSize);
 
         for (int index = 0; index < std::ssize(codecInput); ++index) {
             codecInput[index] = codecInput[index].Slice(0, blockSize);
@@ -491,7 +493,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(
 
     std::vector<TFuture<void>> asyncResults;
     for (int index = 0; index < std::ssize(parityBlocks); ++index) {
-        int partIndex = index + Codec_->GetDataPartCount();
+        int partIndex = index + codecParams.DataPartCount;
         asyncResults.push_back(
             BIND(
                 &TErasurePartWriterWrapper::WriteStripe,
@@ -514,7 +516,7 @@ TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& opt
     }
 
     BlockReorderer_.ReorderBlocks(blocks);
-    auto groups = SplitBlocks(blocks, Codec_->GetDataPartCount());
+    auto groups = SplitBlocks(blocks, Codec_->GetParams().DataPartCount);
 
     auto compressionInvoker = CreateFixedPriorityInvoker(
         NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
@@ -546,18 +548,20 @@ void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
+    const auto& codecParams = Codec_->GetParams();
+
     NProto::TErasurePlacementExt placementExt;
-    for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {
+    for (int index = 0; index < codecParams.DataPartCount; ++index) {
         auto* info = placementExt.add_part_infos();
         *info = WriterWrappers_[index]->GetPartInfo();
     }
 
-    for (int index = 0; index < Codec_->GetTotalPartCount(); ++index) {
+    for (int index = 0; index < codecParams.TotalPartCount; ++index) {
         placementExt.add_part_checksums(WriterWrappers_[index]->GetPartChecksum());
     }
 
-    auto parityPartInfo = WriterWrappers_[Codec_->GetDataPartCount()]->GetPartInfo();
-    auto parityPartStripeBlockCounts = WriterWrappers_[Codec_->GetDataPartCount()]->GetStripeBlockCounts();
+    auto parityPartInfo = WriterWrappers_[codecParams.DataPartCount]->GetPartInfo();
+    auto parityPartStripeBlockCounts = WriterWrappers_[codecParams.DataPartCount]->GetStripeBlockCounts();
 
     int stripeEndIndex = 0;
     for (int blockCount : parityPartStripeBlockCounts) {
@@ -568,7 +572,7 @@ void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     }
 
     placementExt.set_parity_block_size(ErasureWindowSize_);
-    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
+    placementExt.set_parity_part_count(codecParams.ParityPartCount);
 
     if (Config_->ErasureStoreOriginalBlockChecksums) {
         NYT::ToProto(placementExt.mutable_block_checksums(), BlockChecksums_);

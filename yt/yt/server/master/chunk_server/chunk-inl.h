@@ -306,8 +306,8 @@ inline int TChunk::GetAggregatedPhysicalReplicationFactor(const TChunkRequisitio
     const auto& physicalReplication = registry->GetPhysicalReplication(AggregatedRequisitionIndex_);
 
     if (IsErasure()) {
-        auto* codec = NErasure::GetCodec(GetErasureCodec());
-        return physicalReplication.MediumCount * codec->GetTotalPartCount();
+        auto* codec = NErasure::GetCodecOrThrow(GetErasureCodec());
+        return physicalReplication.MediumCount * codec->GetParams().TotalPartCount;
     } else {
         return physicalReplication.ReplicaCount;
     }

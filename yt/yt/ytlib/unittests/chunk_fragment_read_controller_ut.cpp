@@ -22,7 +22,8 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
     constexpr int MaxRequests = 10;
     constexpr auto CodecId = NErasure::ECodec::IsaReedSolomon_6_3;
 
-    const auto* codec = NErasure::GetCodec(CodecId);
+    const auto* codec = NErasure::GetCodecOrThrow(CodecId);
+    const auto& codecParams = codec->GetParams();
 
     for (int iteration = 0; iteration < Iterations; ++iteration) {
         std::mt19937 rng(iteration);
@@ -39,8 +40,8 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
             blocks.push_back(TSharedRef::FromString(block));
 
             std::vector<TSharedRef> parts;
-            auto partSize = DivCeil<int>(block.size(), codec->GetDataPartCount());
-            for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
+            auto partSize = DivCeil<int>(block.size(), codecParams.DataPartCount);
+            for (int partIndex = 0; partIndex < codecParams.DataPartCount; ++partIndex) {
                 std::string part;
                 for (int index = partIndex * partSize; index < (partIndex + 1) * partSize; ++index) {
                     if (index < std::ssize(block)) {
@@ -104,7 +105,7 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
 
         TReplicasWithRevision replicas;
         replicas.Revision = NHydra::NullRevision;
-        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < codecParams.TotalPartCount; ++index) {
             replicas.Replicas.push_back(TChunkReplicaInfo{
                 .ReplicaIndex = index,
             });
@@ -137,14 +138,14 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
         response.set_has_complete_chunk(true);
 
         std::vector<std::vector<TSharedRef>> regularResponses;
-        for (int index = 0; index < codec->GetDataPartCount(); ++index) {
+        for (int index = 0; index < codecParams.DataPartCount; ++index) {
             NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest request;
             controller->PrepareRpcSubrequest(regularPlan, index, &request);
             regularResponses.push_back(processRequest(index, request));
         }
 
         std::vector<std::vector<TSharedRef>> repairResponses;
-        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < codecParams.TotalPartCount; ++index) {
             NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest request;
             controller->PrepareRpcSubrequest(repairPlan, index, &request);
             repairResponses.push_back(processRequest(index, request));
@@ -154,12 +155,12 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
         int mode = rng() % 3;
         std::vector<std::pair<int, int>> responseOrder;
         if (mode == 0 || mode == 2) {
-            for (int index = 0; index < codec->GetDataPartCount(); ++index) {
+            for (int index = 0; index < codecParams.DataPartCount; ++index) {
                 responseOrder.emplace_back(index, 0);
             }
         }
         if (mode == 1 || mode == 2) {
-            for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+            for (int index = 0; index < codecParams.TotalPartCount; ++index) {
                 responseOrder.emplace_back(index, 1);
             }
         }

@@ -984,8 +984,9 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
     }
 
     auto codecId = chunk->GetErasureCodec();
-    auto* codec = NErasure::GetCodec(codecId);
-    auto totalPartCount = codec->GetTotalPartCount();
+    auto* codec = NErasure::GetCodecOrThrow(codecId);
+    const auto& codecParams = codec->GetParams();
+    auto totalPartCount = codecParams.TotalPartCount;
 
     auto statistics = ChunkStatisticsCalculator_->ComputeChunkStatistics(chunk, replicas);
     const auto& mediumStatistics = statistics.PerMediumStatistics[mediumIndex];
@@ -1004,7 +1005,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
 
     if (!codec->CanRepair(erasedPartIndexes)) {
         // Can't repair without decommissioned replicas. Use them.
-        auto guaranteedRepairablePartCount = codec->GetGuaranteedRepairablePartCount();
+        auto guaranteedRepairablePartCount = codecParams.GuaranteedRepairablePartCount;
         YT_VERIFY(guaranteedRepairablePartCount < std::ssize(erasedPartIndexes));
 
         // Reorder the parts so that the actually erased ones go first and then the decommissioned ones.
@@ -1823,16 +1824,16 @@ void TChunkReplicator::RefreshChunk(
             if (None(statistics.Status & EChunkStatus::Lost) && chunk->IsSealed()) {
                 TChunkPtrWithMediumIndex chunkWithIndex(chunk, mediumIndex);
                 if (Any(statistics.Status & (EChunkStatus::DataMissing | EChunkStatus::ParityMissing))) {
-                    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
+                    const auto& codecParams = NErasure::GetCodecOrThrow(chunk->GetErasureCodec())->GetParams();
 
                     int missingPartCount = 0;
-                    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+                    for (int i = 0; i < codecParams.TotalPartCount; ++i) {
                         if (statistics.ReplicaCount[i] == 0) {
                             ++missingPartCount;
                         }
                     }
 
-                    int guaranteedRepairableCount = codec->GetGuaranteedRepairablePartCount();
+                    int guaranteedRepairableCount = codecParams.GuaranteedRepairablePartCount;
                     int canStillLose = std::max(0, guaranteedRepairableCount - missingPartCount);
                     int priority = std::min(canStillLose, RepairPriorityCount - 2);
                     AddToChunkRepairQueue(chunkWithIndex, priority);

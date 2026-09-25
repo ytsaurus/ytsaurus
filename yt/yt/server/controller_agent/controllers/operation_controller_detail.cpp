@@ -11031,7 +11031,8 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
                 bufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
-            auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
+            auto* codec = NErasure::GetCodecOrThrow(outputTable->TableWriterOptions->ErasureCodec);
+            const auto& codecParams = codec->GetParams();
 
             if (outputTable->TableWriterOptions->EnableStripedErasure) {
                 // Table writer buffers.
@@ -11043,9 +11044,9 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
                 // Encoding writer buffer.
                 result += ioConfig->TableWriter->EncodeWindowSize;
                 // Part writer buffers.
-                result += ioConfig->TableWriter->SendWindowSize * codec->GetTotalPartCount();
+                result += ioConfig->TableWriter->SendWindowSize * codecParams.TotalPartCount;
             } else {
-                double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
+                double replicationFactor = (double) codecParams.TotalPartCount / codecParams.DataPartCount;
                 result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
             }
         }

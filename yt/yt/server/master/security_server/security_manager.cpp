@@ -3221,9 +3221,9 @@ private:
         auto result = diskSpace *  replicationFactor;
 
         if (policy.GetDataPartsOnly() && isErasure) {
-            auto* codec = NErasure::GetCodec(erasureCodec);
-            auto dataPartCount = codec->GetDataPartCount();
-            auto totalPartCount = codec->GetTotalPartCount();
+            const auto& codecParams = NErasure::GetCodecOrThrow(erasureCodec)->GetParams();
+            auto dataPartCount = codecParams.DataPartCount;
+            auto totalPartCount = codecParams.TotalPartCount;
 
             // Should only charge for data parts.
             result = result * dataPartCount / totalPartCount;

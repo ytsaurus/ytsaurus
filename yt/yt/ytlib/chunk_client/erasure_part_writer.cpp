@@ -110,7 +110,7 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
     IBlockCachePtr blockCache,
     TChunkReplicaWithMediumList targetReplicas)
 {
-    auto totalPartCount = codec->GetTotalPartCount();
+    auto totalPartCount = codec->GetParams().TotalPartCount;
     TPartIndexList partIndexList(totalPartCount);
     std::iota(partIndexList.begin(), partIndexList.end(), 0);
 

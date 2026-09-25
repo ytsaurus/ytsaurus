@@ -815,8 +815,8 @@ private:
         if (options->ErasureCodec == NErasure::ECodec::None) {
             return options->ReplicationFactor;
         } else {
-            auto* codec = NErasure::GetCodec(options->ErasureCodec);
-            return codec->GetTotalPartCount();
+            auto* codec = NErasure::GetCodecOrThrow(options->ErasureCodec);
+            return codec->GetParams().TotalPartCount;
         }
     }
 
@@ -940,7 +940,7 @@ private:
             } else {
                 YT_VERIFY(recordParts.size() == 1);
                 auto encodingResult = EncodeErasureJournalRows(
-                    NErasure::GetCodec(Options_->ErasureCodec),
+                    NErasure::GetCodecOrThrow(Options_->ErasureCodec),
                     recordParts);
                 YT_VERIFY(std::ssize(encodingResult) == 1);
                 encodedParts = std::move(encodingResult[0]);

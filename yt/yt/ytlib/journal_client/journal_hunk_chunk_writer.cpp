@@ -302,9 +302,10 @@ private:
 
     TFuture<void> FlushErasureRecord()
     {
-        auto* codec = NErasure::GetCodec(Options_->ErasureCodec);
-        auto dataPartCount = codec->GetDataPartCount();
-        auto totalPartCount = codec->GetTotalPartCount();
+        auto* codec = NErasure::GetCodecOrThrow(Options_->ErasureCodec);
+        const auto& codecParams = codec->GetParams();
+        auto dataPartCount = codecParams.DataPartCount;
+        auto totalPartCount = codecParams.TotalPartCount;
 
         // NB: We prepend TErasureRowHeader for compatibility only as chunk fragment reader
         // does not distinguish non-hunk and hunk erasure journal chunks.

@@ -109,7 +109,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     const ICodec* codec,
     EUnavailablePartPolicy unavailablePartPolicy)
 {
-    auto partCount = codec->GetTotalPartCount();
+    auto partCount = codec->GetParams().TotalPartCount;
     TPartIndexList partIndexList(partCount);
     std::iota(partIndexList.begin(), partIndexList.end(), 0);
 

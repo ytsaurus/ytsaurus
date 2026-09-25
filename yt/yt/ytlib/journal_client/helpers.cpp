@@ -52,7 +52,7 @@ void ValidateJournalAttributes(
     } else {
         NJournalClient::ValidateErasureJournalAttributes(
             codecId,
-            NErasure::GetCodec(codecId)->GetParams(),
+            NErasure::GetCodecOrThrow(codecId)->GetParams(),
             replicationFactor,
             readQuorum,
             writeQuorum);
@@ -126,8 +126,9 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     NErasure::ICodec* codec,
     const std::vector<TSharedRef>& rows)
 {
-    int dataPartCount = codec->GetDataPartCount();
-    int totalPartCount = codec->GetTotalPartCount();
+    const auto& codecParams = codec->GetParams();
+    int dataPartCount = codecParams.DataPartCount;
+    int totalPartCount = codecParams.TotalPartCount;
 
     auto getRowPaddingSize = [&] (const TSharedRef& row) {
         return GetPaddingSize(sizeof(TErasureRowHeader) + row.Size(), dataPartCount);
@@ -203,7 +204,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
     const NLogging::TLogger& logger)
 {
     auto Logger = logger;
-    int dataPartCount = codec->GetDataPartCount();
+    int dataPartCount = codec->GetParams().DataPartCount;
 
     YT_VERIFY(dataPartCount == std::ssize(encodedRowLists));
 
@@ -795,8 +796,8 @@ private:
         // Number of replicas required to read a record.
         int readReplicaCount = [&] {
             if (IsErasureChunkId(ChunkId_)) {
-                auto* codec = NErasure::GetCodec(CodecId_);
-                return codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
+                const auto& codecParams = NErasure::GetCodecOrThrow(CodecId_)->GetParams();
+                return codecParams.TotalPartCount - codecParams.GuaranteedRepairablePartCount;
             } else {
                 return 1;
             }

@@ -775,10 +775,11 @@ IChunkReaderPtr CreateRemoteReader(
             partIndexToReplica[replica.GetReplicaIndex()] = replica;
         }
 
-        auto* erasureCodec = GetCodec(erasureCodecId);
+        auto* erasureCodec = GetCodecOrThrow(erasureCodecId);
+        const auto& codecParams = erasureCodec->GetParams();
         auto partCount = config->EnableAutoRepair ?
-            erasureCodec->GetTotalPartCount() :
-            erasureCodec->GetDataPartCount();
+            codecParams.TotalPartCount :
+            codecParams.DataPartCount;
 
         auto partConfig = CloneYsonStruct(config);
         partConfig->FailOnNoSeeds = true;

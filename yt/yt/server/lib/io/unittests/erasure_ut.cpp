@@ -178,11 +178,12 @@ TEST(TErasureCodingTest, RandomText)
             continue;
         }
 
-        int blocksCount = codec->GetTotalPartCount();
+        const auto& codecParams = codec->GetParams();
+        int blocksCount = codecParams.TotalPartCount;
         YT_VERIFY(blocksCount <= 16);
 
         std::vector<TSharedRef> dataBlocks;
-        for (int i = 0; i < codec->GetDataPartCount(); ++i) {
+        for (int i = 0; i < codecParams.DataPartCount; ++i) {
             char* begin = data.data() + i * 64;
             auto blob = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>(), TRef(begin, 64));
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
@@ -264,7 +265,7 @@ public:
 
         std::vector<IChunkWriterPtr> writers;
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
-        for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+        for (int i = 0; i < codec->GetParams().TotalPartCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             auto partChunkId = chunkId == NullChunkId
                 ? NullChunkId
@@ -331,8 +332,9 @@ public:
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
+        const auto& codecParams = codec->GetParams();
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
-        for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+        for (int i = 0; i < codecParams.TotalPartCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
                 repairWriters->push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
@@ -347,7 +349,7 @@ public:
 
             if (allReaders &&
                 erasedIndicesSet.find(i) == erasedIndicesSet.end() &&
-                (i < codec->GetDataPartCount() || repairIndicesSet.find(i) != repairIndicesSet.end()))
+                (i < codecParams.DataPartCount || repairIndicesSet.find(i) != repairIndicesSet.end()))
             {
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
@@ -366,11 +368,12 @@ public:
         TPartWriterFactory* writerFactory,
         bool failMetaRequests)
     {
-        YT_VERIFY(codec->GetTotalPartCount() == std::ssize(parts));
+        const auto& codecParams = codec->GetParams();
+        YT_VERIFY(codecParams.TotalPartCount == std::ssize(parts));
 
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
 
-        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < codecParams.TotalPartCount; ++index) {
             auto filename = "part" + ToString(index + 1);
             auto partChunkId = chunkId == NullChunkId
                 ? NullChunkId
@@ -428,7 +431,7 @@ public:
             NullChunkId,
             codec,
             config,
-            GetChunkFileReaders(codec->GetDataPartCount()),
+            GetChunkFileReaders(codec->GetParams().DataPartCount),
             /*testingOptions*/ std::nullopt);
     }
 
@@ -443,7 +446,7 @@ public:
             NullChunkId,
             codec,
             CreateErasureConfig(),
-            GetChunkFileReaders(codec->GetTotalPartCount()),
+            GetChunkFileReaders(codec->GetParams().TotalPartCount),
             /*testingOptions*/ std::nullopt);
     }
 
@@ -534,7 +537,7 @@ public:
 
     static void Cleanup(ICodec* codec)
     {
-        for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+        for (int i = 0; i < codec->GetParams().TotalPartCount; ++i) {
             auto filename = "part" + ToString(i + 1);
             NFs::Remove(filename);
             NFs::Remove(filename + ".meta");
@@ -547,7 +550,7 @@ public:
         const std::vector<TSharedRef>& dataRefs,
         const std::vector<int>& failingTimes)
     {
-        int partCount = codec->GetTotalPartCount();
+        int partCount = codec->GetParams().TotalPartCount;
         YT_VERIFY(std::ssize(failingTimes) == partCount);
 
         WriteErasureChunk(codecId, codec, dataRefs);
@@ -605,7 +608,7 @@ TEST_P(TErasureMixtureTest, Writer)
     WriteErasureChunk(codecId, codec, dataRefs);
 
     // Manually check that data in files is correct
-    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+    for (int i = 0; i < codec->GetParams().TotalPartCount; ++i) {
         auto filename = "part" + ToString(i + 1);
         if (i == 0) {
             EXPECT_EQ("ab", TUnbufferedFileInput("part" + ToString(i + 1)).ReadAll());
@@ -646,7 +649,7 @@ TEST_P(TErasureMixtureTest, WriterStriped)
     WriteErasureChunk(codecId, codec, dataRefs, 64, false, 1);
 
     // Manually check that data in files is correct
-    for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
+    for (int i = 0; i < codec->GetParams().TotalPartCount; ++i) {
         auto filename = "part" + ToString(i + 1);
         auto data = TUnbufferedFileInput(filename).ReadAll();
         if (i == 0) {
@@ -781,7 +784,7 @@ TEST_P(TErasureMixtureTest, ReaderStriped)
 TEST_F(TErasureMixtureTest, Repair1)
 {
     auto codecId = ECodec::IsaReedSolomon_6_3;
-    auto* codec = GetCodec(codecId);
+    auto* codec = GetCodecOrThrow(codecId);
 
     // Prepare data
     std::vector<std::string> dataStrings({"a"});
@@ -1200,7 +1203,7 @@ TEST_P(TErasureMixtureTest, RepairStriped2)
 TEST_F(TErasureMixtureTest, RepairingReaderAllCorrect)
 {
     auto codecId = ECodec::IsaReedSolomon_6_3;
-    auto* codec = GetCodec(codecId);
+    auto* codec = GetCodecOrThrow(codecId);
 
     auto data = GetRandomData(Gen_, 20, 100);
 
@@ -1216,7 +1219,7 @@ TEST_F(TErasureMixtureTest, RepairingReaderAllCorrect)
 TEST_F(TErasureMixtureTest, RepairingReaderSimultaneousFail)
 {
     auto codecId = ECodec::IsaReedSolomon_6_3;
-    auto* codec = GetCodec(codecId);
+    auto* codec = GetCodecOrThrow(codecId);
 
     auto data = GetRandomData(Gen_, 20, 100);
 
@@ -1276,7 +1279,7 @@ TEST_P(TErasureMixtureTest, RepairingReaderSequenceFail)
 TEST_P(TErasureMixtureTest, RepairingReaderUnrecoverable)
 {
     auto codecId = ECodec::IsaReedSolomon_6_3;
-    auto* codec = GetCodec(codecId);
+    auto* codec = GetCodecOrThrow(codecId);
 
     auto data = GetRandomData(Gen_, 20, 100);
     auto dataRefs = ToSharedRefs(data);
@@ -1315,7 +1318,7 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
     WriteErasureChunk(codec->GetId(), codec, dataRefs);
     RemoveErasedParts(erasedIndices);
 
-    std::vector<ETestPartInfo> parts(codec->GetTotalPartCount(), ETestPartInfo::OK);
+    std::vector<ETestPartInfo> parts(codec->GetParams().TotalPartCount, ETestPartInfo::OK);
     for (auto index : erasedIndices) {
         parts[index] = ETestPartInfo::Erased;
     }
@@ -1352,7 +1355,7 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
 
 TEST_P(TErasureMixtureTest, TestAdaptiveRepair1)
 {
-    auto* codec = GetCodec(ECodec::IsaReedSolomon_6_3);
+    auto* codec = GetCodecOrThrow(ECodec::IsaReedSolomon_6_3);
 
     // Prepare data.
     auto data = ToSharedRefs(GetRandomData(Gen_, 20, 100));
@@ -1492,7 +1495,7 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepairFailingMeta)
 
 TEST_F(TErasureMixtureTest, AdaptiveRepairStriped)
 {
-    auto* codec = GetCodec(ECodec::IsaReedSolomon_6_3);
+    auto* codec = GetCodecOrThrow(ECodec::IsaReedSolomon_6_3);
 
     auto data = GetRandomTextBlocks(2000, 20, 120);
     TPartIndexList erasedIndices{2};
@@ -1518,7 +1521,7 @@ TEST_F(TErasureMixtureTest, AdaptiveRepairStriped)
         "part" + ToString(erasedIndices.front() + 1)).ReadAll();
     RemoveErasedParts(erasedIndices);
 
-    std::vector<ETestPartInfo> parts(codec->GetTotalPartCount(), ETestPartInfo::OK);
+    std::vector<ETestPartInfo> parts(codec->GetParams().TotalPartCount, ETestPartInfo::OK);
     for (auto index : erasedIndices) {
         parts[index] = ETestPartInfo::Erased;
     }

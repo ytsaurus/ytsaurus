@@ -443,12 +443,13 @@ std::pair<IChunkReaderPtr, NYT::NErasure::ICodec*> CreateErasureReader(
             .ValueOrThrow();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
         auto codecId = FromProto<NYT::NErasure::ECodec>(miscExt.erasure_codec());
-        codec = NYT::NErasure::GetCodec(codecId);
+        codec = NYT::NErasure::GetCodecOrThrow(codecId);
     }
-    YT_VERIFY(std::ssize(chunkFileNames) == codec->GetTotalPartCount());
+    const auto& codecParams = codec->GetParams();
+    YT_VERIFY(std::ssize(chunkFileNames) == codecParams.TotalPartCount);
 
     std::vector<IChunkReaderAllowingRepairPtr> readers;
-    for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
+    for (int partIndex = 0; partIndex < codecParams.DataPartCount; ++partIndex) {
         readers.push_back(GetChunkReader(ioEngine, chunkFileNames[partIndex]));
     }
 
@@ -940,10 +941,11 @@ void ExtractErasureBlocks(
     YT_VERIFY(!chunkFileNames.empty());
 
     auto [repairingReader, codec] = CreateErasureReader(ioEngine, chunkFileNames);
+    const auto& codecParams = codec->GetParams();
 
     int totalBlockCount = 0;
     std::vector<int> blockIndices;
-    for (int partIndex = 0; partIndex < codec->GetDataPartCount(); ++partIndex) {
+    for (int partIndex = 0; partIndex < codecParams.DataPartCount; ++partIndex) {
         auto chunkReader = GetChunkReader(ioEngine, chunkFileNames[partIndex]);
         auto meta = WaitFor(chunkReader->GetMeta(/*options*/ {}))
             .ValueOrThrow();
@@ -978,7 +980,7 @@ void ExtractErasureBlocks(
     YT_VERIFY(std::ssize(groundTruth) == totalBlockCount);
 
     std::mt19937 gen;
-    std::uniform_int_distribution<int> dist(0, codec->GetTotalPartCount() - 1);
+    std::uniform_int_distribution<int> dist(0, codecParams.TotalPartCount - 1);
     std::vector<IChunkReaderAllowingRepairPtr> readers;
     constexpr int iterCount = 100;
     for (int iter = 0; iter < iterCount; ++iter) {
@@ -991,7 +993,7 @@ void ExtractErasureBlocks(
                 erasedIndicesQ.pop_front();
             }
             for (int id : erasedIndicesQ) {
-                if (id < codec->GetDataPartCount()) {
+                if (id < codecParams.DataPartCount) {
                     dataPartErased = true;
                 }
             }
@@ -1009,9 +1011,9 @@ void ExtractErasureBlocks(
         readers.clear();
         auto repairIndices = *codec->GetRepairIndices(erasedIndices);
         std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
-        for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
+        for (int partIndex = 0; partIndex < codecParams.TotalPartCount; ++partIndex) {
             if (erasedIndicesSet.find(partIndex) == erasedIndicesSet.end() &&
-               (partIndex < codec->GetDataPartCount() || repairIndicesSet.find(partIndex) != repairIndicesSet.end()))
+               (partIndex < codecParams.DataPartCount || repairIndicesSet.find(partIndex) != repairIndicesSet.end()))
             {
                 readers.push_back(GetChunkReader(ioEngine, chunkFileNames[partIndex]));
             }

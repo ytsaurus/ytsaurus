@@ -34,10 +34,11 @@ bool IsUnavailable(
     if (codecId == NErasure::ECodec::None) {
         return replicas.empty();
     } else {
-        auto* codec = NErasure::GetCodec(codecId);
+        auto* codec = NErasure::GetCodecOrThrow(codecId);
+        const auto& codecParams = codec->GetParams();
 
         NErasure::TPartIndexSet erasedIndexSet;
-        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        for (int index = 0; index < codecParams.TotalPartCount; ++index) {
             erasedIndexSet.set(index);
         }
         for (auto replica : replicas) {
@@ -46,7 +47,7 @@ bool IsUnavailable(
 
         switch (policy) {
             case EChunkAvailabilityPolicy::DataPartsAvailable:
-                for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+                for (int index = codecParams.DataPartCount; index < codecParams.TotalPartCount; ++index) {
                     erasedIndexSet.reset(index);
                 }
                 return erasedIndexSet.any();
