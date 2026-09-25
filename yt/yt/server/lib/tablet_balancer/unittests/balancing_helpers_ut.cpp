@@ -156,6 +156,7 @@ TEST(TParameterizedBalancingConfigTest, BundleMetricOverridesDefaultMetric)
 {
     auto config = New<TParameterizedBalancingConfig>();
     config->Metric = "bundle";
+    config->Postprocess();
     const auto solverConfig = TParameterizedReassignSolverConfig{.Metrics = {"global"}};
     const auto resharderConfig = TParameterizedResharderConfig{.Metrics = {"global"}};
 
@@ -164,6 +165,7 @@ TEST(TParameterizedBalancingConfigTest, BundleMetricOverridesDefaultMetric)
     EXPECT_EQ(resharderConfig.MergeWith(config).Metrics, legacyMetric);
 
     config->Metrics = {"first", "second"};
+    config->Postprocess();
     EXPECT_EQ(solverConfig.MergeWith(config).Metrics, config->Metrics);
     EXPECT_EQ(resharderConfig.MergeWith(config).Metrics, config->Metrics);
 }
