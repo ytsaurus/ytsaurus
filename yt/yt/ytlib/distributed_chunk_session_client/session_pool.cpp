@@ -24,6 +24,8 @@
 
 #include <library/cpp/yt/misc/variant.h>
 
+#include <library/cpp/yt/threading/atomic_object.h>
+
 #include <util/random/random.h>
 
 #include <algorithm>
@@ -126,15 +128,36 @@ public:
             .Run();
     }
 
-    TFuture<std::vector<TReadySession>> GetReadySessions() const final
+    std::vector<TReadySession> GetReadySessions() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return BIND_NO_PROPAGATE(
-            &TDistributedChunkSessionPool::DoGetReadySessions,
-            MakeStrong(this))
-            .AsyncVia(SerializedInvoker_)
-            .Run();
+        return ReadySessions_.Read([] (const auto& readySessions) {
+            std::vector<TReadySession> result;
+            result.reserve(readySessions.size());
+            for (const auto& [slotCookie, session] : readySessions) {
+                result.push_back(TReadySession{
+                    .SlotCookie = slotCookie,
+                    .Descriptor = session,
+                });
+            }
+            return result;
+        });
+    }
+
+    TFuture<void> Finalize() final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(SealSubscription_);
+
+        SerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
+            &TDistributedChunkSessionPool::DoFinalize,
+            MakeStrong(this)));
+
+        return FinalizedPromise_
+            .ToFuture()
+            .ToUncancelable();
     }
 
     //! NB: Terminal progress after an unclean close can only be recovered from master,
@@ -192,6 +215,12 @@ private:
     THashMap<TChunkId, std::pair<int, TSessionId>> PendingRecoveryByChunkId_;
     int NextPendingSessionToken_ = 0;
 
+    int UnfinishedSessionCount_ = 0;
+    bool Finalized_ = false;
+    TPromise<void> FinalizedPromise_ = NewPromise<void>();
+
+    NThreading::TAtomicObject<THashMap<int, TSessionDescriptor>> ReadySessions_;
+
     std::optional<TChunkId> MaybeMarkSessionSealed(TNonNullPtr<TSessionEntry> entry) const
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
@@ -202,6 +231,68 @@ private:
 
         entry->SealScheduled = true;
         return entry->StartedSession.SessionId.ChunkId;
+    }
+
+    static TSessionDescriptor MakeSessionDescriptor(const TSessionEntry& entry)
+    {
+        return TSessionDescriptor{
+            .SessionId = entry.StartedSession.SessionId,
+            .SequencerNode = entry.StartedSession.SequencerNode,
+        };
+    }
+
+    void UpdateReadySession(int slotCookie, const TSlotState& slot)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        ReadySessions_.Transform([&] (auto& readySessions) {
+            if (slot.Finalized || slot.ActiveSessionIds.empty()) {
+                readySessions.erase(slotCookie);
+            } else {
+                readySessions[slotCookie] = MakeSessionDescriptor(
+                    GetOrCrash(slot.Sessions, slot.ActiveSessionIds.back()));
+            }
+        });
+    }
+
+    void OnSessionFinished()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        --UnfinishedSessionCount_;
+        YT_VERIFY(UnfinishedSessionCount_ >= 0);
+        MaybeCompleteFinalization();
+    }
+
+    void MaybeCompleteFinalization()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        if (!Finalized_ || UnfinishedSessionCount_ > 0) {
+            return;
+        }
+
+        if (FinalizedPromise_.TrySet()) {
+            YT_TLOG_DEBUG("Session pool finalized");
+        }
+    }
+
+    void DoFinalize() noexcept
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        if (std::exchange(Finalized_, true)) {
+            return;
+        }
+
+        for (const auto& [slotCookie, slot] : Slots_) {
+            DoFinalizeSlot(slotCookie);
+        }
+
+        YT_TLOG_DEBUG("Finalizing session pool")
+            .With("UnfinishedSessionCount", UnfinishedSessionCount_);
+
+        MaybeCompleteFinalization();
     }
 
     std::optional<TSessionId> PickActiveSession(
@@ -281,7 +372,7 @@ private:
 
         auto& slot = Slots_[slotCookie];
 
-        if (slot.Finalized) {
+        if (Finalized_ || slot.Finalized) {
             YT_TLOG_DEBUG("Rejecting session request for finalized slot")
                 .With("SlotCookie", slotCookie);
             return MakeFuture<TSessionDescriptor>(TError("Slot %v is finalized", slotCookie));
@@ -355,6 +446,7 @@ private:
 
         auto& slot = Slots_[slotCookie];
         slot.PendingSessions.emplace_back(pendingToken, sessionFuture);
+        ++UnfinishedSessionCount_;
         return sessionFuture;
     }
 
@@ -382,6 +474,7 @@ private:
                 .With("PendingToken", pendingToken)
                 .With(static_cast<const TError&>(startedSessionOrError));
 
+            OnSessionFinished();
             startedSessionOrError.ThrowOnError();
         }
 
@@ -407,6 +500,13 @@ private:
                 sessionId)
                 .Via(SerializedInvoker_));
         slot.AllSessionIds.push_back(sessionId);
+        ProgressUpdated_.Fire(TSessionProgressUpdate{
+            .SlotCookie = slotCookie,
+            .SessionId = sessionId,
+            .Progress = TSessionStarted{
+                .Replicas = startedSession.Replicas,
+            },
+        });
 
         if (slot.Finalized) {
             YT_TLOG_DEBUG("Closing session started for finalized slot")
@@ -418,6 +518,7 @@ private:
         }
 
         slot.ActiveSessionIds.push_back(sessionId);
+        UpdateReadySession(slotCookie, slot);
 
         YT_TLOG_DEBUG("Session started")
             .With("SlotCookie", slotCookie)
@@ -473,6 +574,7 @@ private:
             .SessionId = sessionId,
             .Progress = TSessionFinalProgress(*entry->Progress),
         });
+        OnSessionFinished();
     }
 
     void ReportSealedSessionProgress(
@@ -492,6 +594,7 @@ private:
             .SessionId = sessionId,
             .Progress = summary,
         });
+        OnSessionFinished();
     }
 
     //! Raises the terminal failure alternative when no terminal progress can be recovered.
@@ -512,6 +615,7 @@ private:
             .SessionId = sessionId,
             .Progress = TSessionCloseFailed(error),
         });
+        OnSessionFinished();
     }
 
     void StartTerminalRecovery(
@@ -642,6 +746,7 @@ private:
         slot.ActiveSessionIds.erase(
             std::remove(slot.ActiveSessionIds.begin(), slot.ActiveSessionIds.end(), sessionId),
             slot.ActiveSessionIds.end());
+        UpdateReadySession(slotCookie, slot);
 
         YT_TLOG_DEBUG("Session terminated")
             .With("SlotCookie", slotCookie)
@@ -676,6 +781,7 @@ private:
                 GetOrCrash(slot.Sessions, sessionId).Controller);
         }
         slot.ActiveSessionIds.clear();
+        UpdateReadySession(slotCookie, slot);
 
         for (const auto& sessionId : slot.AllSessionIds) {
             if (MaybeMarkSessionSealed(&GetOrCrash(slot.Sessions, sessionId))) {
@@ -813,31 +919,6 @@ private:
                 .ChunkId = entry.StartedSession.SessionId.ChunkId,
                 .Replicas = entry.StartedSession.Replicas,
                 .Progress = entry.Progress,
-            });
-        }
-
-        return result;
-    }
-
-    std::vector<TReadySession> DoGetReadySessions() const
-    {
-        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-
-        std::vector<TReadySession> result;
-        result.reserve(Slots_.size());
-        for (const auto& [slotCookie, slot] : Slots_) {
-            if (slot.Finalized || slot.ActiveSessionIds.empty()) {
-                continue;
-            }
-
-            const auto& sessionId = slot.ActiveSessionIds.front();
-            const auto& entry = GetOrCrash(slot.Sessions, sessionId);
-            result.push_back(TReadySession{
-                .SlotCookie = slotCookie,
-                .Descriptor = TSessionDescriptor{
-                    .SessionId = entry.StartedSession.SessionId,
-                    .SequencerNode = entry.StartedSession.SequencerNode,
-                },
             });
         }
 

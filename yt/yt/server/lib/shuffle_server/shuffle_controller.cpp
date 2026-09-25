@@ -307,7 +307,7 @@ private:
     THashSet<i32> ValidWriterIds_;
     bool ReadPhaseStarted_ = false;
 
-    TFuture<TWriterRegistration> DoRegisterWriter(
+    TWriterRegistration DoRegisterWriter(
         std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData)
     {
@@ -338,13 +338,10 @@ private:
         }
         ValidWriterIds_.insert(writerId);
 
-        return Pool_->GetReadySessions()
-            .Apply(BIND_NO_PROPAGATE([writerId] (std::vector<TReadySession> readySessions) {
-                return TWriterRegistration{
-                    .WriterId = writerId,
-                    .ReadySessions = std::move(readySessions),
-                };
-            }));
+        return TWriterRegistration{
+            .WriterId = writerId,
+            .ReadySessions = Pool_->GetReadySessions(),
+        };
     }
 
     TFuture<TSessionDescriptor> DoGetPartitionWriteSession(

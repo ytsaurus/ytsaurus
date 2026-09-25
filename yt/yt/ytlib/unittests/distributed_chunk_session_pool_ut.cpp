@@ -571,10 +571,11 @@ TEST(TDistributedChunkSessionPoolTest, ThrowingChunkSealRequestDoesNotEscapeSlot
 
     // NB: The clean close still publishes the exact terminal result; the failed seal
     // scheduling only exhausts its retries in the background.
-    ASSERT_EQ(std::ssize(updates), 2);
-    EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[0].Progress).Underlying(), progress);
-    ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[1].Progress).Underlying().has_value());
-    EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[1].Progress).Underlying(), progress);
+    ASSERT_EQ(std::ssize(updates), 3);
+    EXPECT_EQ(std::get<TSessionStarted>(updates[0].Progress).Replicas, harness.StartedSessions()[0].Replicas);
+    EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[1].Progress).Underlying(), progress);
+    ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[2].Progress).Underlying().has_value());
+    EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[2].Progress).Underlying(), progress);
 }
 
 //! Slot finalization schedules chunk sealing in parallel with the session close, so a
@@ -622,10 +623,11 @@ TEST(TDistributedChunkSessionPoolTest, SealSummaryAfterFinalProgressIsIgnored)
         },
     });
 
-    ASSERT_EQ(std::ssize(updates), 2);
-    EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[0].Progress).Underlying(), progress);
-    ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[1].Progress).Underlying().has_value());
-    EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[1].Progress).Underlying(), progress);
+    ASSERT_EQ(std::ssize(updates), 3);
+    EXPECT_TRUE(std::holds_alternative<TSessionStarted>(updates[0].Progress));
+    EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[1].Progress).Underlying(), progress);
+    ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[2].Progress).Underlying().has_value());
+    EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[2].Progress).Underlying(), progress);
 }
 
 TEST(TDistributedChunkSessionPoolTest, ReportsMasterSealResultWithoutConfirmedProgress)
@@ -1115,9 +1117,10 @@ TEST(TDistributedChunkSessionPoolTest, ExhaustedChunkSealRetriesReportCloseFailu
     harness.DrainInvoker();
 
     // NB: The chunk never seals, so the terminal alternative has to come from the pool.
-    ASSERT_EQ(std::ssize(updates), 1);
-    EXPECT_EQ(updates.front().SessionId, session.SessionId);
-    EXPECT_FALSE(std::get<TSessionCloseFailed>(updates.front().Progress).Underlying().IsOK());
+    ASSERT_EQ(std::ssize(updates), 2);
+    EXPECT_TRUE(std::holds_alternative<TSessionStarted>(updates[0].Progress));
+    EXPECT_EQ(updates[1].SessionId, session.SessionId);
+    EXPECT_FALSE(std::get<TSessionCloseFailed>(updates[1].Progress).Underlying().IsOK());
 }
 
 TEST(TDistributedChunkSessionPoolTest, PendingChunkSealRetryDoesNotKeepPoolAlive)
@@ -1158,6 +1161,12 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesLateStartedPendingSessi
     });
 
     auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+    std::vector<TSessionProgressUpdate> updates;
+    pool->SubscribeProgressUpdated(BIND(
+        [&] (const TSessionProgressUpdate& update) {
+            updates.push_back(update);
+        }));
+
     auto sessionFuture = pool->GetSession(11);
     harness.DrainInvoker();
 
@@ -1173,6 +1182,10 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesLateStartedPendingSessi
     EXPECT_EQ(harness.GetController(sessionId)->GetCloseCallCount(), 1);
 
     EXPECT_THAT(harness.ScheduledSeals(), ::testing::ElementsAre(sessionId.ChunkId));
+
+    ASSERT_FALSE(updates.empty());
+    EXPECT_EQ(updates[0].SessionId, sessionId);
+    EXPECT_TRUE(std::holds_alternative<TSessionStarted>(updates[0].Progress));
 }
 
 TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesAndSealsAllSessions)
@@ -1265,6 +1278,162 @@ TEST(TDistributedChunkSessionPoolTest, FinalizedSlotRejectsNewSessions)
 
     auto error = WaitFor(pool->GetSession(11));
     EXPECT_FALSE(error.IsOK());
+}
+
+TEST(TDistributedChunkSessionPoolTest, ReadySessionIsNewestActiveSession)
+{
+    TPoolHarness harness({
+        MakeStartedSessionInfo(/*counter*/ 1, /*mediumIndex*/ 0, "node-1"),
+        MakeStartedSessionInfo(/*counter*/ 2, /*mediumIndex*/ 0, "node-2"),
+    });
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+
+    auto getReadySessionIds = [&] {
+        std::vector<std::pair<int, TSessionId>> result;
+        for (const auto& session : pool->GetReadySessions()) {
+            result.emplace_back(session.SlotCookie, session.Descriptor.SessionId);
+        }
+        return result;
+    };
+
+    EXPECT_THAT(getReadySessionIds(), ::testing::IsEmpty());
+
+    auto first = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
+    EXPECT_THAT(getReadySessionIds(), ::testing::ElementsAre(std::pair(11, first.SessionId)));
+
+    auto second = WaitFor(pool->GetSession(11, first.SessionId))
+        .ValueOrThrow();
+    EXPECT_THAT(getReadySessionIds(), ::testing::ElementsAre(std::pair(11, second.SessionId)));
+
+    harness.GetController(second.SessionId)->FailUnexpectedly(TError("boom"));
+    harness.DrainInvoker();
+    EXPECT_THAT(getReadySessionIds(), ::testing::ElementsAre(std::pair(11, first.SessionId)));
+
+    pool->FinalizeSlot(11);
+    harness.DrainInvoker();
+    EXPECT_THAT(getReadySessionIds(), ::testing::IsEmpty());
+}
+
+TEST(TDistributedChunkSessionPoolTest, FinalizeWithoutSessionsCompletesImmediately)
+{
+    TPoolHarness harness(std::vector<TStartedSessionInfo>{});
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+
+    auto finalized = pool->Finalize();
+    harness.DrainInvoker();
+
+    EXPECT_TRUE(finalized.IsSet());
+    EXPECT_TRUE(finalized.TryGet()->IsOK());
+}
+
+TEST(TDistributedChunkSessionPoolTest, FinalizeCompletesAfterLastTerminalProgress)
+{
+    TPoolHarness harness(std::vector<TPoolHarness::TControllerSpec>{
+        {
+            .StartedSession = MakeStartedSessionInfo(/*counter*/ 1, /*mediumIndex*/ 0, "node-1"),
+        },
+        {
+            .StartedSession = MakeStartedSessionInfo(/*counter*/ 2, /*mediumIndex*/ 0, "node-2"),
+            .DelayClose = true,
+        },
+    });
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+    std::vector<TSessionProgressUpdate> updates;
+    pool->SubscribeProgressUpdated(BIND(
+        [&] (const TSessionProgressUpdate& update) {
+            updates.push_back(update);
+        }));
+
+    auto first = WaitFor(pool->GetSession(11))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(12))
+        .ValueOrThrow();
+    harness.GetController(first.SessionId)->UpdateProgress({.RecordCount = 1});
+    harness.GetController(second.SessionId)->UpdateProgress({.RecordCount = 2});
+    harness.DrainInvoker();
+
+    auto finalized = pool->Finalize();
+    std::optional<int> updateCountAtFinalization;
+    finalized.Subscribe(BIND([&] (const TError& /*error*/) {
+        updateCountAtFinalization = std::ssize(updates);
+    }));
+    harness.DrainInvoker();
+
+    EXPECT_FALSE(finalized.IsSet());
+    EXPECT_EQ(harness.GetController(second.SessionId)->GetCloseCallCount(), 1);
+
+    harness.GetController(second.SessionId)->FulfillClose();
+    harness.DrainInvoker();
+
+    ASSERT_TRUE(finalized.IsSet());
+    EXPECT_TRUE(finalized.TryGet()->IsOK());
+    ASSERT_TRUE(std::holds_alternative<TSessionFinalProgress>(updates.back().Progress));
+    EXPECT_EQ(updates.back().SessionId, second.SessionId);
+    EXPECT_EQ(updateCountAtFinalization, std::ssize(updates));
+}
+
+TEST(TDistributedChunkSessionPoolTest, FinalizeWaitsForLateStartedSession)
+{
+    TPoolHarness harness(std::vector<TPoolHarness::TControllerSpec>{
+        {
+            .StartedSession = MakeStartedSessionInfo(/*counter*/ 1, /*mediumIndex*/ 0, "node-1"),
+            .DelayStart = true,
+        },
+    });
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+    std::vector<TSessionProgressUpdate> updates;
+    pool->SubscribeProgressUpdated(BIND(
+        [&] (const TSessionProgressUpdate& update) {
+            updates.push_back(update);
+        }));
+
+    auto sessionFuture = pool->GetSession(11);
+    harness.DrainInvoker();
+    auto sessionId = harness.StartedSessions()[0].SessionId;
+
+    auto finalized = pool->Finalize();
+    harness.DrainInvoker();
+    EXPECT_FALSE(finalized.IsSet());
+
+    harness.GetController(sessionId)->FulfillStartSession();
+    harness.DrainInvoker();
+
+    EXPECT_FALSE(WaitFor(sessionFuture).IsOK());
+    EXPECT_FALSE(finalized.IsSet());
+    EXPECT_THAT(harness.GetTrackedChunkIds(), ::testing::ElementsAre(sessionId.ChunkId));
+
+    harness.DeliverSealSummary({
+        .ChunkId = sessionId.ChunkId,
+        .Summary = {
+            .RecordCount = 3,
+            .PhysicalCompressedDataSize = 30,
+        },
+    });
+
+    ASSERT_TRUE(finalized.IsSet());
+    EXPECT_TRUE(finalized.TryGet()->IsOK());
+    ASSERT_EQ(std::ssize(updates), 2);
+    EXPECT_TRUE(std::holds_alternative<TSessionStarted>(updates[0].Progress));
+    EXPECT_TRUE(std::holds_alternative<TSessionSealSummary>(updates[1].Progress));
+}
+
+TEST(TDistributedChunkSessionPoolTest, FinalizedPoolRejectsNewSessions)
+{
+    TPoolHarness harness({
+        MakeStartedSessionInfo(/*counter*/ 1, /*mediumIndex*/ 0, "node-1"),
+    });
+
+    auto pool = harness.CreatePool(/*maxActiveSessionsPerSlot*/ 3);
+    WaitFor(pool->Finalize())
+        .ThrowOnError();
+
+    EXPECT_FALSE(WaitFor(pool->GetSession(11)).IsOK());
+    EXPECT_EQ(harness.GetCreateControllerCallCount(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
