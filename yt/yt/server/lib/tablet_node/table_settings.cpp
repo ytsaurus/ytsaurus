@@ -499,6 +499,30 @@ TTableSettings TRawTableSettings::BuildEffectiveSettings(
     return resultingSettings;
 }
 
+void TRawTableSettings::MaterializeProvidedConfigs(std::vector<TError>* errors)
+{
+    Provided.StoreReaderConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletStoreReaderConfig>(
+            "store reader",
+            Provided.StoreReaderConfig,
+            errors))->AsMap();
+    Provided.HunkReaderConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletHunkReaderConfig>(
+            "hunk reader",
+            Provided.HunkReaderConfig,
+            errors))->AsMap();
+    Provided.StoreWriterConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletStoreWriterConfig>(
+            "store writer",
+            Provided.StoreWriterConfig,
+            errors))->AsMap();
+    Provided.HunkWriterConfig = ConvertToNode(
+        DeserializeIOConfig<TTabletHunkWriterConfig>(
+            "hunk writer",
+            Provided.HunkWriterConfig,
+            errors))->AsMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

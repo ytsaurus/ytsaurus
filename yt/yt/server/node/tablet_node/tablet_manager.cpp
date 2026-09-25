@@ -5196,6 +5196,17 @@ private:
                 TYsonString(tableSettings.experiments()));
         }
 
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationEffectiveReign() < ETabletReign::RawIOConfigNodes) {
+            std::vector<TError> errors;
+            settings.MaterializeProvidedConfigs(&errors);
+            for (const auto& error : errors) {
+                YT_TLOG_ERROR("Error deserializing tablet IO config")
+                    .With("TabletId", tabletId)
+                    .With(error);
+            }
+        }
+
         return settings;
     }
 
