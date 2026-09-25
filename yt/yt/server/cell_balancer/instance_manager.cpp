@@ -699,7 +699,7 @@ bool TInstanceManager::ReturnToBundleBalancer(
         return true;
     }
 
-    mutations->ChangedDecommissionedFlag[instanceName] = mutations->WrapMutation(false);
+    mutations->SetNodeDecommissioned(instanceName, false);
     mutations->ChangedNodeUserTags[instanceName] = {};
 
     return false;
