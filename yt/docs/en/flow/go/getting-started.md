@@ -156,6 +156,18 @@ cd yt/yt/flow
 ya make examples/go/word_count bin/flow_server
 ```
 
+## Using the SDK as a Go module {#go-module}
+
+Outside the repository build, the SDK is the Go module `go.ytsaurus.tech/yt/go/flow`. It is released together with the other Flow components, at the version of the `flow_server` image, so pin the version of the release you run:
+
+```bash
+go get go.ytsaurus.tech/yt/go/flow@vX.Y.Z
+```
+
+The module names the `go.ytsaurus.tech/yt/go` release it needs, and `go get` picks it up. Don't pin `go.ytsaurus.tech/yt/go` below that release: earlier releases still contain the `flow` packages themselves, and the build fails with `ambiguous import`.
+
+Build the pipeline binary with `go build` and start it as described below, passing a `flow_server` of the same release through `--flow-bin` — for example, the one from the `ghcr.io/ytsaurus/flow:X.Y.Z` image.
+
 ## Starting a pipeline {#launch}
 
 Run the built binary with:

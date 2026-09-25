@@ -25,7 +25,8 @@ Is released as a docker image.
 
 FLOW_DESCRIPTION = """
 One release covers every Flow component: the server as docker images, plain and with a Java or a
-Python runtime, the Java SDK in Maven Central and the Python SDK in PyPI, all at the same version.
+Python runtime, the Java SDK in Maven Central, the Python SDK in PyPI and the Go SDK as a Go module,
+all at the same version.
 """
 
 K8S_DESCRIPTION = """
@@ -326,6 +327,12 @@ COMPONENTS = [
                 kind="package",
                 page_url="https://pypi.org/project/ytsaurus-flow-companion/",
                 version_url_template="https://pypi.org/project/ytsaurus-flow-companion/{version}/",
+            ),
+            Artifact(
+                label="Go SDK module",
+                kind="package",
+                page_url="https://pkg.go.dev/go.ytsaurus.tech/yt/go/flow",
+                version_url_template="https://pkg.go.dev/go.ytsaurus.tech/yt/go/flow@v{version}",
             ),
         ],
     ),
