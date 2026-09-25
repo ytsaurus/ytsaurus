@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/yt/ytlib/exec_node/public.h>
-
 namespace NYT::NNbd::NChunk {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +139,7 @@ void TChunkBlockDeviceConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("multiplexing_parallelism", &TThis::MultiplexingParallelism)
         .GreaterThanOrEqual(1)
-        .Default(NExecNode::DefaultNbdMultiplexingParallelism);
+        .Default(DefaultNbdMultiplexingParallelism);
     registrar.Parameter("page_cache", &TThis::PageCache)
         .Default();
 

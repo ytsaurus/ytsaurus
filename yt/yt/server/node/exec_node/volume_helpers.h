@@ -2,8 +2,9 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

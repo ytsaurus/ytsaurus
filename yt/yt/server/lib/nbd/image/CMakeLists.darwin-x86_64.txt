@@ -39,6 +39,5 @@ target_sources(lib-nbd-image PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/image/image_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/image/image_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/image/random_access_file_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/image/config.cpp
 )
 

@@ -1,7 +1,9 @@
-#include <yt/yt/server/lib/nbd/config.h>
 
 #include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
-#include <yt/yt/server/lib/nbd/chunk/config.h>
+
+#include <yt/yt/library/nbd/chunk/config.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>

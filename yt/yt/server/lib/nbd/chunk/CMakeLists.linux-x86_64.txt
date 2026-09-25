@@ -41,7 +41,6 @@ target_link_libraries(lib-nbd-chunk PUBLIC
 target_sources(lib-nbd-chunk PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/chunk_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/chunk_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/page_cache.cpp
 )
 

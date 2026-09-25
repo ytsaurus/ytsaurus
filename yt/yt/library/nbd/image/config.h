@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/nbd/config.h>
+#include <yt/yt/library/nbd/config.h>
 
 namespace NYT::NNbd::NImage {
 

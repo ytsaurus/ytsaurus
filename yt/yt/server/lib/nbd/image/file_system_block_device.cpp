@@ -1,6 +1,5 @@
 #include "file_system_block_device.h"
 
-#include "config.h"
 #include "image_reader.h"
 
 #include <yt/yt/server/lib/nbd/block_device_detail.h>
@@ -22,6 +21,8 @@
 
 #include <yt/yt/ytlib/file_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/yt/library/nbd/image/config.h>
 
 #include <yt/yt/library/profiling/tagged_counters.h>
 

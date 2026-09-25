@@ -6,14 +6,14 @@
 #include "session.h"
 #include "session_manager.h"
 
-#include <yt/yt/server/lib/nbd/config.h>
-
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_nbd_service.pb.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

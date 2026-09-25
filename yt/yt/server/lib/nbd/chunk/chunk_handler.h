@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
+#include <yt/yt/library/nbd/chunk/config.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <library/cpp/yt/memory/ref.h>

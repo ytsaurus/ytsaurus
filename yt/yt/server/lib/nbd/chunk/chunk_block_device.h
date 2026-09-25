@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/library/nbd/chunk/config.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>

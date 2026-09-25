@@ -1,7 +1,8 @@
 #include "memory_block_device.h"
-#include "config.h"
 
 #include <yt/yt/server/lib/nbd/block_device_detail.h>
+
+#include <yt/yt/library/nbd/memory/config.h>
 
 namespace NYT::NNbd::NMemory {
 

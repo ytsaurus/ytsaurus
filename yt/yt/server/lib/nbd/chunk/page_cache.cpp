@@ -1,8 +1,8 @@
 #include "page_cache.h"
 
-#include "config.h"
-
 #include <yt/yt/server/lib/nbd/profiler.h>
+
+#include <yt/yt/library/nbd/chunk/config.h>
 
 #include <yt/yt/core/concurrency/serialized_invoker.h>
 

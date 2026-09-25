@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/library/nbd/image/config.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <library/cpp/yt/logging/public.h>
