@@ -14,4 +14,5 @@ SRCS(
     ${THIS_DIR}/modify_rows_test.cpp
     ${THIS_DIR}/distributed_table_api_test.cpp
     ${THIS_DIR}/distributed_file_api_test.cpp
+    ${THIS_DIR}/file_partition_test.cpp
 )
