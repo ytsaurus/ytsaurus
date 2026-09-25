@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.ytsaurus.tech/yt/go/flow"
-	"go.ytsaurus.tech/yt/go/proto/flow/companion"
+	"go.ytsaurus.tech/yt/go/flow/proto/companion"
 )
 
 var (

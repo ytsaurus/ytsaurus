@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/stretchr/testify v1.10.0
-	go.ytsaurus.tech/yt/go v0.0.0
+	go.ytsaurus.tech/yt/go/flow v0.0.0
 )
 
 require (
@@ -19,6 +19,7 @@ require (
 	go.ytsaurus.tech/library/go/ptr v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.3 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.4 // indirect
+	go.ytsaurus.tech/yt/go v0.0.35 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
@@ -30,3 +31,5 @@ require (
 )
 
 replace go.ytsaurus.tech/yt/go => ../../../../go
+
+replace go.ytsaurus.tech/yt/go/flow => ../../../../go/flow

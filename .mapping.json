@@ -3007,6 +3007,8 @@
   "yt/examples/rpc_proxy_sample/CMakeLists.linux-x86_64.txt":"",
   "yt/examples/rpc_proxy_sample/CMakeLists.txt":"",
   "yt/go/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/README.md",
+  "yt/go/flow/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.mod",
+  "yt/go/flow/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.sum",
   "yt/go/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/go.mod",
   "yt/go/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/go.sum",
   "yt/java/CMakeLists.txt":"",
