@@ -109,4 +109,55 @@ TFuture<std::optional<T>> WithSoftTimeout(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProtoDiskRequest>
+void BuildNbdDiskRequestSpec(TProtoDiskRequest* protoDiskRequestConfig, const NScheduler::TNbdDiskRequest& diskRequestConfig)
+{
+    if constexpr (std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TNbdDiskRequest>) {
+        BuildCommonDiskRequestSpec(protoDiskRequestConfig->mutable_disk_request(), static_cast<const NScheduler::TDiskRequestConfig&>(diskRequestConfig));
+        BuildChunkNbdDiskSpec(protoDiskRequestConfig->mutable_chunk_nbd(), *diskRequestConfig.NbdDisk);
+    } else {
+        static_assert(std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TDeprecatedDiskRequest>);
+        BuildCommonDiskRequestSpec(protoDiskRequestConfig, static_cast<const NScheduler::TDiskRequestConfig&>(diskRequestConfig));
+        BuildChunkNbdDiskSpec(protoDiskRequestConfig->mutable_chunk_nbd_disk(), *diskRequestConfig.NbdDisk);
+    }
+}
+
+template <class TProtoDiskRequest>
+void BuildLocalDiskRequestSpec(TProtoDiskRequest* protoDiskRequestConfig, const NScheduler::TLocalDiskRequest& diskRequestConfig)
+{
+    if constexpr (std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TLocalDiskRequest>) {
+        BuildCommonDiskRequestSpec(protoDiskRequestConfig->mutable_disk_request(), static_cast<const NScheduler::TDiskRequestConfig&>(diskRequestConfig));
+    } else {
+        static_assert(std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TDeprecatedDiskRequest>);
+        BuildCommonDiskRequestSpec(protoDiskRequestConfig, static_cast<const NScheduler::TDiskRequestConfig&>(diskRequestConfig));
+    }
+}
+
+template <class TProtoDiskRequest>
+void BuildCommonDiskRequestSpec(TProtoDiskRequest* protoDiskRequestConfig, const NScheduler::TDiskRequestConfig& diskRequestConfig)
+{
+    if constexpr (std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TDiskRequest>) {
+        BuildCommonStorageRequestSpec(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const NScheduler::TStorageRequestBase&>(diskRequestConfig));
+    } else {
+        static_assert(std::is_same_v<TProtoDiskRequest, NScheduler::NProto::TDeprecatedDiskRequest>);
+        BuildCommonStorageRequestSpec(protoDiskRequestConfig, static_cast<const NScheduler::TStorageRequestBase&>(diskRequestConfig));
+    }
+
+    if (diskRequestConfig.InodeCount) {
+        protoDiskRequestConfig->set_inode_count(*diskRequestConfig.InodeCount);
+    }
+
+    if (diskRequestConfig.MediumIndex) {
+        protoDiskRequestConfig->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+}
+
+template <class TProtoDiskRequest>
+void BuildCommonStorageRequestSpec(TProtoDiskRequest* protoDiskRequestConfig, const NScheduler::TStorageRequestBase& diskRequestConfig)
+{
+    protoDiskRequestConfig->set_disk_space(diskRequestConfig.DiskSpace);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent

@@ -984,44 +984,6 @@ void ToProto(
     volumeMountProto->set_read_only(volumeMount.ReadOnly);
 }
 
-void BuildTmpfsVolumeSpec(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
-{
-    protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
-    protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
-}
-
-void BuildChunkNbdDiskSpec(NProto::TChunkNbdDisk* protoChunkNbdDisk, const TNbdDiskConfig& nbdDiskConfig)
-{
-    if (nbdDiskConfig.DataNodeAddress) {
-        protoChunkNbdDisk->set_data_node_address(*nbdDiskConfig.DataNodeAddress);
-    }
-    protoChunkNbdDisk->set_data_node_rpc_timeout(ToProto(nbdDiskConfig.DataNodeRpcTimeout));
-    protoChunkNbdDisk->set_master_rpc_timeout(ToProto(nbdDiskConfig.MasterRpcTimeout));
-    protoChunkNbdDisk->set_min_data_node_count(nbdDiskConfig.MinDataNodeCount);
-    protoChunkNbdDisk->set_max_data_node_count(nbdDiskConfig.MaxDataNodeCount);
-    protoChunkNbdDisk->set_data_node_nbd_service_rpc_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceRpcTimeout));
-    protoChunkNbdDisk->set_data_node_nbd_service_make_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceMakeTimeout));
-    protoChunkNbdDisk->set_multiplexing_parallelism(nbdDiskConfig.MultiplexingParallelism);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void BuildTmpfsStorageRequestSpec(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsStorageRequest& diskRequestConfig)
-{
-    BuildCommonStorageRequestSpec(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const TStorageRequestBase&>(diskRequestConfig));
-
-    // COMPAT(krasovav): remove after YT-26820.
-    YT_VERIFY(diskRequestConfig.TmpfsIndex);
-    protoDiskRequestConfig->set_tmpfs_index(*diskRequestConfig.TmpfsIndex);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
-{
-    return diskRequest && diskRequest->GetType() == NExecNode::EVolumeType::Tmpfs;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/helpers.h>
 #include <yt/yt/server/controller_agent/scheduling_context.h>
 
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
