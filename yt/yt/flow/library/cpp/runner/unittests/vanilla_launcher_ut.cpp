@@ -233,6 +233,21 @@ TEST(TVanillaSpecTest, CarriesCpuLimitToJobEnvironment)
 
     EXPECT_DOUBLE_EQ(FromString<double>(environment.at("YT_FLOW_CPU_LIMIT")), 10);
     EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 10);
+    EXPECT_FALSE(worker->FindChild("set_container_cpu_limit"));
+}
+
+TEST(TVanillaSpecTest, EnforcesContainerCpuLimitOnRequest)
+{
+    TVanillaSpec spec;
+    spec.Tasks.push_back(TVanillaTaskSpec{
+        .Name = "worker",
+        .FlowMode = "worker",
+        .CpuLimit = 10,
+        .SetContainerCpuLimit = true,
+    });
+    auto operation = BuildVanillaOperationSpec(spec);
+    auto worker = operation->GetChildOrThrow("tasks")->AsMap()->GetChildOrThrow("worker")->AsMap();
+    EXPECT_TRUE(ConvertTo<bool>(worker->GetChildOrThrow("set_container_cpu_limit")));
 }
 
 TEST(TVanillaSpecTest, RequestsCpuLimitOnlyForSelectedTasks)
