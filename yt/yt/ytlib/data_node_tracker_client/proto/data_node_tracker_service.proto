@@ -36,6 +36,8 @@ message TReqModifyReplicas
 
     optional bool is_incremental_heartbeat = 9;
     optional bool caused_by_validation = 10 [default = false];
+
+    optional uint64 registration_revision = 11;
     reserved 4, 7, 8;
 }
 
@@ -65,6 +67,7 @@ message TReqReplaceLocationReplicas
     optional bool caused_by_node_disposal = 5 [default = false];
 
     optional bool is_validation = 6 [default = false];
+    optional uint64 registration_revision = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +107,8 @@ message TReqFullHeartbeat
     repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
 
     optional bool write_sessions_disabled = 5;
+
+    optional uint64 registration_revision = 8;
 }
 
 message TRspFullHeartbeat
@@ -130,6 +135,7 @@ message TReqLocationFullHeartbeat
     required NNodeTrackerClient.NProto.TChunkLocationStatistics statistics = 3;
     repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
     optional bool is_validation = 5 [default = false];
+    optional uint64 registration_revision = 6;
 }
 
 message TRspLocationFullHeartbeat
@@ -142,6 +148,7 @@ message TReqFinalizeFullHeartbeatSession
 {
     required uint32 node_id = 1;
     required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
+    optional uint64 registration_revision = 3;
 }
 
 message TRspFinalizeFullHeartbeatSession
@@ -172,6 +179,8 @@ message TReqIncrementalHeartbeat
         required uint64 revision = 2;
     }
     repeated TConfirmedReplicaAnnouncementRequest confirmed_replica_announcement_requests = 6;
+
+    optional uint64 registration_revision = 9;
 }
 
 message TRspIncrementalHeartbeat

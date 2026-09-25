@@ -728,6 +728,72 @@ class TestNodesThrottling(YTEnvSetup):
 ##################################################################
 
 
+class TestHeartbeatRegistrationRevision(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks individual master and node logs.
+    ENABLE_LOG_COMPRESSION = False
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    def _read_log(self, path, offset):
+        with open(path) as log:
+            log.seek(offset)
+            return log.read()
+
+    @authors("evanevannnn")
+    @pytest.mark.parametrize("enforce_validation", [False, True])
+    def test_missing_heartbeat_registration_revision(self, enforce_validation):
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_registration_revision_validation", enforce_validation)
+
+        node = ls("//sys/cluster_nodes")[0]
+        node_path = f"//sys/cluster_nodes/{node}"
+        wait(lambda: get(f"{node_path}/@state") == "online")
+        lease_transaction_id = get(f"{node_path}/@lease_transaction_id")
+
+        master_log = os.path.join(self.path_to_run, "logs/master-0-0.debug.log")
+        node_log = os.path.join(self.path_to_run, "logs/node-0.debug.log")
+        master_log_offset = os.path.getsize(master_log)
+        node_log_offset = os.path.getsize(node_log)
+
+        try:
+            update_nodes_dynamic_config({
+                "data_node": {"testing_options": {"omit_heartbeat_registration_revision": True}},
+            })
+
+            if enforce_validation:
+                wait(lambda: "Data node heartbeat belongs to an outdated registration" in self._read_log(
+                    node_log, node_log_offset))
+                # A new lease proves that the node re-registered; the offline state can be too brief to observe.
+                wait(lambda: get(f"{node_path}/@lease_transaction_id", default=None) not in (
+                    None, lease_transaction_id))
+            else:
+                def mismatched_heartbeat_was_processed():
+                    log = self._read_log(master_log, master_log_offset)
+                    alert_position = log.find("Data node heartbeat registration revision mismatch")
+                    return alert_position >= 0 and "Processing incremental data node heartbeat" in log[alert_position:]
+
+                wait(mismatched_heartbeat_was_processed)
+                assert get(f"{node_path}/@state") == "online"
+                assert get(f"{node_path}/@lease_transaction_id") == lease_transaction_id
+        finally:
+            update_nodes_dynamic_config({
+                "data_node": {"testing_options": {"omit_heartbeat_registration_revision": False}},
+            })
+
+        # The same running node must recover once it sends the real revision again.
+        wait(lambda: get(f"{node_path}/@state") == "online")
+        master_log_offset = os.path.getsize(master_log)
+        wait(lambda: "Processing incremental data node heartbeat" in self._read_log(master_log, master_log_offset))
+
+
+##################################################################
+
+
 class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts and alerts.
     DELTA_MASTER_CONFIG = {

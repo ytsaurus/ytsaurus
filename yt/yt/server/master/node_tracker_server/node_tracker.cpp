@@ -1472,6 +1472,12 @@ private:
 
         auto* node = GetNodeByAddress(address);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            request->set_registration_revision(ToProto(GetCurrentMutationContext()->GetVersion().ToRevision()));
+        }
+        node->SetRegistrationRevision(FromProto<TRevision>(request->registration_revision()));
+
         if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
@@ -1495,7 +1501,6 @@ private:
         // so node can already be online for this cell.
         CheckNodeOnline(node);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         // TODO(grphil): Add some analog for pending restart.
         if (multicellManager->IsPrimaryMaster()) {
             if (node->GetLocalState() == ENodeState::Registered) {
@@ -1510,9 +1515,12 @@ private:
 
         FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
 
+        response->set_registration_revision(request->registration_revision());
+
         if (context) {
             context->AnnotateResponse()
-                .With("NodeId", node->GetId());
+                .With("NodeId", node->GetId())
+                .With("RegistrationRevision", node->GetRegistrationRevision());
         }
     }
 
@@ -1550,6 +1558,7 @@ private:
         EnsureNodeObjectCreated(options);
 
         auto* node = GetNodeByAddress(address);
+        node->SetRegistrationRevision(FromProto<TRevision>(request->registration_revision()));
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
         bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
@@ -2628,6 +2637,8 @@ private:
 
         request.set_location_indexes_in_heartbeats_supported(originalRequest->location_indexes_in_heartbeats_supported());
 
+        request.set_registration_revision(originalRequest->registration_revision());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
     }
@@ -2745,6 +2756,8 @@ private:
             ? ENodeState::Registered
             : ENodeState::Offline;
         request.set_node_state(ToProto(materializedState));
+
+        request.set_registration_revision(ToProto(node->GetRegistrationRevision()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, cellTag);

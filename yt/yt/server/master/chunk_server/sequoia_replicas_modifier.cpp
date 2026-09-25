@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/connection.h>
@@ -66,6 +67,8 @@ public:
         : TransactionType_(transactionType)
         , Config_(CopySequoiaChunkReplicasConfig(config->SequoiaChunkReplicas))
         , Bootstrap_(bootstrap)
+        , AutomatonInvoker_(bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(
+            EAutomatonThreadQueue::ChunkManager))
         , Profile_(profile)
     { }
 
@@ -95,7 +98,7 @@ public:
     TFuture<void> ModifyReplicas() override
     {
         auto result = BIND(&TSequoiaReplicasModifier::DoModifyReplicas, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
+            .AsyncVia(AutomatonInvoker_)
             .Run();
 
         if (Config_->EnableInGhostMode) {
@@ -111,6 +114,7 @@ private:
     const TDynamicSequoiaChunkReplicasConfigPtr Config_;
 
     TBootstrap* const Bootstrap_;
+    const IInvokerPtr AutomatonInvoker_;
     TSequoiaReplicaModificationProfile& Profile_;
 
     ISequoiaTransactionPtr Transaction_;
@@ -156,6 +160,8 @@ private:
             TDelayedExecutor::WaitForDuration(*Config_->SleepDurationBeforeSequoiaReplicaModifications);
         }
 
+        ValidateRegistrationRevisions();
+
         Timer_.Restart();
         Profile_.StartedCount.Increment(1);
         Profile_.StartedReplicaCount.Increment(ReplicaCount_);
@@ -180,6 +186,20 @@ private:
                 .With("ReplicaCount", ReplicaCount_)
                 .With(result);
             result.ThrowOnError();
+        }
+    }
+
+    void ValidateRegistrationRevisions() const
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        for (const auto& request : Requests_) {
+            auto nodeId = FromProto<TNodeId>(request->node_id());
+            auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+            chunkManager->ValidateHeartbeatRegistrationRevision(
+                node,
+                FromProto<NHydra::TRevision>(request->registration_revision()));
         }
     }
 
@@ -211,6 +231,9 @@ private:
         modifyRequest->set_node_id(ReplaceLocationRequest_->node_id());
         modifyRequest->set_caused_by_node_disposal(ReplaceLocationRequest_->caused_by_node_disposal());
         modifyRequest->set_caused_by_validation(ReplaceLocationRequest_->is_validation());
+        if (ReplaceLocationRequest_->has_registration_revision()) {
+            modifyRequest->set_registration_revision(ReplaceLocationRequest_->registration_revision());
+        }
         Requests_.push_back(std::move(modifyRequest));
 
         GatherReplacedLocationReplicasDifference();
@@ -506,6 +529,30 @@ private:
         ProfileTime(ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference);
     }
 
+    bool IsSequoiaReplicasValidationCurrent() const
+    {
+        auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
+        auto registrationRevision = FromProto<NHydra::TRevision>(
+            ReplaceLocationRequest_->registration_revision());
+
+        return WaitFor(BIND([
+            bootstrap = Bootstrap_,
+            nodeId,
+            registrationRevision
+        ] {
+            const auto& nodeTracker = bootstrap->GetNodeTracker();
+            auto* node = nodeTracker->FindNode(nodeId);
+            // A stale comparison must not alert or repair replicas, even in alert-only heartbeat validation mode.
+            return IsObjectAlive(node) &&
+                node->HasAliveLocalState() &&
+                node->ReportedDataNodeHeartbeat() &&
+                node->GetRegistrationRevision() == registrationRevision;
+        })
+            .AsyncVia(AutomatonInvoker_)
+            .Run())
+            .ValueOrThrow();
+    }
+
     bool CheckIfRequestShouldBeAborted()
     {
         if (!ReplaceLocationRequest_->is_validation()) {
@@ -518,6 +565,13 @@ private:
         auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
 
         if (!ModifiedReplicas_.empty()) {
+            if (!IsSequoiaReplicasValidationCurrent()) {
+                YT_TLOG_DEBUG("Skipping obsolete Sequoia replicas validation result")
+                    .With("NodeId", nodeId)
+                    .With("LocationIndex", ReplaceLocationRequest_->location_index());
+                return true;
+            }
+
             YT_TLOG_ALERT("Sequoia replicas validation failed")
                 .With("NodeId", nodeId)
                 .With("LocationIndex", ReplaceLocationRequest_->location_index())
