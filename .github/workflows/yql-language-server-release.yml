@@ -58,10 +58,6 @@ jobs:
             --target-platform=${{ matrix.target-platform }} \
             --output="$OUTPUT" \
             --stat \
-            --bazel-remote-store \
-            --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }} \
-            --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} \
-            --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }} \
             --ignore-recurses \
             yql/essentials/tools/yql_language_server
 
