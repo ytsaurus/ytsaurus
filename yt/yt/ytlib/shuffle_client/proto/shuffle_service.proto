@@ -5,6 +5,7 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,4 +120,5 @@ message TRspFetchChunks
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 1;
     // Push-based only.
     repeated int32 valid_writer_ids = 2;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 3;
 }

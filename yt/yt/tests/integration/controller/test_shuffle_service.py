@@ -669,6 +669,40 @@ class TestShuffleService(YTEnvSetup):
             read_shuffle_data(modified_handle, 0)
 
     @authors("apollo1321")
+    @pytest.mark.parametrize("replication_factor", [2, 3])
+    def test_shuffle_read_with_fresh_native_driver(self, use_push_based_shuffle, replication_factor):
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=3,
+            parent_transaction_id=parent_transaction,
+            replication_factor=replication_factor,
+            use_push_based_shuffle=use_push_based_shuffle,
+            config=(
+                {"push": {}}
+                if use_push_based_shuffle
+                else {"pull": {"reader": {"fail_on_unresolved_node_id": True}}}),
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "int64")]))
+
+        rows = [{"key": partition, "value": value} for partition in range(2) for value in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows[:4])
+        write_shuffle_data(shuffle_handle, "key", rows[4:])
+
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 4
+        for partition in range(3):
+            native_driver = NativeDriver(native_config)
+            try:
+                assert_items_equal(
+                    read_shuffle_data(shuffle_handle, partition, driver=native_driver),
+                    [row for row in rows if row["key"] == partition])
+            finally:
+                native_driver.terminate()
+
+        commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
     def test_job_proxy_shuffle_service_without_api_service(self, use_push_based_shuffle):
         with raises_yt_error("Option .* cannot be enabled when .* is disabled"):
             run_test_vanilla(
