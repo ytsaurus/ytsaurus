@@ -36,7 +36,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<std::vector<TReadySession>> GetReadySessions() const override
+    std::vector<TReadySession> GetReadySessions() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<void> Finalize() override
     {
         YT_UNIMPLEMENTED();
     }
