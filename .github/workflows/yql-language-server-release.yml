@@ -61,7 +61,6 @@ jobs:
           ls
 
           ./ya make \
-            --ignore-recurses \
             --build=release \
             -DSTRIP=yes \
             --target-platform=${{ matrix.target-platform }} \
@@ -70,7 +69,8 @@ jobs:
             --bazel-remote-store \
             --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }} \
             --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} \
-            --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+            --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }} \
+            --ignore-recurses \
             yql/essentials/tools/yql_language_server
 
           ls "$OUTPUT/yql/essentials/tools/yql_language_server/yql_language_server"
