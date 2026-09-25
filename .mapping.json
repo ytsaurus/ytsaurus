@@ -102,6 +102,8 @@
   "yt/docs/.yfm":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/.yfm",
   "yt/docs/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/README.md",
   "yt/go/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/README.md",
+  "yt/go/flow/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.mod",
+  "yt/go/flow/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/flow/go.sum",
   "yt/go/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/go.mod",
   "yt/go/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/go.sum",
   "yt/java/type-info/src/test/resources":"library/cpp/type_info/ut/test-data",

@@ -38,5 +38,6 @@ END()
 RECURSE(
     flowtest
     gotest
+    proto
     runner
 )

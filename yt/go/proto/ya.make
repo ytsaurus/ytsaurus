@@ -1,5 +1,4 @@
 RECURSE(
     client
     core
-    flow
 )

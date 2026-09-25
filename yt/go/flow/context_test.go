@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/proto/flow/companion"
+	"go.ytsaurus.tech/yt/go/flow/proto/companion"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 

@@ -6,10 +6,10 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/flow/proto/common"
+	"go.ytsaurus.tech/yt/go/flow/proto/companion"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/core/misc"
-	"go.ytsaurus.tech/yt/go/proto/flow/common"
-	"go.ytsaurus.tech/yt/go/proto/flow/companion"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/wire"
 	"go.ytsaurus.tech/yt/go/yson"

@@ -333,6 +333,74 @@ jobs:
         if: ${{ needs.tag.outputs.release-type == 'prod' }}
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  tag-go:
+    name: Tag Go SDK module
+    needs:
+      - tag
+      - verify-tags
+    # Go resolves a module version from a git tag, so only a prod release gets one.
+    # After a test release a Go user pins the commit as a pseudo-version instead.
+    if: ${{ needs.tag.outputs.release-type == 'prod' }}
+    runs-on: ubuntu-latest
+    # The tag is pushed with the workflow token: it needs no personal secret, and a push
+    # made with it never triggers another workflow.
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: yt/go/flow/go.mod
+          cache: false
+
+      - name: Verify the required yt/go release
+        working-directory: yt/go/flow
+        run: |
+          set -euo pipefail
+
+          # In this repository the module builds against the in-tree yt/go through its
+          # replace directive, so the yt/go release it requires is exercised by consumers
+          # only. That release must exist, and it must not ship the flow packages itself:
+          # the releases made before the carve-out do, which makes every import of them
+          # ambiguous next to this module.
+          yt_go_version=$(go mod edit -json | jq -r '.Require[] | select(.Path == "go.ytsaurus.tech/yt/go") | .Version')
+          cd "$(mktemp -d)" && go mod init check > /dev/null 2>&1
+          if ! info=$(go mod download -json "go.ytsaurus.tech/yt/go@${yt_go_version}"); then
+            echo "::error::go.ytsaurus.tech/yt/go@${yt_go_version} is not a released version: ${info}"
+            exit 1
+          fi
+          yt_go_dir=$(jq -r .Dir <<< "${info}")
+          if [[ -e "${yt_go_dir}/flow" ]]; then
+            echo "::error::go.ytsaurus.tech/yt/go@${yt_go_version} still ships the flow packages; require a release made after yt/go/flow/go.mod"
+            exit 1
+          fi
+
+      - name: Push the Go module tag
+        run: |
+          set -euo pipefail
+
+          # Go takes the version of a subdirectory module from a tag prefixed with its path.
+          go_tag="yt/go/flow/v${{ needs.tag.outputs.prod-image-tag }}"
+
+          # A re-run after a partial release must not fail on a tag it pushed itself.
+          existing=$(git ls-remote --tags origin "refs/tags/${go_tag}" | cut -f1)
+          if [[ -n "${existing}" ]]; then
+            if [[ "${existing}" != "${GITHUB_SHA}" ]]; then
+              echo "::error::${go_tag} already points at ${existing}, not at ${GITHUB_SHA}"
+              exit 1
+            fi
+            echo "${go_tag} already points at ${GITHUB_SHA}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${go_tag}" "${GITHUB_SHA}"
+          git push origin "${go_tag}"
+
   stop-vm:
     name: Stop VM
     needs:
@@ -358,6 +426,7 @@ jobs:
       - stop-vm
       - publish-java
       - publish-python
+      - tag-go
     if: ${{ failure() }}
     uses: ./.github/workflows/send_telegram_notification.yaml
     with:

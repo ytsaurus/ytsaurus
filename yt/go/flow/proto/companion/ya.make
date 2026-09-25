@@ -8,7 +8,7 @@ PROTO_NAMESPACE(yt)
 
 PEERDIR(
     yt/go/proto/core/misc
-    yt/go/proto/flow/common
+    yt/go/flow/proto/common
 )
 
 SRCS(

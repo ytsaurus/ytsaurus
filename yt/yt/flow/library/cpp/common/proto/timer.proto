@@ -1,6 +1,6 @@
 package NYT.NFlow.NProto;
 
-option go_package = "go.ytsaurus.tech/yt/go/proto/flow/common";
+option go_package = "go.ytsaurus.tech/yt/go/flow/proto/common";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
