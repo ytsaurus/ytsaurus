@@ -12,6 +12,13 @@ namespace NYT::NTabletClient {
 
 namespace NProto {
 
+class TReqMount;
+class TReqUnmount;
+class TReqRemount;
+class TReqFreeze;
+class TReqUnfreeze;
+class TReqReshard;
+
 class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;
 class TTableReplicaStatistics;

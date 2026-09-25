@@ -933,15 +933,30 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const std::vector<std::string>& extraAttributeKeys)
 {
     TMasterReadOptions options;
-    auto proxy = std::make_unique<TObjectServiceProxy>(CreateObjectServiceReadProxy(
+    auto proxy = CreateObjectServiceReadProxy(
         client,
         options.ReadFrom,
         PrimaryMasterCellTagSentinel,
-        client->GetNativeConnection()->GetStickyGroupSizeCache()));
+        client->GetNativeConnection()->GetStickyGroupSizeCache());
 
+    return ResolveExternalTable(
+        proxy,
+        path,
+        tableId,
+        externalCellTag,
+        extraAttributeKeys);
+}
+
+IAttributeDictionaryPtr ResolveExternalTable(
+    TObjectServiceProxy& proxy,
+    const TYPath& path,
+    TTableId* tableId,
+    TCellTag* externalCellTag,
+    const std::vector<std::string>& extraAttributeKeys)
+{
     {
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
         *tableId = FromProto<TTableId>(rsp->object_id());
@@ -956,7 +971,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
     {
         auto req = TTableYPathProxy::Get(FromObjectId(*tableId) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), extraAttributeKeys);
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting extended attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
         extraAttributes = ConvertToAttributes(TYsonString(rsp->value()));

@@ -9,6 +9,7 @@
 #include "sticky_mount_cache.h"
 #include "tablet_helpers.h"
 #include "transaction.h"
+#include "two_phase_table_operation.h"
 #include "type_handler.h"
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -104,6 +105,8 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/library/query/base/functions.h>
@@ -168,16 +171,33 @@ constexpr TSchemaUpdateEnabledFeatures SchemaUpdateEnabledFeatures{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TReq>
-void SetDynamicTableCypressRequestFullPath(TReq* /*req*/, const TYPath& /*fullPath*/)
-{ }
-
-template <>
-void SetDynamicTableCypressRequestFullPath<NTabletClient::NProto::TReqMount>(
-    NTabletClient::NProto::TReqMount* req,
-    const TYPath& fullPath)
+template <CTwoPhaseTableRequest TRequest>
+auto CreateTwoPhaseTableOperationRequest(
+    const TObjectServiceProxy& proxy,
+    const TYPath& path,
+    TRequest request)
 {
-    req->set_path(fullPath);
+    auto rpcRequest = [&] {
+        if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqMount>) {
+            return proxy.Mount();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqUnmount>) {
+            return proxy.Unmount();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqRemount>) {
+            return proxy.Remount();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqFreeze>) {
+            return proxy.Freeze();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqUnfreeze>) {
+            return proxy.Unfreeze();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqReshard>) {
+            return proxy.Reshard();
+        } else {
+            static_assert(false, "Unsupported two-phase table operation request");
+        }
+    }();
+
+    rpcRequest->Swap(&request);
+    SetRequestTargetYPath(&rpcRequest->Header(), path);
+    return rpcRequest;
 }
 
 TColumnFilter RemapColumnFilter(
@@ -2233,71 +2253,27 @@ NYson::TYsonString TClient::DoExplainQuery(
             : false);
 }
 
-template <class TReq>
+template <CTwoPhaseTableRequest TRequest>
 void TClient::ExecuteTabletServiceRequest(
     const TYPath& path,
     TStringBuf action,
-    TReq* req)
+    TRequest request,
+    const TMutatingOptions& options)
 {
-    TTableId tableId;
-    TCellTag externalCellTag;
-    auto tableAttributes = NTableClient::ResolveExternalTable(
-        MakeStrong(this),
-        path,
-        &tableId,
-        &externalCellTag,
-        {"tablet_cell_bundle", "path"});
-
-    if (!IsTabletOwnerType(TypeFromId(tableId))) {
-        THROW_ERROR_EXCEPTION("Object %v is not a tablet owner", path);
+    const auto& connection = GetNativeConnection();
+    if (connection->GetConfig()->UseCypressProxyForTwoPhaseTableOperations &&
+        connection->GetCypressProxyChannel())
+    {
+        auto proxy = CreateObjectServiceWriteProxy();
+        auto rpcRequest = CreateTwoPhaseTableOperationRequest(proxy, path, std::move(request));
+        SetMutationId(rpcRequest, options);
+        WaitFor(rpcRequest->Invoke())
+            .ThrowOnError();
+    } else {
+        auto client = MakeStrong(this);
+        auto target = ResolveTwoPhaseTableOperationTarget(client, path);
+        ExecuteTwoPhaseTableOperationViaMaster(client, target, action, &request);
     }
-
-    if (IsSequoiaId(tableId)) {
-        // COMPAT(h0pless): This is a quick and dirty fix for dynamic tables in Sequoia in 25.4.
-        auto bundle = tableAttributes->Get<std::string>("tablet_cell_bundle");
-        ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
-        ValidatePermissionImpl(path, EPermission::Mount);
-    }
-
-    auto nativeCellTag = CellTagFromId(tableId);
-
-    auto transactionAttributes = CreateEphemeralAttributes();
-    transactionAttributes->Set(
-        "title",
-        Format("%v node %v", action, path));
-
-    TTransactionStartOptions transactionOptions;
-    transactionOptions.Attributes = std::move(transactionAttributes);
-    transactionOptions.SuppressStartTimestampGeneration = true,
-    transactionOptions.CoordinatorMasterCellTag = nativeCellTag;
-    transactionOptions.ReplicateToMasterCellTags = TCellTagList{externalCellTag};
-    transactionOptions.StartCypressTransaction = false;
-    auto asyncTransaction = StartNativeTransaction(
-        NTransactionClient::ETransactionType::Master,
-        transactionOptions);
-    auto transaction = WaitFor(asyncTransaction)
-        .ValueOrThrow();
-
-    ToProto(req->mutable_table_id(), tableId);
-
-    auto fullPath = tableAttributes->Get<TYPath>("path");
-    SetDynamicTableCypressRequestFullPath(req, fullPath);
-
-    auto actionData = MakeTransactionActionData(*req);
-
-    auto nativeCellId = GetNativeConnection()->GetMasterCellId(nativeCellTag);
-    auto externalCellId = GetNativeConnection()->GetMasterCellId(externalCellTag);
-    transaction->AddAction(nativeCellId, actionData);
-    if (nativeCellId != externalCellId) {
-        transaction->AddAction(externalCellId, actionData);
-    }
-
-    WaitFor(transaction->Commit(TTransactionCommitOptions{
-        .Force2PC = true,
-        .CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy,
-        .CellIdsToSyncWithBeforePrepare = {nativeCellId}
-    }))
-        .ThrowOnError();
 }
 
 void TClient::DoMountTable(
@@ -2305,12 +2281,8 @@ void TClient::DoMountTable(
     const TMountTableOptions& options)
 {
     NTabletClient::NProto::TReqMount req;
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
     if (options.CellId) {
         ToProto(req.mutable_cell_id(), options.CellId);
     }
@@ -2323,7 +2295,7 @@ void TClient::DoMountTable(
         .ValueOrThrow();
     req.set_mount_timestamp(ToProto(mountTimestamp));
 
-    ExecuteTabletServiceRequest(path, "Mounting", &req);
+    ExecuteTabletServiceRequest(path, "Mounting", std::move(req), options);
 }
 
 void TClient::DoUnmountTable(
@@ -2331,15 +2303,11 @@ void TClient::DoUnmountTable(
     const TUnmountTableOptions& options)
 {
     NTabletClient::NProto::TReqUnmount req;
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
     req.set_force(options.Force);
 
-    ExecuteTabletServiceRequest(path, "Unmounting", &req);
+    ExecuteTabletServiceRequest(path, "Unmounting", std::move(req), options);
 }
 
 void TClient::DoRemountTable(
@@ -2347,14 +2315,10 @@ void TClient::DoRemountTable(
     const TRemountTableOptions& options)
 {
     NTabletClient::NProto::TReqRemount req;
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
 
-    ExecuteTabletServiceRequest(path, "Remounting", &req);
+    ExecuteTabletServiceRequest(path, "Remounting", std::move(req), options);
 }
 
 void TClient::DoFreezeTable(
@@ -2362,14 +2326,10 @@ void TClient::DoFreezeTable(
     const TFreezeTableOptions& options)
 {
     NTabletClient::NProto::TReqFreeze req;
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
 
-    ExecuteTabletServiceRequest(path, "Freezing", &req);
+    ExecuteTabletServiceRequest(path, "Freezing", std::move(req), options);
 }
 
 void TClient::DoUnfreezeTable(
@@ -2377,15 +2337,10 @@ void TClient::DoUnfreezeTable(
     const TUnfreezeTableOptions& options)
 {
     NTabletClient::NProto::TReqUnfreeze req;
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
 
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
-
-    ExecuteTabletServiceRequest(path, "Unfreezing", &req);
+    ExecuteTabletServiceRequest(path, "Unfreezing", std::move(req), options);
 }
 
 void TClient::DoCancelTabletTransition(
@@ -2406,31 +2361,11 @@ NTabletClient::NProto::TReqReshard TClient::MakeReshardRequest(
     const TReshardTableOptions& options)
 {
     NTabletClient::NProto::TReqReshard req;
-    if (options.FirstTabletIndex) {
-        req.set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req.set_last_tablet_index(*options.LastTabletIndex);
-    }
+    req.set_first_tablet_index(options.FirstTabletIndex.value_or(-1));
+    req.set_last_tablet_index(options.LastTabletIndex.value_or(-1));
     ToProto(req.mutable_trimmed_row_counts(), options.TrimmedRowCounts);
     ToProto(req.mutable_cumulative_data_weights(), options.CumulativeDataWeights);
 
-    return req;
-}
-
-TTableYPathProxy::TReqReshardPtr TClient::MakeYPathReshardRequest(
-    const TYPath& path,
-    const TReshardTableOptions& options)
-{
-    auto req = TTableYPathProxy::Reshard(path);
-    SetMutationId(req, options);
-
-    if (options.FirstTabletIndex) {
-        req->set_first_tablet_index(*options.FirstTabletIndex);
-    }
-    if (options.LastTabletIndex) {
-        req->set_last_tablet_index(*options.LastTabletIndex);
-    }
     return req;
 }
 
@@ -2518,7 +2453,7 @@ void TClient::DoReshardTableWithPivotKeys(
     ToProto(req.mutable_pivot_keys(), pivotKeys);
     req.set_tablet_count(pivotKeys.size());
 
-    ExecuteTabletServiceRequest(path, "Resharding", &req);
+    ExecuteTabletServiceRequest(path, "Resharding", std::move(req), options);
 }
 
 void TClient::DoReshardTableWithTabletCount(
@@ -2564,7 +2499,7 @@ void TClient::DoReshardTableWithTabletCount(
     auto req = MakeReshardRequest(options);
     req.set_tablet_count(tabletCount);
 
-    ExecuteTabletServiceRequest(path, "Resharding", &req);
+    ExecuteTabletServiceRequest(path, "Resharding", std::move(req), options);
 }
 
 std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(

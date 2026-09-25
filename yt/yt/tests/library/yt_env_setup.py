@@ -751,6 +751,17 @@ class YTEnvSetup(object):
         delta_global_cluster_connection_config = {
             "object_life_stage_check_period": 100,
         }
+        # Exercise two-phase table operation routing for Cypress nodes with trunk Cypress Proxies.
+        # Pre-trunk Cypress Proxies do not support two-phase table operation RPCs yet.
+        if (
+            cypress_proxy_count > 0
+            and not cls.get_param("USE_SEQUOIA", index)
+            and not any(
+                version != "trunk" and "cypress-proxy" in components
+                for version, components in cls.ARTIFACT_COMPONENTS.items()
+            )
+        ):
+            delta_global_cluster_connection_config["use_cypress_proxy_for_two_phase_table_operations"] = True
 
         if cls.get_param("USE_SEQUOIA", index):
             update_inplace(delta_global_cluster_connection_config, {
