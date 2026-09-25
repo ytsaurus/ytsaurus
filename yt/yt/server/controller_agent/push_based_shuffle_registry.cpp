@@ -1,17 +1,13 @@
 #include "push_based_shuffle_registry.h"
 
-#include "config.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
-
-#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NControllerAgent {
 
-using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,23 +15,6 @@ using namespace NDistributedChunkSessionClient;
 constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TPushBasedShuffleRegistry::TPushBasedShuffleRegistry(const TControllerAgentConfigPtr& config)
-    : ThreadPool_(CreateThreadPool(
-        config->PushBasedShuffleManager->ThreadCount,
-        "PushShuffle"))
-    , Invoker_(ThreadPool_->GetInvoker())
-{ }
-
-const IInvokerPtr& TPushBasedShuffleRegistry::GetInvoker() const
-{
-    return Invoker_;
-}
-
-void TPushBasedShuffleRegistry::UpdateConfig(const TControllerAgentConfigPtr& config)
-{
-    ThreadPool_->SetThreadCount(config->PushBasedShuffleManager->ThreadCount);
-}
 
 void TPushBasedShuffleRegistry::OnSchedulerConnected(TIncarnationId incarnationId)
 {

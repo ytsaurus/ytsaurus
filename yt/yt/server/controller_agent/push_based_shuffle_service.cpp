@@ -29,21 +29,26 @@ class TPushBasedShuffleService
     : public TServiceBase
 {
 public:
-    TPushBasedShuffleService(TPushBasedShuffleRegistryPtr registry, IAuthenticatorPtr authenticator)
+    TPushBasedShuffleService(
+        TPushBasedShuffleRegistryPtr registry,
+        IInvokerPtr invoker,
+        IAuthenticatorPtr authenticator)
         : TServiceBase(
-            registry->GetInvoker(),
+            invoker,
             TPushBasedShuffleServiceProxy::GetDescriptor(),
             ControllerAgentLogger(),
             TServiceOptions{
                 .Authenticator = std::move(authenticator),
             })
         , Registry_(std::move(registry))
+        , Invoker_(std::move(invoker))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetShuffleWriteSession));
     }
 
 private:
     const TPushBasedShuffleRegistryPtr Registry_;
+    const IInvokerPtr Invoker_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetShuffleWriteSession)
     {
@@ -71,7 +76,7 @@ private:
                     .With("SessionId", session.SessionId)
                     .With("SequencerNode", session.SequencerNode);
             })
-                .AsyncVia(Registry_->GetInvoker())));
+                .AsyncVia(Invoker_)));
     }
 };
 
@@ -79,9 +84,13 @@ private:
 
 IServicePtr CreatePushBasedShuffleService(
     TPushBasedShuffleRegistryPtr registry,
+    IInvokerPtr invoker,
     IAuthenticatorPtr authenticator)
 {
-    return New<TPushBasedShuffleService>(std::move(registry), std::move(authenticator));
+    return New<TPushBasedShuffleService>(
+        std::move(registry),
+        std::move(invoker),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

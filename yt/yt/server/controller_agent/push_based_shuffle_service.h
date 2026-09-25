@@ -10,6 +10,7 @@ namespace NYT::NControllerAgent {
 
 NRpc::IServicePtr CreatePushBasedShuffleService(
     TPushBasedShuffleRegistryPtr registry,
+    IInvokerPtr invoker,
     NRpc::IAuthenticatorPtr authenticator);
 
 ////////////////////////////////////////////////////////////////////////////////

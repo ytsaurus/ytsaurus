@@ -1,4 +1,3 @@
-#include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/push_based_shuffle_registry.h>
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
@@ -47,7 +46,7 @@ public:
 
 TPushBasedShuffleRegistryPtr CreateRegistry()
 {
-    return New<TPushBasedShuffleRegistry>(New<TControllerAgentConfig>());
+    return New<TPushBasedShuffleRegistry>();
 }
 
 TIncarnationId MakeIncarnationId()

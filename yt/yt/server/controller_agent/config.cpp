@@ -767,7 +767,7 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPushBasedShuffleManagerConfig::Register(TRegistrar registrar)
+void TPushBasedShuffleConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(2)
@@ -1390,7 +1390,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_tracker", &TThis::JobTracker)
         .DefaultNew();
 
-    registrar.Parameter("push_based_shuffle_manager", &TThis::PushBasedShuffleManager)
+    registrar.Parameter("push_based_shuffle", &TThis::PushBasedShuffle)
         .DefaultNew();
 
     registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)
