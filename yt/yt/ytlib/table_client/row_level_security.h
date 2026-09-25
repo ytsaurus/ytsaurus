@@ -3,12 +3,12 @@
 #include "public.h"
 #include "row_layout.h"
 
-#include <yt/yt/core/phoenix/context.h>
-#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/ytlib/table_client/proto/row_level_security.pb.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
-#include <yt/yt/ytlib/table_client/proto/row_level_security.pb.h>
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -26,6 +26,7 @@ public:
     static std::optional<TRlsReadSpec> BuildFromRowLevelAclAndTableSchema(
         const TTableSchemaPtr& tableSchema,
         const std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>& rowLevelAcl,
+        std::string authenticatedUser,
         const NLogging::TLogger& logger);
 
     bool IsTrivialDeny() const;
@@ -33,6 +34,7 @@ public:
     //! Prerequisite: not trivial deny.
     const std::string& GetPredicate() const;
     const TTableSchemaPtr& GetTableSchema() const;
+    const std::optional<std::string>& GetAuthenticatedUser() const;
 
     friend void ToProto(
         NProto::TRlsReadSpec* protoRlsReadSpec,
@@ -50,6 +52,7 @@ private:
     };
 
     TTableSchemaPtr TableSchema_;
+    std::optional<std::string> AuthenticatedUser_;
     std::variant<TTrivialDeny, std::string> PredicateOrTrivialDeny_ = TTrivialDeny{};
 
     PHOENIX_DECLARE_TYPE(TRlsReadSpec, 0x01215125);
