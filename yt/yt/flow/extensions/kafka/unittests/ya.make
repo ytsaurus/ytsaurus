@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SIZE(SMALL)
 
 SRCS(
+    helpers_ut.cpp
     read_buffer_ut.cpp
     source_ut.cpp
     spec_ut.cpp

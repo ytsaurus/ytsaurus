@@ -1,5 +1,6 @@
 #include "sink.h"
 
+#include "helpers.h"
 #include "kafka_client.h"
 #include "private.h"
 
@@ -39,18 +40,7 @@ namespace {
 
 constexpr auto ProducerPollTimeout = std::chrono::milliseconds(100);
 constexpr auto ProducerFlushTimeout = std::chrono::seconds(30);
-constexpr auto ProducerCreateBackoff = TDuration::Seconds(5);
 constexpr int MaxProduceRetries = 100;
-
-//! Sleeps in small slices so Terminate() is not delayed by a whole backoff.
-void SleepUnlessTerminated(const std::atomic<bool>& terminated, TDuration duration)
-{
-    constexpr auto slice = TDuration::MilliSeconds(100);
-    auto deadline = TInstant::Now() + duration;
-    while (!terminated.load() && TInstant::Now() < deadline) {
-        Sleep(Min(slice, deadline - TInstant::Now()));
-    }
-}
 
 void* EncodeSeqNo(i64 seqNo)
 {
@@ -314,9 +304,8 @@ void TRetryableKafkaWriter::Run()
 {
     // Retrying construction is free (nothing produced yet, enqueued writes wait); exiting would
     // leave the sink dead until the job is replaced.
-    std::unique_ptr<cppkafka::Producer> producer;
-    while (!producer && !Terminated_.load()) {
-        try {
+    auto producer = CreateUntilTerminated<cppkafka::Producer>(
+        [&] {
             auto configuration = Client_->MakeBaseConfiguration();
             configuration.set("enable.idempotence", "true");
             configuration.set("client.id", ProducerId_);
@@ -329,15 +318,15 @@ void TRetryableKafkaWriter::Run()
                         Queue_.Complete(seqNo, TError());
                     }
                 });
-            producer = std::make_unique<cppkafka::Producer>(std::move(configuration));
-        } catch (const std::exception& ex) {
-            auto error = TError("Failed to create Kafka producer").With(ex);
+            return std::make_unique<cppkafka::Producer>(std::move(configuration));
+        },
+        [&] (const std::exception& ex) {
             YT_TLOG_ERROR("Failed to create Kafka producer")
                 .With(ex);
-            ErrorState_->SetError(error);
-            SleepUnlessTerminated(Terminated_, ProducerCreateBackoff);
-        }
-    }
+            ErrorState_->SetError(TError("Failed to create Kafka producer").With(ex));
+        },
+        Terminated_,
+        KafkaHandleCreateBackoff);
     if (!producer) {
         // Fail every queued and future write so no promise is orphaned when Run() exits early.
         Queue_.Fail(TError("Kafka writer terminated before a producer could be created"));

@@ -12,6 +12,8 @@ void TKafkaClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("bootstrap_servers", &TThis::BootstrapServers)
         .NonEmpty();
+    registrar.Parameter("cluster_name", &TThis::ClusterName)
+        .Default();
     registrar.Parameter("security_protocol", &TThis::SecurityProtocol)
         .Default("PLAINTEXT");
     registrar.Parameter("sasl_mechanism", &TThis::SaslMechanism)
@@ -62,9 +64,16 @@ void TKafkaClientConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::string& GetKafkaClusterIdentity(const TKafkaClientConfigPtr& config)
+{
+    return config->ClusterName.empty() ? config->BootstrapServers : config->ClusterName;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TKafkaClient::TKafkaClient(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
     : TResourceBase(std::move(context), std::move(dynamicContext))
-    , BootstrapServers_(GetParameters()->BootstrapServers)
+    , ClusterIdentity_(GetKafkaClusterIdentity(GetParameters()))
     , SaslUsername_(GetParameters()->SaslUsername)
     , BaseConfig_([&] {
         const auto& parameters = GetParameters();
@@ -113,9 +122,9 @@ cppkafka::Configuration TKafkaClient::MakeBaseConfiguration() const
     return configuration;
 }
 
-const std::string& TKafkaClient::GetBootstrapServers() const
+const std::string& TKafkaClient::GetClusterIdentity() const
 {
-    return BootstrapServers_;
+    return ClusterIdentity_;
 }
 
 const std::string& TKafkaClient::GetSaslUsername() const

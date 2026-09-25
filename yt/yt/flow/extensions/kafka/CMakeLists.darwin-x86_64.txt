@@ -44,6 +44,7 @@ target_link_libraries(flow-extensions-kafka PUBLIC
 )
 
 target_sources(flow-extensions-kafka PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/kafka_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/kafka_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/read_session.cpp

@@ -52,6 +52,7 @@ target_link_options(yt-flow-extensions-kafka-unittests PRIVATE
 )
 
 target_sources(yt-flow-extensions-kafka-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/read_buffer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/source_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/spec_ut.cpp

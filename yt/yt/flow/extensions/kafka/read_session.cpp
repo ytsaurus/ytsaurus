@@ -1,5 +1,6 @@
 #include "read_session.h"
 
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -295,27 +296,33 @@ TKafkaMessage TKafkaReadSession::ExtractMessage(const cppkafka::Message& message
 
 void TKafkaReadSession::PollLoop()
 {
-    std::unique_ptr<cppkafka::Consumer> consumer;
-    try {
-        auto configuration = Client_->MakeBaseConfiguration();
-        configuration.set("group.id", GroupId_);
-        configuration.set("enable.auto.commit", "false");
-        // Flow assigns explicit offsets, so out-of-range is always a data discontinuity; "earliest"
-        // would silently restart a recreated topic from zero beneath the stale cursor. A retention
-        // trim recovers explicitly: the watermark update reports it and the base rewinds.
-        configuration.set("auto.offset.reset", "error");
-        // Cap librdkafka's own pre-fetch queue (64 MiB default) at half our budget:
-        // ~1.5 max_buffer_bytes total per partition.
-        configuration.set("queued.max.messages.kbytes", ToString(DeriveKafkaQueuedMaxKbytes(MaxBufferBytes_)));
-        consumer = std::make_unique<cppkafka::Consumer>(std::move(configuration));
-        // Budget for blocking broker RPCs (query_offsets and friends); the poll timeout would starve
-        // them, and polling passes its own timeout per call anyway.
-        consumer->set_timeout(std::chrono::milliseconds(MetadataTimeout_.MilliSeconds()));
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to create Kafka consumer").With(ex);
-        YT_TLOG_ERROR("Failed to create Kafka consumer")
-            .With(ex);
-        ReadErrorState_->SetError(error);
+    // Retried rather than given up on: the partition would stay unreadable until its job restarts.
+    auto consumer = CreateUntilTerminated<cppkafka::Consumer>(
+        [&] {
+            auto configuration = Client_->MakeBaseConfiguration();
+            configuration.set("group.id", GroupId_);
+            configuration.set("enable.auto.commit", "false");
+            // Flow assigns explicit offsets, so out-of-range is always a data discontinuity; "earliest"
+            // would silently restart a recreated topic from zero beneath the stale cursor. A retention
+            // trim recovers explicitly: the watermark update reports it and the base rewinds.
+            configuration.set("auto.offset.reset", "error");
+            // Cap librdkafka's own pre-fetch queue (64 MiB default) at half our budget:
+            // ~1.5 max_buffer_bytes total per partition.
+            configuration.set("queued.max.messages.kbytes", ToString(DeriveKafkaQueuedMaxKbytes(MaxBufferBytes_)));
+            auto result = std::make_unique<cppkafka::Consumer>(std::move(configuration));
+            // Budget for blocking broker RPCs (query_offsets and friends); the poll timeout would starve
+            // them, and polling passes its own timeout per call anyway.
+            result->set_timeout(std::chrono::milliseconds(MetadataTimeout_.MilliSeconds()));
+            return result;
+        },
+        [&] (const std::exception& ex) {
+            YT_TLOG_ERROR("Failed to create Kafka consumer")
+                .With(ex);
+            ReadErrorState_->SetError(TError("Failed to create Kafka consumer").With(ex));
+        },
+        Terminated_,
+        KafkaHandleCreateBackoff);
+    if (!consumer) {
         return;
     }
 

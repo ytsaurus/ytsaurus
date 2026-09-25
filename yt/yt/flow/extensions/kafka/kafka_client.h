@@ -23,6 +23,12 @@ struct TKafkaClientConfig
     //! Comma-separated broker list, passed as librdkafka `bootstrap.servers`.
     std::string BootstrapServers;
 
+    //! Stable name of the Kafka cluster. Source partition keys (and so the persisted offsets) are
+    //! derived from it, so the broker list can change freely once it is set. Empty means the keys are
+    //! derived from #BootstrapServers; setting it to the current #BootstrapServers value keeps the
+    //! keys an existing pipeline already has.
+    std::string ClusterName;
+
     //! librdkafka `security.protocol`: PLAINTEXT, SSL, SASL_PLAINTEXT or SASL_SSL.
     std::string SecurityProtocol;
 
@@ -47,6 +53,9 @@ struct TKafkaClientConfig
 
 DEFINE_REFCOUNTED_TYPE(TKafkaClientConfig);
 
+//! The cluster name the source partition keys are derived from; see #TKafkaClientConfig::ClusterName.
+const std::string& GetKafkaClusterIdentity(const TKafkaClientConfigPtr& config);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Shared Kafka client resource. Holds the resolved connection/auth config and hands out
@@ -66,14 +75,14 @@ public:
     //! their role-specific keys (group.id, enable.idempotence, ...) before constructing a handle.
     cppkafka::Configuration MakeBaseConfiguration() const;
 
-    //! Broker list, used by source/sink controllers to build a stable stream identity.
-    const std::string& GetBootstrapServers() const;
+    //! Cluster identity the source controllers build their partition keys from.
+    const std::string& GetClusterIdentity() const;
 
     //! SASL principal the handles authenticate as, for error messages; empty without SASL.
     const std::string& GetSaslUsername() const;
 
 private:
-    const std::string BootstrapServers_;
+    const std::string ClusterIdentity_;
     const std::string SaslUsername_;
     //! Fully resolved base key/value pairs (secrets already substituted from the environment).
     std::vector<std::pair<std::string, std::string>> BaseConfig_;

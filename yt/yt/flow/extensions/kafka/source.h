@@ -167,7 +167,7 @@ public:
     std::string GetSourceIdentity() const override;
 
 private:
-    const std::string BootstrapServers_;
+    const std::string ClusterIdentity_;
     const TKafkaInfoControllerPtr Info_;
 };
 
