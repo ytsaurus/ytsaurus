@@ -7884,6 +7884,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                                 file.Schema,
                                 file.RowLevelAcl,
+                                AuthenticatedUser_,
                                 Logger().WithTag("Path: %v", file.GetPath()));
 
                             YT_LOG_INFO_IF(

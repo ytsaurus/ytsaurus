@@ -109,6 +109,7 @@ TArtifactKey::operator size_t() const
     }
 
     if (data_source().has_rls_read_spec()) {
+        HashCombine(result, data_source().rls_read_spec().authenticated_user());
         HashCombine(result, data_source().rls_read_spec().has_trivial_deny());
         if (data_source().rls_read_spec().has_predicate()) {
             HashCombine(result, data_source().rls_read_spec().predicate());
@@ -192,6 +193,9 @@ bool TArtifactKey::operator==(const TArtifactKey& other) const
     if (data_source().has_rls_read_spec()) {
         const auto& rlsReadSpec = data_source().rls_read_spec();
         const auto& otherRlsReadSpec = other.data_source().rls_read_spec();
+        if (rlsReadSpec.authenticated_user() != otherRlsReadSpec.authenticated_user()) {
+            return false;
+        }
         if (rlsReadSpec.has_trivial_deny() != otherRlsReadSpec.has_trivial_deny()) {
             return false;
         }

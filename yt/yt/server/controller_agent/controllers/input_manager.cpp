@@ -924,6 +924,7 @@ void TInputManager::FetchInputTablesAttributes()
         table->RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
             table->Schema,
             table->RowLevelAcl,
+            Host_->GetAuthenticatedUser(),
             Logger().WithTag("TableIndex: %v", index));
         YT_LOG_INFO_IF(
             table->RlsReadSpec,

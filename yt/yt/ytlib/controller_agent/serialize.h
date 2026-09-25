@@ -122,6 +122,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistVanillaJobCounts)               (302215))
     ((HighThreadCountJobThreshold)           (302216))
     ((SamplingSeed)                          (302217))
+    ((RlsAuthenticatedUser)                  (302218))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

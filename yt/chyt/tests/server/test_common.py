@@ -4,7 +4,7 @@ from helpers import (get_object_attribute_cache_config, get_schema_from_descript
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
                          get_table_columnar_statistics, set_node_banned, ls, abort_transaction, remove, read_table,
                          sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
-                         set, remove_user)
+                         set, remove_user, make_rl_ace)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -2513,10 +2513,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"key": 15, "value": "value2"}, {"key": 16, "value": "value3"}])
 
             acl = [
-                make_ace("allow", "u", "read"),
-                make_ace("allow", "u", "read"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "key = 15"),
             ]
-            acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
             assert clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
@@ -2533,6 +2532,47 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Check again for sanity to account for various miscachings.
             with raises_yt_error("Cannot use ranges with \\\"row_index\\\""):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_level_acl_authenticated_user(self, optimize_for):
+        users = ["val_2", "val_7", "no_matching_rows"]
+        for user in users:
+            create_user(user)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"},
+                ],
+                "optimize_for": optimize_for,
+                "inherit_acl": False,
+                "acl": [
+                    make_rl_ace(users),
+                    make_rl_ace(users, "value = [$authenticated_user]"),
+                ],
+            },
+        )
+        rows = [{"key": value, "value": f"val_{value}"} for value in [2, 7, 9]]
+        for row in rows:
+            write_table("<append=%true>//tmp/t", [row])
+
+        with Clique(2) as clique:
+            for user in users:
+                expected = [{"key": row["key"]} for row in rows if row["value"] == user]
+                settings = {"chyt.omit_inaccessible_rows": 1}
+                assert clique.make_query(
+                    'select key from "//tmp/t" order by key',
+                    user=user,
+                    settings=settings,
+                ) == expected
+                assert clique.make_query(
+                    'select count() as cnt from "//tmp/t"',
+                    user=user,
+                    settings=settings,
+                ) == [{"cnt": len(expected)}]
 
     @authors("coteeq")
     def test_dictionary_with_row_level_acl(self):
@@ -2553,13 +2593,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
         write_table("//tmp/t", [{"key": 15, "value": "value15"}, {"key": 16, "value": "value16"}])
 
         acl = [
-            make_ace("allow", "u", "read"),
-            make_ace("allow", "u", "read"),
-            make_ace("allow", "yt-clickhouse", "read"),
-            make_ace("allow", "yt-clickhouse", "read"),
+            make_rl_ace("u"),
+            make_rl_ace("u", "key = 15"),
+            make_rl_ace("yt-clickhouse"),
+            make_rl_ace("yt-clickhouse", "key = 16"),
         ]
-        acl[1]["row_access_predicate"] = "key = 15"
-        acl[3]["row_access_predicate"] = "key = 16"
         set("//tmp/t/@acl", acl)
 
         dict_config = {

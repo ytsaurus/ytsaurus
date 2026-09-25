@@ -8,6 +8,7 @@ from yt_commands import (
     join_reduce,
     ls,
     make_ace,
+    make_rl_ace,
     map_reduce,
     map,
     merge,
@@ -39,24 +40,16 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @staticmethod
-    def _make_rl_ace(subjects, row_access_predicate, incompatible_row_access_predicate_mode=None):
-        ace = make_ace("allow", subjects, "read")
-        ace["row_access_predicate"] = row_access_predicate
-        if incompatible_row_access_predicate_mode:
-            ace["incompatible_row_access_predicate_mode"] = incompatible_row_access_predicate_mode
-        return ace
-
-    @staticmethod
     def _create_users():
         create_user("prime_user")
         create_user("full_read_user")
         create_user("basic_read_user")
 
-    @classmethod
-    def _get_acl(cls):
+    @staticmethod
+    def _get_acl():
         return [
-            cls._make_rl_ace("prime_user", "int in (2, 3)"),
-            cls._make_rl_ace("prime_user", "int in (5, 7)"),
+            make_rl_ace("prime_user", "int in (2, 3)"),
+            make_rl_ace("prime_user", "int in (5, 7)"),
             make_ace("allow", "full_read_user", "full_read"),
             make_ace("allow", ["prime_user", "full_read_user", "basic_read_user"], "read"),
         ]
@@ -135,6 +128,47 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
             assert read_table("//tmp/t_out") == self._rows(2, 3, 5, 7)
         else:
             assert sorted_dicts(read_table("//tmp/t_out")) == self._rows(2, 3, 5, 7)
+
+    @pytest.mark.parametrize("source", ["table", "file"])
+    def test_authenticated_user(self, optimize_for, source):
+        self._prepare_simple_test(optimize_for)
+        users = ["val_2", "val_7", "no_matching_rows"]
+        for user in users:
+            create_user(user)
+        yt_set("//tmp/t/@acl", [
+            make_ace("allow", users, "read"),
+            make_rl_ace(users, "str = [$authenticated_user]"),
+        ])
+
+        input_path = "//tmp/t{int}"
+        command = "cat"
+        files = []
+        if source == "file":
+            create("table", "//tmp/t_in")
+            write_table("//tmp/t_in", [{"value": 42}])
+            input_path = "//tmp/t_in"
+            command = "cat > /dev/null && cat ./t"
+            files = ["<format=yson>//tmp/t{int}"]
+        one_node = next(iter(ls("//sys/exec_nodes")))
+
+        for user in users:
+            map(
+                in_=input_path,
+                out="<create=%true>//tmp/t_out",
+                spec={
+                    "omit_inaccessible_rows": True,
+                    "ordered": True,
+                    "format": "yson",
+                    "scheduling_tag_filter": one_node,
+                },
+                mapper_command=command,
+                file=files,
+                authenticated_user=user,
+            )
+            assert read_table("//tmp/t_out") == [
+                {"int": row["int"]} for row in self._rows(*range(10))
+                if row["str"] == user
+            ]
 
     def test_sorted_merge_multiple_inputs(self, optimize_for):
         self._create_users()
@@ -427,8 +461,8 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
         write_file("//tmp/reducer.py", reducer.encode("utf-8"))
 
         yt_set("//tmp/t/@acl", [
-            self._make_rl_ace("prime_user", """str in ("val_5", "val_7")"""),
-            self._make_rl_ace("prime_user", """str in ("val_2", "val_3")"""),
+            make_rl_ace("prime_user", """str in ("val_5", "val_7")"""),
+            make_rl_ace("prime_user", """str in ("val_2", "val_3")"""),
             make_ace("allow", "prime_user", "read"),
         ])
 
