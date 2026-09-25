@@ -419,7 +419,7 @@ To run a companion in Java or Kotlin, you must declare the `CompanionManager` re
     "parameters" = {
         "timeout" = "10s";
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
-        "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.NodeCompanionMain";
+        "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.PipelineMain";
         "classpath" = "/app/ytflow/lib/*";
     };
     "dependencies" = {};

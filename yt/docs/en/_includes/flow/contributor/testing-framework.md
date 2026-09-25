@@ -1,6 +1,6 @@
 # Flow pipeline testing framework
 
-This page describes how to set up a workstation and configure low-level parameters for contributors who are improving Flow itself and running its integration test suite. If you're a pipeline author testing your code, see [Testing (C++)](../../../flow/cpp/testing.md), [Testing (Java)](../../../flow/java/testing.md), and [Testing (Python)](../../../flow/python/testing.md) — these pages include the launch parameters and techniques you need for pipeline tests.
+This page describes how to set up a workstation and configure low-level parameters for contributors who are improving Flow itself and running its integration test suite. If you're a pipeline author testing your code, see [Testing (C++)](../../../flow/cpp/testing.md), [Testing (Java)](../../../flow/java/testing.md), [Testing (Go)](../../../flow/go/testing.md), and [Testing (Python)](../../../flow/python/testing.md) — these pages include the launch parameters and techniques you need for pipeline tests.
 
 ## Environment setup {#setup}
 
@@ -24,7 +24,7 @@ sudo sysctl -p
 
 Without `core_uses_pid=1`, you might see odd behavior, such as extracting multiple backtraces from a single coredump.
 
-If you need the UI of the local {{product-name}} for debugging, you’ll need network access — see the [relevant section](../../../flow/cpp/testing.md#debug-ui-yt) in the documentation for pipeline authors.
+{% if audience == "internal" %}If you need the UI of the local {{product-name}} for debugging, you’ll need network access — see the [relevant section](../../../flow/cpp/testing.md#debug-ui-yt) in the documentation for pipeline authors.{% endif %}
 
 ## Flow test parameters {#test-param}
 

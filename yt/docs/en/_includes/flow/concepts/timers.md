@@ -46,7 +46,7 @@ To enable timers in a computation, you must fill the `timers` field in its spec.
 
 Explanations:
 
-- **`time_type`** defines the scale that the system uses to compare `TriggerTimestamp` with the current watermark:
+- `time_type` defines the scale that the system uses to compare `TriggerTimestamp` with the current watermark:
   - `event_time` (default) — compared with `EventWatermark` across all `input` streams (or the streams listed in `streams`).
   - `system_time` — compared with `SystemWatermark`.
   - `real_time` — compared with real astronomical time.

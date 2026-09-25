@@ -10,7 +10,7 @@
 
 {% include [_](./NYT_NApi_TTableMountCacheConfig.md) %}
 
-{% include [_](./NYT_NAuth_TTvmServiceConfig.md) %}
+{% if audience == "internal" %}{% include [_](./NYT_NAuth_TTvmServiceConfig.md) %}{% endif %}
 
 {% include [_](./NYT_NBus_EEncryptionMode.md) %}
 
@@ -52,6 +52,8 @@
 
 {% include [_](./NYT_NFlow_EBalanceResource.md) %}
 
+{% include [_](./NYT_NFlow_EBalancerMetricsSource.md) %}
+
 {% include [_](./NYT_NFlow_EDistributionOrdering.md) %}
 
 {% include [_](./NYT_NFlow_EFetchType.md) %}
@@ -71,6 +73,8 @@
 {% include [_](./NYT_NFlow_ETimestampFormat.md) %}
 
 {% include [_](./NYT_NFlow_EUnavailableSourcePolicy.md) %}
+
+{% include [_](./NYT_NFlow_EWorkerCoefMode.md) %}
 
 {% include [_](./NYT_NFlow_NCompanion_TCompanionConfig.md) %}
 

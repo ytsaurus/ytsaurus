@@ -6,11 +6,11 @@
 || Possible values | **Description** ||
 || `internal_rpc` |  ||
 || `monitoring_http` |  ||
-|| `tvm_only_internal_rpc` |  ||
+{% if audience == "internal" %}|| `tvm_only_internal_rpc` |  ||{% endif %}
 || `http` |  ||
 || `https` |  ||
-|| `tvm_only_http` |  ||
-|| `tvm_only_https` |  ||
+{% if audience == "internal" %}|| `tvm_only_http` |  ||{% endif %}
+{% if audience == "internal" %}|| `tvm_only_https` |  ||{% endif %}
 || `public_rpc` |  ||
 || `chyt_http` |  ||
 || `chyt_https` |  ||

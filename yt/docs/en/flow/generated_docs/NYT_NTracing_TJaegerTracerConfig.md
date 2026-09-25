@@ -44,8 +44,10 @@ Source: [yt/yt/library/tracing/jaeger/config.h]({{source-root}}/yt/yt/library/tr
 || `enable_pid_tag` | **Type**: `bool`
 **Default value**: `false`
  ||
+{% if audience == "internal" %}
 || `tvm_service` | **Type**: `NYT::TIntrusivePtr<`[NYT::NAuth::TTvmServiceConfig](./all_yson_structs#NYT_NAuth_TTvmServiceConfig)`>`
  ||
+{% endif %}
 || `test_drop_spans` | **Type**: `bool`
 **Default value**: `false`
  ||

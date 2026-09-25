@@ -49,7 +49,7 @@ Flow’s exactly-once guarantees apply to the pipeline’s internal state and bu
 Determinism requirements depend on the computation type.
 
 - **For [Swift](../../../flow/concepts/swift.md) computations** (`TSwiftMapComputation`, `TSwiftOrderedSourceComputation`) determinism is strictly required. In Swift computations, computation results aren’t materialized between epochs and can be recalculated on restart. If different attempts to compute the same message yield different results, you might mix results from different attempts, or lose or duplicate data.
-- **For regular computations** (`TTransformComputation`) non-deterministic code is technically allowed: exactly one attempt (out of all attempts caused by job restarts) is applied atomically. No result mixing occurs. However, if your code produces different output on a rerun, it can lead to unexpected behavior — especially if it has side effects (like writing to external systems) or updates state based on non-deterministic values.
+- **For regular computations** (`TTransformComputation`, `TTransformOrderedSourceComputation`) non-deterministic code is technically allowed: exactly one attempt (out of all attempts caused by job restarts) is applied atomically. No result mixing occurs. However, if your code produces different output on a rerun, it can lead to unexpected behavior — especially if it has side effects (like writing to external systems) or updates state based on non-deterministic values.
 
 {% note warning "What breaks determinism" %}
 

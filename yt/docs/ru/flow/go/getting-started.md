@@ -6,7 +6,7 @@
 
 [Примеры]({{source-root}}/yt/yt/flow/examples/go)
 
-SDK импортируется как `a.yandex-team.ru/yt/go/flow`.
+{% if audience == "internal" %}SDK импортируется как `a.yandex-team.ru/yt/go/flow`.{% else %}Импортируйте SDK как `go.ytsaurus.tech/yt/go/flow`.{% endif %}
 
 ## Архитектура приложения {#architecture}
 
@@ -101,7 +101,7 @@ func (*wordCountMapper) OnMessage(
 
 Точка входа в Go-компаньон — функция `main`. В ней необходимо сконфигурировать компьютейшены через `flow.Pipeline` и вызвать `pipeline.Run()`. Функция `main` из [WordCount](examples/wordcount.md):
 
-{% code '/yt/yt/flow/examples/go/word_count/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/word_count/main.go)
 
 Если пользовательским функциям нужны дополнительные ресурсы (словарь, кэш, HTTP-клиент и т. п.), `main` — подходящее место для их создания: они складываются в поля значения, которое связывается с компьютейшеном.
 
@@ -203,14 +203,15 @@ ya make examples/go/word_count bin/flow_server
 
 Обязательные параметры: `pool` и `worker.count`. Для остальных полей (`cpu_limit`, `memory_limit`, число контроллеров и т. д.) есть разумные значения по умолчанию — полный список полей и их описание см. в [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) и [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig).
 
-Обогащение спеки выполняется именно для vanilla-запуска и состоит из двух правок:
+Go-раннер добавляет схемы зарегистрированных стримов в `spec.streams`, если их там ещё нет. При включённой Vanilla он также:
 
-- Бинарь пайплайна добавляется в `vanilla.worker.local_files` под именем `go_companion` — под этим именем `flow_server` доставляет его в сэндбокс джобы.
-- Каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` проставляется `parameters.entrypoint.executable = "./go_companion"`, то есть воркер сам запускает компаньон из сэндбокса.
+- добавляет бинарь пайплайна в `vanilla.worker.local_files` под именем `go_companion` — под этим именем `flow_server` доставляет его в сэндбокс джобы;
+- проставляет каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` значение `parameters.entrypoint.executable = "./go_companion"`, чтобы воркер запускал компаньон из сэндбокса;
+- увеличивает `vanilla.worker.port_count` минимум до `3` для компаньона.
 
 {% note info %}
 
-Пайплайн, запущенный не через vanilla-операцию, работает с компаньоном по пути на хосте, уже прописанному в его спеке, — обогащение в этом случае ничего не меняет.
+Без Vanilla раннер всё равно добавляет схемы зарегистрированных стримов, но не меняет путь к компаньону на хосте, уже прописанный в спеке.
 
 {% endnote %}
 

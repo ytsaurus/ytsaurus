@@ -321,6 +321,7 @@ Requirements for the source table:
 {% note warning %}
 
 The system doesn’t validate computed column expressions. The source’s partition column must be **materialized** with values that match the expression in `group_by_schema` (usually `farm_hash(key)`). The framework can’t distinguish a differently materialized table from a correct one; each visit key silently resolves as missing.
+
 {% endnote %}
 
 The canonical pattern is mirroring (reconciliation). The table’s keys participate in the scan alongside the keys of your own state. That means a visit arrives for a key that isn’t yet in the state (you need to create it) and for a key that’s no longer in the table (you need to delete it). A periodic scan thus aligns the `Computation`’s state with the external table:

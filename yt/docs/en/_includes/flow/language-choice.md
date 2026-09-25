@@ -1,6 +1,6 @@
 ## Choose a language {#choose-language}
 
-Flow supports five languages for implementing business logic:
+Flow supports several languages for implementing business logic:
 
 - **[C++](../../flow/cpp/getting-started.md)** — native implementation, maximum performance, full control. Use this for high-load pipelines.
 - **[Java and Kotlin](../../flow/java/getting-started.md)** — run via the [companion](../../flow/concepts/companion.md) mechanism. They support Spring Boot. These are suitable for teams with a JVM stack.

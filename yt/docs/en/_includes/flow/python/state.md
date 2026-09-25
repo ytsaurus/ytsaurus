@@ -109,7 +109,9 @@ Example from [WaitClickJoin](../../../flow/python/examples/wait_click_join.md) (
 
 ## Binding a state to a key {#group-by-schema}
 
-You bind a state to the [key](../../../flow/concepts/glossary.md#key) of a message, which is defined via `group_by_schema` in the computation spec. All messages with the same key share one state. For more details on key configuration, see [Stateful processing](../../../flow/concepts/stateful.md).
+In `TTransformCompanionComputation`, state binds to the [message key](../../../flow/concepts/glossary.md#key) defined by `group_by_schema` in the computation spec. Messages with the same key share one state.
+
+`TTransformOrderedSourceCompanionComputation` does not support `group_by_schema`. Its internal state uses the source partition key, so messages from one partition share that state. See [Computation (Python)](../../../flow/python/computation.md#sourcecomputation) for choosing a SourceComputation class, and [Stateful processing](../../../flow/concepts/stateful.md) for key configuration.
 
 ## Configuring states in the spec {#spec-configuration}
 

@@ -16,13 +16,17 @@
 
 Точка входа регистрирует схемы входного и выходного стримов, добавляет компьютейшен и запускает пайплайн.
 
-{% code '/yt/yt/flow/examples/go/external_state_join/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/external_state_join/main.go)
+
+{% code '/yt/yt/flow/examples/go/external_state_join/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `lookup_join.go` {#lookup-join-go}
 
 Компьютейшен декодирует типизированное входное сообщение, читает присоединённую строку стейта и создаёт типизированное выходное сообщение.
 
-{% code '/yt/yt/flow/examples/go/external_state_join/lookup_join.go' lang='go' %}
+[Исходный код: `lookup_join.go`]({{source-root}}/yt/yt/flow/examples/go/external_state_join/lookup_join.go)
+
+{% code '/yt/yt/flow/examples/go/external_state_join/lookup_join.go' lang='go' lines='[BEGIN lookup_join]-[END lookup_join]' %}
 
 ## Ключевые паттерны {#key-patterns}
 

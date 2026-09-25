@@ -20,7 +20,7 @@ A key-visitor stream solves this problem. A background task in the worker period
 2. **Emit**. Ready `TVisit` messages are delivered by the engine via `GetNextBatch` and reach the process function in `ProcessVisit`.
 3. **Coverage**. After visits for a key range are delivered to the consumer, the range is marked as *Committed* in `TKeyVisitorStore`. The coverage is persisted to the system table `key_visitor_states`. That’s why a worker restart or partition rebalance doesn’t cause a re-scan.
 4. **End of pass**. When the coverage is complete, the background loop immediately calls `StartNewPass`. The pace is set by the throttler, so the next pass still takes `Period`. Rotation is atomic: a single Sync-transaction deletes the previous pass’s rows and seeds the first interval of the new one. If a crash happens midway, it rolls back, and the coverage is preserved.
-5. **Final pass**. When every stream the visitor follows is Completed (by default, all input and source streams of the computation—see `upstream_streams`), the next pass is marked *Final*. After its commit, the visit stream becomes `Empty` and doesn’t start new passes. You’re guaranteed at least one full pass after the inputs finish.
+5. **Final pass**. With the default `finite=%true`, when every followed stream is Completed (by default, all input and source streams—see `upstream_streams`), the visitor finishes after a final pass and its partitions become `Completed`. With the default `full_final_pass=%true`, that pass starts after the inputs finish and guarantees at least one complete scan. Setting `full_final_pass=%false` marks the current pass final and can finish sooner without that guarantee. With `finite=%false`, there is no final pass and the visitor keeps scanning.
 
 ### Partitioning {#partitioning}
 
@@ -35,7 +35,8 @@ Inside a partition, the range is split into a statically defined number of *buck
 | Each key per period | You get exactly one visit per key (no duplicates or omissions). |
 | Worker restart | Coverage is preserved; rotation is atomic, and a crash keeps the old pass. |
 | Partition rebalance | The new worker sees the committed coverage via `key_visitor_states`. |
-| Completion of the followed streams | At least one final pass is guaranteed; `Empty` is declared only after it. Which streams are followed is set by `upstream_streams`; by default, all input and source streams. |
+| Completion of followed streams | With default `finite=%true`, the visitor completes after the inputs and sources selected by `upstream_streams` finish. Default `full_final_pass=%true` guarantees a full pass started after completion; `%false` may finish during the current pass. |
+| `finite=%false` | No final pass: the visitor scans while the pipeline runs. |
 | `Period` | Best-effort. Under throttler load or slow `KeyStates` reads, the achieved period grows. See observability below. |
 | Scan order | Within a bucket, keys are sorted; between buckets, the order is round-robin. Not event-time. |
 
@@ -81,6 +82,8 @@ In `dynamic_spec.computations.<id>.key_visitor_streams.<name>`:
 - `period`: the target duration for one full pass. Default is 1 day.
 - `max_scan_rows_per_iteration`: the limit for a single `KeyStates::List` call (in rows, not keys). It must be strictly greater than the maximum number of internal-state names per key; otherwise, the scan stalls (see [Diagnostics](#diagnostics)).
 - `buffer_row_limit`: the maximum size of the internal buffer of ready visits between the background fill and `GetNextBatch`.
+- `finite`: whether the visitor follows the computation inputs and sources to completion. Default `%true` performs a final pass after they finish, then completes the partitions. Set `%false` for a periodic scanner that must run throughout the pipeline lifetime, especially a computation with no input or source streams. This dynamic setting can be switched on a running pipeline to request completion. Switching back to `%false` resumes scanning only before a pass has been marked final; once partitions are `Completed`, they must be recreated by repartitioning.
+- `full_final_pass`: whether the final pass must be a complete scan begun after the inputs finish. Default `%true` guarantees at least one such scan. With `%false`, the current pass can be marked final and stop sooner, without that guarantee.
 - `background_fill_period`: the pause between iterations of the background loop in idle state. Each such iteration performs one read (`KeyStates::List`) per scanned source. So this parameter sets the base frequency of the visitor’s read requests—about `1 / background_fill_period` per second per source per partition (with the default of 500 ms, that’s about 2 reads/s), independent of `period` (which only affects the width of the hash slice for each read). Under load (cap-hit, bucket/pass change), iterations are rescheduled immediately, and the frequency can be higher.
 
 ### Computation with only a visit stream {#key-visitor-only}
@@ -88,6 +91,8 @@ In `dynamic_spec.computations.<id>.key_visitor_streams.<name>`:
 A key-visitor stream can be the **only** source of work for a computation: `input_stream_ids` is empty, there are no `source_streams`, and work comes only from scanning the external state (`external_names`). This is the auditor pattern: periodically re-evaluate keys in an external table without a message stream. Such a computation is partitioned by uint64 hash ranges in the same way as an input-driven one (see [Partitioning](#partitioning)); the number of partitions is set by `min_partition_count` / `max_partition_count` / `desired_partition_count` in the dynamic spec.
 
 The requirement for `group_by_schema` (first column must be `uint64`, see [Schema requirements](#schema-requirements)) is mandatory for such a computation—the partition ranges are built from it.
+
+Set `finite=%false` in the [dynamic parameters](#dynamic-params) for this input-free scanner. With default `%true`, there are no inputs to wait for, so its first pass is final and the partitions complete after one full scan.
 
 {% note warning %}
 

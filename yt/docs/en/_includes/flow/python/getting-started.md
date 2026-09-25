@@ -33,7 +33,7 @@ The `pipeline.add(computation_id, function)` method registers a processing funct
 To create a [computation](../../../flow/concepts/glossary.md#stream-and-computation) in Python, choose the appropriate registration mode that matches the [C++ Computation type](../../../flow/concepts/companion.md#computation-types):
 
 - `pipeline.add(id, fn)` — for `TTransformCompanionComputation` and `TSwiftMapCompanionComputation`.
-- `pipeline.add(id, fn, source=True)` — for `TSwiftOrderedSourceCompanionComputation`.
+- `pipeline.add(id, fn, source=True)` — for `TSwiftOrderedSourceCompanionComputation` and `TTransformOrderedSourceCompanionComputation`.
 
 ```python
 # SourceComputation to read data from a source

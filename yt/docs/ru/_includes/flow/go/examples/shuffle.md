@@ -16,7 +16,9 @@
 
 Точка входа: регистрация source- и transform-компьютейшенов одним вызовом `pipeline.Add`.
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
+
+{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `event_mapper.go` {#event-mapper-go}
 

@@ -6,7 +6,7 @@ Use StateAccessor to read, modify, and delete state values. For general informat
 
 In Flow, the [state](../../../flow/concepts/glossary.md#state) is stored in [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md). If you’re using [external state](../../../flow/python/external-state.md), you create this table yourself. If you’re using [internal state](../../../flow/python/internal-state.md), Flow automatically creates and manages the tables.
 
-The key columns in the state table match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation) that uses this state. This means the state is tied to the message key — all messages with the same key share one state.
+For `TTransformCompanionComputation`, the key columns in the state table match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation). For the internal state of `TTransformOrderedSourceCompanionComputation`, the source partition key is used instead; this SourceComputation does not support `group_by_schema`. In both cases, messages with the same key share one state.
 
 ## Reading and writing data {#reading-and-writing-data}
 

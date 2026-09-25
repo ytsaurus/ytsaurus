@@ -10,7 +10,7 @@ The page is actively being updated. If your task (or a sufficiently similar one)
 
 ## Incremental update of various objects’ states
 
-Examples of such services are BigB, CaeSaR, and HitMaster.
+{% if audience == "internal" %}Examples of such services are BigB, CaeSaR, and HitMaster.{% endif %}
 
 The input is multiple (tens) of different logs; each line contains the `ProfileID` key.
 
@@ -30,7 +30,7 @@ Your goal is to build a log of the form `(is_click, factors)` by joining logs wi
 
 ## Robot list
 
-This is a direct analogue of the AA2 task, illustrated by the BigB task.
+{% if audience == "internal" %}This is a direct analogue of the AA2 task, illustrated by the BigB task.{% endif %}
 
 There is a stream of requests to the service (2 million [RPS](*rps), about 10 million [KPS](*kps)).
 

@@ -17,19 +17,25 @@
 
 Точка входа регистрирует три типизированных стрима и оба Go-компьютейшена.
 
-{% code '/yt/yt/flow/examples/go/static_table_join/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/main.go)
+
+{% code '/yt/yt/flow/examples/go/static_table_join/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `reference_loader.go` {#reference-loader-go}
 
 Загрузчик декодирует строку справочника, открывает внешний стейт для её ключа и сохраняет нормализованное значение.
 
-{% code '/yt/yt/flow/examples/go/static_table_join/reference_loader.go' lang='go' %}
+[Исходный код: `reference_loader.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/reference_loader.go)
+
+{% code '/yt/yt/flow/examples/go/static_table_join/reference_loader.go' lang='go' lines='[BEGIN reference_loader]-[END reference_loader]' %}
 
 ## `enricher.go` {#enricher-go}
 
 Обогатитель читает присоединённую строку стейта и создаёт выходное сообщение только для найденного ключа.
 
-{% code '/yt/yt/flow/examples/go/static_table_join/enricher.go' lang='go' %}
+[Исходный код: `enricher.go`]({{source-root}}/yt/yt/flow/examples/go/static_table_join/enricher.go)
+
+{% code '/yt/yt/flow/examples/go/static_table_join/enricher.go' lang='go' lines='[BEGIN enricher]-[END enricher]' %}
 
 ## Ключевые паттерны {#key-patterns}
 

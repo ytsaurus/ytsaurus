@@ -24,7 +24,9 @@ The messages are grouped by host (`group_by_schema` with `farm_hash(host)` and `
 
 The entry point: creating the pipeline, registering the only computation, and starting it.
 
-{% code '/yt/yt/flow/examples/go/url_downloader/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/url_downloader/main.go)
+
+{% code '/yt/yt/flow/examples/go/url_downloader/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `url_download_function.go` {#url-download-function-go}
 

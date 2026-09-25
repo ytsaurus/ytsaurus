@@ -196,31 +196,19 @@ Key points:
 
 ## Entry points {#entry-points}
 
-### NodeCompanionMain
+### PipelineMain
+
+This single entry point starts the pipeline or serves as its companion, depending on `YT_FLOW_MODE`.
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/NodeCompanionMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
+  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/PipelineMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/NodeCompanionMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
-
-{% endlist %}
-
-### RunnerMain
-
-{% list tabs group=lang %}
-
-- Java
-
-  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/RunnerMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
-
-- Kotlin
-
-  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/RunnerMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
+  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/PipelineMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
 
 {% endlist %}
 
@@ -331,4 +319,3 @@ You run integration testing for Java pipelines the same way as for C++ pipelines
 5. **Idempotency of timers**: You set the timer on every message, but with the same `triggerTimestamp`. Flow deduplicates timers with the same key and `triggerTimestamp`.
 
 6. **State cleanup**: After you generate the result, you clear the state via `stateAccessor.clear()`, which removes the row from the table.
-

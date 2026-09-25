@@ -24,7 +24,9 @@
 
 Точка входа: создание пайплайна, регистрация единственного компьютейшена и запуск.
 
-{% code '/yt/yt/flow/examples/go/url_downloader/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/url_downloader/main.go)
+
+{% code '/yt/yt/flow/examples/go/url_downloader/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `url_download_function.go` {#url-download-function-go}
 

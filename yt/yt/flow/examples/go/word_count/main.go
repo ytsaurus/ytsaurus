@@ -7,6 +7,8 @@ import (
 	"go.ytsaurus.tech/yt/go/flow"
 )
 
+// [BEGIN main]
+
 type wordMessage struct {
 	flow.YSONMessage
 	Word string `yson:"word"`
@@ -22,3 +24,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// [END main]

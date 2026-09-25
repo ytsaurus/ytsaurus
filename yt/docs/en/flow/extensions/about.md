@@ -4,7 +4,7 @@ An extension is an optional integration between a pipeline and an external syste
 
 {% note info %}
 
-Built-in connectors for {{product-name}} objects such as queues and tables are described in [Connectors](../../../flow/connectors/about.md).
+Built-in connectors for {{product-name}} objects such as queues and tables are described in [Connectors](../connectors/about.md).
 
 {% endnote %}
 
@@ -12,6 +12,6 @@ Built-in connectors for {{product-name}} objects such as queues and tables are d
 
 #|
 || **Extension** | **Has source** | **Has sink** | **Description** ||
-|| [HTTP](../../../flow/extensions/http.md) | &#65794; | &#10003; |
+|| [HTTP](http.md) | &#65794; | &#10003; |
 Asynchronous delivery of messages as HTTP POST requests to an external endpoint ||
 |#

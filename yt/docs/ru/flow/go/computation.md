@@ -37,7 +37,7 @@
 
 Компьютейшен создаётся конструктором и регистрируется в `flow.Pipeline` через `pipeline.Add`. Пример из [Shuffle](examples/shuffle.md), где компаньон обслуживает оба конца пайплайна — сорс и трансформ:
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
 
 У конструкторов два обязательных параметра:
 

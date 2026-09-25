@@ -123,7 +123,7 @@ export YT_FLOW_WORKER_GROUPS="cpu,memory-intensive"
     "computations" = {
         "preprocessing" = {
             "computation_class_name" = "PreprocessingComputation";
-            # Без worker_group &mdash; выполняется на любых воркерах
+            # Без worker_group &mdash; только на воркерах группы по умолчанию
         };
 
         "gpu_inference" = {

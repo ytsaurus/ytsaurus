@@ -6,10 +6,10 @@ In Flow, you can run user code in a separate process. This process is called a c
 ### Currently used
 
 - Supporting computations in languages other than [C++](../../../flow/cpp/getting-started.md), such as [Python](../../../flow/python/getting-started.md), [Java and Kotlin](../../../flow/java/getting-started.md), and [Go](../../../flow/go/getting-started.md).
+- Running user C++ code in a separate process through the [C++ companion](#cpp-companion).
 
 ### Planned
 
-- Isolating user C++ code from the Flow core to improve error handling, enable compilation with different flags (for example, for CUDA), and so on.
 - Hot updating user code without stopping the [pipeline](../../../flow/concepts/glossary.md#pipeline).
 
 ## Workflow {#schema}
@@ -44,7 +44,7 @@ Here’s an example of declaring the resource in a static spec for Java:
     "parameters" = {
         "timeout" = "10s";
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
-        "main_class" = "tech.ytsaurus.flow.examples.wordcount.NodeCompanionMain";
+        "main_class" = "tech.ytsaurus.flow.examples.wordcount.WordCountApplication";
         "classpath" = "/app/ytflow/lib/*";
     };
     "dependencies" = {};
