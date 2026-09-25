@@ -30,8 +30,6 @@ jobs:
           - DEFAULT-WIN-X86_64
       max-parallel: 1
     name: Build (${{ matrix.target-platform }})
-    needs:
-      - checkout
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
