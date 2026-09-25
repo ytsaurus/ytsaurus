@@ -787,6 +787,37 @@ TEST_W(TDescribeTest, DescribePipeline)
     EXPECT_EQ(description.Computations.size(), 3u);
 }
 
+TEST_W(TDescribeTest, DescribePipelineUsesProvidedNow)
+{
+    Prepare();
+
+    const auto now = TInstant::Seconds(1'000'000);
+    for (const auto& [partitionId, status] : FlowView->Feedback->PartitionJobStatuses) {
+        Y_UNUSED(partitionId);
+        status->CurrentJobStatus->InitedTime = now - TDuration::Minutes(1);
+    }
+
+    auto describeAt = [&] (TInstant describeNow) {
+        return DescribePipeline({
+            .FlowView = FlowView,
+            .Now = describeNow,
+            .Logger = TLogger("test"),
+        });
+    };
+
+    auto description = describeAt(now);
+    for (const auto& [computationId, computation] : description.Computations) {
+        Y_UNUSED(computationId);
+        EXPECT_EQ(computation.UnstablePartitionCount, computation.TotalPartitionCount);
+    }
+
+    description = describeAt(now + TDuration::Minutes(10));
+    for (const auto& [computationId, computation] : description.Computations) {
+        Y_UNUSED(computationId);
+        EXPECT_EQ(computation.UnstablePartitionCount, 0);
+    }
+}
+
 TEST_W(TDescribeTest, DescribePipelineAggregatesBestEffortCurrentResourceUsage)
 {
     Prepare();
@@ -2010,6 +2041,30 @@ TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
     if (!buildInfo->BuildHost.empty()) {
         EXPECT_TRUE(contains("* Built on: `" + buildInfo->BuildHost + "`")) << "Messages:" << dump();
     }
+}
+
+TEST_W(TDescribeTest, DescribePipelineUsesProvidedControllerBuildInfo)
+{
+    Prepare();
+
+    auto buildInfo = New<TFlowCoreBuildInfo>();
+    buildInfo->Author = "ui-test-user";
+    buildInfo->Branch = "ui-test-branch";
+    buildInfo->BuildHost = "localhost";
+    buildInfo->BuildTimestamp = 1'000'000;
+
+    auto description = DescribePipeline({
+        .FlowView = FlowView,
+        .Logger = TLogger("test"),
+        .StatusOnly = true,
+        .ControllerFlowCoreVersion = GetBinaryChecksum(),
+        .ControllerBuildInfo = buildInfo,
+    });
+
+    EXPECT_TRUE(MessagesContain(description.Messages, "* Author: `ui-test-user`"));
+    EXPECT_TRUE(MessagesContain(description.Messages, "ui-test-branch"));
+    EXPECT_TRUE(MessagesContain(description.Messages, "* Built on: `localhost`"));
+    EXPECT_TRUE(MessagesContain(description.Messages, "* Built at: `1970-01-12T13:46:40Z`"));
 }
 
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)

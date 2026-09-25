@@ -11,7 +11,7 @@ namespace NYT::NFlow::NController {
 
 NRpc::IServicePtr CreateControllerService(
     IFlowExecutorPtr flowExecutor,
-    IPipelineAuthenticatorPtr authenticator,
+    NRpc::IAuthenticatorPtr authenticator,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

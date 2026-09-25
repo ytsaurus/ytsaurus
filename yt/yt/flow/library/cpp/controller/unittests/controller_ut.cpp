@@ -453,7 +453,7 @@ public:
             GetSyncInvoker());
         const auto service = CreateControllerService(
             flowExecutor,
-            authenticator,
+            authenticator->CreateYTControllerRpcAuthenticator(),
             ControlActionQueue->GetInvoker(NController::EControlQueue::Admin));
         LocalServer->RegisterService(service);
         LocalServer->Start();
@@ -1772,7 +1772,7 @@ TEST_F(TAuthorizeCommandTest, RejectsUnknownCommand)
     // No permission check expectation: an unknown command fails before the cluster is asked.
     EXPECT_THROW_WITH_SUBSTRING(
         FlowExecutor_->AuthorizeCommand("no-such-command", "alice"),
-        "No such command: no-such-command");
+        "No such command: no-such-command, possible commands:");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

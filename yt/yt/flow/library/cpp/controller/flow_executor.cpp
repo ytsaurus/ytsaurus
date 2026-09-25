@@ -1,4 +1,5 @@
 #include "flow_executor.h"
+#include "flow_executor_runtime.h"
 
 #include "private.h"
 
@@ -18,7 +19,6 @@
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computation.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computations.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_partition.h>
-#include <yt/yt/flow/library/cpp/controller/describe/describe_pipeline.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_worker.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_workers.h>
 
@@ -43,6 +43,8 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -64,6 +66,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(IFlowExecutor);
+DEFINE_REFCOUNTED_TYPE(IFlowExecutorRuntime);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,11 +75,387 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFlowExecutor
+struct TGetCommandRequiredPermissionArg
+    : public TYsonStructLite
+{
+    std::string Command;
+
+    REGISTER_YSON_STRUCT_LITE(TGetCommandRequiredPermissionArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("command", &TThis::Command);
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+    }
+};
+
+struct TEmptyArg
+    : public TYsonStructLite
+{
+    REGISTER_YSON_STRUCT_LITE(TEmptyArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+    }
+};
+
+struct TDescribePipelineArg
+    : public TYsonStructLite
+{
+    bool StatusOnly = false;
+
+    REGISTER_YSON_STRUCT_LITE(TDescribePipelineArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+        registrar.Parameter("status_only", &TThis::StatusOnly)
+            .Default(NDescribe::TDescribePipelineArguments().StatusOnly);
+    }
+};
+
+struct TDescribeComputationArg
+    : public TYsonStructLite
+{
+    TComputationId ComputationId;
+
+    REGISTER_YSON_STRUCT_LITE(TDescribeComputationArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+        registrar.Parameter("computation_id", &TThis::ComputationId);
+    }
+};
+
+struct TDescribePartitionArg
+    : public TYsonStructLite
+{
+    TPartitionId PartitionId;
+    TDuration OrchidTimeout;
+
+    REGISTER_YSON_STRUCT_LITE(TDescribePartitionArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+        registrar.Parameter("partition_id", &TThis::PartitionId);
+        registrar.Parameter("orchid_timeout", &TThis::OrchidTimeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+struct TDescribeWorkerArg
+    : public TYsonStructLite
+{
+    std::string Worker;
+
+    REGISTER_YSON_STRUCT_LITE(TDescribeWorkerArg);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
+        registrar.Parameter("worker", &TThis::Worker)
+            .Default();
+    }
+};
+
+class TFlowExecutor
     : public IFlowExecutor
 {
 public:
-    TFlowExecutor(
+    explicit TFlowExecutor(IFlowExecutorRuntimePtr runtime);
+
+    TYsonString Execute(
+        const std::string& command,
+        const TYsonString& argument,
+        const std::string& user) override;
+
+    void AuthorizeCommand(
+        const std::string& command,
+        const std::string& user) override;
+
+    TGetFlowViewResult GetFlowView(const TGetFlowViewArg& argument) override;
+    TGetPipelineDynamicSpecResult GetPipelineDynamicSpec(const TGetPipelineDynamicSpecArg& argument) override;
+    TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) override;
+    TGetPipelineSpecResult GetPipelineSpec(const TGetPipelineSpecArg& argument) override;
+    TSetPipelineSpecResult SetPipelineSpec(const TSetPipelineSpecArg& argument) override;
+    TSetPipelineSpecsResult SetPipelineSpecs(const TSetPipelineSpecsArg& argument) override;
+    TGetPipelineStateResult GetPipelineState(const TGetPipelineStateArg& argument) override;
+    TSetTargetPipelineStateResult SetTargetPipelineState(const TSetTargetPipelineStateArg& argument) override;
+    TGetFlowCoreTargetResult GetFlowCoreTarget(const TGetFlowCoreTargetArg& argument) override;
+    TSetFlowCoreTargetResult SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument) override;
+
+private:
+    using TExecuteHandler = std::function<TYsonString(const TYsonString& argument)>;
+
+    struct TCommandDescriptor
+    {
+        TExecuteHandler Handler;
+        EPermission RequiredPermission = EPermission::Write;
+    };
+
+    const IFlowExecutorRuntimePtr Runtime_;
+    THashMap<std::string, TCommandDescriptor> CommandDescriptors_;
+    std::vector<std::string> Commands_;
+
+    void RegisterCommand(
+        std::string command,
+        EPermission requiredPermission,
+        TExecuteHandler handler);
+
+    EPermission GetCommandRequiredPermission(const std::string& command) const;
+    [[noreturn]] void ThrowCommandNotFound(const std::string& command) const;
+};
+
+TFlowExecutor::TFlowExecutor(IFlowExecutorRuntimePtr runtime)
+    : Runtime_(std::move(runtime))
+{
+    YT_VERIFY(Runtime_);
+
+    RegisterCommand("list", EPermission::Read, [this] (const auto&) {
+        return ConvertToYsonString(Commands_);
+    });
+    RegisterCommand("get-command-required-permission", EPermission::Read, [this] (const auto& argument) {
+        auto parsedArgument = ConvertTo<TGetCommandRequiredPermissionArg>(argument);
+        return BuildYsonStringFluently()
+            .BeginMap()
+            .Item("permission")
+            .Value(GetCommandRequiredPermission(parsedArgument.Command))
+            .EndMap();
+    });
+    RegisterCommand("get-flow-view", EPermission::Read, [this] (const auto& argument) {
+        return GetFlowView(ConvertTo<TGetFlowViewArg>(argument));
+    });
+    RegisterCommand("get-flow-view-v2", EPermission::Read, [this] (const auto& argument) {
+        return ConvertToYsonString(Runtime_->GetFlowViewV2(ConvertTo<TGetFlowViewV2Arg>(argument)));
+    });
+    RegisterCommand("get-pipeline-spec", EPermission::Read, [this] (const auto& argument) {
+        return ConvertToYsonString(GetPipelineSpec(ConvertTo<TGetPipelineSpecArg>(argument)));
+    });
+    RegisterCommand("set-pipeline-spec", EPermission::Write, [this] (const auto& argument) {
+        return ConvertToYsonString(SetPipelineSpec(ConvertTo<TSetPipelineSpecArg>(argument)));
+    });
+    RegisterCommand("get-pipeline-dynamic-spec", EPermission::Read, [this] (const auto& argument) {
+        return ConvertToYsonString(GetPipelineDynamicSpec(ConvertTo<TGetPipelineDynamicSpecArg>(argument)));
+    });
+    RegisterCommand("set-pipeline-dynamic-spec", EPermission::Write, [this] (const auto& argument) {
+        return ConvertToYsonString(SetPipelineDynamicSpec(ConvertTo<TSetPipelineDynamicSpecArg>(argument)));
+    });
+    RegisterCommand("set-pipeline-specs", EPermission::Write, [this] (const auto& argument) {
+        return ConvertToYsonString(SetPipelineSpecs(ConvertTo<TSetPipelineSpecsArg>(argument)));
+    });
+    RegisterCommand("get-pipeline-state", EPermission::Read, [this] (const auto& argument) {
+        return ConvertToYsonString(GetPipelineState(ConvertTo<TGetPipelineStateArg>(argument)));
+    });
+    RegisterCommand("set-target-pipeline-state", EPermission::Write, [this] (const auto& argument) {
+        return ConvertToYsonString(SetTargetPipelineState(ConvertTo<TSetTargetPipelineStateArg>(argument)));
+    });
+    RegisterCommand("describe-pipeline", EPermission::Read, [this] (const auto& argument) {
+        auto parsedArgument = ConvertTo<TDescribePipelineArg>(argument);
+        return ConvertToYsonString(NDescribe::DescribePipeline(
+            Runtime_->MakeDescribePipelineArguments(parsedArgument.StatusOnly)));
+    });
+    RegisterCommand("describe-computation", EPermission::Read, [this] (const auto& argument) {
+        auto parsedArgument = ConvertTo<TDescribeComputationArg>(argument);
+        return ConvertToYsonString(NDescribe::DescribeComputation(
+            Runtime_->GetDescribeFlowView(),
+            parsedArgument.ComputationId,
+            Runtime_->GetDescribeControllerErrors()));
+    });
+    RegisterCommand("describe-computations", EPermission::Read, [this] (const auto& argument) {
+        ConvertTo<TEmptyArg>(argument);
+        return ConvertToYsonString(NDescribe::DescribeComputations(
+            Runtime_->GetDescribeFlowView(),
+            Runtime_->GetDescribeControllerErrors()));
+    });
+    RegisterCommand("describe-partition", EPermission::Read, [this] (const auto& argument) {
+        auto parsedArgument = ConvertTo<TDescribePartitionArg>(argument);
+        auto jobOrchid = Runtime_->GetDescribeJobOrchid(
+            parsedArgument.PartitionId,
+            parsedArgument.OrchidTimeout);
+        return ConvertToYsonString(NDescribe::DescribePartition(
+            Runtime_->GetDescribeFlowView(),
+            parsedArgument.PartitionId,
+            jobOrchid));
+    });
+    RegisterCommand("describe-worker", EPermission::Read, [this] (const auto& argument) {
+        auto parsedArgument = ConvertTo<TDescribeWorkerArg>(argument);
+        return ConvertToYsonString(NDescribe::DescribeWorker(
+            Runtime_->GetDescribeFlowView(),
+            parsedArgument.Worker,
+            Runtime_->GetDescribeDeployStageUrl()));
+    });
+    RegisterCommand("describe-workers", EPermission::Read, [this] (const auto& argument) {
+        ConvertTo<TEmptyArg>(argument);
+        return ConvertToYsonString(NDescribe::DescribeWorkers(Runtime_->GetDescribeFlowView()));
+    });
+    RegisterCommand("get-worker-orchid", EPermission::Read, [this] (const auto& argument) {
+        return Runtime_->GetWorkerOrchid(argument);
+    });
+    RegisterCommand("get-controller-orchid", EPermission::Read, [this] (const auto& argument) {
+        return Runtime_->GetControllerOrchid(argument);
+    });
+    RegisterCommand("kill-worker", EPermission::Write, [this] (const auto& argument) {
+        return Runtime_->KillWorker(argument);
+    });
+    RegisterCommand("update-worker", EPermission::Write, [this] (const auto& argument) {
+        return Runtime_->UpdateWorker(argument);
+    });
+    RegisterCommand("get-worker-backtraces", EPermission::Read, [this] (const auto& argument) {
+        return Runtime_->GetWorkerBacktraces(argument);
+    });
+    RegisterCommand("read-states", EPermission::Read, [this] (const auto& argument) {
+        return Runtime_->ReadStates(argument);
+    });
+    RegisterCommand("delete-states", EPermission::Write, [this] (const auto& argument) {
+        return Runtime_->DeleteStates(argument);
+    });
+    RegisterCommand("get-flow-core-target", EPermission::Read, [this] (const auto& argument) {
+        return ConvertToYsonString(GetFlowCoreTarget(ConvertTo<TGetFlowCoreTargetArg>(argument)));
+    });
+    RegisterCommand("set-flow-core-target", EPermission::Write, [this] (const auto& argument) {
+        return ConvertToYsonString(SetFlowCoreTarget(ConvertTo<TSetFlowCoreTargetArg>(argument)));
+    });
+}
+
+TYsonString TFlowExecutor::Execute(
+    const std::string& command,
+    const TYsonString& argument,
+    const std::string& user)
+{
+    return Runtime_->RunCommand(command, argument, user, [&] {
+        if (auto it = CommandDescriptors_.find(command); it != CommandDescriptors_.end()) {
+            return it->second.Handler(argument);
+        }
+        ThrowCommandNotFound(command);
+    });
+}
+
+void TFlowExecutor::AuthorizeCommand(
+    const std::string& command,
+    const std::string& user)
+{
+    auto descriptor = GetOrDefault(CommandDescriptors_, command);
+    if (!descriptor.Handler) {
+        ThrowCommandNotFound(command);
+    }
+    Runtime_->AuthorizeCommand(descriptor.RequiredPermission, user);
+}
+
+TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
+{
+    return Runtime_->GetFlowView(argument);
+}
+
+TGetPipelineDynamicSpecResult TFlowExecutor::GetPipelineDynamicSpec(
+    const TGetPipelineDynamicSpecArg& argument)
+{
+    auto versionedSpec = Runtime_->GetPipelineDynamicSpec();
+    auto specNode = ConvertToNode(versionedSpec->GetValue());
+    TGetPipelineDynamicSpecResult result;
+    result.Spec = GetNodeByYPath(specNode, TYPath(argument.Path));
+    result.Version = versionedSpec->GetVersion();
+    return result;
+}
+
+TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+{
+    return Runtime_->SetPipelineDynamicSpec(argument);
+}
+
+TGetPipelineSpecResult TFlowExecutor::GetPipelineSpec(const TGetPipelineSpecArg& argument)
+{
+    auto versionedSpec = Runtime_->GetPipelineSpec();
+    auto specNode = ConvertToNode(versionedSpec->GetValue());
+    TGetPipelineSpecResult result;
+    result.Spec = GetNodeByYPath(specNode, TYPath(argument.Path));
+    result.Version = versionedSpec->GetVersion();
+    return result;
+}
+
+TSetPipelineSpecResult TFlowExecutor::SetPipelineSpec(const TSetPipelineSpecArg& argument)
+{
+    return Runtime_->SetPipelineSpec(argument);
+}
+
+TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsArg& argument)
+{
+    return Runtime_->SetPipelineSpecs(argument);
+}
+
+TGetPipelineStateResult TFlowExecutor::GetPipelineState(const TGetPipelineStateArg& /*argument*/)
+{
+    auto flowView = Runtime_->GetDescribeFlowView();
+    TGetPipelineStateResult result;
+    result.PipelineState = flowView->IsSynced()
+        ? flowView->State->ExecutionSpec->PipelineState->GetValue()
+        : EPipelineState::Unknown;
+    return result;
+}
+
+TSetTargetPipelineStateResult TFlowExecutor::SetTargetPipelineState(const TSetTargetPipelineStateArg& argument)
+{
+    return Runtime_->SetTargetPipelineState(argument);
+}
+
+TGetFlowCoreTargetResult TFlowExecutor::GetFlowCoreTarget(const TGetFlowCoreTargetArg& /*argument*/)
+{
+    auto versionedTarget = Runtime_->GetFlowCoreTarget();
+    TGetFlowCoreTargetResult result;
+    result.FlowCoreTarget = versionedTarget->GetValue();
+    result.Version = versionedTarget->GetVersion();
+    return result;
+}
+
+TSetFlowCoreTargetResult TFlowExecutor::SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument)
+{
+    return Runtime_->SetFlowCoreTarget(argument);
+}
+
+void TFlowExecutor::RegisterCommand(
+    std::string command,
+    EPermission requiredPermission,
+    TExecuteHandler handler)
+{
+    auto inserted = CommandDescriptors_.emplace(
+        command,
+        TCommandDescriptor{
+            .Handler = std::move(handler),
+            .RequiredPermission = requiredPermission,
+        })
+        .second;
+    YT_VERIFY(inserted);
+    Commands_.push_back(std::move(command));
+}
+
+EPermission TFlowExecutor::GetCommandRequiredPermission(const std::string& command) const
+{
+    if (auto it = CommandDescriptors_.find(command); it != CommandDescriptors_.end()) {
+        return it->second.RequiredPermission;
+    }
+    THROW_ERROR_EXCEPTION(
+        "No such command: %v. Cannot get required permission for unknown command. Possible commands: %v",
+        command,
+        ConvertToYsonString(Commands_, EYsonFormat::Text));
+}
+
+void TFlowExecutor::ThrowCommandNotFound(const std::string& command) const
+{
+    THROW_ERROR_EXCEPTION(
+        "No such command: %v, possible commands: %v",
+        command,
+        ConvertToYsonString(Commands_, EYsonFormat::Text));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLiveFlowExecutorRuntime
+    : public IFlowExecutorRuntime
+{
+public:
+    TLiveFlowExecutorRuntime(
         IControllerPtr controller,
         IPersistedStateManagerPtr persistedStateManager,
         IYTConnectorPtr ytConnector,
@@ -88,22 +467,14 @@ public:
         NRpc::IChannelFactoryPtr channelFactory,
         IPipelineAuthenticatorPtr authenticator);
 
-    TYsonString Execute(const std::string& command, const TYsonString& argument, const std::string& user) override;
-    void AuthorizeCommand(const std::string& command, const std::string& user) override;
+    TYsonString RunCommand(
+        const std::string& command,
+        const TYsonString& argument,
+        const std::string& user,
+        const TCommandHandler& handler) override;
 
 protected:
     TLogger Logger;
-
-private:
-    using TExecuteHandler = TYsonString (TFlowExecutor::*)(const std::string& command, const TYsonString& argument);
-
-private:
-    struct TCommandDescriptor
-    {
-        std::string Command;
-        TExecuteHandler Handler;
-        EPermission RequiredPermission = EPermission::Write;
-    };
 
 private:
     const IControllerPtr Controller_;
@@ -120,80 +491,55 @@ private:
     const NTables::IKeyStatesPtr KeyStates_;
     const NTables::IPartitionStatesPtr PartitionStates_;
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    THashMap<std::string, TCommandDescriptor> CommandDescriptors_;
-    std::vector<std::string> CommandList_;
     const IInvokerPtr PoolInvoker_;
 
 private:
-    //! General FlowExecute commands.
     TGetFlowViewResult GetFlowView(const TGetFlowViewArg& argument) override;
-    TYsonString GetFlowView(const std::string& command, const TYsonString& argument);
 
     //! Like get-flow-view but returns a compressed payload (TCompressedFlowViewResult); the codec comes
     //! from the dynamic spec. The full cached view is served from the keeper's pre-compressed blob.
-    TGetFlowViewResult GetFlowViewV2(const TGetFlowViewV2Arg& argument);
-    TYsonString GetFlowViewV2(const std::string& command, const TYsonString& argument);
+    TGetFlowViewV2Result GetFlowViewV2(const TGetFlowViewV2Arg& argument) override;
 
-    TGetPipelineDynamicSpecResult GetPipelineDynamicSpec(const TGetPipelineDynamicSpecArg& argument) override;
-    TYsonString GetPipelineDynamicSpec(const std::string& command, const TYsonString& argument);
+    TVersionedPipelineSpecPtr GetPipelineSpec() override;
+    TVersionedDynamicPipelineSpecPtr GetPipelineDynamicSpec() override;
+    TVersionedFlowCoreTargetPtr GetFlowCoreTarget() override;
 
     TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) override;
     //! One attempt of #SetPipelineDynamicSpec, without the conflict retries.
     TSetPipelineDynamicSpecResult DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument);
-    TYsonString SetPipelineDynamicSpec(const std::string& command, const TYsonString& argument);
-
-    TGetPipelineSpecResult GetPipelineSpec(const TGetPipelineSpecArg& argument) override;
-    TYsonString GetPipelineSpec(const std::string& command, const TYsonString& argument);
 
     TSetPipelineSpecResult SetPipelineSpec(const TSetPipelineSpecArg& argument) override;
-    TYsonString SetPipelineSpec(const std::string& command, const TYsonString& argument);
 
     TSetPipelineSpecsResult SetPipelineSpecs(const TSetPipelineSpecsArg& argument) override;
-    TYsonString SetPipelineSpecs(const std::string& command, const TYsonString& argument);
-
-    TGetPipelineStateResult GetPipelineState(const TGetPipelineStateArg& argument) override;
-    TYsonString GetPipelineState(const std::string& command, const TYsonString& argument);
 
     TSetTargetPipelineStateResult SetTargetPipelineState(const TSetTargetPipelineStateArg& argument) override;
-    TYsonString SetTargetPipelineState(const std::string& command, const TYsonString& argument);
-
-    TGetFlowCoreTargetResult GetFlowCoreTarget(const TGetFlowCoreTargetArg& argument) override;
-    TYsonString GetFlowCoreTarget(const std::string& command, const TYsonString& argument);
 
     TSetFlowCoreTargetResult SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument) override;
-    TYsonString SetFlowCoreTarget(const std::string& command, const TYsonString& argument);
-
-    TYsonString DescribePipeline(const std::string& command, const TYsonString& argument);
-    TYsonString DescribeComputation(const std::string& command, const TYsonString& argument);
-    TYsonString DescribeComputations(const std::string& command, const TYsonString& argument);
-    TYsonString DescribePartition(const std::string& command, const TYsonString& argument);
-    TYsonString DescribeWorker(const std::string& command, const TYsonString& argument);
-    TYsonString DescribeWorkers(const std::string& command, const TYsonString& argument);
+    TFlowViewPtr GetDescribeFlowView() override;
+    THashMap<std::string, TError> GetDescribeControllerErrors() override;
+    NDescribe::TDescribePipelineArguments MakeDescribePipelineArguments(bool statusOnly) override;
+    TErrorOr<TYsonString> GetDescribeJobOrchid(
+        const TPartitionId& partitionId,
+        TDuration timeout) override;
+    std::string GetDescribeDeployStageUrl() override;
     TFuture<TYsonString> RequestWorkerOrchid(const std::string& worker, const std::string& path);
-    TYsonString GetWorkerOrchid(const std::string& command, const TYsonString& argument);
-    TYsonString GetControllerOrchid(const std::string& command, const TYsonString& argument);
-    TYsonString KillWorker(const std::string& command, const TYsonString& argument);
-    TYsonString UpdateWorker(const std::string& command, const TYsonString& argument);
-    TYsonString GetWorkerBacktraces(const std::string& command, const TYsonString& argument);
+    TYsonString GetWorkerOrchid(const TYsonString& argument) override;
+    TYsonString GetControllerOrchid(const TYsonString& argument) override;
+    TYsonString KillWorker(const TYsonString& argument) override;
+    TYsonString UpdateWorker(const TYsonString& argument) override;
+    TYsonString GetWorkerBacktraces(const TYsonString& argument) override;
 
-    TYsonString ReadStates(const std::string& command, const TYsonString& argument);
+    TYsonString ReadStates(const TYsonString& argument) override;
 
-    TYsonString DeleteStates(const std::string& command, const TYsonString& argument);
+    TYsonString DeleteStates(const TYsonString& argument) override;
 
 
-    //! List all possible FlowExecute commands.
-    TYsonString List(const std::string& command, const TYsonString& argument);
-
-    //! Get required permission for executing the command.
-    TYsonString GetCommandRequiredPermission(const std::string& command, const TYsonString& argument);
-
-    //! Throw an exception in case that the command was not found.
-    TYsonString CommandNotFound(const std::string& command, const TYsonString& argument);
+    void AuthorizeCommand(EPermission permission, const std::string& user) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
+TGetFlowViewResult TLiveFlowExecutorRuntime::GetFlowView(const TGetFlowViewArg& argument)
 {
     if (argument.Path.empty()) {
         return Controller_->GetFlowViewKeeper()->GetYsonString(argument.Cache);
@@ -201,12 +547,7 @@ TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
     return Controller_->GetFlowViewKeeper()->GetYsonStringByPath(TYPath(argument.Path), argument.Cache);
 }
 
-TYsonString TFlowExecutor::GetFlowView(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return GetFlowView(ConvertTo<TGetFlowViewArg>(serializedArgument));
-}
-
-TGetFlowViewResult TFlowExecutor::GetFlowViewV2(const TGetFlowViewV2Arg& argument)
+TGetFlowViewV2Result TLiveFlowExecutorRuntime::GetFlowViewV2(const TGetFlowViewV2Arg& argument)
 {
     auto keeper = Controller_->GetFlowViewKeeper();
     // The common full-view case is served straight from the keeper's pre-compressed cache; a sub-path or a
@@ -217,12 +558,7 @@ TGetFlowViewResult TFlowExecutor::GetFlowViewV2(const TGetFlowViewV2Arg& argumen
     TGetFlowViewV2Result result;
     result.Codec = compressed.Codec;
     result.Data = std::string(compressed.Data.Begin(), compressed.Data.Size());
-    return ConvertToYsonString(result);
-}
-
-TYsonString TFlowExecutor::GetFlowViewV2(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return GetFlowViewV2(ConvertTo<TGetFlowViewV2Arg>(serializedArgument));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,24 +580,14 @@ TDuration GetSpecUpdateRetryDelay(TDuration period, int attempt)
     return backoff / 2 + TDuration::MicroSeconds(RandomNumber<ui64>(backoff.MicroSeconds() + 1));
 }
 
-TGetPipelineDynamicSpecResult TFlowExecutor::GetPipelineDynamicSpec(const TGetPipelineDynamicSpecArg& argument)
+TVersionedDynamicPipelineSpecPtr TLiveFlowExecutorRuntime::GetPipelineDynamicSpec()
 {
-    auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
-    auto specNode = ConvertToNode(versionedSpec->GetValue());
-    TGetPipelineDynamicSpecResult result;
-    result.Spec = NYTree::GetNodeByYPath(specNode, TYPath(argument.Path));
-    result.Version = versionedSpec->GetVersion();
-    return result;
-}
-
-TYsonString TFlowExecutor::GetPipelineDynamicSpec(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(GetPipelineDynamicSpec(ConvertTo<TGetPipelineDynamicSpecArg>(serializedArgument)));
+    return PersistedStateManager_->RecoverDynamicSpec();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
 {
     THROW_ERROR_EXCEPTION_UNLESS(argument.Spec, "Spec must be specified");
 
@@ -285,7 +611,7 @@ TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPi
     }
 }
 
-TSetPipelineDynamicSpecResult TFlowExecutor::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+TSetPipelineDynamicSpecResult TLiveFlowExecutorRuntime::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
 {
     auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
     const auto originalVersion = versionedSpec->GetVersion();
@@ -311,26 +637,9 @@ TSetPipelineDynamicSpecResult TFlowExecutor::DoSetPipelineDynamicSpec(const TSet
     return result;
 }
 
-TYsonString TFlowExecutor::SetPipelineDynamicSpec(const std::string& /*command*/, const TYsonString& serializedArgument)
+TVersionedPipelineSpecPtr TLiveFlowExecutorRuntime::GetPipelineSpec()
 {
-    return ConvertToYsonString(SetPipelineDynamicSpec(ConvertTo<TSetPipelineDynamicSpecArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TGetPipelineSpecResult TFlowExecutor::GetPipelineSpec(const TGetPipelineSpecArg& argument)
-{
-    auto versionedSpec = PersistedStateManager_->RecoverSpec();
-    auto specNode = ConvertToNode(versionedSpec->GetValue());
-    TGetPipelineSpecResult result;
-    result.Spec = NYTree::GetNodeByYPath(specNode, TYPath(argument.Path));
-    result.Version = versionedSpec->GetVersion();
-    return result;
-}
-
-TYsonString TFlowExecutor::GetPipelineSpec(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(GetPipelineSpec(ConvertTo<TGetPipelineSpecArg>(serializedArgument)));
+    return PersistedStateManager_->RecoverSpec();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,7 +702,7 @@ void CheckPipelineSafeForStateMutation(
             : "");
 }
 
-TSetPipelineSpecResult TFlowExecutor::SetPipelineSpec(const TSetPipelineSpecArg& argument)
+TSetPipelineSpecResult TLiveFlowExecutorRuntime::SetPipelineSpec(const TSetPipelineSpecArg& argument)
 {
     // Delegate to SetPipelineSpecs.
     TSetPipelineSpecsArg specsArg;
@@ -411,14 +720,7 @@ TSetPipelineSpecResult TFlowExecutor::SetPipelineSpec(const TSetPipelineSpecArg&
     return result;
 }
 
-TYsonString TFlowExecutor::SetPipelineSpec(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(SetPipelineSpec(ConvertTo<TSetPipelineSpecArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsArg& argument)
+TSetPipelineSpecsResult TLiveFlowExecutorRuntime::SetPipelineSpecs(const TSetPipelineSpecsArg& argument)
 {
     // At least one spec must be specified.
     THROW_ERROR_EXCEPTION_UNLESS(argument.Spec || argument.DynamicSpec,
@@ -539,33 +841,7 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
     return result;
 }
 
-TYsonString TFlowExecutor::SetPipelineSpecs(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(SetPipelineSpecs(ConvertTo<TSetPipelineSpecsArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TGetPipelineStateResult TFlowExecutor::GetPipelineState(const TGetPipelineStateArg& /*argument*/)
-{
-    auto flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
-    TGetPipelineStateResult result;
-    if (flowView->IsSynced()) {
-        result.PipelineState = flowView->State->ExecutionSpec->PipelineState->GetValue();
-    } else {
-        result.PipelineState = EPipelineState::Unknown;
-    }
-    return result;
-}
-
-TYsonString TFlowExecutor::GetPipelineState(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(GetPipelineState(ConvertTo<TGetPipelineStateArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSetTargetPipelineStateResult TFlowExecutor::SetTargetPipelineState(const TSetTargetPipelineStateArg& argument)
+TSetTargetPipelineStateResult TLiveFlowExecutorRuntime::SetTargetPipelineState(const TSetTargetPipelineStateArg& argument)
 {
     // TODO(pechatnov): Move it closer to EPipelineState definition.
     constexpr auto isTargetPipelineState = [] (EPipelineState state) {
@@ -621,30 +897,14 @@ TSetTargetPipelineStateResult TFlowExecutor::SetTargetPipelineState(const TSetTa
     return {};
 }
 
-TYsonString TFlowExecutor::SetTargetPipelineState(const std::string& /*command*/, const TYsonString& serializedArgument)
+TVersionedFlowCoreTargetPtr TLiveFlowExecutorRuntime::GetFlowCoreTarget()
 {
-    return ConvertToYsonString(SetTargetPipelineState(ConvertTo<TSetTargetPipelineStateArg>(serializedArgument)));
+    return PersistedStateManager_->RecoverFlowCoreTarget();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetFlowCoreTargetResult TFlowExecutor::GetFlowCoreTarget(const TGetFlowCoreTargetArg& /*argument*/)
-{
-    auto versionedTarget = PersistedStateManager_->RecoverFlowCoreTarget();
-    TGetFlowCoreTargetResult result;
-    result.FlowCoreTarget = versionedTarget->GetValue();
-    result.Version = versionedTarget->GetVersion();
-    return result;
-}
-
-TYsonString TFlowExecutor::GetFlowCoreTarget(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    return ConvertToYsonString(GetFlowCoreTarget(ConvertTo<TGetFlowCoreTargetArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSetFlowCoreTargetResult TFlowExecutor::SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument)
+TSetFlowCoreTargetResult TLiveFlowExecutorRuntime::SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument)
 {
     auto flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
     flowView->EnsureIsSynced();
@@ -701,52 +961,15 @@ TSetFlowCoreTargetResult TFlowExecutor::SetFlowCoreTarget(const TSetFlowCoreTarg
     return result;
 }
 
-TYsonString TFlowExecutor::SetFlowCoreTarget(const std::string& /*command*/, const TYsonString& serializedArgument)
+NDescribe::TDescribePipelineArguments TLiveFlowExecutorRuntime::MakeDescribePipelineArguments(bool statusOnly)
 {
-    return ConvertToYsonString(SetFlowCoreTarget(ConvertTo<TSetFlowCoreTargetArg>(serializedArgument)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TEmptyArg
-    : public TYsonStructLite
-{
-    REGISTER_YSON_STRUCT_LITE(TEmptyArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDescribePipelineArg
-    : public TYsonStructLite
-{
-    bool StatusOnly = false;
-
-    REGISTER_YSON_STRUCT_LITE(TDescribePipelineArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-
-        registrar.Parameter("status_only", &TThis::StatusOnly)
-            .Default(NDescribe::TDescribePipelineArguments().StatusOnly);
-    }
-};
-
-TYsonString TFlowExecutor::DescribePipeline(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TDescribePipelineArg>(serializedArgument);
     auto controllerErrors = RootStatusProfiler_->GetStatus().Errors;
 
     TFlowViewPtr flowView;
     try {
         flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
     } catch (const TErrorException& ex) {
-        if (!argument.StatusOnly) {
+        if (!statusOnly) {
             throw;
         }
         controllerErrors["flow_view_keeper"] = TError(ex);
@@ -756,143 +979,64 @@ TYsonString TFlowExecutor::DescribePipeline(const std::string& /*command*/, cons
     // and is warmed at controller startup; it is ready by the time describe runs.
     auto flowTablesBundle = WaitFor(YTConnector_->GetFlowTablesBundle()).ValueOrThrow();
 
-    auto description = NDescribe::DescribePipeline(
-        {
-            .FlowView = flowView,
-            .ControllerErrors = controllerErrors,
-            .Logger = ControllerLogger(),
-            .Authenticator = Authenticator_,
-            .StatusOnly = argument.StatusOnly,
-            .ControllerFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion,
-            .ControllerBuildType = Controller_->GetNodeInfo()->BuildType,
-            .FlowTablesBundle = std::move(flowTablesBundle),
-            .DeployStageUrl = GetDeployStageUrl(),
-        });
-    return ConvertToYsonString(description);
+    return {
+        .FlowView = flowView,
+        .ControllerErrors = controllerErrors,
+        .Logger = ControllerLogger(),
+        .Authenticator = Authenticator_,
+        .StatusOnly = statusOnly,
+        .ControllerFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion,
+        .ControllerBuildInfo = GetFlowCoreBuildInfo(),
+        .ControllerBuildType = Controller_->GetNodeInfo()->BuildType,
+        .FlowTablesBundle = std::move(flowTablesBundle),
+        .DeployStageUrl = GetDeployStageUrl(),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDescribeComputationArg
-    : public TYsonStructLite
+TErrorOr<TYsonString> TLiveFlowExecutorRuntime::GetDescribeJobOrchid(
+    const TPartitionId& partitionId,
+    TDuration timeout)
 {
-    TComputationId ComputationId;
-
-    REGISTER_YSON_STRUCT_LITE(TDescribeComputationArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-
-        registrar.Parameter("computation_id", &TThis::ComputationId);
-    }
-};
-
-TYsonString TFlowExecutor::DescribeComputation(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TDescribeComputationArg>(serializedArgument);
-    auto descr = NDescribe::DescribeComputation(
-        Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.ComputationId,
-        RootStatusProfiler_->GetStatus().Errors);
-    return ConvertToYsonString(descr);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonString TFlowExecutor::DescribeComputations(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TEmptyArg>(serializedArgument);
-    return ConvertToYsonString(NDescribe::DescribeComputations(
-        Controller_->GetFlowViewKeeper()->GetFlowView(),
-        RootStatusProfiler_->GetStatus().Errors));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDescribePartitionArg
-    : public TYsonStructLite
-{
-    TPartitionId PartitionId;
-    TDuration OrchidTimeout;
-
-    REGISTER_YSON_STRUCT_LITE(TDescribePartitionArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-
-        registrar.Parameter("partition_id", &TThis::PartitionId);
-        registrar.Parameter("orchid_timeout", &TThis::OrchidTimeout)
-            .Default(TDuration::Seconds(5));
-    }
-};
-
-TYsonString TFlowExecutor::DescribePartition(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TDescribePartitionArg>(serializedArgument);
-
     TErrorOr<TYsonString> jobOrchid;
     try {
         auto partitionCodicilGuard = TErrorCodicils::MakeGuard("partition_id", [&] {
-            return ToString(argument.PartitionId);
+            return ToString(partitionId);
         });
 
         auto flowView = Controller_->GetFlowViewKeeper()->GetFlowView();
         const auto& layout = flowView->State->ExecutionSpec->Layout;
-        auto partitionIt = layout->Partitions.find(argument.PartitionId);
-        THROW_ERROR_EXCEPTION_IF(partitionIt == layout->Partitions.end(), "Partition %Qv not found", argument.PartitionId);
+        auto partitionIt = layout->Partitions.find(partitionId);
+        THROW_ERROR_EXCEPTION_IF(partitionIt == layout->Partitions.end(), "Partition %Qv not found", partitionId);
         auto jobId = partitionIt->second->CurrentJobId;
-        THROW_ERROR_EXCEPTION_UNLESS(jobId.has_value(), "Partition %Qv has no job", argument.PartitionId);
+        THROW_ERROR_EXCEPTION_UNLESS(jobId.has_value(), "Partition %Qv has no job", partitionId);
         auto jobIt = layout->Jobs.find(*jobId);
         THROW_ERROR_EXCEPTION_IF(jobIt == layout->Jobs.end(), "Job %Qv not found", *jobId);
         auto workerAddress = jobIt->second->WorkerAddress;
 
         auto req = RequestWorkerOrchid(workerAddress, Format("/job_tracker/jobs/%v", *jobId));
-        jobOrchid = WaitFor(req.WithTimeout(argument.OrchidTimeout)).ValueOrThrow();
+        jobOrchid = WaitFor(req.WithTimeout(timeout)).ValueOrThrow();
     } catch (const std::exception& e) {
         jobOrchid = TError(e);
     }
 
-    return ConvertToYsonString(NDescribe::DescribePartition(
-        Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.PartitionId,
-        jobOrchid));
+    return jobOrchid;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDescribeWorkerArg
-    : public TYsonStructLite
+TFlowViewPtr TLiveFlowExecutorRuntime::GetDescribeFlowView()
 {
-    std::string Worker;
-
-    REGISTER_YSON_STRUCT_LITE(TDescribeWorkerArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-
-        registrar.Parameter("worker", &TThis::Worker)
-            .Default();
-    }
-};
-
-TYsonString TFlowExecutor::DescribeWorker(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TDescribeWorkerArg>(serializedArgument);
-    return ConvertToYsonString(NDescribe::DescribeWorker(
-        Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.Worker,
-        GetDeployStageUrl()));
+    return Controller_->GetFlowViewKeeper()->GetFlowView();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonString TFlowExecutor::DescribeWorkers(const std::string& /*command*/, const TYsonString& serializedArgument)
+THashMap<std::string, TError> TLiveFlowExecutorRuntime::GetDescribeControllerErrors()
 {
-    auto argument = ConvertTo<TEmptyArg>(serializedArgument);
-    return ConvertToYsonString(NDescribe::DescribeWorkers(Controller_->GetFlowViewKeeper()->GetFlowView()));
+    return RootStatusProfiler_->GetStatus().Errors;
+}
+
+std::string TLiveFlowExecutorRuntime::GetDescribeDeployStageUrl()
+{
+    return GetDeployStageUrl();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -914,7 +1058,7 @@ struct TGetWorkerOrchidArg
     }
 };
 
-TFuture<TYsonString> TFlowExecutor::RequestWorkerOrchid(const std::string& worker, const std::string& path)
+TFuture<TYsonString> TLiveFlowExecutorRuntime::RequestWorkerOrchid(const std::string& worker, const std::string& path)
 {
     auto workerCodicilGuard = TErrorCodicils::MakeGuard("worker", [&] {
         return worker;
@@ -935,7 +1079,7 @@ TFuture<TYsonString> TFlowExecutor::RequestWorkerOrchid(const std::string& worke
         }));
 }
 
-TYsonString TFlowExecutor::GetWorkerOrchid(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::GetWorkerOrchid(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TGetWorkerOrchidArg>(serializedArgument);
     // clang-format off
@@ -948,7 +1092,7 @@ TYsonString TFlowExecutor::GetWorkerOrchid(const std::string& /*command*/, const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString TFlowExecutor::GetControllerOrchid(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::GetControllerOrchid(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TGetControllerOrchidArg>(serializedArgument);
     // Virtual node can not be reached with trivial call of GetNodeByYPath. So use node as IYPathService.
@@ -983,7 +1127,7 @@ struct TKillWorkerArg
     }
 };
 
-TYsonString TFlowExecutor::KillWorker(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::KillWorker(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TKillWorkerArg>(serializedArgument);
 
@@ -1035,7 +1179,7 @@ struct TUpdateWorkerArg
     }
 };
 
-TYsonString TFlowExecutor::UpdateWorker(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::UpdateWorker(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TUpdateWorkerArg>(serializedArgument);
 
@@ -1066,7 +1210,7 @@ struct TGetWorkerBacktracesArg
     }
 };
 
-TYsonString TFlowExecutor::GetWorkerBacktraces(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::GetWorkerBacktraces(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TGetWorkerBacktracesArg>(serializedArgument);
 
@@ -1217,7 +1361,7 @@ TStateAccessPlan BuildStateAccessPlan(
     return plan;
 }
 
-TYsonString TFlowExecutor::ReadStates(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::ReadStates(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TReadStatesArg>(serializedArgument);
 
@@ -1333,7 +1477,7 @@ TYsonString TFlowExecutor::ReadStates(const std::string& /*command*/, const TYso
     return ConvertToYsonString(response, EYsonFormat::Pretty);
 }
 
-TYsonString TFlowExecutor::DeleteStates(const std::string& /*command*/, const TYsonString& serializedArgument)
+TYsonString TLiveFlowExecutorRuntime::DeleteStates(const TYsonString& serializedArgument)
 {
     auto argument = ConvertTo<TDeleteStatesArg>(serializedArgument);
 
@@ -1429,56 +1573,6 @@ TYsonString TFlowExecutor::DeleteStates(const std::string& /*command*/, const TY
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString TFlowExecutor::List(const std::string& /*command*/, const TYsonString& /*argument*/)
-{
-    return ConvertToYsonString(CommandList_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TGetCommandRequiredPermissionArg
-    : public TYsonStructLite
-{
-    std::string Command;
-
-    REGISTER_YSON_STRUCT_LITE(TGetCommandRequiredPermissionArg);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("command", &TThis::Command);
-
-        registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Throw);
-    }
-};
-
-TYsonString TFlowExecutor::GetCommandRequiredPermission(const std::string& /*command*/, const TYsonString& serializedArgument)
-{
-    auto argument = ConvertTo<TGetCommandRequiredPermissionArg>(serializedArgument);
-    if (auto it = CommandDescriptors_.find(argument.Command); it != CommandDescriptors_.end()) {
-        // clang-format off
-        return BuildYsonStringFluently()
-            .BeginMap()
-                .Item("permission").Value(it->second.RequiredPermission)
-            .EndMap();
-        // clang-format on
-    } else {
-        THROW_ERROR_EXCEPTION("No such command: %v. Cannot get required permission for unknown command. Possible commands: %v",
-            argument.Command,
-            ConvertToYsonString(CommandList_, EYsonFormat::Text));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonString TFlowExecutor::CommandNotFound(const std::string& command, const TYsonString& /*argument*/)
-{
-    THROW_ERROR_EXCEPTION("No such command: %v, possible commands: %v",
-        command,
-        ConvertToYsonString(CommandList_, EYsonFormat::Text));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 TLoadThroughputThrottlerPtr CreateTablesThrottler(
@@ -1509,7 +1603,7 @@ NTables::TContextPtr CreateTablesContext(
 
 } // namespace
 
-TFlowExecutor::TFlowExecutor(
+TLiveFlowExecutorRuntime::TLiveFlowExecutorRuntime(
     IControllerPtr controller,
     IPersistedStateManagerPtr persistedStateManager,
     IYTConnectorPtr ytConnector,
@@ -1541,46 +1635,13 @@ TFlowExecutor::TFlowExecutor(
     , ColumnEvaluatorCache_(NQueryClient::CreateColumnEvaluatorCache(
         New<NQueryClient::TColumnEvaluatorCacheConfig>()))
     , PoolInvoker_(std::move(poolInvoker))
-{
-    auto add = [&] (std::string command, TExecuteHandler handler, EPermission requiredPermission) {
-        auto descriptor = TCommandDescriptor{
-            .Command = command,
-            .Handler = handler,
-            .RequiredPermission = requiredPermission,
-        };
-        CommandDescriptors_.emplace(command, descriptor);
-        CommandList_.emplace_back(std::move(command));
-    };
+{ }
 
-    add("list", &TFlowExecutor::List, EPermission::Read);
-    add("get-command-required-permission", &TFlowExecutor::GetCommandRequiredPermission, EPermission::Read);
-    add("get-flow-view", &TFlowExecutor::GetFlowView, EPermission::Read);
-    add("get-flow-view-v2", &TFlowExecutor::GetFlowViewV2, EPermission::Read);
-    add("get-pipeline-spec", &TFlowExecutor::GetPipelineSpec, EPermission::Read);
-    add("set-pipeline-spec", &TFlowExecutor::SetPipelineSpec, EPermission::Write);
-    add("get-pipeline-dynamic-spec", &TFlowExecutor::GetPipelineDynamicSpec, EPermission::Read);
-    add("set-pipeline-dynamic-spec", &TFlowExecutor::SetPipelineDynamicSpec, EPermission::Write);
-    add("set-pipeline-specs", &TFlowExecutor::SetPipelineSpecs, EPermission::Write);
-    add("get-pipeline-state", &TFlowExecutor::GetPipelineState, EPermission::Read);
-    add("set-target-pipeline-state", &TFlowExecutor::SetTargetPipelineState, EPermission::Write);
-    add("describe-pipeline", &TFlowExecutor::DescribePipeline, EPermission::Read);
-    add("describe-computation", &TFlowExecutor::DescribeComputation, EPermission::Read);
-    add("describe-computations", &TFlowExecutor::DescribeComputations, EPermission::Read);
-    add("describe-partition", &TFlowExecutor::DescribePartition, EPermission::Read);
-    add("describe-worker", &TFlowExecutor::DescribeWorker, EPermission::Read);
-    add("describe-workers", &TFlowExecutor::DescribeWorkers, EPermission::Read);
-    add("get-worker-orchid", &TFlowExecutor::GetWorkerOrchid, EPermission::Read);
-    add("get-controller-orchid", &TFlowExecutor::GetControllerOrchid, EPermission::Read);
-    add("kill-worker", &TFlowExecutor::KillWorker, EPermission::Write);
-    add("update-worker", &TFlowExecutor::UpdateWorker, EPermission::Write);
-    add("get-worker-backtraces", &TFlowExecutor::GetWorkerBacktraces, EPermission::Read);
-    add("read-states", &TFlowExecutor::ReadStates, EPermission::Read);
-    add("delete-states", &TFlowExecutor::DeleteStates, EPermission::Write);
-    add("get-flow-core-target", &TFlowExecutor::GetFlowCoreTarget, EPermission::Read);
-    add("set-flow-core-target", &TFlowExecutor::SetFlowCoreTarget, EPermission::Write);
-}
-
-TYsonString TFlowExecutor::Execute(const std::string& command, const TYsonString& argument, const std::string& user)
+TYsonString TLiveFlowExecutorRuntime::RunCommand(
+    const std::string& command,
+    const TYsonString& argument,
+    const std::string& user,
+    const TCommandHandler& handler)
 {
     TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
         formatter->AppendString("User: ");
@@ -1612,20 +1673,11 @@ TYsonString TFlowExecutor::Execute(const std::string& command, const TYsonString
         }
     });
 
-    if (auto it = CommandDescriptors_.find(command); it != CommandDescriptors_.end()) {
-        return (this->*(it->second.Handler))(command, argument);
-    } else {
-        return CommandNotFound(command, argument);
-    }
+    return handler();
 }
 
-void TFlowExecutor::AuthorizeCommand(const std::string& command, const std::string& user)
+void TLiveFlowExecutorRuntime::AuthorizeCommand(EPermission permission, const std::string& user)
 {
-    auto it = CommandDescriptors_.find(command);
-    if (it == CommandDescriptors_.end()) {
-        CommandNotFound(command, {});
-    }
-    auto permission = it->second.RequiredPermission;
     auto pipelinePath = YTConnector_->GetPipelinePath().GetPath();
 
     auto response = WaitFor(YTConnector_->GetClient()->CheckPermission(user, pipelinePath, permission))
@@ -1637,6 +1689,13 @@ void TFlowExecutor::AuthorizeCommand(const std::string& command, const std::stri
 ////////////////////////////////////////////////////////////////////////////////
 
 } // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+IFlowExecutorPtr CreateFlowExecutor(IFlowExecutorRuntimePtr runtime)
+{
+    return New<TFlowExecutor>(std::move(runtime));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1652,7 +1711,7 @@ IFlowExecutorPtr CreateFlowExecutor(
     NRpc::IChannelFactoryPtr channelFactory,
     IPipelineAuthenticatorPtr authenticator)
 {
-    return New<TFlowExecutor>(
+    return CreateFlowExecutor(New<TLiveFlowExecutorRuntime>(
         std::move(controller),
         std::move(persistedStateManager),
         std::move(ytConnector),
@@ -1662,7 +1721,7 @@ IFlowExecutorPtr CreateFlowExecutor(
         std::move(poolInvoker),
         std::move(httpClient),
         std::move(channelFactory),
-        std::move(authenticator));
+        std::move(authenticator)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
