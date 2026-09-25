@@ -55,12 +55,13 @@ class TRemoteChangelogStoreConfigWrapper
 {
 public:
     explicit TRemoteChangelogStoreConfigWrapper(TRemoteChangelogStoreConfigPtr config)
-        : Config_(std::move(config))
+        : StaticConfig_(std::move(config))
+        , Config_(StaticConfig_)
     { }
 
-    void Set(TRemoteChangelogStoreConfigPtr config)
+    void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& dynamicConfig)
     {
-        Config_.Store(config);
+        Config_.Store(StaticConfig_->ApplyDynamic(dynamicConfig));
     }
 
     TRemoteChangelogStoreConfigPtr Get() const
@@ -69,6 +70,7 @@ public:
     }
 
 private:
+    const TRemoteChangelogStoreConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TRemoteChangelogStoreConfig> Config_;
 };
 
@@ -767,8 +769,7 @@ public:
 
     void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& dynamicConfig) override
     {
-        auto newConfig = Config_->Get()->ApplyDynamic(dynamicConfig);
-        Config_->Set(newConfig);
+        Config_->Reconfigure(dynamicConfig);
     }
 
 private:
