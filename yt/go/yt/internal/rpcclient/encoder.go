@@ -9,7 +9,6 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/common"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
@@ -779,11 +778,12 @@ func (e *Encoder) lockRows(
 		RowModificationTypes: modificationTypes,
 		RowsetDescriptor:     descriptor,
 	}
-	sendOptions := encodeRowLocks(req, lockMask, len(keys))
+	requiredFeatureIDs := encodeRowLocks(req, lockMask, len(keys))
 
 	call = e.newCall(MethodModifyRows, NewLockRowsRequest(req), attachments)
+	call.RequiredServerFeatureIDs = requiredFeatureIDs
 	var rsp rpc_proxy.TRspModifyRows
-	return e.Invoke(ctx, call, &rsp, sendOptions...)
+	return e.Invoke(ctx, call, &rsp)
 }
 
 func validateLockRows(path ypath.Path, locks []string) error {
@@ -800,12 +800,12 @@ func encodeRowLocks(
 	req *rpc_proxy.TReqModifyRows,
 	lockMask *tablet_client.TLockMask,
 	rowCount int,
-) []bus.SendOption {
+) []int32 {
 	req.RowLocks = make([]*tablet_client.TLockMask, rowCount)
 	for index := range req.RowLocks {
 		req.RowLocks[index] = lockMask
 	}
-	return []bus.SendOption{bus.WithRequiredServerFeatureIDs(int32(rpcProxyFeatureWideLocks))}
+	return []int32{int32(rpcProxyFeatureWideLocks)}
 }
 
 func buildLockMask(
