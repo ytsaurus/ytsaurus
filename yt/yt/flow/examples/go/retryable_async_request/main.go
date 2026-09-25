@@ -7,6 +7,8 @@ import (
 	"go.ytsaurus.tech/yt/go/flow"
 )
 
+// [BEGIN main]
+
 type eventMessage struct {
 	flow.YSONMessage
 	Key  uint64 `yson:"key"`
@@ -44,3 +46,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// [END main]

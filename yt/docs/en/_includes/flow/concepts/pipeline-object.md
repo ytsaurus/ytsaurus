@@ -24,9 +24,23 @@ In {{product-name}}, a *pipeline* is a special Cypress object of type `pipeline`
 | `controller_logs` | Event logs of the [Controller](../../../flow/concepts/glossary.md#controller) in the PublicFlowController category. |
 | `flow_state` | Current Flow state. |
 | `flow_state_obsolete` | Flow KV storage for named objects (spec, dynamic_spec, etc.). |
+| `flow_control` | Published controller address; also the leader lease with the Dyntable election backend. |
+| `key_visitor_states` | Durable key-range scan cursor and pass state. |
 | `partition_transactions` | Service table for safe retry of transactions. |
+| `leases` | Dyntable election backend: partition lease owners and the pipeline-wide lease deadline that fences stale workers. |
+| `leader_election_lock` | Controller election lock for the Chaos backend. |
 
 After you create a pipeline, these tables appear under the path `<pipeline_path>/<table_name>` and are automatically mounted.
+
+The table set, schemas, and base attributes for `create pipeline` are defined in [`definitions.yson`]({{source-root}}/yt/yt/flow/library/pipeline_tables/definitions.yson).
+
+{% if audience == "public" %}
+
+The `yt_sync_mini` library also applies [physical-attribute presets]({{source-root}}/yt/yt/flow/library/python/pipeline_tables/presets.py).
+
+{% endif %}
+
+The `input_messages` and `compact_input_messages` tables hold temporary records used for exactly-once deduplication, not a history of input. The controller advances their [SystemWatermark](../../../flow/concepts/watermarks.md), and dynamic table cleanup removes processed records, including after the pipeline finishes. An empty `input_messages` table is therefore normal and does not mean input was lost.
 
 {% note warning "Attention" %}
 
@@ -59,20 +73,26 @@ The recommended way to create a pipeline in open source is the Python library [`
 ```python
 import yt.wrapper as yt
 
-from yt.yt.flow.library.python.yt_sync_mini import yt_sync_mini
+from yt.yt.flow.library.python.yt_sync_mini import create_pipeline
 
 client = yt.YtClient(proxy="<cluster>")
-yt_sync_mini(client, "<pipeline_path>")
+create_pipeline(client, "<pipeline_path>")
 ```
 
 ### Low-level Creation of a Cypress Node { #low-level-create }
 
-If you need full control over node and table creation (for example, to integrate into an existing deployment system), you create the pipeline using the standard `create` mechanism — the same way as for other Cypress object types (table, map_node, queue_consumer, etc.). With this approach, you’re responsible for creating and mounting the internal tables with correct schemas and attributes.
+To integrate with an existing deployment system, you can create the pipeline using the standard `create` mechanism, as with other Cypress object types (table, map_node, queue_consumer, etc.). By default, `create pipeline` creates and mounts the internal tables. Pass `initialize_tables=%false` when creating the object to disable initialization; you are then responsible for creating and mounting the tables with the correct schemas and attributes.
 
 #### Via {{product-name}} CLI
 
 ```bash
 yt --proxy <cluster> create pipeline <pipeline_path>
+```
+
+To create the internal tables yourself:
+
+```bash
+yt --proxy <cluster> create pipeline <pipeline_path> --attributes '{initialize_tables=%false}'
 ```
 
 #### Via Python ({{product-name}} wrapper)
@@ -90,7 +110,7 @@ client.create(
 #### Via C++ ({{product-name}} native client)
 
 ```cpp
-#include <yt/yt/flow/lib/native_client/pipeline_init.h>
+#include <yt/yt/flow/library/cpp/native_client/pipeline_init.h>
 
 NYT::NApi::TCreateNodeOptions options;
 
@@ -101,12 +121,12 @@ auto nodeId = NYT::NFlow::CreatePipelineNode(client, pipelinePath, options);
 
 ## External State { #external-state }
 
-When the schema of the [internal tables](#internal_tables) changes in a new Flow version, the format upgrade is performed via a separate migration — see [Pipeline internal tables](../../../flow/concepts/glossary.md#inner-pipeline-tables) and [Basic rollout rules](../../../flow/release/basic-rules.md).
+When the schema of the [internal tables](#internal_tables) changes in a new Flow version, the format upgrade is performed via a separate migration — see [Pipeline internal tables](../../../flow/concepts/glossary.md#inner-pipeline-tables) and [Basic rollout rules](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
-If the pipeline uses [External State](../../../flow/concepts/stateful.md) (user tables outside the node), creating them and evolving their schemas is your responsibility. {% if audience == "internal" %}In the Yandex infrastructure, [YtSync]({{yt-sync-docs}}/) is used for this.{% else %}You perform the operations using standard commands like `yt create table ... --attributes '{dynamic=true; schema=...}'` and `yt mount-table` — see examples in the [Create command](../../../user-guide/storage/cypress-example.md#create) section.{% endif %}
+If the pipeline uses [External State](../../../flow/concepts/stateful.md) (user tables outside the node), creating them and evolving their schemas is your responsibility. {% if audience == "internal" %}In the Yandex infrastructure, [YtSync]({{yt-sync-docs}}/) is used for this.{% else %}You perform the operations using standard commands like `yt create table ... --attributes '{dynamic=%true; schema=...}'` and `yt mount-table` — see examples in the [Create command](../../../user-guide/storage/cypress-example.md#create) section.{% endif %}
 
 ## See also { #see_also }
 
 - [Glossary: Pipeline](../../../flow/concepts/glossary.md#pipeline)
 - [Pipeline internal tables](../../../flow/concepts/glossary.md#inner-pipeline-tables)
-- [Basic pipeline rollout rules](../../../flow/release/basic-rules.md)
+- [Basic pipeline rollout rules](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)

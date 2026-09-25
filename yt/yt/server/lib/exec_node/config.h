@@ -8,9 +8,9 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/nbd/config.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
 
@@ -783,10 +783,6 @@ struct TJobProxyConfig
     TDuration JobProxyHeartbeatPeriod;
 
     bool JobProxySendHeartbeatBeforeAbort;
-
-    //! This is a special testing option.
-    //! Instead of actually setting root fs, it just provides special environment variable.
-    bool TestRootFS;
 
     //! This option is used for testing purposes only.
     //! It runs job shell under root user instead of slot user.

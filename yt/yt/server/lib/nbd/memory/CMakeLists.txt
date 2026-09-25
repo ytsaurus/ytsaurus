@@ -35,7 +35,6 @@ target_link_libraries(lib-nbd-memory PUBLIC
 )
 
 target_sources(lib-nbd-memory PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/memory/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/memory/memory_block_device.cpp
 )
 

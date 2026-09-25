@@ -7,6 +7,8 @@ import (
 	"go.ytsaurus.tech/yt/go/flow"
 )
 
+// [BEGIN main]
+
 type actionMessage struct {
 	flow.YSONMessage
 	HitID      string `yson:"hit_id"`
@@ -46,3 +48,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// [END main]

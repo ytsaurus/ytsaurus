@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/nbd/config.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>

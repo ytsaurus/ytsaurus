@@ -18,7 +18,9 @@
 
 Точка входа: создание пайплайна и регистрация обоих компьютейшенов компаньона.
 
-{% code '/yt/yt/flow/examples/go/retryable_async_request/main.go' lang='go' %}
+[Исходный код: `main.go`]({{source-root}}/yt/yt/flow/examples/go/retryable_async_request/main.go)
+
+{% code '/yt/yt/flow/examples/go/retryable_async_request/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `state_keeper.go` {#state-keeper-go}
 
@@ -42,6 +44,6 @@
 - Счётчик попыток живёт в стейте вместе с данными запроса, поэтому переживает рестарт [воркера](../../../../flow/concepts/glossary.md#worker): после перезапуска повтор продолжается с того же места.
 - Вход один раз преобразуется в `requestMessage` через `msg.ConvertTo(&input)`, а retry-логика работает с отдельной структурой `requestState`, содержащей счётчик неудачных попыток.
 - Один и тот же стейт открывается и по сообщению, и по таймеру: `flow.OpenYSONState[requestState](rt, requestStateName, msg)` и `flow.OpenYSONState[requestState](rt, requestStateName, timer)` — оба входа несут ключ группировки, по которому стейт и адресуется.
-- Очистка стейта при успехе: после `state.Clear()` сработавший позже таймер видит `pending == false` и ничего не делает — устаревшее срабатывание безвредно.
+- Очистка стейта при успехе: после `state.Clear()` сработавший позже таймер видит `state.Empty()` и ничего не делает — устаревшее срабатывание безвредно.
 - Разделение ответственности: `stateKeeper` ничего не знает о повторах, вся логика инкапсулирована в `requestProcessor`, поэтому стратегию повторов можно поменять, не трогая учёт результатов.
 - Детерминированная симуляция сбоев: `succeeds(request)` стоит на месте настоящего клиента внешнего сервиса — в реальном коде здесь был бы HTTP-вызов.

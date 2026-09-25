@@ -1,9 +1,10 @@
 #include "server.h"
 
 #include "block_device.h"
-#include "config.h"
 #include "profiler.h"
 #include "protocol.h"
+
+#include <yt/yt/library/nbd/config.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/connection.h>

@@ -17,9 +17,7 @@
 
 #include <yt/yt/server/lib/nbd/chunk/chunk_block_device.h>
 #include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
-#include <yt/yt/server/lib/nbd/chunk/config.h>
 
-#include <yt/yt/server/lib/nbd/image/config.h>
 #include <yt/yt/server/lib/nbd/image/image_block_device.h>
 #include <yt/yt/server/lib/nbd/image/image_reader.h>
 
@@ -33,6 +31,10 @@
 #include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
+
+#include <yt/yt/library/nbd/chunk/config.h>
+
+#include <yt/yt/library/nbd/image/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

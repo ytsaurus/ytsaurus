@@ -158,6 +158,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/file_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/journal_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/journal_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/journal_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cypress_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/node_tracker_client/node_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/node_tracker_client/helpers.cpp

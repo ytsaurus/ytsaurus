@@ -351,25 +351,18 @@ TFuture<TOperator::TListedKeys> TOperator::ListKeys(
     }
     auto columnTuple = JoinSeq(",", columnNames);
 
-    auto formatBound = [&] (TStringBuf op, const TKey& key) {
-        int count = key.Underlying().GetCount();
-        return Format("%v %v %v",
-            BuildColumnTuple(*KeySchema_, count),
-            op,
-            BuildLiteralTuple(key, *KeySchema_));
-    };
-
+    TSelectPlaceholders placeholders;
     std::vector<std::string> conditions;
     // Min/Max sentinels carry no real bound — skip them so the SELECT builder
-    // doesn't try to materialize them as literals.
+    // doesn't try to bind them as values.
     if (lowerKey && *lowerKey != MinKey()) {
-        conditions.push_back(formatBound(">=", *lowerKey));
+        conditions.push_back(placeholders.BindKeyBound(*KeySchema_, ">=", "lower", *lowerKey));
     }
     if (upperKey && *upperKey != MaxKey()) {
-        conditions.push_back(formatBound("<", *upperKey));
+        conditions.push_back(placeholders.BindKeyBound(*KeySchema_, "<", "upper", *upperKey));
     }
     if (offsetExclusive) {
-        conditions.push_back(formatBound(">", *offsetExclusive));
+        conditions.push_back(placeholders.BindKeyBound(*KeySchema_, ">", "offset", *offsetExclusive));
     }
 
     std::string where;
@@ -381,10 +374,11 @@ TFuture<TOperator::TListedKeys> TOperator::ListKeys(
         Path_,
         where,
         columnTuple,
-        limit);
+        placeholders.Bind("limit", MakeUnversionedInt64Value(limit)));
 
     TSelectRowsOptions options;
     options.Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+    options.PlaceholderValues = placeholders.Build();
     return Client_->SelectRows(query, options)
         .AsUnique()
         .Apply(BIND([keySchema = KeySchema_, limit] (TSelectRowsResult&& result) {

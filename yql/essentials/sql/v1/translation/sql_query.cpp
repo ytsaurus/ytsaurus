@@ -2,6 +2,7 @@
 
 #include "sql_ddl_backup.h"
 #include "sql_ddl_resource_pool.h"
+#include "sql_ddl_symlink.h"
 #include "select_yql.h"
 #include "sql_expression.h"
 #include "sql_select.h"
@@ -2200,7 +2201,7 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
             break;
         }
         case TRule_sql_stmt_core::kAltSqlStmtCore69: {
-            // truncate_table_stmt: TRUNCATE TABLE simple_table_ref;
+            // truncate_table_stmt: TRUNCATE TABLE simple_table_ref with_truncate_table_settings?;
             Ctx_.BodyPart();
             auto& rule = core.GetAlt_sql_stmt_core69().GetRule_truncate_table_stmt1();
 
@@ -2216,6 +2217,14 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
             }
 
             TTruncateTableParameters params{};
+            if (rule.HasBlock4()) {
+                const auto& settings = rule.GetBlock4().GetRule_with_truncate_table_settings1();
+                if (settings.HasBlock3()) {
+                    if (!ParseTruncateTableSettings(settings.GetBlock3().GetRule_truncate_table_settings1(), params.Settings)) {
+                        return false;
+                    }
+                }
+            }
 
             AddStatementToBlocks(blocks, BuildTruncateTable(Ctx_.Pos(), tr, params, Ctx_.Scoped));
             break;
@@ -2265,6 +2274,22 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
             blocks.push_back(materializeNode);
             auto refNode = BuildYqlSubqueryRef(materializeNode, ref);
             PushNamedNode(intoPos, varName, refNode);
+            break;
+        }
+        case TRule_sql_stmt_core::kAltSqlStmtCore71: {
+            auto node = TSymlinkTranslation(Ctx_, Mode_).Build(core.GetAlt_sql_stmt_core71().GetRule_create_symlink_stmt1());
+            if (!node) {
+                return false;
+            }
+            AddStatementToBlocks(blocks, node);
+            break;
+        }
+        case TRule_sql_stmt_core::kAltSqlStmtCore72: {
+            auto node = TSymlinkTranslation(Ctx_, Mode_).Build(core.GetAlt_sql_stmt_core72().GetRule_drop_symlink_stmt1());
+            if (!node) {
+                return false;
+            }
+            AddStatementToBlocks(blocks, node);
             break;
         }
         case TRule_sql_stmt_core::ALT_NOT_SET:

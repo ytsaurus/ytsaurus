@@ -1479,12 +1479,6 @@ class TestCoreTablePorto(TestCoreTable):
         assert not core_info["cuda"]
 
 
-@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-class TestCoreTablePortoRootfs(TestCoreTablePorto):
-    ENABLE_MULTIDAEMON = True
-    USE_CUSTOM_ROOTFS = True
-
-
 def get_profiles_from_table(operation_id):
     operation_hash = uuid_hash_pair(operation_id)
     return list(

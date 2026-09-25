@@ -1032,12 +1032,22 @@ DEFINE_REFCOUNTED_TYPE(TFlowView);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYson::TYsonString SerializeFlowViewByPath(
+    const TFlowViewPtr& flowView,
+    const NYPath::TYPath& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A pre-compressed full flow view plus the codec used, so callers can decompress.
 struct TCompressedFlowView
 {
     TSharedRef Data;
     NCompression::ECodec Codec{};
 };
+
+TCompressedFlowView CompressFlowViewYson(
+    const NYson::TYsonString& ysonString,
+    NCompression::ECodec codec);
 
 class TFlowViewKeeper
     : public TRefCounted

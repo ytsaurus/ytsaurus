@@ -309,7 +309,7 @@ protected:
             .NodeDeviationThreshold = DynamicConfig_->ParameterizedNodeDeviationThreshold,
             .CellDeviationThreshold = DynamicConfig_->ParameterizedCellDeviationThreshold,
             .MinRelativeMetricImprovement = DynamicConfig_->ParameterizedMinRelativeMetricImprovement,
-            .Metric = DynamicConfig_->DefaultParameterizedMetric,
+            .Metrics = {DynamicConfig_->DefaultParameterizedMetric},
             .Factors = DynamicConfig_->ParameterizedFactors,
         }.MergeWith(
             GroupConfig_->Parameterized,

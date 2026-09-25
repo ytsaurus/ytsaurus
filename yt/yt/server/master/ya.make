@@ -1,3 +1,5 @@
+INCLUDE(${ARCADIA_ROOT}/yt/ya_features.make.inc)
+
 LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)

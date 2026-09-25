@@ -36,7 +36,6 @@ target_link_libraries(lib-nbd-dynamic_table PUBLIC
 )
 
 target_sources(lib-nbd-dynamic_table PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table/dynamic_table_block_device.cpp
 )
 

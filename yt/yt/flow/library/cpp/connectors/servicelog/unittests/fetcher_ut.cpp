@@ -161,6 +161,27 @@ TEST(TBuildParameterizedSelectRowsQueryTest, CompositeKeyBothBounds)
     EXPECT_EQ(map->GetChildValueOrThrow<i64>("row_limit"), 500);
 }
 
+TEST(TBuildParameterizedSelectRowsQueryTest, NullKeyComponent)
+{
+    // A nullable key column past the first one: the bound keeps the Null and
+    // the partition goes on reading, rather than failing to build its query.
+    auto schema = MakeSimpleSchema();
+
+    NTableClient::TUnversionedOwningRowBuilder builder;
+    builder.AddValue(NTableClient::MakeUnversionedUint64Value(5));
+    builder.AddValue(NTableClient::MakeUnversionedNullValue());
+    auto range = New<TServiceLogRange>();
+    range->Lower = TServiceLogEndpoint();
+    range->Lower->Key = TKey(TKey::TUnderlying(builder.FinishRow()));
+    range->Lower->Exclusive = true;
+
+    auto result = BuildParameterizedSelectRowsQuery("//tmp/table", schema, range, 10);
+    EXPECT_EQ(result.Query, "SELECT hash,name,value FROM [//tmp/table] WHERE (hash,name) > ({lower_0},{lower_1}) ORDER BY (hash,name) LIMIT {row_limit}");
+    auto map = ParsePlaceholderValues(result.PlaceholderValues);
+    EXPECT_EQ(map->GetChildValueOrThrow<ui64>("lower_0"), 5u);
+    EXPECT_EQ(map->GetChildOrThrow("lower_1")->GetType(), NYTree::ENodeType::Entity);
+}
+
 TTableFetcherSpecPtr LoadSpec(TStringBuf yson)
 {
     return ConvertTo<TTableFetcherSpecPtr>(NYson::TYsonString(TString(yson)));

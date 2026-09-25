@@ -32,6 +32,7 @@ target_link_libraries(server-lib-nbd PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
+  yt-library-nbd
   yt-yt-core
   yt-yt-ytlib
   yt_proto-yt-client
@@ -39,7 +40,6 @@ target_link_libraries(server-lib-nbd PUBLIC
 
 target_sources(server-lib-nbd PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/block_device_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp

@@ -24,9 +24,21 @@
 | `controller_logs`                   | Логи событий [Controller](../../../flow/concepts/glossary.md#controller) в категории PublicFlowController                                                                                                                                                                                                                                |
 | `flow_state`                        | Текущее состояние Flow                                                                                                                                                                                                                                                                                            |
 | `flow_state_obsolete`               | KV-хранилище Flow для именнованных объектов (spec, dynamic_spec...)                                                                                                                                                                                                                                               |
+| `flow_control` | Опубликованный адрес ведущего Controller; для Dyntable-бэкенда выборов также аренда лидерства |
+| `key_visitor_states` | Сохраняемый курсор обхода диапазонов ключей и состояние прохода |
 | `partition_transactions`            | Служебная таблица для безопасного ретрая транзакций                                                                                                                                                                                                                                                               |
+| `leases` | Для Dyntable-бэкенда выборов: владельцы аренд партиций и общий для пайплайна срок действия аренд, защищающий от записи устаревшими воркерами |
+| `leader_election_lock` | Блокировка выборов Controller при использовании Chaos-бэкенда |
 
 После создания пайплайна они появляются под путём `<pipeline_path>/<table_name>` и автоматически монтируются.
+
+Состав таблиц, их схемы и базовые атрибуты для `create pipeline` заданы в [`definitions.yson`]({{source-root}}/yt/yt/flow/library/pipeline_tables/definitions.yson).
+
+{% if audience == "public" %}
+
+Библиотека `yt_sync_mini` дополнительно применяет [пресеты физических атрибутов]({{source-root}}/yt/yt/flow/library/python/pipeline_tables/presets.py).
+
+{% endif %}
 
 Таблицы `input_messages` и `compact_input_messages` не накапливают историю: записи о входных сообщениях нужны только для дедупликации (exactly-once) и удаляются после обработки. Controller продвигает [SystemWatermark](../../../flow/concepts/watermarks.md) этих таблиц, и строки с уже обработанными сообщениями физически удаляются механизмом очистки динамических таблиц &mdash; в том числе после завершения пайплайна. Поэтому пустая таблица `input_messages` &mdash; это штатная очистка, а не потеря данных.
 
@@ -61,20 +73,26 @@ YtSync создаёт пайплайн и сопутствующие сущно�
 ```python
 import yt.wrapper as yt
 
-from yt.yt.flow.library.python.yt_sync_mini import yt_sync_mini
+from yt.yt.flow.library.python.yt_sync_mini import create_pipeline
 
 client = yt.YtClient(proxy="<cluster>")
-yt_sync_mini(client, "<pipeline_path>")
+create_pipeline(client, "<pipeline_path>")
 ```
 
 ### Низкоуровневое создание Cypress-узла { #low-level-create }
 
-Если нужен полный контроль над созданием узла и таблиц (например, чтобы интегрировать в существующую систему деплоя), пайплайн создаётся штатным механизмом `create` &mdash; так же, как и для других типов Cypress-объектов (table, map_node, queue_consumer и т. д.). При таком подходе пользователь сам отвечает за создание и монтирование внутренних таблиц с корректными схемами и атрибутами.
+Для интеграции в собственную систему деплоя пайплайн можно создать штатным механизмом `create` &mdash; так же, как и другие типы Cypress-объектов (table, map_node, queue_consumer и т. д.). По умолчанию `create pipeline` создаёт и монтирует внутренние таблицы. Атрибут `initialize_tables=%false` передают при создании объекта, чтобы отключить эту инициализацию; тогда пользователь сам отвечает за создание и монтирование таблиц с корректными схемами и атрибутами.
 
 #### Через {{product-name}} CLI
 
 ```bash
 yt --proxy <cluster> create pipeline <pipeline_path>
+```
+
+Если внутренние таблицы будут созданы отдельно:
+
+```bash
+yt --proxy <cluster> create pipeline <pipeline_path> --attributes '{initialize_tables=%false}'
 ```
 
 #### Через Python ({{product-name}} wrapper)
@@ -92,7 +110,7 @@ client.create(
 #### Через C++ ({{product-name}} native client)
 
 ```cpp
-#include <yt/yt/flow/lib/native_client/pipeline_init.h>
+#include <yt/yt/flow/library/cpp/native_client/pipeline_init.h>
 
 NYT::NApi::TCreateNodeOptions options;
 
@@ -105,7 +123,7 @@ auto nodeId = NYT::NFlow::CreatePipelineNode(client, pipelinePath, options);
 
 При смене схемы [внутренних таблиц](#internal_tables) в новой версии Flow апгрейд формата выполняется отдельной миграцией &mdash; см. [Внутренние таблицы пайплайна](../../../flow/concepts/glossary.md#inner-pipeline-tables) и [Базовые правила выкатки](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
-Если пайплайн использует [External State](../../../flow/concepts/stateful.md) (пользовательские таблицы за пределами узла), их создание и эволюция схем &mdash; ответственность пользователя. {% if audience == "internal" %}В Yandex-инфраструктуре для этого используется [YtSync]({{yt-sync-docs}}/).{% else %}Операции выполняются стандартными командами `yt create table ... --attributes '{dynamic=true; schema=...}'` и `yt mount-table` &mdash; см. примеры в разделе [Команда create](../../../user-guide/storage/cypress-example.md#create).{% endif %}
+Если пайплайн использует [External State](../../../flow/concepts/stateful.md) (пользовательские таблицы за пределами узла), их создание и эволюция схем &mdash; ответственность пользователя. {% if audience == "internal" %}В Yandex-инфраструктуре для этого используется [YtSync]({{yt-sync-docs}}/).{% else %}Операции выполняются стандартными командами `yt create table ... --attributes '{dynamic=%true; schema=...}'` и `yt mount-table` &mdash; см. примеры в разделе [Команда create](../../../user-guide/storage/cypress-example.md#create).{% endif %}
 
 ## См. также { #see_also }
 

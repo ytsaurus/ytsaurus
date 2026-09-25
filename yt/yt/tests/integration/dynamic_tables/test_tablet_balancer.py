@@ -6,7 +6,7 @@ from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, print_debug, select_rows, WaitFailed, remount_table,
+    sync_unmount_table, print_debug, select_rows, WaitFailed, remount_table, lookup_rows,
     create, create_table_replica, sync_enable_table_replica, update_nodes_dynamic_config)
 
 from yt.common import YtError, update_inplace
@@ -141,6 +141,11 @@ class TestStandaloneTabletBalancerBase:
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)
+        self._apply_dynamic_config_patch({
+            "bundle_state_provider": {
+                "use_internal_api": True,
+            },
+        })
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
 
@@ -176,9 +181,13 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         })
         self._test_simple_reshard()
 
-    def test_pick_pivot_keys_merge(self):
+    @pytest.mark.parametrize("use_internal_api", [False, True])
+    def test_pick_pivot_keys_merge(self, use_internal_api):
         self._apply_dynamic_config_patch({
             "pick_reshard_pivot_keys": True,
+            "bundle_state_provider": {
+                "use_internal_api": use_internal_api,
+            },
         })
 
         self._test_simple_reshard()
@@ -723,6 +732,78 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         tablets = get("//tmp/t/@tablets")
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
+
+    @authors("dave11ar")
+    def test_multimetric_simple_move_distribution(self):
+        cell_count = 5
+        cells = sync_create_cells(cell_count)
+
+        cell_to_node = {cell: get(f"#{cell}/@peers/0/address") for cell in cells}
+        assert len(builtins.set(cell_to_node.values())) == cell_count
+
+        self._create_sorted_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
+
+        set("//tmp/t/@tablet_balancer_config", {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": True,
+        })
+
+        write_metric = "double([/performance_counters/dynamic_row_write_count])"
+        read_metric = "double([/performance_counters/dynamic_row_lookup_count])"
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            {"default": {"parameterized": {"metrics": [write_metric, read_metric]}}})
+
+        tablet_count = 10
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, tablet_count)])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        write_tablets = builtins.set(range(0, tablet_count // 2))
+        read_tablets = builtins.set(range(tablet_count // 2, tablet_count))
+
+        start_count = 7
+        step_count = 2
+
+        for tablet_index in read_tablets:
+            insert_rows("//tmp/t", [{"key": tablet_index, "value": "v"}])
+
+        for tablet_index in read_tablets:
+            request_count = start_count + (tablet_index - 5) * step_count
+            for _ in range(request_count):
+                lookup_rows("//tmp/t", [{"key": tablet_index}])
+
+        for tablet_index in write_tablets:
+            request_count = start_count + tablet_index * step_count
+            for i in range(request_count):
+                insert_rows("//tmp/t", [{"key": tablet_index, "value": "v"}])
+
+        def _counters_ready():
+            tablets = get("//tmp/t/@tablets")
+            for index, tablet in enumerate(tablets):
+                counters = tablet["performance_counters"]
+
+                if index in write_tablets and counters["dynamic_row_write_count"] == 0:
+                    return False
+                if index in read_tablets and counters["dynamic_row_lookup_count"] == 0:
+                    return False
+
+            return True
+
+        wait(_counters_ready)
+
+        set("//tmp/t/@tablet_balancer_config/enable_parameterized", True)
+
+        def _balanced():
+            per_node = {node: [0, 0] for node in cell_to_node.values()}
+            for index, tablet in enumerate(get("//tmp/t/@tablets")):
+                node = cell_to_node.get(tablet["cell_id"])
+                if node is None:
+                    return False
+                per_node[node][0 if index in write_tablets else 1] += 1
+            # Every node must have exactly one written-into and one read-from tablet.
+            return all(counts == [1, 1] for counts in per_node.values())
+
+        wait(_balanced)
 
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
     def test_move_trigger(self, trigger_by):

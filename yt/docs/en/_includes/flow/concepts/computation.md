@@ -71,6 +71,7 @@ Each language offers its own set of interfaces for implementing a Computation:
 - **C++**: implement a process function (`IProcessFunction`, `IBatchProcessFunction`, or `IKeyedBatchProcessFunction`) and select its built-in mode adapter in the spec. [Learn more →](../../../flow/cpp/process-functions.md)
 - **Java**: implement the `RowFunction` or `BatchFunction` interfaces with the `onMessage`/`onTimer` methods. [Learn more →](../../../flow/java/computation.md)
 - **Python**: inherit from `RowFunction` or `BatchFunction` and use the `on_message`/`on_timer` methods. [Learn more →](../../../flow/python/computation.md)
+- **Go**: implement `flow.RowFunction` (`OnMessage`) or `flow.BatchFunction` (`OnMessages`); timers use `flow.RowTimerFunction` or `flow.BatchTimerFunction`. [Learn more →](../../../flow/go/computation.md)
 - **YQL**: Computations are generated automatically based on a declarative description. [Learn more →](../../../flow/yql/getting-started.md)
 
 ## See also
@@ -83,6 +84,7 @@ Each language offers its own set of interfaces for implementing a Computation:
 - [Computation modes (C++)](../../../flow/cpp/computation.md)
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
+- [Computation (Go)](../../../flow/go/computation.md)
 - [Computation (YQL)](../../../flow/yql/features.md)
 
 ## Input filtering {#input-filter}

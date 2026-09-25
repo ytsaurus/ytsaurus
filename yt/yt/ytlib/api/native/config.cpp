@@ -258,6 +258,12 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("node_directory_synchronization_on_table_read_staleness_threshold", &TThis::NodeDirectorySynchronizationOnTableReadStalenessThreshold)
         .Default(TDuration::Minutes(15));
+    registrar.Parameter("max_file_partition_count", &TThis::MaxFilePartitionCount)
+        .GreaterThan(0)
+        .Default(10'000);
+    registrar.Parameter("max_chunk_specs_per_file_partition", &TThis::MaxChunkSpecsPerFilePartition)
+        .GreaterThan(0)
+        .Default(100'000);
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
     registrar.Parameter("discovery_connection", &TThis::DiscoveryConnection)
@@ -591,6 +597,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_reshard_with_slicing_by_default", &TThis::EnableReshardWithSlicingByDefault)
         .Default(true);
+
+    registrar.Parameter("use_cypress_proxy_for_two_phase_table_operations", &TThis::UseCypressProxyForTwoPhaseTableOperations)
+        .Default(false);
 
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)

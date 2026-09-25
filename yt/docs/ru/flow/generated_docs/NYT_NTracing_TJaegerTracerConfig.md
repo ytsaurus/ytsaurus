@@ -44,8 +44,10 @@
 || `enable_pid_tag` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||
+{% if audience == "internal" %}
 || `tvm_service` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NAuth::TTvmServiceConfig](./all_yson_structs#NYT_NAuth_TTvmServiceConfig)`>`
  ||
+{% endif %}
 || `test_drop_spans` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||

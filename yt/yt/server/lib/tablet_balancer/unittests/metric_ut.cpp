@@ -75,7 +75,7 @@ public:
         double expectedTotal = 0.0;
         for (int index = 0; index < Size; ++index) {
             SCOPED_TRACE(index);
-            EXPECT_DOUBLE_EQ(expected[index], metric.ToArray()[index]);
+            EXPECT_DOUBLE_EQ(expected[index], metric[index]);
             expectedTotal += expected[index];
         }
         EXPECT_DOUBLE_EQ(expectedTotal, metric.GetTotalValue());
@@ -106,10 +106,10 @@ TYPED_TEST(TMetricTest, NormalizationBoundaryValues)
         }
 
         for (double scalar : scalars) {
-            auto normalized = TGenericMetric<TestFixture::Size>(values).GetNormalizedMetric(scalar);
+            auto normalized = TGenericMetric<TestFixture::Size>(values).AsNormalizationFactor(scalar);
             for (int index = 0; index < TestFixture::Size; ++index) {
                 double expected = values[index] < MinimumAcceptableMetricValue ? 1.0 : scalar / values[index];
-                double actual = normalized.ToArray()[index];
+                double actual = normalized[index];
                 if (std::isnan(expected)) {
                     EXPECT_TRUE(std::isnan(actual));
                 } else {
@@ -135,6 +135,94 @@ TYPED_TEST(TMetricTest, Constructors)
 
     metric += 1.0;
     TestFixture::ExpectValues(copy, values);
+}
+
+TYPED_TEST(TMetricTest, ZeroAndUnit)
+{
+    using TMetric = typename TestFixture::TMetric;
+
+    TestFixture::ExpectValues(TMetric::Zero(), {});
+    TestFixture::ExpectValues(TMetric::Unit(), TestFixture::MakeArray(1.0, 0.0));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(TMetricTest, Subscript)
+{
+    using TMetric = typename TestFixture::TMetric;
+
+    auto values = TestFixture::MakeArray(1.0);
+    TMetric metric(values);
+    const auto& constMetric = metric;
+    for (int index = 0; index < TestFixture::Size; ++index) {
+        SCOPED_TRACE(index);
+        EXPECT_DOUBLE_EQ(values[index], metric[index]);
+        EXPECT_DOUBLE_EQ(values[index], constMetric[index]);
+        metric[index] += 10.0;
+        values[index] += 10.0;
+        TestFixture::ExpectValues(constMetric, values);
+    }
+}
+
+TYPED_TEST(TMetricTest, Formatting)
+{
+    using TMetric = typename TestFixture::TMetric;
+
+    auto values = TestFixture::MakeArray(1.0);
+    const TMetric metric(values);
+    if constexpr (TestFixture::Size == 1) {
+        EXPECT_EQ(ToString(metric), ToString(values[0]));
+    } else {
+        EXPECT_EQ(ToString(metric), Format("{%v, TotalValue: %v}", values, metric.GetTotalValue()));
+    }
+}
+
+TYPED_TEST(TMetricTest, IsLessOrEqualComponentwise)
+{
+    using TMetric = typename TestFixture::TMetric;
+
+    auto values = TestFixture::MakeArray(2.0);
+    const TMetric metric(values);
+    EXPECT_TRUE(metric.IsLessOrEqualComponentwise(metric));
+    EXPECT_TRUE(TMetric::Zero().IsLessOrEqualComponentwise(TMetric::Zero()));
+    EXPECT_TRUE((metric - 1.0).IsLessOrEqualComponentwise(metric));
+    EXPECT_FALSE((metric + 1.0).IsLessOrEqualComponentwise(metric));
+
+    for (int index = 0; index < TestFixture::Size; ++index) {
+        SCOPED_TRACE(index);
+        auto smallerValues = values;
+        smallerValues[index] -= 1.0;
+        const TMetric smallerMetric(smallerValues);
+        EXPECT_TRUE(smallerMetric.IsLessOrEqualComponentwise(metric));
+        EXPECT_FALSE(metric.IsLessOrEqualComponentwise(smallerMetric));
+
+        if constexpr (TestFixture::Size > 1) {
+            auto mixedValues = values;
+            mixedValues[index] += 1.0;
+            mixedValues[(index + 1) % TestFixture::Size] -= 1.0;
+            const TMetric mixedMetric(mixedValues);
+            // Equal totals do not imply componentwise comparability.
+            EXPECT_FALSE(mixedMetric.IsLessOrEqualComponentwise(metric));
+            EXPECT_FALSE(metric.IsLessOrEqualComponentwise(mixedMetric));
+        }
+    }
+}
+
+TYPED_TEST(TMetricTest, ComponentwiseComparisonWithNaN)
+{
+    using TMetric = typename TestFixture::TMetric;
+
+    auto values = TestFixture::MakeArray(1.0);
+    const TMetric metric(values);
+    for (int index = 0; index < TestFixture::Size; ++index) {
+        SCOPED_TRACE(index);
+        auto nanValues = values;
+        nanValues[index] = std::numeric_limits<double>::quiet_NaN();
+        const TMetric nanMetric(nanValues);
+        EXPECT_FALSE(nanMetric.IsLessOrEqualComponentwise(metric));
+        EXPECT_FALSE(metric.IsLessOrEqualComponentwise(nanMetric));
+        EXPECT_FALSE(nanMetric.IsLessOrEqualComponentwise(nanMetric));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,7 +311,7 @@ TYPED_TEST(TMetricTest, NormalizedMetric)
         for (int index = 0; index < TestFixture::Size; ++index) {
             expected[index] = values[index] < MinimumAcceptableMetricValue ? 1.0 : scalar / values[index];
         }
-        TestFixture::ExpectValues(TMetric(values).GetNormalizedMetric(scalar), expected);
+        TestFixture::ExpectValues(TMetric(values).AsNormalizationFactor(scalar), expected);
     };
 
     check(TestFixture::MakeArray(2.0), 10.0);
@@ -277,7 +365,7 @@ TYPED_TEST(TMetricTest, ComplexChainWithNormalized)
 
     double scalar = 234.0;
     auto result = TMetric(values1) * 2.2 - TMetric(values2) -
-        TMetric(values1) * TMetric(values2).GetNormalizedMetric(scalar);
+        TMetric(values1) * TMetric(values2).AsNormalizationFactor(scalar);
     typename TestFixture::TValues expected;
     for (int index = 0; index < TestFixture::Size; ++index) {
         double normalized = values2[index] < MinimumAcceptableMetricValue ? 1.0 : scalar / values2[index];

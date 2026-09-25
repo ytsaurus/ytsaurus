@@ -16,13 +16,17 @@ The joiner path in the spec may point to a Cypress link. This lets you switch th
 
 The entry point registers the schemas of the input and output streams, adds the computation, and starts the pipeline.
 
-{% code '/yt/yt/flow/examples/go/external_state_join/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/external_state_join/main.go)
+
+{% code '/yt/yt/flow/examples/go/external_state_join/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `lookup_join.go` {#lookup-join-go}
 
 The computation decodes the typed input message, reads the joined state row, and creates a typed output message.
 
-{% code '/yt/yt/flow/examples/go/external_state_join/lookup_join.go' lang='go' %}
+[Source code: `lookup_join.go`]({{source-root}}/yt/yt/flow/examples/go/external_state_join/lookup_join.go)
+
+{% code '/yt/yt/flow/examples/go/external_state_join/lookup_join.go' lang='go' lines='[BEGIN lookup_join]-[END lookup_join]' %}
 
 ## Key patterns {#key-patterns}
 

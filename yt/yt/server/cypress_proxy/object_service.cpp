@@ -21,6 +21,11 @@
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
+#include <yt/yt/ytlib/api/native/two_phase_table_operation.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -37,6 +42,8 @@
 #include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
+
+#include <yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -99,6 +106,18 @@ public:
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(RequestQueueProvider_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Mount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Unmount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Remount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Freeze)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Unfreeze)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Reshard)
+            .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
@@ -128,6 +147,37 @@ public:
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
+
+    // COMPAT(danilalexeev)
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Mount);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Unmount);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Remount);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Freeze);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Unfreeze);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Reshard);
+
+    template <NNative::CTwoPhaseTableRequest TRequest>
+    void ExecuteTwoPhaseTableOperation(
+        const auto& context,
+        TTypedServiceRequest<TRequest>* request,
+        TStringBuf action)
+    {
+        auto path = NYPath::TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+        context->AnnotateRequest()
+            .With("Path", path);
+
+        auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(
+            context->GetAuthenticationIdentity());
+        auto client = Connection_->CreateNativeClient(clientOptions);
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        auto target = NNative::ResolveTwoPhaseTableOperationTarget(proxy, path);
+        // TODO(danilalexeev): Add Sequoia bundle |use| and table |mount| permission checks
+        // for Sequoia nodes.
+        NNative::ExecuteTwoPhaseTableOperationViaMaster<TRequest>(client, target, action, request);
+        context->Reply();
+    }
 
     const NNative::IConnectionPtr Connection_;
 
@@ -1284,6 +1334,38 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
         cellTag,
         masterChannelKind);
     session->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Mount)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Mounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Unmount)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Unmounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Remount)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Remounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Freeze)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Freezing");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Unfreeze)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Unfreezing");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Reshard)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Resharding");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

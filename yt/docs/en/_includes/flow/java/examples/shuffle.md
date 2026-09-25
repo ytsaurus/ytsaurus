@@ -67,19 +67,19 @@ You register the source computation `reader` with the `@FlowSourceComputation` a
 
 {% endlist %}
 
-### NodeCompanionMain
+### PipelineMain
 
-This is the entry point of the companion based on Spring Boot:
+This single entry point starts the pipeline or serves as its companion, depending on `YT_FLOW_MODE`.
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/NodeCompanionMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/PipelineMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/NodeCompanionMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/PipelineMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
 
 {% endlist %}
 

@@ -1263,13 +1263,13 @@ class TestWordCount(FlowTestJavaBase):
     JAVA_RUNNER_BINARY_DIR = yatest.common.binary_path(
         "yt/yt/flow/examples/java/word_count/wordcount/"
     )
-    JAVA_RUNNER_MAIN_CLASS = "tech.ytsaurus.flow.examples.wordcount.RunnerMain"
+    JAVA_MAIN_CLASS = "tech.ytsaurus.flow.examples.wordcount.WordCountApplication"
 ```
 
 | Attribute | Description |
 |-----------|-------------|
 | `JAVA_RUNNER_BINARY_DIR` | Path to the directory with the Java runner binary (contains `run.sh`) |
-| `JAVA_RUNNER_MAIN_CLASS` | Full name of the Java runner’s main class |
+| `JAVA_MAIN_CLASS` | Full name of the pipeline entry-point class: it starts the pipeline and serves as the companion |
 
 [Integration test examples (Java)]({{source-root}}/yt/yt/flow/examples/java)
 

@@ -3,9 +3,11 @@
 Use these principles when writing integration tests for pipelines:
 
 * Test end-to-end scenarios. That is:
-  * Write input/source data to the local YT/LB.
+  * Write input/source data to the local YT{% if audience == "internal" %}/LB{% endif %}.
   * In the pipeline spec, mark the sources as `finite=%true`.
+  * For a [Key Visitor stream](../../flow/concepts/key_visitor.md) that should run during the test, set `finite=%false`.
   * Run the pipeline.
+  * When the Key Visitor should finish, call the integration test base method [`self.ask_key_visitor_to_complete("<computation_id>", "<stream_id>")`]({{source-root}}/yt/yt/flow/library/python/integration_test_base/yt_flow_base.py); it switches that stream's [dynamic `finite` parameter](../../flow/concepts/key_visitor.md#dynamic-params) to `%true`.
   * Wait for the pipeline to finish.
   * Check the output data.
 * Prepare the environment with the same code you use in production:
@@ -44,7 +46,7 @@ After a test finishes, you can find its logs in `test-results/py3test/testing_ou
 * `<test_class_name>/<test_name>/Worker_<number>...` — Worker logs.
 * `<test_class_name>/<test_name>/Runner...` — Runner logs.
 
-If something isn’t working, check errors in all these logs. The approach to reviewing them is the same as in production — see [Logs](../../flow/release/logs.md).
+If something isn’t working, check errors in all these logs. The approach to reviewing them is the same as in production — see [Logs](../../flow/devops/vanilla/diagnostics/logs.md).
 
 You can also view logs before the test finishes. To do this, locate the temporary directory where the test runs. The simplest way is to run the test with the `--keep-temps` flag: `ya make --keep-temps -ttt <target>`. In this case, `ya make` won’t delete the temporary directory after the test finishes and will print a link to it in the output.
 
@@ -58,6 +60,8 @@ alias cdcurtestdir='cd $(curtestdir)'
 alias curlocalyt='cat $(curtestdir)/stderr 2>/dev/null | grep YT'
 ```
 
+{% if audience == "internal" %}
+
 ### Local {{product-name}} UI {#debug-ui-yt}
 
 You need network access from the `_YTFRONT_PROD_NETS_` network to the machine where the test runs, on TCP ports 81–65535. This lets you use the production and beta UIs. If you want to use the test UI, you also need network access from the `_DATAUI_INFRASTRUCTURE_NETS_` network to the same ports.
@@ -65,6 +69,8 @@ You need network access from the `_YTFRONT_PROD_NETS_` network to the machine wh
 In this case, you can open the regular {{product-name}} UI to interact with the pipeline running on the local {{product-name}}. You can extract the local cluster UI address from the logs; see the bash aliases in the previous section.
 
 To debug with the UI, you need long timeouts in your tests (or disable them entirely).
+
+{% endif %}
 
 ### Test framework {#debug-test-framework}
 

@@ -1,4 +1,16 @@
 items:
+  - name: Обзор эксплуатации
+    href: index.md
+  - name: Выбор таблиц стейта
+    href: state-tables-choice.md
+  - name: Диагностика
+    href: diagnostics.md
+  - name: Профилирование
+    href: profiling.md
+  - name: Типовые проблемы
+    href: troubleshooting.md
+  - name: Медленная обработка
+    href: problems/slow-processing.md
   - name: Vanilla-операции
     include:
       mode: link

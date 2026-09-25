@@ -37,14 +37,14 @@ class TControllerService
 public:
     TControllerService(
         IFlowExecutorPtr flowExecutor,
-        IPipelineAuthenticatorPtr authenticator,
+        IAuthenticatorPtr authenticator,
         IInvokerPtr invoker)
         : NRpc::TServiceBase(
             std::move(invoker),
             TControllerServiceProxy::GetDescriptor(),
             ControllerLogger(),
             TServiceOptions{
-                .Authenticator = authenticator->CreateYTControllerRpcAuthenticator(),
+                .Authenticator = std::move(authenticator),
             })
         , FlowExecutor_(flowExecutor)
     {
@@ -224,7 +224,7 @@ private:
 
 IServicePtr CreateControllerService(
     IFlowExecutorPtr flowExecutor,
-    IPipelineAuthenticatorPtr authenticator,
+    IAuthenticatorPtr authenticator,
     IInvokerPtr invoker)
 {
     return New<TControllerService>(

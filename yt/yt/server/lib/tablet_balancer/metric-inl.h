@@ -14,6 +14,32 @@ Y_FORCE_INLINE TGenericMetric<Size>::TGenericMetric(const std::array<double, Siz
 { }
 
 template <int Size>
+Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::Zero()
+{
+    return TGenericMetric();
+}
+
+template <int Size>
+Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::Unit()
+{
+    TGenericMetric result;
+    result.Values_.fill(1.0);
+    return result;
+}
+
+template <int Size>
+Y_FORCE_INLINE double& TGenericMetric<Size>::operator[](int index)
+{
+    return Values_[index];
+}
+
+template <int Size>
+Y_FORCE_INLINE double TGenericMetric<Size>::operator[](int index) const
+{
+    return Values_[index];
+}
+
+template <int Size>
 Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::operator+(TGenericMetric other) const
 {
     TGenericMetric result;
@@ -166,6 +192,17 @@ Y_FORCE_INLINE TGenericMetric<Size>& TGenericMetric<Size>::operator/=(double sca
 }
 
 template <int Size>
+Y_FORCE_INLINE bool TGenericMetric<Size>::IsLessOrEqualComponentwise(const TGenericMetric& other) const
+{
+    for (int index = 0; index < Size; ++index) {
+        if (!(Values_[index] <= other.Values_[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <int Size>
 Y_FORCE_INLINE double TGenericMetric<Size>::GetTotalValue() const
 {
     double result = 0.0;
@@ -176,7 +213,7 @@ Y_FORCE_INLINE double TGenericMetric<Size>::GetTotalValue() const
 }
 
 template <int Size>
-Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::GetNormalizedMetric(double scalar) const
+Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::AsNormalizationFactor(double scalar) const
 {
     TGenericMetric result;
     for (int index = 0; index < Size; ++index) {
@@ -195,12 +232,6 @@ Y_FORCE_INLINE TGenericMetric<Size> TGenericMetric<Size>::GetNormalizedMetric(do
     return result;
 }
 
-template <int Size>
-const std::array<double, Size>& TGenericMetric<Size>::ToArray() const
-{
-    return Values_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <int Size>
@@ -209,9 +240,14 @@ void FormatValue(TStringBuilderBase* builder, TGenericMetric<Size> metric, TStri
     if constexpr (Size == 1) {
         builder->AppendString(ToString(metric.GetTotalValue()));
     } else {
-        builder->AppendFormat("{%v, TotalValue: %v}",
-            metric.ToArray(),
-            metric.GetTotalValue());
+        builder->AppendString("{[");
+        for (int index = 0; index < Size; ++index) {
+            if (index > 0) {
+                builder->AppendString(", ");
+            }
+            builder->AppendFormat("%v", metric[index]);
+        }
+        builder->AppendFormat("], TotalValue: %v}", metric.GetTotalValue());
     }
 }
 

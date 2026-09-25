@@ -1,6 +1,7 @@
 #include "fetcher.h"
 
 #include <yt/yt/flow/library/cpp/common/public.h>
+#include <yt/yt/flow/library/cpp/common/select_literals.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -11,8 +12,9 @@
 #include <yt/yt/client/api/table_reader.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <util/string/escape.h>
@@ -59,16 +61,6 @@ void TTableFetcherSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Builds a parenthesized list of column names from the schema, e.g. "(col1,col2)".
-std::string BuildKeysNamePrefix(const NTableClient::TTableSchemaPtr& schema, int length)
-{
-    std::vector<std::string> result;
-    for (int i = 0; i < length; ++i) {
-        result.push_back(schema->Columns()[i].Name());
-    }
-    return Format("(%v)", JoinSeq(",", result));
-}
-
 //! Builds a comma-separated list of all column names from the schema, e.g. "col1,col2,col3".
 std::string BuildColumnsList(const NTableClient::TTableSchemaPtr& schema)
 {
@@ -79,54 +71,23 @@ std::string BuildColumnsList(const NTableClient::TTableSchemaPtr& schema)
     return JoinSeq(",", result);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Builds a parenthesized list of placeholder references, e.g. "({lower_0},{lower_1})".
-std::string BuildKeysPlaceholderPrefix(const std::string& prefix, int length)
-{
-    std::vector<std::string> result;
-    for (int i = 0; i < length; i++) {
-        result.push_back(Format("{%v_%v}", prefix, i));
-    }
-    return Format("(%v)", JoinSeq(",", result));
-}
-
-//! Builds a comparison clause with placeholders like "(col1,col2) >= ({lower_0},{lower_1})".
-std::string BuildParameterizedClause(
-    const NTableClient::TTableSchemaPtr& schema,
-    const int keyCount,
-    const std::string& sign,
-    const std::string& paramPrefix)
-{
-    return Format("%v %v %v", BuildKeysNamePrefix(schema, keyCount), sign, BuildKeysPlaceholderPrefix(paramPrefix, keyCount));
-}
-
-void AddKeyPlaceholderValues(
-    NYTree::TFluentMap fluent,
-    const std::string& prefix,
-    const TKey& key)
-{
-    for (int i = 0; i < key.Underlying().GetCount(); i++) {
-        fluent.Item(Format("%v_%v", prefix, i)).Value(key.Underlying()[i]);
-    }
-}
-
 TParameterizedSelectRowsQuery BuildParameterizedSelectRowsQuery(
     const std::string& tablePath,
     const NTableClient::TTableSchemaPtr& schema,
     const TServiceLogRangePtr& range,
     i64 rowLimit)
 {
+    TSelectPlaceholders placeholders;
     std::vector<std::string> clauses;
 
     if (range->Lower) {
         auto sign = range->Lower->Exclusive ? ">" : ">=";
-        clauses.push_back(BuildParameterizedClause(schema, range->Lower->Key.Underlying().GetCount(), sign, "lower"));
+        clauses.push_back(placeholders.BindKeyBound(*schema, sign, "lower", range->Lower->Key));
     }
 
     if (range->Upper) {
         auto sign = range->Upper->Exclusive ? "<" : "<=";
-        clauses.push_back(BuildParameterizedClause(schema, range->Upper->Key.Underlying().GetCount(), sign, "upper"));
+        clauses.push_back(placeholders.BindKeyBound(*schema, sign, "upper", range->Upper->Key));
     }
 
     std::string whereClause;
@@ -134,29 +95,16 @@ TParameterizedSelectRowsQuery BuildParameterizedSelectRowsQuery(
         whereClause = Format("WHERE %v", JoinSeq(" AND ", clauses));
     }
 
-    auto query = Format("SELECT %v FROM [%v] %v ORDER BY %v LIMIT {row_limit}",
+    auto query = Format("SELECT %v FROM [%v] %v ORDER BY %v LIMIT %v",
         BuildColumnsList(schema),
         tablePath,
         whereClause,
-        BuildKeysNamePrefix(schema, schema->GetKeyColumnCount()));
-
-    auto placeholderValues = NYTree::BuildYsonStringFluently()
-        .BeginMap()
-        .DoIf(range->Lower.has_value(),
-            [&] (NYTree::TFluentMap fluent) {
-                AddKeyPlaceholderValues(fluent, /*prefix*/ "lower", range->Lower->Key);
-            })
-        .DoIf(range->Upper.has_value(),
-            [&] (NYTree::TFluentMap fluent) {
-                AddKeyPlaceholderValues(fluent, /*prefix*/ "upper", range->Upper->Key);
-            })
-        .Item("row_limit")
-        .Value(rowLimit)
-        .EndMap();
+        BuildColumnTuple(*schema, schema->GetKeyColumnCount()),
+        placeholders.Bind("row_limit", NTableClient::MakeUnversionedInt64Value(rowLimit)));
 
     return TParameterizedSelectRowsQuery{
         .Query = std::move(query),
-        .PlaceholderValues = std::move(placeholderValues),
+        .PlaceholderValues = placeholders.Build(),
     };
 }
 

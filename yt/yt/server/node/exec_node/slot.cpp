@@ -444,8 +444,7 @@ public:
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumeParams,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<TVolumeMountPtr>& volumeMounts,
-        bool testRootFs) override
+        const std::vector<TVolumeMountPtr>& volumeMounts) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -464,7 +463,7 @@ public:
             return MakeFuture<std::vector<TVolumeResultPtr>>(TError(Message));
         }
 
-        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
+        auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume);
         return RunPreparationAction(
             /*actionName*/ "PrepareNonRootVolumes",
             /*uncancelable*/ false,
@@ -523,8 +522,7 @@ public:
     TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumeResults,
-        const std::vector<TVolumeMountPtr>& volumeMounts,
-        bool testRootFs) override
+        const std::vector<TVolumeMountPtr>& volumeMounts) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -540,7 +538,7 @@ public:
             return OKFuture;
         }
 
-        auto rootPath = GetRootPath(rootVolume, testRootFs);
+        auto rootPath = GetRootPath(rootVolume);
 
         YT_TLOG_DEBUG("Linking volumes into root")
             .With("RootPath", rootPath)
@@ -755,13 +753,13 @@ public:
         return Location_->ValidateRootFS(rootVolume);
     }
 
-    std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
+    std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume) const override
     {
         VerifyEnabled();
 
         switch (sandboxKind) {
             case ESandboxKind::User:
-                if (rootVolume && !testRootFs) {
+                if (rootVolume) {
                     YT_VERIFY(!rootVolume->GetPath().empty());
 
                     // Use user sandbox within root volume.
@@ -777,11 +775,11 @@ public:
         }
     }
 
-    TString GetRootPath(const IVolumePtr& rootVolume, bool testRootFs) const
+    TString GetRootPath(const IVolumePtr& rootVolume) const
     {
         VerifyEnabled();
 
-        if (rootVolume && !testRootFs) {
+        if (rootVolume) {
             YT_VERIFY(!rootVolume->GetPath().empty());
             return TString(rootVolume->GetPath());
         } else {

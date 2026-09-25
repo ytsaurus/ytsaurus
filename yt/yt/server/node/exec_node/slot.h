@@ -119,8 +119,7 @@ struct IUserSlot
         const IVolumePtr& rootVolume,
         const std::vector<TBaseVolumeParamsPtr>& volumes,
         std::vector<std::vector<TOverlayData>> perVolumeOverlayData,
-        const std::vector<TVolumeMountPtr>& volumeMounts,
-        bool testRootFs) = 0;
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume) = 0;
@@ -128,8 +127,7 @@ struct IUserSlot
     virtual TFuture<void> LinkVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumes,
-        const std::vector<TVolumeMountPtr>& volumeMounts,
-        bool testRootFs) = 0;
+        const std::vector<TVolumeMountPtr>& volumeMounts) = 0;
 
     virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
@@ -144,7 +142,7 @@ struct IUserSlot
 
     virtual std::string GetSlotPath() const = 0;
 
-    virtual std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
+    virtual std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume) const = 0;
 
     virtual std::string GetMediumName() const = 0;
 

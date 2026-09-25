@@ -1,0 +1,48 @@
+title: Flow
+items:
+  - include:
+      mode: merge
+      path: toc_intro_i.yaml
+  - name: Core concepts
+    include:
+      mode: link
+      path: concepts/toc_i.yaml
+  - name: C++
+    include:
+      mode: link
+      path: cpp/toc_i.yaml
+  - name: Java
+    include:
+      mode: link
+      path: java/toc_i.yaml
+  - name: Python
+    include:
+      mode: link
+      path: python/toc_i.yaml
+  - name: Go
+    include:
+      mode: link
+      path: go/toc_i.yaml
+  - name: YQL
+    include:
+      mode: link
+      path: yql/toc_i.yaml
+  - name: Connectors
+    include:
+      mode: link
+      path: connectors/toc_i.yaml
+  - name: Extensions
+    include:
+      mode: link
+      path: extensions/toc_i.yaml
+  - name: Operations
+    include:
+      mode: link
+      path: devops/toc_i.yaml
+  - include:
+      mode: merge
+      path: toc_reference_i.yaml
+  - name: Contributors
+    include:
+      mode: link
+      path: contributor/toc_i.yaml

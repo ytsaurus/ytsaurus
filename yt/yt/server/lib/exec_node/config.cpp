@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
+#include <yt/yt/library/nbd/chunk/public.h>
+
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -840,7 +842,7 @@ void TNbdClientConfig::Register(TRegistrar registrar)
     registrar.Parameter("reconnect_timeout", &TThis::ReconnectTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("connection_count", &TThis::ConnectionCount)
-        .Default(DefaultNbdMultiplexingParallelism);
+        .Default(NNbd::NChunk::DefaultNbdMultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -908,9 +910,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
 
     registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
-        .Default(false);
-
-    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
 
     registrar.Parameter("test_poll_job_shell", &TThis::TestPollJobShell)

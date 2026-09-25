@@ -81,7 +81,7 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 ## Точка входа
 
-У пайплайна одна точка входа — класс с `main`-методом, который вызывает `FlowApplication.run(args, context)`. Роль процесса выбирается по переменной среды `YT_FLOW_MODE`:
+Без Spring Boot точка входа пайплайна — класс с `main`-методом, который вызывает `FlowApplication.run(args, context)`. Со Spring Boot метод `main` запускает Spring, который настраивает Flow; см. [Интеграция со Spring Boot](../../../flow/java/spring.md). Роль процесса выбирается по переменной среды `YT_FLOW_MODE`:
 
 - переменная не задана — процесс работает как **runner**: дополняет спеку пайплайна и передаёт запуск `flow_server`;
 - `YT_FLOW_MODE=Worker` — процесс работает как **компаньон**: поднимает gRPC-сервер и обслуживает запросы воркера. Эту переменную воркер выставляет сам, запуская компаньон.
@@ -251,4 +251,5 @@ Runner требует два аргумента: `--config` — путь к ко
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Работа со стейтами (Java)](../../../flow/java/state.md)
 - [Примеры](../../../flow/java/examples/wordcount.md)
+- [Регистрация через Spring Boot](../../../flow/java/spring.md)
 - [Companion](../../../flow/concepts/companion.md)

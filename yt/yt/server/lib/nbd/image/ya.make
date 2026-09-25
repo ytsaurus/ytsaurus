@@ -7,7 +7,6 @@ SRCS(
     image_block_device.cpp
     image_reader.cpp
     random_access_file_reader.cpp
-    config.cpp
 )
 
 PEERDIR(

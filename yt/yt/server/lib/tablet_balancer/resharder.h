@@ -21,7 +21,7 @@ DEFINE_REFCOUNTED_TYPE(IParameterizedResharder)
 struct TParameterizedResharderConfig
 {
     bool EnableReshardByDefault = false;
-    std::string Metric;
+    std::vector<std::string> Metrics;
 
     TParameterizedResharderConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
 };

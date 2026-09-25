@@ -38,6 +38,8 @@ struct IFlowExecutor
     virtual TSetFlowCoreTargetResult SetFlowCoreTarget(const TSetFlowCoreTargetArg& argument) = 0;
 };
 
+IFlowExecutorPtr CreateFlowExecutor(IFlowExecutorRuntimePtr runtime);
+
 IFlowExecutorPtr CreateFlowExecutor(
     IControllerPtr controller,
     IPersistedStateManagerPtr persistedStateManager,

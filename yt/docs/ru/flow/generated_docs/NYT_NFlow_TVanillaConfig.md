@@ -33,9 +33,11 @@ Content-addressed кэш, в который заливаются файлы дж
 || `wait_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `5m`
 Таймаут ожидания состояний пайплайна при штатном останове прежней vanilla-операции. ||
+{% if audience == "internal" %}
 || `solomon_resolver_tag` | **Тип**: `std::string`
 **Значение по умолчанию**: `ytflow_vanilla_common`
 Тег для solomon-резолвера, прописываемый в аннотации операции. ||
+{% endif %}
 || `alias` | **Тип**: `std::optional<std::string>`
 Явный alias vanilla-операции. Если не задан, генерируется как `*flow-runner <cluster>:<path>`. ||
 || `title` | **Тип**: `std::optional<std::string>`

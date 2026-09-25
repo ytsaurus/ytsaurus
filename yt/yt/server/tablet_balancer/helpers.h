@@ -43,6 +43,7 @@ THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
     const IMulticellThrottlerPtr& throttler,
+    bool useInternalApi,
     std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
 THashMap<NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode> FetchChaosTableReplicaModes(

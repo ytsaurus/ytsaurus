@@ -123,7 +123,7 @@ For a full description of the parameters, see the [JobManager documentation](../
     "computations" = {
         "preprocessing" = {
             "computation_class_name" = "PreprocessingComputation";
-            # No worker_group — runs on any workers
+            # No worker_group — runs on default-group workers only
         };
 
         "gpu_inference" = {

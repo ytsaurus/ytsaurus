@@ -5,6 +5,7 @@
 #include "intermediate_description.h"
 
 #include <yt/yt/flow/library/cpp/common/authenticator.h>
+#include <yt/yt/flow/library/cpp/common/flow_core_build_info.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/yt_connector.h>
 
@@ -198,11 +199,13 @@ struct TPipelineDescription
 struct TDescribePipelineArguments
 {
     TFlowViewPtr FlowView;
+    TInstant Now = TInstant::Now();
     THashMap<std::string, TError> ControllerErrors;
     NLogging::TLogger Logger;
     IPipelineAuthenticatorPtr Authenticator;
     bool StatusOnly = false;
     std::string ControllerFlowCoreVersion;
+    TFlowCoreBuildInfoPtr ControllerBuildInfo = GetFlowCoreBuildInfo();
     // Leader-controller's build type, taken from its node_info. Empty means the controller
     // is on a binary that predates the field; describe omits the line and the slow-build
     // warning in that case.

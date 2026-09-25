@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/library/nbd/dynamic_table/config.h>
+
 #include <library/cpp/yt/logging/public.h>
 
 namespace NYT::NNbd::NDynamicTable {

@@ -2714,6 +2714,15 @@ def make_ace(
 
     return ace
 
+
+def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
+    ace = make_ace("allow", users, permission)
+    if row_access_predicate is not None:
+        ace["row_access_predicate"] = row_access_predicate
+    if mode is not None:
+        ace["inapplicable_row_access_predicate_mode"] = mode
+    return ace
+
 ##################################################################
 
 
@@ -3628,6 +3637,13 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
         for agent in ls("//sys/controller_agents/instances"):
             orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
             wait(lambda: get("{}/{}".format(orchid_config_path, path), default=None) == value)
+
+
+def remove_default_layer_path():
+    remove("//sys/controller_agents/config/default_layer_path", force=True)
+    for agent in ls("//sys/controller_agents/instances"):
+        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
+        wait(lambda: get(orchid_config_path + "/default_layer_path", default=None) is None)
 
 
 @contextlib.contextmanager

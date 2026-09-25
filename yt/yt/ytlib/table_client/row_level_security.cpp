@@ -1,15 +1,20 @@
 #include "row_level_security.h"
 
-#include <yt/yt/core/phoenix/type_def.h>
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/query_evaluator.h>
 
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -22,6 +27,23 @@ using namespace NSecurityClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+constexpr auto AuthenticatedUserColumnName = "$authenticated_user";
+
+struct TValidatedPredicate
+{
+    std::string Predicate;
+    bool ReferencesAuthenticatedUser = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSchemaPtr AddSystemColumns(const TTableSchemaPtr& schema)
+{
+    auto columns = schema->Columns();
+    columns.emplace_back(AuthenticatedUserColumnName, EValueType::String);
+    return New<TTableSchema>(std::move(columns));
+}
 
 bool IsTypeBoolean(const TLogicalType& logicalType)
 {
@@ -36,8 +58,8 @@ bool IsTypeBoolean(const TLogicalType& logicalType)
     return false;
 }
 
-bool ValidatePredicateApplicability(
-    TRowLevelAccessControlEntry rowLevelAce,
+std::optional<TValidatedPredicate> TryValidatePredicate(
+    const TRowLevelAccessControlEntry& rowLevelAce,
     const TTableSchemaPtr& schema,
     const TLogger& Logger)
 {
@@ -48,14 +70,17 @@ bool ValidatePredicateApplicability(
             !IsTypeBoolean(*preparedExpression->LogicalType),
             "Expected row access predicate's result type to be boolean, got %Qlv",
             *preparedExpression->LogicalType);
-        return true;
+        return TValidatedPredicate{
+            .Predicate = rowLevelAce.RowAccessPredicate,
+            .ReferencesAuthenticatedUser = references.contains(AuthenticatedUserColumnName),
+        };
     } catch (const std::exception& ex) {
         switch (rowLevelAce.InapplicableRowAccessPredicateMode) {
             case EInapplicableRowAccessPredicateMode::Ignore: {
                 YT_TLOG_INFO("Ignored row access predicate")
                     .With("RowAccessPredicate", rowLevelAce.RowAccessPredicate)
                     .With(ex);
-                return false;
+                return std::nullopt;
             }
             case EInapplicableRowAccessPredicateMode::Fail: {
                 auto error = TError(
@@ -75,19 +100,23 @@ bool ValidatePredicateApplicability(
 //!
 //! When all rl aces are inapplicable and inapplicable_row_access_predicate_mode=ignore,
 //! return nullopt.
-std::optional<std::string> ValidateAndBuildPredicate(
+std::optional<TValidatedPredicate> ValidateAndBuildPredicate(
     const TTableSchemaPtr& schema,
     const std::vector<TRowLevelAccessControlEntry>& rowLevelAcl,
     const TLogger& Logger)
 {
     TStringBuilder builder;
     bool first = true;
+    bool referencesAuthenticatedUser = false;
     for (const auto& rowLevelAce : rowLevelAcl) {
         YT_VERIFY(!rowLevelAce.RowAccessPredicate.empty());
 
-        if (!ValidatePredicateApplicability(rowLevelAce, schema, Logger)) {
+        auto validatedPredicate = TryValidatePredicate(rowLevelAce, schema, Logger);
+        if (!validatedPredicate) {
             continue;
         }
+
+        referencesAuthenticatedUser |= validatedPredicate->ReferencesAuthenticatedUser;
 
         // NB(coteeq): |ValidateRowLevelAceApplicability| checks that the |rowLevelAce.RowAccessPredicate| is a valid expression.
         // That means that we can just copy-paste the predicate into the builder and not care about
@@ -104,7 +133,7 @@ std::optional<std::string> ValidateAndBuildPredicate(
         }
         first = false;
         builder.AppendChar('(');
-        builder.AppendString(rowLevelAce.RowAccessPredicate);
+        builder.AppendString(validatedPredicate->Predicate);
         builder.AppendChar(')');
     }
 
@@ -118,7 +147,10 @@ std::optional<std::string> ValidateAndBuildPredicate(
         return std::nullopt;
     }
 
-    return predicate;
+    return TValidatedPredicate{
+        .Predicate = std::move(predicate),
+        .ReferencesAuthenticatedUser = referencesAuthenticatedUser,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +164,8 @@ public:
     TRlsChecker(
         TQueryEvaluationContextPtr instance,
         TNameTableToSchemaIdMapping chunkToExpressionIdMapping,
-        int valueCount)
+        int valueCount,
+        std::optional<TUnversionedOwningValue> authenticatedUser)
         : EvaluationContext_(std::move(instance))
         , ValueCount_(valueCount)
         , RemappedValueCount_(
@@ -142,6 +175,7 @@ public:
                     return value != -1;
                 }))
         , ChunkToExpressionIdMapping_(std::move(chunkToExpressionIdMapping))
+        , AuthenticatedUser_(std::move(authenticatedUser))
     {
         YT_VERIFY(EvaluationContext_);
         YT_VERIFY(
@@ -198,6 +232,7 @@ private:
     //! Number of columns that must be present in a row.
     const int RemappedValueCount_;
     const TNameTableToSchemaIdMapping ChunkToExpressionIdMapping_;
+    const std::optional<TUnversionedOwningValue> AuthenticatedUser_;
 
     TUnversionedRow ReorderRow(
         TUnversionedRow row,
@@ -224,6 +259,10 @@ private:
             }
         }
 
+        if (AuthenticatedUser_) {
+            reorderedRow[static_cast<TUnversionedValue>(*AuthenticatedUser_).Id] = *AuthenticatedUser_;
+        }
+
         YT_VERIFY(
             remappedValueCount == RemappedValueCount_,
             Format("%v != %v", remappedValueCount, RemappedValueCount_));
@@ -239,15 +278,20 @@ class TRlsCheckerFactory
 public:
     TRlsCheckerFactory(
         TTableSchemaPtr adjustedSchema,
-        TQueryEvaluationContextPtr context)
+        TQueryEvaluationContextPtr context,
+        std::optional<TUnversionedOwningValue> authenticatedUser)
         : AdjustedSchema_(std::move(adjustedSchema))
         , EvaluationContext_(std::move(context))
+        , AuthenticatedUser_(std::move(authenticatedUser))
     { }
 
     IRlsCheckerPtr CreateCheckerForChunk(const TNameTablePtr& chunkNameTable) const override
     {
         TNameTableToSchemaIdMapping idMapping(static_cast<size_t>(chunkNameTable->GetSize()), -1);
         for (const auto& [index, column] : Enumerate(AdjustedSchema_->Columns())) {
+            if (column.Name() == AuthenticatedUserColumnName) {
+                continue;
+            }
             // NB(coteeq): RLS references non-stable names, so we refer to stable name inside the chunk.
             auto inChunkId = chunkNameTable->FindId(column.StableName().Underlying());
             if (inChunkId) {
@@ -261,12 +305,14 @@ public:
         return New<TRlsChecker>(
             EvaluationContext_,
             std::move(idMapping),
-            std::ssize(AdjustedSchema_->Columns()));
+            std::ssize(AdjustedSchema_->Columns()),
+            AuthenticatedUser_);
     }
 
 private:
     const TTableSchemaPtr AdjustedSchema_;
     const TQueryEvaluationContextPtr EvaluationContext_;
+    const std::optional<TUnversionedOwningValue> AuthenticatedUser_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,20 +324,25 @@ private:
 std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
     const TTableSchemaPtr& tableSchema,
     const std::optional<std::vector<TRowLevelAccessControlEntry>>& rowLevelAcl,
+    std::string authenticatedUser,
     const TLogger& logger)
 {
     if (!rowLevelAcl) {
         return std::nullopt;
     }
-    auto predicate = ValidateAndBuildPredicate(tableSchema, *rowLevelAcl, logger);
-    YT_VERIFY(!predicate || !predicate->empty());
+    auto validatedPredicate = ValidateAndBuildPredicate(
+        AddSystemColumns(tableSchema),
+        *rowLevelAcl,
+        logger);
+    YT_VERIFY(!validatedPredicate || !validatedPredicate->Predicate.empty());
 
     TRlsReadSpec rlsReadSpec;
     rlsReadSpec.TableSchema_ = tableSchema;
-    if (predicate) {
-        rlsReadSpec.PredicateOrTrivialDeny_ = *predicate;
-    } else {
-        rlsReadSpec.PredicateOrTrivialDeny_ = TTrivialDeny{};
+    if (validatedPredicate) {
+        rlsReadSpec.PredicateOrTrivialDeny_ = std::move(validatedPredicate->Predicate);
+        if (validatedPredicate->ReferencesAuthenticatedUser) {
+            rlsReadSpec.AuthenticatedUser_ = std::move(authenticatedUser);
+        }
     }
 
     return rlsReadSpec;
@@ -313,11 +364,24 @@ const TTableSchemaPtr& TRlsReadSpec::GetTableSchema() const
     return TableSchema_;
 }
 
+const std::optional<std::string>& TRlsReadSpec::GetAuthenticatedUser() const
+{
+    return AuthenticatedUser_;
+}
+
 void TRlsReadSpec::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, TableSchema_,
         .template Serializer<TNonNullableIntrusivePtrSerializer<>>());
     PHOENIX_REGISTER_FIELD(2, PredicateOrTrivialDeny_);
+    // NB(coteeq): Formally, nullopt is an invalid deserialization.
+    // However, since no operation can be using $authenticated_user prior to the
+    // commit that supports it, nothing should use AuthenticatedUser_ and we can
+    // both (1) restore from the snapshot (i.e. not bump min snapshot version)
+    // and (2) not have to deal with passing the user from the controller merely
+    // for the sake of a formally correct deserialization.
+    PHOENIX_REGISTER_FIELD(3, AuthenticatedUser_,
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RlsAuthenticatedUser)));
 }
 
 PHOENIX_DEFINE_TYPE(TRlsReadSpec);
@@ -326,6 +390,8 @@ void ToProto(
     NProto::TRlsReadSpec* protoRlsReadSpec,
     const TRlsReadSpec& rlsReadSpec)
 {
+    using NYT::ToProto;
+
     Visit(
         rlsReadSpec.PredicateOrTrivialDeny_,
         [&] (const std::string& predicate) {
@@ -334,6 +400,8 @@ void ToProto(
         [&] (const TRlsReadSpec::TTrivialDeny& /*trivialDeny*/) {
             protoRlsReadSpec->mutable_trivial_deny();
         });
+
+    YT_OPTIONAL_TO_PROTO(protoRlsReadSpec, authenticated_user, rlsReadSpec.AuthenticatedUser_);
 
     if (rlsReadSpec.TableSchema_) {
         ToProto(protoRlsReadSpec->mutable_table_schema(), *rlsReadSpec.TableSchema_);
@@ -354,6 +422,8 @@ void FromProto(
         default:
             YT_ABORT();
     }
+
+    rlsReadSpec->AuthenticatedUser_ = YT_OPTIONAL_FROM_PROTO(protoRlsReadSpec, authenticated_user);
 
     if (protoRlsReadSpec.has_table_schema()) {
         rlsReadSpec->TableSchema_ = NYT::FromProto<TTableSchemaPtr>(protoRlsReadSpec.table_schema());
@@ -378,8 +448,8 @@ IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
     const TRlsReadSpec& rlsReadSpec)
 {
     YT_VERIFY(!rlsReadSpec.IsTrivialDeny());
-    const auto& schema = rlsReadSpec.GetTableSchema();
-    YT_VERIFY(schema);
+    YT_VERIFY(rlsReadSpec.GetTableSchema());
+    auto schema = AddSystemColumns(rlsReadSpec.GetTableSchema());
 
     THashSet<std::string> references;
     auto preparedExpression = PrepareExpression(
@@ -391,17 +461,26 @@ IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
     // Drop unused columns from the schema.
     std::vector<TColumnSchema> columns;
     columns.reserve(references.size());
+    std::optional<TUnversionedOwningValue> authenticatedUser;
     for (const auto& column : schema->Columns()) {
-        if (references.contains(column.Name())) {
-            columns.push_back(column);
+        if (!references.contains(column.Name())) {
+            continue;
         }
+        if (column.Name() == AuthenticatedUserColumnName) {
+            YT_VERIFY(rlsReadSpec.GetAuthenticatedUser());
+            authenticatedUser.emplace(MakeUnversionedStringValue(
+                *rlsReadSpec.GetAuthenticatedUser(),
+                std::ssize(columns)));
+        }
+        columns.push_back(column);
     }
     auto adjustedSchema = New<TTableSchema>(std::move(columns));
     auto context = CreateQueryEvaluationContext(preparedExpression, adjustedSchema);
 
     return New<TRlsCheckerFactory>(
-        adjustedSchema,
-        std::move(context));
+        std::move(adjustedSchema),
+        std::move(context),
+        std::move(authenticatedUser));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

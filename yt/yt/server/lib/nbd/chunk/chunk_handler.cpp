@@ -1,10 +1,10 @@
 #include "chunk_handler.h"
 
-#include "config.h"
-
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/library/nbd/chunk/config.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

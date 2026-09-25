@@ -29,6 +29,7 @@ RECURSE(
     lock_election
     min_hash_digest
     monitoring
+    nbd
     numeric
     oom
     orchid

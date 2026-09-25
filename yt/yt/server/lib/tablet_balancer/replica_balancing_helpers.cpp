@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NTableClient;
@@ -101,8 +103,9 @@ std::vector<double> GetCumulativeDistribution(
     return distribution;
 }
 
-std::vector<double> CalculateMajorMetricsBetweenSamePivots(
-    const TRange<double>& minorTableMetrics,
+template <int MetricSize>
+std::vector<TGenericMetric<MetricSize>> CalculateMajorMetricsBetweenSamePivots(
+    const TRange<TGenericMetric<MetricSize>>& minorTableMetrics,
     const TRange<i64>& majorTabletSizes,
     const TRange<i64>& minorTabletSizes,
     const NLogging::TLogger& Logger,
@@ -113,7 +116,7 @@ std::vector<double> CalculateMajorMetricsBetweenSamePivots(
     YT_VERIFY(majorDistribution.front() == minorDistribution.front());
     YT_VERIFY(majorDistribution.back() == minorDistribution.back());
 
-    std::vector<double> metrics(majorTabletSizes.size());
+    std::vector<TGenericMetric<MetricSize>> metrics(majorTabletSizes.size());
     for (int majorIndex = 1, minorIndex = 1;
         majorIndex < std::ssize(majorDistribution) && minorIndex < std::ssize(minorDistribution);)
     {
@@ -128,7 +131,7 @@ std::vector<double> CalculateMajorMetricsBetweenSamePivots(
             YT_VERIFY(minorAddedPart <= 1.0);
         }
 
-        metrics[majorIndex - 1] += minorAddedPart * minorTableMetrics[minorIndex - 1];
+        metrics[majorIndex - 1] += minorTableMetrics[minorIndex - 1] * minorAddedPart;
 
         if (minorDistribution[minorIndex] <= majorDistribution[majorIndex]) {
             ++minorIndex;
@@ -143,12 +146,13 @@ std::vector<double> CalculateMajorMetricsBetweenSamePivots(
     return metrics;
 }
 
-std::vector<double> CalculateMajorMetrics(
-    const std::vector<double>& minorTableMetrics,
+template <int MetricSize>
+std::vector<TGenericMetric<MetricSize>> CalculateMajorMetrics(
+    const std::vector<TGenericMetric<MetricSize>>& minorTableMetrics,
     const std::vector<i64>& majorTabletSizes,
     const std::vector<i64>& minorTabletSizes,
-    const std::vector<TLegacyOwningKey>& majorTablePivotKeys,
-    const std::vector<TLegacyOwningKey>& minorTablePivotKeys,
+    const std::vector<NTableClient::TLegacyOwningKey>& majorTablePivotKeys,
+    const std::vector<NTableClient::TLegacyOwningKey>& minorTablePivotKeys,
     const NLogging::TLogger& Logger,
     bool enableVerboseLogging)
 {
@@ -169,12 +173,12 @@ std::vector<double> CalculateMajorMetrics(
         Logger,
         enableVerboseLogging);
 
-    std::vector<double> metrics;
+    std::vector<TGenericMetric<MetricSize>> metrics;
     for (auto rightCommonPivotIndex = 1; rightCommonPivotIndex < std::ssize(commonPivotKeys); ++rightCommonPivotIndex) {
         auto [majorLeftPivotIndex, minorLeftPivotIndex] = commonPivotKeys[rightCommonPivotIndex - 1];
         auto [majorRightPivotIndex, minorRightPivotIndex] = commonPivotKeys[rightCommonPivotIndex];
         auto reshardedMinorMetrics = CalculateMajorMetricsBetweenSamePivots(
-            TRange<double>(minorTableMetrics.begin() + minorLeftPivotIndex, minorTableMetrics.begin() + minorRightPivotIndex),
+            TRange<TGenericMetric<MetricSize>>(minorTableMetrics.begin() + minorLeftPivotIndex, minorTableMetrics.begin() + minorRightPivotIndex),
             TRange<i64>(majorTabletSizes.begin() + majorLeftPivotIndex, majorTabletSizes.begin() + majorRightPivotIndex),
             TRange<i64>(minorTabletSizes.begin() + minorLeftPivotIndex, minorTabletSizes.begin() + minorRightPivotIndex),
             Logger,
@@ -185,6 +189,30 @@ std::vector<double> CalculateMajorMetrics(
         .With("Metrics", metrics);
     return metrics;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define INSTANTIATE_REPLICA_BALANCING_HELPERS(size) \
+    template std::vector<TGenericMetric<size>> CalculateMajorMetricsBetweenSamePivots<size>( \
+        const TRange<TGenericMetric<size>>&, \
+        const TRange<i64>&, \
+        const TRange<i64>&, \
+        const NLogging::TLogger&, \
+        bool); \
+    template std::vector<TGenericMetric<size>> CalculateMajorMetrics<size>( \
+        const std::vector<TGenericMetric<size>>&, \
+        const std::vector<i64>&, \
+        const std::vector<i64>&, \
+        const std::vector<NTableClient::TLegacyOwningKey>&, \
+        const std::vector<NTableClient::TLegacyOwningKey>&, \
+        const NLogging::TLogger&, \
+        bool);
+
+YT_FOR_EACH_METRIC_SIZE(INSTANTIATE_REPLICA_BALANCING_HELPERS)
+
+#undef INSTANTIATE_REPLICA_BALANCING_HELPERS
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> ReshardByReferencePivots(
     const TRange<TLegacyOwningKey>& keys,

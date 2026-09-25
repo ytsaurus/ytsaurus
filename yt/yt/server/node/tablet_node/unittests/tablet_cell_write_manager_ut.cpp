@@ -193,7 +193,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteAfterCommit2PC)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
-    YT_LOG_DEBUG("Locking row");
+    YT_TLOG_DEBUG("Locking row");
     WaitFor(WriteUnversionedRows(
         txId,
         {BuildRow(43)},
@@ -205,7 +205,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteAfterCommit2PC)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_LOG_DEBUG("Preparing and committing transaction");
+    YT_TLOG_DEBUG("Preparing and committing transaction");
     YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ true, 0x20_ts, /*targetCommitApprovalCount*/ 1));
     YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30_ts));
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
@@ -223,7 +223,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteAfterCommit2PC)
     HydraManager()->SaveLoad();
     HydraManager()->ApplyAll();
 
-    YT_LOG_DEBUG("Writing delayed data");
+    YT_TLOG_DEBUG("Writing delayed data");
     WriteDelayedUnversionedRows(
         txId,
         {BuildRow(43, 34)},
@@ -247,7 +247,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
 {
     auto txId = MakeTabletTransactionId(0x10_ts);
 
-    YT_LOG_DEBUG("Locking row");
+    YT_TLOG_DEBUG("Locking row");
     WaitFor(WriteUnversionedRows(
         txId,
         {BuildRow(43)},
@@ -259,7 +259,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_LOG_DEBUG("Preparing transaction");
+    YT_TLOG_DEBUG("Preparing transaction");
     YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ true, 0x20_ts, /*targetCommitApprovalCount*/ 1));
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
 
@@ -278,7 +278,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
         transactionManager->GetPersistentTransaction(txId)->GetPersistentState());
     EXPECT_EQ(1, transactionManager->GetPersistentTransaction(txId)->PendingCommitApprovalCount());
 
-    YT_LOG_DEBUG("Writing delayed data");
+    YT_TLOG_DEBUG("Writing delayed data");
     WriteDelayedUnversionedRows(
         txId,
         {BuildRow(43, 34)},
@@ -303,7 +303,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestDelayedWriteBeforeCommit2PC)
             transactionManager->GetPersistentTransaction(txId)->GetPersistentState());
     EXPECT_EQ(0, transactionManager->GetPersistentTransaction(txId)->PendingCommitApprovalCount());
 
-    YT_LOG_DEBUG("Committing transaction");
+    YT_TLOG_DEBUG("Committing transaction");
     YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30_ts));
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());

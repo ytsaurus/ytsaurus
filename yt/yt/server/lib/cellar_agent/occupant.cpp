@@ -798,7 +798,12 @@ public:
                 YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig->HydraManager));
             }
             if (ChangelogStoreFactory_) {
-                ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
+                try {
+                    ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
+                } catch (const std::exception& ex) {
+                    YT_TLOG_ERROR("Error while reconfiguring changelog store factory")
+                        .With(ex);
+                }
             }
             if (LeaseManager_) {
                 LeaseManager_->Reconfigure(dynamicConfig->LeaseManager);

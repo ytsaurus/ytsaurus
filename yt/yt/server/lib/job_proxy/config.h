@@ -477,8 +477,6 @@ struct TJobProxyInternalConfig
 
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    bool TestRootFS;
-
     TJobThrottlerConfigPtr JobThrottler;
 
     //! Hostname to set in container.

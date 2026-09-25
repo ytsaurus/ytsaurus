@@ -4394,10 +4394,9 @@ private:
             config->TableConfigExperiments[LegacyExperimentName] = std::move(experiment);
             configManager->SetConfig(ConvertToNode(dynamicConfig));
 
-            YT_LOG_INFO("Migrated legacy base IO configs to table config experiment "
-                "(ExperimentName: %v, IOConfigTemplatePatch: %v)",
-                LegacyExperimentName,
-                ConvertToYsonString(ioConfigTemplatePatch, EYsonFormat::Text));
+            YT_TLOG_INFO("Migrated legacy base IO configs to table config experiment")
+                .With("ExperimentName", LegacyExperimentName)
+                .With("IOConfigTemplatePatch", ConvertToYsonString(ioConfigTemplatePatch, EYsonFormat::Text));
         }
 
         InitBuiltins();

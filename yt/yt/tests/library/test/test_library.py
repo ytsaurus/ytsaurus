@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, _YtrecipeToolsBinaryMount
 
 from yt_commands import (
     authors, wait)
@@ -6,7 +6,55 @@ from yt_commands import (
 from time import sleep
 
 import os
+import porto
 import pytest
+
+
+@authors("pogorelov")
+@pytest.mark.parametrize("link_fails", [False, True])
+def test_ytrecipe_tools_binary_mount_restores_symlink(tmp_path, monkeypatch, link_fails):
+    binary_path = tmp_path / "ytserver-all"
+    binary_path.write_bytes(b"binary")
+    bin_path = tmp_path / "bin"
+    bin_path.mkdir()
+    tools_path = bin_path / "ytserver-tools"
+    tools_path.symlink_to(binary_path)
+
+    class FakeVolume:
+        path = "/fake/volume"
+        destroyed = False
+
+        def Destroy(self):
+            self.destroyed = True
+
+    volume = FakeVolume()
+
+    class FakeConnection:
+        def CreateVolume(self, **properties):
+            assert properties == {"backend": "bind", "storage": str(binary_path), "read_only": "true"}
+            return volume
+
+        def LinkVolume(self, path, container, target, read_only):
+            assert (path, container, target) == (volume.path, "self", str(tools_path))
+            assert read_only
+            assert tools_path.is_file() and not tools_path.is_symlink()
+            if link_fails:
+                raise RuntimeError("LinkVolume failed")
+
+    monkeypatch.setattr(porto, "Connection", FakeConnection)
+
+    mount = _YtrecipeToolsBinaryMount(str(bin_path))
+    if link_fails:
+        with pytest.raises(RuntimeError, match="LinkVolume failed"):
+            mount.mount()
+    else:
+        mount.mount()
+        assert not tools_path.is_symlink()
+        mount.close()
+
+    assert volume.destroyed
+    assert tools_path.is_symlink()
+    assert os.readlink(tools_path) == str(binary_path)
 
 
 class TestYtTestLibrary(YTEnvSetup):

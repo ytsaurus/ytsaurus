@@ -16,7 +16,9 @@ An event written to the queue once reaches the reducer along four different path
 
 The entry point: registering the source and transform computations with a single `pipeline.Add` call.
 
-{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' %}
+[Source code: `main.go`]({{source-root}}/yt/yt/flow/examples/go/shuffle/main.go)
+
+{% code '/yt/yt/flow/examples/go/shuffle/main.go' lang='go' lines='[BEGIN main]-[END main]' %}
 
 ## `event_mapper.go` {#event-mapper-go}
 

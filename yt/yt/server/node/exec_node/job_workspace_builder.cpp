@@ -183,7 +183,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 .With("SandboxKind", artifact.SandboxKind)
                 .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume);
             auto symlinkPath = CombinePaths(sandboxPath, artifact.Name);
 
             WaitFor(slot->MakeLink(
@@ -224,7 +224,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
         if (artifact.AccessedViaBind) {
             const auto& preparedArtifact = Context_.FSSecretary->GetArtifactByName(artifact.Name);
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume);
             auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
 
             YT_TLOG_INFO("Set permissions for artifact")
@@ -406,8 +406,7 @@ private:
             ResultHolder_.RootVolume,
             volumes,
             std::move(perVolumeOverlayData),
-            Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.TestRootFS)
+            Context_.UserSandboxOptions.JobVolumeMounts)
             .AsUnique().Apply(BIND([
                 jobId = Context_.Job->GetId(),
                 slot,
@@ -784,8 +783,7 @@ private:
             ResultHolder_.RootVolume,
             volumes,
             std::move(perVolumeOverlayData),
-            Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.TestRootFS)
+            Context_.UserSandboxOptions.JobVolumeMounts)
             .AsUnique()
             .Apply(
                 BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
@@ -907,7 +905,7 @@ private:
         allVolumes.insert(allVolumes.end(), Context_.ReusedNonRootVolumes.begin(), Context_.ReusedNonRootVolumes.end());
 
         const auto& slot = Context_.Slot;
-        return slot->LinkVolumes(ResultHolder_.RootVolume, allVolumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+        return slot->LinkVolumes(ResultHolder_.RootVolume, allVolumes, Context_.UserSandboxOptions.JobVolumeMounts)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) mutable {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumeLinkingFailed, "Failed to link non-root volumes")
@@ -949,7 +947,7 @@ private:
         ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::ValidatingRootFS);
 
-        if (!ResultHolder_.RootVolume || Context_.TestRootFS) {
+        if (!ResultHolder_.RootVolume) {
             return OKFuture;
         }
 
@@ -973,7 +971,7 @@ private:
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
-                if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
+                if (ResultHolder_.RootVolume) {
                     MakeFilesForArtifactBinds();
                 } else {
                     MakeArtifactSymlinks();
@@ -1273,8 +1271,7 @@ private:
             ResultHolder_.RootVolume,
             volumes,
             std::move(perVolumeOverlayData),
-            Context_.UserSandboxOptions.JobVolumeMounts,
-            Context_.TestRootFS)
+            Context_.UserSandboxOptions.JobVolumeMounts)
             .AsUnique()
             .Apply(BIND([
                 jobId = Context_.Job->GetId(),

@@ -1403,7 +1403,9 @@ struct TAlterDatabaseParameters {
     THashMap<TString, TNodePtr> DatabaseSettings;
 };
 
-struct TTruncateTableParameters {};
+struct TTruncateTableParameters {
+    THashMap<TString, TNodePtr> Settings;
+};
 
 struct TTableRef;
 struct TAnalyzeParams {
@@ -1629,7 +1631,7 @@ TNodePtr BuildColumn(TPosition pos, const TString& column = TString(), const TSt
 TNodePtr BuildColumn(TPosition pos, const TNodePtr& column, const TString& source = TString());
 TNodePtr BuildColumn(TPosition pos, const TDeferredAtom& column, const TString& source = TString());
 TNodePtr BuildColumnOrType(TPosition pos, const TString& column = TString());
-TNodePtr BuildYqlColumnRef(TPosition pos);
+TNodePtr BuildYqlColumnRef(TPosition pos, bool maybeType);
 TNodePtr BuildAccess(TPosition pos, const TVector<INode::TIdPart>& ids, bool isLookup);
 TNodePtr BuildBind(TPosition pos, const TString& module, const TString& alias);
 TNodePtr BuildLambda(TPosition pos, TNodePtr params, TNodePtr body, const TString& resName = TString());

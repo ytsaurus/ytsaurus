@@ -596,6 +596,7 @@ ETableReplicaMode TTableReplicaInfo::GetMode() const
 void TTableReplicaInfo::SetMode(ETableReplicaMode value)
 {
     RuntimeData_->Mode = value;
+    Counters_.SetMode(value);
 }
 
 NTransactionClient::EAtomicity TTableReplicaInfo::GetAtomicity() const
@@ -2683,7 +2684,9 @@ std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory c
 void TTablet::UpdateReplicaCounters()
 {
     for (auto& [replicaId, replica] : Replicas_) {
-        replica.SetCounters(TableProfiler_->GetReplicaCounters(replica.GetClusterName()));
+        replica.SetCounters(TableProfiler_->GetReplicaCounters(
+            replica.GetClusterName(),
+            replica.GetMode()));
     }
 }
 

@@ -1677,7 +1677,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& b
             .With("BundleName", bundle->Name)
             .With("Group", groupName)
             .With("GroupType", groupConfig->Type)
-            .With("GroupMetric", groupConfig->Parameterized->Metric)
+            .With("GroupMetrics", groupConfig->Parameterized->GetMetrics())
             .With(ex);
 
         if (ex.Error().FindMatching(NTabletBalancer::EErrorCode::StatisticsFetchFailed)) {
@@ -1720,7 +1720,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
             .With("BundleName", bundle->Name)
             .With("Group", groupName)
             .With("GroupType", groupConfig->Type)
-            .With("GroupMetric", groupConfig->Parameterized->Metric)
+            .With("GroupMetrics", groupConfig->Parameterized->GetMetrics())
             .With(ex);
 
         if (ex.Error().FindMatching(NTabletBalancer::EErrorCode::StatisticsFetchFailed)) {

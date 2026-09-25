@@ -482,10 +482,11 @@ public: \
         const NYPath::TRichYPath& path,
         const TFileWriterOptions& options) override;
 
-    TFuture<TFilePartitions> PartitionFile(
+    IMPLEMENT_METHOD(TFilePartitions, PartitionFile, (
         const NYPath::TYPath& path,
         const std::vector<TFileReadRange>& ranges,
-        const TPartitionFileOptions& options) override;
+        const TPartitionFileOptions& options),
+        (path, ranges, options))
     TFuture<IFileReaderPtr> CreateFilePartitionReader(
         const TFilePartitionCookiePtr& cookie,
         const TReadFilePartitionOptions& options) override;
@@ -1321,16 +1322,14 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
 
-    template <class TReq>
+    template <CTwoPhaseTableRequest TRequest>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
         TStringBuf action,
-        TReq* req);
+        TRequest request,
+        const TMutatingOptions& options);
 
     NTabletClient::NProto::TReqReshard MakeReshardRequest(
-        const TReshardTableOptions& options);
-    NTableClient::TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
-        const NYPath::TYPath& path,
         const TReshardTableOptions& options);
 
     std::vector<NTableClient::TLegacyOwningKey> PickUniformPivotKeys(

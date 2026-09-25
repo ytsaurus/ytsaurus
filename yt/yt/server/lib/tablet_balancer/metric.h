@@ -2,12 +2,17 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/misc/preprocessor.h>
+
 #include <library/cpp/yt/string/format.h>
 #include <library/cpp/yt/string/string_builder.h>
 
 #include <util/generic/fwd.h>
 
 #include <array>
+
+#define YT_FOR_EACH_METRIC_SIZE(macro) \
+    PP_FOR_EACH(macro, PP_RANGE(1, YT_TABLET_BALANCER_MAX_METRIC_COUNT))
 
 namespace NYT::NTabletBalancer {
 
@@ -27,43 +32,37 @@ public:
 
     Y_FORCE_INLINE TGenericMetric(const std::array<double, Size>& values);
 
+    Y_FORCE_INLINE static TGenericMetric Zero();
+    Y_FORCE_INLINE static TGenericMetric Unit();
+
+    Y_FORCE_INLINE double& operator[](int index);
+    Y_FORCE_INLINE double operator[](int index) const;
+
     Y_FORCE_INLINE TGenericMetric operator+(TGenericMetric other) const;
-
     Y_FORCE_INLINE TGenericMetric operator-(TGenericMetric other) const;
-
     Y_FORCE_INLINE TGenericMetric operator*(TGenericMetric other) const;
-
     Y_FORCE_INLINE TGenericMetric operator/(TGenericMetric other) const;
 
     Y_FORCE_INLINE TGenericMetric operator+(double scalar) const;
-
     Y_FORCE_INLINE TGenericMetric operator-(double scalar) const;
-
     Y_FORCE_INLINE TGenericMetric operator*(double scalar) const;
-
     Y_FORCE_INLINE TGenericMetric operator/(double scalar) const;
 
     Y_FORCE_INLINE TGenericMetric& operator+=(TGenericMetric other);
-
     Y_FORCE_INLINE TGenericMetric& operator-=(TGenericMetric other);
-
     Y_FORCE_INLINE TGenericMetric& operator*=(TGenericMetric other);
-
     Y_FORCE_INLINE TGenericMetric& operator/=(TGenericMetric other);
 
     Y_FORCE_INLINE TGenericMetric& operator+=(double scalar);
-
     Y_FORCE_INLINE TGenericMetric& operator-=(double scalar);
-
     Y_FORCE_INLINE TGenericMetric& operator*=(double scalar);
-
     Y_FORCE_INLINE TGenericMetric& operator/=(double scalar);
+
+    Y_FORCE_INLINE bool IsLessOrEqualComponentwise(const TGenericMetric& other) const;
 
     Y_FORCE_INLINE double GetTotalValue() const;
 
-    Y_FORCE_INLINE TGenericMetric GetNormalizedMetric(double scalar) const;
-
-    const std::array<double, Size>& ToArray() const;
+    Y_FORCE_INLINE TGenericMetric AsNormalizationFactor(double scalar) const;
 
 private:
     std::array<double, Size> Values_ = {};

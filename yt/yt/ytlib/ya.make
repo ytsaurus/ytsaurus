@@ -75,6 +75,7 @@ SRCS(
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
+    api/native/two_phase_table_operation.cpp
     api/native/tablet_request_batcher.cpp
     api/native/tablet_sync_replica_cache.cpp
     api/native/transaction_helpers.cpp
@@ -295,8 +296,10 @@ SRCS(
     file_client/file_chunk_reader.cpp
     file_client/file_chunk_writer.cpp
     file_client/file_fragment_writer.cpp
+    file_client/partition_utils.cpp
 
     file_client/proto/file_chunk_meta.proto
+    file_client/proto/file_partition_cookie.proto
 
     hive/cell_directory_synchronizer.cpp
     hive/cell_directory.cpp

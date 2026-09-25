@@ -121,16 +121,24 @@ return state.Clear()
 
 - `external_state_managers` — секция верхнего уровня внутри компьютейшена с описанием внешних state-менеджеров.
 - Ключ внутри `external_state_managers` (здесь `"/reference_state"`) — имя стейта, используемое в Go-коде при вызове `flow.OpenExternalState(rt, "/reference_state", msg)`. Имя обязательно начинается с `/`.
-- `external_state_manager_class_name` — имя зарегистрированного класса external state manager. Для типового сценария — `"NYT::NFlow::TSimpleExternalStateManager"`; для профилей BigRT — `"NYT::NFlow::NBigRTExtensions::TProfileManager<TUserProfile>"`. Подробнее см. в [C++ документации](../../flow/cpp/state.md#external-state).
+- `external_state_manager_class_name` — имя зарегистрированного класса external state manager. Для типового сценария — `"NYT::NFlow::TSimpleExternalStateManager"`;{% if audience == "internal" %} для профилей BigRT — `"NYT::NFlow::NBigRTExtensions::TProfileManager<TUserProfile>"`.{% endif %} Подробнее см. в [C++ документации](../../flow/cpp/state.md#external-state).
 - `parameters.path` — путь к динамической таблице {{product-name}}, в которой хранится стейт.
 
 ## Создание таблицы для стейта {#state-table}
 
 Таблица для External State должна быть создана заранее. Ключевые колонки таблицы должны совпадать с `group_by_schema` компьютейшена: именно по ключу сообщения воркер находит строку стейта.
 
+{% if audience == "internal" %}
+
 Для создания таблицы рекомендуется использовать [YtSync]({{yt-sync-docs}}/). Описание таблицы стейта из [Shuffle](examples/shuffle.md), чей компьютейшен `reducer` группирует сообщения по `farm_hash(value), value`:
 
 {% code '/yt/yt/flow/examples/go/shuffle/test/yt_sync.py' lang='python' lines='[BEGIN yt_sync_tables]-[END yt_sync_tables]' %}
+
+{% else %}
+
+Создайте таблицу стандартными командами: `yt create table ... --attributes '{dynamic=%true; schema=...}'` и `yt mount-table`. Подробнее о создании таблиц — в разделе [Команда create](../../user-guide/storage/cypress-example.md#create). Компьютейшен `reducer` из примера [Shuffle](examples/shuffle.md) группирует сообщения по `farm_hash(value), value`; таблице стейта нужны совпадающие ключевые колонки `hash` (`uint64`) и `value` (`string`), а также колонка значения `count` (`int64`).
+
+{% endif %}
 
 ## Полный пример — eventReducer из Shuffle {#example}
 

@@ -7,6 +7,8 @@ import (
 	"go.ytsaurus.tech/yt/go/flow"
 )
 
+// [BEGIN main]
+
 const referenceStateName = "/reference_state"
 
 type referenceMessage struct {
@@ -43,3 +45,5 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// [END main]

@@ -13,3 +13,4 @@
 # changes in this file.
 
 add_subdirectory(reanimate_vanilla_operation)
+add_subdirectory(ui_test_controller)

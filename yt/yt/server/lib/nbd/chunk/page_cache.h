@@ -4,7 +4,8 @@
 
 #include <yt/yt/server/lib/nbd/block_device.h>
 #include "chunk_handler.h"
-#include "config.h"
+
+#include <yt/yt/library/nbd/chunk/config.h>
 
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

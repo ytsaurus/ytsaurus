@@ -139,6 +139,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		return bus.NewClient(ctx, addr, clientOpts...)
 	}, c.log)
 
+	c.Encoder.ClockClusterTag = conf.ClockClusterTag
 	c.Encoder.StartCall = c.startCall
 	c.Encoder.Invoke = c.invoke
 	c.Encoder.InvokeInTx = c.invokeInTx

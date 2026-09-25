@@ -1,7 +1,10 @@
 UNITTEST()
 
 SRCS(
+    yql_constraints_ut.cpp
     yql_execution_ut.cpp
+    yql_intent_ut.cpp
+    yql_load_table_meta_ut.cpp
     yql_expr_discover_ut.cpp
     yql_expr_providers_ut.cpp
     yql_rewrite_io_ut.cpp
@@ -57,4 +60,3 @@ ENDIF()
 YQL_LAST_ABI_VERSION()
 
 END()
-

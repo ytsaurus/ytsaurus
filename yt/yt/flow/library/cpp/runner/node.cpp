@@ -690,7 +690,7 @@ private:
             PipelineAuthenticator_));
         RpcServer_->RegisterService(CreateControllerService(
             FlowExecutor_,
-            PipelineAuthenticator_,
+            PipelineAuthenticator_->CreateYTControllerRpcAuthenticator(),
             ControlQueue_->GetInvoker(NController::EControlQueue::Admin)));
         RpcServer_->RegisterService(ThrottlerHost_->GetRpcService());
     }

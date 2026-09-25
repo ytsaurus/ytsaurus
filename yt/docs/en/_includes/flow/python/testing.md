@@ -208,6 +208,7 @@ def test_yson_state_roundtrip():
 
 ### Proto State
 
+{% if audience == "internal" %}
 ```python
 # Proto definition is common for Java and Python examples
 from yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState
@@ -225,6 +226,23 @@ def test_proto_state_roundtrip():
     accessor2 = ctx.proto_state("join-state", message, TJoinState)
     assert accessor2.get().show_time == 42
 ```
+{% else %}
+```python
+from google.protobuf.wrappers_pb2 import Int64Value
+
+
+def test_proto_state_roundtrip():
+    ctx = make_ctx(internal_state_names={"join-state"})
+    message = ExtendedMessage(message_id="m1", key=make_key_payload())
+
+    accessor = ctx.proto_state("join-state", message, Int64Value)
+    state = Int64Value(value=42)
+    accessor.set(state)
+
+    accessor2 = ctx.proto_state("join-state", message, Int64Value)
+    assert accessor2.get().value == 42
+```
+{% endif %}
 
 ### External State
 
