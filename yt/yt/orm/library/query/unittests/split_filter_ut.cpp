@@ -165,7 +165,7 @@ TEST(TSplitFilterTest, TopLevelLiteral)
             true))[0];
 
     TFilterHints hints;
-    hints.WhereAliases.insert("l");
+    hints.HavingAliases.insert("r");
     auto result = SplitFilterIntoWhereAndHaving(filterExpression, hints, &objectsHolder);
 
     ASSERT_TRUE(result.Having.has_value());

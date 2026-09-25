@@ -14,7 +14,7 @@ struct TFilterSplit
 
 struct TFilterHints
 {
-    THashSet<std::string> WhereAliases;
+    THashSet<std::string> HavingAliases;
 };
 
 // Returns true if expression contains an aggregate function.
