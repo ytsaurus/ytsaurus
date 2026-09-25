@@ -6,7 +6,7 @@ from yt_commands import (
     remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
     set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
     create_access_control_object, get_active_primary_master_leader_address, concatenate, get_driver,
-    abort_transaction, unlock,
+    abort_transaction, unlock, make_rl_ace,
 )
 
 from yt_type_helpers import make_schema
@@ -21,15 +21,6 @@ import yt.yson as yson
 import pytest
 
 ##################################################################
-
-
-def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
-    ace = make_ace("allow", users, permission)
-    if row_access_predicate is not None:
-        ace["row_access_predicate"] = row_access_predicate
-    if mode is not None:
-        ace["inapplicable_row_access_predicate_mode"] = mode
-    return ace
 
 
 class TestCheckPermissionProfiling(YTEnvSetup):
@@ -2343,6 +2334,51 @@ class TestRowAcls(YTEnvSetup):
         # Just check for sanity.
         with raises_yt_error():
             self._read("no_read")
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_authenticated_user(self, optimize_for):
+        users = ["val_2", "val_9", "no_matching_rows"]
+        for user in users:
+            create_user(user)
+
+        self._create_and_write_table(
+            [make_rl_ace(users), make_rl_ace(users, 'col2 = [$authenticated_user]')],
+            optimize_for,
+        )
+        rows = self._rows(*range(2, 10))
+
+        for user in users:
+            expected = [row for row in rows if row["col2"] == user]
+            assert self._read(user) == expected
+            assert self._read(user, path="//tmp/t{col1}") == [
+                {"col1": row["col1"]} for row in expected
+            ]
+
+        assert read_table("//tmp/t") == rows
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_authenticated_user_without_table_columns(self, optimize_for):
+        users = ["allowed_user", "denied_user"]
+        for user in users:
+            create_user(user)
+
+        self._create_and_write_table(
+            [
+                make_rl_ace(users),
+                make_rl_ace(users, '[$authenticated_user] = "allowed_user"'),
+            ],
+            optimize_for,
+        )
+        rows = self._rows(*range(2, 10))
+
+        assert self._read("allowed_user") == rows
+        assert self._read("denied_user") == []
+        assert self._read("allowed_user", path="//tmp/t{col1}") == [
+            {"col1": row["col1"]} for row in rows
+        ]
+        assert self._read("denied_user", path="//tmp/t{col1}") == []
 
     @authors("coteeq")
     def test_has_row_level_ace_attribute(self):

@@ -2714,6 +2714,15 @@ def make_ace(
 
     return ace
 
+
+def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
+    ace = make_ace("allow", users, permission)
+    if row_access_predicate is not None:
+        ace["row_access_predicate"] = row_access_predicate
+    if mode is not None:
+        ace["inapplicable_row_access_predicate_mode"] = mode
+    return ace
+
 ##################################################################
 
 

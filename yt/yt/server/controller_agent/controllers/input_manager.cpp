@@ -988,6 +988,7 @@ void TInputManager::FetchInputTablesAttributes()
         table->RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
             table->Schema,
             table->RowLevelAcl,
+            Host_->GetAuthenticatedUser(),
             Logger().WithTag("TableIndex", index));
         YT_TLOG_INFO_IF(table->RlsReadSpec, "Input table has non-trivial RLS read spec")
             .With("Path", table->GetPath())
