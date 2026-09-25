@@ -1,0 +1,72 @@
+name: Release YQL Language Server
+
+on:
+  push:
+    branches:
+      - members/vityaman/yql-language-server-release
+
+jobs:
+  # TODO(vityaman): not implemented
+  # version:
+  #   name: Version
+  #   outputs:
+  #     version: ${{ steps.version.outputs.VERSION }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Version
+  #       id: version
+  #       run: |
+  #         echo "VERSION=0.1.0" >> "$GITHUB_OUTPUT"
+
+  checkout:
+    name: Checkout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          path: ytsaurus
+
+  build:
+    strategy:
+      matrix:
+        target-platform:
+          - DEFAULT-LINUX-X86_64
+          - DEFAULT-LINUX-AARCH64
+          - DEFAULT-DARWIN-ARM64
+          - DEFAULT-DARWIN-X86_64
+          - DEFAULT-WIN-X86_64
+      max-parallel: 1
+    name: Build (${{ matrix.target-platform }})
+    needs:
+      - checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Build (${{ matrix.target-platform }})
+        run: |
+          ls # TODO(vityaman): debug
+
+          OUTPUT="$HOME/ytsaurus-build-${{ matrix.target-platform}}"
+          mkdir -p "$OUTPUT"
+
+          ls # TODO(vityaman): debug
+
+          cd "$HOME/ytsaurus"
+
+          ls # TODO(vityaman): debug
+
+          ./ya make \
+            --ignore-recurses \
+            --build=release \
+            -DSTRIP=yes \
+            --target-platform=${{ matrix.target-platform }} \
+            --output="$OUTPUT" \
+            --stat \
+            --bazel-remote-store \
+            --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }} \
+            --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} \
+            --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+            yql/essentials/tools/yql_language_server
+
+          ls "$OUTPUT/yql/essentials/tools/yql_language_server/yql_language_server"
