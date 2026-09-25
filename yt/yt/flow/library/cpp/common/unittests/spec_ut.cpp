@@ -3045,6 +3045,7 @@ TEST(TPipelineSpecTest, DeclarationIdsMustMatchAllowedPattern)
         {"resource", R"({resources = {"%v" = {resource_class_name = "Foo"}}})", false},
         {"timer stream", R"({computations = {c = {computation_class_name = "Foo"; timer_streams = {"%v" = {}}}}})", false},
         {"key visitor stream", R"({computations = {c = {computation_class_name = "Foo"; key_visitor_streams = {"%v" = {}}}}})", false},
+        {"source stream", R"({computations = {c = {computation_class_name = "Foo"; source_streams = {"%v" = {source_class_name = "Foo"}}}}})", false},
         {"sink", R"({computations = {c = {computation_class_name = "Foo"; sinks = {"%v" = {}}}}})", false},
         {"file provider", R"({resources = {r = {resource_class_name = "Foo"; file_providers = {"%v" = {file_provider_class_name = "Foo"}}}}})", false},
         {"throttler", R"({throttlers = {"%v" = {}}})", true},
@@ -3095,6 +3096,7 @@ enum class EDeclarationLocation
     Resource,
     TimerStream,
     KeyVisitorStream,
+    SourceStream,
     Sink,
     FileProvider,
     Throttler,
@@ -3125,6 +3127,12 @@ void ValidateProgrammaticDeclaration(EDeclarationLocation location, TStringBuf i
         case EDeclarationLocation::KeyVisitorStream: {
             auto computationSpec = New<TComputationSpec>();
             computationSpec->KeyVisitorStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::SourceStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->SourceStreams[TStreamId(std::string(id))] = nullptr;
             pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
             break;
         }
@@ -3166,6 +3174,7 @@ TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsMustMatchAllowedPattern)
         {EDeclarationLocation::Resource, "resource"},
         {EDeclarationLocation::TimerStream, "timer stream"},
         {EDeclarationLocation::KeyVisitorStream, "key visitor stream"},
+        {EDeclarationLocation::SourceStream, "source stream"},
         {EDeclarationLocation::Sink, "sink"},
         {EDeclarationLocation::FileProvider, "file provider"},
         {EDeclarationLocation::Throttler, "throttler"},
@@ -3195,14 +3204,16 @@ TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsMustMatchAllowedPattern)
     }
 }
 
-TEST(TPipelineSpecTest, StaticSourceStreamIdIsNotValidated)
+TEST(TPipelineSpecTest, StaticSourceStreamIdMustMatchAllowedPattern)
 {
     const TDeclarationSpecCase testCase{
         "source stream",
         R"({computations = {reader = {computation_class_name = "Foo"; source_streams = {"%v" = {source_class_name = "Foo"}}}}})",
         false,
     };
-    EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, "invalid/source"));
+    EXPECT_THROW_WITH_SUBSTRING(
+        DeserializeDeclarationSpec(testCase, "invalid/source"),
+        "Invalid source stream ID \"invalid/source\": expected a non-empty ID matching [0-9A-Za-z_-]+");
 }
 
 TEST(TPipelineSpecTest, DynamicSourceStreamIdIsNotValidated)
