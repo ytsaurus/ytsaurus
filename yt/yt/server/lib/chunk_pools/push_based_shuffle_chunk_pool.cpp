@@ -178,13 +178,14 @@ public:
             return;
         }
 
+        YT_VERIFY(FinishedSessionCount_ == std::ssize(Sessions_));
+
         TChunkPoolInputBase::Finish();
 
         YT_TLOG_DEBUG("Push-based shuffle chunk pool input finished")
-            .With("RegisteredSessionCount", Sessions_.size())
-            .With("FinishedSessionCount", FinishedSessionCount_);
+            .With("SessionCount", Sessions_.size());
 
-        TryFinalizeJobs();
+        FinalizeJobs();
     }
 
     void RegisterChunkWriteSession(
@@ -228,6 +229,8 @@ public:
         TChunkId chunkId,
         const TDistributedChunkSessionProgress& progress) final
     {
+        YT_VERIFY(!Finished);
+
         auto& session = GetOrCrash(Sessions_, chunkId);
         YT_VERIFY(!session.Finished);
         ApplyExactProgress(&session, progress);
@@ -612,21 +615,16 @@ private:
 
     void TerminateSession(TChunkWriteSessionState* session)
     {
+        YT_VERIFY(!Finished);
         YT_VERIFY(!session->Finished);
         YT_VERIFY(FinishedSessionCount_ < std::ssize(Sessions_));
         session->Finished = true;
         ++FinishedSessionCount_;
-        TryFinalizeJobs();
     }
 
-    void TryFinalizeJobs()
+    void FinalizeJobs()
     {
-        if (!Finished ||
-            FinishedSessionCount_ != std::ssize(Sessions_) ||
-            JobsFinalized_)
-        {
-            return;
-        }
+        YT_VERIFY(!JobsFinalized_);
 
         for (const auto& output : Outputs_) {
             output->TryFlushJobBuilder();
