@@ -145,6 +145,38 @@ int TSchedulerMutations::GetMutationCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSchedulerMutations::SetNodeDecommissioned(
+    const std::string& nodeAddress,
+    bool decommissioned,
+    std::string comment)
+{
+    ChangedDecommissionedFlag[nodeAddress] = WrapMutation(decommissioned);
+    if (decommissioned) {
+        YT_VERIFY(!comment.empty());
+        NodeDecommissionMaintenanceComments[nodeAddress] = std::move(comment);
+    } else {
+        YT_VERIFY(comment.empty());
+        NodeDecommissionMaintenanceComments.erase(nodeAddress);
+    }
+}
+
+void TSchedulerMutations::SetNodeBanned(
+    const std::string& nodeAddress,
+    bool banned,
+    std::string comment)
+{
+    ChangedBannedFlag[nodeAddress] = WrapMutation(banned);
+    if (banned) {
+        YT_VERIFY(!comment.empty());
+        NodeBanMaintenanceComments[nodeAddress] = std::move(comment);
+    } else {
+        YT_VERIFY(comment.empty());
+        NodeBanMaintenanceComments.erase(nodeAddress);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerMutations::TBundleNameGuard::TBundleNameGuard(std::string bundleName, TSchedulerMutations* mutations)
     : Owner_(mutations)
 {

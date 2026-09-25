@@ -307,19 +307,6 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     return aliveProxies;
 }
 
-bool EnsureNodeDecommissioned(
-    const std::string& nodeName,
-    const TTabletNodeInfoPtr& nodeInfo,
-    TSchedulerMutations* mutations)
-{
-    if (!nodeInfo->Decommissioned) {
-        mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(true);
-        return false;
-    }
-    // Wait tablet cells to migrate.
-    return GetUsedSlotCount(nodeInfo) == 0;
-}
-
 struct TTabletCellRemoveOrder
 {
     std::string Id;
