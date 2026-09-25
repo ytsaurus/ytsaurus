@@ -220,8 +220,18 @@ TTabletCounters::TTabletCounters(const TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
-    : LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
+TReplicaCounters::TReplicaCounters(
+    const TProfiler& profiler,
+    ETableReplicaMode mode)
+    : SyncReplicaCount(profiler
+        .WithDense()
+        .WithTag("mode", "sync")
+        .GaugeSummary("/replica/replica_count", ESummaryPolicy::Sum | ESummaryPolicy::OmitNameLabelSuffix))
+    , AsyncReplicaCount(profiler
+        .WithDense()
+        .WithTag("mode", "async")
+        .GaugeSummary("/replica/replica_count", ESummaryPolicy::Sum | ESummaryPolicy::OmitNameLabelSuffix))
+    , LagRowCount(profiler.WithDense().Gauge("/replica/lag_row_count"))
     , LagTime(profiler.WithDense().TimeGaugeSummary("/replica/lag_time"))
     , ReplicationThrottleTime(profiler.Timer("/replica/replication_throttle_time"))
     , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
@@ -235,7 +245,16 @@ TReplicaCounters::TReplicaCounters(const TProfiler& profiler)
     , ReplicationErrorCount(profiler.WithDense().Counter("/replica/replication_error_count"))
     , ReplicationBytesThrottled(profiler.WithDense().Counter("/replica/replication_bytes_throttled"))
     , ChunkReaderStatisticsCounters(profiler.WithPrefix("/replica/chunk_reader_statistics"))
-{ }
+{
+    SetMode(mode);
+}
+
+void TReplicaCounters::SetMode(ETableReplicaMode mode)
+{
+    bool isSync = mode == ETableReplicaMode::Sync || mode == ETableReplicaMode::SyncToAsync;
+    SyncReplicaCount.Update(isSync);
+    AsyncReplicaCount.Update(!isSync);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -630,13 +649,15 @@ TFetchTableRowsCounters* TTableProfiler::GetFetchTableRowsCounters(const std::op
     return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, MediumHistogramProfiler_, Schema_);
 }
 
-TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)
+TReplicaCounters TTableProfiler::GetReplicaCounters(
+    const std::string& cluster,
+    ETableReplicaMode mode)
 {
     if (Disabled_) {
         return {};
     }
 
-    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
+    return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster), mode};
 }
 
 template <class TCounter, class TCallback>
