@@ -282,46 +282,6 @@ void ToProto(
     NControllerAgent::NProto::TVolumeMount* volumeMountProto,
     const TVolumeMount& volumeMount);
 
-void BuildTmpfsVolumeSpec(
-    NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume,
-    const TTmpfsVolumeConfig& tmpfsVolumeConfig);
-
-void BuildChunkNbdDiskSpec(
-    NProto::TChunkNbdDisk* protoChunkNbdDisk,
-    const TNbdDiskConfig& nbdDiskConfig);
-
-template <class TProtoDiskRequest>
-void BuildNbdDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
-    const TNbdDiskRequest& diskRequestConfig);
-
-template <class TProtoDiskRequest>
-void BuildLocalDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
-    const TLocalDiskRequest& diskRequestConfig);
-
-template <class TProtoDiskRequest>
-void BuildCommonDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
-    const TDiskRequestConfig& diskRequestConfig);
-
-void BuildTmpfsStorageRequestSpec(
-    NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
-    const TTmpfsStorageRequest& diskRequestConfig);
-
-template <class TProtoDiskRequest>
-void BuildCommonStorageRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
-    const TStorageRequestBase& diskRequestConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsDiskRequestTmpfs(const std::optional<NScheduler::TStorageRequestConfig>& diskRequest);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-
-#define HELPERS_INL_H
-#include "helpers-inl.h"
-#undef HELPERS_INL_H

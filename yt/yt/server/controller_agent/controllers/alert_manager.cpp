@@ -2,6 +2,7 @@
 #include "job_helpers.h"
 
 #include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
