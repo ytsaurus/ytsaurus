@@ -68,8 +68,7 @@ struct ITabletWriteManager
 
     virtual void WriteDelayedRows(
         TTransaction* transaction,
-        const TTransactionWriteRecord& record,
-        bool lockless) = 0;
+        const TTransactionWriteRecord& record) = 0;
 
     virtual void OnTransactionPrepared(TTransaction* transaction, bool persistent) = 0;
     virtual void OnTransactionCommitted(TTransaction* transaction) = 0;

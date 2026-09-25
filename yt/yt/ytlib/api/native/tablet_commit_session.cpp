@@ -130,9 +130,6 @@ public:
         CellCommitSession_
             ->GetPrepareSignatureGenerator()
             ->RegisterRequests(batchCount);
-        CellCommitSession_
-            ->GetCommitSignatureGenerator()
-            ->RegisterRequests(batchCount);
 
         return std::move(prepared.MergedRows);
     }
@@ -140,22 +137,13 @@ public:
     void CalculateBatchSignatures() override
     {
         YT_VERIFY(!Batches_.empty());
-        YT_VERIFY(BatchSignatures_.empty());
-        BatchSignatures_.resize(Batches_.size());
+        YT_VERIFY(BatchPrepareSignatures_.empty());
 
+        BatchPrepareSignatures_.resize(Batches_.size());
+
+        auto* signatureGenerator = CellCommitSession_->GetPrepareSignatureGenerator();
         for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
-            auto& batchSignatures = BatchSignatures_[batchIndex];
-
-            auto prepareSignature = CellCommitSession_
-                ->GetPrepareSignatureGenerator()
-                ->GenerateSignature();
-            auto commitSignature = CellCommitSession_
-                ->GetCommitSignatureGenerator()
-                ->GenerateSignature();
-            batchSignatures = TBatchSignatures{
-                .PrepareSignature = prepareSignature,
-                .CommitSignature = commitSignature,
-            };
+            BatchPrepareSignatures_[batchIndex] = signatureGenerator->GenerateSignature();
         }
     }
 
@@ -163,7 +151,7 @@ public:
     TFuture<void> Invoke(int retryIndex) override
     {
         YT_VERIFY(!Batches_.empty());
-        YT_VERIFY(Batches_.size() == BatchSignatures_.size());
+        YT_VERIFY(Batches_.size() == BatchPrepareSignatures_.size());
 
         if (retryIndex == 0) {
             for (const auto& batch : Batches_) {
@@ -224,13 +212,7 @@ private:
     ITabletRequestBatcherPtr Batcher_;
 
     std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>> Batches_;
-
-    struct TBatchSignatures
-    {
-        TTransactionSignature PrepareSignature;
-        TTransactionSignature CommitSignature;
-    };
-    std::vector<TBatchSignatures> BatchSignatures_;
+    std::vector<TTransactionSignature> BatchPrepareSignatures_;
 
     bool IsVersioned_ = false;
     bool Prepared_ = false;
@@ -288,9 +270,7 @@ private:
         req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
         req->set_durability(ToProto(transaction->GetDurability()));
 
-        const auto& batchSignatures = BatchSignatures_[batchIndex];
-        req->set_prepare_signature(batchSignatures.PrepareSignature);
-        req->set_commit_signature(batchSignatures.CommitSignature);
+        req->set_prepare_signature(BatchPrepareSignatures_[batchIndex]);
 
         req->set_generation(commitContext->RetryIndex);
 
@@ -324,7 +304,6 @@ private:
             .With("RowCount", batch->RowCount)
             .With("CellId", TabletInfo_->CellId)
             .WithFormat("PrepareSignature", "%x", req->prepare_signature())
-            .WithFormat("CommitSignature", "%x", req->commit_signature())
             .With("Versioned", req->versioned())
             .With("UpstreamReplicaId", Options_.UpstreamReplicaId)
             .With("HunkChunksInfo", MakeFormatterWrapper([&] (auto* builder) {

@@ -951,13 +951,6 @@ private:
         for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
             tabletCommitSession->PrepareRequests();
         }
-
-        for (const auto& [cellTag, masterCellCommitSession] : MasterCellCommitSessions_) {
-            for (auto tabletCellId : masterCellCommitSession->TabletCellIds) {
-                auto cellCommitSession = CellCommitSessionProvider_->GetCellCommitSession(tabletCellId);
-                cellCommitSession->GetCommitSignatureGenerator()->RegisterRequest();
-            }
-        }
     }
 
     TFuture<void> CommitMasterSessions()

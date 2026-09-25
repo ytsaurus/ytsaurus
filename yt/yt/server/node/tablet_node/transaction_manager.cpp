@@ -189,9 +189,15 @@ public:
         }
     }
 
-    TTransaction* FindPersistentTransaction(TTransactionId transactionId) override
+    TTransaction* FindPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) override
     {
-        return PersistentTransactionMap_.Find(transactionId);
+        if (token) {
+            return PersistentExternalizedTransactionMap_.Find({transactionId, token});
+        } else {
+            return PersistentTransactionMap_.Find(transactionId);
+        }
     }
 
     TTransaction* GetPersistentTransaction(
@@ -468,7 +474,6 @@ public:
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
         TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) override
     {
         NTabletClient::NProto::TReqRegisterTransactionActions request;
@@ -476,7 +481,6 @@ public:
         request.set_transaction_start_timestamp(ToProto(transactionStartTimestamp));
         request.set_transaction_timeout(ToProto(transactionTimeout));
         request.set_prepare_signature(prepareSignature);
-        request.set_commit_signature(commitSignature);
         request.mutable_actions()->Swap(&actions);
         NRpc::WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
 
@@ -560,6 +564,18 @@ public:
                 prepareSignature);
         }
 
+        YT_TLOG_ALERT_IF(
+            !persistent && options.TargetCommitApprovalCount != 0,
+            "Non-zero target commit approval count cannot be set in transient prepare; ignored")
+            .With("TransactionId", FormatTransactionId(transactionId, externalizationToken));
+
+        if (auto* context = TryGetCurrentMutationContext(); context && persistent) {
+            // COMPAT(kvk1920)
+            if (static_cast<ETabletReign>(context->Request().Reign) >= ETabletReign::DelayedWrite) {
+                transaction->PendingCommitApprovalCount() = options.TargetCommitApprovalCount;
+            }
+        }
+
         // NB: Real prepare signature has already been verified above. We override it
         // to FinalTransactionSignature so that the equality check in DoCommitTransaction
         // does not fire: ExpectedPrepareSignature is currently not propagated into
@@ -613,7 +629,8 @@ public:
             YT_TLOG_DEBUG("Transaction commit prepared")
                 .With("TransactionId", FormatTransactionId(transactionId, externalizationToken))
                 .With("Persistent", persistent)
-                .WithFormat("PrepareTimestamp", "%v@%v", options.PrepareTimestamp, options.PrepareTimestampClusterTag);
+                .WithFormat("PrepareTimestamp", "%v@%v", options.PrepareTimestamp, options.PrepareTimestampClusterTag)
+                .With("TargetCommitApprovalCount", options.TargetCommitApprovalCount);
         }
 
         if (persistent) {
@@ -632,12 +649,16 @@ public:
 
                 YT_VERIFY(options.PrerequisiteTransactionIds.empty());
 
+                // NB: Externalized transactions don't have commit approval count.
+                auto forwardedOptions = options;
+                forwardedOptions.TargetCommitApprovalCount = 0;
+
                 // NB: Forwarding must happen after transaction actions are run because
                 // prepare may fail locally.
                 ForwardTransactionIfExternalized(
                     transaction,
                     NProto::TReqPrepareExternalizedTransaction{},
-                    options);
+                    forwardedOptions);
             }
         }
     }
@@ -694,22 +715,22 @@ public:
             YT_ABORT();
         }
 
-        // TODO(alexelexa, kvk1920): Support commit signatures properly.
-        if (transaction->IsExternalizedFromThisCell()) {
-            YT_VERIFY(true || transaction->CommitSignature() == FinalTransactionSignature);
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_TLOG_FATAL_UNLESS(
+                transaction->PendingCommitApprovalCount() == 0,
+                "Externalized transaction has non-zero pending commit approval count")
+                .With("TransactionId", FormatTransactionId(transaction->GetId(), transaction->GetExternalizationToken()));
         }
 
-        // TODO(alexelexa, kvk1920): Support commit signatures properly.
-        if (true || transaction->IsExternalizedToThisCell() || transaction->CommitSignature() == FinalTransactionSignature) {
+        if (transaction->PendingCommitApprovalCount() <= 0) {
             DoCommitTransaction(transaction, options);
         } else {
             transaction->SetPersistentState(ETransactionState::CommitPending);
             transaction->CommitOptions() = options;
 
-            YT_TLOG_DEBUG("Transaction commit signature is incomplete, waiting for additional data")
-                .With("TransactionId", FormatTransactionId(transactionId, externalizationToken))
-                .WithFormat("CommitSignature", "%x", transaction->CommitSignature())
-                .WithFormat("ExpectedSignature", "%x", FinalTransactionSignature);
+            YT_TLOG_DEBUG("Non-zero pending commit approval count; waiting for commit approvals")
+                .With("TransactionId", FormatTransactionId(transaction->GetId(), transaction->GetExternalizationToken()))
+                .With("PendingCommitApprovalCount", transaction->PendingCommitApprovalCount());
         }
     }
 
@@ -888,20 +909,25 @@ public:
         return false;
     }
 
-    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta) override
+    void DecrementPendingCommitApprovalCount(TTransaction* transaction) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
+        YT_VERIFY(!transaction->IsExternalizedToThisCell());
 
-        transaction->CommitSignature() += delta;
-        if (transaction->GetPersistentState() == ETransactionState::CommitPending &&
-            transaction->CommitSignature() == FinalTransactionSignature)
-        {
-            const auto& commitOptions = transaction->CommitOptions();
-            YT_TLOG_DEBUG("Transaction commit signature is completed; committing transaction")
+        if (transaction->PendingCommitApprovalCount() <= 0) {
+            YT_TLOG_ALERT("Attempt to decrease non-positive pending commit approval count")
                 .With("TransactionId", transaction->GetId())
-                .WithFormat("CommitTimestamp", "%v@%v", commitOptions.CommitTimestamp, commitOptions.CommitTimestampClusterTag);
+                .With("PendingCommitApprovalCount", transaction->PendingCommitApprovalCount());
+        } else {
+            --transaction->PendingCommitApprovalCount();
+        }
 
+        if (transaction->PendingCommitApprovalCount() <= 0 &&
+            transaction->GetPersistentState() == ETransactionState::CommitPending)
+        {
+            YT_TLOG_DEBUG("Transaction commit approval count became non-positive; committing")
+                .With("TransactionId", transaction->GetId());
             // NB: May destroy transaction.
             DoCommitTransaction(transaction, transaction->CommitOptions());
         }
@@ -1397,9 +1423,6 @@ private:
         auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
-        auto commitSignature = request->has_commit_signature()
-            ? request->commit_signature()
-            : prepareSignature;
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1516,8 +1539,6 @@ private:
         }
 
         transaction->PersistentPrepareSignature() += prepareSignature;
-        // NB: May destroy transaction.
-        IncrementCommitSignature(transaction, commitSignature);
     }
 
     void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)

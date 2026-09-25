@@ -60,6 +60,12 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
     ((DictionaryBuilding)   (6))
 );
 
+DEFINE_ENUM(ETabletServiceFeatures,
+    ((WriteGenerations)         (0))
+    ((SharedWriteLocks)         (1))
+    ((DelayedWrite)             (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TypicalPeerCount = 5;

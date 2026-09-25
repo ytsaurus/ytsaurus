@@ -102,6 +102,7 @@ public:
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
         DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
+        DeclareServerFeature(ETabletServiceFeatures::DelayedWrite);
     }
 
     void InitializeRefCounted()
@@ -163,8 +164,6 @@ private:
             .TransactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp()),
             .TransactionTimeout = FromProto<TDuration>(request->transaction_timeout()),
             .PrepareSignature = request->prepare_signature(),
-            // COMPAT(gritukan)
-            .CommitSignature = request->has_commit_signature() ? request->commit_signature() : request->prepare_signature(),
             .Generation = request->generation(),
             .RowCount = request->row_count(),
             .DataWeight = request->data_weight(),
@@ -183,7 +182,7 @@ private:
         auto durability = FromProto<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, CommitSignature: %x, "
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, "
             "Generation: %x, RowCount: %v, DataWeight: %v, RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, "
             "UpstreamReplicaId: %v, ReplicationEra: %v",
             tabletId,
@@ -193,7 +192,6 @@ private:
             atomicity,
             durability,
             params.PrepareSignature,
-            params.CommitSignature,
             params.Generation,
             params.RowCount,
             params.DataWeight,
@@ -388,18 +386,14 @@ private:
         auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
-        auto commitSignature = request->has_commit_signature()
-            ? request->commit_signature()
-            : prepareSignature;
 
         context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
-            "ActionCount: %v, PrepareSignature: %x, CommitSignature: %x",
+            "ActionCount: %v, PrepareSignature: %x",
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
             request->actions_size(),
-            prepareSignature,
-            commitSignature);
+            prepareSignature);
 
         const auto& transactionManager = Slot_->GetTransactionManager();
         auto future = transactionManager->RegisterTransactionActions(
@@ -407,7 +401,6 @@ private:
             transactionStartTimestamp,
             transactionTimeout,
             prepareSignature,
-            commitSignature,
             std::move(*request->mutable_actions()));
 
         context->ReplyFrom(std::move(future));
