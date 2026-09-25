@@ -202,6 +202,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/wait_for_resources", "Time from the moment of job creation until the job starts", "ms"},
         {"time/prepare", "Time of job preparation before the job proxy is launched", "ms"},
         {"time/artifacts_download", "Job's artifact files downloading to the chunk cache duration", "ms"},
+        {"time/prepare_layers", "Job layer preparation duration", "ms"},
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
         {"time/validate_root_fs", "Root FS validation duration", "ms"},
         // COMPAT(krasovav): Remove this statistic after it's no longer used

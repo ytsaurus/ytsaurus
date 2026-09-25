@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE, ROOTFS_LAYER_PATH)
 
 from yt_commands import (
     authors, print_debug, vanilla, map, with_breakpoint, wait_breakpoint, release_breakpoint,
@@ -36,11 +36,6 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
             "resource_limits": {
                 "cpu": 1,
                 "user_slots": 1,
-            },
-        },
-        "exec_node": {
-            "job_proxy": {
-                "test_root_fs": False,
             },
         },
     }
@@ -277,9 +272,6 @@ class TestNbdInAllocation(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -311,16 +303,8 @@ class TestNbdInAllocation(YTEnvSetup):
         },
     }
 
-    def setup_files(self):
-        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
     @authors("krasovav")
     def test_root_volume_nbd_allocation_reuse(self):
-        self.setup_files()
-
         op = vanilla(
             track=False,
             spec={
@@ -332,11 +316,7 @@ class TestNbdInAllocation(YTEnvSetup):
                             "root": {
                                 "layers": [
                                     {
-                                        "path": "//tmp/exec.tar.gz",
-                                        "access_method": "nbd",
-                                    },
-                                    {
-                                        "path": "//tmp/rootfs.tar.gz",
+                                        "path": ROOTFS_LAYER_PATH,
                                         "access_method": "nbd",
                                     },
                                 ],
@@ -378,9 +358,6 @@ class TestGpuLayersInAllocation(YTEnvSetup):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
-            "job_proxy": {
-                "test_root_fs": True,
-            },
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
@@ -428,11 +405,6 @@ class TestGpuLayersInAllocation(YTEnvSetup):
     }
 
     def setup_files(self):
-        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
-        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
-        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
-
         tx = start_transaction()
         create("map_node", "//tmp/drivers", tx=tx)
         create(
@@ -462,12 +434,7 @@ class TestGpuLayersInAllocation(YTEnvSetup):
                         "job_count": 2,
                         "command": with_breakpoint("BREAKPOINT"),
                         "volumes": {
-                            "root": {
-                                "layers": [
-                                    {"path": "//tmp/exec.tar.gz"},
-                                    {"path": "//tmp/rootfs.tar.gz"},
-                                ],
-                            },
+                            "root": {},
                         },
                         "job_volumes_mounts": [
                             {"volume_id": "root", "mount_path": "/"},

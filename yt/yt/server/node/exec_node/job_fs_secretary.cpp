@@ -447,10 +447,6 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
     }
 
     bool hasRootVolumeForUserJob = [&] () {
-        if (Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS) {
-            return false;
-        }
-
         for (const auto& volumeMount : userJobSpec->job_volume_mounts()) {
             if (volumeMount.mount_path() == "/") {
                 return !userJobSpec->volumes().at(volumeMount.volume_id()).layers().empty();
@@ -663,8 +659,7 @@ bool TJobFSSecretary::CanBeAccessedViaBind(const TArtifactDescription& artifact)
 {
     return !artifact.AccessedViaVirtualSandbox &&
         !artifact.BypassArtifactCache &&
-        !artifact.CopyFile &&
-        !Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS;
+        !artifact.CopyFile;
 }
 
 const std::optional<std::string>& TJobFSSecretary::GetDockerImage() const

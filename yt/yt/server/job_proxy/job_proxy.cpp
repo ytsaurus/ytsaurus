@@ -237,7 +237,7 @@ std::string TJobProxy::GetPreparationPath() const
 
 std::string TJobProxy::GetSlotPath() const
 {
-    if ((!Config_->RootPath && !Config_->DockerImage) || Config_->TestRootFS) {
+    if (!Config_->RootPath && !Config_->DockerImage) {
         return NFs::CurrentWorkingDirectory();
     }
 
@@ -1627,11 +1627,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         if (!Config_->RootPath) {
             YT_TLOG_INFO("Job is not using custom rootfs");
-            return std::nullopt;
-        }
-
-        if (Config_->TestRootFS) {
-            YT_TLOG_INFO("Job is running in testing rootfs mode");
             return std::nullopt;
         }
 

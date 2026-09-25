@@ -1407,11 +1407,6 @@ private:
             "SandboxPath",
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
-        if (Config_->TestRootFS && Config_->RootPath) {
-            formatter.SetProperty("RootFS", *Config_->RootPath);
-            SetEnvironmentVariable("YT_ROOT_FS", *Config_->RootPath);
-        }
-
         if (Config_->ForwardAllEnvironmentVariables) {
             for (const auto& pair : GetEnvironNameValuePairs()) {
                 SetEnvironmentVariable(pair);

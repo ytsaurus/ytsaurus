@@ -910,9 +910,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
         .Default(false);
 
-    registrar.Parameter("test_root_fs", &TThis::TestRootFS)
-        .Default(false);
-
     registrar.Parameter("test_poll_job_shell", &TThis::TestPollJobShell)
         .Default(false);
 
