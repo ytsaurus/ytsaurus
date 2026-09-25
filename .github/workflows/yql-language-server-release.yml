@@ -46,19 +46,20 @@ jobs:
           echo "$HOME"
           ls .
           ls "$HOME"
-          ls "$HOME/ytsaurus"
-          ls "$HOME/ytsaurus/ytsaurus"
+          ls "$HOME/work"
+          ls "$HOME/work/ytsaurus"
+          ls "$HOME/work/ytsaurus/ytsaurus"
 
       - name: Build (${{ matrix.target-platform }})
         run: |
           ls
 
-          OUTPUT="$HOME/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
+          OUTPUT="$HOME/work/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
           mkdir -p "$OUTPUT"
 
           ls
 
-          cd "$HOME/ytsaurus/ytsaurus"
+          cd "$HOME/work/ytsaurus/ytsaurus"
 
           ls
 
