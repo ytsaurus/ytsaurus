@@ -58,6 +58,8 @@ jobs:
             --target-platform=${{ matrix.target-platform }} \
             --output="$OUTPUT" \
             --stat \
+            --bazel-remote-store \
+            --bazel-remote-base-uri="http://build-cache.dev.ytsaurus.tech" \
             --ignore-recurses \
             yql/essentials/tools/yql_language_server
 
