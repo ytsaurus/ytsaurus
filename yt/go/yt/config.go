@@ -41,6 +41,13 @@ type Config struct {
 	// Only relevant for RPC client.
 	RPCProxy string
 
+	// ClockClusterTag configures the clock cluster used to generate timestamps.
+	//
+	// A zero value uses the cluster's default clock.
+	//
+	// Only relevant for RPC client.
+	ClockClusterTag CellTag
+
 	// ProxyRole configures desired proxy role used by the client.
 	//
 	// If not set, default role is used.
