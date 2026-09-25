@@ -1130,7 +1130,8 @@ private:
                 prepareTimestampClusterTag,
                 cellIdsToSyncWith,
                 MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
-                expectedPrepareSignature);
+                expectedPrepareSignature,
+                targetCommitApprovalCount);
 
             auto owner = GetOwnerOrThrow();
             if (owner->HydraManager_->IsEnteringReadOnlyMode() && !strongOrderingTags.empty()) {
