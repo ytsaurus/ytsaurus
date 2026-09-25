@@ -91,7 +91,10 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
         tags.insert(nodeTagFilter);
         Mutations_->ChangedNodeUserTags[nodeAddress] = Mutations_->WrapMutation(std::move(tags));
         if (Input_.Config->DecommissionReleasedNodes) {
-            Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(true);
+            Mutations_->SetNodeDecommissioned(
+                nodeAddress,
+                true,
+                "Node is decommissioned while waiting for bundle dynamic config to be applied");
         }
         Mutations_->NodeConfigUpdateRequests.emplace(nodeAddress, nodeTagFilter);
 
@@ -143,7 +146,7 @@ bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)
     if (nodeInfo->Decommissioned) {
         YT_TLOG_DEBUG("Removing decommissioned flag after applying bundle dynamic config")
             .With("NodeAddress", nodeAddress);
-        Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(false);
+        Mutations_->SetNodeDecommissioned(nodeAddress, false);
         return false;
     }
 
@@ -165,7 +168,12 @@ bool TNodeTagManager::ProcessNodeReleasement(
                     return false;
                 }
 
-                Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(true);
+                Mutations_->SetNodeDecommissioned(
+                    nodeAddress,
+                    true,
+                    leaveDecommissioned
+                        ? "Spare node is decommissioned by design; it is healthy and ready for use"
+                        : "Node is decommissioned to drain tablet cells");
                 YT_TLOG_DEBUG("Releasing node: setting decommissioned flag")
                     .With("NodeAddress", nodeAddress)
                     .With("ReleasementBudget", NodeReleasementBudget_);
@@ -202,7 +210,14 @@ bool TNodeTagManager::ProcessNodeReleasement(
         YT_TLOG_DEBUG("Releasing node: setting target decommissioned state")
             .With("NodeAddress", nodeAddress)
             .With("ShouldDecommission", leaveDecommissioned);
-        Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(leaveDecommissioned);
+        if (leaveDecommissioned) {
+            Mutations_->SetNodeDecommissioned(
+                nodeAddress,
+                true,
+                "Spare node is decommissioned by design; it is healthy and ready for use");
+        } else {
+            Mutations_->SetNodeDecommissioned(nodeAddress, false);
+        }
         return false;
     }
 
@@ -316,7 +331,7 @@ void TNodeTagManager::TryCreateBundleNodesAssignment(
                 .With("UserTags", nodeInfo->UserTags);
 
             bundleState->BundleNodeReleasements.erase(nodeAddress);
-            Mutations_->ChangedDecommissionedFlag[nodeAddress] = Mutations_->WrapMutation(false);
+            Mutations_->SetNodeDecommissioned(nodeAddress, false);
             continue;
         }
 

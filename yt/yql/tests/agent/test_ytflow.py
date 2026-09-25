@@ -610,53 +610,7 @@ where string_field = "foo" or int64_field >= 100;
             heartbeat(timestamp=8),
         ])
 
-        first_window_closed = False
-
-        def output_ready(client, current_state):
-            nonlocal first_window_closed
-
-            rows = self._read_yt_table(output_table_path)
-            first_window_seen = any(
-                row["window_start"] == ts(4)
-                for row in rows
-            )
-
-            if not first_window_closed and first_window_seen:
-                self._write_yt_table(input_table_path, [
-                    data_row(timestamp=7, value=100, event_timestamp=9),
-                    data_row(timestamp=4, value=1000, event_timestamp=9, key="expired"),
-                    data_row(timestamp=9, value=20, event_timestamp=9),
-                    data_row(timestamp=5, value=10000, event_timestamp=9),
-                    data_row(timestamp=13, value=100000, event_timestamp=13, key="non_expired"),
-                    data_row(timestamp=11, value=30, event_timestamp=11),
-                    heartbeat(timestamp=16),
-                ])
-
-                first_window_closed = True
-
-            last_window_seen = any(
-                row["window_start"] == ts(12)
-                for row in rows
-            )
-
-            return last_window_seen
-
-        run_query(f"""
-insert into `{output_table_path}`
-select
-    HOP_START() as window_start,
-    key,
-    sum(value) as sum_values
-from `{input_table_path}`
-group by
-    key,
-    HOP(Datetime::FromSeconds(Unwrap(ts)), "PT2S", "PT4S", "PT0S");
-""",
-            target_state=PipelineState.Working,
-            success_condition=output_ready,
-        )
-
-        self._assert_yt_table_content(output_table_path, [
+        expected_rows = [
             {
                 "window_start": ts(4),
                 "key": "foo",
@@ -687,7 +641,55 @@ group by
                 "key": "non_expired",
                 "sum_values": 100000,
             },
-        ])
+        ]
+
+        first_window_closed = False
+
+        def output_ready(client, current_state):
+            nonlocal first_window_closed
+
+            rows = self._read_yt_table(output_table_path)
+            first_window_seen = any(
+                row["window_start"] == ts(4)
+                for row in rows
+            )
+
+            if not first_window_closed and first_window_seen:
+                self._write_yt_table(input_table_path, [
+                    data_row(timestamp=7, value=100, event_timestamp=9),
+                    data_row(timestamp=4, value=1000, event_timestamp=9, key="expired"),
+                    data_row(timestamp=9, value=20, event_timestamp=9),
+                    data_row(timestamp=5, value=10000, event_timestamp=9),
+                    data_row(timestamp=13, value=100000, event_timestamp=13, key="non_expired"),
+                    data_row(timestamp=11, value=30, event_timestamp=11),
+                    heartbeat(timestamp=16),
+                ])
+
+                first_window_closed = True
+
+            # Aggregate partitions flush independently; wait for every expected window.
+            seen_windows = {(row["window_start"], row["key"]) for row in rows}
+            return all(
+                (row["window_start"], row["key"]) in seen_windows
+                for row in expected_rows
+            )
+
+        run_query(f"""
+insert into `{output_table_path}`
+select
+    HOP_START() as window_start,
+    key,
+    sum(value) as sum_values
+from `{input_table_path}`
+group by
+    key,
+    HOP(Datetime::FromSeconds(Unwrap(ts)), "PT2S", "PT4S", "PT0S");
+""",
+            target_state=PipelineState.Working,
+            success_condition=output_ready,
+        )
+
+        self._assert_yt_table_content(output_table_path, expected_rows)
 
     @authors("spreis")
     @pytest.mark.timeout(300)

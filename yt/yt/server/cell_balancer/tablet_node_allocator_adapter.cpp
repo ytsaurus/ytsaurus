@@ -280,7 +280,10 @@ public:
             YT_TLOG_INFO("Decommissioning node before deallocation")
                 .With("DeallocationId", deallocationId)
                 .With("Node", instanceName);
-            mutations->ChangedDecommissionedFlag[instanceName] = mutations->WrapMutation(true);
+            mutations->SetNodeDecommissioned(
+                instanceName,
+                true,
+                "Node is decommissioned to drain tablet cells");
             return false;
         }
 
@@ -312,7 +315,10 @@ public:
                     .With("DeallocationId", deallocationId)
                     .With("Node", instanceName);
 
-                mutations->ChangedBannedFlag[instanceName] = mutations->WrapMutation(true);
+                mutations->SetNodeBanned(
+                    instanceName,
+                    true,
+                    "Node is banned because draining tablet cells timed out");
             }
         }
 
@@ -345,7 +351,7 @@ public:
             YT_TLOG_DEBUG("Removing decommissioned flag from node after allocation")
                 .With("BundleName", bundleName)
                 .With("Node", nodeName);
-            mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(false);
+            mutations->SetNodeDecommissioned(nodeName, false);
             return false;
         }
 

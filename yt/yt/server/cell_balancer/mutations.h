@@ -47,6 +47,8 @@ public:
 
     THashMap<std::string, TBundleMutation<bool>> ChangedDecommissionedFlag;
     THashMap<std::string, TBundleMutation<bool>> ChangedBannedFlag;
+    THashMap<std::string, std::string> NodeDecommissionMaintenanceComments;
+    THashMap<std::string, std::string> NodeBanMaintenanceComments;
     THashMap<std::string, TBundleMutation<bool>> ChangedEnableBundleBalancerFlag;
     THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellsCheck;
     THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellSnapshotsCheck;
@@ -92,6 +94,16 @@ public:
 
     template <class T>
     TBundleMutation<T> WrapMutation(T mutation);
+
+    void SetNodeDecommissioned(
+        const std::string& nodeAddress,
+        bool decommissioned,
+        std::string comment = {});
+
+    void SetNodeBanned(
+        const std::string& nodeAddress,
+        bool banned,
+        std::string comment = {});
 
     void Log(const NLogging::TLogger& Logger) const;
 

@@ -113,13 +113,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert sorted(orchid.get_queue_consumer_names()) == sorted(names)
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == sorted(
             [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
             key=lambda r: r["name"],
-        )
+        ))
 
         # Check controller deletes from multi_consumer_names table (stale row for unknown name)
         insert_rows(
@@ -129,13 +129,13 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert sorted(orchid.get_queue_consumer_names()) == sorted(names)
-        assert sorted(
+        wait(lambda: sorted(
             select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
             key=lambda r: r["name"],
         ) == sorted(
             [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
             key=lambda r: r["name"],
-        )
+        ))
 
         assert orchid.get_status() == get(f"{path}/@queue_consumer_status")
         named_consumer_status = orchid.get_named_consumer_status("my_1")
@@ -167,7 +167,7 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert orchid.get_queue_consumer_names() == []
-        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
+        wait(lambda: select_rows("* from [//sys/queue_agents/multi_consumer_names]") == [])
 
     @authors("panesher")
     def test_delete_consumer_names_without_table(self):
