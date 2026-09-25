@@ -201,7 +201,7 @@ public:
         NLogging::TLogger logger)
         : IsSorted_(tableSchema->IsSorted())
         , PreserveTabletIndex_(mountConfig->PreserveTabletIndex)
-        , TabletIndexColumnId_(tableSchema->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
+        , TabletIndexColumnId_(tableSchema->GetReplicationLogColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , TimestampColumnId_(
             tableSchema->HasTimestampColumn()
                 ? std::make_optional(tableSchema->GetColumnIndex(TimestampColumnName))
