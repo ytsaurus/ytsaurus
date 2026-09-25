@@ -203,9 +203,16 @@ TQueryContext::TQueryContext(
     , Host(host)
     , DataLensRequestId(std::move(dataLensRequestId))
     , YqlOperationId(std::move(yqlOperationId))
+    , RemoteReadTransactionIds(RemoteClustersLimit)
+    , RemoteSnapshotLocks(RemoteClustersLimit)
+    , RemoteDynamicTableReadTimestamps(RemoteClustersLimit)
     , RowBuffer(New<NTableClient::TRowBuffer>())
     , AdditionalQueryIds_(std::move(additionalQueryIds))
     , HttpHeaders_(std::move(httpHeaders))
+    , RemoteClusters_(RemoteClustersLimit)
+    , RemoteClients_(RemoteClustersLimit)
+    , InitialRemoteReadTransactions_(RemoteClustersLimit)
+    , RemoteObjectAttributesSnapshots_(RemoteClustersLimit)
 {
     Logger.AddTag("QueryId", QueryId);
     if (DataLensRequestId) {
@@ -237,6 +244,20 @@ TQueryContext::TQueryContext(
 
     if (QueryKind == EQueryKind::SecondaryQuery) {
         YT_VERIFY(secondaryQueryHeader);
+
+        for (const auto& [cluster, transactionId] : secondaryQueryHeader->RemoteReadTransactionIds) {
+            Y_UNUSED(transactionId);
+            RegisterRemoteCluster(cluster);
+        }
+        for (const auto& [cluster, locks] : secondaryQueryHeader->RemoteSnapshotLocks) {
+            Y_UNUSED(locks);
+            RegisterRemoteCluster(cluster);
+        }
+        for (const auto& [cluster, timestamp] : secondaryQueryHeader->RemoteDynamicTableReadTimestamps) {
+            Y_UNUSED(timestamp);
+            RegisterRemoteCluster(cluster);
+        }
+
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
         SnapshotLocks = secondaryQueryHeader->SnapshotLocks;
@@ -304,8 +325,15 @@ TQueryContext::TQueryContext(
 TQueryContext::TQueryContext(THost* host, NNative::IClientPtr client)
     : QueryKind(EQueryKind::NoQuery)
     , Host(host)
+    , RemoteReadTransactionIds(RemoteClustersLimit)
+    , RemoteSnapshotLocks(RemoteClustersLimit)
+    , RemoteDynamicTableReadTimestamps(RemoteClustersLimit)
     , SessionSettings(New<TQuerySettings>())
     , Client_(std::move(client))
+    , RemoteClusters_(RemoteClustersLimit)
+    , RemoteClients_(RemoteClustersLimit)
+    , InitialRemoteReadTransactions_(RemoteClustersLimit)
+    , RemoteObjectAttributesSnapshots_(RemoteClustersLimit)
 { }
 
 TQueryContextPtr TQueryContext::CreateFake(THost* host, NNative::IClientPtr client)
@@ -316,6 +344,8 @@ TQueryContextPtr TQueryContext::CreateFake(THost* host, NNative::IClientPtr clie
 TQueryContext::~TQueryContext()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    ReleaseRemoteResources();
 
     // Do not need to do anything for fake query context.
     if (QueryKind == EQueryKind::NoQuery) {
@@ -345,16 +375,18 @@ TQueryContext::~TQueryContext()
 
 const NNative::IClientPtr& TQueryContext::Client() const
 {
-    bool clientPresent;
     {
         auto readerGuard = ReaderGuard(ClientLock_);
-        clientPresent = static_cast<bool>(Client_);
+        if (Client_) {
+            return Client_;
+        }
     }
 
-    if (!clientPresent) {
+    auto client = Host->CreateClient(User);
+    {
         auto writerGuard = WriterGuard(ClientLock_);
         if (!Client_) {
-            Client_ = Host->CreateClient(User);
+            Client_ = client;
         }
     }
 
@@ -367,6 +399,8 @@ NNative::IClientPtr TQueryContext::Client(const std::optional<std::string>& clus
         return Client();
     }
 
+    RegisterRemoteCluster(*cluster);
+
     {
         auto readerGuard = ReaderGuard(ClientLock_);
         if (auto it = RemoteClients_.find(*cluster); it != RemoteClients_.end()) {
@@ -375,8 +409,37 @@ NNative::IClientPtr TQueryContext::Client(const std::optional<std::string>& clus
     }
 
     auto remoteClient = Host->CreateClient(User, cluster);
-    auto writerGuard = WriterGuard(ClientLock_);
-    return RemoteClients_.emplace(*cluster, std::move(remoteClient)).first->second;
+    NNative::IClientPtr result;
+    {
+        auto writerGuard = WriterGuard(ClientLock_);
+        auto it = RemoteClients_.find(*cluster);
+        if (it == RemoteClients_.end()) {
+            it = RemoteClients_.emplace(*cluster, remoteClient).first;
+        }
+        result = it->second;
+    }
+    return result;
+}
+
+void TQueryContext::RegisterRemoteCluster(const std::string& cluster) const
+{
+    bool limitExceeded = false;
+    {
+        auto writerGuard = WriterGuard(ClientLock_);
+        if (!RemoteClusters_.contains(cluster)) {
+            if (RemoteClusters_.size() >= RemoteClustersLimit) {
+                limitExceeded = true;
+            } else {
+                RemoteClusters_.insert(cluster);
+            }
+        }
+    }
+
+    if (limitExceeded) {
+        THROW_ERROR_EXCEPTION("Remote cluster limit exceeded")
+            .With("cluster", cluster)
+            .With("limit", RemoteClustersLimit);
+    }
 }
 
 TTransactionId TQueryContext::GetReadTransactionId(const std::optional<std::string>& cluster) const
@@ -467,6 +530,23 @@ void TQueryContext::Finish()
 {
     FinishTime_ = TInstant::Now();
     Progress_.Finish();
+}
+
+void TQueryContext::ReleaseRemoteResources()
+{
+    // Native transactions are started with AutoAbort enabled. Dropping the
+    // last reference aborts an active transaction and stops its pinger.
+    InitialRemoteReadTransactions_.clear();
+    RemoteObjectAttributesSnapshots_.clear();
+
+    THashSet<std::string> remoteClusters(RemoteClustersLimit);
+    THashMap<std::string, NNative::IClientPtr> remoteClients(RemoteClustersLimit);
+    {
+        auto writerGuard = WriterGuard(ClientLock_);
+        RemoteClusters_.swap(remoteClusters);
+        RemoteClients_.swap(remoteClients);
+    }
+    // Keep destruction of clients and cluster names outside the spinlock.
 }
 
 TInstant TQueryContext::GetStartTime() const
@@ -656,6 +736,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
     const std::vector<TYPath>& paths,
     const std::string& cluster)
 {
+    RegisterRemoteCluster(cluster);
     auto& snapshot = RemoteObjectAttributesSnapshots_[cluster];
     std::vector<TYPath> pathsToFetch;
     for (const auto& path : paths) {
@@ -1119,7 +1200,9 @@ void TQueryContext::EnsureRemoteReadTransaction(const std::string& cluster)
     }
 
     auto client = Client(cluster);
-    auto transactionFuture = client->StartNativeTransaction(ETransactionType::Master);
+    TTransactionStartOptions transactionOptions;
+    transactionOptions.AutoAbort = true;
+    auto transactionFuture = client->StartNativeTransaction(ETransactionType::Master, transactionOptions);
     auto timestampFuture = client->GetTimestampProvider()->GenerateTimestamps();
     WaitFor(AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()}))
         .ThrowOnError();

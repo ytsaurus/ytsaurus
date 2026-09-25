@@ -290,7 +290,10 @@ private:
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ClientLock_);
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
+    mutable THashSet<std::string> RemoteClusters_;
     mutable THashMap<std::string, NApi::NNative::IClientPtr> RemoteClients_;
+
+    void RegisterRemoteCluster(const std::string& cluster) const;
 
     //! Spinlock controlling select query context map.
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, StorageToStorageContextLock_);
@@ -317,6 +320,8 @@ private:
         RemoteObjectAttributesSnapshots_;
 
     TSecondaryQueryReadTaskPullerPtr ReadTaskPuller_;
+
+    void ReleaseRemoteResources();
 
     void InitializeQueryReadTransactionFuture();
 
