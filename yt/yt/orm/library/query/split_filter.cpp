@@ -320,7 +320,7 @@ private:
             auto* referenceExpr = expression->As<TReferenceExpression>();
             YT_VERIFY(referenceExpr);
             const auto& tableName = referenceExpr->Reference.TableName;
-            return tableName && !FilterHints_.WhereAliases.contains(*tableName)
+            return tableName && FilterHints_.HavingAliases.contains(*tableName)
                 ? TFilterType{.Place = EFilterPlace::Having}
                 : TFilterType{.Place = EFilterPlace::Where};
         }
