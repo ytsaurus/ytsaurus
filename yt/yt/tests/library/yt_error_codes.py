@@ -53,6 +53,7 @@ UniqueIndexConflict = 1741
 ChaosReplicationEraMismatch = 1742
 HunkTabletStoreToggleConflict = 1745
 HunkStoreAllocationFailed = 1746
+TabletReplicationEraIsUnknown = 1750
 TestingFailureBeforeWrite = 1798
 TestingFailureAfterWrite = 1799
 RetriableArchiveError = 1911

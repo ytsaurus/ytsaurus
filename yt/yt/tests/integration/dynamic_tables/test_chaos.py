@@ -5710,6 +5710,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 yt_error_codes.ChaosCoordinatorsAreNotAvailable,
                 yt_error_codes.ChaosReplicationEraMismatch,
                 yt_error_codes.SyncReplicaNotInSync,
+                yt_error_codes.TabletReplicationEraIsUnknown,
             }
 
             try:
@@ -5717,8 +5718,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 return True
             except YtError as e:
                 if e.find_matching_error(predicate=lambda error: int(error.code) in allowed_codes) is not None:
-                    return False
-                if e.contains_text("replica is identifying replication era"):
                     return False
                 raise e
 
