@@ -118,6 +118,13 @@
             "uri": "https://{canondata_backend}/1916746/963b976257dff9ff4a338ec5584049e03db5958f/resource.tar.gz#test.test_blocks-sort_two_asc--Plan_/plan.txt"
         }
     ],
+    "test.test[ddl_symlink-insert_after_commit--Plan]": [
+        {
+            "checksum": "5a3ebef76ec738d83e7c213a8777bb10",
+            "size": 7811,
+            "uri": "https://{canondata_backend}/1031349/4661b7ab52317cf526fad0f8f948a7f89301b67e/resource.tar.gz#test.test_ddl_symlink-insert_after_commit--Plan_/plan.txt"
+        }
+    ],
     "test.test[distinct-distinct_count_no_gouping-default.txt-Plan]": [
         {
             "checksum": "34ef94eeaa3a23612fd85f09d9d05a00",
