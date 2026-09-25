@@ -141,6 +141,11 @@ class TestStandaloneTabletBalancerBase:
 
     def setup_method(self, method):
         super(TestStandaloneTabletBalancerBase, self).setup_method(method)
+        self._apply_dynamic_config_patch({
+            "bundle_state_provider": {
+                "use_internal_api": True,
+            },
+        })
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
 
@@ -176,9 +181,13 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         })
         self._test_simple_reshard()
 
-    def test_pick_pivot_keys_merge(self):
+    @pytest.mark.parametrize("use_internal_api", [False, True])
+    def test_pick_pivot_keys_merge(self, use_internal_api):
         self._apply_dynamic_config_patch({
             "pick_reshard_pivot_keys": True,
+            "bundle_state_provider": {
+                "use_internal_api": use_internal_api,
+            },
         })
 
         self._test_simple_reshard()

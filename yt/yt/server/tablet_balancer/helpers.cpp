@@ -1,11 +1,14 @@
 #include "helpers.h"
+
+#include "config.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 
-#include <yt/yt/server/tablet_balancer/config.h>
+#include <yt/yt/ytlib/api/internal_proxy/internal_api_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -23,6 +26,8 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <util/string/join.h>
 
@@ -42,6 +47,28 @@ using namespace NYTree;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void PrepareInternalApiRequests(
+    const NNative::IClientPtr& client,
+    THashMap<TCellTag, TCellTagRequest>* batchRequests)
+{
+    auto channel = client->GetNativeConnection()->GetCypressProxyChannel();
+    THROW_ERROR_EXCEPTION_UNLESS(channel, "Cypress proxy is not configured for the Internal API");
+
+    const auto& options = client->GetOptions();
+    channel = NRpc::CreateAuthenticatedChannel(std::move(channel), options.GetAuthenticationIdentity());
+    if (const auto& wrapper = options.ChannelWrapper) {
+        channel = wrapper(std::move(channel));
+    }
+    NInternalProxy::TInternalApiServiceProxy proxy(std::move(channel));
+
+    for (auto& [cellTag, batchRequest] : *batchRequests) {
+        auto request = proxy.GetTableBalancingAttributes();
+        request->Swap(batchRequest.Request.Get());
+        request->set_cell_tag(ToProto(cellTag));
+        batchRequest.Request = std::move(request);
+    }
+}
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
@@ -147,8 +174,13 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
     const THashSet<TTableId>& tableIdsToFetchPivotKeys,
     const THashMap<TTableId, TCellTag>& tableIdToCellTag,
     const IMulticellThrottlerPtr& throttler,
+    bool useInternalApi,
     std::function<void(const TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto)
 {
+    if (tableIds.empty()) {
+        return {};
+    }
+
     THashMap<TCellTag, TCellTagRequest> batchRequests;
     for (auto tableId : tableIds) {
         auto cellTag = GetOrCrash(tableIdToCellTag, tableId);
@@ -163,6 +195,10 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
         if (tableIdsToFetchPivotKeys.contains(tableId)) {
             ToProto(it->second.Request->add_table_ids_to_fetch_pivot_keys(), tableId);
         }
+    }
+
+    if (useInternalApi) {
+        PrepareInternalApiRequests(client, &batchRequests);
     }
 
     ExecuteRequestsToCellTags(&batchRequests, throttler);

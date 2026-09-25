@@ -108,6 +108,9 @@ message TReqGetTableBalancingAttributes
     optional bool fetch_statistics = 4 [default = false];
     repeated string user_attribute_keys = 5;
     repeated NYT.NProto.TGuid table_ids_to_fetch_pivot_keys = 6;
+    // External master cell tag for all table_ids (native cell tag for non-external tables).
+    // Required by the Internal API for routing; ignored when calling the master directly.
+    optional int32 cell_tag = 7;
 }
 
 message TRspGetTableBalancingAttributes
