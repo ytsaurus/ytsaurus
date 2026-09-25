@@ -79,7 +79,7 @@ TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
 
     THashSet<std::string> remoteClusters;
     for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-        const auto& cluster = dataSource->GetClusterName().Underlying();
+        auto cluster = dataSource->GetClusterName().Underlying();
         if (!cluster || !remoteClusters.insert(*cluster).second) {
             continue;
         }
