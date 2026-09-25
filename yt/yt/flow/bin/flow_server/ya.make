@@ -18,6 +18,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/companion
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/extensions/http
+    yt/yt/flow/extensions/kafka
     yt/yt/flow/library/cpp/connectors/queue
     yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/connectors/servicelog
