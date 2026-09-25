@@ -43,23 +43,25 @@ jobs:
     steps:
       - name: Debug
         run: |
+          set -x
           echo "$HOME"
           ls .
           ls "$HOME"
           ls "$HOME/work"
           ls "$HOME/work/ytsaurus"
           ls "$HOME/work/ytsaurus/ytsaurus"
+          ls "$HOME/work/ytsaurus/ytsaurus/ytsaurus"
 
       - name: Build (${{ matrix.target-platform }})
         run: |
           ls
 
-          OUTPUT="$HOME/work/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
+          OUTPUT="$HOME/work/ytsaurus/ytsaurus/ytsaurus-build-${{ matrix.target-platform}}"
           mkdir -p "$OUTPUT"
 
           ls
 
-          cd "$HOME/work/ytsaurus/ytsaurus"
+          cd "$HOME/work/ytsaurus/ytsaurus/ytsaurus"
 
           ls
 
