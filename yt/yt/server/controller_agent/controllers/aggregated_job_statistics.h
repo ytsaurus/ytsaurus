@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/core/phoenix/context.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,8 +16,9 @@ struct TJobStatisticsTags
     std::string JobType;
     std::string PoolTree;
 
-    using TSaveContext = NYT::TStreamSaveContext;
-    using TLoadContext = NYT::TStreamLoadContext;
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
     PHOENIX_DECLARE_TYPE(TJobStatisticsTags, 0xc6d7e8f9);
 };
 
