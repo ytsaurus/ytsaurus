@@ -1,5 +1,7 @@
 #include "structs.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -226,12 +228,13 @@ void TCompositeNeededResources::VerifyNonNegative() const
     }
 }
 
-void TCompositeNeededResources::Persist(const TStreamPersistenceContext &context)
+void TCompositeNeededResources::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, DefaultResources);
-    Persist(context, ResourcesByPoolTreeId);
+    PHOENIX_REGISTER_FIELD(1, DefaultResources);
+    PHOENIX_REGISTER_FIELD(2, ResourcesByPoolTreeId);
 }
+
+PHOENIX_DEFINE_TYPE(TCompositeNeededResources);
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/)
 {
@@ -299,12 +302,13 @@ void FromProto(TCompositeNeededResources* neededResources, const NControllerAgen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAllocationGroupResources::Persist(const TStreamPersistenceContext& context)
+void TAllocationGroupResources::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, MinNeededResources);
-    Persist(context, AllocationCount);
+    PHOENIX_REGISTER_FIELD(1, MinNeededResources);
+    PHOENIX_REGISTER_FIELD(2, AllocationCount);
 }
+
+PHOENIX_DEFINE_TYPE(TAllocationGroupResources);
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/)
 {

@@ -4,6 +4,9 @@
 
 #include "scheduling_tag.h"
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
@@ -140,7 +143,10 @@ struct TCompositeNeededResources
 
     void VerifyNonNegative() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCompositeNeededResources, 0xa3ef8fdb);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/);
@@ -165,9 +171,12 @@ struct TAllocationGroupResources
     TJobResourcesWithQuota MinNeededResources;
     int AllocationCount = 0;
 
-    void Persist(const TStreamPersistenceContext& context);
-
     bool operator==(const TAllocationGroupResources& other) const = default;
+
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TAllocationGroupResources, 0xb4f09aec);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/);
