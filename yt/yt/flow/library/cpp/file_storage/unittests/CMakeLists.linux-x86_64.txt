@@ -38,6 +38,7 @@ target_link_libraries(yt-yt-flow-library-cpp-file_storage-unittests PUBLIC
   yt-core-test_framework
   library-cpp-misc
   library-cpp-file_storage
+  yt-library-process
 )
 
 target_allocator(yt-yt-flow-library-cpp-file_storage-unittests

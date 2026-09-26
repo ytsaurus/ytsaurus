@@ -21,10 +21,11 @@
 #include <util/stream/file.h>
 #include <util/string/cast.h>
 #include <util/system/file.h>
-#include <util/system/file_lock.h>
+#include <util/system/flock.h>
 #include <util/system/fstat.h>
 #include <util/system/sysstat.h>
 
+#include <cerrno>
 #include <list>
 #include <memory>
 
@@ -482,11 +483,20 @@ public:
             "Invalid file storage size limits");
 
         EnsureDirectoryDurable(Root_);
-        RootLock_ = std::make_unique<TFileLock>((Root_ / ".lock").GetPath());
-        THROW_ERROR_EXCEPTION_UNLESS(
-            RootLock_->TryAcquire(),
-            "File storage root %Qv is already owned by another process",
-            Root_.GetPath());
+        // A flock belongs to the open file description, so an inherited descriptor would let a spawned
+        // child, such as a companion outliving the worker, keep the root locked after a restart.
+        RootLock_ = std::make_unique<TFile>((Root_ / ".lock").GetPath(), OpenAlways | RdOnly | CloseOnExec);
+        if (::Flock(RootLock_->GetHandle(), LOCK_EX | LOCK_NB) != 0) {
+            auto error = errno;
+            THROW_ERROR_EXCEPTION_IF(
+                error == EWOULDBLOCK,
+                "File storage root %Qv is already owned by another process",
+                Root_.GetPath());
+            THROW_ERROR_EXCEPTION(
+                "Failed to lock file storage root %Qv",
+                Root_.GetPath())
+                .With(TError::FromSystem(error));
+        }
         FlushDirectory(Root_);
 
         Reconcile();
@@ -1717,7 +1727,7 @@ private:
 
     const TFileStorageConfigPtr Config_;
     const TFsPath Root_;
-    std::unique_ptr<TFileLock> RootLock_;
+    std::unique_ptr<TFile> RootLock_;
     const IInvokerPtr Invoker_;
     const TLogger Logger_;
     const IStatusErrorStatePtr CapacityError_;
