@@ -101,3 +101,84 @@ def test_launch_fails_without_flow_bin(monkeypatch, tmp_path, env_value):
 
     with pytest.raises(RuntimeError, match="--flow-bin.*YT_FLOW_BIN"):
         _launch_with_flow_bin(monkeypatch, tmp_path, None)
+
+
+def _launch_generated(monkeypatch, tmp_path, config):
+    config_path = tmp_path / "pipeline.yson"
+    config_path.write_bytes(yson.dumps(config))
+    monkeypatch.setattr(runner.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(runner.sys, "argv", [str(tmp_path / "pipeline")])
+    calls = []
+    monkeypatch.setattr(runner.os, "execv", lambda executable, args: calls.append(args))
+
+    runner.launch(str(config_path), "./flow_server")
+
+    with open(calls[0][2], "rb") as source:
+        return yson.load(source)
+
+
+def _companion(entrypoint=None):
+    resource = {"resource_class_name": "NYT::NFlow::NCompanion::TCompanionManager"}
+    if entrypoint is not None:
+        resource["parameters"] = {"entrypoint": entrypoint}
+    return resource
+
+
+@pytest.mark.authors(["timoninmaxim"])
+def test_launch_keeps_declared_entrypoint_and_ships_nothing(monkeypatch, tmp_path):
+    entrypoint = {"executable": "/usr/bin/python3", "args": ["/app/pipeline/main.py"]}
+    config = {
+        "vanilla": {"enable": True},
+        "spec": {"resources": {"companion": _companion(entrypoint)}},
+    }
+
+    generated = _launch_generated(monkeypatch, tmp_path, config)
+
+    assert generated["spec"]["resources"]["companion"]["parameters"]["entrypoint"] == entrypoint
+    worker = generated["vanilla"]["worker"]
+    assert "py_companion" not in worker.get("local_files", {})
+    assert worker["port_count"] == 3
+
+
+@pytest.mark.authors(["timoninmaxim"])
+@pytest.mark.parametrize(
+    "entrypoint",
+    [
+        None,
+        {"executable": "  "},
+        {"executable": "./py_companion"},
+        {"args": ["main.py"]},
+    ],
+)
+def test_launch_ships_for_undeclared_entrypoint(monkeypatch, tmp_path, entrypoint):
+    config = {
+        "vanilla": {"enable": True},
+        "spec": {"resources": {"companion": _companion(entrypoint)}},
+    }
+
+    generated = _launch_generated(monkeypatch, tmp_path, config)
+
+    assert generated["spec"]["resources"]["companion"]["parameters"]["entrypoint"] == {
+        "executable": "./py_companion",
+    }
+    assert generated["vanilla"]["worker"]["local_files"] == {"py_companion": str(tmp_path / "pipeline")}
+
+
+@pytest.mark.authors(["timoninmaxim"])
+def test_launch_ships_once_for_mixed_spec(monkeypatch, tmp_path):
+    config = {
+        "vanilla": {"enable": True},
+        "spec": {
+            "resources": {
+                "declared": _companion({"executable": "/app/pipeline/main.py"}),
+                "undeclared": _companion(),
+            },
+        },
+    }
+
+    generated = _launch_generated(monkeypatch, tmp_path, config)
+
+    resources = generated["spec"]["resources"]
+    assert resources["declared"]["parameters"]["entrypoint"] == {"executable": "/app/pipeline/main.py"}
+    assert resources["undeclared"]["parameters"]["entrypoint"] == {"executable": "./py_companion"}
+    assert generated["vanilla"]["worker"]["local_files"] == {"py_companion": str(tmp_path / "pipeline")}

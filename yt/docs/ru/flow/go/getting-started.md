@@ -218,7 +218,7 @@ go get go.ytsaurus.tech/yt/go/flow@vX.Y.Z
 Go-раннер добавляет схемы зарегистрированных стримов в `spec.streams`, если их там ещё нет. При включённой Vanilla он также:
 
 - добавляет бинарь пайплайна в `vanilla.worker.local_files` под именем `go_companion` — под этим именем `flow_server` доставляет его в сэндбокс джобы;
-- проставляет каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` значение `parameters.entrypoint.executable = "./go_companion"`, чтобы воркер запускал компаньон из сэндбокса;
+- проставляет каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` без заданного `parameters.entrypoint.executable` (или с `./go_companion`) значение `parameters.entrypoint.executable = "./go_companion"`, чтобы воркер запускал компаньон из сэндбокса; заданный раннер сохраняет, а если он задан во всех таких ресурсах, бинарь не загружается;
 - увеличивает `vanilla.worker.port_count` минимум до `3` для компаньона.
 
 {% note info %}

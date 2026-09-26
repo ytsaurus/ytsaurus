@@ -27,10 +27,11 @@ import tech.ytsaurus.ysontree.YTreeNodeUtils;
 /**
  * Java-side runner for the {@code --config --flow-bin} vanilla launch path.
  *
- * <p>Enriches the pipeline spec so the worker ships the Java companion jars and gets a JDK
- * delivered by the job environment resolved from the vanilla config (porto layers or the task's
- * docker image; see the SDK README), then spawns flow_server, which performs the launch and sets
- * the spec, and waits for it.
+ * <p>Enriches the pipeline spec so the worker gets the Java companion jars (shipped by the launcher
+ * unless the companion resources declare a classpath of the job environment) and a JDK delivered
+ * by the job environment resolved from the vanilla config (porto layers or the task's docker
+ * image; see the SDK README), then spawns flow_server, which performs the launch and sets the
+ * spec, and waits for it.
  */
 public class FlowLauncher {
     static final String ENV_VAR_YT_FLOW_BIN = "YT_FLOW_BIN";
@@ -50,8 +51,12 @@ public class FlowLauncher {
     }
 
     FlowLauncher(EnvironmentReader envReader, CompanionJars companionJars) {
+        this(envReader, companionJars, System.getProperty("java.home"));
+    }
+
+    FlowLauncher(EnvironmentReader envReader, CompanionJars companionJars, String launcherJavaHome) {
         this.envReader = envReader;
-        this.environmentResolver = new JobEnvironmentResolver(envReader);
+        this.environmentResolver = new JobEnvironmentResolver(envReader, launcherJavaHome);
         this.companionJars = companionJars;
     }
 
@@ -192,14 +197,22 @@ public class FlowLauncher {
     }
 
     /**
-     * Applies every vanilla-launch enrichment: ships the companion jars, applies the resolved
-     * job environment to the tasks, and completes the companion resources. Visible for tests.
+     * Applies every vanilla-launch enrichment: ships the companion jars unless every companion
+     * resource declares its classpath, applies the resolved job environment to the tasks, and
+     * completes the companion resources. Visible for tests.
      */
     void enrichForVanillaLaunch(YTreeMapNode vanilla, YTreeMapNode spec) {
         JobEnvironment environment = environmentResolver.resolve(vanilla);
 
         YTreeMapNode worker = getOrCreateMap(vanilla, "worker");
-        companionJars.ship(worker);
+        // One shipment serves every resource without a classpath; a resource that declares one
+        // keeps it, so a mixed spec still ships.
+        if (PipelineSpecEnricher.needsShippedJars(spec)) {
+            companionJars.ship(worker);
+        } else {
+            log.info("Every Java companion resource declares its classpath: shipping no companion jars,"
+                    + " the job environment provides them");
+        }
 
         environment.patchVanillaConfig(vanilla);
         PipelineSpecEnricher.patchCompanionResources(spec, environment);

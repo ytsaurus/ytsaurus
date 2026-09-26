@@ -22,9 +22,11 @@ final class JobEnvironmentResolver {
     static final String ENV_VAR_JDK_LAYERS = "YT_FLOW_JDK_LAYERS";
 
     private final EnvironmentReader envReader;
+    private final String launcherJavaHome;
 
-    JobEnvironmentResolver(EnvironmentReader envReader) {
+    JobEnvironmentResolver(EnvironmentReader envReader, String launcherJavaHome) {
         this.envReader = envReader;
+        this.launcherJavaHome = launcherJavaHome;
     }
 
     JobEnvironment resolve(YTreeMapNode vanilla) {
@@ -36,7 +38,7 @@ final class JobEnvironmentResolver {
             if (layers.isEmpty()) {
                 // Explicitly disabled: the job environment (docker image or local host) supplies
                 // the JDK.
-                return new DockerJobEnvironment(envReader);
+                return new DockerJobEnvironment(envReader, launcherJavaHome);
             }
             PortoLayers porto = new PortoLayers();
             // Legacy contract: custom env layers keep the built-in layer's java path as the
@@ -46,7 +48,7 @@ final class JobEnvironmentResolver {
         }
 
         if (isDockerMode(vanilla)) {
-            return new DockerJobEnvironment(envReader);
+            return new DockerJobEnvironment(envReader, launcherJavaHome);
         }
 
         PortoLayers porto = new PortoLayers();

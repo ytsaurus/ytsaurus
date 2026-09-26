@@ -220,6 +220,78 @@ func TestEnrichCreatesMissingParameters(t *testing.T) {
 	require.Equal(t, map[string]any{"executable": "./" + CompanionFileName}, asMap2(t, parameters, "entrypoint"))
 }
 
+func localFiles(t *testing.T, config map[string]any) map[string]any {
+	t.Helper()
+
+	worker := asMap2(t, asMap2(t, config, "vanilla"), "worker")
+	files, _ := asMap(worker["local_files"])
+	return files
+}
+
+func TestEnrichKeepsDeclaredEntrypointAndShipsNothing(t *testing.T) {
+	config := enrichToMap(t, `{
+		vanilla = {enable = %true};
+		spec = {resources = {CompanionManager = {
+			resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager";
+			parameters = {entrypoint = {executable = "/app/pipeline/companion"; args = ["--verbose"]}};
+		}}};
+	}`, "/build/my_pipeline")
+
+	parameters := resourceParameters(t, config, "CompanionManager")
+	require.Equal(t,
+		map[string]any{"executable": "/app/pipeline/companion", "args": []any{"--verbose"}},
+		asMap2(t, parameters, "entrypoint"))
+	require.Equal(t, true, yson.ValueOf(parameters["run_process"]))
+	require.NotContains(t, localFiles(t, config), CompanionFileName)
+	worker := asMap2(t, asMap2(t, config, "vanilla"), "worker")
+	require.EqualValues(t, companionWorkerPortCount, yson.ValueOf(worker["port_count"]))
+}
+
+func TestEnrichShipsForUndeclaredEntrypoint(t *testing.T) {
+	for name, entrypoint := range map[string]string{
+		"blank executable":   `{executable = "  "}`,
+		"shipped executable": `{executable = "./go_companion"}`,
+		"no executable":      `{args = ["--verbose"]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			config := enrichToMap(t, fmt.Sprintf(`{
+				vanilla = {enable = %%true};
+				spec = {resources = {CompanionManager = {
+					resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager";
+					parameters = {entrypoint = %s};
+				}}};
+			}`, entrypoint), "/build/my_pipeline")
+
+			parameters := resourceParameters(t, config, "CompanionManager")
+			require.Equal(t, map[string]any{"executable": "./" + CompanionFileName}, asMap2(t, parameters, "entrypoint"))
+			require.Equal(t, "/build/my_pipeline", yson.ValueOf(localFiles(t, config)[CompanionFileName]))
+		})
+	}
+}
+
+func TestEnrichShipsOnceForMixedSpec(t *testing.T) {
+	config := enrichToMap(t, `{
+		vanilla = {enable = %true};
+		spec = {resources = {
+			Declared = {
+				resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager";
+				parameters = {entrypoint = {executable = "/app/pipeline/companion"}};
+			};
+			Undeclared = {
+				resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager";
+			};
+		}};
+	}`, "/build/my_pipeline")
+
+	require.Equal(t,
+		map[string]any{"executable": "/app/pipeline/companion"},
+		asMap2(t, resourceParameters(t, config, "Declared"), "entrypoint"))
+	require.Equal(t,
+		map[string]any{"executable": "./" + CompanionFileName},
+		asMap2(t, resourceParameters(t, config, "Undeclared"), "entrypoint"))
+	require.Equal(t, map[string]any{CompanionFileName: "/build/my_pipeline"}, localFiles(t, config))
+}
+
 func TestEnrichRejectsNonMapConfig(t *testing.T) {
 	_, err := Enrich([]byte(`[1;2;3]`), "/build/my_pipeline", nil)
 	require.ErrorIs(t, err, ErrMalformedConfig)

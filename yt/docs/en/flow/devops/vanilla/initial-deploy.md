@@ -19,17 +19,17 @@ And binaries — their roles depend on the language:
 - Python
 
   * `pipeline` — a lightweight Python binary: launcher plus companion.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./py_companion` as is and assumes the companion is already in the job environment.
 
 - Java
 
   * `run.sh` — the Java launcher script for the jar and companion; it takes the fully qualified main class as its first argument.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `classpath` out of the companion resource parameters: the runner keeps a declared `classpath` as is and assumes the jars are already in the job environment.
 
 - Go
 
   * `pipeline` — a Go binary: launcher plus companion.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./go_companion` as is and assumes the companion is already in the job environment.
 
 {% endlist %}
 

@@ -56,6 +56,9 @@ class FlowLauncherTest {
     private static final String EXPECTED_SYSTEM_LAYER =
             "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz";
 
+    // The java.home of the launcher JVM, the last resort java of a job without a JDK layer.
+    private static final String LAUNCHER_JAVA_HOME = "/opt/java/openjdk";
+
     @TempDir
     Path tempDir;
 
@@ -71,7 +74,9 @@ class FlowLauncherTest {
         config = loadConfig(pipelinePath);
         env = new MockEnvironmentReader();
         launcher = new FlowLauncher(
-                env, fakeJars(Path.of("/build/lib/flow-runner.jar"), Path.of("/build/lib/flow-core.jar")));
+                env,
+                fakeJars(Path.of("/build/lib/flow-runner.jar"), Path.of("/build/lib/flow-core.jar")),
+                LAUNCHER_JAVA_HOME);
     }
 
     private YTreeNode loadConfig(String path) {
@@ -266,20 +271,18 @@ class FlowLauncherTest {
     }
 
     @Test
-    void testOverridesPreExistingClasspathAndJdkBinPath() {
-        // With the launcher delivering the JDK layer it owns both values: the classpath because it
-        // ships the jars, and the java path because only the layer's one exists inside the job;
-        // main_class must survive untouched.
+    void testDeclaredClasspathShipsNoJarsAndSurvives() {
+        // A declared classpath names jars the job environment already holds, so nothing is shipped.
+        // The java path still follows the job environment: the mounted layer's one wins.
         YTreeMapNode parameters = companionParameters();
-        parameters.put("classpath", YTree.stringNode("/host/path/that/should/be/overridden/*"));
-        parameters.put("jdk_bin_path", YTree.stringNode("/host/path/that/should/be/overridden/java"));
+        parameters.put("classpath", YTree.stringNode("/app/pipeline/lib/*"));
+        parameters.put("jdk_bin_path", YTree.stringNode("/app/pipeline/jdk/bin/java"));
 
         enrich();
 
+        assertFalse(worker().containsKey("local_files"));
         YTreeMapNode patched = companionParameters();
-        assertEquals(
-                CompanionJars.COMPANION_JARS_DIR + File.separator + "*",
-                patched.getOrThrow("classpath").stringValue());
+        assertEquals("/app/pipeline/lib/*", patched.getOrThrow("classpath").stringValue());
         assertEquals(EXPECTED_JAVA_BIN_PATH, patched.getOrThrow("jdk_bin_path").stringValue());
         // The hand-written main_class is preserved.
         assertEquals(
@@ -288,7 +291,73 @@ class FlowLauncherTest {
     }
 
     @Test
-    void testEnvJdkBinPathWinsOverHandWrittenParameters() {
+    void testDeclaredPathsInDockerImageSurviveVerbatim() {
+        // The IDP-style image carries both the jars and the JDK at declared paths.
+        worker().put("docker_image", YTree.stringNode("registry.example.com/pipeline:1"));
+        YTreeMapNode parameters = companionParameters();
+        parameters.put("classpath", YTree.stringNode("/app/pipeline/lib/*"));
+        parameters.put("jdk_bin_path", YTree.stringNode("/app/pipeline/jdk/bin/java"));
+
+        enrich();
+
+        assertFalse(worker().containsKey("local_files"));
+        assertEquals("/app/pipeline/lib/*", companionParameters().getOrThrow("classpath").stringValue());
+        assertEquals("/app/pipeline/jdk/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testNoJavaCompanionResourceShipsNoJars() {
+        // The jars serve Java companion resources alone.
+        companionResource().put(
+                "resource_class_name", YTree.stringNode("NYT::NFlow::NCompanion::TCompanionManager"));
+
+        enrich();
+
+        assertFalse(worker().containsKey("local_files"));
+    }
+
+    @Test
+    void testBlankClasspathIsShipped() {
+        companionParameters().put("classpath", YTree.stringNode(" "));
+
+        enrich();
+
+        assertEquals(2, worker().getOrThrow("local_files").asMap().size());
+        assertEquals(
+                CompanionJars.COMPANION_JARS_DIR + File.separator + "*",
+                companionParameters().getOrThrow("classpath").stringValue());
+    }
+
+    @Test
+    void testMixedResourcesShipJarsAndKeepTheDeclaredClasspath() {
+        // One shipment serves the resource without a classpath; the declaring one keeps its own.
+        companionParameters().put("classpath", YTree.stringNode("/app/pipeline/lib/*"));
+        config.mapNode().getOrThrow("spec").mapNode().getOrThrow("resources").mapNode().put(
+                "OtherCompanionManager",
+                YTree.mapBuilder()
+                        .key("resource_class_name").value(PipelineSpecEnricher.JAVA_COMPANION_MANAGER_CLASS)
+                        .key("parameters").beginMap()
+                        .key("main_class").value("tech.ytsaurus.flow.tests.OtherMain")
+                        .endMap()
+                        .buildMap());
+
+        enrich();
+
+        assertEquals(2, worker().getOrThrow("local_files").asMap().size());
+        assertEquals("/app/pipeline/lib/*", companionParameters().getOrThrow("classpath").stringValue());
+        assertEquals(
+                CompanionJars.COMPANION_JARS_DIR + File.separator + "*",
+                config.mapNode().getOrThrow("spec").mapNode()
+                        .getOrThrow("resources").mapNode()
+                        .getOrThrow("OtherCompanionManager").mapNode()
+                        .getOrThrow("parameters").mapNode()
+                        .getOrThrow("classpath").stringValue());
+    }
+
+    @Test
+    void testEnvJdkBinPathWinsUnderTheJdkLayer() {
+        // The launcher-mounted layer owns the java path: a hand-written one is ignored, the env
+        // value replaces the layer's binary.
         companionParameters().put("jdk_bin_path", YTree.stringNode("/opt/custom/jdk/bin/java"));
         env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
 
@@ -311,20 +380,50 @@ class FlowLauncherTest {
             assertFalse(task.containsKey("layers"));
             assertFalse(task.containsKey("system_layer_path"));
         }
+    }
+
+    @Test
+    void testDockerImageTakesTheJavaTheLauncherRunsOn() {
+        // The launcher runs in the flow-java image of the jobs, so its java.home names the JRE.
+        worker().put("docker_image", YTree.stringNode("ghcr.io/ytsaurus/flow-java:0.1.3"));
+        launcher = new FlowLauncher(env, fakeJars(Path.of("/build/lib/flow-runner.jar")), "/opt/java/openjdk/");
+
+        enrich();
+
         assertEquals(
                 "/opt/java/openjdk/bin/java",
                 companionParameters().getOrThrow("jdk_bin_path").stringValue());
     }
 
     @Test
-    void testDockerImageDemandsExplicitJdkBinPath() {
-        // The java path inside the image cannot be derived, so the launch must fail up front
-        // rather than inside the job.
-        worker().put("docker_image", YTree.stringNode("docker.io/library/eclipse-temurin:17-jre"));
+    void testHandWrittenJdkBinPathWinsOverLauncherJava() {
+        worker().put("docker_image", YTree.stringNode("ghcr.io/ytsaurus/flow-java:0.1.3"));
+        companionParameters().put("jdk_bin_path", YTree.stringNode("/opt/custom/jdk/bin/java"));
 
-        var error = assertThrows(IllegalStateException.class, this::enrich);
-        assertTrue(error.getMessage().contains(JobEnvironment.ENV_VAR_JDK_BIN_PATH));
-        assertTrue(error.getMessage().contains("jdk_bin_path"));
+        enrich();
+
+        assertEquals("/opt/custom/jdk/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testHandWrittenJdkBinPathWinsOverEnvInDockerMode() {
+        worker().put("docker_image", YTree.stringNode("ghcr.io/ytsaurus/flow-java:0.1.3"));
+        companionParameters().put("jdk_bin_path", YTree.stringNode("/opt/custom/jdk/bin/java"));
+        env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
+
+        enrich();
+
+        assertEquals("/opt/custom/jdk/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testEnvJdkBinPathWinsOverLauncherJava() {
+        worker().put("docker_image", YTree.stringNode("ghcr.io/ytsaurus/flow-java:0.1.3"));
+        env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
+
+        enrich();
+
+        assertEquals("/usr/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
     }
 
     @Test
@@ -345,6 +444,27 @@ class FlowLauncherTest {
                 List.of(EXPECTED_JDK_LAYER),
                 controller().getOrThrow("layers").asList().stream().map(YTreeNode::stringValue).toList());
         assertEquals("/opt/custom/jdk/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testHandWrittenJdkBinPathWinsOverEnvWithExplicitWorkerLayers() {
+        worker().put("layers", YTree.listBuilder().value("//porto_layers/custom_jdk.tar.gz").buildList());
+        companionParameters().put("jdk_bin_path", YTree.stringNode("/opt/custom/jdk/bin/java"));
+        env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
+
+        enrich();
+
+        assertEquals("/opt/custom/jdk/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testExplicitWorkerLayersTakeEnvJdkBinPath() {
+        worker().put("layers", YTree.listBuilder().value("//porto_layers/custom_jdk.tar.gz").buildList());
+        env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
+
+        enrich();
+
+        assertEquals("/usr/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
     }
 
     @Test
@@ -387,11 +507,15 @@ class FlowLauncherTest {
     }
 
     @Test
-    void testBlankHandWrittenJdkBinPathDoesNotSlipPastTheFailFast() {
-        worker().put("docker_image", YTree.stringNode("docker.io/library/eclipse-temurin:17-jre"));
+    void testBlankHandWrittenJdkBinPathFallsBackToLauncherJava() {
+        worker().put("docker_image", YTree.stringNode("ghcr.io/ytsaurus/flow-java:0.1.3"));
         companionParameters().put("jdk_bin_path", YTree.stringNode(" "));
 
-        assertThrows(IllegalStateException.class, this::enrich);
+        enrich();
+
+        assertEquals(
+                "/opt/java/openjdk/bin/java",
+                companionParameters().getOrThrow("jdk_bin_path").stringValue());
     }
 
     @Test
@@ -428,17 +552,18 @@ class FlowLauncherTest {
     }
 
     @Test
-    void testDisabledJdkLayersDemandExplicitJdkBinPath() {
-        // Env override: with the layers disabled the layer's java path points nowhere inside
-        // the job, so the launch must fail up front rather than inside the job.
+    void testDisabledJdkLayersTakeTheJavaTheLauncherRunsOn() {
+        // Env override: with the layers disabled the job runs on the launcher's host, so the
+        // layer's java path gives way to the launcher's own java.
         env.setVar(JobEnvironmentResolver.ENV_VAR_JDK_LAYERS, "[]");
-
-        var error = assertThrows(IllegalStateException.class, this::enrich);
-        assertTrue(error.getMessage().contains(JobEnvironment.ENV_VAR_JDK_BIN_PATH));
-
-        // A set-but-empty bin path must not slip past the fail-fast either.
+        // A set-but-empty bin path counts as not set.
         env.setVar(JobEnvironment.ENV_VAR_JDK_BIN_PATH, "");
-        assertThrows(IllegalStateException.class, this::enrich);
+
+        enrich();
+
+        assertEquals(
+                LAUNCHER_JAVA_HOME + "/bin/java",
+                companionParameters().getOrThrow("jdk_bin_path").stringValue());
     }
 
     @Test

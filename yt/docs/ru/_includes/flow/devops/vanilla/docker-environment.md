@@ -10,8 +10,8 @@
 "vanilla" = {
     "enable" = %true;
     "pool" = "<ваш-пул>";
-    "worker" = {"count" = 1; "docker_image" = "docker.io/library/eclipse-temurin:17-jre";};
-    "controller" = {"count" = 1; "docker_image" = "docker.io/library/eclipse-temurin:17-jre";};
+    "worker" = {"count" = 1; "docker_image" = "ghcr.io/ytsaurus/flow-java:<версия>";};
+    "controller" = {"count" = 1; "docker_image" = "ghcr.io/ytsaurus/flow-java:<версия>";};
 };
 ```
 
@@ -86,7 +86,7 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
 
 - Java
 
-  Воркер запускает компаньон-JVM внутри джобы, поэтому джобе нужен JDK. В docker-окружении его доставляет образ: укажите JRE-образ в `docker_image` обеих задач (см. [Окружение джоб](#job-environment)) и путь к `java` внутри образа в параметрах ресурса компаньона:
+  Воркер запускает компаньон внутри джобы, поэтому ей нужен JRE. В docker-окружении его доставляет образ: укажите образ `ghcr.io/ytsaurus/flow-java` в `docker_image` обеих задач (см. [Окружение джоб](#job-environment)) и класс точки входа в параметрах ресурса компаньона. Версии образа перечислены в [релизах Flow](../../../../admin-guide/releases.md#flow).
 
   ```yson
   "resources" = {
@@ -94,26 +94,25 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
           "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
           "parameters" = {
               "main_class" = "com.example.pipeline.PipelineMain";
-              "jdk_bin_path" = "/opt/java/openjdk/bin/java";
           };
       };
   };
   ```
 
-  `docker_image` в конфиге сам переключает раннер в docker-режим — задавать переменные окружения `YT_FLOW_JDK_*` не нужно. Воркер запускает `java` строго по указанному пути (без поиска в `PATH`), а разные образы кладут его в разные места: `/opt/java/openjdk/bin/java` — путь в образах `eclipse-temurin`. Подойдёт любой образ с JRE нужной версии.
+  `docker_image` в конфиге сам переключает раннер в docker-режим — задавать переменные окружения `YT_FLOW_JDK_*` не нужно.
 
-  Запуск (jar-файлы из classpath раннер сам доставит в джобу воркера):
+  Раннер запускается в том же образе `flow-java`: путь к `java` для воркера он берёт из `jdk_bin_path` в параметрах ресурса, иначе из `YT_FLOW_JDK_BIN_PATH`, иначе использует `java`, на которой работает сам. Jar-файлы из classpath раннер сам доставит в джобу воркера; если они уже есть в образе, задайте `classpath` в параметрах ресурса, например `/app/pipeline/lib/*`, — тогда раннер не загружает jar-файлы для этого ресурса. Запуск из каталога с `pipeline.yson` и jar-файлами в `lib/`:
 
   ```bash
-  java -cp "<каталог-с-jar>/*" \
-      com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server.stripped
+  docker run --rm -e YT_TOKEN -v "$PWD:/app/pipeline" ghcr.io/ytsaurus/flow-java:<версия> \
+      -cp "lib/*" com.example.pipeline.PipelineMain --config pipeline.yson
   ```
 
 - Python
 
-  Python-бинарь пайплайна, собранный через `ya make`, служит и лаунчером, и компаньоном. При `vanilla.enable = %true` раннер доставляет этот бинарь в `local_files` воркера под именем `py_companion` и задаёт для каждого универсального ресурса `TCompanionManager` точку входа `./py_companion`. Раннер заменяет указанные в конфиге исполняемый файл и аргументы `entrypoint`, поэтому заданная команда `/usr/local/bin/python3 main.py` в этой схеме запуска не используется.
+  Python-бинарь пайплайна, собранный через `ya make`, служит и лаунчером, и компаньоном. При `vanilla.enable = %true` раннер доставляет этот бинарь в `local_files` воркера под именем `py_companion` и задаёт для каждого универсального ресурса `TCompanionManager` точку входа `./py_companion`. Ресурс, в котором уже задан `entrypoint` с непустым `executable`, отличным от `./py_companion`, сохраняет его: так компаньон берётся из образа, например `/usr/bin/python3` с `args = ["/app/pipeline/main.py"]`. Если `entrypoint` задан во всех ресурсах компаньона, раннер бинарь не загружает.
 
-  Для самодостаточного лаунчера образ с Python или Flow SDK не требуется. Укажите `docker_image`, если джобе нужны другие системные зависимости; точкой входа компаньона останется `./py_companion`. [Соберите Python-пайплайн](../../../../flow/python/getting-started.md#build) и запустите его командой:
+  Для самодостаточного лаунчера образ с Python или Flow SDK не требуется. Укажите `docker_image`, если джобе нужны другие системные зависимости; без заданного `entrypoint` точкой входа компаньона останется `./py_companion`. [Соберите Python-пайплайн](../../../../flow/python/getting-started.md#build) и запустите его командой:
 
   ```bash
   ./pipeline --config pipeline.yson --flow-bin flow_server.stripped
@@ -121,7 +120,7 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
 
 - Go
 
-  Go-пайплайн — статический бинарь, в котором совмещены лаунчер и компаньон; в джобу он доставляет себя сам. Рантайм в образе не нужен, `docker_image` не требуется:
+  Go-пайплайн — статический бинарь, в котором совмещены лаунчер и компаньон; в джобу он доставляет себя сам. Рантайм в образе не нужен, `docker_image` не требуется. Чтобы запускать бинарь компаньона из образа, задайте его в параметрах ресурса, например `"entrypoint" = {"executable" = "/app/pipeline/companion"}`: заданный `executable`, отличный от `./go_companion`, раннер сохраняет и не загружает бинарь, если `entrypoint` задан во всех ресурсах компаньона:
 
   ```bash
   ./pipeline --config pipeline.yson --flow-bin flow_server.stripped
@@ -145,7 +144,7 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
 || **Симптом** | **Причина и решение** ||
 || Операция не стартует с ошибкой резолва docker-образа | Имя образа без реестра резолвится во внутренний реестр кластера — добавьте префикс `docker.io/library/` (см. [Окружение джоб](#job-environment)) ||
 || Компоненты в джобах не могут подключиться к кластеру или друг к другу | Имя кластера не резолвится изнутри джоб — задайте `proxy_url_aliasing_rules`; DNS отдаёт только A-записи — отключите IPv6 в `node_config.address_resolver` (см. [Разрешение имени кластера](#cluster-name)) ||
-|| Java: джоба падает с ошибкой `JDK binary file does not exist` | `jdk_bin_path` не совпадает с расположением `java` в выбранном образе — проверьте путь внутри образа ||
+|| Java: джоба падает с ошибкой `JDK binary file does not exist` | В задачах указан не образ `flow-java` или раннер запущен вне него — используйте `flow-java` и для задач, и для раннера ||
 || Загрузка бинаря при деплое занимает минуты | Бинарь не стрипнут — используйте `strip` (см. [Сборка flow_server](#flow-server)) ||
 |#
 

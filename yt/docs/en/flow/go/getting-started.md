@@ -218,7 +218,7 @@ The required parameters are `pool` and `worker.count`. The remaining fields (`cp
 The Go runner adds registered stream schemas to `spec.streams` when they are not already present. With Vanilla enabled, it also makes these changes:
 
 - The pipeline binary is added to `vanilla.worker.local_files` under the name `go_companion` — `flow_server` delivers it to the job sandbox under that name.
-- Every resource with `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` gets `parameters.entrypoint.executable = "./go_companion"`, so the worker starts the companion from the sandbox itself.
+- Every resource with `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` without a declared `parameters.entrypoint.executable` (or with `./go_companion`) gets `parameters.entrypoint.executable = "./go_companion"`, so the worker starts the companion from the sandbox itself. A declared one is kept, and when every such resource declares one, the binary is not shipped.
 - `vanilla.worker.port_count` is raised to at least `3` for the companion.
 
 {% note info %}

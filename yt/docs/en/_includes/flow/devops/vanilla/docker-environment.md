@@ -10,8 +10,8 @@ The environment of a vanilla task is set by the `docker_image` field of the task
 "vanilla" = {
     "enable" = %true;
     "pool" = "<your-pool>";
-    "worker" = {"count" = 1; "docker_image" = "docker.io/library/eclipse-temurin:17-jre";};
-    "controller" = {"count" = 1; "docker_image" = "docker.io/library/eclipse-temurin:17-jre";};
+    "worker" = {"count" = 1; "docker_image" = "ghcr.io/ytsaurus/flow-java:<version>";};
+    "controller" = {"count" = 1; "docker_image" = "ghcr.io/ytsaurus/flow-java:<version>";};
 };
 ```
 
@@ -86,7 +86,7 @@ The released Flow images set `YT_FLOW_BIN=/usr/bin/flow_server`, so launchers ru
 
 - Java
 
-  The worker spawns the companion JVM inside the job, so the job needs a JDK. In a docker environment the image delivers it: set a JRE image in `docker_image` of both tasks (see [Job environment](#job-environment)) and the path to `java` inside the image in the companion resource parameters:
+  The worker spawns the companion inside the job, so the job needs a JRE. In a docker environment the image delivers it: set the `ghcr.io/ytsaurus/flow-java` image in `docker_image` of both tasks (see [Job environment](#job-environment)) and the entry-point class in the companion resource parameters. The image versions are listed in the [Flow releases](../../../../admin-guide/releases.md#flow).
 
   ```yson
   "resources" = {
@@ -94,26 +94,25 @@ The released Flow images set `YT_FLOW_BIN=/usr/bin/flow_server`, so launchers ru
           "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
           "parameters" = {
               "main_class" = "com.example.pipeline.PipelineMain";
-              "jdk_bin_path" = "/opt/java/openjdk/bin/java";
           };
       };
   };
   ```
 
-  A `docker_image` in the config switches the runner into docker mode by itself — no `YT_FLOW_JDK_*` environment variables are needed. The worker spawns `java` by the exact path (no `PATH` lookup), and different images place it differently: `/opt/java/openjdk/bin/java` is the path in the `eclipse-temurin` images. Any image with a JRE of the required version works.
+  A `docker_image` in the config switches the runner into docker mode by itself — no `YT_FLOW_JDK_*` environment variables are needed.
 
-  Launch (the runner ships the classpath jars into the worker job itself):
+  The runner runs in the same `flow-java` image: it takes the worker's `java` path from `jdk_bin_path` in the resource parameters, else from `YT_FLOW_JDK_BIN_PATH`, else it takes the `java` it runs on itself. The runner ships the classpath jars into the worker job itself; if the image already holds them, set `classpath` in the resource parameters, e.g. `/app/pipeline/lib/*`, and the runner ships no jars for that resource. Launch from the directory with `pipeline.yson` and the jars in `lib/`:
 
   ```bash
-  java -cp "<jar-directory>/*" \
-      com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server.stripped
+  docker run --rm -e YT_TOKEN -v "$PWD:/app/pipeline" ghcr.io/ytsaurus/flow-java:<version> \
+      -cp "lib/*" com.example.pipeline.PipelineMain --config pipeline.yson
   ```
 
 - Python
 
-  The Python pipeline binary built with `ya make` acts as both launcher and companion. With `vanilla.enable = %true`, the runner ships that binary into the worker's `local_files` as `py_companion` and sets each generic `TCompanionManager` entrypoint to `./py_companion`. It replaces any `entrypoint` executable or arguments specified in the config, so a configured `/usr/local/bin/python3 main.py` command is not used in this launch path.
+  The Python pipeline binary built with `ya make` acts as both launcher and companion. With `vanilla.enable = %true`, the runner ships that binary into the worker's `local_files` as `py_companion` and sets each generic `TCompanionManager` entrypoint to `./py_companion`. A resource that already declares an `entrypoint` with a non-empty `executable` other than `./py_companion` keeps it: that is how to take the companion from the image, e.g. `/usr/bin/python3` with `args = ["/app/pipeline/main.py"]`. When every companion resource declares one, the runner ships no binary.
 
-  The self-contained launcher needs no image for Python or the Flow SDK. Set `docker_image` if the job needs other OS dependencies; the companion entrypoint remains `./py_companion`. [Build the Python pipeline](../../../../flow/python/getting-started.md#build) and launch it with:
+  The self-contained launcher needs no image for Python or the Flow SDK. Set `docker_image` if the job needs other OS dependencies; without a declared `entrypoint` the companion remains `./py_companion`. [Build the Python pipeline](../../../../flow/python/getting-started.md#build) and launch it with:
 
   ```bash
   ./pipeline --config pipeline.yson --flow-bin flow_server.stripped
@@ -121,7 +120,7 @@ The released Flow images set `YT_FLOW_BIN=/usr/bin/flow_server`, so launchers ru
 
 - Go
 
-  A Go pipeline is a static binary that combines the launcher and the companion; it ships itself into the job. No runtime in the image and no `docker_image` are required:
+  A Go pipeline is a static binary that combines the launcher and the companion; it ships itself into the job. No runtime in the image and no `docker_image` are required. To run a companion binary of the image instead, declare it in the resource parameters, e.g. `"entrypoint" = {"executable" = "/app/pipeline/companion"}`: the runner keeps a declared `executable` other than `./go_companion` and ships no binary when every companion resource declares one:
 
   ```bash
   ./pipeline --config pipeline.yson --flow-bin flow_server.stripped
@@ -145,7 +144,7 @@ The released Flow images set `YT_FLOW_BIN=/usr/bin/flow_server`, so launchers ru
 || **Symptom** | **Cause and fix** ||
 || The operation fails to start with a docker image resolution error | An image name without a registry resolves against the cluster's internal registry — add the `docker.io/library/` prefix (see [Job environment](#job-environment)) ||
 || Components inside the jobs cannot connect to the cluster or to each other | The cluster name does not resolve from inside the jobs — set `proxy_url_aliasing_rules`; the DNS serves A records only — disable IPv6 in `node_config.address_resolver` (see [Cluster name resolution](#cluster-name)) ||
-|| Java: the job fails with `JDK binary file does not exist` | `jdk_bin_path` does not match the location of `java` in the chosen image — check the path inside the image ||
+|| Java: the job fails with `JDK binary file does not exist` | The tasks do not use the `flow-java` image, or the runner runs outside it — use `flow-java` for both the tasks and the runner ||
 || Uploading the binary on deploy takes minutes | The binary is not stripped — use `strip` (see [Building flow_server](#flow-server)) ||
 |#
 
