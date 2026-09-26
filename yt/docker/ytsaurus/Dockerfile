@@ -387,6 +387,8 @@ COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
 # Where a user mounts the pipeline dir to launch it: relative spec and program paths resolve here.
 WORKDIR /app/pipeline
 
+ENTRYPOINT ["/usr/bin/flow_server"]
+
 ##########################################################################################
 
 FROM flow AS flow-java
@@ -398,6 +400,8 @@ FROM flow AS flow-java
 COPY --from=eclipse-temurin:17-jre /opt/java/openjdk /opt/java/openjdk
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH="/opt/java/openjdk/bin:${PATH}"
+
+ENTRYPOINT ["/opt/java/openjdk/bin/java"]
 
 ##########################################################################################
 
@@ -417,6 +421,8 @@ RUN set -eux; \
         --break-system-packages --no-cache-dir /tmp/python_sdk/yt/python/packages/ytsaurus-flow-companion; \
     rm -rf /tmp/python_sdk; \
     python3 -c 'from yt.yt.flow.library.python.companion import Pipeline, server'
+
+ENTRYPOINT ["/usr/bin/python3"]
 
 ##########################################################################################
 
