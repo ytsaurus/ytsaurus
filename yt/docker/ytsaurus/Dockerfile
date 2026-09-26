@@ -380,6 +380,8 @@ FROM base AS flow
 # Flow binary. A single binary serves as controller, worker and runner; the role
 # is chosen at startup by YT_FLOW_MODE.
 COPY ./flow_server /usr/bin/flow_server
+# The Java, Python and Go SDK launchers hand the pipeline to the flow_server named here.
+ENV YT_FLOW_BIN=/usr/bin/flow_server
 
 # Flow credits files.
 COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
