@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/rpc/client.h>
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +88,34 @@ void AnnotateReadTablePartitionRequestInfo(
         .With("OmitInaccessibleColumns", req.omit_inaccessible_columns())
         .With("DesiredRowsetFormat", NProto::ERowsetFormat_Name(req.desired_rowset_format()))
         .With("ArrowFallbackRowsetFormat", NProto::ERowsetFormat_Name(req.arrow_fallback_rowset_format()));
+}
+
+void AnnotatePartitionFileRequestInfo(
+    const NRpc::TClientRequestPtr& request,
+    const NProto::TReqPartitionFile& req)
+{
+    static constexpr int MaxLoggedRanges = 3;
+
+    request->Annotate()
+        .With("Path", req.path())
+        .With("Ranges", MakeShrunkFormattableView(
+            req.ranges(),
+            [] (TStringBuilderBase* builder, const NProto::TReqPartitionFile::TFileReadRange& range) {
+                builder->AppendFormat("[%v, %v)",
+                    range.begin(),
+                    YT_OPTIONAL_FROM_PROTO(range, end));
+            },
+            MaxLoggedRanges))
+        .With("RangeCount", req.ranges_size())
+        .With("FetchCookieNodeDescriptors", req.fetch_cookie_node_descriptors());
+}
+
+void AnnotateReadFilePartitionRequestInfo(
+    const NRpc::TClientRequestPtr& request,
+    const NProto::TReqReadFilePartition& req)
+{
+    request->Annotate()
+        .With("CookieSize", req.cookie().size());
 }
 
 void AnnotateStartDistributedWriteSessionRequestInfo(

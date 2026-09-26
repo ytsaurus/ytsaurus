@@ -291,8 +291,10 @@ SRCS(
     file_client/file_chunk_reader.cpp
     file_client/file_chunk_writer.cpp
     file_client/file_fragment_writer.cpp
+    file_client/partition_utils.cpp
 
     file_client/proto/file_chunk_meta.proto
+    file_client/proto/file_partition_cookie.proto
 
     hive/cell_directory_synchronizer.cpp
     hive/cell_directory.cpp

@@ -45,6 +45,14 @@ void AnnotateReadTablePartitionRequestInfo(
     const NRpc::TClientRequestPtr& request,
     const NProto::TReqReadTablePartition& req);
 
+void AnnotatePartitionFileRequestInfo(
+    const NRpc::TClientRequestPtr& request,
+    const NProto::TReqPartitionFile& req);
+
+void AnnotateReadFilePartitionRequestInfo(
+    const NRpc::TClientRequestPtr& request,
+    const NProto::TReqReadFilePartition& req);
+
 void AnnotateStartDistributedWriteSessionRequestInfo(
     const NRpc::TClientRequestPtr& request,
     const NYPath::TRichYPath& path);

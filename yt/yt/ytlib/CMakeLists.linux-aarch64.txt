@@ -317,6 +317,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_fragment_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/partition_utils.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp
@@ -650,6 +651,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_partition_cookie.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/cell_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/hive_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.pb.h
@@ -742,6 +744,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_partition_cookie.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/cell_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/hive_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto

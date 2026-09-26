@@ -282,6 +282,11 @@ struct TConnectionDynamicConfig
     //! Minimum interval between successful one-off syncs triggered by EnableNodeDirectorySynchronizationOnTableRead.
     TDuration NodeDirectorySynchronizationOnTableReadStalenessThreshold;
 
+    //! Limits the number of ranges accepted by a single PartitionFile call.
+    int MaxFilePartitionCount;
+    //! Limits the number of chunk specs packed into a single file partition cookie.
+    int MaxChunkSpecsPerFilePartition;
+
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
     NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;

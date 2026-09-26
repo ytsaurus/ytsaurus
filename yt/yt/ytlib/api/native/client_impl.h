@@ -482,6 +482,15 @@ public: \
         const NYPath::TRichYPath& path,
         const TFileWriterOptions& options) override;
 
+    IMPLEMENT_METHOD(TFilePartitions, PartitionFile, (
+        const NYPath::TYPath& path,
+        const std::vector<TFileReadRange>& ranges,
+        const TPartitionFileOptions& options),
+        (path, ranges, options))
+    TFuture<IFileReaderPtr> CreateFilePartitionReader(
+        const TFilePartitionCookiePtr& cookie,
+        const TReadFilePartitionOptions& options) override;
+
     IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
         const TJournalReaderOptions& options) override;

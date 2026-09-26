@@ -932,6 +932,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferAccountResources);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PartitionFile);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFilePartition);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal);
@@ -1288,6 +1290,10 @@ TApiService::TApiService(
         .SetStreamingEnabled(true)
         .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteFile)
+        .SetStreamingEnabled(true)
+        .SetCancelable(true));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionFile));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadFilePartition)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
 
@@ -6522,6 +6528,94 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFile)
                 .ThrowOnError();
         },
         false /*feedbackEnabled*/);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionFile)
+{
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
+    auto path = NYPath::TYPath(request->path());
+
+    TPartitionFileOptions options;
+    SetTimeoutOptions(&options, context.Get());
+
+    std::vector<TFileReadRange> ranges;
+    ranges.reserve(request->ranges_size());
+    for (const auto& protoRange : request->ranges()) {
+        TFileReadRange range;
+        range.Begin = protoRange.begin();
+        if (protoRange.has_end()) {
+            range.End = protoRange.end();
+        }
+        ranges.push_back(std::move(range));
+    }
+
+    if (request->has_fetch_chunk_spec_config()) {
+        options.FetchChunkSpecConfig = New<TFetchChunkSpecConfig>();
+        FromProto(options.FetchChunkSpecConfig, request->fetch_chunk_spec_config());
+    }
+
+    options.FetchCookieNodeDescriptors = request->fetch_cookie_node_descriptors();
+
+    if (request->has_transactional_options()) {
+        FromProto(&options, request->transactional_options());
+    }
+    if (request->has_suppressable_access_tracking_options()) {
+        FromProto(&options, request->suppressable_access_tracking_options());
+    }
+
+    SetPartitionFileRequestInfo(context, *request);
+
+    PutMethodInfoInTraceContext("partition_file");
+
+    ExecuteCall(
+        context,
+        [=] {
+            return client->PartitionFile(path, ranges, options);
+        },
+        [] (const auto& context, const auto& result) {
+            auto* response = &context->Response();
+            ToProto(response->mutable_partitions(), result.Partitions);
+
+            context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
+        });
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFilePartition)
+{
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
+    auto cookie = ConvertTo<TFilePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+
+    auto signatureOk = WaitFor(ValidateSignature(cookie.Underlying()))
+        .ValueOrThrow();
+    if (!signatureOk) {
+        THROW_ERROR_EXCEPTION("Signature validation failed");
+    }
+
+    TReadFilePartitionOptions options;
+    if (request->has_config()) {
+        options.Config = ConvertTo<TFileReaderConfigPtr>(TYsonString(request->config()));
+    }
+
+    SetReadFilePartitionRequestInfo(context, *request);
+
+    PutMethodInfoInTraceContext("read_file_partition");
+
+    auto reader = WaitFor(client->CreateFilePartitionReader(cookie, options))
+        .ValueOrThrow();
+
+    auto outputStream = context->GetResponseAttachmentsStream();
+
+    NApi::NRpcProxy::NProto::TRspReadFilePartitionMeta meta;
+    ToProto(meta.mutable_id(), reader->GetId());
+    meta.set_revision(ToProto(reader->GetRevision()));
+
+    auto metaRef = SerializeProtoToRef(meta);
+    WaitFor(outputStream->Write(metaRef))
+        .ThrowOnError();
+
+    HandleInputStreamingRequest(context, reader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

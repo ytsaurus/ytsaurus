@@ -50,6 +50,16 @@ void SetReadTablePartitionRequestInfo(
     const NProto::TReqReadTablePartition& req);
 
 template <class TPtr>
+void SetPartitionFileRequestInfo(
+    const TPtr& target,
+    const NProto::TReqPartitionFile& req);
+
+template <class TPtr>
+void SetReadFilePartitionRequestInfo(
+    const TPtr& target,
+    const NProto::TReqReadFilePartition& req);
+
+template <class TPtr>
 void SetStartDistributedWriteSessionRequestInfo(
     const TPtr& target,
     const NYPath::TRichYPath& path);

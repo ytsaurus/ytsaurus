@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +128,38 @@ void SetReadTablePartitionRequestInfo(
         req.omit_inaccessible_columns(),
         NProto::ERowsetFormat_Name(req.desired_rowset_format()),
         NProto::ERowsetFormat_Name(req.arrow_fallback_rowset_format()));
+}
+
+template <class TPtr>
+void SetPartitionFileRequestInfo(
+    const TPtr& target,
+    const NProto::TReqPartitionFile& req)
+{
+    static constexpr int MaxLoggedRanges = 3;
+
+    target->SetRequestInfo(
+        "Path: %v, Ranges: %v, RangeCount: %v, FetchCookieNodeDescriptors: %v",
+        req.path(),
+        MakeShrunkFormattableView(
+            req.ranges(),
+            [] (TStringBuilderBase* builder, const NProto::TReqPartitionFile::TFileReadRange& range) {
+                builder->AppendFormat("[%v, %v)",
+                    range.begin(),
+                    YT_OPTIONAL_FROM_PROTO(range, end));
+            },
+            MaxLoggedRanges),
+        req.ranges_size(),
+        req.fetch_cookie_node_descriptors());
+}
+
+template <class TPtr>
+void SetReadFilePartitionRequestInfo(
+    const TPtr& target,
+    const NProto::TReqReadFilePartition& req)
+{
+    target->SetRequestInfo(
+        "CookieSize: %v",
+        req.cookie().size());
 }
 
 template <class TPtr>
