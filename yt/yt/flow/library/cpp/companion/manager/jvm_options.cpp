@@ -85,8 +85,8 @@ std::vector<std::string> BuildJvmOptions()
     auto logDir = GetEnv("YT_FLOW_COMPANION_LOG_DIR");
     if (logDir.empty()) {
         logDir = DefaultCompanionLogDir;
-        NFS::MakeDirRecursive(logDir);
     }
+    NFS::MakeDirRecursive(logDir);
     logDir = NFS::GetRealPath(logDir);
     YT_TLOG_INFO("Directory for JVM diagnostic info")
         .With("LogDir", logDir);
