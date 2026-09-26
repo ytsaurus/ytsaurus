@@ -12,7 +12,7 @@ __all__ = (
     "cachedmethod",
 )
 
-__version__ = "7.1.7"
+__version__ = "7.1.8"
 
 import collections
 import collections.abc
@@ -50,6 +50,8 @@ class Cache(collections.abc.MutableMapping):
     __size = _DefaultSize()
 
     def __init__(self, maxsize, getsizeof=None):
+        if maxsize < 0:
+            raise ValueError("maxsize must be non-negative")
         if getsizeof:
             self.getsizeof = getsizeof
         if self.getsizeof is not Cache.getsizeof:
