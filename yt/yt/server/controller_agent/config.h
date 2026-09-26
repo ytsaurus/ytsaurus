@@ -786,17 +786,17 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPushBasedShuffleManagerConfig
+struct TPushBasedShuffleConfig
     : public NYTree::TYsonStruct
 {
     int ThreadCount;
 
-    REGISTER_YSON_STRUCT(TPushBasedShuffleManagerConfig);
+    REGISTER_YSON_STRUCT(TPushBasedShuffleConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1314,7 +1314,7 @@ struct TControllerAgentConfig
 
     TJobTrackerConfigPtr JobTracker;
 
-    TPushBasedShuffleManagerConfigPtr PushBasedShuffleManager;
+    TPushBasedShuffleConfigPtr PushBasedShuffle;
 
     THashSet<std::string> NetworkProjectsAllowedForOffloading;
 

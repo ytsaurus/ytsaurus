@@ -41,7 +41,13 @@ struct TReadySession
     TSessionDescriptor Descriptor;
 };
 
+struct TSessionStarted
+{
+    NChunkClient::TChunkReplicaWithMediumList Replicas;
+};
+
 using TSessionProgress = std::variant<
+    TSessionStarted,
     TSessionInFlightProgress,
     TSessionFinalProgress,
     TSessionSealSummary,
@@ -68,13 +74,21 @@ struct IDistributedChunkSessionPool
 
     virtual TFuture<std::vector<TSlotChunkInfo>> GetSlotChunks(int slotCookie) const = 0;
 
-    virtual TFuture<std::vector<TReadySession>> GetReadySessions() const = 0;
+    virtual std::vector<TReadySession> GetReadySessions() const = 0;
+
+    //! Finalizes all slots; the future is set after every session's terminal update.
+    virtual TFuture<void> Finalize() = 0;
 
     //! Reports per-session progress, tagged with the slot cookie and session id.
     //! Must be subscribed to before the first session is started, since updates raised
     //! for an already finished session are not replayed. The pool must have been created
     //! with a seal monitor: subscribing without one crashes.
     /*!
+     *          +----------+
+     *          | Started  |
+     *          +----------+
+     *               |
+     *               v
      *          +----------+
      *          | InFlight |
      *          +----------+
@@ -84,11 +98,14 @@ struct IDistributedChunkSessionPool
      *   | Final | |Sealed| | CloseFailed |
      *   +-------+ +------+ +-------------+
      *
-     *  At most one terminal is raised: Final on a clean close carrying progress, Sealed
-     *  once master seals the chunk, CloseFailed when seal retries are exhausted. Sealed
-     *  waits on the seal monitor, which retries failed master polls indefinitely, so a
-     *  chunk that never seals yields no terminal at all. Sealed carries only RecordCount
-     *  and the physical size, without logical counters.
+     *  Every session the pool starts, whether or not GetSession returned it, raises
+     *  Started first and then exactly one terminal: Final on a clean close carrying
+     *  progress, Sealed once master seals the chunk, CloseFailed when seal retries are
+     *  exhausted. The Finalize future is set after the last terminal, and nothing is
+     *  raised after it. Sealed waits on the seal monitor, which retries failed master
+     *  polls indefinitely, so a chunk that never seals delays both its terminal and
+     *  Finalize forever. Sealed carries only RecordCount and the physical size, without
+     *  logical counters.
      */
     DECLARE_INTERFACE_SIGNAL(
         void(const TSessionProgressUpdate& update),

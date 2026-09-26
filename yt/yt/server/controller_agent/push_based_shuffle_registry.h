@@ -4,9 +4,6 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
 
-#include <yt/yt/core/actions/public.h>
-
-#include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -21,14 +18,6 @@ class TPushBasedShuffleRegistry
     : public TRefCounted
 {
 public:
-    explicit TPushBasedShuffleRegistry(const TControllerAgentConfigPtr& config);
-
-    //! \note Thread affinity: any
-    const IInvokerPtr& GetInvoker() const;
-
-    //! \note Thread affinity: any
-    void UpdateConfig(const TControllerAgentConfigPtr& config);
-
     //! \note Thread affinity: ControlThread
     void OnSchedulerConnected(TIncarnationId incarnationId);
 
@@ -56,9 +45,6 @@ public:
         TOperationId operationId) const;
 
 private:
-    const NConcurrency::IThreadPoolPtr ThreadPool_;
-    const IInvokerPtr Invoker_;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TIncarnationId IncarnationId_;
     THashMap<TOperationId, TWeakPtr<NDistributedChunkSessionClient::IDistributedChunkSessionPool>> IdToPool_;
