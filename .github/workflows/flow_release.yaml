@@ -60,6 +60,7 @@ jobs:
     outputs:
       test-image-tag: ${{ steps.tag.outputs.TEST_IMAGE_TAG }}
       prod-image-tag: ${{ steps.tag.outputs.PROD_IMAGE_TAG }}
+      python-version: ${{ steps.tag.outputs.PYTHON_VERSION }}
       release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
       build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
     runs-on: ubuntu-latest
@@ -85,6 +86,14 @@ jobs:
 
           echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          # A PyPI version can never be uploaded again, so every test run of a tag publishes
+          # its own dev version to TestPyPI. A dispatch passes a PEP 440 version as is.
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "${tmp%%/*}" == "flow-test" ]]; then
+            echo "PYTHON_VERSION=$PROD_IMAGE_TAG.dev${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "PYTHON_VERSION=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          fi
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
@@ -310,7 +319,7 @@ jobs:
 
       - name: Build wheels
         env:
-          YTSAURUS_PACKAGE_VERSION: ${{ needs.tag.outputs.prod-image-tag }}
+          YTSAURUS_PACKAGE_VERSION: ${{ needs.tag.outputs.python-version }}
         run: |
           python3 -m build --wheel --no-isolation --outdir dist yt/python/packages/ytsaurus-flow-companion
           python3 -m build --wheel --no-isolation --outdir dist yt/python/packages/ytsaurus-flow-yt-sync-mini
