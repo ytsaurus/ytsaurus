@@ -834,13 +834,9 @@ private:
 
         THashSet<TResourceId> requiredResourceIds;
         for (const auto& [resourceId, resourceDescription] : jobSpec->ComputationSpec->RequiredResourceIds) {
-            if (!resourceDescription->Worker) {
-                continue;
+            if (resourceDescription->Worker) {
+                requiredResourceIds.insert(resourceId);
             }
-
-            requiredResourceIds.insert(resourceId);
-            auto aliasResourceId = resourceDescription->Alias ? *resourceDescription->Alias : resourceId;
-            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, jobContext->ResourceManager->Get(resourceId));
         }
 
         // LoadRequiredResources also awaits the always-on resources (loaded eagerly, outside
@@ -848,6 +844,16 @@ private:
         // context-switch-allowed point, unlike the resource-manager construction in the heartbeat path.
         WaitFor(jobContext->ResourceManager->LoadRequiredResources(requiredResourceIds))
             .ThrowOnError();
+
+        // Resources are taken only once loaded: a failed load recreates the resource object.
+        for (const auto& [resourceId, resourceDescription] : jobSpec->ComputationSpec->RequiredResourceIds) {
+            if (!resourceDescription->Worker) {
+                continue;
+            }
+
+            auto aliasResourceId = resourceDescription->Alias ? *resourceDescription->Alias : resourceId;
+            EmplaceOrCrash(computationContext->StaticResources, aliasResourceId, jobContext->ResourceManager->Get(resourceId));
+        }
 
         computationContext->DistributedThrottlerControllerChannelProvider =
             jobContext->DistributedThrottlerControllerChannelProvider;
