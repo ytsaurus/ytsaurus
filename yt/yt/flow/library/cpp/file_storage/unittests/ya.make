@@ -10,6 +10,7 @@ PEERDIR(
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/misc
     yt/yt/flow/library/cpp/file_storage
+    yt/yt/library/process
 )
 
 END()

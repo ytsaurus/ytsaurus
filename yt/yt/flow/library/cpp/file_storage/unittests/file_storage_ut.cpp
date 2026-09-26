@@ -5,9 +5,12 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/library/process/process.h>
 
 #include <util/folder/path.h>
 #include <util/folder/tempdir.h>
@@ -227,6 +230,30 @@ TEST(TFileStorageTest, RejectsConcurrentOwnerAndReusesLockAfterExit)
         .ValueOrThrow();
     EXPECT_EQ(fillCount, 1);
     EXPECT_EQ(ReadPayload(restarted), "payload");
+}
+
+TEST(TFileStorageTest, SpawnedChildDoesNotInheritRootLock)
+{
+    TStorageFixture fixture;
+    auto firstStorage = fixture.MakeStorage();
+
+    // The child outlives the storage, as a companion may outlive a failed worker.
+    auto child = New<TSimpleProcess>("/bin/sleep");
+    child->AddArgument("600");
+    auto childExited = child->Spawn();
+    auto cleanup = Finally([&] {
+        child->Kill(SIGKILL);
+        YT_UNUSED_FUTURE(WaitFor(childExited));
+    });
+
+    // Let the first cleanup pass drop its reference, so the storage is destroyed right away.
+    auto noop = [] {
+    };
+    WaitFor(BIND(noop).AsyncVia(fixture.Queue->GetInvoker()).Run())
+        .ThrowOnError();
+    firstStorage.Reset();
+    EXPECT_NO_THROW(fixture.MakeStorage());
+    EXPECT_FALSE(child->IsFinished());
 }
 
 TEST(TFileStorageTest, ObjectDoesNotKeepStorageAlive)
