@@ -32,3 +32,8 @@ PEERDIR(
 END()
 
 RECURSE_FOR_TESTS(unittests)
+
+# The integration tests need the Kafka broker recipe from library/recipes, unavailable in opensource.
+IF (NOT OPENSOURCE)
+    RECURSE_FOR_TESTS(tests)
+ENDIF()
