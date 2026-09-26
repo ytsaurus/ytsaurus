@@ -1099,6 +1099,42 @@ void BuildChunkNbdDiskSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void BuildNbdDiskRequestSpec(
+    NScheduler::NProto::TNbdDiskRequest* protoDiskRequestConfig,
+    const TNbdDiskRequest& diskRequestConfig)
+{
+    BuildCommonDiskRequestSpec(
+        protoDiskRequestConfig->mutable_disk_request(),
+        static_cast<const TDiskRequestConfig&>(diskRequestConfig));
+    BuildChunkNbdDiskSpec(protoDiskRequestConfig->mutable_chunk_nbd(), *diskRequestConfig.NbdDisk);
+}
+
+void BuildLocalDiskRequestSpec(
+    NScheduler::NProto::TLocalDiskRequest* protoDiskRequestConfig,
+    const TLocalDiskRequest& diskRequestConfig)
+{
+    BuildCommonDiskRequestSpec(
+        protoDiskRequestConfig->mutable_disk_request(),
+        static_cast<const TDiskRequestConfig&>(diskRequestConfig));
+}
+
+void BuildCommonDiskRequestSpec(
+    NScheduler::NProto::TDiskRequest* protoDiskRequestConfig,
+    const TDiskRequestConfig& diskRequestConfig)
+{
+    BuildCommonStorageRequestSpec(
+        protoDiskRequestConfig->mutable_storage_request_common_parameters(),
+        static_cast<const TStorageRequestBase&>(diskRequestConfig));
+
+    if (diskRequestConfig.InodeCount) {
+        protoDiskRequestConfig->set_inode_count(*diskRequestConfig.InodeCount);
+    }
+
+    if (diskRequestConfig.MediumIndex) {
+        protoDiskRequestConfig->set_medium_index(*diskRequestConfig.MediumIndex);
+    }
+}
+
 void BuildTmpfsStorageRequestSpec(
     NScheduler::NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
     const TTmpfsStorageRequest& diskRequestConfig)
@@ -1110,6 +1146,13 @@ void BuildTmpfsStorageRequestSpec(
     // COMPAT(krasovav): remove after YT-26820.
     YT_VERIFY(diskRequestConfig.TmpfsIndex);
     protoDiskRequestConfig->set_tmpfs_index(*diskRequestConfig.TmpfsIndex);
+}
+
+void BuildCommonStorageRequestSpec(
+    NScheduler::NProto::TStorageRequestCommonParameters* protoDiskRequestConfig,
+    const TStorageRequestBase& diskRequestConfig)
+{
+    protoDiskRequestConfig->set_disk_space(diskRequestConfig.DiskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
