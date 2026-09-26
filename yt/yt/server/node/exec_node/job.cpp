@@ -1605,7 +1605,23 @@ IYPathServicePtr TJob::CreateDynamicOrchidService()
 
     return CreateCompositeMapService()
         ->AddChild("job_proxy", CreateJobProxyOrchidService())
+        ->AddChild("preliminary_gpu_check", CreatePreliminaryGpuCheckOrchidService())
         ->AddChild("testing", CreateTestingOrchidService());
+}
+
+IYPathServicePtr TJob::CreatePreliminaryGpuCheckOrchidService()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return IYPathService::FromProducer(
+        BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .OptionalItem("start_time", PreliminaryGpuCheckStartTime_)
+                    .OptionalItem("finish_time", PreliminaryGpuCheckFinishTime_)
+                .EndMap();
+        }))
+        ->Via(Invoker_);
 }
 
 IYPathServicePtr TJob::CreateTestingOrchidService()
@@ -2679,9 +2695,7 @@ void TJob::RunJobProxy()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_.load() != EJobPhase::RunningCustomPreparations &&
-        JobPhase_.load() != EJobPhase::RunningGpuCheckCommand)
-    {
+    if (JobPhase_.load() != EJobPhase::RunningCustomPreparations) {
         YT_TLOG_ALERT("Unexpected phase before run job proxy")
             .With("ActualPhase", JobPhase_.load());
     }
