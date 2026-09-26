@@ -1379,6 +1379,114 @@ TEST_F(TResourceManagerTest, AlwaysOnRespectsUnitScope)
 }
 
 //! LoadRequiredResources({}) resolves only once every always-on resource has finished loading.
+TEST_F(TResourceManagerTest, FailedLoadStartsAfreshOnNextLoad)
+{
+    auto actionQueue = New<TActionQueue>();
+
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildSlowResourceSpec();
+    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+
+    auto firstLoad = resourceManager->Load("res");
+    DrainInvoker(actionQueue->GetInvoker());
+    auto first = TSlowResource::GetById("res");
+    ASSERT_TRUE(first);
+    first->FailLoad(TError("File is not delivered yet"));
+    EXPECT_FALSE(WaitFor(firstLoad).IsOK());
+
+    // The next load replaces the failed resource object and runs on the new one.
+    auto secondLoad = resourceManager->Load("res");
+    DrainInvoker(actionQueue->GetInvoker());
+    auto second = TSlowResource::GetById("res");
+    ASSERT_TRUE(second);
+    EXPECT_NE(first, second);
+    EXPECT_TRUE(second->IsLoadStarted());
+
+    second->CompleteLoad();
+    WaitFor(secondLoad).ThrowOnError();
+    EXPECT_EQ(resourceManager->Get("res").Get(), static_cast<IResource*>(second.Get()));
+}
+
+TEST_F(TResourceManagerTest, SynchronouslyFailedLoadStartsAfreshOnNextLoad)
+{
+    // A resource of an unknown class fails its load synchronously on the current invoker.
+    auto failedSpec = New<TResourceSpec>();
+    failedSpec->ResourceClassName = "NonExistentResourceClass";
+    auto resourceManager = CreateManager({{"res", failedSpec}});
+
+    auto first = resourceManager->Get("res");
+    EXPECT_FALSE(WaitFor(resourceManager->Load("res")).IsOK());
+    EXPECT_FALSE(WaitFor(resourceManager->Load("res")).IsOK());
+    EXPECT_NE(first, resourceManager->Get("res"));
+}
+
+TEST_F(TResourceManagerTest, FailedAlwaysOnLoadStartsAfreshOnNextLoadRequiredResources)
+{
+    auto actionQueue = New<TActionQueue>();
+
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["a"] = BuildSlowResourceSpec(/*dependencies*/ {}, /*alwaysOn*/ true);
+    auto resourceManager = CreateManager(
+        resources,
+        actionQueue->GetInvoker(),
+        /*isController*/ false,
+        WorkerComputationRequiring({"a"}));
+
+    auto firstReady = resourceManager->LoadRequiredResources({});
+    DrainInvoker(actionQueue->GetInvoker());
+    auto first = TSlowResource::GetById("a");
+    ASSERT_TRUE(first);
+    first->FailLoad(TError("File is not delivered yet"));
+    EXPECT_FALSE(WaitFor(firstReady).IsOK());
+
+    auto secondReady = resourceManager->LoadRequiredResources({});
+    DrainInvoker(actionQueue->GetInvoker());
+    auto second = TSlowResource::GetById("a");
+    ASSERT_TRUE(second);
+    EXPECT_NE(first, second);
+    EXPECT_TRUE(second->IsLoadStarted());
+    EXPECT_FALSE(secondReady.IsSet());
+
+    second->CompleteLoad();
+    WaitFor(secondReady).ThrowOnError();
+}
+
+TEST_F(TResourceManagerTest, FailedDependencyLoadStartsAfreshWithDependent)
+{
+    auto actionQueue = New<TActionQueue>();
+
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["dep"] = BuildSlowResourceSpec();
+    resources["main"] = BuildSlowResourceSpec(/*dependencies*/ {"dep"});
+    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+
+    auto firstLoad = resourceManager->Load("main");
+    DrainInvoker(actionQueue->GetInvoker());
+    auto firstDep = TSlowResource::GetById("dep");
+    auto firstMain = TSlowResource::GetById("main");
+    ASSERT_TRUE(firstDep);
+    ASSERT_TRUE(firstMain);
+    firstDep->FailLoad(TError("File is not delivered yet"));
+    EXPECT_FALSE(WaitFor(firstLoad).IsOK());
+    EXPECT_FALSE(firstMain->IsLoadStarted());
+
+    auto secondLoad = resourceManager->Load("main");
+    DrainInvoker(actionQueue->GetInvoker());
+    auto secondDep = TSlowResource::GetById("dep");
+    auto secondMain = TSlowResource::GetById("main");
+    ASSERT_TRUE(secondDep);
+    ASSERT_TRUE(secondMain);
+    EXPECT_NE(firstDep, secondDep);
+    EXPECT_NE(firstMain, secondMain);
+    EXPECT_TRUE(secondDep->IsLoadStarted());
+
+    secondDep->CompleteLoad();
+    DrainInvoker(actionQueue->GetInvoker());
+    EXPECT_TRUE(secondMain->IsLoadStarted());
+    secondMain->CompleteLoad();
+    WaitFor(secondLoad).ThrowOnError();
+}
+
 TEST_F(TResourceManagerTest, ReadyFutureAwaitsAllAlwaysOnLoads)
 {
     auto actionQueue = New<TActionQueue>();

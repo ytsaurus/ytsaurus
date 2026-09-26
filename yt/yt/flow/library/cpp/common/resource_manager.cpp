@@ -107,7 +107,6 @@ public:
         // requires on this unit are loaded here.
         {
             auto guard = Guard(Lock_);
-            std::vector<TFuture<void>> alwaysOnFutures;
 
             // For each resource referenced by some computation, whether this unit requires it: a
             // resource may be needed only on the worker or only on the controller.
@@ -134,11 +133,9 @@ public:
                 }
                 YT_TLOG_INFO("Loading always-on resource")
                     .With("ResourceId", resourceId);
-                alwaysOnFutures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
+                AlwaysOnResourceIds_.push_back(resourceId);
+                Y_UNUSED(LoadGuarded(resourceId, guard, /*isPreload*/ false));
             }
-            // Collect the load futures so callers can await readiness via LoadRequiredResources().
-            // AllSucceeded over an empty vector resolves immediately.
-            AlwaysOnLoadedFuture_ = AllSucceeded(std::move(alwaysOnFutures));
         }
     }
 
@@ -160,20 +157,17 @@ public:
     {
         auto guard = Guard(Lock_);
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(requiredResourceIds.size() + 1);
-        for (const auto& resourceId : requiredResourceIds) {
-            // Always-on resources are already loaded eagerly and awaited via AlwaysOnLoadedFuture_,
-            // so skip them here to avoid requesting the same load twice.
-            auto specIt = ResourceSpecs_.find(resourceId);
-            if (specIt != ResourceSpecs_.end() && specIt->second->AlwaysOn) {
-                continue;
-            }
-            futures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
-        }
         // Besides the passed ids, this also awaits the always-on resources (loaded eagerly in the
         // ctor), so it must be called even with an empty requiredResourceIds to ensure they are ready.
-        futures.push_back(AlwaysOnLoadedFuture_);
+        // A failed load of either is started afresh here.
+        auto resourceIds = requiredResourceIds;
+        resourceIds.insert(AlwaysOnResourceIds_.begin(), AlwaysOnResourceIds_.end());
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(resourceIds.size());
+        for (const auto& resourceId : resourceIds) {
+            futures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
+        }
         return AllSucceeded(std::move(futures));
     }
 
@@ -296,12 +290,8 @@ public:
                 // Mark as cancelled so the subscribe callback does nothing on completion.
                 preloadState->Cancelled = true;
             }
-            // Erase the initialization future so the resource can be re-loaded fresh next time.
-            ResourcesInitializationFutures_.erase(resourceId);
             PreloadStatus_.erase(resourceId);
-            // Recreate the resource object so it starts from a clean state on next load.
-            // Now its the only way to undo loading of the resource.
-            Resources_[resourceId] = CreateResource(resourceId);
+            ResetResourceGuarded(resourceId, guard);
         }
 
         // Handle added resources: those in the new set but not yet in PreloadStatus_.
@@ -346,10 +336,9 @@ public:
                         YT_TLOG_ERROR("Resource preload failed")
                             .With("ResourceId", resourceId)
                             .With(error);
-                        // Drop failed initialization state so the next update starts a fresh incarnation.
-                        strongThis->ResourcesInitializationFutures_.erase(resourceId);
                         strongThis->PreloadStatus_.erase(resourceId);
-                        strongThis->Resources_[resourceId] = strongThis->CreateResource(resourceId);
+                        // Unless a new load has already replaced the failed one.
+                        strongThis->ResetResourceIfFailedGuarded(resourceId, guard);
                     }
                 })
                     .Via(Invoker_));
@@ -391,8 +380,8 @@ private:
     THashMap<TResourceId, TFuture<void>> ResourcesInitializationFutures_;
     THashMap<TResourceId, TResourcePreloadStatePtr> PreloadStatus_;
 
-    // AllSucceeded over all always-on resource loads; always set once in the constructor.
-    TFuture<void> AlwaysOnLoadedFuture_;
+    // Always-on resources required on this unit; set once in the constructor.
+    std::vector<TResourceId> AlwaysOnResourceIds_;
 
     // Returns the resource for the given resourceId. Must be called with Lock_ held.
     IResourcePtr GetGuarded(TResourceId resourceId, const TGuard<TSpinLock>&)
@@ -412,6 +401,11 @@ private:
     // to initiate loading of a preload-required resource).
     TFuture<void> LoadGuarded(TResourceId resourceId, const TGuard<TSpinLock>& guard, bool isPreload = false)
     {
+        // A failed load starts afresh: the failure may be transient, e.g. a file not delivered yet.
+        if (ResetResourceIfFailedGuarded(resourceId, guard)) {
+            YT_TLOG_INFO("Reloading resource after a failed load")
+                .With("ResourceId", resourceId);
+        }
         if (auto it = ResourcesInitializationFutures_.find(resourceId); it != ResourcesInitializationFutures_.end()) {
             return it->second;
         }
@@ -457,6 +451,28 @@ private:
         promise.SetFrom(result);
 
         return future;
+    }
+
+    // Forgets the load and recreates the resource object. Must be called with Lock_ held.
+    void ResetResourceGuarded(TResourceId resourceId, const TGuard<TSpinLock>&)
+    {
+        ResourcesInitializationFutures_.erase(resourceId);
+        Resources_[resourceId] = CreateResource(resourceId);
+    }
+
+    // Resets the resource if its current load has failed. Must be called with Lock_ held.
+    bool ResetResourceIfFailedGuarded(TResourceId resourceId, const TGuard<TSpinLock>& guard)
+    {
+        auto it = ResourcesInitializationFutures_.find(resourceId);
+        if (it == ResourcesInitializationFutures_.end()) {
+            return false;
+        }
+        auto result = it->second.TryGet();
+        if (!result || result->IsOK()) {
+            return false;
+        }
+        ResetResourceGuarded(resourceId, guard);
+        return true;
     }
 
     // Creates the resource object for the given resourceId.
