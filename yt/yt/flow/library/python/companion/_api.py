@@ -136,8 +136,8 @@ class Pipeline:
         """Entry point with two modes, selected by ``YT_FLOW_COMPANION_CONFIG``:
 
         * unset → host launch: enrich the pipeline spec to ship this binary as the companion and
-          hand off to flow_server (``--config <pipeline.yson> --flow-bin <flow_server>``), which
-          bootstraps the pipeline.
+          hand off to flow_server (``--config <pipeline.yson> [--flow-bin <flow_server>]``; without
+          ``--flow-bin``, ``$YT_FLOW_BIN``), which bootstraps the pipeline.
         * set → flow_server spawned us as the companion: run the gRPC companion server.
         """
         if "YT_FLOW_COMPANION_CONFIG" not in os.environ:

@@ -65,3 +65,39 @@ def test_launch_preserves_disabled_vanilla(monkeypatch, tmp_path):
 
     with open(calls[0][2], "rb") as source:
         assert yson.load(source) == config
+
+
+def _launch_with_flow_bin(monkeypatch, tmp_path, flow_bin):
+    config_path = tmp_path / "pipeline.yson"
+    config_path.write_bytes(yson.dumps({}))
+    monkeypatch.setattr(runner.tempfile, "tempdir", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(runner.os, "execv", lambda executable, args: calls.append(executable))
+    runner.launch(str(config_path), flow_bin)
+    return calls[0]
+
+
+@pytest.mark.authors(["timoninmaxim"])
+def test_launch_explicit_flow_bin_wins(monkeypatch, tmp_path):
+    monkeypatch.setenv("YT_FLOW_BIN", "/env/flow_server")
+
+    assert _launch_with_flow_bin(monkeypatch, tmp_path, "/flag/flow_server") == "/flag/flow_server"
+
+
+@pytest.mark.authors(["timoninmaxim"])
+def test_launch_takes_flow_bin_from_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("YT_FLOW_BIN", "/env/flow_server")
+
+    assert _launch_with_flow_bin(monkeypatch, tmp_path, None) == "/env/flow_server"
+
+
+@pytest.mark.authors(["timoninmaxim"])
+@pytest.mark.parametrize("env_value", [None, ""])
+def test_launch_fails_without_flow_bin(monkeypatch, tmp_path, env_value):
+    if env_value is None:
+        monkeypatch.delenv("YT_FLOW_BIN", raising=False)
+    else:
+        monkeypatch.setenv("YT_FLOW_BIN", env_value)
+
+    with pytest.raises(RuntimeError, match="--flow-bin.*YT_FLOW_BIN"):
+        _launch_with_flow_bin(monkeypatch, tmp_path, None)

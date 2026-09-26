@@ -139,7 +139,7 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 {% endlist %}
 
-Runner требует два аргумента: `--config` — путь к конфигу пайплайна, `--flow-bin` — путь к бинарю `flow_server`.
+Runner принимает два аргумента: обязательный `--config` — путь к конфигу пайплайна и `--flow-bin` — путь к бинарю `flow_server`. Без `--flow-bin` раннер берёт путь из переменной окружения `YT_FLOW_BIN`.
 
 ```bash
 ./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server

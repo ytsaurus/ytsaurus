@@ -16,8 +16,8 @@ public class FlowCliArguments {
     @Parameter(
             names = "--flow-bin",
             description = "Path to the flow_server binary; the runner enriches the spec and hands "
-                    + "the launch off to flow_server, which sets the spec and starts the pipeline",
-            required = true
+                    + "the launch off to flow_server, which sets the spec and starts the pipeline. "
+                    + "Defaults to $YT_FLOW_BIN"
     )
     private @Nullable String flowBin;
     @Parameter(

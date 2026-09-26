@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,8 +41,42 @@ func TestParseArgsRequiresConfig(t *testing.T) {
 	require.ErrorIs(t, err, ErrMissingConfig)
 }
 
-func TestParseArgsRequiresFlowBin(t *testing.T) {
-	_, err := ParseArgs([]string{"my_pipeline", "--config", "pipeline.yson"})
+func TestParseArgsLeavesFlowBinOptional(t *testing.T) {
+	args, err := ParseArgs([]string{"my_pipeline", "--config", "pipeline.yson"})
+	require.NoError(t, err)
+	require.Equal(t, Args{ConfigPath: "pipeline.yson"}, args)
+}
+
+func TestResolveFlowBinPrefersExplicitFlag(t *testing.T) {
+	t.Setenv(FlowBinEnvVar, "/env/flow_server")
+
+	flowBin, err := ResolveFlowBin("/flag/flow_server")
+	require.NoError(t, err)
+	require.Equal(t, "/flag/flow_server", flowBin)
+}
+
+func TestResolveFlowBinTakesEnvVar(t *testing.T) {
+	t.Setenv(FlowBinEnvVar, "/env/flow_server")
+
+	flowBin, err := ResolveFlowBin("")
+	require.NoError(t, err)
+	require.Equal(t, "/env/flow_server", flowBin)
+}
+
+func TestResolveFlowBinFailsWithoutFlagAndEnvVar(t *testing.T) {
+	t.Setenv(FlowBinEnvVar, "")
+	require.NoError(t, os.Unsetenv(FlowBinEnvVar))
+
+	_, err := ResolveFlowBin("")
+	require.ErrorIs(t, err, ErrMissingFlowBin)
+	require.ErrorContains(t, err, "--flow-bin")
+	require.ErrorContains(t, err, FlowBinEnvVar)
+}
+
+func TestResolveFlowBinTreatsEmptyEnvVarAsUnset(t *testing.T) {
+	t.Setenv(FlowBinEnvVar, "")
+
+	_, err := ResolveFlowBin("")
 	require.ErrorIs(t, err, ErrMissingFlowBin)
 }
 

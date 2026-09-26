@@ -15,6 +15,9 @@ import (
 // CompanionFileName is the pipeline binary name in the job sandbox.
 const CompanionFileName = "go_companion"
 
+// FlowBinEnvVar names flow_server when --flow-bin is not given.
+const FlowBinEnvVar = "YT_FLOW_BIN"
+
 const (
 	companionManagerClass    = "NYT::NFlow::NCompanion::TCompanionManager"
 	companionWorkerPortCount = 3
@@ -24,8 +27,9 @@ var (
 	// ErrMissingConfig reports a launch that did not name a pipeline config.
 	ErrMissingConfig = xerrors.NewSentinel("--config <pipeline.yson> is required")
 
-	// ErrMissingFlowBin reports a launch that did not name a flow_server binary.
-	ErrMissingFlowBin = xerrors.NewSentinel("--flow-bin <path to flow_server> is required")
+	// ErrMissingFlowBin reports a launch that named no flow_server binary.
+	ErrMissingFlowBin = xerrors.NewSentinel(
+		"flow_server is not given: pass --flow-bin <path to flow_server> or set " + FlowBinEnvVar)
 
 	// ErrMalformedConfig reports a pipeline config that is not a YSON map.
 	ErrMalformedConfig = xerrors.NewSentinel("malformed pipeline config")
@@ -37,7 +41,8 @@ var (
 // Args is a launcher command line.
 type Args struct {
 	ConfigPath string
-	FlowBin    string
+	// FlowBin is empty when --flow-bin is not given; Launch then resolves it by ResolveFlowBin.
+	FlowBin string
 }
 
 // ParseArgs reads launcher flags from argv.
@@ -75,14 +80,33 @@ func ParseArgs(argv []string) (Args, error) {
 	if args.ConfigPath == "" {
 		return Args{}, xerrors.Errorf("flow/runner: %w", ErrMissingConfig)
 	}
-	if args.FlowBin == "" {
-		return Args{}, xerrors.Errorf("flow/runner: %w", ErrMissingFlowBin)
-	}
 	return args, nil
+}
+
+// ResolveFlowBin returns the absolute path of flow_server: flowBin if not empty, else
+// $YT_FLOW_BIN.
+func ResolveFlowBin(flowBin string) (string, error) {
+	if flowBin == "" {
+		flowBin = os.Getenv(FlowBinEnvVar)
+	}
+	if flowBin == "" {
+		return "", xerrors.Errorf("flow/runner: %w", ErrMissingFlowBin)
+	}
+
+	abs, err := filepath.Abs(flowBin)
+	if err != nil {
+		return "", xerrors.Errorf("flow/runner: resolve %q: %w", flowBin, err)
+	}
+	return abs, nil
 }
 
 // Launch enriches the config and replaces the process with flow_server.
 func Launch(args Args, streamSchemas map[string]schema.Schema) error {
+	flowBin, err := ResolveFlowBin(args.FlowBin)
+	if err != nil {
+		return err
+	}
+
 	pipelineConfig, err := os.ReadFile(args.ConfigPath)
 	if err != nil {
 		return xerrors.Errorf("flow/runner: read pipeline config: %w", err)
@@ -102,11 +126,6 @@ func Launch(args Args, streamSchemas map[string]schema.Schema) error {
 	extendedPath, err := writeExtendedConfig(extended)
 	if err != nil {
 		return err
-	}
-
-	flowBin, err := filepath.Abs(args.FlowBin)
-	if err != nil {
-		return xerrors.Errorf("flow/runner: resolve %q: %w", args.FlowBin, err)
 	}
 
 	if err := syscall.Exec(flowBin, []string{flowBin, "--config", extendedPath}, os.Environ()); err != nil {
