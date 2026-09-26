@@ -33,6 +33,8 @@ import tech.ytsaurus.ysontree.YTreeNodeUtils;
  * the spec, and waits for it.
  */
 public class FlowLauncher {
+    static final String ENV_VAR_YT_FLOW_BIN = "YT_FLOW_BIN";
+
     private static final Logger log = LoggerFactory.getLogger(FlowLauncher.class);
 
     private final EnvironmentReader envReader;
@@ -86,7 +88,8 @@ public class FlowLauncher {
      * flow_server on it, and returns its exit code.
      *
      * @param configPath      path to the pipeline config in YSON format.
-     * @param flowBin         path to the {@code flow_server} binary that performs the launch.
+     * @param flowBin         path to the {@code flow_server} binary that performs the launch, or
+     *                        {@code null} to take {@code $YT_FLOW_BIN}.
      * @param streams         streams registered by the pipeline; their schemas are written into
      *                        {@code spec.streams}.
      * @param states          states declared by the pipeline; the descriptor sources of profile
@@ -106,11 +109,12 @@ public class FlowLauncher {
         if (configPath == null || configPath.isEmpty()) {
             throw new IllegalArgumentException("--config <pipeline.yson> is required to launch the pipeline");
         }
-        if (flowBin == null || flowBin.isEmpty()) {
-            throw new IllegalArgumentException("--flow-bin <path to flow_server> is required to launch the pipeline");
+        String flowBinPath = flowBin == null || flowBin.isEmpty() ? envReader.getVar(ENV_VAR_YT_FLOW_BIN) : flowBin;
+        if (flowBinPath == null || flowBinPath.isEmpty()) {
+            throw new IllegalArgumentException("flow_server is not given: pass --flow-bin <path to flow_server> "
+                    + "or set " + ENV_VAR_YT_FLOW_BIN);
         }
-
-        String flowBinAbs = Paths.get(flowBin).toAbsolutePath().toString();
+        String flowBinAbs = Paths.get(flowBinPath).toAbsolutePath().toString();
 
         YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states);
         Path extendedConfig = writeExtendedConfig(pipelineConfig);

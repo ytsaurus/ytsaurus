@@ -1,6 +1,6 @@
 """Python-side runner for Flow: launches the pipeline in a YT vanilla operation.
 
-Run as ``./my_pipeline --config pipeline.yson --flow-bin <path/to/flow_server>``. The runner
+Run as ``./my_pipeline --config pipeline.yson [--flow-bin <path/to/flow_server>]``. The runner
 enriches the pipeline config so the worker ships *this* python binary as the companion (plus any
 extra files it needs), writes the extended config, then execs the given flow_server
 (``flow_server --config <extended>``). flow_server then performs the whole launch: bootstrap the
@@ -8,8 +8,9 @@ files into YT, start the operation that runs flow_server (which in turn spawns t
 and set the pipeline spec. All launch logic thus lives once, in C++ (``library/cpp/runner``);
 Python only adds the companion-specific enrichment.
 
-The flow_server binary is passed explicitly via ``--flow-bin`` rather than embedded, so the
-pipeline binary stays light and the flow_server version is chosen by the caller.
+The flow_server binary is not embedded, so the pipeline binary stays light and the flow_server
+version is chosen by the caller: ``--flow-bin`` if given, else ``$YT_FLOW_BIN`` (the released
+Flow images set it).
 
 Companion-mode invocations (``YT_FLOW_COMPANION_CONFIG`` in env) skip the runner entirely.
 """
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 _PYTHON_COMPANION_NAME = "py_companion"
 _PYTHON_COMPANION_PORT_COUNT = 3
 _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
+_FLOW_BIN_ENV_VAR = "YT_FLOW_BIN"
 
 
 def parse_launch_args(argv):
@@ -39,11 +41,13 @@ def parse_launch_args(argv):
 
 
 def launch(config_path, flow_bin):
-    """Enrich the pipeline config to ship this binary as the companion, then exec flow_bin."""
+    """Enrich the pipeline config to ship this binary as the companion, then exec flow_server.
+
+    ``flow_bin`` may be None: then ``$YT_FLOW_BIN`` is used.
+    """
     if not config_path:
         raise RuntimeError("--config <pipeline.yson> is required to launch the pipeline")
-    if not flow_bin:
-        raise RuntimeError("--flow-bin <path to flow_server> is required to launch the pipeline")
+    flow_bin = _resolve_flow_bin(flow_bin)
 
     with open(config_path, "rb") as f:
         pipeline_config = yson.load(f)
@@ -64,9 +68,17 @@ def launch(config_path, flow_bin):
             worker["port_count"] = _PYTHON_COMPANION_PORT_COUNT
 
     extended_config = _write_temp_yson(pipeline_config, "extended-pipeline.yson")
-    flow_bin = os.path.abspath(flow_bin)
     log.info("Launching %s with extended config %s", flow_bin, extended_config)
     os.execv(flow_bin, [flow_bin, "--config", extended_config])
+
+
+def _resolve_flow_bin(flow_bin):
+    flow_bin = flow_bin or os.environ.get(_FLOW_BIN_ENV_VAR)
+    if not flow_bin:
+        raise RuntimeError(
+            f"flow_server is not given: pass --flow-bin <path to flow_server> or set {_FLOW_BIN_ENV_VAR}"
+        )
+    return os.path.abspath(flow_bin)
 
 
 def _patch_companion_resources(spec):

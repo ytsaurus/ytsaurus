@@ -37,6 +37,7 @@ public class SimpleRunnerProgram {
      * <pre>
      * java -cp ./lib com.example.PipelineMain --config ./pipeline.yson --flow-bin ./flow_server
      * </pre>
+     * Without {@code --flow-bin}, {@code $YT_FLOW_BIN} is used.
      * <p>
      * The runner enriches the spec and hands the launch off to flow_server, which sets the spec.
      * <p>

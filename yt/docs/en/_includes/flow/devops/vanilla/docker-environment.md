@@ -70,6 +70,8 @@ strip -o flow_server.stripped yt/yt/flow/bin/flow_server/flow_server
 
 The runner uploads the binary into the cluster's file cache on every deploy, so a stripped binary (hundreds of megabytes instead of gigabytes) makes deploys noticeably faster.
 
+The released Flow images set `YT_FLOW_BIN=/usr/bin/flow_server`, so launchers run inside them need no `--flow-bin`.
+
 ## Language specifics {#languages}
 
 {% list tabs %}

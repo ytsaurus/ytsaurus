@@ -603,6 +603,39 @@ class FlowLauncherTest {
         assertFalse(Files.exists(written.get(0).getParent()));
     }
 
+    @Test
+    void testExplicitFlowBinWinsOverEnvVar() throws Exception {
+        env.setVar(FlowLauncher.ENV_VAR_YT_FLOW_BIN, "/bin/false");
+
+        assertEquals(0, launcher.launch(pipelinePath, "/bin/true", Map.of(), List.of()));
+    }
+
+    @Test
+    void testTakesFlowBinFromEnvVarWithoutFlag() throws Exception {
+        env.setVar(FlowLauncher.ENV_VAR_YT_FLOW_BIN, "/bin/true");
+
+        assertEquals(0, launcher.launch(pipelinePath, null, Map.of(), List.of()));
+        assertEquals(0, launcher.launch(pipelinePath, "", Map.of(), List.of()));
+    }
+
+    @Test
+    void testFailsWithoutFlowBinAndEnvVar() {
+        var error = assertThrows(
+                IllegalArgumentException.class,
+                () -> launcher.launch(pipelinePath, null, Map.of(), List.of()));
+        assertTrue(error.getMessage().contains("--flow-bin"), error.getMessage());
+        assertTrue(error.getMessage().contains(FlowLauncher.ENV_VAR_YT_FLOW_BIN), error.getMessage());
+    }
+
+    @Test
+    void testEmptyFlowBinEnvVarMeansNotSet() {
+        env.setVar(FlowLauncher.ENV_VAR_YT_FLOW_BIN, "");
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> launcher.launch(pipelinePath, null, Map.of(), List.of()));
+    }
+
     @Entity
     @FlowMessage(streamIds = {"words"})
     private static class Word {
