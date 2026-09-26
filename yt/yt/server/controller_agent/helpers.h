@@ -211,28 +211,24 @@ void BuildChunkNbdDiskSpec(
     NScheduler::NProto::TChunkNbdDisk* protoChunkNbdDisk,
     const NScheduler::TNbdDiskConfig& nbdDiskConfig);
 
-template <class TProtoDiskRequest>
 void BuildNbdDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
+    NScheduler::NProto::TNbdDiskRequest* protoDiskRequestConfig,
     const NScheduler::TNbdDiskRequest& diskRequestConfig);
 
-template <class TProtoDiskRequest>
 void BuildLocalDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
+    NScheduler::NProto::TLocalDiskRequest* protoDiskRequestConfig,
     const NScheduler::TLocalDiskRequest& diskRequestConfig);
 
-template <class TProtoDiskRequest>
 void BuildCommonDiskRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
+    NScheduler::NProto::TDiskRequest* protoDiskRequestConfig,
     const NScheduler::TDiskRequestConfig& diskRequestConfig);
 
 void BuildTmpfsStorageRequestSpec(
     NScheduler::NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
     const NScheduler::TTmpfsStorageRequest& diskRequestConfig);
 
-template <class TProtoDiskRequest>
 void BuildCommonStorageRequestSpec(
-    TProtoDiskRequest* protoDiskRequestConfig,
+    NScheduler::NProto::TStorageRequestCommonParameters* protoDiskRequestConfig,
     const NScheduler::TStorageRequestBase& diskRequestConfig);
 
 ////////////////////////////////////////////////////////////////////////////////

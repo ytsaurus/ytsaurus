@@ -10565,7 +10565,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_check_input_fully_consumed(jobSpecConfig->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(jobSpecConfig->MaxStderrSize);
     jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
-    jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
@@ -10641,26 +10640,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             break;
         }
         BuildTmpfsVolumeSpec(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
-    }
-
-    // COMPAT(krasovav)
-    for (const auto& [_, volume] : jobSpecConfig->Volumes) {
-        if (!volume->DiskRequest) {
-            continue;
-        }
-
-        if (!volume->DiskRequest->TryGetConcrete<TDiskRequestConfig>()) {
-            continue;
-        }
-
-        if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            BuildNbdDiskRequestSpec(jobSpec->mutable_disk_request(), *nbdDiskRequest);
-        } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            BuildLocalDiskRequestSpec(jobSpec->mutable_disk_request(), *localDiskRequest);
-        } else {
-            YT_TLOG_FATAL("Unknown volume type")
-                .With("VolumeType", volume->DiskRequest->GetType());
-        }
     }
 
     {
