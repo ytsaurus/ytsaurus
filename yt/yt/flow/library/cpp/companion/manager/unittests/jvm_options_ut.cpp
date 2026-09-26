@@ -1,7 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/flow/library/cpp/companion/manager/jvm_options.h>
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <util/system/env.h>
+#include <util/system/fs.h>
 
 namespace NYT::NFlow::NCompanion {
 namespace {
@@ -57,16 +60,28 @@ TEST_F(TJvmOptionsTest, ResolveExtraOptsAppendsToDefaults)
 
 TEST_F(TJvmOptionsTest, ResolveUsesCustomLogDir)
 {
-    SetEnv("YT_FLOW_COMPANION_LOG_DIR", "/tmp/custom_logs");
+    auto logDir = NFS::GetRealPath(NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "custom_logs"));
+    SetEnv("YT_FLOW_COMPANION_LOG_DIR", TString(logDir));
     auto options = ResolveJvmOptions();
     bool found = false;
     for (const auto& opt : options) {
-        if (opt.find("/tmp/custom_logs") != std::string::npos) {
+        if (opt.find(logDir) != std::string::npos) {
             found = true;
             break;
         }
     }
     EXPECT_TRUE(found) << "Custom log dir not found in any JVM option";
+}
+
+TEST_F(TJvmOptionsTest, ResolveCreatesMissingCustomLogDir)
+{
+    auto logDir = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "missing_logs/companion");
+    ASSERT_FALSE(NFS::Exists(logDir));
+    SetEnv("YT_FLOW_COMPANION_LOG_DIR", TString(logDir));
+
+    ResolveJvmOptions();
+
+    EXPECT_TRUE(NFS::Exists(logDir));
 }
 
 TEST_F(TJvmOptionsTest, JfrDisabled)
