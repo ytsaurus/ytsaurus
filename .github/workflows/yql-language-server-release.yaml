@@ -1,0 +1,208 @@
+name: Release YQL Language Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      dummy:
+        description: Dummy
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Version
+        id: version
+        run: |
+          set -euo pipefail
+
+          cd yql/essentials/tools/yql_language_server
+          version=$(python3 ci/version.py < CHANGELOG.md)
+          test -n "$version"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^0\.([0-9]+)\.0$ ]]; then
+            echo "Release version must have the form 0.N.0: $VERSION" >&2
+            exit 1
+          fi
+          next=${BASH_REMATCH[1]}
+
+          latest=$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name' |
+              sed -n 's#^yql/language-server/v0\.\([0-9][0-9]*\)\.0$#\1#p' |
+              sort -n |
+              tail -n 1
+          )
+          latest=${latest:-0}
+
+          if (( 10#$next != 10#$latest + 1 )); then
+            echo "Release version 0.$next.0 is not next after 0.$latest.0" >&2
+            exit 1
+          fi
+
+      - name: Release Notes
+        run: |
+          set -euo pipefail
+
+          cd yql/essentials/tools/yql_language_server
+          python3 ci/release_notes.py \
+            < CHANGELOG.md \
+            > "$RUNNER_TEMP/RELEASE_NOTES.md"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/RELEASE_NOTES.md
+          if-no-files-found: error
+          retention-days: 1
+
+  build-linux:
+    name: Build Linux (${{ matrix.platform }})
+    needs:
+      - version
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      VERSION: ${{ needs.version.outputs.version }}
+    strategy:
+      matrix:
+        platform:
+          - linux-x86_64
+          - linux-aarch64
+      max-parallel: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build Dummy
+        if: ${{ inputs.dummy }}
+        run: |
+          set -euo pipefail
+
+          output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          mkdir -p "$output/yql/essentials/tools/yql_language_server"
+          cd "$output/yql/essentials/tools/yql_language_server"
+          printf '#!/bin/sh\n' > yql_language_server
+          chmod +x yql_language_server
+
+      - name: Build
+        if: ${{ !inputs.dummy }}
+        run: |
+          set -euo pipefail
+
+          output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          mkdir -p "$output"
+          ./ya make \
+            --build=release \
+            -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
+            --target-platform="default-$PLATFORM" \
+            --output="$output" \
+            --stat \
+            --bazel-remote-store \
+            --bazel-remote-base-uri="http://build-cache.dev.ytsaurus.tech" \
+            --ignore-recurses \
+            yql/essentials/tools/yql_language_server
+
+      - name: Package
+        run: |
+          set -euo pipefail
+
+          cd "$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          cp -L \
+            yql/essentials/tools/yql_language_server/yql_language_server \
+            "$RUNNER_TEMP/yql-language-server"
+
+          cd "$RUNNER_TEMP"
+          tar \
+            -czf "yql-language-server-$VERSION-$PLATFORM.tar.gz" \
+            yql-language-server
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: yql-language-server-${{ matrix.platform }}
+          path: ${{ runner.temp }}/yql-language-server-*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos:
+    name: Build MacOS (${{ matrix.platform }})
+    if: ${{ false }} # TODO(vityaman): not implemented
+    strategy:
+      matrix:
+        platform:
+          - darwin-arm64
+          - darwin-x86_64
+      max-parallel: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - run: exit 1
+
+  build-windows:
+    name: Build Windows (${{ matrix.platform }})
+    if: ${{ false }} # TODO(vityaman): not implemented
+    strategy:
+      matrix:
+        platform:
+          - win-x86_64
+      max-parallel: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - run: exit 1
+
+  release:
+    name: Release
+    needs:
+      - version
+      - build-linux
+      # TODO(vityaman): not implemented
+      # - build-macos
+      # - build-windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          gh release create "yql/language-server/v${VERSION}" \
+            dist/yql-language-server-* \
+            --target "$GITHUB_SHA" \
+            --title "YQL Language Server $VERSION" \
+            --notes-file dist/RELEASE_NOTES.md

@@ -1,6 +1,12 @@
 #include "args.h"
+#include "version.h"
 
 #include <library/cpp/getopt/last_getopt.h>
+
+#include <util/stream/output.h>
+#include <util/string/builder.h>
+
+#include <cstdlib>
 
 namespace NLsp::NYql {
 
@@ -8,6 +14,14 @@ TArgs TArgs::Parse(int argc, char** argv) {
     TArgs args;
 
     NLastGetopt::TOpts opts;
+    opts.SetTitle(TStringBuilder() << "YQL Language Server " << Version());
+
+    opts.AddLongOption("version", "print version")
+        .NoArgument()
+        .Handler0([] {
+            Cout << Version() << Endl;
+            std::exit(0);
+        });
 
     opts.AddLongOption("stdio", "use stdio as the communication channel")
         .NoArgument()
