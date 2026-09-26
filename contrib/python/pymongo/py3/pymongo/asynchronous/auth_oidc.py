@@ -13,13 +13,15 @@
 # limitations under the License.
 
 """MONGODB-OIDC Authentication helpers."""
+
 from __future__ import annotations
 
 import asyncio
 import threading
 import time
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import bson
 from bson.binary import Binary
@@ -49,9 +51,6 @@ _IS_SYNC = False
 def _get_authenticator(
     credentials: MongoCredential, address: tuple[str, int]
 ) -> _OIDCAuthenticator:
-    if credentials.cache.data:
-        return credentials.cache.data
-
     # Extract values.
     principal_name = credentials.username
     properties = credentials.mechanism_properties
@@ -69,6 +68,9 @@ def _get_authenticator(
             raise ConfigurationError(
                 f"Refusing to connect to {address[0]}, which is not in authOIDCAllowedHosts: {allowed_hosts}"
             )
+
+    if credentials.cache.data:
+        return credentials.cache.data
 
     # Get or create the cache data.
     credentials.cache.data = _OIDCAuthenticator(username=principal_name, properties=properties)

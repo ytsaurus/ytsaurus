@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import queue
 import random
@@ -25,10 +24,17 @@ import sys
 import time
 import warnings
 import weakref
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 
 from pymongo import _csot, common, helpers_shared, periodic_executor
+from pymongo._telemetry import (
+    _SdamTelemetry,
+    _ServerSelectionTelemetry,
+    log_server_selection_succeeded,
+)
+from pymongo.client_session_shared import _ServerSession, _ServerSessionPool
 from pymongo.errors import (
     ConnectionFailure,
     InvalidOperation,
@@ -46,13 +52,7 @@ from pymongo.lock import (
     _create_condition,
     _create_lock,
 )
-from pymongo.logger import (
-    _SDAM_LOGGER,
-    _SERVER_SELECTION_LOGGER,
-    _debug_log,
-    _SDAMStatusMessage,
-    _ServerSelectionStatusMessage,
-)
+from pymongo.logger import _SERVER_SELECTION_LOGGER, _is_debug_enabled
 from pymongo.pool_options import PoolOptions
 from pymongo.server_description import ServerDescription
 from pymongo.server_selectors import (
@@ -62,7 +62,6 @@ from pymongo.server_selectors import (
     secondary_server_selector,
     writable_server_selector,
 )
-from pymongo.synchronous.client_session import _ServerSession, _ServerSessionPool
 from pymongo.synchronous.monitor import MonitorBase, SrvMonitor
 from pymongo.synchronous.pool import Pool
 from pymongo.synchronous.server import Server
@@ -73,9 +72,14 @@ from pymongo.topology_description import (
     _updated_topology_description_srv_polling,
     updated_topology_description,
 )
+from pymongo.topology_shared import (
+    _ErrorContext,
+    _is_stale_error_topology_version,
+    _is_stale_server_description,
+    process_events_queue,
+)
 
 if TYPE_CHECKING:
-    from bson import ObjectId
     from pymongo.synchronous.settings import TopologySettings
     from pymongo.typings import ClusterTime, _Address
 
@@ -84,50 +88,25 @@ _IS_SYNC = True
 _pymongo_dir = str(Path(__file__).parent)
 
 
-def process_events_queue(queue_ref: weakref.ReferenceType[queue.Queue]) -> bool:  # type: ignore[type-arg]
-    q = queue_ref()
-    if not q:
-        return False  # Cancel PeriodicExecutor.
-
-    while True:
-        try:
-            event = q.get_nowait()
-        except queue.Empty:
-            break
-        else:
-            fn, args = event
-            fn(*args)
-
-    return True  # Continue PeriodicExecutor.
-
-
 class Topology:
     """Monitor a topology of one or more servers."""
 
     def __init__(self, topology_settings: TopologySettings):
         self._topology_id = topology_settings._topology_id
         self._listeners = topology_settings._pool_options._event_listeners
-        self._publish_server = self._listeners is not None and self._listeners.enabled_for_server
-        self._publish_tp = self._listeners is not None and self._listeners.enabled_for_topology
 
         # Create events queue if there are publishers.
         self._events: queue.Queue[Any] | None = None
         self.__events_executor: Any = None
 
-        if self._publish_server or self._publish_tp:
+        publish_server = self._listeners is not None and self._listeners.enabled_for_server
+        publish_tp = self._listeners is not None and self._listeners.enabled_for_topology
+        if publish_server or publish_tp:
             self._events = queue.Queue(maxsize=100)
 
-        if _SDAM_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SDAM_LOGGER,
-                message=_SDAMStatusMessage.START_TOPOLOGY,
-                topologyId=self._topology_id,
-            )
+        self._sdam = _SdamTelemetry(self._topology_id, self._listeners, self._events)
+        self._sdam.topology_opened()
 
-        if self._publish_tp:
-            assert self._events is not None
-            assert self._listeners is not None
-            self._events.put((self._listeners.publish_topology_opened, (self._topology_id,)))
         self._settings = topology_settings
         topology_description = TopologyDescription(
             topology_settings.get_topology_type(),
@@ -142,37 +121,10 @@ class Topology:
         initial_td = TopologyDescription(
             TOPOLOGY_TYPE.Unknown, {}, None, None, None, self._settings
         )
-        if self._publish_tp:
-            assert self._events is not None
-            assert self._listeners is not None
-            self._events.put(
-                (
-                    self._listeners.publish_topology_description_changed,
-                    (initial_td, self._description, self._topology_id),
-                )
-            )
-        if _SDAM_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SDAM_LOGGER,
-                message=_SDAMStatusMessage.TOPOLOGY_CHANGE,
-                topologyId=self._topology_id,
-                previousDescription=repr(initial_td),
-                newDescription=repr(self._description),
-            )
+        self._sdam.topology_description_changed(initial_td, self._description)
 
         for seed in topology_settings.seeds:
-            if self._publish_server:
-                assert self._events is not None
-                assert self._listeners is not None
-                self._events.put((self._listeners.publish_server_opened, (seed, self._topology_id)))
-            if _SDAM_LOGGER.isEnabledFor(logging.DEBUG):
-                _debug_log(
-                    _SDAM_LOGGER,
-                    message=_SDAMStatusMessage.START_SERVER,
-                    topologyId=self._topology_id,
-                    serverHost=seed[0],
-                    serverPort=seed[1],
-                )
+            self._sdam.server_opened(seed)
 
         # Store the seed list to help diagnose errors in _error_message().
         self._seed_addresses = list(topology_description.server_descriptions())
@@ -187,7 +139,7 @@ class Topology:
         self._max_cluster_time: Optional[ClusterTime] = None
         self._session_pool = _ServerSessionPool()
 
-        if self._publish_server or self._publish_tp:
+        if self._sdam._publish_server or self._sdam._publish_tp:
             assert self._events is not None
             weak: weakref.ReferenceType[queue.Queue[Any]]
 
@@ -236,8 +188,7 @@ class Topology:
                 kwargs = {"skip_file_prefixes": (_pymongo_dir,)}
             else:
                 kwargs = {"stacklevel": 6}
-            # Ignore B028 warning for missing stacklevel.
-            warnings.warn(  # type: ignore[call-overload] # noqa: B028
+            warnings.warn(  # type: ignore[call-overload]
                 "MongoClient opened before fork. May not be entirely fork-safe, "
                 "proceed with caution. See PyMongo's documentation for details: "
                 "https://dochub.mongodb.org/core/pymongo-fork-deadlock",
@@ -321,17 +272,13 @@ class Topology:
         now = time.monotonic()
         end_time = now + timeout
         logged_waiting = False
-
-        if _SERVER_SELECTION_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SERVER_SELECTION_LOGGER,
-                message=_ServerSelectionStatusMessage.STARTED,
-                selector=selector,
-                operation=operation,
-                operationId=operation_id,
-                topologyDescription=self.description,
-                clientId=self.description._topology_settings._topology_id,
+        # Server selection does not have APM events, gate only on logging
+        ss: Optional[_ServerSelectionTelemetry] = None
+        if _is_debug_enabled(_SERVER_SELECTION_LOGGER):
+            ss = _ServerSelectionTelemetry(
+                self._topology_id, selector, operation, operation_id, self.description
             )
+            ss.started()
 
         server_descriptions = self._description.apply_selector(
             selector,
@@ -345,32 +292,14 @@ class Topology:
         while not server_descriptions:
             # No suitable servers.
             if timeout == 0 or now > end_time:
-                if _SERVER_SELECTION_LOGGER.isEnabledFor(logging.DEBUG):
-                    _debug_log(
-                        _SERVER_SELECTION_LOGGER,
-                        message=_ServerSelectionStatusMessage.FAILED,
-                        selector=selector,
-                        operation=operation,
-                        operationId=operation_id,
-                        topologyDescription=self.description,
-                        clientId=self.description._topology_settings._topology_id,
-                        failure=self._error_message(selector),
-                    )
+                if ss is not None:
+                    ss.failed(self._error_message(selector), self.description)
                 raise ServerSelectionTimeoutError(
                     f"{self._error_message(selector)}, Timeout: {timeout}s, Topology Description: {self.description!r}"
                 )
 
-            if not logged_waiting:
-                _debug_log(
-                    _SERVER_SELECTION_LOGGER,
-                    message=_ServerSelectionStatusMessage.WAITING,
-                    selector=selector,
-                    operation=operation,
-                    operationId=operation_id,
-                    topologyDescription=self.description,
-                    clientId=self.description._topology_settings._topology_id,
-                    remainingTimeMS=int(1000 * (end_time - time.monotonic())),
-                )
+            if ss is not None and not logged_waiting:
+                ss.waiting(int(1000 * (end_time - time.monotonic())))
                 logged_waiting = True
 
             self._ensure_opened()
@@ -435,17 +364,15 @@ class Topology:
         )
         if _csot.get_timeout():
             _csot.set_rtt(server.description.min_round_trip_time)
-        if _SERVER_SELECTION_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SERVER_SELECTION_LOGGER,
-                message=_ServerSelectionStatusMessage.SUCCEEDED,
-                selector=selector,
-                operation=operation,
-                operationId=operation_id,
-                topologyDescription=self.description,
-                clientId=self.description._topology_settings._topology_id,
-                serverHost=server.description.address[0],
-                serverPort=server.description.address[1],
+        if _is_debug_enabled(_SERVER_SELECTION_LOGGER):
+            log_server_selection_succeeded(
+                self._topology_id,
+                selector,
+                operation,
+                operation_id,
+                self.description,
+                server.description.address[0],
+                server.description.address[1],
             )
         return server
 
@@ -508,36 +435,16 @@ class Topology:
                 server.pool.ready()
 
         suppress_event = sd_old == server_description
-        if self._publish_server and not suppress_event:
-            assert self._events is not None
-            assert self._listeners is not None
-            self._events.put(
-                (
-                    self._listeners.publish_server_description_changed,
-                    (sd_old, server_description, server_description.address, self._topology_id),
-                )
+        if not suppress_event:
+            self._sdam.server_description_changed(
+                sd_old, server_description, server_description.address
             )
 
         self._description = new_td
         self._update_servers()
 
-        if self._publish_tp and not suppress_event:
-            assert self._events is not None
-            assert self._listeners is not None
-            self._events.put(
-                (
-                    self._listeners.publish_topology_description_changed,
-                    (td_old, self._description, self._topology_id),
-                )
-            )
-        if _SDAM_LOGGER.isEnabledFor(logging.DEBUG) and not suppress_event:
-            _debug_log(
-                _SDAM_LOGGER,
-                message=_SDAMStatusMessage.TOPOLOGY_CHANGE,
-                topologyId=self._topology_id,
-                previousDescription=repr(td_old),
-                newDescription=repr(self._description),
-            )
+        if not suppress_event:
+            self._sdam.topology_description_changed(td_old, self._description)
 
         # Shutdown SRV polling for unsupported cluster types.
         # This is only applicable if the old topology was Unknown, and the
@@ -588,24 +495,7 @@ class Topology:
         self._description = _updated_topology_description_srv_polling(self._description, seedlist)
 
         self._update_servers()
-
-        if self._publish_tp:
-            assert self._events is not None
-            assert self._listeners is not None
-            self._events.put(
-                (
-                    self._listeners.publish_topology_description_changed,
-                    (td_old, self._description, self._topology_id),
-                )
-            )
-        if _SDAM_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SDAM_LOGGER,
-                message=_SDAMStatusMessage.TOPOLOGY_CHANGE,
-                topologyId=self._topology_id,
-                previousDescription=repr(td_old),
-                newDescription=repr(self._description),
-            )
+        self._sdam.topology_description_changed(td_old, self._description)
 
     def on_srv_update(self, seedlist: list[tuple[str, Any]]) -> None:
         """Process a new list of nodes obtained from scanning SRV records."""
@@ -741,9 +631,7 @@ class Topology:
             self._closed = True
 
         # Publish only after releasing the lock.
-        if self._publish_tp:
-            assert self._events is not None
-            assert self._listeners is not None
+        if self._sdam._publish_tp:
             self._description = TopologyDescription(
                 TOPOLOGY_TYPE.Unknown,
                 {},
@@ -752,30 +640,9 @@ class Topology:
                 self._description.max_election_id,
                 self._description._topology_settings,
             )
-            self._events.put(
-                (
-                    self._listeners.publish_topology_description_changed,
-                    (
-                        old_td,
-                        self._description,
-                        self._topology_id,
-                    ),
-                )
-            )
-            self._events.put((self._listeners.publish_topology_closed, (self._topology_id,)))
-        if _SDAM_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _SDAM_LOGGER,
-                message=_SDAMStatusMessage.TOPOLOGY_CHANGE,
-                topologyId=self._topology_id,
-                previousDescription=repr(old_td),
-                newDescription=repr(self._description),
-            )
-            _debug_log(
-                _SDAM_LOGGER, message=_SDAMStatusMessage.STOP_TOPOLOGY, topologyId=self._topology_id
-            )
+        self._sdam.topology_closed(old_td, self._description)
 
-        if self._publish_server or self._publish_tp:
+        if self._sdam._publish_server or self._sdam._publish_tp:
             # Make sure the events executor thread is fully closed before publishing the remaining events
             self.__events_executor.close()
             self.__events_executor.join(1)
@@ -816,7 +683,7 @@ class Topology:
             self._update_servers()
 
             # Start or restart the events publishing thread.
-            if self._publish_tp or self._publish_server:
+            if self._sdam._publish_tp or self._sdam._publish_server:
                 self.__events_executor.open()
 
             # Start the SRV polling thread.
@@ -883,8 +750,7 @@ class Topology:
         elif isinstance(error, (NotPrimaryError, OperationFailure)):
             # As per the SDAM spec if:
             #   - the server sees a "not primary" error, and
-            #   - the server is not shutting down, and
-            #   - the server version is >= 4.2, then
+            #   - the server is not shutting down, then
             # we keep the existing connection pool, but mark the server type
             # as Unknown and request an immediate check of the server.
             # Otherwise, we clear the connection pool, mark the server as
@@ -897,10 +763,9 @@ class Topology:
                 err_code = error.details.get("code", default)  # type: ignore[union-attr]
             if err_code in helpers_shared._NOT_PRIMARY_CODES:
                 is_shutting_down = err_code in helpers_shared._SHUTDOWN_CODES
-                # Mark server Unknown, clear the pool, and request check.
                 if not self._settings.load_balanced:
                     self._process_change(ServerDescription(address, error=error))
-                if is_shutting_down or (err_ctx.max_wire_version <= 7):
+                if is_shutting_down:
                     # Clear the pool.
                     server.reset(service_id)
                 server.request_check()
@@ -955,7 +820,7 @@ class Topology:
                 )
 
                 weak = None
-                if self._publish_server and self._events is not None:
+                if self._sdam._publish_server and self._events is not None:
                     weak = weakref.ref(self._events)
                 server = Server(
                     server_description=sd,
@@ -1034,7 +899,7 @@ class Topology:
                 if is_replica_set:
                     return "No primary available for writes"
                 else:
-                    return "No %s available for writes" % server_plural
+                    return f"No {server_plural} available for writes"
             else:
                 return f'No {server_plural} match selector "{selector}"'
         else:
@@ -1043,12 +908,9 @@ class Topology:
             if not servers:
                 if is_replica_set:
                     # We removed all servers because of the wrong setName?
-                    return 'No {} available for replica set name "{}"'.format(
-                        server_plural,
-                        self._settings.replica_set_name,
-                    )
+                    return f'No {server_plural} available for replica set name "{self._settings.replica_set_name}"'
                 else:
-                    return "No %s available" % server_plural
+                    return f"No {server_plural} available"
 
             # 1 or more servers, all Unknown. Are they unknown for one reason?
             error = servers[0].error
@@ -1056,13 +918,13 @@ class Topology:
             if same:
                 if error is None:
                     # We're still discovering.
-                    return "No %s found yet" % server_plural
+                    return f"No {server_plural} found yet"
 
                 if is_replica_set and not set(addresses).intersection(self._seed_addresses):
                     # We replaced our seeds with new hosts but can't reach any.
                     return (
-                        "Could not reach any servers in %s. Replica set is"
-                        " configured with internal hostnames or IPs?" % addresses
+                        f"Could not reach any servers in {addresses}. Replica set is"
+                        " configured with internal hostnames or IPs?"
                     )
 
                 return str(error)
@@ -1096,42 +958,3 @@ class Topology:
 
     def __hash__(self) -> int:
         return hash(self.eq_props())
-
-
-class _ErrorContext:
-    """An error with context for SDAM error handling."""
-
-    def __init__(
-        self,
-        error: BaseException,
-        max_wire_version: int,
-        sock_generation: int,
-        completed_handshake: bool,
-        service_id: Optional[ObjectId],
-    ):
-        self.error = error
-        self.max_wire_version = max_wire_version
-        self.sock_generation = sock_generation
-        self.completed_handshake = completed_handshake
-        self.service_id = service_id
-
-
-def _is_stale_error_topology_version(
-    current_tv: Optional[Mapping[str, Any]], error_tv: Optional[Mapping[str, Any]]
-) -> bool:
-    """Return True if the error's topologyVersion is <= current."""
-    if current_tv is None or error_tv is None:
-        return False
-    if current_tv["processId"] != error_tv["processId"]:
-        return False
-    return current_tv["counter"] >= error_tv["counter"]
-
-
-def _is_stale_server_description(current_sd: ServerDescription, new_sd: ServerDescription) -> bool:
-    """Return True if the new topologyVersion is < current."""
-    current_tv, new_tv = current_sd.topology_version, new_sd.topology_version
-    if current_tv is None or new_tv is None:
-        return False
-    if current_tv["processId"] != new_tv["processId"]:
-        return False
-    return current_tv["counter"] > new_tv["counter"]

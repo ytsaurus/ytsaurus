@@ -14,24 +14,21 @@
 
 
 """Functions and classes common to multiple pymongo modules."""
+
 from __future__ import annotations
 
 import datetime
 import warnings
 from collections import OrderedDict, abc
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
 from difflib import get_close_matches
 from importlib.metadata import requires, version
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Iterator,
-    Mapping,
-    MutableMapping,
     NoReturn,
     Optional,
-    Sequence,
-    Type,
     Union,
     overload,
 )
@@ -57,7 +54,7 @@ if TYPE_CHECKING:
     from pymongo.typings import _AgnosticClientSession
 
 
-ORDERED_TYPES: Sequence[Type[Any]] = (SON, OrderedDict)
+ORDERED_TYPES: Sequence[type[Any]] = (SON, OrderedDict)
 
 # Defaults until we connect to a server and get updated limits.
 MAX_BSON_SIZE = 16 * (1024**2)
@@ -67,10 +64,13 @@ MAX_WIRE_VERSION = 0
 MAX_WRITE_BATCH_SIZE = 100000
 
 # What this version of PyMongo supports.
-MIN_SUPPORTED_SERVER_VERSION = "4.2"
-MIN_SUPPORTED_WIRE_VERSION = 8
-# MongoDB 8.0
-MAX_SUPPORTED_WIRE_VERSION = 25
+MIN_SUPPORTED_SERVER_VERSION = "4.4"
+MIN_SUPPORTED_WIRE_VERSION = 9
+# MongoDB 9.0
+MAX_SUPPORTED_WIRE_VERSION = 29
+
+# MongoDB 7.1, the first release whose mongos continues an exhaust getMore stream.
+MONGOS_EXHAUST_WIRE_VERSION = 22
 
 # Frequency to call hello on servers, in seconds.
 HEARTBEAT_FREQUENCY = 10
@@ -426,6 +426,31 @@ _MECHANISM_PROPS = frozenset(
 )
 
 
+_SAFE_AUTH_MECHANISM_PROPS_FOR_REPR = frozenset(
+    [
+        "ALLOWED_HOSTS",
+        "CANONICALIZE_HOST_NAME",
+        "ENVIRONMENT",
+        "SERVICE_HOST",
+        "SERVICE_NAME",
+        "SERVICE_REALM",
+        "TOKEN_RESOURCE",
+    ]
+)
+
+
+def redact_auth_mechanism_properties_for_repr(value: Any) -> Any:
+    """Redact sensitive auth mechanism properties before including them in repr."""
+    if not isinstance(value, dict):
+        return value
+
+    redacted = value.copy()
+    for key in redacted:
+        if str(key).upper() not in _SAFE_AUTH_MECHANISM_PROPS_FOR_REPR:
+            redacted[key] = "<redacted>"
+    return redacted
+
+
 def validate_auth_mechanism_properties(option: str, value: Any) -> dict[str, Union[bool, str]]:
     """Validate authMechanismProperties."""
     props: dict[str, Any] = {}
@@ -483,16 +508,18 @@ def validate_auth_mechanism_properties(option: str, value: Any) -> dict[str, Uni
 
 def validate_document_class(
     option: str, value: Any
-) -> Union[Type[MutableMapping[str, Any]], Type[RawBSONDocument]]:
+) -> Union[type[MutableMapping[str, Any]], type[RawBSONDocument]]:
     """Validate the document_class option."""
-    # issubclass can raise TypeError for generic aliases like SON[str, Any].
-    # In that case we can use the base class for the comparison.
-    is_mapping = False
+    # Generic aliases like SON[str, Any] or dict[str, Any] aren't classes, so
+    # resolve to their origin before the subclass check. Whether issubclass()
+    # raises TypeError or just returns False for such aliases is inconsistent
+    # across Python implementations (e.g. PyPy vs CPython), so check the
+    # origin proactively instead of relying on catching the error.
+    check_class = getattr(value, "__origin__", value)
     try:
-        is_mapping = issubclass(value, abc.MutableMapping)
+        is_mapping = issubclass(check_class, abc.MutableMapping)
     except TypeError:
-        if hasattr(value, "__origin__"):
-            is_mapping = issubclass(value.__origin__, abc.MutableMapping)
+        is_mapping = False
     if not is_mapping and not issubclass(value, RawBSONDocument):
         raise TypeError(
             f"{option} must be dict, bson.son.SON, "
@@ -632,7 +659,7 @@ def validate_unicode_decode_error_handler(dummy: Any, value: str) -> str:
 def validate_tzinfo(dummy: Any, value: Any) -> Optional[datetime.tzinfo]:
     """Validate the tzinfo option"""
     if value is not None and not isinstance(value, datetime.tzinfo):
-        raise TypeError("%s must be an instance of datetime.tzinfo" % value)
+        raise TypeError(f"{value} must be an instance of datetime.tzinfo")
     return value
 
 
@@ -721,6 +748,7 @@ URI_OPTIONS_VALIDATOR_MAP: dict[str, Callable[[Any, Any], Any]] = {
     "zlibcompressionlevel": validate_zlib_compression_level,
     "srvservicename": validate_string,
     "srvmaxhosts": validate_non_negative_integer,
+    "srvallowedhostssuffix": validate_string,
     "timeoutms": validate_timeoutms,
     "servermonitoringmode": validate_server_monitoring_mode,
     "maxadaptiveretries": validate_non_negative_integer,
@@ -1018,6 +1046,8 @@ class _CaseInsensitiveDictionary(MutableMapping[str, Any]):
 
         return True
 
+    __hash__ = None  # type: ignore[assignment]
+
     def get(self, key: str, default: Optional[Any] = None) -> Any:
         return self.__data.get(key.lower(), default)
 
@@ -1036,12 +1066,10 @@ class _CaseInsensitiveDictionary(MutableMapping[str, Any]):
         self.__data.clear()
 
     @overload
-    def setdefault(self, key: str, default: None = None) -> Optional[Any]:
-        ...
+    def setdefault(self, key: str, default: None = None) -> Optional[Any]: ...
 
     @overload
-    def setdefault(self, key: str, default: Any) -> Any:
-        ...
+    def setdefault(self, key: str, default: Any) -> Any: ...
 
     def setdefault(self, key: str, default: Optional[Any] = None) -> Optional[Any]:
         lc_key = key.lower()
