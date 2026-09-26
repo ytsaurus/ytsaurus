@@ -177,7 +177,7 @@ IServerPtr CreateServer(
                         .With(ex);
                 }
             }),
-            sslConfig->UpdatePeriod);
+            sslConfig->CertSensorsUpdatePeriod);
     }
 
     return New<TServer>(
