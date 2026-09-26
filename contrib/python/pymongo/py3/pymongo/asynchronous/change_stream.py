@@ -13,10 +13,12 @@
 # permissions and limitations under the License.
 
 """Watch changes on a collection, a database, or the entire cluster."""
+
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Any, Generic, Mapping, Optional, Type, Union
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Generic, Optional, Union
 
 from bson import CodecOptions, _bson_to_dict
 from bson.raw_bson import RawBSONDocument
@@ -41,37 +43,11 @@ from pymongo.typings import _CollationIn, _DocumentType, _Pipeline
 
 _IS_SYNC = False
 
-# The change streams spec considers the following server errors from the
-# getMore command non-resumable. All other getMore errors are resumable.
-_RESUMABLE_GETMORE_ERRORS = frozenset(
-    [
-        6,  # HostUnreachable
-        7,  # HostNotFound
-        89,  # NetworkTimeout
-        91,  # ShutdownInProgress
-        189,  # PrimarySteppedDown
-        262,  # ExceededTimeLimit
-        9001,  # SocketException
-        10107,  # NotWritablePrimary
-        11600,  # InterruptedAtShutdown
-        11602,  # InterruptedDueToReplStateChange
-        13435,  # NotPrimaryNoSecondaryOk
-        13436,  # NotPrimaryOrSecondary
-        63,  # StaleShardVersion
-        150,  # StaleEpoch
-        13388,  # StaleConfig
-        234,  # RetryChangeStream
-        133,  # FailedToSatisfyReadPreference
-    ]
-)
-
-
 if TYPE_CHECKING:
     from pymongo.asynchronous.client_session import AsyncClientSession
     from pymongo.asynchronous.collection import AsyncCollection
     from pymongo.asynchronous.database import AsyncDatabase
     from pymongo.asynchronous.mongo_client import AsyncMongoClient
-    from pymongo.asynchronous.pool import AsyncConnection
 
 
 def _resumable(exc: PyMongoError) -> bool:
@@ -79,11 +55,7 @@ def _resumable(exc: PyMongoError) -> bool:
     if isinstance(exc, (ConnectionFailure, CursorNotFound)):
         return True
     if isinstance(exc, OperationFailure):
-        if exc._max_wire_version is None:
-            return False
-        return (
-            exc._max_wire_version >= 9 and exc.has_error_label("ResumableChangeStreamError")
-        ) or (exc._max_wire_version < 9 and exc.code in _RESUMABLE_GETMORE_ERRORS)
+        return exc.has_error_label("ResumableChangeStreamError")
     return False
 
 
@@ -159,7 +131,7 @@ class AsyncChangeStream(Generic[_DocumentType]):
         self._cursor = await self._create_cursor()
 
     @property
-    def _aggregation_command_class(self) -> Type[_AggregationCommand]:
+    def _aggregation_command_class(self) -> type[_AggregationCommand]:
         """The aggregation command class to be used."""
         raise NotImplementedError
 
@@ -210,13 +182,10 @@ class AsyncChangeStream(Generic[_DocumentType]):
         full_pipeline.extend(self._pipeline)
         return full_pipeline
 
-    def _process_result(self, result: Mapping[str, Any], conn: AsyncConnection) -> None:
+    def _process_result(self, result: Mapping[str, Any]) -> None:
         """Callback that caches the postBatchResumeToken or
         startAtOperationTime from a changeStream aggregate command response
         containing an empty batch of change documents.
-
-        This is implemented as a callback because we need access to the wire
-        version in order to determine whether to cache this value.
         """
         if not result["cursor"]["firstBatch"]:
             if "postBatchResumeToken" in result["cursor"]:
@@ -225,14 +194,12 @@ class AsyncChangeStream(Generic[_DocumentType]):
                 self._start_at_operation_time is None
                 and self._uses_resume_after is False
                 and self._uses_start_after is False
-                and conn.max_wire_version >= 7
             ):
                 self._start_at_operation_time = result.get("operationTime")
                 # PYTHON-2181: informative error on missing operationTime.
                 if self._start_at_operation_time is None:
                     raise OperationFailure(
-                        "Expected field 'operationTime' missing from command "
-                        f"response : {result!r}"
+                        f"Expected field 'operationTime' missing from command response : {result!r}"
                     )
 
     async def _run_aggregation_cmd(
@@ -453,7 +420,7 @@ class AsyncCollectionChangeStream(AsyncChangeStream[_DocumentType]):
     _target: AsyncCollection[_DocumentType]
 
     @property
-    def _aggregation_command_class(self) -> Type[_CollectionAggregationCommand]:
+    def _aggregation_command_class(self) -> type[_CollectionAggregationCommand]:
         return _CollectionAggregationCommand
 
     @property
@@ -473,7 +440,7 @@ class AsyncDatabaseChangeStream(AsyncChangeStream[_DocumentType]):
     _target: AsyncDatabase[_DocumentType]
 
     @property
-    def _aggregation_command_class(self) -> Type[_DatabaseAggregationCommand]:
+    def _aggregation_command_class(self) -> type[_DatabaseAggregationCommand]:
         return _DatabaseAggregationCommand
 
     @property

@@ -17,24 +17,22 @@
 
 .. seealso:: This module is compatible with both the synchronous and asynchronous PyMongo APIs.
 """
+
 from __future__ import annotations
 
 import re
 import sys
 import warnings
+from collections.abc import Mapping, MutableMapping, Sized
 from typing import (
     TYPE_CHECKING,
     Any,
-    Mapping,
-    MutableMapping,
     Optional,
-    Sized,
     Union,
     cast,
 )
 from urllib.parse import unquote_plus
 
-from pymongo.asynchronous.srv_resolver import _have_dnspython
 from pymongo.client_options import _parse_ssl_options
 from pymongo.common import (
     INTERNAL_URI_OPTION_NAME_MAP,
@@ -47,6 +45,7 @@ from pymongo.typings import _Address
 
 if TYPE_CHECKING:
     from pymongo.pyopenssl_context import SSLContext
+
 
 SCHEME = "mongodb://"
 SCHEME_LEN = len(SCHEME)
@@ -86,6 +85,7 @@ URI_OPTIONS = frozenset(
         "serverSelectionTimeoutMS",
         "serverSelectionTryOnce",
         "socketTimeoutMS",
+        "srvAllowedHostsSuffix",
         "srvMaxHosts",
         "srvServiceName",
         "ssl",
@@ -104,6 +104,15 @@ URI_OPTIONS = frozenset(
         "zlibCompressionLevel",
     ]
 )
+
+
+def _have_dnspython() -> bool:
+    try:
+        import dns  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
 
 
 def _unquoted_percent(s: str) -> bool:
@@ -525,7 +534,7 @@ def _validate_uri(
                 'The "dnspython" module must be '
                 "installed to use mongodb+srv:// URIs. "
                 "To fix this error install pymongo again:\n "
-                "%s -m pip install pymongo>=4.3" % (python_path)
+                f"{python_path} -m pip install pymongo>=4.3"
             )
         is_srv = True
         scheme_free = uri[SRV_SCHEME_LEN:]
@@ -552,7 +561,7 @@ def _validate_uri(
         if "." in dbase:
             dbase, collection = dbase.split(".", 1)
         if _BAD_DB_CHARS.search(dbase):
-            raise InvalidURI('Bad database name "%s"' % dbase)
+            raise InvalidURI(f'Bad database name "{dbase}"')
     else:
         dbase = None
 
@@ -565,7 +574,7 @@ def _validate_uri(
         hosts = host_part
 
     if "/" in hosts:
-        raise InvalidURI("Any '/' in a unix domain socket must be percent-encoded: %s" % host_part)
+        raise InvalidURI(f"Any '/' in a unix domain socket must be percent-encoded: {host_part}")
 
     hosts = unquote_plus(hosts)
     fqdn = None
@@ -582,6 +591,10 @@ def _validate_uri(
     elif not is_srv and options.get("srvServiceName") is not None:
         raise ConfigurationError(
             "The srvServiceName option is only allowed with 'mongodb+srv://' URIs"
+        )
+    elif not is_srv and options.get("srvAllowedHostsSuffix") is not None:
+        raise ConfigurationError(
+            "The srvAllowedHostsSuffix option is only allowed with 'mongodb+srv://' URIs"
         )
     elif not is_srv and srv_max_hosts:
         raise ConfigurationError(

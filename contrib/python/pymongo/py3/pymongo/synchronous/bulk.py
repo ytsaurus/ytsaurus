@@ -16,26 +16,23 @@
 
 .. versionadded:: 2.7
 """
+
 from __future__ import annotations
 
 import copy
-import datetime
-import logging
-from collections.abc import MutableMapping
+from collections.abc import Iterator, Mapping, MutableMapping
 from itertools import islice
 from typing import (
     TYPE_CHECKING,
     Any,
-    Iterator,
-    Mapping,
     Optional,
-    Type,
     Union,
 )
 
 from bson.objectid import ObjectId
 from bson.raw_bson import RawBSONDocument
 from pymongo import _csot, common
+from pymongo._telemetry import _generate_op_id_or_none
 from pymongo.bulk_shared import (
     _COMMANDS,
     _DELETE_ALL,
@@ -43,6 +40,7 @@ from pymongo.bulk_shared import (
     _raise_bulk_write_error,
     _Run,
 )
+from pymongo.client_session_shared import _validate_session_write_concern
 from pymongo.common import (
     validate_is_document_type,
     validate_ok_for_replace,
@@ -51,23 +49,21 @@ from pymongo.common import (
 from pymongo.errors import (
     ConfigurationError,
     InvalidOperation,
-    NotPrimaryError,
     OperationFailure,
 )
 from pymongo.helpers_shared import _RETRYABLE_ERROR_CODES
-from pymongo.logger import _COMMAND_LOGGER, _CommandStatusMessage, _debug_log
 from pymongo.message import (
     _DELETE,
     _INSERT,
     _UPDATE,
     _BulkWriteContext,
-    _convert_exception,
-    _convert_write_result,
     _EncryptedBulkWriteContext,
-    _randint,
 )
 from pymongo.read_preferences import ReadPreference
-from pymongo.synchronous.client_session import ClientSession, _validate_session_write_concern
+from pymongo.synchronous.client_session import ClientSession
+from pymongo.synchronous.command_runner import (
+    run_bulk_write_command,
+)
 from pymongo.synchronous.helpers import _handle_reauth
 from pymongo.write_concern import WriteConcern
 
@@ -107,8 +103,6 @@ class _Bulk:
         self.bypass_doc_val = bypass_document_validation
         self.uses_collation = False
         self.uses_array_filters = False
-        self.uses_hint_update = False
-        self.uses_hint_delete = False
         self.uses_sort = False
         self.is_retryable = True
         self.retrying = False
@@ -119,7 +113,7 @@ class _Bulk:
         self.is_encrypted = False
 
     @property
-    def bulk_ctx_class(self) -> Type[_BulkWriteContext]:
+    def bulk_ctx_class(self) -> type[_BulkWriteContext]:
         encrypter = self.collection.database.client._encrypter
         if encrypter and not encrypter._bypass_auto_encryption:
             self.is_encrypted = True
@@ -159,7 +153,6 @@ class _Bulk:
             self.uses_array_filters = True
             cmd["arrayFilters"] = array_filters
         if hint is not None:
-            self.uses_hint_update = True
             cmd["hint"] = hint
         if sort is not None:
             self.uses_sort = True
@@ -187,7 +180,6 @@ class _Bulk:
             self.uses_collation = True
             cmd["collation"] = collation
         if hint is not None:
-            self.uses_hint_update = True
             cmd["hint"] = hint
         if sort is not None:
             self.uses_sort = True
@@ -207,7 +199,6 @@ class _Bulk:
             self.uses_collation = True
             cmd["collation"] = collation
         if hint is not None:
-            self.uses_hint_delete = True
             cmd["hint"] = hint
         if limit == _DELETE_ALL:
             # A bulk_write containing a delete_many is not retryable.
@@ -250,81 +241,16 @@ class _Bulk:
         docs: list[Mapping[str, Any]],
         client: MongoClient[Any],
     ) -> dict[str, Any]:
-        """A proxy for SocketInfo.write_command that handles event publishing."""
+        """Run a batch write command, returning the response as a dict."""
         cmd[bwc.field] = docs
-        if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _COMMAND_LOGGER,
-                message=_CommandStatusMessage.STARTED,
-                clientId=client._topology_settings._topology_id,
-                command=cmd,
-                commandName=next(iter(cmd)),
-                databaseName=bwc.db_name,
-                requestId=request_id,
-                operationId=request_id,
-                driverConnectionId=bwc.conn.id,
-                serverConnectionId=bwc.conn.server_connection_id,
-                serverHost=bwc.conn.address[0],
-                serverPort=bwc.conn.address[1],
-                serviceId=bwc.conn.service_id,
-            )
-        if bwc.publish:
-            bwc._start(cmd, request_id, docs)
-        try:
-            reply = bwc.conn.write_command(request_id, msg, bwc.codec)  # type: ignore[misc]
-            duration = datetime.datetime.now() - bwc.start_time
-            if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-                _debug_log(
-                    _COMMAND_LOGGER,
-                    message=_CommandStatusMessage.SUCCEEDED,
-                    clientId=client._topology_settings._topology_id,
-                    durationMS=duration,
-                    reply=reply,
-                    commandName=next(iter(cmd)),
-                    databaseName=bwc.db_name,
-                    requestId=request_id,
-                    operationId=request_id,
-                    driverConnectionId=bwc.conn.id,
-                    serverConnectionId=bwc.conn.server_connection_id,
-                    serverHost=bwc.conn.address[0],
-                    serverPort=bwc.conn.address[1],
-                    serviceId=bwc.conn.service_id,
-                )
-            if bwc.publish:
-                bwc._succeed(request_id, reply, duration)  # type: ignore[arg-type]
-            client._process_response(reply, bwc.session)  # type: ignore[arg-type]
-        except Exception as exc:
-            duration = datetime.datetime.now() - bwc.start_time
-            if isinstance(exc, (NotPrimaryError, OperationFailure)):
-                failure: _DocumentOut = exc.details  # type: ignore[assignment]
-            else:
-                failure = _convert_exception(exc)
-            if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-                _debug_log(
-                    _COMMAND_LOGGER,
-                    message=_CommandStatusMessage.FAILED,
-                    clientId=client._topology_settings._topology_id,
-                    durationMS=duration,
-                    failure=failure,
-                    commandName=next(iter(cmd)),
-                    databaseName=bwc.db_name,
-                    requestId=request_id,
-                    operationId=request_id,
-                    driverConnectionId=bwc.conn.id,
-                    serverConnectionId=bwc.conn.server_connection_id,
-                    serverHost=bwc.conn.address[0],
-                    serverPort=bwc.conn.address[1],
-                    serviceId=bwc.conn.service_id,
-                    isServerSideError=isinstance(exc, OperationFailure),
-                )
-
-            if bwc.publish:
-                bwc._fail(request_id, failure, duration)
-            # Process the response from the server.
-            if isinstance(exc, (NotPrimaryError, OperationFailure)):
-                client._process_response(exc.details, bwc.session)  # type: ignore[arg-type]
-            raise
-        return reply  # type: ignore[return-value]
+        result_docs, _, _ = run_bulk_write_command(
+            bwc,
+            cmd,
+            request_id,
+            msg,
+            client=client,
+        )
+        return result_docs[0]
 
     def unack_write(
         self,
@@ -336,83 +262,23 @@ class _Bulk:
         docs: list[Mapping[str, Any]],
         client: MongoClient[Any],
     ) -> Optional[Mapping[str, Any]]:
-        """A proxy for Connection.unack_write that handles event publishing."""
-        if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-            _debug_log(
-                _COMMAND_LOGGER,
-                message=_CommandStatusMessage.STARTED,
-                clientId=client._topology_settings._topology_id,
-                command=cmd,
-                commandName=next(iter(cmd)),
-                databaseName=bwc.db_name,
-                requestId=request_id,
-                operationId=request_id,
-                driverConnectionId=bwc.conn.id,
-                serverConnectionId=bwc.conn.server_connection_id,
-                serverHost=bwc.conn.address[0],
-                serverPort=bwc.conn.address[1],
-                serviceId=bwc.conn.service_id,
-            )
-        if bwc.publish:
-            cmd = bwc._start(cmd, request_id, docs)
-        try:
-            result = bwc.conn.unack_write(msg, max_doc_size)  # type: ignore[func-returns-value, misc, override]
-            duration = datetime.datetime.now() - bwc.start_time
-            if result is not None:
-                reply = _convert_write_result(bwc.name, cmd, result)  # type: ignore[arg-type]
-            else:
-                # Comply with APM spec.
-                reply = {"ok": 1}
-                if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-                    _debug_log(
-                        _COMMAND_LOGGER,
-                        message=_CommandStatusMessage.SUCCEEDED,
-                        clientId=client._topology_settings._topology_id,
-                        durationMS=duration,
-                        reply=reply,
-                        commandName=next(iter(cmd)),
-                        databaseName=bwc.db_name,
-                        requestId=request_id,
-                        operationId=request_id,
-                        driverConnectionId=bwc.conn.id,
-                        serverConnectionId=bwc.conn.server_connection_id,
-                        serverHost=bwc.conn.address[0],
-                        serverPort=bwc.conn.address[1],
-                        serviceId=bwc.conn.service_id,
-                    )
-            if bwc.publish:
-                bwc._succeed(request_id, reply, duration)
-        except Exception as exc:
-            duration = datetime.datetime.now() - bwc.start_time
-            if isinstance(exc, OperationFailure):
-                failure: _DocumentOut = _convert_write_result(bwc.name, cmd, exc.details)  # type: ignore[arg-type]
-            elif isinstance(exc, NotPrimaryError):
-                failure = exc.details  # type: ignore[assignment]
-            else:
-                failure = _convert_exception(exc)
-            if _COMMAND_LOGGER.isEnabledFor(logging.DEBUG):
-                _debug_log(
-                    _COMMAND_LOGGER,
-                    message=_CommandStatusMessage.FAILED,
-                    clientId=client._topology_settings._topology_id,
-                    durationMS=duration,
-                    failure=failure,
-                    commandName=next(iter(cmd)),
-                    databaseName=bwc.db_name,
-                    requestId=request_id,
-                    operationId=request_id,
-                    driverConnectionId=bwc.conn.id,
-                    serverConnectionId=bwc.conn.server_connection_id,
-                    serverHost=bwc.conn.address[0],
-                    serverPort=bwc.conn.address[1],
-                    serviceId=bwc.conn.service_id,
-                    isServerSideError=isinstance(exc, OperationFailure),
-                )
-            if bwc.publish:
-                assert bwc.start_time is not None
-                bwc._fail(request_id, failure, duration)
-            raise
-        return result  # type: ignore[return-value]
+        """Send an unacknowledged batch write command."""
+        # Historically the STARTED log omits the documents while the published
+        # CommandStartedEvent includes them, so log ``cmd`` but publish a copy
+        # carrying the ``docs`` field.
+        published = dict(cmd)
+        published[bwc.field] = docs
+        run_bulk_write_command(
+            bwc,
+            cmd,
+            request_id,
+            msg,
+            client=client,
+            orig=published,
+            max_doc_size=max_doc_size,
+            unacknowledged=True,
+        )
+        return None
 
     def _execute_batch_unack(
         self,
@@ -469,7 +335,7 @@ class _Bulk:
         write_concern: WriteConcern,
         session: Optional[ClientSession],
         conn: Connection,
-        op_id: int,
+        op_id: Optional[int],
         retryable: bool,
         full_result: MutableMapping[str, Any],
         final_write_concern: Optional[WriteConcern] = None,
@@ -484,7 +350,7 @@ class _Bulk:
         run = self.current_run
 
         # Connection.command validates the session, but we use
-        # Connection.write_command
+        # run_bulk_write_command.
         conn.validate_session(client, session)
         last_run = False
 
@@ -585,7 +451,8 @@ class _Bulk:
             "nRemoved": 0,
             "upserted": [],
         }
-        op_id = _randint()
+        client = self.collection.database.client
+        op_id = _generate_op_id_or_none(client._event_listeners)
 
         def retryable_bulk(
             session: Optional[ClientSession], conn: Connection, retryable: bool
@@ -600,7 +467,6 @@ class _Bulk:
                 full_result,
             )
 
-        client = self.collection.database.client
         _ = client._retryable_write(
             self.is_retryable,
             retryable_bulk,
@@ -619,7 +485,7 @@ class _Bulk:
         db_name = self.collection.database.name
         client = self.collection.database.client
         listeners = client._event_listeners
-        op_id = _randint()
+        op_id = _generate_op_id_or_none(listeners)
 
         if not self.current_run:
             self.current_run = next(generator)
@@ -672,7 +538,7 @@ class _Bulk:
         # processing at the first error, even when the application
         # specified unacknowledged writeConcern.
         initial_write_concern = WriteConcern()
-        op_id = _randint()
+        op_id = _generate_op_id_or_none(self.collection.database.client._event_listeners)
         try:
             self._execute_command(
                 generator,
@@ -700,14 +566,6 @@ class _Bulk:
             raise ConfigurationError("arrayFilters is unsupported for unacknowledged writes.")
         # Guard against unsupported unacknowledged writes.
         unack = write_concern and not write_concern.acknowledged
-        if unack and self.uses_hint_delete and conn.max_wire_version < 9:
-            raise ConfigurationError(
-                "Must be connected to MongoDB 4.4+ to use hint on unacknowledged delete commands."
-            )
-        if unack and self.uses_hint_update and conn.max_wire_version < 8:
-            raise ConfigurationError(
-                "Must be connected to MongoDB 4.2+ to use hint on unacknowledged update commands."
-            )
         if unack and self.uses_sort and conn.max_wire_version < 25:
             raise ConfigurationError(
                 "Must be connected to MongoDB 8.0+ to use sort on unacknowledged update commands."

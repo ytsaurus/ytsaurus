@@ -13,20 +13,18 @@
 # limitations under the License.
 
 """Cursor class to iterate over Mongo query results."""
+
 from __future__ import annotations
 
 import copy
 import warnings
 from collections import deque
+from collections.abc import Iterable, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Iterable,
-    List,
-    Mapping,
     NoReturn,
     Optional,
-    Sequence,
     Union,
     cast,
     overload,
@@ -48,7 +46,6 @@ from pymongo.errors import ConnectionFailure, InvalidOperation, OperationFailure
 from pymongo.message import (
     _GetMore,
     _OpMsg,
-    _OpReply,
     _Query,
     _RawBatchGetMore,
     _RawBatchQuery,
@@ -100,9 +97,9 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
         let: Optional[bool] = None,
     ) -> None:
         """Create a new cursor.
+        Used by :meth:`~pymongo.asynchronous.collection.AsyncCollection.find` to iterate over MongoDB query results.
 
-        Should not be called directly by application developers - see
-        :meth:`~pymongo.asynchronous.collection.AsyncCollection.find` instead.
+        Should not be called directly by application developers.
 
         .. seealso:: The MongoDB documentation on `cursors <https://dochub.mongodb.org/core/cursors>`_.
         """
@@ -169,7 +166,7 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
         self._skip = skip
         self._limit = limit
         self._batch_size = batch_size
-        self._ordering = sort and helpers_shared._index_document(sort) or None
+        self._ordering = (sort and helpers_shared._index_document(sort)) or None
         self._max_scan = max_scan
         self._explain = False
         self._comment = comment
@@ -216,19 +213,15 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
         self._dbname = collection.database.name
         self._collname = collection.name
 
-        # Checking exhaust cursor support requires network IO
-        if _IS_SYNC:
-            self._exhaust_checked = True
-            self._supports_exhaust()  # type: ignore[unused-coroutine]
-        else:
-            self._exhaust = cursor_type == CursorType.EXHAUST
-            self._exhaust_checked = False
+        self._validate_exhaust_handling()
 
-    async def _supports_exhaust(self) -> None:
-        # Exhaust cursor support
+    def _validate_exhaust_handling(self) -> None:
+        """Reject option combinations an exhaust cursor cannot serve.
+
+        Server support is checked against the connection in use, in
+        _check_exhaust_supported.
+        """
         if self._cursor_type == CursorType.EXHAUST:
-            if await self._collection.database.client.is_mongos:
-                raise InvalidOperation("Exhaust cursors are not supported by mongos")
             if self._limit:
                 raise InvalidOperation("Can't use limit and exhaust together.")
             self._exhaust = True
@@ -372,8 +365,6 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
         if mask & _QUERY_OPTIONS["exhaust"]:
             if self._limit:
                 raise InvalidOperation("Can't use limit and exhaust together.")
-            if await self._collection.database.client.is_mongos:
-                raise InvalidOperation("Exhaust cursors are not supported by mongos")
             self._exhaust = True
 
         self._query_flags |= mask
@@ -533,12 +524,10 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
         return self
 
     @overload
-    def __getitem__(self, index: int) -> _DocumentType:
-        ...
+    def __getitem__(self, index: int) -> _DocumentType: ...
 
     @overload
-    def __getitem__(self, index: slice) -> AsyncCursor[_DocumentType]:
-        ...
+    def __getitem__(self, index: slice) -> AsyncCursor[_DocumentType]: ...
 
     def __getitem__(
         self, index: Union[int, slice]
@@ -599,7 +588,7 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
                     limit = index.stop - skip
                     if limit < 0:
                         raise IndexError(
-                            "stop index must be greater than start index for slice %r" % index
+                            f"stop index must be greater than start index for slice {index!r}"
                         )
                     if limit == 0:
                         self._empty = True
@@ -620,7 +609,7 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
                 for doc in clone:  # type: ignore[attr-defined]
                     return doc
                 raise IndexError("no such item for AsyncCursor instance")
-            raise TypeError("index %r cannot be applied to AsyncCursor instances" % index)
+            raise TypeError(f"index {index!r} cannot be applied to AsyncCursor instances")
         else:
             raise IndexError("AsyncCursor does not support indexing")
 
@@ -646,9 +635,8 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
     def max(self, spec: _Sort) -> AsyncCursor[_DocumentType]:
         """Adds ``max`` operator that specifies upper bound for specific index.
 
-        When using ``max``, :meth:`~hint` should also be configured to ensure
-        the query uses the expected index and starting in MongoDB 4.2
-        :meth:`~hint` will be required.
+        When using ``max``, :meth:`~hint` is required to ensure the query
+        uses the expected index.
 
         :param spec: a list of field, limit pairs specifying the exclusive
             upper bound for all keys of a specific index in order.
@@ -668,9 +656,8 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
     def min(self, spec: _Sort) -> AsyncCursor[_DocumentType]:
         """Adds ``min`` operator that specifies lower bound for specific index.
 
-        When using ``min``, :meth:`~hint` should also be configured to ensure
-        the query uses the expected index and starting in MongoDB 4.2
-        :meth:`~hint` will be required.
+        When using ``min``, :meth:`~hint` is required to ensure the query
+        uses the expected index.
 
         :param spec: a list of field, limit pairs specifying the inclusive
             lower bound for all keys of a specific index in order.
@@ -864,7 +851,7 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
 
     def _unpack_response(
         self,
-        response: Union[_OpReply, _OpMsg],
+        response: _OpMsg,
         cursor_id: Optional[int],
         codec_options: CodecOptions,  # type: ignore[type-arg]
         user_fields: Optional[Mapping[str, Any]] = None,
@@ -985,7 +972,7 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
 
         try:
             response = await client._run_operation(
-                operation, self._unpack_response, address=self._address
+                operation, self._run_with_conn, address=self._address
             )
         except OperationFailure as exc:
             if exc.code in _CURSOR_CLOSED_ERRORS or self._exhaust:
@@ -1020,29 +1007,23 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
 
         cmd_name = operation.name
         docs = response.docs
-        if response.from_command:
-            if cmd_name != "explain":
-                cursor = docs[0]["cursor"]
-                self._id = cursor["id"]
-                if cmd_name == "find":
-                    documents = cursor["firstBatch"]
-                    # Update the namespace used for future getMore commands.
-                    ns = cursor.get("ns")
-                    if ns:
-                        self._dbname, self._collname = ns.split(".", 1)
-                else:
-                    documents = cursor["nextBatch"]
-                self._data = deque(documents)
-                self._retrieved += len(documents)
+        if cmd_name != "explain":
+            cursor = docs[0]["cursor"]
+            self._id = cursor["id"]
+            if cmd_name == "find":
+                documents = cursor["firstBatch"]
+                # Update the namespace used for future getMore commands.
+                ns = cursor.get("ns")
+                if ns:
+                    self._dbname, self._collname = ns.split(".", 1)
             else:
-                self._id = 0
-                self._data = deque(docs)
-                self._retrieved += len(docs)
+                documents = cursor["nextBatch"]
+            self._data = deque(documents)
+            self._retrieved += len(documents)
         else:
-            assert isinstance(response.data, _OpReply)
-            self._id = response.data.cursor_id
+            self._id = 0
             self._data = deque(docs)
-            self._retrieved += response.data.number_returned
+            self._retrieved += len(docs)
 
         if self._id == 0:
             # Don't wait for garbage collection to call __del__, return the
@@ -1136,9 +1117,6 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
 
     async def next(self) -> _DocumentType:
         """Advance the cursor."""
-        if not self._exhaust_checked:
-            self._exhaust_checked = True
-            await self._supports_exhaust()
         if self._empty:
             raise StopAsyncIteration
         if len(self._data) or await self._refresh():
@@ -1148,9 +1126,6 @@ class AsyncCursor(_AsyncCursorBase[_DocumentType]):
 
     async def _next_batch(self, result: list, total: Optional[int] = None) -> bool:  # type: ignore[type-arg]
         """Get all or some documents from the cursor."""
-        if not self._exhaust_checked:
-            self._exhaust_checked = True
-            await self._supports_exhaust()
         if self._empty:
             return False
         if len(self._data) or await self._refresh():
@@ -1195,7 +1170,7 @@ class AsyncRawBatchCursor(AsyncCursor[_DocumentType]):
 
     def _unpack_response(
         self,
-        response: Union[_OpReply, _OpMsg],
+        response: _OpMsg,
         cursor_id: Optional[int],
         codec_options: CodecOptions[Mapping[str, Any]],
         user_fields: Optional[Mapping[str, Any]] = None,
@@ -1206,7 +1181,7 @@ class AsyncRawBatchCursor(AsyncCursor[_DocumentType]):
             # OP_MSG returns firstBatch/nextBatch documents as a BSON array
             # Re-assemble the array of documents into a document stream
             _convert_raw_document_lists_to_streams(raw_response[0])
-        return cast(List["_DocumentOut"], raw_response)
+        return cast(list["_DocumentOut"], raw_response)
 
     async def explain(self) -> _DocumentType:
         """Returns an explain plan record for this cursor.
