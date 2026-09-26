@@ -58,19 +58,25 @@ final class PortoJobEnvironment extends AbstractJobEnvironment {
     }
 
     @Override
-    protected String doResolveJdkBinPath(@Nullable String handWrittenBinPath) {
-        boolean handWritten = handWrittenBinPath != null && !handWrittenBinPath.isBlank();
+    protected String doResolveJdkBinPath(@Nullable String handWrittenBinPath, @Nullable String envBinPath) {
         if (defaultJdkBinPath != null) {
             // The launcher owns the java path when it delivers the JDK itself; a hand-written path
-            // in this mode is a leftover that would point nowhere inside the mounted layer.
-            if (handWritten && !handWrittenBinPath.equals(defaultJdkBinPath)) {
+            // in this mode is a leftover that would point nowhere inside the mounted layer. The
+            // env value is the operator's explicit override of the layer's java.
+            if (envBinPath != null) {
+                return envBinPath;
+            }
+            if (handWrittenBinPath != null && !handWrittenBinPath.equals(defaultJdkBinPath)) {
                 log.warn("Ignoring hand-written jdk_bin_path {}: the launcher mounts a JDK layer with {}",
                         handWrittenBinPath, defaultJdkBinPath);
             }
             return defaultJdkBinPath;
         }
-        if (handWritten) {
+        if (handWrittenBinPath != null) {
             return handWrittenBinPath;
+        }
+        if (envBinPath != null) {
+            return envBinPath;
         }
         // The worker's hand-written layers carry no known java path, so demand an explicit one up
         // front instead of failing at job runtime.

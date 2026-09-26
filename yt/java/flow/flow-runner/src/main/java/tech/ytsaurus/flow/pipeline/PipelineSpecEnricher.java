@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -18,10 +19,10 @@ import tech.ytsaurus.ysontree.YTreeNode;
  * the stream schemas. It only ever adds what is missing, so a hand-written spec always wins. The Go
  * counterpart is {@code runner.Enrich}; the C++ one is {@code NYT::NFlow::TSimpleSpecBuilder}.
  *
- * <p>For a vanilla launch it also completes every Java companion resource (the shipped classpath
- * and the java binary of the resolved job environment) and validates that each one declares a
- * {@code main_class}: the class the worker starts the companion with is set in the pipeline spec,
- * not derived.
+ * <p>For a vanilla launch it also completes every Java companion resource (the classpath of the
+ * shipped jars unless the resource declares its own, and the java binary of the resolved job
+ * environment) and validates that each one declares a {@code main_class}: the class the worker
+ * starts the companion with is set in the pipeline spec, not derived.
  */
 public final class PipelineSpecEnricher {
 
@@ -102,9 +103,27 @@ public final class PipelineSpecEnricher {
     }
 
     /**
+     * True when some Java companion resource declares no {@code classpath}, so the launcher must ship
+     * the companion jars; a declared classpath names jars the job environment already holds.
+     */
+    static boolean needsShippedJars(YTreeMapNode spec) {
+        for (YTreeMapNode resource : javaCompanionResources(spec).values()) {
+            YTreeMapNode parameters = resource.get(KEY_PARAMETERS)
+                    .filter(YTreeNode::isMapNode)
+                    .map(YTreeNode::mapNode)
+                    .orElse(null);
+            if (parameters == null || declaredClasspath(parameters).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Completes every companion resource under {@code spec.resources} for the vanilla launch: the
-     * classpath of the shipped jars and the java binary resolved by the job environment. Every
-     * other resource key, including the hand-written {@code main_class}, survives.
+     * classpath of the shipped jars where the resource declares none, and the java binary resolved
+     * by the job environment. Every other resource key, including the hand-written
+     * {@code main_class} and {@code classpath}, survives.
      */
     static void patchCompanionResources(YTreeMapNode spec, JobEnvironment environment) {
         Map<String, YTreeMapNode> companions = javaCompanionResources(spec);
@@ -124,15 +143,21 @@ public final class PipelineSpecEnricher {
                     .map(YTreeNode::stringValue)
                     .orElse(null);
 
-            YTreeMapNode newParameters = oldParameters.toMapBuilder()
-                    .key(KEY_CLASSPATH).value(CompanionJars.COMPANION_JARS_DIR + File.separator + "*")
-                    .key(KEY_JDK_BIN_PATH).value(environment.resolveJdkBinPath(handWrittenBinPath))
-                    .buildMap();
+            YTreeBuilder newParameters = oldParameters.toMapBuilder()
+                    .key(KEY_JDK_BIN_PATH).value(environment.resolveJdkBinPath(handWrittenBinPath));
+            String classpath = declaredClasspath(oldParameters);
+            if (classpath.isEmpty()) {
+                classpath = CompanionJars.COMPANION_JARS_DIR + File.separator + "*";
+                newParameters.key(KEY_CLASSPATH).value(classpath);
+                log.info("Java companion resource {}: classpath {} of the shipped jars", entry.getKey(), classpath);
+            } else {
+                log.info("Java companion resource {}: classpath {} from the job environment, as declared",
+                        entry.getKey(), classpath);
+            }
 
             resources.put(entry.getKey(), resource.toMapBuilder()
-                    .key(KEY_PARAMETERS).value(newParameters)
+                    .key(KEY_PARAMETERS).value(newParameters.buildMap())
                     .buildMap());
-            log.info("Completed java companion resource {} for the vanilla launch", entry.getKey());
         }
     }
 
@@ -156,6 +181,15 @@ public final class PipelineSpecEnricher {
             }
         }
         return resources;
+    }
+
+    /** The declared classpath, or an empty string when the spec leaves it out or blank. */
+    private static String declaredClasspath(YTreeMapNode parameters) {
+        return parameters.get(KEY_CLASSPATH)
+                .filter(YTreeNode::isStringNode)
+                .map(YTreeNode::stringValue)
+                .map(String::trim)
+                .orElse("");
     }
 
     /** The declared entry-point class, or an empty string when the spec leaves it out or blank. */

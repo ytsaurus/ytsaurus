@@ -123,7 +123,7 @@ class FlowTestJavaBase(FlowTestBase):
         enriched_pipeline_binary_args["--flow-bin"] = self.FLOW_BINARY_PATH
         config_path = enriched_pipeline_binary_args.get("--config")
         if config_path is not None:
-            enriched_pipeline_binary_args["--config"] = self._prepare_launch_config(config_path)
+            enriched_pipeline_binary_args["--config"] = self._prepare_launch_config(config_path, use_vanilla_jobs)
 
         env = dict(additional_env) if additional_env is not None else {}
         if use_vanilla_jobs:
@@ -143,9 +143,15 @@ class FlowTestJavaBase(FlowTestBase):
         ) as federation:
             yield federation
 
-    def _prepare_launch_config(self, config_path: str) -> str:
+    def _prepare_launch_config(self, config_path: str, use_vanilla_jobs: bool = False) -> str:
         """Rewrite the pipeline config the runner sets the spec from."""
         pipeline_config = get_yson_config(config_path)
+        if use_vanilla_jobs:
+            # Leave the classpath to the runner, so it ships the jars into the worker job as it
+            # does for a real cluster; a declared host classpath would skip the shipping.
+            for resource in pipeline_config.get("spec", {}).get("resources", {}).values():
+                if resource.get("resource_class_name") == "NYT::NFlow::NCompanion::TJavaCompanionManager":
+                    resource.get("parameters", {}).pop("classpath", None)
         # Java companion specs carry fields the C++ parser does not recognize; do not abort on them.
         pipeline_config["abort_on_specs_parseability_error"] = False
         patched_path = os.path.join(self.path_to_flow_logs, "pipeline_launch.yson")

@@ -211,6 +211,30 @@ class PipelineSpecEnricherTest {
         PipelineSpecEnricher.validateCompanionMainClass(spec);
     }
 
+    @Test
+    void testNeedsShippedJarsOnlyForJavaResourcesWithoutClasspath() {
+        // Jars serve Java companion resources alone; one that declares a classpath needs none.
+        YTreeMapNode spec = parse("""
+                {
+                    "resources" = {
+                        "PythonCompanion" = {
+                            "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                            "parameters" = {};
+                        };
+                        "JavaCompanion" = {
+                            "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                            "parameters" = {"classpath" = "/app/pipeline/lib/*";};
+                        };
+                    };
+                }
+                """);
+        assertFalse(PipelineSpecEnricher.needsShippedJars(spec));
+
+        spec.getOrThrow("resources").mapNode().getOrThrow("JavaCompanion").mapNode()
+                .getOrThrow("parameters").mapNode().remove("classpath");
+        assertTrue(PipelineSpecEnricher.needsShippedJars(spec));
+    }
+
     private static YTreeMapNode parse(String yson) {
         return YTreeTextSerializer.deserialize(yson).mapNode();
     }

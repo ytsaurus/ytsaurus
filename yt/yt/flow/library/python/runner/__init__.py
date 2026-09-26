@@ -1,8 +1,9 @@
 """Python-side runner for Flow: launches the pipeline in a YT vanilla operation.
 
 Run as ``./my_pipeline --config pipeline.yson [--flow-bin <path/to/flow_server>]``. The runner
-enriches the pipeline config so the worker ships *this* python binary as the companion (plus any
-extra files it needs), writes the extended config, then execs the given flow_server
+enriches the pipeline config so the worker ships *this* python binary as the companion (unless
+every companion resource declares an entrypoint of the job environment, e.g. of the docker image),
+writes the extended config, then execs the given flow_server
 (``flow_server --config <extended>``). flow_server then performs the whole launch: bootstrap the
 files into YT, start the operation that runs flow_server (which in turn spawns the companions),
 and set the pipeline spec. All launch logic thus lives once, in C++ (``library/cpp/runner``);
@@ -26,6 +27,7 @@ from yt.wrapper import yson
 log = logging.getLogger(__name__)
 
 _PYTHON_COMPANION_NAME = "py_companion"
+_SHIPPED_EXECUTABLE = f"./{_PYTHON_COMPANION_NAME}"
 _PYTHON_COMPANION_PORT_COUNT = 3
 _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
 _FLOW_BIN_ENV_VAR = "YT_FLOW_BIN"
@@ -54,10 +56,17 @@ def launch(config_path, flow_bin):
 
     vanilla = pipeline_config.get("vanilla")
     if vanilla and vanilla.get("enable"):
-        _patch_companion_resources(pipeline_config.setdefault("spec", {}))
         worker = vanilla.setdefault("worker", {})
-        # Hand the worker this very binary; flow_server ships it into the job sandbox.
-        worker.setdefault("local_files", {})[_PYTHON_COMPANION_NAME] = os.path.abspath(sys.argv[0])
+        # One shipment serves every resource without an entrypoint; a resource that declares one
+        # keeps it, so a mixed spec still ships.
+        if _patch_companion_resources(pipeline_config.setdefault("spec", {})):
+            # Hand the worker this very binary; flow_server ships it into the job sandbox.
+            worker.setdefault("local_files", {})[_PYTHON_COMPANION_NAME] = os.path.abspath(sys.argv[0])
+        else:
+            log.info(
+                "Every companion resource declares its entrypoint: shipping no companion binary, "
+                "the job environment provides it"
+            )
         # Python has no monitoring endpoint, so reserve only node RPC/monitoring and companion RPC.
         port_count = worker.get("port_count")
         if (
@@ -82,13 +91,40 @@ def _resolve_flow_bin(flow_bin):
 
 
 def _patch_companion_resources(spec):
-    """Point every TCompanionManager resource at the shipped python companion binary."""
+    """Point every TCompanionManager resource without a declared entrypoint at the shipped binary.
+
+    Return whether some resource needs the shipped binary.
+    """
+    needs_shipped_binary = False
     for resource_id, resource_def in spec.get("resources", {}).items():
         if resource_def.get("resource_class_name") != _COMPANION_MANAGER_CLASS:
             continue
         parameters = resource_def.setdefault("parameters", {})
-        parameters["entrypoint"] = {"executable": f"./{_PYTHON_COMPANION_NAME}"}
-        log.info("Patched companion resource %s to spawn locally", resource_id)
+        executable = _declared_executable(parameters)
+        if executable:
+            log.info(
+                "Companion resource %s: entrypoint %s from the job environment, as declared", resource_id, executable
+            )
+            continue
+        parameters["entrypoint"] = {"executable": _SHIPPED_EXECUTABLE}
+        needs_shipped_binary = True
+        log.info("Companion resource %s: entrypoint %s of the shipped binary", resource_id, _SHIPPED_EXECUTABLE)
+    return needs_shipped_binary
+
+
+def _declared_executable(parameters):
+    """The declared entrypoint executable, or an empty string when the spec leaves it out or blank.
+
+    The runner's own ``./py_companion`` names the shipped binary, so it counts as not declared.
+    """
+    entrypoint = parameters.get("entrypoint")
+    executable = entrypoint.get("executable") if isinstance(entrypoint, dict) else None
+    if not isinstance(executable, (str, bytes)):
+        return ""
+    if isinstance(executable, bytes):
+        executable = executable.decode()
+    executable = executable.strip()
+    return "" if executable == _SHIPPED_EXECUTABLE else executable
 
 
 def _write_temp_yson(content, name):

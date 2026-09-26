@@ -6,8 +6,9 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 /**
- * Base of the job environments: iterates the vanilla tasks and applies the
- * {@code YT_FLOW_JDK_BIN_PATH} override before the environment-specific resolution.
+ * Base of the job environments: iterates the vanilla tasks and normalizes the hand-written
+ * {@code jdk_bin_path} and the {@code YT_FLOW_JDK_BIN_PATH} value for the environment-specific
+ * resolution.
  */
 abstract class AbstractJobEnvironment implements JobEnvironment {
     protected final EnvironmentReader envReader;
@@ -29,17 +30,21 @@ abstract class AbstractJobEnvironment implements JobEnvironment {
         String envBinPath = envReader.getVarOptional(ENV_VAR_JDK_BIN_PATH)
                 .filter(path -> !path.isBlank())
                 .orElse(null);
-        if (envBinPath != null) {
-            return envBinPath;
-        }
-        return doResolveJdkBinPath(handWrittenBinPath);
+        return doResolveJdkBinPath(nonBlankOrNull(handWrittenBinPath), envBinPath);
     }
 
     /** Patches one vanilla task config for this environment. */
     protected abstract void patchTaskConfig(YTreeMapNode task);
 
-    /** Resolves the java binary when no env override is set; see #resolveJdkBinPath. */
-    protected abstract String doResolveJdkBinPath(@Nullable String handWrittenBinPath);
+    /**
+     * Resolves the java binary from the non-blank hand-written path and env value, each null
+     * when not set; see #resolveJdkBinPath.
+     */
+    protected abstract String doResolveJdkBinPath(@Nullable String handWrittenBinPath, @Nullable String envBinPath);
+
+    private static @Nullable String nonBlankOrNull(@Nullable String path) {
+        return path == null || path.isBlank() ? null : path;
+    }
 
     private void patchDeclaredTask(YTreeMapNode vanilla, String taskKey) {
         vanilla.get(taskKey)
