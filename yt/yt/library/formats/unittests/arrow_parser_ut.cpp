@@ -169,6 +169,25 @@ std::string MakeLargeBinaryArrow(const std::vector<std::optional<std::string>>& 
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
+std::string MakeYsonArrow(const std::vector<std::string>& data)
+{
+    arrow20::BinaryBuilder builder;
+
+    for (const auto& value : data) {
+        Verify(builder.Append(value));
+    }
+
+    auto binaryArray = builder.Finish();
+    auto metadata = std::make_shared<arrow20::KeyValueMetadata>(
+        std::vector{YTTypeMetadataKey},
+        std::vector{YTTypeMetadataValueYson});
+    auto arrowSchema = arrow20::schema({arrow20::field("any", arrow20::binary(), /*nullable*/ true, metadata)});
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*binaryArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
+
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
 std::string MakeFixedSizeBinaryArrow(const std::vector<std::optional<std::string>>& data)
 {
     auto type = arrow20::fixed_size_binary(3);
@@ -1425,6 +1444,43 @@ TEST(TArrowParserTest, AnyColumn)
 
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "string")), "yt");
+}
+
+TEST(TArrowParserTest, YsonMetadata)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("any", EValueType::Any),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    std::vector<std::string> values = {"{a=1}", "[1;2]", "#", "\"str\""};
+    parser->Read(MakeYsonArrow(values));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), std::ssize(values));
+    for (int rowIndex = 0; rowIndex < std::ssize(values); ++rowIndex) {
+        auto value = collectedRows.GetRowValue(rowIndex, "any");
+        EXPECT_EQ(value.Type, EValueType::Any);
+        EXPECT_EQ(std::string(value.AsStringBuf()), values[rowIndex]);
+    }
+}
+
+TEST(TArrowParserTest, InvalidYsonMetadata)
+{
+    for (const auto& value : {""s, "{"s, "<a=1>1"s}) {
+        auto tableSchema = New<TTableSchema>(std::vector{
+            TColumnSchema("any", EValueType::Any),
+        });
+
+        TCollectingValueConsumer collectedRows(tableSchema);
+
+        auto parser = CreateParserForArrow(&collectedRows);
+
+        EXPECT_THROW_WITH_SUBSTRING(parser->Read(MakeYsonArrow({value})), "is not a valid YSON");
+    }
 }
 
 TEST(TArrowParserTest, WrongListInput)
