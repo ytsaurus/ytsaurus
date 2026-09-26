@@ -6,6 +6,7 @@ from yt_commands import (
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config, update_controller_agent_config,
     get_job, create_pool,
+    get_applied_node_dynamic_config,
     run_test_vanilla, list_jobs, create_network_project,
     with_breakpoint, wait_breakpoint, release_breakpoint,
     print_debug, raises_yt_error)
@@ -1110,7 +1111,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
-        assert "running_gpu_check_command" in phases
+        assert "running_custom_preparations" in phases
+
+        statistics = op.get_job_statistics(job_id)
+        assert statistics["time"]["gpu_check"]["sum"] > 0
 
     @pytest.mark.timeout(180)
     def test_gpu_check_for_vanilla_operation(self):
@@ -1142,7 +1146,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         for job_id in job_ids:
             events = get_job(op.id, job_id)["events"]
             phases = [event["phase"] for event in events if "phase" in event]
-            assert "running_gpu_check_command" in phases
+            assert "running_custom_preparations" in phases
+
+            statistics = op.get_job_statistics(job_id)
+            assert statistics["time"]["gpu_check"]["sum"] > 0
 
             stderr = op.read_stderr(job_id).decode("ascii")
             parsed_operation_id, parsed_job_id, parsed_task_name, parsed_job_count, parsed_task_job_count = stderr.split()
@@ -1192,7 +1199,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
-        assert "running_gpu_check_command" in phases
+        assert "running_custom_preparations" in phases
+
+        statistics = op.get_job_statistics(job_id)
+        assert statistics["time"]["gpu_check"]["sum"] > 0
 
         # TODO(ignat): check GPU check stderr.
         # stderr = op.read_stderr(job_id).decode("ascii")
@@ -1252,7 +1262,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
-        assert "running_gpu_check_command" in phases
+        assert "running_custom_preparations" in phases
+
+        statistics = op.get_job_statistics(job_id)
+        assert statistics["time"]["gpu_check"]["sum"] > 0
 
     @pytest.mark.timeout(180)
     def test_gpu_check_success_with_failed_job(self):
@@ -1404,11 +1417,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         def gpu_check_is_running(job_id):
             node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}"\
                                    .format(node, job_id)
-            if not exists(node_orchid_job_path):
+            if not exists(node_orchid_job_path + "/preliminary_gpu_check"):
                 return False
-            events = get(node_orchid_job_path + "/events")
-            phases = [event["phase"] for event in events if "phase" in event]
-            return phases[-1] == "running_gpu_check_command"
+            info = get(node_orchid_job_path + "/preliminary_gpu_check")
+            return "start_time" in info and "finish_time" not in info
 
         create(
             "table",
@@ -1473,6 +1485,96 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         wait(lambda: len(op1.list_jobs()) == 0)
         wait(lambda: get_job(op2.id, job_id2)["state"] == "running")
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(300)
+    def test_gpu_check_runs_in_parallel(self):
+        self.setup_gpu_layer_and_reset_nodes()
+        self.setup_tables()
+        self.init_operations_archive()
+
+        # Make the GPU check command run long enough to reliably observe
+        # the overlap with the root chain.
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "layer_paths": ["//tmp/gpu_check/0", ROOTFS_LAYER_PATH],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "sleep 15"],
+            }
+        )
+
+        # The test environment is shared between the tests of the class, so
+        # the node dynamic config must be restored afterwards; otherwise the
+        # setup command will slow down all subsequent jobs in every
+        # following test.
+        old_nodes_dynamic_config = get("//sys/cluster_nodes/@config")
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+        try:
+            # Make the root chain run long enough: the setup command is one of
+            # its last steps, so the root chain will be in RunningSetupCommands
+            # for a while.
+            update_nodes_dynamic_config({
+                "exec_node": {
+                    "job_controller": {
+                        "job_common": {
+                            "job_setup_command": {
+                                "path": "/bin/bash",
+                                "args": ["-c", "sleep 15"],
+                            },
+                        },
+                    },
+                },
+            })
+
+            write_table("//tmp/t_in", [{"k": 0}])
+            op = map(
+                track=False,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="echo AAA >&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "job_count": 1,
+                        "gpu_limit": 1,
+                        "enable_gpu_layers": True,
+                        "enable_gpu_check": True,
+                    },
+                },
+            )
+
+            wait(lambda: op.list_jobs())
+            job_id = op.list_jobs()[0]
+
+            node_orchid_job_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}"\
+                                   .format(node, job_id)
+
+            def gpu_check_overlaps_with_root_chain():
+                if not exists(node_orchid_job_path + "/preliminary_gpu_check"):
+                    return False
+                info = get(node_orchid_job_path + "/preliminary_gpu_check")
+                if "start_time" not in info or "finish_time" in info:
+                    return False
+                phase = get(node_orchid_job_path + "/job_phase")
+                # In a sequential implementation the GPU check is started only after
+                # the root chain has done all of its work, so while the check is running
+                # the phase is already RunningCustomPreparations. Observing the check
+                # running in any earlier phase means that it is run in parallel with
+                # the root chain.
+                return phase != "running_custom_preparations"
+
+            wait(gpu_check_overlaps_with_root_chain, timeout=INCREASED_TIMEOUT * 2)
+
+            op.track()
+        finally:
+            set("//sys/cluster_nodes/@config", old_nodes_dynamic_config)
+            wait(lambda: get_applied_node_dynamic_config(node) == old_nodes_dynamic_config["%true"])
+
+        statistics = op.get_job_statistics(job_id)
+        assert statistics["time"]["gpu_check"]["sum"] > 0
 
     @authors("eshcherbin")
     @pytest.mark.timeout(180)
@@ -1596,7 +1698,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         events = get_job(op.id, job_id)["events"]
         phases = [event["phase"] for event in events if "phase" in event]
-        assert "running_gpu_check_command" in phases
+        assert "running_custom_preparations" in phases
+
+        statistics = op.get_job_statistics(job_id)
+        assert statistics["time"]["gpu_check"]["sum"] > 0
 
 
 @authors("ignat")
