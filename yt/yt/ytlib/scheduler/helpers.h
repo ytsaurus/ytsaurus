@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -150,10 +153,13 @@ public:
 
     std::string GetAclString() const;
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
 
 private:
     std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
+
+    PHOENIX_DECLARE_TYPE(TAccessControlRule, 0x92de7eca);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

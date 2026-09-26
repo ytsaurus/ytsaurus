@@ -52,8 +52,6 @@ struct TExecNodeDescriptor
     TBooleanFormulaTags Tags;
     std::optional<std::string> InfinibandCluster;
     NYTree::IAttributeDictionaryPtr SchedulingOptions;
-
-    void Persist(const TStreamPersistenceContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNodeDescriptor)

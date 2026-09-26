@@ -10,6 +10,7 @@
 #include <yt/yt/core/misc/statistic_path.h>
 
 #include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -70,7 +71,10 @@ struct TCustomJobMetricDescription
     ESummaryValueType SummaryValueType = ESummaryValueType::Sum;
     std::optional<NJobTrackerClient::EJobState> JobStateFilter = {};
 
-    void Persist(const TStreamPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
+
+    PHOENIX_DECLARE_TYPE(TCustomJobMetricDescription, 0x1f3a7c21);
 };
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs);
@@ -118,13 +122,16 @@ public:
 
     void Profile(NProfiling::ISensorWriter* writer) const;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    using TSaveContext = NPhoenix::TSaveContext;
+    using TLoadContext = NPhoenix::TLoadContext;
 
 private:
     friend TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs);
     friend TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
     friend TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);
     friend TJobMetrics operator-(const TJobMetrics& lhs, const TJobMetrics& rhs);
+
+    PHOENIX_DECLARE_TYPE(TJobMetrics, 0x2b4e9d35);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include "config.h"
 #include "yt/yt/client/table_client/record_helpers.h"
 
@@ -484,11 +486,12 @@ std::string TAccessControlRule::GetAclString() const
     }
 }
 
-void TAccessControlRule::Persist(const TStreamPersistenceContext& context)
+void TAccessControlRule::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, AccessControlRule_);
+    PHOENIX_REGISTER_FIELD(1, AccessControlRule_);
 }
+
+PHOENIX_DEFINE_TYPE(TAccessControlRule);
 
 ////////////////////////////////////////////////////////////////////////////////
 

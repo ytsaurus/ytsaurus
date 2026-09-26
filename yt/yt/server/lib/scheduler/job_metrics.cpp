@@ -1,5 +1,7 @@
 #include "job_metrics.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
@@ -27,15 +29,15 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCustomJobMetricDescription::Persist(const TStreamPersistenceContext& context)
+void TCustomJobMetricDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, StatisticsPath);
-    Persist(context, ProfilingName);
-    Persist(context, SummaryValueType);
-    Persist(context, JobStateFilter);
+    PHOENIX_REGISTER_FIELD(1, StatisticsPath);
+    PHOENIX_REGISTER_FIELD(2, ProfilingName);
+    PHOENIX_REGISTER_FIELD(3, SummaryValueType);
+    PHOENIX_REGISTER_FIELD(4, JobStateFilter);
 }
+
+PHOENIX_DEFINE_TYPE(TCustomJobMetricDescription);
 
 bool operator==(const TCustomJobMetricDescription& lhs, const TCustomJobMetricDescription& rhs)
 {
@@ -190,13 +192,13 @@ void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
     }
 }
 
-void TJobMetrics::Persist(const TPersistenceContext& context)
+void TJobMetrics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Values_);
-    Persist(context, CustomValues_);
+    PHOENIX_REGISTER_FIELD(1, Values_);
+    PHOENIX_REGISTER_FIELD(2, CustomValues_);
 }
+
+PHOENIX_DEFINE_TYPE(TJobMetrics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
