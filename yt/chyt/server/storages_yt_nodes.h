@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <Storages/IStorage_fwd.h>
 
 namespace NYT::NClickHouseServer {
@@ -16,7 +18,7 @@ struct TStorageYtDirOptions
     bool ResolveLinks = false;
 };
 
-DB::StoragePtr CreateStorageYtDir(TString dirPath, TStorageYtDirOptions options);
+DB::StoragePtr CreateStorageYtDir(NYPath::TRichYPath dirPath, TStorageYtDirOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -48,6 +48,8 @@ struct TTable
 
 void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf spec);
 
+void ValidateTablePathForModification(const NYPath::TRichYPath& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Fetches tables for given paths.
