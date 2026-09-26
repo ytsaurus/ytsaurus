@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: anyio
-Version: 4.14.2
+Version: 4.15.1
 Summary: High-level concurrency and networking framework on top of asyncio or Trio
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License-Expression: MIT
@@ -20,12 +20,13 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: 3.15
+Classifier: Programming Language :: Python :: Free Threading :: 2 - Beta
 Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 Requires-Dist: exceptiongroup>=1.0.2; python_version < "3.11"
 Requires-Dist: idna>=2.8
-Requires-Dist: typing_extensions>=4.5; python_version < "3.13"
+Requires-Dist: typing_extensions>=4.16.0; python_version < "3.15"
 Provides-Extra: trio
 Requires-Dist: trio>=0.32.0; extra == "trio"
 Dynamic: license-file
@@ -77,7 +78,7 @@ AnyIO offers the following functionality:
 
 * A versatile API for byte streams and object streams
 * Inter-task synchronization and communication (locks, conditions, events, semaphores, object
-  streams)
+  streams and futures)
 * Worker threads
 * Subprocesses
 * Subinterpreter support for code parallelization (on Python 3.13 and later)

@@ -2,12 +2,13 @@
 
 PY3_LIBRARY()
 
-VERSION(4.14.2)
+VERSION(4.15.1)
 
 LICENSE(MIT)
 
 PEERDIR(
     contrib/python/idna
+    contrib/python/typing-extensions
 )
 
 NO_LINT()
@@ -25,10 +26,12 @@ PY_SRCS(
     anyio/_backends/_trio.py
     anyio/_core/__init__.py
     anyio/_core/_asyncio_selector_thread.py
+    anyio/_core/_concurrency_utils.py
     anyio/_core/_contextmanagers.py
     anyio/_core/_eventloop.py
     anyio/_core/_exceptions.py
     anyio/_core/_fileio.py
+    anyio/_core/_futures.py
     anyio/_core/_resources.py
     anyio/_core/_signals.py
     anyio/_core/_sockets.py
@@ -39,6 +42,7 @@ PY_SRCS(
     anyio/_core/_tempfile.py
     anyio/_core/_testing.py
     anyio/_core/_typedattr.py
+    anyio/_lazyimport.py
     anyio/abc/__init__.py
     anyio/abc/_eventloop.py
     anyio/abc/_resources.py
