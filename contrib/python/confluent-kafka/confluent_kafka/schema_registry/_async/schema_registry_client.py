@@ -1057,7 +1057,7 @@ class AsyncSchemaRegistryClient(object):
 
         query: dict[str, Any] = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         if subject_prefix is not None:
-            query['subject'] = subject_prefix
+            query['subjectPrefix'] = subject_prefix
         return await self._rest_client.get('subjects', query)
 
     async def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:

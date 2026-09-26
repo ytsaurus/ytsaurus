@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import threading
 from typing import List, Optional
 
 from attrs import define as _attrs_define
@@ -32,44 +33,55 @@ class RuleOverride:
 
 
 class RuleRegistry(object):
-    __slots__ = ['_rule_executors', '_rule_actions', '_rule_overrides']
+    __slots__ = ['_rule_executors', '_rule_actions', '_rule_overrides', '_lock']
 
     def __init__(self):
         self._rule_executors = {}
         self._rule_actions = {}
         self._rule_overrides = {}
+        self._lock = threading.Lock()
 
     def register_executor(self, rule_executor: RuleExecutor):
-        self._rule_executors[rule_executor.type()] = rule_executor
+        with self._lock:
+            self._rule_executors[rule_executor.type()] = rule_executor
 
     def get_executor(self, name: str) -> Optional[RuleExecutor]:
-        return self._rule_executors.get(name)
+        with self._lock:
+            return self._rule_executors.get(name)
 
     def get_executors(self) -> List[RuleExecutor]:
-        return list(self._rule_executors.values())
+        with self._lock:
+            return list(self._rule_executors.values())
 
     def register_action(self, rule_action: RuleAction):
-        self._rule_actions[rule_action.type()] = rule_action
+        with self._lock:
+            self._rule_actions[rule_action.type()] = rule_action
 
     def get_action(self, name: str) -> Optional[RuleAction]:
-        return self._rule_actions.get(name)
+        with self._lock:
+            return self._rule_actions.get(name)
 
     def get_actions(self) -> List[RuleAction]:
-        return list(self._rule_actions.values())
+        with self._lock:
+            return list(self._rule_actions.values())
 
     def register_override(self, rule_override: RuleOverride):
-        self._rule_overrides[rule_override.type] = rule_override
+        with self._lock:
+            self._rule_overrides[rule_override.type] = rule_override
 
     def get_override(self, name: str) -> Optional[RuleOverride]:
-        return self._rule_overrides.get(name)
+        with self._lock:
+            return self._rule_overrides.get(name)
 
     def get_overrides(self) -> List[RuleOverride]:
-        return list(self._rule_overrides.values())
+        with self._lock:
+            return list(self._rule_overrides.values())
 
     def clear(self):
-        self._rule_executors.clear()
-        self._rule_actions.clear()
-        self._rule_overrides.clear()
+        with self._lock:
+            self._rule_executors.clear()
+            self._rule_actions.clear()
+            self._rule_overrides.clear()
 
     @staticmethod
     def get_global_instance():

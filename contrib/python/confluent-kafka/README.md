@@ -106,9 +106,9 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush()."""
     if err is not None:
-        print('Message delivery failed: {}'.format(err))
+        print(f'Message delivery failed: {err}')
     else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+        print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
 for data in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
@@ -231,10 +231,10 @@ while True:
     if msg is None:
         continue
     if msg.error():
-        print("Consumer error: {}".format(msg.error()))
+        print(f"Consumer error: {msg.error()}")
         continue
 
-    print('Received message: {}'.format(msg.value().decode('utf-8')))
+    print(f"Received message: {msg.value().decode('utf-8')}")
 
 c.close()
 ```
@@ -258,9 +258,9 @@ fs = a.create_topics(new_topics)
 for topic, f in fs.items():
     try:
         f.result()  # The result itself is None
-        print("Topic {} created".format(topic))
+        print(f"Topic {topic} created")
     except Exception as e:
-        print("Failed to create topic {}: {}".format(topic, e))
+        print(f"Failed to create topic {topic}: {e}")
 ```
 ## Thread safety
 

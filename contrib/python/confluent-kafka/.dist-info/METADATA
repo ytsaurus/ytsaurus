@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: confluent-kafka
-Version: 2.15.0
+Version: 2.15.1
 Summary: Confluent's Python client for Apache Kafka
 Author-email: "Confluent Inc." <support@confluent.io>
 Project-URL: Homepage, https://github.com/confluentinc/confluent-kafka-python
@@ -39,7 +39,7 @@ Requires-Dist: hkdf==0.0.3; extra == "rules"
 Requires-Dist: hvac; extra == "rules"
 Requires-Dist: jsonata-python; extra == "rules"
 Requires-Dist: pyyaml>=6.0.0; extra == "rules"
-Requires-Dist: tink; extra == "rules"
+Requires-Dist: tink[gcpkms]; extra == "rules"
 Requires-Dist: attrs>=21.2.0; extra == "rules"
 Requires-Dist: cachetools>=5.5.0; extra == "rules"
 Requires-Dist: certifi; extra == "rules"
@@ -112,7 +112,7 @@ Requires-Dist: hkdf==0.0.3; extra == "dev"
 Requires-Dist: hvac; extra == "dev"
 Requires-Dist: jsonata-python; extra == "dev"
 Requires-Dist: pyyaml>=6.0.0; extra == "dev"
-Requires-Dist: tink; extra == "dev"
+Requires-Dist: tink[gcpkms]; extra == "dev"
 Requires-Dist: urllib3<3; extra == "dev"
 Requires-Dist: flake8; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
@@ -146,7 +146,7 @@ Requires-Dist: hkdf==0.0.3; extra == "dev"
 Requires-Dist: hvac; extra == "dev"
 Requires-Dist: jsonata-python; extra == "dev"
 Requires-Dist: pyyaml>=6.0.0; extra == "dev"
-Requires-Dist: tink; extra == "dev"
+Requires-Dist: tink[gcpkms]; extra == "dev"
 Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "dev"
 Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "dev"
 Requires-Dist: requests; extra == "dev"
@@ -177,7 +177,7 @@ Requires-Dist: hkdf==0.0.3; extra == "docs"
 Requires-Dist: hvac; extra == "docs"
 Requires-Dist: jsonata-python; extra == "docs"
 Requires-Dist: pyyaml>=6.0.0; extra == "docs"
-Requires-Dist: tink; extra == "docs"
+Requires-Dist: tink[gcpkms]; extra == "docs"
 Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "docs"
 Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "docs"
 Requires-Dist: requests; extra == "docs"
@@ -219,7 +219,7 @@ Requires-Dist: hkdf==0.0.3; extra == "tests"
 Requires-Dist: hvac; extra == "tests"
 Requires-Dist: jsonata-python; extra == "tests"
 Requires-Dist: pyyaml>=6.0.0; extra == "tests"
-Requires-Dist: tink; extra == "tests"
+Requires-Dist: tink[gcpkms]; extra == "tests"
 Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "tests"
 Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "tests"
 Requires-Dist: requests; extra == "tests"
@@ -256,7 +256,7 @@ Requires-Dist: hkdf==0.0.3; extra == "examples"
 Requires-Dist: hvac; extra == "examples"
 Requires-Dist: jsonata-python; extra == "examples"
 Requires-Dist: pyyaml>=6.0.0; extra == "examples"
-Requires-Dist: tink; extra == "examples"
+Requires-Dist: tink[gcpkms]; extra == "examples"
 Provides-Extra: soaktest
 Requires-Dist: psutil; extra == "soaktest"
 Requires-Dist: opentelemetry-distro; extra == "soaktest"
@@ -296,7 +296,7 @@ Requires-Dist: hkdf==0.0.3; extra == "all"
 Requires-Dist: hvac; extra == "all"
 Requires-Dist: jsonata-python; extra == "all"
 Requires-Dist: pyyaml>=6.0.0; extra == "all"
-Requires-Dist: tink; extra == "all"
+Requires-Dist: tink[gcpkms]; extra == "all"
 Requires-Dist: urllib3<3; extra == "all"
 Requires-Dist: flake8; extra == "all"
 Requires-Dist: mypy; extra == "all"
@@ -330,7 +330,7 @@ Requires-Dist: hkdf==0.0.3; extra == "all"
 Requires-Dist: hvac; extra == "all"
 Requires-Dist: jsonata-python; extra == "all"
 Requires-Dist: pyyaml>=6.0.0; extra == "all"
-Requires-Dist: tink; extra == "all"
+Requires-Dist: tink[gcpkms]; extra == "all"
 Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "all"
 Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "all"
 Requires-Dist: requests; extra == "all"
@@ -449,9 +449,9 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush()."""
     if err is not None:
-        print('Message delivery failed: {}'.format(err))
+        print(f'Message delivery failed: {err}')
     else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+        print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
 for data in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
@@ -574,10 +574,10 @@ while True:
     if msg is None:
         continue
     if msg.error():
-        print("Consumer error: {}".format(msg.error()))
+        print(f"Consumer error: {msg.error()}")
         continue
 
-    print('Received message: {}'.format(msg.value().decode('utf-8')))
+    print(f"Received message: {msg.value().decode('utf-8')}")
 
 c.close()
 ```
@@ -601,9 +601,9 @@ fs = a.create_topics(new_topics)
 for topic, f in fs.items():
     try:
         f.result()  # The result itself is None
-        print("Topic {} created".format(topic))
+        print(f"Topic {topic} created")
     except Exception as e:
-        print("Failed to create topic {}: {}".format(topic, e))
+        print(f"Failed to create topic {topic}: {e}")
 ```
 ## Thread safety
 

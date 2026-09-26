@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import threading
 from typing import List
 
 from tink import KmsClient
@@ -32,6 +33,7 @@ class KmsDriver(metaclass=abc.ABCMeta):
 
 
 _kms_drivers: List[KmsDriver] = []
+_kms_drivers_lock = threading.Lock()
 
 
 # Adds driver to a global list of KmsDrivers.
@@ -41,17 +43,20 @@ def register_kms_driver(driver: KmsDriver) -> None:
     Args:
         driver: KmsDriver to be registered
     """
-    _kms_drivers.append(driver)
+    with _kms_drivers_lock:
+        _kms_drivers.append(driver)
 
 
 def get_kms_driver(key_url: str) -> KmsDriver:
     """Returns the first KMS client that supports key_url."""
-    for driver in _kms_drivers:
-        if key_url.startswith(driver.get_key_url_prefix()):
-            return driver
+    with _kms_drivers_lock:
+        for driver in _kms_drivers:
+            if key_url.startswith(driver.get_key_url_prefix()):
+                return driver
     raise RuleError('no KMS driver found for key URL: ' + key_url)
 
 
 def reset_kms_drivers() -> None:
     """Removes all registered clients. Internal and only used for tests."""
-    _kms_drivers.clear()
+    with _kms_drivers_lock:
+        _kms_drivers.clear()
