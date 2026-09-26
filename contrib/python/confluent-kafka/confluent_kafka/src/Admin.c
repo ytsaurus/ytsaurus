@@ -3272,7 +3272,6 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_obj);
 
         rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
-        Py_XDECREF(topic_partition_offsets);
 
         Py_RETURN_NONE;
 err:
@@ -3288,7 +3287,6 @@ err:
                 rd_kafka_topic_partition_list_destroy(
                     c_topic_partition_offsets);
         }
-        Py_XDECREF(topic_partition_offsets);
         return NULL;
 }
 

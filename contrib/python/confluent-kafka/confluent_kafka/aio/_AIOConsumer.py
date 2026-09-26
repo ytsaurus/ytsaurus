@@ -44,7 +44,7 @@ class AIOConsumer:
                 raise ValueError("max_workers must be at least 1")
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_conf_callback = _common.wrap_conf_callback
         wrap_common_callbacks(loop, consumer_conf)
@@ -115,7 +115,7 @@ class AIOConsumer:
         return tuple(args_list)
 
     async def subscribe(self, *args: Any, **kwargs: Any) -> Any:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         for callback in ['on_assign', 'on_revoke', 'on_lost']:
             if callback in kwargs:
                 kwargs[callback] = self._wrap_callback(

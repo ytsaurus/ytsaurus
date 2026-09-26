@@ -15,6 +15,7 @@
 import base64
 import io
 import logging
+import threading
 import time
 from typing import Any, List, Optional, Tuple
 
@@ -70,26 +71,28 @@ class EncryptionExecutor(RuleExecutor):
         self.client: Optional[DekRegistryClient] = None
         self.config: Optional[dict] = None
         self.clock = clock
+        self._lock = threading.Lock()
 
     def configure(self, client_conf: dict, rule_conf: dict):
-        if client_conf:
-            if self.client:
-                if self.client.config() != client_conf:
-                    raise RuleError("executor already configured")
-            else:
-                self.client = DekRegistryClient.new_client(client_conf)
+        with self._lock:
+            if client_conf:
+                if self.client:
+                    if self.client.config() != client_conf:
+                        raise RuleError("executor already configured")
+                else:
+                    self.client = DekRegistryClient.new_client(client_conf)
 
-        if self.config:
-            if rule_conf:
-                for key, value in rule_conf.items():
-                    v = self.config.get(key)
-                    if v is not None:
-                        if v != value:
-                            raise RuleError(f"rule config key already set: {key}")
-                    else:
-                        self.config[key] = value
-        else:
-            self.config = rule_conf if rule_conf else {}
+            if self.config:
+                if rule_conf:
+                    for key, value in rule_conf.items():
+                        v = self.config.get(key)
+                        if v is not None:
+                            if v != value:
+                                raise RuleError(f"rule config key already set: {key}")
+                        else:
+                            self.config[key] = value
+            else:
+                self.config = rule_conf if rule_conf else {}
 
     def type(self) -> str:
         return "ENCRYPT_PAYLOAD"

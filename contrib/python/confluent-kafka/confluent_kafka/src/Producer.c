@@ -353,7 +353,8 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
  * 2. Calls rd_kafka_poll() with chunk timeout
  * 3. Between chunks, re-acquires GIL and calls PyErr_CheckSignals()
  * 4. If signal detected, returns -1 (raises KeyboardInterrupt)
- * 5. Continues until events processed, timeout expired, or signal detected
+ * 5. Returns as soon as a chunk serves any events, the timeout expires, or a
+ *    signal is detected
  *
  * @param self Producer handle
  * @param tmout Timeout in milliseconds (-1 for infinite)
@@ -394,7 +395,10 @@ static int Producer_poll0(Handle *self, int tmout) {
                                 r = chunk_result;
                                 break;
                         }
-                        r += chunk_result; /* Accumulate events processed */
+                        r = chunk_result;
+
+                        if (chunk_result > 0)
+                                break;
 
                         chunk_count++;
 

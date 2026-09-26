@@ -399,9 +399,6 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
     return result
 
 
-decimal_context = Context()
-
-
 def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[name-defined]
     """
     Converts a Protobuf value to Decimal.
@@ -414,8 +411,5 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     """
     unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
 
-    if value.precision > 0:
-        decimal_context.prec = value.precision
-    else:
-        decimal_context.prec = MAX_PREC
+    decimal_context = Context(prec=value.precision if value.precision > 0 else MAX_PREC)
     return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)

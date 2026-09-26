@@ -221,6 +221,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
     __slots__ = [
         '_known_subjects',
+        '_known_subjects_lock',
         '_parsed_schema',
         '_ref_registry',
         '_schema',
@@ -271,6 +272,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
+        self._known_subjects_lock = _locks.Lock()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
         self._validators_lock = _locks.Lock()
@@ -375,25 +377,35 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             else self._subject_name_func(ctx, self._schema_name)
         )
         latest_schema = await self._get_reader_schema(subject) if subject else None
+        # schema_id is kept as a local variable (rather than read back from self._schema_id)
+        # so that concurrent __serialize calls on a shared serializer instance can't clobber
+        # each other's result between this point and where it's used below.
+        schema_id = self._schema_id
         if latest_schema is not None:
-            self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
+            schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
+            self._schema_id = schema_id
         elif subject is not None and subject not in self._known_subjects:
             # Check to ensure this schema has been registered under subject_name.
-            if self._auto_register:
-                # The schema name will always be the same. We can't however register
-                # a schema without a subject so we set the schema_id here to handle
-                # the initial registration.
-                registered_schema = await self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
-            else:
-                registered_schema = await self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
+            async with self._known_subjects_lock:
+                if subject not in self._known_subjects:
+                    if self._auto_register:
+                        # The schema name will always be the same. We can't however register
+                        # a schema without a subject so we set the schema_id here to handle
+                        # the initial registration.
+                        registered_schema = await self._registry.register_schema_full_response(
+                            subject, self._schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
+                    else:
+                        registered_schema = await self._registry.lookup_schema(
+                            subject, self._schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
 
-            self._known_subjects.add(subject)
+                    self._known_subjects.add(subject)
+                    self._schema_id = schema_id
+                else:
+                    schema_id = self._schema_id
 
         value: Any
         if self._to_dict is not None:
@@ -445,7 +457,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
                 )
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     async def _get_parsed_schema(self, schema: Optional[Schema]) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:

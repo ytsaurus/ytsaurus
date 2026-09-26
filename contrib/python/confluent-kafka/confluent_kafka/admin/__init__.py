@@ -53,9 +53,7 @@ from ..cimpl import (  # noqa: F401
     NewTopic,
 )
 from ..cimpl import TopicPartition as _TopicPartition
-from ..cimpl import (  # noqa: F401
-    _AdminClientImpl,
-)
+from ..cimpl import _AdminClientImpl
 from ._acl import AclOperation  # noqa: F401
 from ._acl import AclBinding, AclBindingFilter, AclPermissionType  # noqa: F401
 from ._cluster import DescribeClusterResult  # noqa: F401

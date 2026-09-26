@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio as _locks
 import io
 from typing import Any, Callable, Coroutine, List, Optional, Set, Tuple, Union, cast
 
@@ -226,6 +227,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
     __slots__ = [
         '_skip_known_types',
         '_known_subjects',
+        '_known_subjects_lock',
         '_msg_class',
         '_index_array',
         '_schema',
@@ -322,6 +324,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
+        self._known_subjects_lock = _locks.Lock()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
 
@@ -447,29 +450,40 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         if subject is not None:
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
+        # schema_id is kept as a local variable (rather than read back from self._schema_id)
+        # so that concurrent __serialize calls on a shared serializer instance can't clobber
+        # each other's result between this point and where it's used below.
+        schema_id = self._schema_id
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            self._schema_id = schema_id
 
         elif subject is not None and subject not in self._known_subjects and ctx is not None:
-            references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
-            self._schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
+            async with self._known_subjects_lock:
+                if subject not in self._known_subjects:
+                    references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
+                    schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
 
-            if self._auto_register:
-                registered_schema = await self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
-            else:
-                registered_schema = await self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
+                    if self._auto_register:
+                        registered_schema = await self._registry.register_schema_full_response(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
+                    else:
+                        registered_schema = await self._registry.lookup_schema(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
 
-            self._known_subjects.add(subject)
+                    self._schema = schema
+                    self._known_subjects.add(subject)
+                    self._schema_id = schema_id
+                else:
+                    schema_id = self._schema_id
 
         if latest_schema is not None:
             fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
@@ -486,8 +500,8 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            if self._schema_id is not None:
-                self._schema_id.message_indexes = self._index_array
+            if schema_id is not None:
+                schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None and ctx is not None and subject is not None:
@@ -495,7 +509,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
                 )
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -788,13 +802,23 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     ) -> Tuple[str, descriptor_pb2.DescriptorProto]:
         index = msg_index[0]
         if isinstance(desc, descriptor_pb2.FileDescriptorProto):
-            msg = desc.message_type[index]
+            messages = desc.message_type
+            if index < 0 or index >= len(messages):
+                raise SerializationError(
+                    "message index {} out of range, schema has {} top-level message(s)".format(index, len(messages))
+                )
+            msg = messages[index]
             path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
             return self._get_message_desc_proto(path, msg, msg_index[1:])
         else:
-            msg = desc.nested_type[index]
+            messages = desc.nested_type
+            if index < 0 or index >= len(messages):
+                raise SerializationError(
+                    "message index {} out of range, message has {} nested message(s)".format(index, len(messages))
+                )
+            msg = messages[index]
             path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
