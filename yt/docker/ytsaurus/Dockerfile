@@ -384,6 +384,9 @@ COPY ./flow_server /usr/bin/flow_server
 # Flow credits files.
 COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
 
+# Where a user mounts the pipeline dir to launch it: relative spec and program paths resolve here.
+WORKDIR /app/pipeline
+
 ##########################################################################################
 
 FROM flow AS flow-java
