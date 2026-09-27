@@ -1760,6 +1760,7 @@ private:
         if (EnableSkynetSharing_) {
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
+        chunkWriterOptions->MaxHeavyColumns = MaxHeavyColumns_;
         chunkWriterOptions->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
         chunkWriterOptions->Postprocess();
 

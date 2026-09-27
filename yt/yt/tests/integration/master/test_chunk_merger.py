@@ -8,7 +8,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
-    get_singular_chunk_id, get_driver)
+    get_singular_chunk_id, get_driver, get_table_columnar_statistics)
 
 from yt.test_helpers import assert_items_equal
 
@@ -225,6 +225,28 @@ class TestChunkMerger(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@data_weight".format(chunk_id)) > 0
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_heavy_column_statistics_are_preserved(self, merge_mode):
+        create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b" * 100})
+        write_table("<append=true>//tmp/t", {"a": "c" * 200})
+        write_table("<append=true>//tmp/t", {"a": "d" * 300})
+        write_table("<append=true>//tmp/t", {"a": "e" * 400})
+
+        def get_master_statistics():
+            return get_table_columnar_statistics('["//tmp/t{a}";]', fetcher_mode="from_master")[0]
+
+        assert get_master_statistics()["column_data_weights"]["a"] > 0
+        assert get_master_statistics()["legacy_chunks_data_weight"] == 0
+
+        _wait_for_merge("//tmp/t", merge_mode)
+
+        assert get_master_statistics()["column_data_weights"]["a"] > 0
+        assert get_master_statistics()["legacy_chunks_data_weight"] == 0
 
     @authors("aleksandra-zh", "cherepashka")
     @pytest.mark.parametrize("transactional", [False, True])
