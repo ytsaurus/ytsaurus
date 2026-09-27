@@ -1,20 +1,28 @@
 {
-    "cluster_url" = "%YT_CLUSTER%";
-
+    "cluster_url" = "<cluster>";
+    "path" = "//tmp/flow/noop/pipeline";
     "proxy_role" = #;
-
-    "path" = "%YT_PIPELINE_PATH%";
 
     "spec" = {
         "computations" = {
             "reader" = {
                 "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["messages"];
 
                 "source_streams" = {
                     "random" = {
                         "source_class_name" = "NYT::NFlow::TRandomSource";
                     };
                 };
+            };
+        };
+
+        "streams" = {
+            "messages" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
             };
         };
     };

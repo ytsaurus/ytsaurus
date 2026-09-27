@@ -4,7 +4,7 @@ This section explains how to deploy a pipeline, inspect its state, and investiga
 
 ## Deployment {#deployment}
 
-Follow [initial Vanilla deployment](vanilla/initial-deploy.md) to start the controller and workers as tasks of one operation. For Docker/CRI jobs, including a typical Kubernetes installation, see [Docker job environment and network setup](vanilla/docker-environment.md); the C++ example needs no custom image but may need cluster-name resolution and external proxy access. Flow creates and mounts its internal tables with the pipeline by default. If your pipeline uses user-managed external state, choose an [external state table type](state-tables-choice.md) before creating those tables based on availability and cost requirements.
+Follow [initial Vanilla deployment](vanilla/initial-deploy.md) to start the controller and workers as tasks of one operation. To launch from the released Flow images, see [Running in a docker environment](docker-environment.md): it covers vanilla jobs in docker images, the controller and the workers in Kubernetes, cluster-name resolution, and external proxy access. Flow creates and mounts its internal tables with the pipeline by default. If your pipeline uses user-managed external state, choose an [external state table type](state-tables-choice.md) before creating those tables based on availability and cost requirements.
 
 ## Launch Flow {#launch-flow}
 

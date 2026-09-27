@@ -1,108 +1,93 @@
 ##
-## YT Flow — noop pipeline example
+## YT Flow — noop pipeline example.
 ##
-## All flow containers use a single image (flow-noop-pipeline). Each container overrides
-## the entrypoint / environment to fulfil its specific role.
+## The Flow services run the released image ghcr.io/ytsaurus/flow (entrypoint flow_server,
+## working directory /app/pipeline) with this directory mounted at /app/pipeline, so every
+## config is passed by a path relative to it. The role of each flow_server process is set by
+## YT_FLOW_MODE; without it, flow_server is the runner.
 ##
 ## Services:
+##   yt-sync    — one-shot: creates the pipeline node in Cypress (yt_sync.py)
 ##   controller — flow_server in Controller mode
 ##   worker,
 ##   worker2    — flow_server in Worker mode
+##   runner     — one-shot: submits pipeline.yson to the controller, then exits
+##   prometheus — scrapes controller/worker /solomon_proxy/sensors
 ##   aggr-rules — generates prometheus recording rules (host="Aggr" aggregates)
-##   yt-sync    — one-shot: creates all required Cypress objects via yt_sync
-##   runner     — one-shot: submits noop pipeline spec, then exits
-##   prometheus — scrapes controller/worker /solomon/all metrics
-##   grafana    — pre-provisioned dashboard over Prometheus
+##   grafana    — pre-provisioned dashboards over Prometheus
 ##
-## YT cluster is provided externally. Pass the URL via the `YT_CLUSTER` env var:
+## The YT cluster is external: set cluster_url in the YSON configs (see README.md), then pass
+## the same HTTP proxy as YT_PROXY for yt-sync:
 ##
-##   YT_CLUSTER=... docker compose up
+##   YT_PROXY=<http-proxy> YT_TOKEN=<token> docker compose up
 ##
 
-x-noop-pipeline-image: &noop-pipeline-image flow-noop-pipeline:local
+x-flow-image: &flow-image ghcr.io/ytsaurus/flow:0.3.0
 
-x-flow-build: &flow-build
-  context: ${flow:-.}
-
-x-flow-common: &flow-common
-  image: *noop-pipeline-image
-  build: *flow-build
+x-flow-node: &flow-node
+  image: *flow-image
   restart: on-failure
   network_mode: host
   depends_on:
     yt-sync:
       condition: service_completed_successfully
-  entrypoint: ["/usr/bin/tini", "--", "/usr/bin/flow-start.sh"]
+  volumes:
+    - .:/app/pipeline
 
 services:
 
   # -------------------------------------------------------------------------
-  # yt-sync: creates all required Cypress objects (pipeline node, tables,
-  # queues) before controller and worker start.
+  # yt-sync: creates the pipeline node and its system tables before the
+  # controller and the workers start.
   # -------------------------------------------------------------------------
   yt-sync:
-    image: *noop-pipeline-image
-    build: *flow-build
-    restart: on-failure
+    image: docker.io/library/python:3.12-slim
     network_mode: host
+    working_dir: /app/pipeline
     environment:
-      YT_TOKEN: ${YT_TOKEN:-}
-      TEST_CLUSTER: ${YT_CLUSTER:-}
-      TEST_YT_PATH: ${YT_FLOW_PATH:-}
-      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
-    entrypoint: ["/usr/bin/tini", "--", "/usr/bin/yt-sync-start.sh"]
+      - YT_TOKEN
+      - YT_PROXY
+      - YT_FLOW_FOLDER
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - pip install --quiet --disable-pip-version-check --root-user-action=ignore ytsaurus-flow-yt-sync-mini==0.3.0 && python3 yt_sync.py
+    volumes:
+      - .:/app/pipeline:ro
 
   # -------------------------------------------------------------------------
-  # Flow Controller
+  # Flow Controller. It publishes the host's address; the cluster's RPC proxy
+  # connects to it there to deliver the runner's and `yt flow` commands.
   # -------------------------------------------------------------------------
   controller:
-    <<: *flow-common
+    <<: *flow-node
     environment:
-      YT_TOKEN: ${YT_TOKEN:-}
-      YT_FLOW_MODE: Controller
-      YT_CLUSTER: ${YT_CLUSTER:-}
-      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
-      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
-      YT_FLOW_PUBLIC_ADDRESS: ${YT_FLOW_PUBLIC_ADDRESS:-}
-      CONFIG_SRC: /app/ytflow/controller.yson
-    volumes:
-      - flow-logs:/var/log/flow
-      - ./controller.yson:/app/ytflow/controller.yson:ro
+      - YT_TOKEN
+      - YT_FLOW_MODE=Controller
+    command: ["--config", "controller.yson"]
 
   # -------------------------------------------------------------------------
   # Flow Workers. Host networking rules out compose replicas, so each worker is
-  # its own service with its own port pair.
+  # its own service with its own config and port pair.
   # -------------------------------------------------------------------------
   worker:
-    <<: *flow-common
-    environment: &worker-environment
-      YT_TOKEN: ${YT_TOKEN:-}
-      YT_FLOW_MODE: Worker
-      YT_CLUSTER: ${YT_CLUSTER:-}
-      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
-      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
-      YT_FLOW_PUBLIC_ADDRESS: ${YT_FLOW_PUBLIC_ADDRESS:-}
-      CONFIG_SRC: /app/ytflow/worker.yson
-    volumes: &worker-volumes
-      - flow-logs:/var/log/flow
-      - ./worker.yson:/app/ytflow/worker.yson:ro
+    <<: *flow-node
+    environment:
+      - YT_TOKEN
+      - YT_FLOW_MODE=Worker
+    command: ["--config", "worker.yson"]
 
   worker2:
-    <<: *flow-common
+    <<: *flow-node
     environment:
-      <<: *worker-environment
-      YT_FLOW_RPC_PORT: 9003
-      YT_FLOW_MONITORING_PORT: 10003
-    volumes: *worker-volumes
+      - YT_TOKEN
+      - YT_FLOW_MODE=Worker
+    command: ["--config", "worker2.yson"]
 
   # -------------------------------------------------------------------------
-  # Runner (one-shot): submits the noop pipeline spec, then exits.
+  # Runner (one-shot): submits the spec and starts the pipeline, then exits.
   # -------------------------------------------------------------------------
   runner:
-    image: *noop-pipeline-image
-    build: *flow-build
-    restart: on-failure
-    network_mode: host
+    <<: *flow-node
     depends_on:
       yt-sync:
         condition: service_completed_successfully
@@ -111,21 +96,15 @@ services:
       worker:
         condition: service_started
     environment:
-      YT_TOKEN: ${YT_TOKEN:-}
-      YT_FLOW_WAIT: "0"
-      YT_CLUSTER: ${YT_CLUSTER:-}
-      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
-      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
-      CONFIG_SRC: /app/ytflow/pipeline.yson
-    entrypoint: ["/usr/bin/tini", "--", "/usr/bin/flow-start.sh"]
-    volumes:
-      - ./pipeline.yson:/app/ytflow/pipeline.yson:ro
+      - YT_TOKEN
+      - YT_FLOW_WAIT=0
+    command: ["--config", "pipeline.yson"]
 
   # -------------------------------------------------------------------------
   # Prometheus: scrapes controller (:10001) and workers (:10002, :10003).
   # -------------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:latest
+    image: docker.io/prom/prometheus:latest
     restart: unless-stopped
     network_mode: host
     command:
@@ -143,7 +122,7 @@ services:
   # raw series into host="Aggr" series (see ../../docker/monitoring/aggr_rules.py).
   # -------------------------------------------------------------------------
   aggr-rules:
-    image: python:3-alpine
+    image: docker.io/library/python:3-alpine
     restart: unless-stopped
     network_mode: host
     depends_on:
@@ -162,7 +141,7 @@ services:
   # ../../docker/monitoring/grafana/dashboards/generate.sh.
   # -------------------------------------------------------------------------
   grafana:
-    image: grafana/grafana:latest
+    image: docker.io/grafana/grafana:latest
     restart: unless-stopped
     network_mode: host
     depends_on:
@@ -179,7 +158,6 @@ services:
       - grafana-data:/var/lib/grafana
 
 volumes:
-  flow-logs:
   prometheus-data:
   prometheus-rules:
   grafana-data:

@@ -1,8 +1,6 @@
 items:
   - name: Initial deployment
     href: initial-deploy.md
-  - name: Running in Docker
-    href: docker-environment.md
   - name: Pipeline operations
     href: pipeline-operations.md
   - name: Diagnostics

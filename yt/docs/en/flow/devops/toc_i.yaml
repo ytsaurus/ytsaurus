@@ -1,6 +1,8 @@
 items:
   - name: Operations overview
     href: index.md
+  - name: Running in Docker
+    href: docker-environment.md
   - name: State table choice
     href: state-tables-choice.md
   - name: Diagnostics

@@ -1,16 +1,14 @@
 UNION()
 
 FILES(
-    Dockerfile
     README.md
     controller.yson
     docker-compose.yml
-    flow-start.sh
-    package-noop.json
     pipeline.yson
     targets/flow_server.json
     worker.yson
-    yt-sync-start.sh
+    worker2.yson
+    yt_sync.py
 )
 
 END()
