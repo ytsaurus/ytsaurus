@@ -1,184 +1,220 @@
 # YT Flow Docker Example — Noop Pipeline
 
-A minimal end-to-end YT Flow pipeline runnable via `docker compose`. The
-pipeline reads messages from a random in-memory source and discards them —
-the simplest possible computation to verify the infrastructure wiring.
+A minimal end-to-end YT Flow pipeline run with `docker compose` from the released Flow image.
+The pipeline reads messages from a random in-memory source into a stream nothing reads — the
+simplest possible computation to verify the wiring. Nothing is built from source.
 
-The `ya` commands below use the `ya` tool shipped at the repository root
-(see [BUILD.md](../../../../../BUILD.md)); add it to `PATH` first:
+The controller, two workers and the runner run on your host, each in a container of
+`ghcr.io/ytsaurus/flow`; a Prometheus + Grafana stack scrapes their metrics. The YT
+cluster is not included: the stack works against any cluster the host reaches.
 
-```bash
-export PATH="$(pwd):$PATH"   # from the repository root
-```
+## Released artifacts
 
-## Build Image
+| Artifact | Used by |
+|---|---|
+| `ghcr.io/ytsaurus/flow` — `flow_server`, entrypoint `/usr/bin/flow_server`, working directory `/app/pipeline` | `controller`, `worker`, `worker2`, `runner` |
+| `ytsaurus-flow-yt-sync-mini` from PyPI, installed into `python:3.12-slim` | `yt-sync` |
 
-A single image `flow-noop-pipeline:local` is built from
-the `flow-pipeline` Dockerfile target:
+To move to another release, change the image tag and the `yt-sync` package version in
+`docker-compose.yml`; the versions are listed in the [Flow releases](../../../../docs/en/admin-guide/releases.md#flow).
 
-```bash
-ya package yt/yt/flow/examples/docker/package-noop.json --custom-version local --docker-registry ""
-```
+Every Flow service mounts this directory at `/app/pipeline` and gets its config by a path
+relative to it (`--config controller.yson`); the only variable passed from your environment is
+`YT_TOKEN`.
 
-It contains two binaries:
+## Walkthrough
 
-| Binary | Path | Purpose |
-|---|---|---|
-| `flow_server` | `/usr/bin/flow_server` | Serves all flow roles: Controller, Worker, and spec submitter |
-| `yt_sync` | `/usr/bin/yt_sync` | Creates required Cypress objects in YT (one-shot) |
+1. Install Docker with the Compose plugin (or Podman with `podman compose`) and get a YT token
+   for the cluster.
+2. Put the cluster into the configs — see [Configure](#configure).
+3. Check that the cluster reaches your host — see [How the components connect](#how-the-components-connect);
+   otherwise apply one of [Other networks](#other-networks).
+4. Optionally, generate the Grafana dashboards — see [Metrics](#metrics-prometheus--grafana).
+5. Start the stack — see [Run](#run).
+6. Check the pipeline — see [Check](#check).
+7. Stop the stack and remove the pipeline — see [Stop](#stop).
 
-## YT Cluster
+## How the components connect
 
-The compose stack runs only the Flow components. The YT cluster is **not**
-included; point the example at any YT via the `YT_CLUSTER` env var.
+All services use host networking. The controller and the workers publish the host's address in
+Cypress, and addresses resolve over IPv6 only, the default of `address_resolver`. The workers
+find the controller at that address, and the runner sends its commands through the cluster's RPC
+proxy, which connects to the controller's RPC port on your host. The `yt flow` commands and the UI
+work the same way.
 
-`YT_CLUSTER` is the address of the cluster's HTTP proxy — the same value the
-`yt` CLI accepts as `--proxy`: a `<host>`, `<host>:<port>`, or full
-`http://<host>:<port>` URL. It is substituted as `cluster_url` into the Flow
-configs, so the proxy must be reachable from the host network namespace.
+So by default the host must be reachable over IPv6 from the cluster's RPC proxies on the
+controller port `9001`. If it is not, or your network is IPv4 only, patch the configs as described
+in [Other networks](#other-networks).
 
-For a real YT cluster, pass a real YT token when starting the stack:
+With host networking, the controller and worker RPC ports are open on every host interface, and
+the controller accepts commands without a proxy signature. Make ports `9001`-`9003` reachable only
+from the cluster and from hosts you trust.
 
-```bash
-YT_CLUSTER=<cluster> \
-YT_TOKEN=<your-token> \
-...
-```
+## Configure
 
-## Runtime Config
+| File | Content |
+|---|---|
+| `pipeline.yson` | Runner config: cluster, pipeline path, and the pipeline spec |
+| `controller.yson`, `worker.yson`, `worker2.yson` | Node configs: cluster, pipeline path, and the ports of each process |
+| `yt_sync.py` | Creates the pipeline node with `ytsaurus-flow-yt-sync-mini`; takes the cluster from `YT_PROXY` and the folder from `YT_FLOW_FOLDER` |
 
-`controller.yson`, `worker.yson`, and `pipeline.yson` carry literal
-placeholders for `cluster_url` and the pipeline path. Each flow container
-performs the substitution at startup into a writable copy before launching the
-flow binary. The yt-sync container reads `TEST_CLUSTER=$YT_CLUSTER` directly.
-
-For real YT clusters, the Controller and Worker publish a host IPv6 address so
-YT proxies can call back into them.
-
-Some Flow requests executed through a real YT cluster call back into the
-Controller. A Docker-private address is not routable from YT infrastructure, 
-so the compose stack uses host networking and advertises a host address that YT can reach.
-
-Controller listens on `9001`, the two workers on `9002` and `9003`; monitoring
-is available on `10001`-`10003`. The Controller RPC port must be reachable from
-the YT cluster for callback RPCs to work.
-
-The containers auto-detect `YT_FLOW_PUBLIC_ADDRESS` from the host route used to
-reach `YT_CLUSTER`. Set `YT_FLOW_PUBLIC_ADDRESS` explicitly to override detection.
-
-By default, the example uses `//tmp/$USER/flow/noop` as its YT path. Override
-it with `YT_FLOW_PATH` if needed:
+All four YSON files carry the placeholder `<cluster>` in `cluster_url`. Replace it with the
+full host name of the cluster's HTTP proxy, e.g. `my-cluster.example.com`, and pass the same
+value as `YT_PROXY`. A short cluster name that only your `yt` CLI configuration expands is not
+resolved here:
 
 ```bash
-YT_FLOW_PATH=//tmp/$(whoami)/flow/noop \
-YT_CLUSTER=<cluster> \
-YT_TOKEN=<your-token> \
-docker compose up
+sed -i 's|<cluster>|<your-http-proxy>|' *.yson
 ```
 
-The image has no default entrypoint. Each `docker-compose.yml` service sets
-its own entrypoint and environment:
+The pipeline lives at `//tmp/flow/noop/pipeline`. To use another path, change `path` in all four
+files and pass its parent folder to `yt_sync.py` as `YT_FLOW_FOLDER`.
 
-| Service | Entrypoint | Key env |
-|---|---|---|
-| `yt-sync` | `yt_sync --scenario ensure --stage test --commit` | `TEST_CLUSTER` |
-| `controller` | `flow_server --config /tmp/config.yson` | `YT_FLOW_MODE=Controller`, `CONFIG_SRC=/app/ytflow/controller.yson` |
-| `worker` | `flow_server --config /tmp/config.yson` | `YT_FLOW_MODE=Worker`, `CONFIG_SRC=/app/ytflow/worker.yson` |
-| `runner` | `flow_server --config /tmp/config.yson` | `YT_FLOW_WAIT=0`, `CONFIG_SRC=/app/ytflow/pipeline.yson` |
+If your cluster runs in Kubernetes, RPC proxy discovery returns in-cluster addresses that the
+host cannot reach. Add the `clients_cache` block from
+[Reaching the cluster from outside](../../../../docs/en/_includes/flow/devops/docker-environment.md#external-access)
+to all four files.
 
-## Services
+## Other networks
+
+### IPv4
+
+Add an `address_resolver` block that switches to IPv4 to all four YSON files:
+
+```yson
+"address_resolver" = {
+    "enable_ipv4" = %true;
+    "enable_ipv6" = %false;
+};
+```
+
+The runner may enable both; a node config must enable exactly one of them.
+
+### The cluster cannot reach the controller
+
+If the cluster's RPC proxies cannot connect to your host — a NAT, a firewall, a cluster in
+Kubernetes — the runner's release fails with `Cannot connect to pipeline controller leader`.
+Switch to the direct mode (see [Direct runner commands](../../../../docs/en/flow/tools/cli.md#direct-controller-commands)),
+where the runner sends its commands straight to the controller:
+
+1. In `pipeline.yson`, enable it:
+
+   ```yson
+   "direct_controller_commands" = {
+       "enabled" = %true;
+   };
+   ```
+
+2. In `docker-compose.yml`, add `YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION=1` to the environment of
+   the `controller` service. Without it, the controller keeps trying to confirm its leadership
+   through the RPC proxy, which cannot succeed.
+3. In `controller.yson`, `worker.yson` and `worker2.yson`, publish the loopback address, since the
+   workers and the runner run on the same host. It must match the one enabled address family:
+   `"localhost_name_override" = "::1"` with IPv6, `"localhost_name_override" = "127.0.0.1"` with
+   IPv4 (next to the `enable_ipv4` and `enable_ipv6` flags from [IPv4](#ipv4)):
+
+   ```yson
+   "address_resolver" = {
+       "localhost_name_override" = "::1";
+   };
+   ```
+
+Only the runner has the direct mode: `yt flow` commands and the UI go through the RPC proxy and
+cannot reach such a controller.
+
+## Run
+
+```bash
+cd yt/yt/flow/examples/docker
+export YT_PROXY=<your-http-proxy> YT_TOKEN=<your-token>
+docker compose up -d
+```
+
+`YT_PROXY` is the same host name you put into `cluster_url`; `yt-sync` creates the pipeline there.
+Set `YT_FLOW_FOLDER` as well if you changed the pipeline path. Without `-d`, the command stays
+attached and streams the logs of all services; `docker compose logs -f runner` shows one of them.
+
+The services start in this order:
 
 | Service | Role |
 |---|---|
-| `yt-sync` | One-shot: creates pipeline node, queues, and tables in Cypress |
-| `controller` | Flow Controller — schedules jobs, tracks partition state |
-| `worker`, `worker2` | Flow Workers — execute `TNoopComputation` jobs |
-| `runner` | One-shot: submits the pipeline spec to the controller, then exits |
+| `yt-sync` | One-shot: creates the pipeline node and its system tables in Cypress |
+| `controller` | Flow controller: schedules jobs, tracks partition state |
+| `worker`, `worker2` | Flow workers: execute the `reader` computation |
+| `runner` | One-shot: submits the spec and starts the pipeline, then exits |
 | `prometheus` | Scrapes controller/worker `/solomon_proxy/sensors`, stores time series |
 | `aggr-rules` | Generates recording rules that emulate the monitoring aggregation layer |
-| `grafana` | Pre-provisioned dashboard over Prometheus |
+| `grafana` | Pre-provisioned dashboards over Prometheus |
+
+## Check
+
+When the `runner` container exits with code 0 (`docker compose ps -a runner`), the pipeline is
+running. Check it through the monitoring ports of the nodes:
+
+```bash
+# The controller and the workers are alive.
+curl http://localhost:10001/orchid/build_info
+curl http://localhost:10002/orchid/build_info
+
+# The worker is connected to the controller (look for "connected": true).
+curl http://localhost:10002/orchid/worker/service
+
+# The worker runs jobs (non-empty once the pipeline is scheduled; committed_epoch_count grows).
+curl http://localhost:10002/orchid/job_tracker/jobs
+
+# The pipeline state through the RPC proxy (prints "working"; not available in the direct mode).
+yt --proxy <your-http-proxy> flow get-pipeline-state //tmp/flow/noop/pipeline
+```
 
 ## Ports
 
 | Port | Service | Purpose |
 |---|---|---|
-| `10001` | `controller` | HTTP monitoring / Solomon metrics |
 | `9001` | `controller` | RPC server |
-| `10002` | `worker` | HTTP monitoring / Solomon metrics |
+| `10001` | `controller` | HTTP monitoring and metrics |
 | `9002` | `worker` | RPC server |
-| `10003` | `worker2` | HTTP monitoring / Solomon metrics |
+| `10002` | `worker` | HTTP monitoring and metrics |
 | `9003` | `worker2` | RPC server |
-| `9090` | `prometheus` | Prometheus UI / API |
+| `10003` | `worker2` | HTTP monitoring and metrics |
+| `9090` | `prometheus` | Prometheus UI and API |
 | `3000` | `grafana` | Grafana UI (anonymous admin, no login) |
 
 ## Metrics (Prometheus + Grafana)
 
-The stack ships built-in Prometheus + Grafana. Each flow node already runs an HTTP 
-monitoring server (the `monitoring_port` in `controller.yson` / `worker.yson`) 
-serving the combined YT Solomon exporter (node + companion) at `/solomon_proxy/sensors`.
+Each Flow node serves the combined metrics of the node and its companion at
+`/solomon_proxy/sensors` on its `monitoring_port`. The node configs set
+`resource_tracker.cpu_to_vcpu_factor = 1.0`: outside vanilla jobs nothing supplies this factor, and
+without it the vCPU sensors the dashboards' CPU panels read stay at zero.
 
-The monitoring config lives in
-`yt/yt/flow/docker/monitoring/` (`prometheus.yml` scrape config,
-`aggr_rules.py` — a local stand-in for the production aggregation layer that
-sums per-worker series into the `host="Aggr"` series the dashboards select,
-`grafana/provisioning/` datasource + dashboard provider). This example mounts
-those files and adds only its static scrape `targets/` (fixed controller/worker
-ports), since the `prometheus.yml` uses file-based service discovery.
+The monitoring config lives in `yt/yt/flow/docker/monitoring/`: `prometheus.yml` (scrape config),
+`aggr_rules.py` (a local stand-in for the monitoring aggregation layer that sums per-worker series
+into the `host="Aggr"` series the dashboards select) and `grafana/provisioning/` (datasource and
+dashboard provider). This example mounts those files and adds only its static scrape targets in
+`targets/`, since `prometheus.yml` uses file-based service discovery.
 
-The dashboards themselves, `grafana/dashboards/ytflow-*.json`, are **generated**
-from the definitions in `yt/admin/dashboards/yt_dashboards/flow`.
-Generate them once before starting Grafana:
+The dashboards, `grafana/dashboards/ytflow-*.json`, are generated from the definitions in
+`yt/admin/dashboards/yt_dashboards/flow`. Generate them once before starting Grafana:
 
 ```bash
 ../../docker/monitoring/grafana/dashboards/generate.sh
 ```
 
-This renders every flow dashboard registered with a Grafana backend, points them
-at the provisioned Prometheus datasource, and writes `ytflow-<name>.json` into
-`yt/yt/flow/docker/monitoring/grafana/dashboards/`.
+Then:
 
-## Running
+- Prometheus: <http://localhost:9090> — in **Status → Targets**, the `flow_server` targets should
+  be `up`.
+- Grafana: <http://localhost:3000> — open **Dashboards → YT Flow**. If you generated the
+  dashboards after Grafana started, restart the `grafana` service.
 
-### Prerequisites
-
-A reachable YT cluster (see "YT cluster" section above).
-
-### Start
-
-```bash
-cd yt/yt/flow/examples/docker
-YT_CLUSTER=<cluster> docker compose up
-```
-
-Wait for the `runner` container to log `Pipeline is running`, then verify:
-
-```bash
-# Controller and Worker are alive
-curl http://localhost:10001/orchid/build_info
-curl http://localhost:10002/orchid/build_info
-
-# Worker → Controller connection (look for "connected": true)
-curl http://localhost:10002/orchid/worker/service
-
-# Running jobs (non-empty once the pipeline has been scheduled)
-curl http://localhost:10002/orchid/job_tracker/jobs
-
-# Pipeline state and stats via yt CLI
-yt --proxy <cluster> flow get-pipeline-state --pipeline-path //tmp/$(whoami)/flow/noop/pipeline
-yt --proxy <cluster> flow describe-pipeline  --pipeline-path //tmp/$(whoami)/flow/noop/pipeline
-```
-
-### View metrics
-
-- Prometheus: <http://localhost:9090> — check **Status → Targets**; both
-  `ytflow-controller` and `ytflow-worker` should be `up`.
-- Grafana: <http://localhost:3000> — open **Dashboards → YT Flow**. Anonymous
-  admin is enabled, so no login is required. The dashboards appear only after
-  running `grafana/dashboards/generate.sh` (see above); if you generated them
-  after Grafana started, restart the `grafana` service.
-
-### Stop
+## Stop
 
 ```bash
 docker compose down -v
+```
+
+This stops the controller and the workers; the pipeline node stays in Cypress, and the next
+`docker compose up` resubmits the spec to it. To remove it:
+
+```bash
+yt --proxy <your-http-proxy> remove -r //tmp/flow/noop
 ```

@@ -1,8 +1,8 @@
 {
     "cluster_url" = "<cluster>";
     "path" = "//tmp/flow/noop/pipeline";
-    "rpc_port" = 9002;
-    "monitoring_port" = 10002;
+    "rpc_port" = 9003;
+    "monitoring_port" = 10003;
     "resource_tracker" = {
         "cpu_to_vcpu_factor" = 1.0;
     };

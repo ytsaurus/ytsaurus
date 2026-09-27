@@ -51,7 +51,7 @@ Add a `vanilla` block at the top level of the config with `enable = %true`, your
 
 Put these fields inside the existing outer braces of `pipeline.yson` and replace the placeholders with your cluster and pool. Replace the sample pipeline path if you chose another base directory.
 
-If your cluster runs jobs in Docker/CRI on Kubernetes, check [cluster-name resolution](devops/vanilla/docker-environment.md#cluster-name) from inside the jobs and [external proxy access](devops/vanilla/docker-environment.md#external-access) from the runner before launching. The C++ binary needs no custom Docker image; add the documented network settings only when your installation requires them.
+If your cluster runs jobs in Docker/CRI on Kubernetes, check [cluster-name resolution](devops/docker-environment.md#cluster-name) from inside the jobs and [external proxy access](devops/docker-environment.md#external-access) from the runner before launching. Add these network settings only when your installation requires them.
 
 ## Validate and launch {#launch}
 

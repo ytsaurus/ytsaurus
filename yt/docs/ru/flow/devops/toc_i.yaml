@@ -1,6 +1,8 @@
 items:
   - name: Обзор эксплуатации
     href: index.md
+  - name: Запуск в docker-окружении
+    href: docker-environment.md
   - name: Выбор таблиц стейта
     href: state-tables-choice.md
   - name: Диагностика
