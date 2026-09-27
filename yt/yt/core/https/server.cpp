@@ -180,7 +180,7 @@ IServerPtr CreateServer(
                     YT_LOG_WARNING(ex, "Failed to update HTTPS server certificate sensors");
                 }
             }),
-            sslConfig->UpdatePeriod);
+            sslConfig->CertSensorsUpdatePeriod);
     }
 
     return New<TServer>(
