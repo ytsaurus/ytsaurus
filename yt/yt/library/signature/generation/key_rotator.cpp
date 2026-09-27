@@ -42,18 +42,33 @@ TKeyRotator::TKeyRotator(
 TFuture<void> TKeyRotator::Start()
 {
     YT_TLOG_DEBUG("Starting key rotation");
+
+    auto guard = Guard(ReconfigureSpinLock_);
+    if (!Config_.Acquire()->KeyRotationOptions.Period) {
+        Executor_->Start();
+        return OKFuture;
+    }
+
     return Executor_->StartAndGetFirstExecutedEvent();
 }
 
 TFuture<void> TKeyRotator::Stop()
 {
     YT_TLOG_DEBUG("Stopping key rotation");
+
+    auto guard = Guard(ReconfigureSpinLock_);
     return Executor_->Stop();
 }
 
 TFuture<void> TKeyRotator::Rotate()
 {
+    auto guard = Guard(ReconfigureSpinLock_);
+    if (Executor_->IsStarted() && !Config_.Acquire()->KeyRotationOptions.Period) {
+        return OKFuture;
+    }
+
     auto event = Executor_->GetExecutedEvent();
+    guard.Release();
     Executor_->ScheduleOutOfBand();
     return event;
 }
@@ -62,6 +77,7 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
 {
     YT_VERIFY(config);
     auto keyRotationOptions = config->KeyRotationOptions;
+
     {
         auto guard = Guard(ReconfigureSpinLock_);
         Config_.Store(std::move(config));
@@ -77,13 +93,17 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
 
 TError TKeyRotator::DoRotate()
 {
+    auto config = Config_.Acquire();
+    if (!config->KeyRotationOptions.Period) {
+        return {};
+    }
+
     auto currentKeyInfo = Generator_->KeyInfo();
     YT_TLOG_INFO("Rotating keypair")
         .With("CurrentKeyPair", (currentKeyInfo ? std::optional(GetKeyId(currentKeyInfo->Meta())) : std::nullopt));
 
     auto now = Now();
     auto newKeyId = TGuid::Create();
-    auto config = Config_.Acquire();
     auto newKeyPair = New<TKeyPair>(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
         .OwnerId = KeyWriter_->GetOwner(),
         .KeyId = TKeyId(newKeyId),
@@ -109,13 +129,6 @@ TError TKeyRotator::DoRotate()
     YT_TLOG_INFO("Rotated keypair")
         .With("NewKeyPair", GetKeyId(keyInfo->Meta()));
     return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<void> TKeyRotator::GetNextRotationFuture()
-{
-    return Executor_->GetExecutedEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

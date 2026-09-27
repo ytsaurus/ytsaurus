@@ -190,7 +190,12 @@ def _enable_proxy_signatures_for_cluster(client, cluster_name: str) -> None:
 
     # Wait for proxies to apply the new dynamic config and publish a key.
     wait(
-        lambda: client.exists("//sys/public_keys/by_owner") and len(client.list("//sys/public_keys/by_owner")) > 0,
+        lambda: all(
+            client.exists(f"//sys/public_keys/by_owner/{proxy}")
+            for kind, _ in _PROXY_KINDS
+            if client.exists(f"//sys/{kind}")
+            for proxy in client.list(f"//sys/{kind}")
+        ),
         timeout=60,
     )
 

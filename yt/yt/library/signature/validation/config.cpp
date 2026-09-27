@@ -39,7 +39,11 @@ void TCypressKeyReaderConfig::Register(TRegistrar registrar)
 
 void TSignatureValidationConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader);
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+
+    registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
