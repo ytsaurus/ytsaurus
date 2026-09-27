@@ -66,8 +66,8 @@ target_proto_messages(cpp-companion-proto PRIVATE
 )
 
 target_sources(cpp-companion-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/flow/library/cpp/companion/proto/companion_service.grpc.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h
 )
 
 
