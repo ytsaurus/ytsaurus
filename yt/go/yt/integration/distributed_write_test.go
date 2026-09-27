@@ -16,14 +16,26 @@ type distributedWriteRow struct {
 	V int `yson:"v"`
 }
 
-// waitSignatureKeyPublished waits for the proxy to publish a signature key (done
+// waitSignatureKeyPublished waits for all HTTP proxies to publish signature keys (done
 // asynchronously after startup), without which distributed write sessions can't be signed.
 func waitSignatureKeyPublished(t *testing.T, env *yttest.Env) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		var owners []string
-		err := env.YT.ListNode(env.Ctx, ypath.Path("//sys/public_keys/by_owner"), &owners, nil)
-		return err == nil && len(owners) > 0
+		var proxies []string
+		if err := env.YT.ListNode(env.Ctx, ypath.Path("//sys/http_proxies"), &proxies, nil); err != nil || len(proxies) == 0 {
+			return false
+		}
+
+		for _, proxy := range proxies {
+			exists, err := env.YT.NodeExists(
+				env.Ctx,
+				ypath.Path("//sys/public_keys/by_owner").Child(proxy),
+				nil)
+			if err != nil || !exists {
+				return false
+			}
+		}
+		return true
 	}, time.Minute, time.Second)
 }
 

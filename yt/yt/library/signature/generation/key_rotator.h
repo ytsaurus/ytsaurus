@@ -28,7 +28,7 @@ public:
         IKeyStoreWriterPtr keyWriter,
         TSignatureGeneratorPtr generator);
 
-    //! Starts periodic key rotation, waiting for the completion of the first rotation.
+    //! Starts periodic key rotation. If rotation is enabled, waits for the first rotation.
     TFuture<void> Start();
 
     //! Stops periodic key rotation, waiting for the completion of the current rotation.
@@ -37,10 +37,7 @@ public:
     //! Schedules an out-of-order key rotation.
     TFuture<void> Rotate();
 
-    //! Returns the future that is set when the next started rotation completes, with "next"
-    //! starting from some point inside of this call.
-    TFuture<void> GetNextRotationFuture();
-
+    //! Applies a new configuration.
     void Reconfigure(TKeyRotatorConfigPtr config);
 
 private:

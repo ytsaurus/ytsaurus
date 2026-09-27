@@ -36,6 +36,8 @@ DEFINE_REFCOUNTED_TYPE(TCypressKeyReaderConfig)
 struct TSignatureValidationConfig
     : public NYTree::TYsonStruct
 {
+    bool Enabled;
+
     TCypressKeyReaderConfigPtr CypressKeyReader;
 
     REGISTER_YSON_STRUCT(TSignatureValidationConfig);

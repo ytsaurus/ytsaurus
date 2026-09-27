@@ -49,24 +49,24 @@ TSignatureComponents::TSignatureComponents(
             ? TClientOptions::Root()
             : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
-    , AppliedKeyReaderConfigNode_(config->Validation
+    , AppliedKeyReaderConfigNode_(config->Validation && config->Validation->Enabled
         ? ConvertToNode(config->Validation->CypressKeyReader)
         : nullptr)
-    , CypressKeyReader_(config->Validation
+    , CypressKeyReader_(config->Validation && config->Validation->Enabled
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
         : nullptr)
-    , UnderlyingValidator_(config->Validation
+    , UnderlyingValidator_(config->Validation && config->Validation->Enabled
         ? New<TSignatureValidator>(CypressKeyReader_)
         : nullptr)
     , DynamicSignatureValidator_(New<TDynamicSignatureValidator>(
         UnderlyingValidator_ ? UnderlyingValidator_ : CreateAlwaysThrowingSignatureValidator()))
-    , CypressKeyWriter_(config->Generation
+    , CypressKeyWriter_(config->Generation && config->Generation->Enabled
         ? New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_)
         : nullptr)
-    , UnderlyingGenerator_(config->Generation
+    , UnderlyingGenerator_(config->Generation && config->Generation->Enabled
         ? New<TSignatureGenerator>(config->Generation->Generator)
         : nullptr)
-    , KeyRotator_(config->Generation
+    , KeyRotator_(config->Generation && config->Generation->Enabled
         ? New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_)
         : nullptr)
     , DynamicSignatureGenerator_(New<TDynamicSignatureGenerator>(
@@ -77,7 +77,9 @@ TSignatureComponents::TSignatureComponents(
 
 void TSignatureComponents::InitializeCryptographyIfRequired(const TSignatureComponentsConfigPtr& config)
 {
-    bool isInitializationRequired = (config->Validation || config->Generation) && !(InitializeCryptographyFuture_);
+    bool validationEnabled = config->Validation && config->Validation->Enabled;
+    bool generationEnabled = config->Generation && config->Generation->Enabled;
+    bool isInitializationRequired = (validationEnabled || generationEnabled) && !InitializeCryptographyFuture_;
     if (!isInitializationRequired) {
         return;
     }
@@ -100,7 +102,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
     auto returnFuture = OKFuture;
 
     InitializeCryptographyIfRequired(config);
-    if (config->Generation) {
+    if (config->Generation && config->Generation->Enabled) {
         if (CypressKeyWriter_) {
             CypressKeyWriter_->Reconfigure(config->Generation->CypressKeyWriter);
         } else {
@@ -114,9 +116,6 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
         }
 
         if (KeyRotator_) {
-            // NB: Best effort attempt to get the first rotation *after* Reconfigure.
-            // Can't be put later, because Reconfigure might trigger an immediate rotation.
-            returnFuture = KeyRotator_->GetNextRotationFuture();
             KeyRotator_->Reconfigure(config->Generation->KeyRotator);
         } else {
             KeyRotator_ = New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_);
@@ -138,7 +137,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
         CypressKeyWriter_.Reset();
     }
 
-    if (config->Validation) {
+    if (config->Validation && config->Validation->Enabled) {
         auto newKeyReaderConfigNode = ConvertToNode(config->Validation->CypressKeyReader);
         if (CypressKeyReader_) {
             // NB: Reconfiguring the reader drops its key cache, so it is only done

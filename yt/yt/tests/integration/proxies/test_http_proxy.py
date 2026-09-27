@@ -11,7 +11,7 @@ from yt.environment.tls_helpers import (
 )
 
 from yt_commands import (
-    authors, wait, wait_no_assert, create, ls, get, set, remove, map,
+    authors, wait, wait_no_assert, create, ls, get, set, remove, exists, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
@@ -2235,20 +2235,8 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 
 
 class TestHttpProxySignaturesBase(HttpProxyTestBase):
-    DELTA_HTTP_PROXY_CONFIG = {
-        "signature_components": {
-            "validation": {
-                "cypress_key_reader": dict(),
-            },
-            "generation": {
-                "cypress_key_writer": dict(),
-                "key_rotator": dict(),
-                "generator": dict(),
-            },
-        },
-    }
+    DELTA_HTTP_PROXY_CONFIG = {}
 
-    # NB(pavook): to avoid owner collision.
     NUM_HTTP_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
@@ -2277,7 +2265,8 @@ class TestHttpProxySignatures(TestHttpProxySignaturesBase):
         # commit and actual key emplace, this won't be enough: the key still won't be available.
         # But this probability should be neglectable, as some network packeting should happen before the signatures
         # even start generating.
-        wait(lambda: len(ls(cls.OWNERS_PATH)) > 0)
+        owner = ls("//sys/http_proxies")[0]
+        wait(lambda: exists(f"{cls.OWNERS_PATH}/{owner}"))
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
@@ -2366,18 +2355,21 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: ls(self.OWNERS_PATH))
-        owner = ls(self.OWNERS_PATH)[0]
-        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+        owner = ls("//sys/http_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path) and len(ls(owner_path)) > 1)
 
     @authors("pavook")
     def test_dynamic_config(self):
-        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls("//sys/http_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path))
+
         new_path = "//tmp/dynamic_test_public_keys"
         create("map_node", new_path)
         set(
             "//sys/http_proxies/@config",
-            deep_update(self.DELTA_HTTP_PROXY_CONFIG, {
+            {
                 "signature_components": {
                     "generation": {
                         "cypress_key_writer": {
@@ -2390,8 +2382,13 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
                         },
                     },
                 },
-            }))
-        wait(lambda: ls(new_path))
+            })
+
+        wait(lambda: exists(f"{new_path}/{owner}"))
+
+        static_keys = frozenset(ls(owner_path))
+        set("//sys/http_proxies/@config", {})
+        wait(lambda: frozenset(ls(owner_path)) != static_keys)
 
 
 class TestHttpsProxy(HttpProxyTestBase):
