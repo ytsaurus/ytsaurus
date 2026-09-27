@@ -40,6 +40,22 @@ bool IsMessageEqualTo(const TProtoMessage& message, TWireString wireString)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TWireStringTest, MutableWireStringPreservesParts)
+{
+    TMutableWireString value;
+    EXPECT_TRUE(value.AsWireString().empty());
+    value.Data().emplace_back("first\0part", 10);
+    value.Data().emplace_back();
+    value.Data().emplace_back("last");
+
+    auto wire = value.AsWireString();
+    ASSERT_EQ(wire.size(), 3u);
+    for (int index = 0; index < std::ssize(value.Data()); ++index) {
+        EXPECT_EQ(wire[index].AsStringView(), value.Data()[index]);
+        EXPECT_EQ(wire[index].AsStringView().data(), value.Data()[index].data());
+    }
+}
+
 TEST(TWireStringTest, Equality)
 {
     EXPECT_EQ(TWireString::Empty, TWireString::Empty);
@@ -437,6 +453,112 @@ TEST(TWriteWireStringTest, SerializeMap)
                 NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_INT32},
                 TWireString::FromSerialized(car.series_to_engine().at(1998).SerializeAsString()),
                 NYson::TProtobufElementType{WireFormatLite::FieldType::TYPE_MESSAGE})));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TValidateWireFormatTest, WellFormed)
+{
+    NProto::TCar car;
+    car.set_manufacturer("mercedes");
+    car.set_model("W124");
+    car.mutable_engine()->set_name("OM606");
+    car.mutable_engine()->set_horsepower(136);
+    car.add_wheels()->set_radius(15.5);
+    car.add_wheels()->set_radius(16.0);
+    car.add_weights(1490u);
+    car.add_quality_controls(true);
+    car.add_quality_controls(false);
+    (*car.mutable_owner_to_experience())["kmokrov"] = 9u;
+    (*car.mutable_series_to_engine())[1998].set_name("M111");
+
+    auto serialized = car.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized(serialized)));
+
+    // Empty message is trivially well-formed.
+    EXPECT_NO_THROW(ValidateWireFormat(car.descriptor(), TWireString::Empty));
+
+    // Multipart wire string: each part must be well-formed on its own.
+    NProto::TCar patch;
+    patch.set_manufacturer("vw");
+    auto serializedPatch = patch.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized({std::string_view(serialized), std::string_view(serializedPatch)})));
+}
+
+TEST(TValidateWireFormatTest, UnknownFieldsAllowed)
+{
+    NProto::TEngine engine;
+    engine.set_horsepower(136);
+    auto serialized = engine.SerializeAsString();
+
+    NProto::TSheep sheep;
+    sheep.set_name("dolly");
+    // Field 1 is a string in both TSheep and TEngine: structurally fine.
+    EXPECT_NO_THROW(ValidateWireFormat(
+        NProto::TEngine().GetDescriptor(),
+        TWireString::FromSerialized(sheep.SerializeAsString())));
+    // Field 2 of TEngine (int64 varint) is unknown to TWheel: allowed structurally.
+    EXPECT_NO_THROW(ValidateWireFormat(
+        NProto::TWheel().GetDescriptor(),
+        TWireString::FromSerialized(serialized)));
+}
+
+TEST(TValidateWireFormatTest, Malformed)
+{
+    const auto* descriptor = NProto::TCar().GetDescriptor();
+
+    // Truncated length-delimited field: tag of field 1 (string) with length 100, no data.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x0a\x64"sv)),
+        TErrorException);
+
+    // Wire type mismatch: field 1 (string) encoded as varint.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x08\x01"sv)),
+        TErrorException);
+
+    // Deprecated group wire type.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x0b"sv)),
+        TErrorException);
+
+    // Truncated varint.
+    EXPECT_THROW(
+        ValidateWireFormat(
+            NProto::TEngine().GetDescriptor(),
+            TWireString::FromSerialized("\x10\xff"sv)),
+        TErrorException);
+
+    // Malformed nested message: TCar.engine containing garbage.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\x1a\x02\xff\xff"sv)),
+        TErrorException);
+
+    // Random garbage.
+    EXPECT_THROW(
+        ValidateWireFormat(descriptor, TWireString::FromSerialized("\xff\xff\xff\xff"sv)),
+        TErrorException);
+}
+
+TEST(TValidateWireFormatTest, PackedFields)
+{
+    NProto::TCar car;
+    car.add_quality_controls(true);
+    car.add_quality_controls(false);
+    car.add_weights(3u);
+    auto serialized = car.SerializeAsString();
+    EXPECT_NO_THROW(ValidateWireFormat(
+        car.descriptor(),
+        TWireString::FromSerialized(serialized)));
+
+    // Packed varint field (6, quality_controls) with truncated content.
+    EXPECT_THROW(
+        ValidateWireFormat(car.descriptor(), TWireString::FromSerialized("\x32\x01\xff"sv)),
+        TErrorException);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

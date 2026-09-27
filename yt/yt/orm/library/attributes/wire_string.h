@@ -86,6 +86,18 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMutableWireString
+{
+public:
+    using TData = TCompactVector<std::string, 1>;
+
+    DEFINE_BYREF_RW_PROPERTY(TData, Data);
+
+    TWireString AsWireString() const Y_LIFETIME_BOUND;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Returns whether parsing was successful.
 // NB: Caller should guarantee that provided element type refers to appropriate
 // cpp type (e.g. FieldDescriptor::TYPE_UINT32 is valid argument for ParseUint(32|64), but not others).
@@ -145,7 +157,7 @@ std::vector<std::string> ConvertYsonStringToWireString(
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,
     std::string_view fieldName,
-    const TProtoStringType& serializedMessage);
+    std::string_view serializedMessage);
 
 TWireString FlattenCopyWireStringTo(TString* buffer, const TWireString& wireString);
 TWireString FlattenCopyWireStringTo(std::string* buffer, const TWireString& wireString);
@@ -154,6 +166,15 @@ TWireString FlattenCopyWireStringTo(std::string* buffer, const TWireString& wire
 
 void MergeMessageFrom(NProtoBuf::MessageLite* message, TWireStringPart wireStringPart);
 void MergeMessageFrom(NProtoBuf::MessageLite* message, const TWireString& wireString);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Validates that the wire string is a structurally well-formed serialized message
+// conforming to |descriptor|: tags and lengths are parseable, wire types of known
+// fields match their declared types and known message-typed subfields are recursively
+// well-formed. Unknown fields are checked structurally only. Throws on malformed data.
+void ValidateWireFormat(const NProtoBuf::Descriptor* descriptor, TWireStringPart wireStringPart);
+void ValidateWireFormat(const NProtoBuf::Descriptor* descriptor, const TWireString& wireString);
 
 ////////////////////////////////////////////////////////////////////////////////
 

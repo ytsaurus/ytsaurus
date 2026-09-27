@@ -225,6 +225,169 @@ void TUnpackedWireString::FillFieldNumberToFieldMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Matches the default protobuf parser recursion limit.
+constexpr int MaxWireFormatValidationDepth = 100;
+
+void ValidateWireFormatPart(
+    const NProtoBuf::Descriptor* descriptor,
+    TWireStringPart wireStringPart,
+    int depth);
+
+void ValidatePackedFieldPart(const NProtoBuf::FieldDescriptor* field, TWireStringPart part)
+{
+    auto elementWireType = WireFormatLite::WireTypeForFieldType(
+        static_cast<WireFormatLite::FieldType>(field->type()));
+    TCodedInputStream stream(part);
+    auto size = std::ssize(part.AsSpan());
+    while (stream.CurrentPosition() < size) {
+        bool ok = false;
+        switch (elementWireType) {
+            case WireFormatLite::WIRETYPE_VARINT: {
+                ui64 value;
+                ok = stream.ReadVarint64(&value);
+                break;
+            }
+            case WireFormatLite::WIRETYPE_FIXED32: {
+                ui32 value;
+                ok = stream.ReadLittleEndian32(&value);
+                break;
+            }
+            case WireFormatLite::WIRETYPE_FIXED64: {
+                ui64 value;
+                ok = stream.ReadLittleEndian64(&value);
+                break;
+            }
+            default:
+                YT_ABORT();
+        }
+        THROW_ERROR_EXCEPTION_UNLESS(ok,
+            NAttributes::EErrorCode::InvalidData,
+            "Malformed packed repeated field %v in wire representation",
+            field->full_name());
+    }
+}
+
+void ValidateWireFormatPart(
+    const NProtoBuf::Descriptor* descriptor,
+    TWireStringPart wireStringPart,
+    int depth)
+{
+    THROW_ERROR_EXCEPTION_IF(depth > MaxWireFormatValidationDepth,
+        NAttributes::EErrorCode::InvalidData,
+        "Wire representation of message %v exceeds maximum nesting depth %v",
+        descriptor->full_name(),
+        MaxWireFormatValidationDepth);
+
+    TCodedInputStream stream(wireStringPart);
+    auto size = std::ssize(wireStringPart.AsSpan());
+    // NB: On a malformed tag ReadTag() returns zero after consuming some bytes,
+    // exactly like on a clean end of input; track the tag start position to
+    // distinguish the two.
+    int tagStartPosition = stream.CurrentPosition();
+    while (ui32 tag = stream.ReadTag()) {
+        auto wireType = WireFormatLite::GetTagWireType(tag);
+        auto fieldNumber = WireFormatLite::GetTagFieldNumber(tag);
+        THROW_ERROR_EXCEPTION_IF(fieldNumber == 0,
+            NAttributes::EErrorCode::InvalidData,
+            "Malformed tag with zero field number in wire representation of message %v",
+            descriptor->full_name());
+
+        const auto* field = descriptor->FindFieldByNumber(fieldNumber);
+
+        auto validateKnownFieldWireType = [&] (bool packed = false) {
+            if (!field) {
+                return;
+            }
+            auto expectedWireType = WireFormatLite::WireTypeForFieldType(
+                static_cast<WireFormatLite::FieldType>(field->type()));
+            bool matches = packed
+                ? field->is_repeated() && NProtoBuf::FieldDescriptor::IsTypePackable(field->type())
+                : wireType == expectedWireType;
+            THROW_ERROR_EXCEPTION_UNLESS(matches,
+                NAttributes::EErrorCode::InvalidData,
+                "Wire type %v does not match declared type of field %v",
+                static_cast<int>(wireType),
+                field->full_name());
+        };
+
+        bool ok = false;
+        switch (wireType) {
+            case WireFormatLite::WIRETYPE_VARINT: {
+                validateKnownFieldWireType();
+                ui64 value;
+                ok = stream.ReadVarint64(&value);
+                break;
+            }
+            case WireFormatLite::WIRETYPE_FIXED64: {
+                validateKnownFieldWireType();
+                ui64 value;
+                ok = stream.ReadLittleEndian64(&value);
+                break;
+            }
+            case WireFormatLite::WIRETYPE_FIXED32: {
+                validateKnownFieldWireType();
+                ui32 value;
+                ok = stream.ReadLittleEndian32(&value);
+                break;
+            }
+            case WireFormatLite::WIRETYPE_LENGTH_DELIMITED: {
+                int length = 0;
+                ok = stream.ReadVarintSizeAsInt(&length);
+                if (ok) {
+                    stream.Checkpoint();
+                    ok = stream.Skip(length);
+                }
+                if (!ok) {
+                    break;
+                }
+                auto part = stream.Checkpoint();
+                if (field) {
+                    switch (field->type()) {
+                        case NProtoBuf::FieldDescriptor::TYPE_MESSAGE:
+                            ValidateWireFormatPart(field->message_type(), part, depth + 1);
+                            break;
+                        case NProtoBuf::FieldDescriptor::TYPE_STRING:
+                        case NProtoBuf::FieldDescriptor::TYPE_BYTES:
+                            break;
+                        case NProtoBuf::FieldDescriptor::TYPE_GROUP:
+                            THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::InvalidData,
+                                "Wire type does not match declared type of field %v",
+                                field->full_name());
+                        default:
+                            // Packed repeated scalar field.
+                            validateKnownFieldWireType(/*packed*/ true);
+                            ValidatePackedFieldPart(field, part);
+                            break;
+                    }
+                }
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::InvalidData,
+                    "Unsupported wire type in wire representation of message %v. "
+                    "Data is corrupted or deprecated wire type `GROUP` is used",
+                    descriptor->full_name())
+                    .With("wire_type", static_cast<int>(wireType))
+                    .With("field_number", static_cast<int>(fieldNumber));
+        }
+
+        THROW_ERROR_EXCEPTION_UNLESS(ok,
+            NAttributes::EErrorCode::InvalidData,
+            "Malformed wire representation of message %v at field number %v",
+            descriptor->full_name(),
+            static_cast<int>(fieldNumber));
+
+        tagStartPosition = stream.CurrentPosition();
+    }
+
+    THROW_ERROR_EXCEPTION_UNLESS(tagStartPosition == size,
+        NAttributes::EErrorCode::InvalidData,
+        "Malformed trailing bytes in wire representation of message %v",
+        descriptor->full_name());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,6 +417,18 @@ std::string_view TWireStringPart::AsStringView() const
 TWireStringPart TWireStringPart::FromStringView(std::string_view view)
 {
     return {reinterpret_cast<const ui8*>(view.data()), view.size()};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWireString TMutableWireString::AsWireString() const
+{
+    TWireString result;
+    result.reserve(Data_.size());
+    for (const auto& part : Data_) {
+        result.push_back(TWireStringPart::FromStringView(part));
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -845,7 +1020,7 @@ std::string SerializeMessage(
 std::string AddWireTag(
     const NYson::TProtobufMessageType* messageType,
     std::string_view fieldName,
-    const TProtoStringType& serializedMessage)
+    std::string_view serializedMessage)
 {
     TProtoStringType result;
     {
@@ -859,7 +1034,9 @@ std::string AddWireTag(
             descriptor->full_name(),
             fieldName);
 
-        WireFormatLite::WriteBytes(fieldDescriptor->number(), serializedMessage, &outputStream);
+        WireFormatLite::WriteTag(fieldDescriptor->number(), WireFormatLite::WIRETYPE_LENGTH_DELIMITED, &outputStream);
+        outputStream.WriteVarint32(serializedMessage.size());
+        outputStream.WriteRaw(serializedMessage.data(), serializedMessage.size());
     }
 
     return result;
@@ -1124,6 +1301,21 @@ void MergeMessageFrom(NProtoBuf::MessageLite* message, const TWireString& wireSt
 {
     for (const auto wireStringPart : wireString) {
         MergeMessageFrom(message, wireStringPart);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateWireFormat(const NProtoBuf::Descriptor* descriptor, TWireStringPart wireStringPart)
+{
+    YT_VERIFY(descriptor);
+    ValidateWireFormatPart(descriptor, wireStringPart, /*depth*/ 0);
+}
+
+void ValidateWireFormat(const NProtoBuf::Descriptor* descriptor, const TWireString& wireString)
+{
+    for (const auto wireStringPart : wireString) {
+        ValidateWireFormat(descriptor, wireStringPart);
     }
 }
 
