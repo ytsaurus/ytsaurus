@@ -1,7 +1,7 @@
 #include "api.h"
 
 #include <yql/essentials/tools/yql_language_server/lsp/api/base.h>
-#include <yql/essentials/tools/yql_language_server/version.h>
+#include <yql/essentials/tools/yql_language_server/core/version.h>
 
 namespace NLsp::NYql {
 

@@ -1,5 +1,6 @@
 #include "args.h"
-#include "version.h"
+
+#include <yql/essentials/tools/yql_language_server/core/version.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 
