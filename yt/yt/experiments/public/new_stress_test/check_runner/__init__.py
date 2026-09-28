@@ -12,6 +12,9 @@ import yt.wrapper as yt
 from yt.wrapper.http_helpers import get_token
 from lib.reporter import create_test_run_reporter
 
+MASTER_RETRY_TIMEOUT = 5 * 60 * 1000
+MASTER_TRANSACTION_TIMEOUT = 2 * MASTER_RETRY_TIMEOUT
+
 ##################################################################
 
 class ProcessTerminatedError(BaseException):
@@ -153,6 +156,13 @@ def run_and_track_success(
 
     client = yt.YtClient(proxy=yt.http_helpers.get_proxy_url(), token=get_token())
     client.config["ping_failed_mode"] = "interrupt_main"
+    client.config["proxy"]["retries"]["total_timeout"] = MASTER_RETRY_TIMEOUT
+    client.config["proxy"]["retries"]["additional_retriable_error_codes"].extend([
+        218,  # MasterDisconnected
+        712,  # MasterCommunicationFailed
+    ])
+    # The default ping period is lifetime / 3; allow that gap plus a full master outage.
+    client.config["transaction_timeout"] = MASTER_TRANSACTION_TIMEOUT
 
 
     try:

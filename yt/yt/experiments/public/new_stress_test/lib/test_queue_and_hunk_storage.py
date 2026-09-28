@@ -18,7 +18,6 @@ import random
 RSG = RandomStringGenerator()
 
 # Durations below are in milliseconds, as expected by the client configuration.
-MASTER_REQUEST_TIMEOUT = 5 * 60 * 1000
 MASTER_RETRY_TIMEOUT = 5 * 60 * 1000
 MASTER_TRANSACTION_TIMEOUT = 2 * MASTER_RETRY_TIMEOUT
 
@@ -36,17 +35,10 @@ tablet_client = None
 
 def create_master_client(config):
     config = copy.deepcopy(config)
-    config["backend"] = "rpc"
-    config["driver_config"] = {
-        **(config.get("driver_config") or {}),
-        "enable_retries": True,
-        # RPC transaction pings use this, not the Python Transaction.ping_timeout.
-        "rpc_timeout": MASTER_REQUEST_TIMEOUT,
-        "retrying_channel": {
-            "retry_timeout": MASTER_RETRY_TIMEOUT,
-            # Let the deadline, rather than the default ten attempts, bound retries.
-            "retry_attempts": MASTER_RETRY_TIMEOUT // 1000 + 1,
-        },
+    config["driver_config"]["retrying_channel"] = {
+        "retry_timeout": MASTER_RETRY_TIMEOUT,
+        # Let the deadline, rather than the default ten attempts, bound retries.
+        "retry_attempts": MASTER_RETRY_TIMEOUT // 1000 + 1,
     }
     config["proxy"]["retries"]["total_timeout"] = MASTER_RETRY_TIMEOUT
     # RPC retries already handle transport errors. These master-specific errors
