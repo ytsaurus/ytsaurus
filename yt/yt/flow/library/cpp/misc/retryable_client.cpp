@@ -260,7 +260,7 @@ public:
             const TPullRowsOptions& options),
         (path, options))
 
-    RETRYING_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue,
+    RETRYING_METHOD(TFuture<TPullQueueResult>, PullQueue,
         (
             const NYPath::TRichYPath& queuePath,
             i64 offset,
@@ -269,7 +269,7 @@ public:
             const TPullQueueOptions& options),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
-    RETRYING_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueueConsumer,
+    RETRYING_METHOD(TFuture<TPullQueueResult>, PullQueueConsumer,
         (
             const NYPath::TRichYPath& consumerPath,
             const NYPath::TRichYPath& queuePath,

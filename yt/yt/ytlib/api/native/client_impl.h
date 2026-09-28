@@ -301,7 +301,7 @@ public: \
         const TAlterReplicationCardOptions& options = {}),
         (replicationCardId, options))
 
-    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueue, (
+    IMPLEMENT_METHOD(TPullQueueResult, PullQueue, (
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
@@ -309,7 +309,7 @@ public: \
         const TPullQueueOptions& options = {}),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
-    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueueUnauthenticated, (
+    IMPLEMENT_METHOD(TPullQueueResult, PullQueueUnauthenticated, (
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
@@ -317,7 +317,7 @@ public: \
         const TPullQueueOptions& options = {}),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
-    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueueConsumer, (
+    IMPLEMENT_METHOD(TPullQueueResult, PullQueueConsumer, (
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         std::optional<i64> offset,
@@ -1350,7 +1350,7 @@ private:
     // Queues
     //
 
-    NQueueClient::IQueueRowsetPtr DoPullQueueImpl(
+    TPullQueueResult DoPullQueueImpl(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
@@ -1358,7 +1358,7 @@ private:
         const TPullQueueOptions& options,
         bool checkPermissions);
 
-    NQueueClient::IQueueRowsetPtr DoPullQueueImplOnce(
+    TPullQueueResult DoPullQueueImplOnce(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,

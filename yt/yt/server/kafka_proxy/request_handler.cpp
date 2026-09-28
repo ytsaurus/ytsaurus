@@ -961,7 +961,7 @@ private:
                     topicPartitionResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
                 } else {
                     topicPartitionResponse.HighWatermark = tabletInfos[partitionOffset].TotalRowCount;
-                    auto rowset = rowsetOrError.Value();
+                    auto rowset = rowsetOrError.Value().Rowset;
                     if (rowset->GetRows().empty()) {
                         continue;
                     }
