@@ -110,6 +110,8 @@ jobs:
           ./ya make \
             --build=release \
             --target-platform="default-$PLATFORM" \
+            -DUSE_IDN=static \
+            -DUSE_ICONV=static \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
             --output="$output" \
             --stat \
@@ -117,26 +119,6 @@ jobs:
             --bazel-remote-base-uri="http://build-cache.dev.ytsaurus.tech" \
             --ignore-recurses \
             yql/essentials/tools/yql_language_server
-
-      - name: Patch Dynamic Libraries (Linux)
-        if: ${{ startsWith(matrix.platform, 'linux-') }}
-        run: |
-          set -euo pipefail
-
-          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
-          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
-
-          patchelf --replace-needed liblibidn-dynamic.so libidn.so "$binary"
-
-      - name: Patch Dynamic Libraries (Darwin)
-        if: ${{ startsWith(matrix.platform, 'darwin-') }}
-        run: |
-          set -euo pipefail
-
-          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
-          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
-
-          install_name_tool -change liblibidn-dynamic.dylib libidn.dylib "$binary"
 
       - name: Package
         run: |
@@ -155,7 +137,7 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
-          name: yql-language-server-${{ matrix.platform }}
+          name: yql-language-server-${{ needs.prepare.outputs.version }}-${{ matrix.platform }}
           path: ${{ runner.temp }}/yql-language-server-*.tar.gz
           if-no-files-found: error
           retention-days: 1
