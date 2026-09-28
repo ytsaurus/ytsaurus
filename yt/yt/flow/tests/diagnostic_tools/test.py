@@ -16,20 +16,31 @@ DRAW_PIPELINE_GRAPH_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/tools/dr
 
 
 class Test(TestBase):
-    def _get_any_job_id(self):
-        jobs = self.client.get_flow_view(self.pipeline_path, view_path="/state/execution_spec/layout/jobs", cache=False)
-        return list(jobs.keys())[0]
+    def _get_current_job_id(self, computation_id):
+        view = self.client.get_flow_view(self.pipeline_path, cache=False)
+        partitions = view["state"]["execution_spec"]["layout"]["partitions"]
+        statuses = view["feedback"]["partition_job_statuses"]
+        for partition_id, partition in partitions.items():
+            if partition["computation_id"] != computation_id:
+                continue
+            job_status = statuses.get(partition_id, {}).get("current_job_status", {})
+            if job_status and not job_status.get("is_finished"):
+                return job_status["job_id"]
+        return None
 
     @pytest.mark.authors(["pechatnov"])
     def test_tools(self):
         self.prepare_environment()
-        pipeline_config_path = self.prepare_pipeline_config()
+        pipeline_config_path = self.prepare_pipeline_config(throttled_computation="reader")
         with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}):
+            # Keep the finite source alive until both tools have observed complete job statuses.
             expr = f"* from [{self.state}]"
             wait(lambda: len(list(self.client.select_rows(expr))) > 0)
             assert (
                 self.client.get_pipeline_state(self.pipeline_path) != "completed"
             ), "Can't complete so fast with current throttling options"
+            wait(lambda: self._get_current_job_id("reader") is not None)
+            throttled_job_id = self._get_current_job_id("reader")
 
             pipeline_full_path = f"primary:{self.pipeline_path}"
 
@@ -42,7 +53,7 @@ class Test(TestBase):
             )
 
             with open(job_investigation_output_path, "r") as f:
-                assert self._get_any_job_id() in f.read()
+                assert throttled_job_id in f.read()
 
             draw_pipeline_graph_dot_output_path = os.path.join(self.path_to_flow_logs, "pipeline_graph.dot")
             yatest.common.execute(
@@ -65,3 +76,7 @@ class Test(TestBase):
                 text = f.read()
                 assert "transform_a" in text
                 assert self.input_queue in text
+
+            # Remove the test gate and require ordinary finite-pipeline completion.
+            self.release_input_throttler("reader")
+            self.wait_pipeline_state("completed", timeout=180)
