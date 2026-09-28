@@ -6,6 +6,10 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/solomon/sensor.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
+#include <util/generic/algorithm.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NLogging;
@@ -39,25 +43,6 @@ void SafeUpdate(TGauge& gauge, std::optional<i64> value)
 {
     if (value) {
         gauge.Update(*value);
-    }
-}
-
-auto ResizePartitionCounters(auto& counters, const TProfiler& profiler, int partitionCount, const TLogger& Logger)
-{
-    if (std::ssize(counters) != partitionCount) {
-        YT_LOG_DEBUG("Resizing partition counters (Size: %v -> %v)", counters.size(), partitionCount);
-    }
-
-    if (std::ssize(counters) > partitionCount) {
-        counters.erase(counters.begin() + partitionCount, counters.end());
-    } else {
-        for (int partitionIndex = counters.size(); partitionIndex < partitionCount; ++partitionIndex) {
-            const auto& partitionProfiler = profiler
-                .WithTag("partition_index", ToString(partitionIndex));
-            const auto& aggregationPartitionProfiler = profiler
-                .WithExcludedTag("partition_index", ToString(partitionIndex));
-            counters.emplace_back(partitionProfiler, aggregationPartitionProfiler);
-        }
     }
 }
 
@@ -101,7 +86,7 @@ struct TQueuePartitionProfilingCounters
     TGauge RowCount;
     TGauge DataWeight;
 
-    TQueuePartitionProfilingCounters(const TProfiler& profiler, const TProfiler& /*aggregationProfiler*/)
+    explicit TQueuePartitionProfilingCounters(const TProfiler& profiler)
         : RowsWritten(profiler.Counter("/rows_written"))
         , RowsTrimmed(profiler.Counter("/rows_trimmed"))
         , DataWeightWritten(profiler.Counter("/data_weight_written"))
@@ -109,6 +94,37 @@ struct TQueuePartitionProfilingCounters
         , DataWeight(profiler.Gauge("/data_weight"))
     { }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ResizePartitionCounters(
+    std::vector<TQueuePartitionProfilingCounters>* counters,
+    const TProfiler& profiler,
+    int partitionCount,
+    const TLogger& Logger)
+{
+    if (std::ssize(*counters) != partitionCount) {
+        YT_LOG_DEBUG("Resizing partition counters (Size: %v -> %v)", counters->size(), partitionCount);
+    }
+
+    if (std::ssize(*counters) > partitionCount) {
+        counters->erase(counters->begin() + partitionCount, counters->end());
+    } else {
+        for (int partitionIndex = counters->size(); partitionIndex < partitionCount; ++partitionIndex) {
+            counters->emplace_back(profiler.WithTag("partition_index", ToString(partitionIndex)));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TQueueProfileManager
     : public NDetail::TProfileManagerBase<TQueueSnapshotPtr>
@@ -254,7 +270,7 @@ private:
             QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(GetProfiler(EProfilerScope::Object));
         }
 
-        ResizePartitionCounters(QueuePartitionProfilingCounters_, GetProfiler(EProfilerScope::ObjectPartition), partitionCount, Logger);
+        ResizePartitionCounters(&QueuePartitionProfilingCounters_, GetProfiler(EProfilerScope::ObjectPartition), partitionCount, Logger);
     }
 };
 
@@ -295,6 +311,80 @@ struct TConsumerPartitionProfilingCounters
         , LagTimeHistogram(aggregationProfiler.GaugeHistogram("/lag_time_histogram", GenerateGenericBucketBounds()))
     { }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Keeps counters only for registered partitions; null or empty list means all partitions.
+void UpdateRegisteredPartitionCounters(
+    THashMap<int, TConsumerPartitionProfilingCounters>* counters,
+    const TProfiler& profiler,
+    int partitionCount,
+    const std::optional<std::vector<int>>& registeredPartitions,
+    const TLogger& Logger)
+{
+    THashSet<int> partitionIndexes;
+    if (registeredPartitions && !registeredPartitions->empty()) {
+        std::vector<int> droppedPartitionIndexes;
+        for (auto partitionIndex : *registeredPartitions) {
+            if (partitionIndex >= 0 && partitionIndex < partitionCount) {
+                partitionIndexes.insert(partitionIndex);
+            } else {
+                droppedPartitionIndexes.push_back(partitionIndex);
+            }
+        }
+        YT_LOG_DEBUG_IF(
+            !droppedPartitionIndexes.empty(),
+            "Ignoring registered partitions with indexes out of queue partition range (PartitionCount: %v, PartitionIndexes: %v)",
+            partitionCount,
+            droppedPartitionIndexes);
+    } else {
+        partitionIndexes = std::views::iota(0, partitionCount) | RangeTo<THashSet<int>>();
+    }
+
+    auto oldSize = counters->size();
+    bool updated = false;
+    EraseNodesIf(*counters, [&] (const auto& pair) {
+        bool erase = !partitionIndexes.contains(pair.first);
+        updated |= erase;
+        return erase;
+    });
+    for (auto partitionIndex : partitionIndexes) {
+        if (counters->contains(partitionIndex)) {
+            continue;
+        }
+        counters->emplace(
+            partitionIndex,
+            TConsumerPartitionProfilingCounters(
+                profiler.WithTag("partition_index", ToString(partitionIndex)),
+                profiler.WithExcludedTag("partition_index", ToString(partitionIndex))));
+        updated = true;
+    }
+
+    YT_LOG_DEBUG_IF(
+        updated, "Partition counters updated (OldSize: %v, NewSize: %v)",
+        oldSize,
+        counters->size());
+}
+
+//! Null or empty list means the consumer reads all partitions of the queue.
+const std::optional<std::vector<int>>& GetRegisteredPartitions(
+    const TConsumerSnapshotPtr& consumerSnapshot,
+    const TTablePath& queuePath)
+{
+    auto registrationIt = std::ranges::find(consumerSnapshot->Registrations, queuePath, &TConsumerRegistrationTableRow::Queue);
+    YT_VERIFY(registrationIt != consumerSnapshot->Registrations.end());
+    return registrationIt->Partitions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TConsumerProfileManager
     : public NDetail::TProfileManagerBase<TConsumerSnapshotPtr>
@@ -386,7 +476,7 @@ public:
 
             // NB: It is important to perform this call after validating that the snapshot doesn't contain errors.
             // Otherwise, we might end up using incorrect default values from the snapshot.
-            EnsureConsumerPartitionCounters(queuePath, currentSubSnapshot);
+            EnsureConsumerPartitionCounters(queuePath, currentSubSnapshot, GetRegisteredPartitions(currentConsumerSnapshot, queuePath));
 
             const auto& previousPartitionSnapshots = previousSubSnapshot->PartitionSnapshots;
             const auto& currentPartitionSnapshots = currentSubSnapshot->PartitionSnapshots;
@@ -394,11 +484,12 @@ public:
             auto& subConsumerProfilingCounters = ConsumerPartitionProfilingCounters_[queuePath].Counters;
 
             YT_LOG_DEBUG(
-                "Profiling partitions for sub-consumer (Queue: %v, Partitions: %v)",
+                "Profiling partitions for sub-consumer (Queue: %v, Partitions: %v, RegisteredPartitions: %v)",
                 queuePath,
-                partitionCount);
+                partitionCount,
+                subConsumerProfilingCounters.size());
 
-            for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
+            for (auto& [partitionIndex, profilingCounters] : subConsumerProfilingCounters) {
                 const auto& previousConsumerPartitionSnapshot = previousPartitionSnapshots[partitionIndex];
                 const auto& currentConsumerPartitionSnapshot = currentPartitionSnapshots[partitionIndex];
 
@@ -410,8 +501,6 @@ public:
                         snapshotError);
                     continue;
                 }
-
-                auto& profilingCounters = subConsumerProfilingCounters[partitionIndex];
 
                 auto rowsConsumed = currentConsumerPartitionSnapshot->NextRowIndex - previousConsumerPartitionSnapshot->NextRowIndex;
                 SafeIncrement(profilingCounters.RowsConsumed, rowsConsumed);
@@ -456,7 +545,7 @@ private:
     struct TPartitionProfiler
     {
         std::optional<std::string> CurrentQueueTag;
-        std::vector<TConsumerPartitionProfilingCounters> Counters{};
+        THashMap<int, TConsumerPartitionProfilingCounters> Counters;
     };
 
     THashMap<TTablePath, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
@@ -477,7 +566,10 @@ private:
         ConsumerPartitionProfilingCounters_ = std::move(newConsumerPartitionProfilingCounters);
     }
 
-    void EnsureConsumerPartitionCounters(const TTablePath& queuePath, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
+    void EnsureConsumerPartitionCounters(
+        const TTablePath& queuePath,
+        const TSubConsumerSnapshotPtr& subConsumerSnapshot,
+        const std::optional<std::vector<int>>& registeredPartitions)
     {
         auto profiler = GetProfiler(EProfilerScope::ObjectPartition);
         TTagSet tagSet;
@@ -506,10 +598,11 @@ private:
             partitionProfiler.Counters = {};
         }
 
-        ResizePartitionCounters(
-            partitionProfiler.Counters,
+        UpdateRegisteredPartitionCounters(
+            &partitionProfiler.Counters,
             profiler,
             subConsumerSnapshot->PartitionCount,
+            registeredPartitions,
             Logger().WithTag("Queue: %v", queuePath));
     }
 
