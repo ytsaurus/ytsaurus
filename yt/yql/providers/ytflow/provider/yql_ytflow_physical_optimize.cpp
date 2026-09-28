@@ -37,7 +37,8 @@ TExprNode::TPtr BuildLambdaFromSExprFactory(
     TStringBuf factorySExpr,
     TExprNode::TListType dependencies,
     TPositionHandle pos,
-    TExprContext& ctx)
+    TExprContext& ctx,
+    TTypeAnnotationContext& types)
 {
     auto factoryAst = ParseAst(factorySExpr);
     YQL_ENSURE(factoryAst.IsOk());
@@ -51,7 +52,7 @@ TExprNode::TPtr BuildLambdaFromSExprFactory(
     TExprNode::TPtr lambda;
     ctx.Step.Repeat(TExprStep::ExpandApplyForLambdas);
     YQL_ENSURE(
-        ExpandApplyNoRepeat(factoryApply, lambda, ctx) == IGraphTransformer::TStatus::Ok
+        ExpandApplyNoRepeat(factoryApply, lambda, ctx, types) == IGraphTransformer::TStatus::Ok
     );
 
     YQL_ENSURE(lambda->IsLambda());
@@ -861,7 +862,8 @@ private:
                 saveLambda,
             },
             node.Pos(),
-            ctx);
+            ctx,
+            *State_->Types);
 
         auto updateRawInnerStateLambda = BuildLambdaFromSExprFactory(
             R"((
@@ -922,7 +924,8 @@ private:
                 updateLambda,
             },
             node.Pos(),
-            ctx);
+            ctx,
+            *State_->Types);
 
         auto updateCombinedInnerStateLambda = BuildLambdaFromSExprFactory(
             R"((
@@ -961,7 +964,8 @@ private:
                 mergeLambda,
             },
             node.Pos(),
-            ctx);
+            ctx,
+            *State_->Types);
 
         auto buildCombineLambda = [&](TExprNode::TPtr extractor, TExprNode::TPtr updater) {
             auto combineByKeyLambdaCopy = ctx.DeepCopyLambda(*combineByKeyLambda);
@@ -985,7 +989,8 @@ private:
                     std::move(updater),
                 },
                 node.Pos(),
-                ctx);
+                ctx,
+                *State_->Types);
         };
 
         // NOTE: combineLambda gets following items:
@@ -1270,7 +1275,7 @@ private:
             loadLambda,
             mergeLambda,
             saveLambda,
-        }, node.Pos(), ctx);
+        }, node.Pos(), ctx, *State_->Types);
 
         // NOTE: postprocessLambda gets following items:
         //   * key
@@ -1314,7 +1319,8 @@ private:
                 finishLambda,
             },
             node.Pos(),
-            ctx);
+            ctx,
+            *State_->Types);
 
         TSyncMap syncList;
         auto source = BuildOperationSource(
