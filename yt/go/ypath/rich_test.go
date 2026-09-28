@@ -167,6 +167,27 @@ func TestParseInvalid(t *testing.T) {
 	}
 }
 
+func TestAttrsPreservesRichPathAttributes(t *testing.T) {
+	original := NewRich("//tmp/table").
+		SetCluster("other").
+		SetColumns([]string{"key", "value"}).
+		AddRange(StartingFrom(RowIndex(10)))
+
+	got, ok := Attrs(original).(*Rich)
+	require.True(t, ok)
+	require.Equal(t, Path("//tmp/table/@"), got.Path)
+	require.Equal(t, "other", got.Cluster)
+	require.Equal(t, []string{"key", "value"}, got.Columns)
+	require.Equal(t, []Range{StartingFrom(RowIndex(10))}, got.Ranges)
+
+	// Constructing the attribute selector must not mutate an operation spec path.
+	require.Equal(t, Path("//tmp/table"), original.Path)
+}
+
+func TestAttrsForPlainPath(t *testing.T) {
+	require.Equal(t, Path("//tmp/table/@"), Attrs(Path("//tmp/table")))
+}
+
 // TestRichUnmarshalYSONFromPartitionTables covers the shape of table_ranges
 // entries returned by the partition_tables driver command: an attributed YSON
 // value where the path lives in the primary value and the ranges are attached
