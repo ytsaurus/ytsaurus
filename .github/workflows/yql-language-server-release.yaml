@@ -3,13 +3,14 @@ name: Release YQL Language Server
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   prepare:
     name: Prepare
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     defaults:
@@ -68,7 +69,7 @@ jobs:
           echo "-------------"
 
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: ${{ runner.temp }}/RELEASE_NOTES.md
@@ -106,7 +107,9 @@ jobs:
           output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
           mkdir -p "$output"
 
-          platform_flags=()
+          platform_flags=(
+            --target-platform="default-$PLATFORM"
+          )
           if [[ "$PLATFORM" == linux-* ]]; then
             platform_flags+=(--musl)
           fi
@@ -116,7 +119,6 @@ jobs:
             --thinlto \
             "${platform_flags[@]}" \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
-            --target-platform="default-$PLATFORM" \
             --output="$output" \
             --stat \
             --bazel-remote-store \
@@ -147,9 +149,6 @@ jobs:
           binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
           binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
 
-          sudo apt update
-          sudo apt install patchelf
-
           patchelf --replace-needed liblibidn-dynamic.so libidn.so "$binary"
 
       - name: Patch Dynamic Libraries (Darwin)
@@ -177,7 +176,7 @@ jobs:
             yql-language-server
 
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: yql-language-server-${{ matrix.platform }}
           path: ${{ runner.temp }}/yql-language-server-*.tar.gz
@@ -212,7 +211,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Download
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
