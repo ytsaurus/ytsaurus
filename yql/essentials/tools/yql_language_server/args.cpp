@@ -16,13 +16,6 @@ TArgs TArgs::Parse(int argc, char** argv) {
     NLastGetopt::TOpts opts;
     opts.SetTitle(TStringBuilder() << "YQL Language Server " << Version());
 
-    opts.AddLongOption("version", "print version")
-        .NoArgument()
-        .Handler0([] {
-            Cout << Version() << Endl;
-            std::exit(0);
-        });
-
     opts.AddLongOption("stdio", "use stdio as the communication channel")
         .NoArgument()
         .DefaultValue(true)
