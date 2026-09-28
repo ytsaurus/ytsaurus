@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.prepare.outputs.version }}
+      version: ${{ steps.version.outputs.version }}
     defaults:
       run:
         working-directory: yql/essentials/tools/yql_language_server
@@ -87,6 +87,7 @@ jobs:
         platform:
           - linux-x86_64
           - linux-aarch64
+      max-parallel: 1
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -101,6 +102,8 @@ jobs:
           mkdir -p "$output"
           ./ya make \
             --build=release \
+            --thinlto \
+            --musl \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
             --target-platform="default-$PLATFORM" \
             --output="$output" \
@@ -109,6 +112,19 @@ jobs:
             --bazel-remote-base-uri="http://build-cache.dev.ytsaurus.tech" \
             --ignore-recurses \
             yql/essentials/tools/yql_language_server
+
+      - name: Strip
+        run: |
+          set -euo pipefail
+
+          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
+
+          echo "Before Strip: $(du -hL '$binary')"
+
+          ./ya tool strip --strip-unneeded "$binary"
+
+          echo "After Strip: $(du -hL '$binary')"
 
       - name: Package
         run: |
