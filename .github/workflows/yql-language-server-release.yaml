@@ -2,12 +2,6 @@ name: Release YQL Language Server
 
 on:
   workflow_dispatch:
-    inputs:
-      dummy:
-        description: Dummy
-        required: true
-        type: boolean
-        default: true
 
 jobs:
   version:
@@ -89,24 +83,12 @@ jobs:
           - linux-aarch64
       max-parallel: 1
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Build Dummy
-        if: ${{ inputs.dummy }}
-        run: |
-          set -euo pipefail
-
-          output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
-          mkdir -p "$output/yql/essentials/tools/yql_language_server"
-          cd "$output/yql/essentials/tools/yql_language_server"
-          printf '#!/bin/sh\n' > yql_language_server
-          chmod +x yql_language_server
-
       - name: Build
-        if: ${{ !inputs.dummy }}
         run: |
           set -euo pipefail
 
@@ -147,39 +129,39 @@ jobs:
 
   build-macos:
     name: Build MacOS (${{ matrix.platform }})
-    if: ${{ false }} # TODO(vityaman): not implemented
     strategy:
       matrix:
         platform:
           - darwin-arm64
           - darwin-x86_64
       max-parallel: 1
+    needs:
+      - version
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
-      - run: exit 1
+      - run: exit 0 # TODO(vityaman): not implemented
 
   build-windows:
     name: Build Windows (${{ matrix.platform }})
-    if: ${{ false }} # TODO(vityaman): not implemented
     strategy:
       matrix:
         platform:
           - win-x86_64
       max-parallel: 1
+    needs:
+      - version
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
-      - run: exit 1
+      - run: exit 0 # TODO(vityaman): not implemented
 
   release:
     name: Release
     needs:
-      - version
       - build-linux
-      # TODO(vityaman): not implemented
-      # - build-macos
-      # - build-windows
+      - build-macos
+      - build-windows
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
