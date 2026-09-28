@@ -2,6 +2,8 @@ from lib import test_queue_and_hunk_storage as stress
 from lib.spec import Spec, spec_template
 
 import pytest
+from yt.common import WaitFailed
+from yt.wrapper import retries
 
 from contextlib import contextmanager, nullcontext
 import copy
@@ -24,12 +26,12 @@ def client(monkeypatch):
     return client
 
 
-def _write_rows(client, monkeypatch, queue, rows):
+def _write_rows(client, monkeypatch, queue, rows, retry_count=1, expected_unmounted=False):
     tablets = iter(row[0] for row in rows)
     monkeypatch.setattr(stress.random, "choice", lambda choices: next(tablets))
     monkeypatch.setattr(stress.RSG, "generate", Mock(side_effect=[
         value for _, key, payload in rows for value in (key, payload)
-    ]))
+    ] * retry_count))
     client.get_tablet_infos.side_effect = lambda path, indexes: {
         "tablets": [{"total_row_count": queue.written_row_count[index]} for index in indexes],
     }
@@ -37,7 +39,7 @@ def _write_rows(client, monkeypatch, queue, rows):
         write_min_batch_size=len(rows), write_max_batch_size=len(rows),
         write_min_row_size=1, write_max_row_size=1, write_insert_chunk_bytes=1,
     ))
-    queue.write(True, spec, retry_count=1)
+    queue.write(True, spec, retry_count=retry_count, expected_unmounted=expected_unmounted)
 
 
 def _shadow_rows(client, queue):
@@ -133,6 +135,77 @@ def test_remount_trim_and_append_preserve_weights(client, monkeypatch, trim_all)
     _read(queue)
 
 
+@pytest.fixture(params=[False, True], ids=["plain", "replicated"])
+def queue_to_trim(client, request):
+    plans = [{"mode": "sync", "hunks": False}, {"mode": "async", "hunks": True}]
+    queue = stress.Queue("//test", "queue", 1, replicas_plan=plans if request.param else None)
+    queue.mount_state.mount(None)
+    queue.written_row_count = [4]
+    queue.trimmed_row_counts = [1]
+    queue.cumulative_data_weights = [44]
+    if queue.replicated:
+        queue.replicas = [
+            dict(plan, path=queue._replica_path(index), trimmed_row_counts=[1])
+            for index, plan in enumerate(plans)
+        ]
+    client.get_tablet_infos.return_value = {"tablets": [{"total_row_count": 4}]}
+    return queue
+
+
+@pytest.mark.parametrize("error_code", [1702, 1744])
+def test_trim_retries_tablet_state_errors(client, queue_to_trim, error_code):
+    queue = queue_to_trim
+    paths = [replica["path"] for replica in queue.replicas] if queue.replicated else [queue.path]
+    attempts = []
+
+    def trim_rows(path, tablet_index, trimmed_row_count):
+        assert (tablet_index, trimmed_row_count) == (0, 4)
+        assert queue.trimmed_row_counts == [1]
+        attempts.append(path)
+        if path == paths[-1] and attempts.count(path) == 1:
+            raise stress.YtError("TrimTable failed", inner_errors=[stress.YtError(
+                'Tablet is in "unfreezing" state while "mounted" expected', code=error_code)])
+
+    client.trim_rows.side_effect = trim_rows
+    queue.trim(0, 4)
+
+    assert attempts == paths + [paths[-1]]
+    assert queue.trimmed_row_counts == [4]
+    assert all(replica["trimmed_row_counts"] == [4] for replica in queue.replicas)
+    assert queue.cumulative_data_weights == [44]
+
+
+@pytest.mark.parametrize("error_code", [42, 1702])
+def test_failed_trim_preserves_counters(client, queue_to_trim, error_code):
+    queue = queue_to_trim
+    paths = [replica["path"] for replica in queue.replicas] if queue.replicated else [queue.path]
+    attempts = []
+
+    def trim_rows(path, tablet_index, trimmed_row_count):
+        attempts.append(path)
+        if path == paths[-1]:
+            raise stress.YtError("Injected trim failure", code=error_code)
+
+    client.trim_rows.side_effect = trim_rows
+    if error_code == 1702:
+        expected_error = pytest.raises(WaitFailed, match="did not become ready for trimming")
+    else:
+        expected_error = pytest.raises(stress.YtError, match="Injected trim failure")
+    with expected_error:
+        queue.trim(0, 4)
+
+    assert queue.trimmed_row_counts == [1]
+    assert queue.cumulative_data_weights == [44]
+    if queue.replicated:
+        assert queue.replicas[0]["trimmed_row_counts"] == [4]
+        assert queue.replicas[1]["trimmed_row_counts"] == [1]
+        assert attempts.count(paths[0]) == 1
+    if error_code == 42:
+        assert attempts == paths
+    else:
+        assert attempts.count(paths[-1]) > 1
+
+
 @pytest.mark.parametrize("operation", ["copy", "move"])
 def test_copy_and_move_preserve_weight_and_trim_state(client, monkeypatch, operation):
     queue = stress.Queue("//test", "queue", 2)
@@ -182,6 +255,81 @@ def test_failed_write_does_not_advance_weight(client, monkeypatch, failure):
         "key": "я", "value": "🙂", "tablet_index": 0, "row_index": 1,
         "cumulative_data_weight": 115,
     }]
+
+
+@pytest.mark.parametrize("expected_unmounted", [False, True])
+@pytest.mark.parametrize("no_such_transaction", [False, True])
+def test_write_retries_hunk_failure_in_new_transaction(
+    client, monkeypatch, expected_unmounted, no_such_transaction,
+):
+    queue = stress.Queue("//test", "queue", 1)
+    queue.mount()
+    queue.written_row_count = [1]
+    queue.cumulative_data_weights = [100]
+    error = stress.YtError("Failed to write hunks", inner_errors=[
+        stress.YtError("Service is unable to complete your request", code=105),
+    ])
+    if no_such_transaction:
+        error = stress.YtError("No such transaction", code=11000, inner_errors=[error])
+    attempts = []
+    committed_rows = {}
+    sleep = Mock()
+    monkeypatch.setattr(retries.time, "sleep", sleep)
+
+    @contextmanager
+    def transaction(**kwargs):
+        assert kwargs == {"type": "tablet"}
+        assert queue.written_row_count == [1]
+        assert queue.cumulative_data_weights == [100]
+        pending_rows = []
+        attempts.append(pending_rows)
+        yield
+        if len(attempts) == 1:
+            raise error
+        for path, rows in pending_rows:
+            committed_rows.setdefault(path, []).extend(rows)
+
+    client.Transaction.side_effect = transaction
+    client.insert_rows.side_effect = lambda path, rows, **kwargs: attempts[-1].append((path, rows))
+    _write_rows(client, monkeypatch, queue, [(0, "a", "h" * 1024), (0, "cc", "tail")],
+                retry_count=3, expected_unmounted=expected_unmounted)
+
+    assert client.Transaction.call_count == 2
+    assert attempts[0] == attempts[1]
+    assert len(committed_rows[queue.path]) == 2
+    assert [row["row_index"] for row in committed_rows[queue.data_path]] == [1, 2]
+    assert [row["cumulative_data_weight"] for row in committed_rows[queue.data_path]] == [1134, 1149]
+    assert queue.written_row_count == [3]
+    assert queue.cumulative_data_weights == [1149]
+    sleep.assert_called_once_with(0.1)
+
+
+@pytest.mark.parametrize("expected_unmounted", [False, True])
+@pytest.mark.parametrize("error_code", [1702, 105])
+def test_write_retry_limit_and_expected_unmount(client, monkeypatch, expected_unmounted, error_code):
+    queue = stress.Queue("//test", "queue", 1)
+    queue.mount()
+    queue.written_row_count = [1]
+    queue.cumulative_data_weights = [100]
+    sleep = Mock()
+    monkeypatch.setattr(retries.time, "sleep", sleep)
+
+    @contextmanager
+    def transaction(**kwargs):
+        yield
+        raise stress.YtError("Injected write failure", code=error_code)
+
+    client.Transaction.side_effect = transaction
+    with pytest.raises(stress.YtError, match="Injected write failure"):
+        _write_rows(client, monkeypatch, queue, [(0, "a", "b")],
+                    retry_count=3, expected_unmounted=expected_unmounted)
+
+    expected_attempts = 1 if expected_unmounted and error_code == 1702 else 3
+    assert client.Transaction.call_count == expected_attempts
+    assert [call.args for call in sleep.call_args_list] == [(0.1,)] * (expected_attempts - 1)
+    assert queue.written_row_count == [1]
+    assert queue.cumulative_data_weights == [100]
+    client.get_tablet_infos.assert_not_called()
 
 
 @pytest.mark.parametrize("known_weight, column, bad_value", [
@@ -600,6 +748,29 @@ def test_operations_include_retained_prefix_and_unflushed_rows(
     assert queue.trimmed_row_counts == [4, 3]
     assert other.trimmed_row_counts == [2, 1]
     assert not transactions
+
+
+def test_stress_loop_keeps_write_retry_budget_during_mount_chaos(client, monkeypatch):
+    raw_spec = copy.deepcopy(spec_template)
+    cfg = raw_spec["queue_and_hunk_storage"]
+    for key in cfg:
+        if key.endswith("_probability"):
+            cfg[key] = 0
+    cfg.update({"write_probability": 1, "unmount_queue_probability": 1, "write_retry_count": 3})
+    raw_spec["size"]["iterations"] = 1
+    client.get.side_effect = lambda path, **kwargs: (
+        "local-test" if path == "//sys/@cluster_name" else {"external_cell_tag": 11})
+    monkeypatch.setattr(stress.random, "choice", lambda choices: choices[-1])
+    write = Mock()
+    monkeypatch.setattr(stress.Queue, "write", write)
+
+    stress.test_queue_and_hunk_storage("//test", Spec(raw_spec), {}, args=None)
+
+    assert write.call_count == 6
+    for call in write.call_args_list:
+        assert not call.kwargs["only_in_sync_mounted"]
+        assert call.kwargs["expected_unmounted"]
+        assert call.kwargs["retry_count"] == 3
 
 
 def test_stress_loop_trims_and_adds_replicas_after_writes(client, monkeypatch):
