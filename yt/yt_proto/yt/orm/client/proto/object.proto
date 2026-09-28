@@ -536,7 +536,7 @@ message TProjectFlagOptions
     optional string description = 2;
 }
 
-// Next field 30067.
+// Next field 30068.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -673,6 +673,9 @@ extend google.protobuf.FileOptions
     optional string counter_field_lock_group = 30063;
     optional string counter_field_data_group = 30064;
     optional bool counter_is_multiple_referenceable = 30065;
+
+    // Generates the |leader_election_lock| system table used by the chaos election backend.
+    optional bool enable_chaos_election = 30067;
 }
 
 enum EGenerationPolicy
