@@ -4,62 +4,70 @@ on:
   workflow_dispatch:
 
 jobs:
-  version:
-    name: Version
+  prepare:
+    name: Prepare
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ steps.prepare.outputs.version }}
+    defaults:
+      run:
+        working-directory: yql/essentials/tools/yql_language_server
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Version
+      - name: Build Version
         id: version
         run: |
           set -euo pipefail
 
-          cd yql/essentials/tools/yql_language_server
           version=$(python3 ci/version.py < CHANGELOG.md)
-          test -n "$version"
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
-      - name: Check
+      - name: Test Version
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.prepare.outputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ ! "$VERSION" =~ ^0\.([0-9]+)\.0$ ]]; then
-            echo "Release version must have the form 0.N.0: $VERSION" >&2
-            exit 1
-          fi
-          next=${BASH_REMATCH[1]}
-
-          latest=$(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].tag_name' |
-              sed -n 's#^yql/language-server/v0\.\([0-9][0-9]*\)\.0$#\1#p' |
+          latest_n=$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+              --jq '.[].tag_name' |
+              sed -n \
+                's#^yql/language-server/v0\.\([1-9][0-9]*\)\.0$#\1#p' |
               sort -n |
               tail -n 1
           )
-          latest=${latest:-0}
+          latest_n=${latest_n:-0}
+          expected="0.$((latest_n + 1)).0"
 
-          if (( 10#$next != 10#$latest + 1 )); then
-            echo "Release version 0.$next.0 is not next after 0.$latest.0" >&2
+          if [[ "$VERSION" != "$expected" ]]; then
+            echo "Expected release version $expected, got $VERSION" >&2
             exit 1
           fi
 
-      - name: Release Notes
+          echo "Version: $VERSION"
+
+      - name: Build Release Notes
         run: |
           set -euo pipefail
 
-          cd yql/essentials/tools/yql_language_server
           python3 ci/release_notes.py \
             < CHANGELOG.md \
             > "$RUNNER_TEMP/RELEASE_NOTES.md"
+
+      - name: Test Release Notes
+        run: |
+          set -euo pipefail
+
+          echo "RELEASE_NOTES"
+          echo "-------------"
+          cat $RUNNER_TEMP/RELEASE_NOTES.md
+          echo "-------------"
 
       - name: Upload
         uses: actions/upload-artifact@v4
@@ -72,10 +80,10 @@ jobs:
   build-linux:
     name: Build Linux (${{ matrix.platform }})
     needs:
-      - version
+      - prepare
     env:
       PLATFORM: ${{ matrix.platform }}
-      VERSION: ${{ needs.version.outputs.version }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     strategy:
       matrix:
         platform:
@@ -136,7 +144,7 @@ jobs:
           - darwin-x86_64
       max-parallel: 1
     needs:
-      - version
+      - prepare
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -150,7 +158,7 @@ jobs:
           - win-x86_64
       max-parallel: 1
     needs:
-      - version
+      - prepare
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
