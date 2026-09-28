@@ -1758,6 +1758,20 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*permissions*/ 0777,
         /*removeIfExists*/ true));
 
+    bool isCri = SlotManagerStaticConfig_->JobEnvironment.GetType() == NJobProxy::EJobEnvironmentType::Cri;
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Private),
+        isCri ? uid.value_or(nodeUid) : nodeUid,
+        /*permissions*/ isCri ? 0711 : 0700,
+        /*removeIfExists*/ true));
+
+    // This empty directory is meant to be bound read-only over private/ in containers.
+    config->Directories.push_back(getDirectory(
+        GetSandboxPath(slotIndex, ESandboxKind::Empty),
+        nodeUid,
+        /*permissions*/ 0755,
+        /*removeIfExists*/ true));
+
     // Node should have access to user sandbox during job preparation.
     config->Directories.push_back(getDirectory(
         GetSandboxPath(slotIndex, ESandboxKind::User),

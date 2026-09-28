@@ -582,6 +582,8 @@ struct TJobProxyInternalConfig
     bool EnableGrpcServer;
     bool EnableHttpServer;
 
+    NBus::NTcp::TBusServerConfigPtr PrivateBusServer;
+
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 
     NHttp::TServerConfigPtr HttpServer;
