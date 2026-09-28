@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/delta_codecs/codec.h>
 #include <yt/yt/flow/library/cpp/delta_codecs/state.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/xdelta.h>
 
 namespace NYT::NFlow::NDeltaCodecs {
 namespace {
@@ -43,6 +44,18 @@ TEST(TXDeltaTest, TruncatedPatchIsAStructuredError)
     auto patch = TSharedRef::FromString(std::string("\x01\x02"));
     EXPECT_THROW_WITH_SUBSTRING(
         GetCodec(ECodec::XDelta)->ApplyPatch(data, patch),
+        "shorter than its length prefix");
+}
+
+TEST(TXDeltaTest, DecodedSizeMatchesThePatchPrefix)
+{
+    auto data = TSharedRef::FromString(std::string("abracabra"));
+    auto newData = TSharedRef::FromString(std::string("bracacabra"));
+    auto patch = GetCodec(ECodec::XDelta)->TryComputePatch(data, newData);
+    ASSERT_TRUE(patch);
+    EXPECT_EQ(TXDeltaCodec::GetDecodedSize(patch->ToStringBuf()), newData.Size());
+    EXPECT_THROW_WITH_SUBSTRING(
+        TXDeltaCodec::GetDecodedSize(TStringBuf("\x01\x02", 2)),
         "shorter than its length prefix");
 }
 

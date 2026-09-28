@@ -75,12 +75,8 @@ int ProcessMemory(int is_encode,
 
 } // namespace
 
-TSharedRef TXDeltaCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& patch) const
+TXDeltaCodec::TRecordSize TXDeltaCodec::GetDecodedSize(TStringBuf patch)
 {
-    if (patch.ToStringBuf().empty()) {
-        return base;
-    }
-
     TRecordSize size = 0;
     // The patch is untrusted stored bytes: a truncated frame is corruption,
     // not a programming error.
@@ -89,8 +85,16 @@ TSharedRef TXDeltaCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& pa
             .With("patch_size", patch.size());
     }
     memcpy(&size, patch.data(), sizeof(size));
-    size = InetToHost(size);
+    return InetToHost(size);
+}
 
+TSharedRef TXDeltaCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& patch) const
+{
+    if (patch.ToStringBuf().empty()) {
+        return base;
+    }
+
+    auto size = GetDecodedSize(patch.ToStringBuf());
     if (size == 0) {
         return TSharedRef::MakeEmpty();
     }
