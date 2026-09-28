@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(pymongo)
 
-VERSION(4.18.0)
+VERSION(4.18.1)
 
 LICENSE(Apache-2.0)
 
