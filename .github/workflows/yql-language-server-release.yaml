@@ -75,19 +75,25 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  build-linux:
-    name: Build (${{ matrix.platform }})
+  build-unix:
     needs:
       - prepare
+    strategy:
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+          - platform: linux-aarch64
+            runner: ubuntu-latest
+          - platform: darwin-arm64
+            runner: macos-latest
+          - platform: darwin-x86_64
+            runner: macos-26-intel
+    name: Build (${{ matrix.platform }})
     env:
       PLATFORM: ${{ matrix.platform }}
       VERSION: ${{ needs.prepare.outputs.version }}
-    strategy:
-      matrix:
-        platform:
-          - linux-x86_64
-          - linux-aarch64
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -99,10 +105,16 @@ jobs:
 
           output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
           mkdir -p "$output"
+
+          platform_flags=()
+          if [[ "$PLATFORM" == linux-* ]]; then
+            platform_flags+=(--musl)
+          fi
+
           ./ya make \
             --build=release \
             --thinlto \
-            --musl \
+            "${platform_flags[@]}" \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
             --target-platform="default-$PLATFORM" \
             --output="$output" \
@@ -119,13 +131,16 @@ jobs:
           binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
           binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
 
-          echo "Before Strip: $(du -hL '$binary')"
+          echo "Before Strip"
+          du -hL "$binary"
 
           ./ya tool strip --strip-unneeded "$binary"
 
-          echo "After Strip: $(du -hL '$binary')"
+          echo "After Strip"
+          du -hL "$binary"
 
-      - name: Patch ELF
+      - name: Patch Dynamic Libraries (Linux)
+        if: ${{ startsWith(matrix.platform, 'linux-') }}
         run: |
           set -euo pipefail
 
@@ -136,6 +151,16 @@ jobs:
           sudo apt install patchelf
 
           patchelf --replace-needed liblibidn-dynamic.so libidn.so "$binary"
+
+      - name: Patch Dynamic Libraries (Darwin)
+        if: ${{ startsWith(matrix.platform, 'darwin-') }}
+        run: |
+          set -euo pipefail
+
+          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
+
+          install_name_tool -change liblibidn-dynamic.dylib libidn.dylib "$binary"
 
       - name: Package
         run: |
@@ -159,39 +184,25 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  build-macos:
-    name: Build (${{ matrix.platform }})
-    strategy:
-      matrix:
-        platform:
-          - darwin-arm64
-          - darwin-x86_64
+  build-windows:
     needs:
       - prepare
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - run: exit 0 # TODO(vityaman): not implemented
-
-  build-windows:
-    name: Build (${{ matrix.platform }})
     strategy:
       matrix:
         platform:
           - win-x86_64
-    needs:
-      - prepare
+    name: Build (${{ matrix.platform }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - run: exit 0 # TODO(vityaman): not implemented
 
   release:
-    name: Release
     needs:
-      - build-linux
-      - build-macos
+      - prepare
+      - build-unix
       - build-windows
+    name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -209,7 +220,7 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.version.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
 
