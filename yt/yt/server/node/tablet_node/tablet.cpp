@@ -1390,10 +1390,7 @@ void TTablet::Load(TLoadContext& context)
 
     HunkLockManager_->Load(context);
 
-    // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= ETabletReign::PerRowSequencer) {
-        Load(context, SerializationType_);
-    }
+    Load(context, SerializationType_);
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
