@@ -87,7 +87,6 @@ jobs:
         platform:
           - linux-x86_64
           - linux-aarch64
-      max-parallel: 1
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -125,6 +124,18 @@ jobs:
           ./ya tool strip --strip-unneeded "$binary"
 
           echo "After Strip: $(du -hL '$binary')"
+
+      - name: Patch ELF
+        run: |
+          set -euo pipefail
+
+          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
+
+          sudo apt update
+          sudo apt install patchelf
+
+          patchelf --replace-needed liblibidn-dynamic.so libidn.so "$binary"
 
       - name: Package
         run: |
