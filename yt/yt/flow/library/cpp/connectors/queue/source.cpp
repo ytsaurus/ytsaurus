@@ -346,8 +346,8 @@ auto TQueueSourceImpl::DoReadNextBatch(
                     PartitionIndex_,
                     rowBatchReadOptions,
                     options)
-                    .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, initialOffset] (const NQueueClient::IQueueRowsetPtr& rowset) {
-                        return ParseData(rowset, initialOffset, offsetLimit);
+                    .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, initialOffset] (const NApi::TPullQueueResult& result) {
+                        return ParseData(result.Rowset, initialOffset, offsetLimit);
                     })
                             .AsyncVia(GetContext()->SerializedInvoker));
             })

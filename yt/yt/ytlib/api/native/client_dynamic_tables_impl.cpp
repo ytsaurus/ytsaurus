@@ -2808,7 +2808,7 @@ void TClient::DoTransferBundleResources(
         .ThrowOnError();
 }
 
-IQueueRowsetPtr TClient::DoPullQueueImpl(
+TPullQueueResult TClient::DoPullQueueImpl(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -2831,7 +2831,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
         });
 }
 
-IQueueRowsetPtr TClient::DoPullQueueImplOnce(
+TPullQueueResult TClient::DoPullQueueImplOnce(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -2920,7 +2920,7 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
             ? connectionConfig->ReplicaFallbackRetryCount
             : 0;
 
-        TErrorOr<IQueueRowsetPtr> resultOrError;
+        TErrorOr<TPullQueueResult> resultOrError;
 
         THashMap<TReplicaId, TError> triedReplicaIds;
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
@@ -3028,10 +3028,12 @@ IQueueRowsetPtr TClient::DoPullQueueImplOnce(
         startOffset = GetStartOffset(rowset);
     }
 
-    return CreateQueueRowset(rowset, startOffset);
+    return TPullQueueResult{
+        .Rowset = CreateQueueRowset(std::move(rowset), startOffset),
+    };
 }
 
-IQueueRowsetPtr TClient::DoPullQueue(
+TPullQueueResult TClient::DoPullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -3047,7 +3049,7 @@ IQueueRowsetPtr TClient::DoPullQueue(
         /*checkPermissions*/ true);
 }
 
-IQueueRowsetPtr TClient::DoPullQueueUnauthenticated(
+TPullQueueResult TClient::DoPullQueueUnauthenticated(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
@@ -3154,7 +3156,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
         MakeSharedRange(rows, reader->GetRowBuffer()));
 }
 
-IQueueRowsetPtr TClient::DoPullQueueConsumer(
+TPullQueueResult TClient::DoPullQueueConsumer(
     const NYPath::TRichYPath& consumerPath,
     const NYPath::TRichYPath& queuePath,
     std::optional<i64> offset,

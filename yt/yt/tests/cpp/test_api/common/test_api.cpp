@@ -811,7 +811,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     auto options = TQueueRowBatchReadOptions{.MaxRowCount = 1};
     auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 0);
     EXPECT_EQ(res->GetFinishOffset(), 1);
     auto rows = res->GetRows();
@@ -828,7 +828,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 10};
     res = WaitFor(Client_->PullQueue(Table_, 1, 0, options))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 1);
     EXPECT_LE(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -849,7 +849,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
     res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 1);
     EXPECT_LE(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -866,7 +866,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
     res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 2);
     EXPECT_LE(res->GetFinishOffset(), 4);
     rows = res->GetRows();
@@ -880,7 +880,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
     res = WaitFor(Client_->PullQueue(Table_, 10, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 10);
     EXPECT_EQ(res->GetFinishOffset(), 10);
     rows = res->GetRows();
@@ -888,7 +888,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 10, .MaxDataWeight = 5, .DataWeightPerRowHint = 3};
     res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 2);
     EXPECT_EQ(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -954,7 +954,7 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
         .MaxDataWeight = 16_MB,
     };
     auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_EQ(res->GetStartOffset(), 0);
     auto rows = res->GetRows();
     // This is at least 10MB.
