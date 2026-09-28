@@ -30,7 +30,9 @@ def test_master_config_does_not_extend_tablet_timeouts(clients):
     assert tablet.config["dynamic_table_retries"]["total_timeout"] == 180000
 
     driver = master.config["driver_config"]
-    assert driver["rpc_timeout"] == 300000
+    assert master.config["backend"] == "rpc"
+    assert driver["enable_retries"]
+    assert "rpc_timeout" not in driver
     retry_config = driver["retrying_channel"]
     assert retry_config["retry_timeout"] == 300000
     # The default RPC backoff is three seconds; the attempt cap must allow five minutes.
