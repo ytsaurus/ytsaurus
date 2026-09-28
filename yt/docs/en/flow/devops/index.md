@@ -1,6 +1,6 @@
 # Operating {{product-name}} Flow
 
-This section explains how to deploy a pipeline, inspect its state, and investigate stalled processing. The commands assume cluster access and permissions on the pipeline node. Replace `//path/to/pipeline`, `<cluster>`, and `<operation-id>` with your own values.
+This section explains how to deploy a pipeline, inspect its state, and investigate stalled processing. The commands assume cluster access and permissions on the pipeline node. Replace `//path/to/pipeline`, `<cluster>`, and `<operation-id>` with your own values. Flow can run in Linux environments when the runtime and configuration prerequisites are met and the environment has network access to the {{product-name}} clusters and other services used by the pipeline. In this documentation, Vanilla operations are the simplest example of an environment native to a {{product-name}} cluster.
 
 ## Deployment {#deployment}
 
