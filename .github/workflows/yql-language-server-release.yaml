@@ -118,21 +118,6 @@ jobs:
             --ignore-recurses \
             yql/essentials/tools/yql_language_server
 
-      - name: Strip
-        run: |
-          set -euo pipefail
-
-          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM"
-          binary="$binary/yql/essentials/tools/yql_language_server/yql_language_server"
-
-          echo "Before Strip"
-          du -hL "$binary"
-
-          ./ya tool strip --strip-unneeded "$binary"
-
-          echo "After Strip"
-          du -hL "$binary"
-
       - name: Patch Dynamic Libraries (Linux)
         if: ${{ startsWith(matrix.platform, 'linux-') }}
         run: |
