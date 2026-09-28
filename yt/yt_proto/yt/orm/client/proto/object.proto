@@ -218,9 +218,8 @@ message TLocalAttributeMigration
 
 // Declares a satellite table keyed by the object, an attribute id and a map key.
 // The order of |attributes| is significant: an attribute's zero-based position is its persisted
-// attribute id. Reordering or removing attributes is a breaking on-disk change. Appending is safe
-// only while the appended attribute's value type matches the table's: a differing type collapses
-// the shared |value| column to "any" and orphans the rows written with the typed encoding.
+// attribute id. Reordering or removing attributes is a breaking on-disk change; deprecate them instead.
+// All attributes must share the map key type and, unless |merge_types| is set, the value type.
 message TSatelliteTable
 {
     message TSatelliteAttribute
@@ -235,9 +234,10 @@ message TSatelliteTable
     optional string name = 1;
     // Ordered list of attribute paths stored in this table. Position induces the attribute id.
     repeated TSatelliteAttribute attributes = 2;
+    // Data group of the |value| column. Key columns always use the default group.
     optional string values_data_group = 3;
-
-    // Instructs a satellite table to allow heterogeneous attributes even for attributes, now having a common type.
+    // Stores values in an "any" column, so attributes of different value types may share the table.
+    // Set it upfront if such an attribute may be appended later.
     optional bool merge_types = 4;
 }
 
