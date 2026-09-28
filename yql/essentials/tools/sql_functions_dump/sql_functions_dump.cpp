@@ -12,12 +12,26 @@ int Main(int argc, const char** argv)
     Y_UNUSED(argv);
     NJsonWriter::TBuf json;
     json.BeginList();
-    NSQLTranslationV1::EnumerateBuiltins([&](auto name, auto kind, NYql::TLangVersion minLangVer, NYql::TLangVersion maxLangVer) {
+    NSQLTranslationV1::EnumerateBuiltins([&](
+        auto name,
+        auto kind,
+        auto argCount,
+        auto optionalArgCount,
+        NYql::TLangVersion minLangVer,
+        NYql::TLangVersion maxLangVer) {
         json.BeginObject();
         json.WriteKey("name");
         json.WriteString(name);
         json.WriteKey("kind");
         json.WriteString(kind);
+        if (argCount) {
+            json.WriteKey("argCount");
+            json.WriteULongLong(*argCount);
+        }
+        if (optionalArgCount.value_or(0) > 0) {
+            json.WriteKey("optionalArgCount");
+            json.WriteULongLong(*optionalArgCount);
+        }
         if (minLangVer != NYql::UnknownLangVersion) {
             json.WriteKey("minLangVer");
             json.WriteString(NYql::FormatLangVersion(minLangVer).GetRef());

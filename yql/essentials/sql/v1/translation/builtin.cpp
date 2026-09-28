@@ -2965,7 +2965,33 @@ struct TAggrFuncFactoryInfo {
 };
 
 using TAggrFuncFactoryCallbackMap = std::unordered_map<TString, TAggrFuncFactoryInfo, THash<TString>>;
-using TBuiltinFactoryCallback = std::function<TNodePtr(TPosition pos, const TVector<TNodePtr>& args)>;
+struct TBuiltinFactoryCallback {
+    using TCallback = std::function<TNodePtr(TPosition pos, const TVector<TNodePtr>& args)>;
+
+    template <class T>
+    TBuiltinFactoryCallback(T callback)
+        : Callback(std::move(callback))
+    {
+    }
+
+    template <class T>
+    TBuiltinFactoryCallback(T callback, i32 minArgs, i32 maxArgs)
+        : Callback(std::move(callback))
+    {
+        if (maxArgs >= 0) {
+            ArgCount = maxArgs;
+            OptionalArgCount = maxArgs - minArgs;
+        }
+    }
+
+    TNodePtr operator()(TPosition pos, const TVector<TNodePtr>& args) const {
+        return Callback(pos, args);
+    }
+
+    TCallback Callback;
+    std::optional<size_t> ArgCount;
+    std::optional<size_t> OptionalArgCount;
+};
 
 struct TBuiltinFuncInfo {
     std::string_view CanonicalSqlName;
@@ -3064,16 +3090,18 @@ TBuiltinFactoryCallback BuildNamedBuiltinFactoryCallback(const TString& name) {
 
 template <typename TType>
 TBuiltinFactoryCallback BuildArgcBuiltinFactoryCallback(i32 minArgs, i32 maxArgs) {
-    return [minArgs, maxArgs](TPosition pos, const TVector<TNodePtr>& args) -> TNodePtr {
+    auto callback = [minArgs, maxArgs](TPosition pos, const TVector<TNodePtr>& args) -> TNodePtr {
         return new TType(pos, minArgs, maxArgs, args);
     };
+    return {std::move(callback), minArgs, maxArgs};
 }
 
 template <typename TType>
 TBuiltinFactoryCallback BuildNamedArgcBuiltinFactoryCallback(const TString& name, i32 minArgs, i32 maxArgs) {
-    return [name, minArgs, maxArgs](TPosition pos, const TVector<TNodePtr>& args) -> TNodePtr {
+    auto callback = [name, minArgs, maxArgs](TPosition pos, const TVector<TNodePtr>& args) -> TNodePtr {
         return new TType(pos, name, minArgs, maxArgs, args);
     };
+    return {std::move(callback), minArgs, maxArgs};
 }
 
 template <typename TType>
@@ -4657,9 +4685,17 @@ TNodeResult BuildBuiltinFunc(
                              TDeferredAtom(typeConfig, ctx), nullptr, nullptr, {}));
 }
 
-void EnumerateBuiltins(const std::function<void(std::string_view name, std::string_view kind, NYql::TLangVersion minLangVer, NYql::TLangVersion maxLangVer)>& callback) {
+void EnumerateBuiltins(const std::function<void(
+    std::string_view name,
+    std::string_view kind,
+    std::optional<size_t> argCount,
+    std::optional<size_t> optionalArgCount,
+    NYql::TLangVersion minLangVer,
+    NYql::TLangVersion maxLangVer)>& callback) {
     struct TFuncInfo {
         TString Kind;
+        std::optional<size_t> ArgCount;
+        std::optional<size_t> OptionalArgCount;
         NYql::TLangVersion MinLangVer = NYql::UnknownLangVersion;
         NYql::TLangVersion MaxLangVer = NYql::UnknownLangVersion;
     };
@@ -4675,6 +4711,8 @@ void EnumerateBuiltins(const std::function<void(std::string_view name, std::stri
         if (!info.CanonicalSqlName.empty()) {
             map[TString(info.CanonicalSqlName)] = {
                 .Kind = TString(info.Kind),
+                .ArgCount = info.Callback.ArgCount,
+                .OptionalArgCount = info.Callback.OptionalArgCount,
                 .MinLangVer = info.MinLangVer,
                 .MaxLangVer = info.MaxLangVer,
             };
@@ -4694,6 +4732,8 @@ void EnumerateBuiltins(const std::function<void(std::string_view name, std::stri
     for (const auto& [key, info] : coreFuncs) {
         map[TString(info.Name)] = {
             .Kind = "Normal",
+            .ArgCount = info.MaxArgs,
+            .OptionalArgCount = info.MaxArgs - info.MinArgs,
         };
     }
 
@@ -4712,7 +4752,7 @@ void EnumerateBuiltins(const std::function<void(std::string_view name, std::stri
     });
 
     for (const auto& [name, info] : map) {
-        callback(name, info.Kind, info.MinLangVer, info.MaxLangVer);
+        callback(name, info.Kind, info.ArgCount, info.OptionalArgCount, info.MinLangVer, info.MaxLangVer);
     }
 }
 

@@ -25,6 +25,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 #include <utility>
 #include <variant>
 
@@ -1753,7 +1754,13 @@ TMaybe<TString> FindMistypeIn(const TContainer& container, const TString& name) 
     return {};
 }
 
-void EnumerateBuiltins(const std::function<void(std::string_view name, std::string_view kind, NYql::TLangVersion minLangVer, NYql::TLangVersion maxLangVer)>& callback);
+void EnumerateBuiltins(const std::function<void(
+    std::string_view name,
+    std::string_view kind,
+    std::optional<size_t> argCount,
+    std::optional<size_t> optionalArgCount,
+    NYql::TLangVersion minLangVer,
+    NYql::TLangVersion maxLangVer)>& callback);
 bool Parseui32(TNodePtr from, ui32& to);
 TNodePtr GroundWithExpr(const TNodePtr& ground, const TNodePtr& expr);
 const TString* DeriveCommonSourceName(const TVector<TNodePtr>& nodes);
