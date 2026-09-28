@@ -82,9 +82,17 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
-	clusterURL, err := conf.GetClusterURL()
-	if err != nil {
-		return nil, err
+	var clusterURL yt.ClusterURL
+	var err error
+	if conf.RPCProxyUnixSocket != "" {
+		if conf.RPCProxy != "" || conf.UseTLS {
+			return nil, xerrors.New("RPCProxyUnixSocket is incompatible with RPCProxy and UseTLS")
+		}
+	} else {
+		clusterURL, err = conf.GetClusterURL()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	c := &client{
@@ -114,13 +122,17 @@ func NewClient(conf *yt.Config) (*client, error) {
 	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
 
 	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
+		network := conf.GetIPVersion().Network()
+		if conf.RPCProxyUnixSocket != "" {
+			network = "unix"
+		}
 		clientOpts := []bus.ClientOption{
 			bus.WithLogger(c.log.Logger()),
 			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
 			bus.WithFeatureIDFormatter(func(featureID int32) string {
 				return rpcProxyFeature(featureID).String()
 			}),
-			bus.WithNetwork(conf.GetIPVersion().Network()),
+			bus.WithNetwork(network),
 		}
 		if conf.UseTLS && transport.TLSClientConfig != nil {
 			busTLSConfig := transport.TLSClientConfig.Clone()

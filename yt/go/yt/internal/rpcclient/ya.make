@@ -43,6 +43,7 @@ GO_TEST_SRCS(
     object_type_test.go
     retrier_test.go
     timestamp_test.go
+    unix_test.go
 )
 
 END()

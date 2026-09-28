@@ -13,6 +13,7 @@ SRCS(
 GO_TEST_SRCS(
     bus_test.go
     client_test.go
+    null_checksum_test.go
     test_service_test.go
 )
 
