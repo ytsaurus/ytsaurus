@@ -13,6 +13,8 @@ const TEnumIndexedArray<ESandboxKind, std::string> SandboxDirectoryNames{
     {ESandboxKind::Cores, "cores"},
     {ESandboxKind::Logs, "logs"},
     {ESandboxKind::PortoPlace, "porto_place"},
+    {ESandboxKind::Private, "private"},
+    {ESandboxKind::Empty, "empty"},
 };
 
 const std::string EmptyCpuSet("");

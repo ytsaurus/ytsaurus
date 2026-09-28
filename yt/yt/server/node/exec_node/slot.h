@@ -131,6 +131,8 @@ struct IUserSlot
 
     virtual NBus::NTcp::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::NTcp::TBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::NTcp::TBusServerConfigPtr GetPrivateBusServerConfig() const = 0;
+    virtual NBus::NTcp::TBusClientConfigPtr GetPrivateBusClientConfig() const = 0;
 
     virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
 
