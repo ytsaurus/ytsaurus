@@ -20,9 +20,8 @@ computation_id also report how many tablets intersect each computation's key ran
 a shared tablet counts toward every computation it covers. Compact input keys are
 handled in the same way.
 
-Pass --commit to apply changes or --dry-run to preview them. For compatibility,
-running without either flag still applies changes and emits a warning; a future
-version will default to dry-run.
+By default, only show the plan without modifying tables. Pass --commit to apply
+changes, or --dry-run to explicitly request a preview.
 
 Examples:
 
@@ -97,12 +96,12 @@ def get_args():
     mode.add_argument(
         "--commit",
         action="store_true",
-        help="apply the planned changes explicitly (currently also the default)",
+        help="apply the planned changes",
     )
     mode.add_argument(
         "--dry-run",
         action="store_true",
-        help="show tablet count changes for each physical table and selected replication log without modifying tables",
+        help="show tablet count changes for each physical table and selected replication log without modifying tables (default)",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="enable debug output")
 
@@ -955,13 +954,6 @@ def reshard_tables(args):
         format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG if args.verbose else logging.INFO
     )
 
-    if not args.commit and not args.dry_run:
-        logging.warning(
-            "Running without --commit or --dry-run currently applies changes. "
-            "In a future version, it will only show the plan. "
-            "Pass --commit to keep applying changes, or --dry-run to preview them."
-        )
-
     client = yt.YtClient(proxy=args.proxy, config=_make_client_config())
 
     plans = []
@@ -975,7 +967,7 @@ def reshard_tables(args):
         client,
         plans,
         also_chaos_replication_logs=args.also_chaos_replication_logs,
-        dry_run=args.dry_run,
+        dry_run=not args.commit,
     )
 
 

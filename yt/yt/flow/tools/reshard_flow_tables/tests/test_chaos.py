@@ -1487,23 +1487,19 @@ def test_temporary_only_log_reports_per_computation_creation_and_removal(caplog)
     assert client.calls == replica.calls == []
 
 
-@pytest.mark.parametrize(
-    "flags, applies, warns", [([], True, True), (["--commit"], True, False), (["--dry-run"], False, False)]
-)
-def test_cli_commit_transition(caplog, monkeypatch, flags, applies, warns):
+@pytest.mark.parametrize("flags, applies", [([], False), (["--commit"], True), (["--dry-run"], False)])
+def test_cli_defaults_to_dry_run(caplog, monkeypatch, flags, applies):
     client = FakeClient({"//pipeline/states/@type": "table", "//pipeline/states/@tablet_count": 3})
     monkeypatch.setattr(yt, "YtClient", lambda **kwargs: client)
     monkeypatch.setattr(
         sys, "argv", ["reshard_flow_tables", "--external-table", "//pipeline/states", "--tablet-count", "5"] + flags
     )
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.INFO):
         reshard_tables(get_args())
     assert bool(client.calls) == applies
-    warnings = [record.getMessage() for record in caplog.records if "Running without --commit" in record.getMessage()]
-    assert bool(warnings) == warns
-    if warns:
-        assert "future version" in warnings[0]
-        assert "--dry-run" in warnings[0]
+    assert "//pipeline/states: 3 => 5 tablets" in caplog.text
+    assert ("Dry run: no tables will be modified" in caplog.text) == (not applies)
+    assert "Running without --commit" not in caplog.text
 
 
 def test_cli_commit_and_dry_run_are_mutually_exclusive(monkeypatch):
