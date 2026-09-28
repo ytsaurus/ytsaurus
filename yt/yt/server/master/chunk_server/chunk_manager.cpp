@@ -7578,7 +7578,7 @@ private:
         }
 
         const auto& config = GetDynamicConfig();
-        auto isDestroyed = config->Testing->DisableRemovingReplicasFromDestroyedQeueue ? false : location->RemoveDestroyedReplica(chunkIdWithIndex);
+        auto isDestroyed = !config->Testing->DisableRemovingReplicasFromDestroyedQeueue && location->RemoveDestroyedReplica(chunkIdWithIndex);
         if (isDestroyed) {
             --DestroyedReplicaCount_;
         }
