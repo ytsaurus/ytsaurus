@@ -38,3 +38,7 @@ The sandbox disappears with a finished job. Its `stderr` remains available for f
 ```bash
 yt --proxy <cluster> get-job-stderr --operation <operation_id> --job-id <job_id>
 ```
+
+## See also
+
+- [Run a pipeline in a Vanilla operation](../initial-deploy.md)
