@@ -107,17 +107,10 @@ jobs:
           output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
           mkdir -p "$output"
 
-          platform_flags=(
-            --target-platform="default-$PLATFORM"
-          )
-          if [[ "$PLATFORM" == linux-* ]]; then
-            platform_flags+=(--musl)
-          fi
-
           ./ya make \
             --build=release \
             --thinlto \
-            "${platform_flags[@]}" \
+            --target-platform="default-$PLATFORM" \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
             --output="$output" \
             --stat \
