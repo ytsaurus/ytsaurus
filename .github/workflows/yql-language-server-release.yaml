@@ -95,7 +95,7 @@ jobs:
       PLATFORM: ${{ matrix.platform }}
       VERSION: ${{ needs.prepare.outputs.version }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -109,7 +109,6 @@ jobs:
 
           ./ya make \
             --build=release \
-            --thinlto \
             --target-platform="default-$PLATFORM" \
             -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
             --output="$output" \
