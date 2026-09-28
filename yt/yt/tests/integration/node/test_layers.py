@@ -2,10 +2,10 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, ROOTFS_LAYER_PATH
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
-    write_file, write_table, get_job, get_job_spec, abort_job, poll_job_shell,
+    write_file, write_table, get_job, get_job_spec, abort_job, poll_job_shell, run_job_shell_command,
     raises_yt_error, read_table, run_test_vanilla, vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config, update_controller_agent_config,
-    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
+    wait_breakpoint, with_breakpoint, release_breakpoint, print_debug, events_on_fs,
     make_random_string, sync_create_cells, get_allocation_id_from_job_id,
     remove_default_layer_path,
     create_domestic_medium, create_account, set_account_disk_space_limit,
@@ -24,6 +24,7 @@ import io
 import gzip
 import re
 import sys
+import textwrap
 import time
 import zstandard as zstd
 
@@ -623,6 +624,146 @@ class TestRootFS(TestLayersBase):
         job_id = job_ids[0]
         stderr_bytes = op.read_stderr(job_id)
         assert stderr_bytes.decode("ascii").strip() == "my_file"
+
+
+class TestPrivateDirectory(TestLayersBase):
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "do_not_set_user_id": True,
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+    _SCRIPT = textwrap.dedent(
+        """\
+        import errno
+        from pathlib import Path
+
+        for name in ("private", "empty"):
+            path = Path("..") / name
+            assert path.is_dir()
+            assert list(path.iterdir()) == []
+            assert not (path / "host_file").exists()
+
+            try:
+                path.chmod(0o777)
+            except OSError as error:
+                assert error.errno == errno.EROFS, error
+            else:
+                assert False
+
+            try:
+                (path / "user_file").touch()
+            except OSError as error:
+                assert error.errno == errno.EROFS, error
+            else:
+                assert False
+        """
+    )
+
+    @authors("dann239")
+    @pytest.mark.parametrize(
+        ("use_rootfs", "disable_rbind_root_volume"),
+        [(False, False), (True, False), (True, True)],
+    )
+    def test_private_directory(self, use_rootfs, disable_rbind_root_volume):
+        layer_paths = []
+        if use_rootfs:
+            create("file", "//tmp/exec.tar.gz")
+            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+            create("file", "//tmp/rootfs.tar.gz")
+            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+            layer_paths = ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"]
+        else:
+            remove_default_layer_path()
+
+        create("file", "//tmp/script.py")
+        write_file("//tmp/script.py", self._SCRIPT.encode())
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT ; python3 script.py"),
+            task_patch={
+                "layer_paths": layer_paths,
+                "file_paths": ["//tmp/script.py"],
+            },
+            spec={
+                "enable_root_volume_disk_quota": disable_rbind_root_volume,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_id = wait_breakpoint()[0]
+        private_path = os.path.normpath(
+            f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
+        )
+        assert os.path.isdir(private_path)
+        private_file = os.path.join(private_path, "host_file")
+        with open(private_file, "w") as f:
+            f.write("private contents")
+
+        wait(lambda: op.get_job_phase(job_id) == "running")
+        shell_output = run_job_shell_command(
+            job_id,
+            command=" && ".join([
+                "cd ../sandbox",
+                "python3 script.py",
+                events_on_fs().notify_event_cmd("shell_checked"),
+            ]),
+        )
+        assert events_on_fs().check_event("shell_checked"), shell_output
+
+        release_breakpoint(job_id=job_id)
+        op.track()
+        wait(lambda: not os.path.exists(private_file))
+
+    @authors("dann239")
+    def test_private_directory_in_sidecar(self):
+        op = run_test_vanilla(
+            with_breakpoint(" && ".join([
+                "BREAKPOINT",
+                events_on_fs().wait_event_cmd("sidecar_checked"),
+            ])),
+            task_patch={
+                "sidecars": {
+                    "check_private_directory": {
+                        "command": " && ".join([
+                            events_on_fs().wait_event_cmd("check_sidecar"),
+                            "python3 script.py",
+                            events_on_fs().notify_event_cmd("sidecar_checked"),
+                        ]),
+                        "restart_policy": "fail_on_error",
+                        "sidecar_volume_mounts": [{"volume_id": "sidecar_root", "mount_path": "/"}],
+                    },
+                },
+                "volumes": {
+                    "sidecar_root": {
+                        "disk_request": {"type": "local_disk", "disk_space": 10 * 1024 * 1024},
+                    },
+                },
+            },
+            spec={"max_failed_job_count": 1},
+        )
+
+        job_id = wait_breakpoint()[0]
+        private_path = os.path.normpath(
+            f'{op.get_job_node_orchid(job_id)["exec_attributes"]["job_proxy_socket_path"]}/../../private'
+        )
+        private_file = os.path.join(private_path, "host_file")
+        with open(private_file, "w") as f:
+            f.write("private contents")
+
+        with open(os.path.join(private_path, "../sandbox/script.py"), "w") as f:
+            f.write(self._SCRIPT)
+
+        events_on_fs().notify_event("check_sidecar")
+        release_breakpoint(job_id=job_id)
+        op.track()
 
 
 class TestProbingLayer(TestPortoLayersBase):

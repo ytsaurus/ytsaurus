@@ -660,6 +660,12 @@ void TJobProxy::DoRun()
             .With(error);
     }
 
+    {
+        auto error = WaitFor(PrivateRpcServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_TLOG_ERROR_UNLESS(error.IsOK(), "Error stopping private RPC server")
+            .With(error);
+    }
 
     if (GrpcServer_) {
         auto error = WaitFor(GrpcServer_->Stop()
@@ -920,6 +926,7 @@ TJobResult TJobProxy::RunJob()
         environment = CreateJobProxyEnvironment(
             Config_,
             JobThread_->GetInvoker(),
+            GetPreparationPath(),
             GetSlotPath(),
             /*failedSidecarCallback*/ [this] (TError sidecarError) {
                 auto job = FindJob();
@@ -941,6 +948,7 @@ TJobResult TJobProxy::RunJob()
             Config_->EnableJobIoStatistics);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
+        YT_VERIFY(Config_->PrivateBusServer->UnixDomainSocketPath);
         YT_VERIFY(Config_->GrpcServer->Addresses.size() == 1);
 
         InitializeOrchid();
@@ -952,12 +960,12 @@ TJobResult TJobProxy::RunJob()
 
         YT_TLOG_INFO("Creating RPC and GRPC servers")
             .With("RpcSocketPath", Config_->BusServer->UnixDomainSocketPath)
+            .With("PrivateRpcSocketPath", Config_->PrivateBusServer->UnixDomainSocketPath)
             .With("GrpcSocketPath", Config_->GrpcServer->Addresses[0]->Address);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalBusServer(Config_->BusServer));
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->OnDynamicConfigChanged(Config_->RpcServerDynamic);
-        RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->RegisterService(jobApiService);
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             OrchidRoot_,
@@ -965,6 +973,12 @@ TJobResult TJobProxy::RunJob()
             /*authenticator*/ nullptr));
 
         RpcServer_->Start();
+
+        PrivateRpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalBusServer(Config_->PrivateBusServer));
+        PrivateRpcServer_->Configure(Config_->RpcServer);
+        PrivateRpcServer_->OnDynamicConfigChanged(Config_->RpcServerDynamic);
+        PrivateRpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
+        PrivateRpcServer_->Start();
 
         if (Config_->EnableGrpcServer) {
             GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);

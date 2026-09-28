@@ -70,6 +70,30 @@ YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
 #ifdef _linux_
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
+
+std::vector<TBind> MakePrivateDirectoryMaskBinds(const std::string& slotPath)
+{
+    auto emptyPath = NFS::CombinePaths(
+        NFs::CurrentWorkingDirectory(),
+        GetSandboxRelPath(ESandboxKind::Empty));
+
+    return {
+        TBind{
+            .SourcePath = emptyPath,
+            .TargetPath = NFS::CombinePaths(
+                slotPath,
+                GetSandboxRelPath(ESandboxKind::Empty)),
+            .ReadOnly = true,
+        },
+        TBind{
+            .SourcePath = emptyPath,
+            .TargetPath = NFS::CombinePaths(
+                slotPath,
+                GetSandboxRelPath(ESandboxKind::Private)),
+            .ReadOnly = true,
+        },
+    };
+}
 #endif
 
 template <class T>
@@ -388,6 +412,8 @@ public:
             launcher->SetRoot(*Options_.RootFS);
         }
 
+        launcher->SetBinds(MakePrivateDirectoryMaskBinds(NFS::GetDirectoryName(workingDirectory)));
+
         // TODO(severovv): List not only nvidia devices by calling to GpuManager
         std::vector<TDevice> devices;
         for (const auto& descriptor : ListNvidiaGpuDevices()) {
@@ -594,6 +620,7 @@ public:
         , Launcher_(CreatePortoInstanceLauncher(Name_, std::move(portoExecutor)))
     {
         Launcher_->SetCwd(CurrentWorkDirectory_);
+        Launcher_->SetBinds(MakePrivateDirectoryMaskBinds(jobProxyContainerPath));
     }
 
     TFuture<void> StartSidecar() final
@@ -1633,6 +1660,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     const TJobProxyInternalConfigPtr& config,
     IInvokerPtr invoker,
+    const std::string& jobProxyPreparationPath,
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
 {
@@ -1642,7 +1670,7 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TPortoJobProxyEnvironment>(
                 config->JobEnvironment.GetConcrete<TPortoJobEnvironmentConfig>(),
                 invoker,
-                jobProxySlotPath,
+                jobProxyPreparationPath,
                 failedSidecarCallback);
 #endif
 

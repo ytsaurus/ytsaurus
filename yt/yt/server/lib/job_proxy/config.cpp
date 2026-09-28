@@ -515,6 +515,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
         .Default(false);
 
+    registrar.Parameter("private_bus_server", &TThis::PrivateBusServer)
+        .DefaultNew();
+
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .DefaultNew();
 

@@ -602,6 +602,20 @@ public:
         return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
+    TBusServerConfigPtr GetPrivateBusServerConfig() const override
+    {
+        VerifyEnabled();
+
+        return TBusServerConfig::CreateUds(GetJobProxyPrivateUnixDomainSocketPath());
+    }
+
+    TBusClientConfigPtr GetPrivateBusClientConfig() const override
+    {
+        VerifyEnabled();
+
+        return TBusClientConfig::CreateUds(GetJobProxyPrivateUnixDomainSocketPath());
+    }
+
     NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const override
     {
         VerifyEnabled();
@@ -868,6 +882,14 @@ private:
             Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
     }
 
+    std::string GetJobProxyPrivateUnixDomainSocketPath() const
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths(
+            Location_->GetSandboxPath(SlotIndex_, ESandboxKind::Private),
+            Format("%v-private-%v", NodeTag_, SlotIndex_));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

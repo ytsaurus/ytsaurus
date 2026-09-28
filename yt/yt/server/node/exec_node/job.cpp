@@ -3365,6 +3365,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 
     proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
+    proxyInternalConfig->PrivateBusServer = GetUserSlot()->GetPrivateBusServerConfig();
     proxyInternalConfig->GrpcServer = GetUserSlot()->GetGrpcServerConfig();
     proxyInternalConfig->HttpServerUdsPath = GetUserSlot()->GetJobProxyHttpUnixDomainSocketPath();
 
@@ -4386,7 +4387,9 @@ void TJob::InitializeJobProbe()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig(), CommonConfig_->JobProbe);
+    auto probe = CreateJobProbe(
+        GetUserSlot()->GetPrivateBusClientConfig(),
+        CommonConfig_->JobProbe);
     {
         auto guard = Guard(JobProbeLock_);
         std::swap(JobProbe_, probe);

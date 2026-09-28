@@ -150,6 +150,7 @@ private:
 
     // Local servers accessible only via Unix domain sockets.
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr PrivateRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NRpc::IServerPtr HttpServer_;
 
