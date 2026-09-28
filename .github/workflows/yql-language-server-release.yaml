@@ -30,7 +30,7 @@ jobs:
       - name: Test Version
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.prepare.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
@@ -44,7 +44,7 @@ jobs:
           expected="0.$((latest_n + 1)).0"
 
           if [[ "$VERSION" != "$expected" ]]; then
-            echo "Expected release version $expected, got $VERSION" >&2
+            echo "Expected release version '$expected', got '$VERSION'" >&2
             exit 1
           fi
 
