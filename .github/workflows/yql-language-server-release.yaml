@@ -76,7 +76,7 @@ jobs:
           retention-days: 1
 
   build-linux:
-    name: Build Linux (${{ matrix.platform }})
+    name: Build (${{ matrix.platform }})
     needs:
       - prepare
     env:
@@ -133,7 +133,7 @@ jobs:
           retention-days: 1
 
   build-macos:
-    name: Build MacOS (${{ matrix.platform }})
+    name: Build (${{ matrix.platform }})
     strategy:
       matrix:
         platform:
@@ -147,7 +147,7 @@ jobs:
       - run: exit 0 # TODO(vityaman): not implemented
 
   build-windows:
-    name: Build Windows (${{ matrix.platform }})
+    name: Build (${{ matrix.platform }})
     strategy:
       matrix:
         platform:
