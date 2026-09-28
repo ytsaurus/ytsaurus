@@ -87,7 +87,6 @@ jobs:
         platform:
           - linux-x86_64
           - linux-aarch64
-      max-parallel: 1
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -140,7 +139,6 @@ jobs:
         platform:
           - darwin-arm64
           - darwin-x86_64
-      max-parallel: 1
     needs:
       - prepare
     runs-on: ubuntu-latest
@@ -154,7 +152,6 @@ jobs:
       matrix:
         platform:
           - win-x86_64
-      max-parallel: 1
     needs:
       - prepare
     runs-on: ubuntu-latest
