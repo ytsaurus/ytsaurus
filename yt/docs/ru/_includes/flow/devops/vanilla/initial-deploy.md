@@ -6,7 +6,7 @@
 
 Конфигурационный файл:
 
-* `pipeline.yson` — [runner config](../../../../flow/concepts/spec.md#config) со спекой пайплайна. Чтобы пайплайн запустился в vanilla-операции, в нём должен быть блок `vanilla` с `enable = %true` (см. [Как включить](#enable)). Отдельный `config.yson` не нужен — node config внутри джоб строится автоматически.
+* `pipeline.yson` — [runner config](../../../../flow/concepts/spec.md#runner-config) со спекой пайплайна. Чтобы пайплайн запустился в vanilla-операции, в нём должен быть блок `vanilla` с `enable = %true` (см. [Как включить](#enable)). Отдельный `config.yson` не нужен — node config внутри джоб строится автоматически.
 
 И бинари — их роли зависят от языка:
 
