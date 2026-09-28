@@ -25,7 +25,6 @@ END()
 
 RECURSE(
     api
-    ci
     lsp
     service
     testing
