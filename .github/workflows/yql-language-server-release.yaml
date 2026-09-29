@@ -186,4 +186,5 @@ jobs:
             dist/yql-language-server-* \
             --target "$GITHUB_SHA" \
             --title "YQL Language Server $VERSION" \
-            --notes-file dist/RELEASE_NOTES.md
+            --notes-file dist/RELEASE_NOTES.md \
+            --latest=false
