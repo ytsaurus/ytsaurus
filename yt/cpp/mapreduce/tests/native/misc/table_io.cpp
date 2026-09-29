@@ -1048,20 +1048,48 @@ TEST(TableIo, SimpleRetrylessWriter)
     EXPECT_EQ(counter, numRows);
 }
 
-void TestCompressionCodec(EEncoding encoding)
+TVector<TNode> CreateSmallData()
 {
-    TConfigSaverGuard configGuard;
-
-    TConfig::Get()->ContentEncoding = encoding;
-    TTestFixture fixture;
-    auto client = fixture.GetClient();
-    auto workingDir = fixture.GetWorkingDir();
-    auto path = workingDir + "/table";
-
-    const TVector<TNode> expectedData = {
+    return {
         TNode()("foo", "bar"),
         TNode()("foo", "baz"),
     };
+}
+
+TVector<TNode> CreateBigData()
+{
+    constexpr size_t excessive_amount = 3'000;
+    TVector<TNode> data;
+    data.reserve(excessive_amount);
+    for (size_t i = 0; i < excessive_amount; i++) {
+        const TString key = "foo" + std::to_string(i);
+        const TString value = "bar" + std::to_string(i);
+        data.push_back(TNode()(key, value));
+    }
+    return data;
+}
+
+TVector<TNode> CreateData(bool big)
+{
+    if (big) {
+        return CreateBigData();
+    }
+    return CreateSmallData();
+}
+
+void TestCompressionCodec(EEncoding encoding, bool big = false)
+{
+    TConfigSaverGuard configGuard;
+
+    TTestFixture fixture;
+
+    TConfig::Get()->ContentEncoding = encoding;
+    TConfig::Get()->AcceptEncoding = encoding;
+
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto path = workingDir + "/table";
+    const TVector<TNode> expectedData = CreateData(big);
 
     {
         auto writer = client->CreateTableWriter<TNode>(path);
@@ -1079,37 +1107,46 @@ void TestCompressionCodec(EEncoding encoding)
     EXPECT_EQ(actual, expectedData);
 }
 
-TEST(TableIo, CompressionCodecIdentity)
+TEST(TableIo, CompressionCodecIdentitySimple)
 {
     TestCompressionCodec(E_IDENTITY);
 }
 
-TEST(TableIo, CompressionCodecGzip)
+TEST(TableIo, CompressionCodecGzipSimple)
 {
-    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
-        // Compression is not supported.
-        return;
-    }
     TestCompressionCodec(E_GZIP);
 }
 
-TEST(TableIo, CompressionCodecBrotli)
+TEST(TableIo, CompressionCodecBrotliSimple)
 {
-    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
-        // Compression is not supported.
-        return;
-    }
     TestCompressionCodec(E_BROTLI);
 }
 
-TEST(TableIo, CompressionCodecZLz4)
+TEST(TableIo, CompressionCodecZLz4Simple)
 {
-    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
-        // Compression is not supported.
-        return;
-    }
     TestCompressionCodec(E_Z_LZ4);
 }
+
+TEST(TableIo, CompressionCodecIdentityLarge)
+{
+    TestCompressionCodec(E_IDENTITY, true);
+}
+
+TEST(TableIo, CompressionCodecGzipLarge)
+{
+    TestCompressionCodec(E_GZIP, true);
+}
+
+TEST(TableIo, CompressionCodecBrotliLarge)
+{
+    TestCompressionCodec(E_BROTLI, true);
+}
+
+TEST(TableIo, CompressionCodecZLz4Large)
+{
+    TestCompressionCodec(E_Z_LZ4, true);
+}
+
 
 TEST(TableIo, AbortWriter)
 {

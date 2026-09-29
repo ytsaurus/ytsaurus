@@ -7,6 +7,8 @@ package ypath
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -64,6 +66,85 @@ func (p Path) JoinChild(names ...string) Path {
 		p = p.Child(child)
 	}
 	return p
+}
+
+func needsEscaping(ch byte) bool {
+	return isSpecialCharacter(ch) || ch < 32 || ch >= 128
+}
+
+// EscapeLiteral escapes a literal component of a YPath.
+// Path.Child appends its argument without escaping.
+func EscapeLiteral(value string) string {
+	const hexDigits = "0123456789abcdef"
+
+	i := 0
+	for i < len(value) && !needsEscaping(value[i]) {
+		i++
+	}
+	if i == len(value) {
+		return value
+	}
+
+	var result strings.Builder
+	result.Grow(i + 4*(len(value)-i))
+	result.WriteString(value[:i])
+	for ; i < len(value); i++ {
+		ch := value[i]
+		switch {
+		case isSpecialCharacter(ch):
+			result.WriteByte('\\')
+			result.WriteByte(ch)
+		case needsEscaping(ch):
+			result.WriteString(`\x`)
+			result.WriteByte(hexDigits[ch>>4])
+			result.WriteByte(hexDigits[ch&15])
+		default:
+			result.WriteByte(ch)
+		}
+	}
+	return result.String()
+}
+
+// UnescapeLiteral decodes escape sequences in a literal component of a YPath.
+// It returns an error for invalid or incomplete escape sequences.
+func UnescapeLiteral(value string) (string, error) {
+	i := strings.IndexByte(value, '\\')
+	if i == -1 {
+		return value, nil
+	}
+
+	var result strings.Builder
+	result.Grow(len(value))
+	result.WriteString(value[:i])
+	for ; i < len(value); i++ {
+		if value[i] != '\\' {
+			result.WriteByte(value[i])
+			continue
+		}
+
+		i++
+		if i == len(value) {
+			return "", fmt.Errorf("ypath: unterminated escape sequence")
+		}
+
+		switch {
+		case isSpecialCharacter(value[i]):
+			result.WriteByte(value[i])
+		case value[i] == 'x':
+			if i+2 >= len(value) {
+				return "", fmt.Errorf("ypath: unterminated escape sequence")
+			}
+			ch, err := strconv.ParseUint(value[i+1:i+3], 16, 8)
+			if err != nil {
+				return "", fmt.Errorf("ypath: invalid escape sequence")
+			}
+			result.WriteByte(byte(ch))
+			i += 2
+		default:
+			return "", fmt.Errorf("ypath: invalid escape sequence")
+		}
+	}
+	return result.String(), nil
 }
 
 func (p Path) Child(name string) Path {

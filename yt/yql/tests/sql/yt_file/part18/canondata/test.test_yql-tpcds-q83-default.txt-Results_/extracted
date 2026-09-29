@@ -48,6 +48,12 @@
                                                                     <tmp_path>/program.sql:<main>:31:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
                                                                     	                            CAST('1998-11-10' AS Date)
 	                                                 ^
+                                <tmp_path>/program.sql:<main>:18:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:18:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^
         <tmp_path>/program.sql:<main>:112:1: Warning: At tuple
         	SELECT
 	^
@@ -93,6 +99,12 @@
                                                                     <tmp_path>/program.sql:<main>:67:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
                                                                     	                            CAST('1998-11-10' AS Date)
 	                                                 ^
+                                <tmp_path>/program.sql:<main>:54:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:54:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^
         <tmp_path>/program.sql:<main>:112:1: Warning: At tuple
         	SELECT
 	^
@@ -138,3 +150,9 @@
                                                                     <tmp_path>/program.sql:<main>:103:50: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
                                                                     	                            CAST('1998-11-10' AS Date)
 	                                                 ^
+                                <tmp_path>/program.sql:<main>:90:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:90:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^

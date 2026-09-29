@@ -17,6 +17,7 @@
 #include <yql/essentials/utils/log/proto/logger_config.pb.h>
 
 #include <util/folder/path.h>
+#include <util/datetime/base.h>
 
 namespace NYT::NYqlPlugin {
 
@@ -82,6 +83,11 @@ NYql::TFileLinkPtr TDqManager::GetVanillaJobLite() const
 
 void TDqManager::Start()
 {
+    YQL_LOG(INFO) << "Starting DQ manager: backends=" << Config_->YtBackends.size()
+                  << ", actor_threads=" << Config_->ActorThreads
+                  << ", interconnect_port=" << Config_->InterconnectPort
+                  << ", grpc_port=" << Config_->GrpcPort;
+
     NYson::TProtobufWriterOptions protobufWriterOptions;
     protobufWriterOptions.ConvertSnakeToCamelCase = true;
 
@@ -103,11 +109,13 @@ void TDqManager::Start()
     }
 
     TString hostName, localAddress;
+    YQL_LOG(INFO) << "DQ startup stage: resolving local address";
     std::tie(hostName, localAddress) = NYql::NDqs::GetLocalAddress(
         coordinatorConfig.HasHostName() ? &coordinatorConfig.GetHostName() : nullptr,
         Config_->UseIPv4 ? AF_INET : AF_INET6
     );
-    YQL_LOG(INFO) << hostName + ":" + ToString(localAddress) << Endl;
+    YQL_LOG(INFO) << "DQ local endpoint resolved: host=" << hostName
+                  << ", address=" << localAddress;
 
     NYql::NProto::TDqConfig::TScheduler schedulerConfig;
     if (Config_->Scheduler) {
@@ -131,8 +139,13 @@ void TDqManager::Start()
         auto token = TIFStream(path).ReadAll();
         coordinatorConfig.SetToken(token);
     }
+    YQL_LOG(INFO) << "DQ startup stage: connecting to coordinator: cluster="
+                  << coordinatorConfig.GetClusterName()
+                  << ", proxy=" << coordinatorConfig.GetProxyAddress()
+                  << ", prefix=" << coordinatorConfig.GetPrefix();
     auto Coordinator_ = CreateCoordiantionHelper(coordinatorConfig, schedulerConfig, "service_node", interconnectPort, hostName, localAddress);
 
+    YQL_LOG(INFO) << "DQ startup stage: acquiring service node ID";
     auto nodeId = Coordinator_->GetNodeId(
         Nothing(),
         {ToString(grpcPort)},
@@ -140,7 +153,7 @@ void TDqManager::Start()
         static_cast<ui32>(NDqs::ENodeIdLimits::MaxServiceNodeId),
         {}
     );
-    YQL_LOG(INFO) << "DQ manager nodeId: " << nodeId << Endl;
+    YQL_LOG(INFO) << "DQ service node ID acquired: node_id=" << nodeId;
 
     NYql::NDqs::TServiceNodeConfig serviceNodeConfig;
     serviceNodeConfig.NodeId = nodeId;
@@ -162,8 +175,9 @@ void TDqManager::Start()
         return NYql::NDqs::CreateDynamicNameserver(setup);
     };
 
-    YQL_LOG(INFO) << "Interconnect addr/port " << serviceNodeConfig.InterconnectAddress << ":" << serviceNodeConfig.Port;
-    YQL_LOG(INFO) << "GRPC addr/port " << serviceNodeConfig.GrpcHostname << ":" << serviceNodeConfig.GrpcPort;
+    YQL_LOG(INFO) << "DQ startup stage: starting service node: interconnect="
+                  << serviceNodeConfig.InterconnectAddress << ":" << serviceNodeConfig.Port
+                  << ", grpc=" << serviceNodeConfig.GrpcHostname << ":" << serviceNodeConfig.GrpcPort;
 
     MetricsRegistry_ = CreateMetricsRegistry(GetSensorsGroupFor(NSensorComponent::kDq));
     ServiceNode_ = MakeHolder<TServiceNode>(serviceNodeConfig, threads, MetricsRegistry_);
@@ -179,6 +193,7 @@ void TDqManager::Start()
         NDq::CreateYtDqTaskPreprocessorFactory(false, funcRegistry)
     };
     ServiceNode_->StartService(dqTaskPreprocessorFactories);
+    YQL_LOG(INFO) << "DQ actor system and service node started";
 
     TVector<NActors::TActorId> ytRMs;
     ytRMs.reserve(Config_->YtBackends.size());
@@ -218,6 +233,20 @@ void TDqManager::Start()
             rmOptions.YtBackend.SetMaxNodeId(startNodeId + nodesPerCluster);
             startNodeId += nodesPerCluster;
         }
+
+        YQL_LOG(INFO) << "DQ startup stage: initializing YT backend: cluster="
+                      << rmOptions.YtBackend.GetClusterName()
+                      << ", proxy=" << rmOptions.YtBackend.GetProxyAddress()
+                      << ", max_jobs=" << rmOptions.YtBackend.GetMaxJobs()
+                      << ", jobs_per_operation=" << rmOptions.YtBackend.GetJobsPerOperation()
+                      << ", worker_capacity=" << rmOptions.YtBackend.GetWorkerCapacity()
+                      << ", cpu_limit=" << rmOptions.YtBackend.GetCpuLimit()
+                      << ", memory_limit=" << rmOptions.YtBackend.GetMemoryLimit()
+                      << ", cache_size=" << rmOptions.YtBackend.GetCacheSize()
+                      << ", use_tmp_fs=" << rmOptions.YtBackend.GetUseTmpFs()
+                      << ", upload_replication_factor=" << rmOptions.YtBackend.GetUploadReplicationFactor()
+                      << ", node_id_range=[" << rmOptions.YtBackend.GetMinNodeId()
+                      << ", " << rmOptions.YtBackend.GetMaxNodeId() << ")";
 
         if (!rmOptions.YtBackend.HasToken()) {
             if (!rmOptions.YtBackend.HasTokenFile()) {
@@ -283,6 +312,7 @@ void TDqManager::Start()
     }
 
     Coordinator_->StartGlobalWorker(ActorSystem_, uploadResourcesOptions, MetricsRegistry_);
+    YQL_LOG(INFO) << "DQ resource managers and global worker manager started; waiting for worker registration";
 
     // Wait here until the DQ component is ready
     auto dqControlFactory = CreateDqControlFactory(
@@ -294,14 +324,20 @@ void TDqManager::Start()
         Config_->UdfsWithMd5,
         Config_->FileStorage);
     auto dqControl = dqControlFactory->GetControl();
+    const auto warmupStartedAt = TInstant::Now();
+    auto nextProgressLogAt = warmupStartedAt + TDuration::Seconds(30);
     auto isDqReady = dqControl->IsReady({});
-    YQL_LOG(INFO) << "DQ warmup initiated, current status: " << isDqReady;
+    YQL_LOG(INFO) << "DQ warmup started: ready=" << isDqReady;
     while (!isDqReady) {
-        YQL_LOG(INFO) << "Waiting DQ warmup";
         Sleep(TDuration::Seconds(3));
         isDqReady = dqControl->IsReady();
+        const auto now = TInstant::Now();
+        if (!isDqReady && now >= nextProgressLogAt) {
+            YQL_LOG(INFO) << "DQ warmup is still waiting for workers: elapsed=" << now - warmupStartedAt;
+            nextProgressLogAt = now + TDuration::Seconds(30);
+        }
     }
-    YQL_LOG(INFO) << "DQ component is ready";
+    YQL_LOG(INFO) << "DQ component is ready: warmup_time=" << TInstant::Now() - warmupStartedAt;
 }
 
 //////////////////////////////////////////////////////////////////////////////

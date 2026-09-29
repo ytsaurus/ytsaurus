@@ -224,7 +224,9 @@ namespace NYql {
 
         void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
             Y_UNUSED(ctx);
-            RM_LOG(INFO) << "Become leader, epoch=" << ev->Get()->LeaderEpoch;
+            RM_LOG(INFO) << "Resource manager became leader; recovering vanilla operations: epoch="
+                         << ev->Get()->LeaderEpoch
+                         << " path=" << ClusterOperationsPath;
 
             LeaderTransactionId = NYT::NObjectClient::TTransactionId::FromString(ev->Get()->LeaderTransaction);
             RecoveredOperations.clear();
@@ -287,6 +289,9 @@ namespace NYql {
                 Options.YtBackend.GetProxyAddress(),
                 Options.YtBackend.GetUser(),
                 Options.YtBackend.GetToken());
+            RM_LOG(INFO) << "Resource manager started; waiting for leadership lock: prefix="
+                         << Options.YtBackend.GetPrefix()
+                         << " lock=" << Options.LockName;
             RegisterChild(Coordinator->CreateLockOnCluster(YtWrapper, Options.YtBackend.GetPrefix(), Options.LockName, false));
         }
 
@@ -399,12 +404,16 @@ namespace NYql {
             }
             const i64 potentialJobCount = NodeIdAllocator.GetClaimCount();
             const i64 maxJobs = Options.YtBackend.GetMaxJobs();
-
             RM_LOG(DEBUG) << "Potential/Max jobs: " << potentialJobCount << "/" << maxJobs;
 
             const i64 needToStart = maxJobs - potentialJobCount;
             RM_LOG(DEBUG) << "Need to start: " << needToStart;
             if (needToStart > 0) {
+                RM_LOG(INFO) << "Vanilla worker capacity is below target; starting operations: current_jobs="
+                             << potentialJobCount
+                             << " target_jobs=" << maxJobs
+                             << " jobs_to_start=" << needToStart
+                             << " jobs_per_operation=" << Options.YtBackend.GetJobsPerOperation();
                 StartOperations(needToStart, ctx);
             }
         }
@@ -910,6 +919,13 @@ namespace NYql {
             }
             *RecoveryQuarantinedRecordCount = quarantinedRecordCount;
             UpdateHealthCounters();
+            RM_LOG(INFO) << "Vanilla operation recovery completed: recovered_operations="
+                         << RunningOperations.size()
+                         << " claimed_jobs=" << NodeIdAllocator.GetClaimCount()
+                         << " target_jobs=" << Options.YtBackend.GetMaxJobs()
+                         << " quarantined_records=" << quarantinedRecordCount
+                         << " quarantined_jobs=" << QuarantinedClaims
+                         << " conflicting_node_ids=" << conflictingClaimCount;
             RecoveredOperations.clear();
 
             Become(&TYtResourceManager::Leader);
@@ -1043,6 +1059,10 @@ namespace NYql {
                 RunningOperations[mutationId].OperationId = operationId;
                 ScheduleOperationIdUpdate(mutationId, operationId);
                 StartOperationWatcher(operationId, mutationId, ctx);
+                RM_LOG(INFO) << "Vanilla operation started: operation_id=" << operationId
+                             << " mutation_id=" << mutationId
+                             << " jobs=" << maybeJobs->second.Nodes.size()
+                             << " node_ids=[" << JoinSeq(",", maybeJobs->second.Nodes) << "]";
             }
 
             PendingStartOperationRequests.erase(maybeJobs);
@@ -1085,6 +1105,10 @@ namespace NYql {
                 : Options.YtBackend.GetMaxJobs();
 
             Y_ABORT_UNLESS(jobsPerOperation > 0);
+
+            RM_LOG(INFO) << "Preparing vanilla operation batch: requested_jobs=" << jobs
+                         << " jobs_per_operation=" << jobsPerOperation
+                         << " operation_count=" << jobs / jobsPerOperation;
 
             i64 startedJobs = 0;
             for (i64 i = 0; i < jobs; i += jobsPerOperation) {
@@ -1290,18 +1314,7 @@ namespace NYql {
 
         bool StartOperation(i64 jobs, const NActors::TActorContext& ctx) {
             Y_UNUSED(ctx);
-
-            RM_LOG(INFO) << "Creating " << jobs << " workers ";
-
-            TString executableName = (Options.YtBackend.GetProxyAddress().StartsWith("localhost"))
-                ? Options.Files[0].LocalFileName
-                : TString("./") + Options.Files[0].GetRemoteFileName();
-
-            RM_LOG(INFO) << "Executable " << executableName;
-
             TString command = Options.YtBackend.GetVanillaJobCommand();
-
-            RM_LOG(INFO) << "Vanilla job command " << command;
 
             TVector<ui32> nodes;
 
@@ -1310,10 +1323,18 @@ namespace NYql {
             startOperationOptions.MutationId = startOperationOptions.GetOrGenerateMutationId();
             const auto mutationIdStr = ToString(startOperationOptions.MutationId);
             if (!NodeIdAllocator.Allocate(mutationIdStr, jobs, &nodes)) {
-                RM_LOG(WARN) << "Cannot allocate node IDs: jobs=" << jobs
-                    << " mutation_id=" << mutationIdStr;
+                RM_LOG(ERROR) << "Cannot prepare vanilla operation: node ID allocation failed: jobs=" << jobs
+                              << " mutation_id=" << mutationIdStr
+                              << " claimed_jobs=" << NodeIdAllocator.GetClaimCount()
+                              << " node_id_range=[" << Options.YtBackend.GetMinNodeId()
+                              << ", " << Options.YtBackend.GetMaxNodeId() << ")";
                 return false;
             }
+
+            RM_LOG(INFO) << "Preparing vanilla operation: mutation_id=" << mutationIdStr
+                         << " jobs=" << jobs
+                         << " node_ids=[" << JoinSeq(",", nodes) << "]"
+                         << " command=" << command;
 
             startOperationOptions.Retry = true;
 
@@ -1421,9 +1442,15 @@ namespace NYql {
                     op.MutationId,
                     THolder<TEvStartOperation>()
                 };
+                RM_LOG(INFO) << "Vanilla operation metadata created; sending start request: mutation_id="
+                             << op.MutationId
+                             << " jobs=" << op.Nodes.size()
+                             << " node_ids=[" << JoinSeq(",", op.Nodes) << "]";
                 Send(YtWrapper, op.Ev.Release());
             } else if (RunningOperations.contains(op.MutationId)) {
-                YQL_CLOG(DEBUG, ProviderDq) << "Error on create node " << ToString(result);
+                RM_LOG(ERROR) << "Cannot create vanilla operation metadata: mutation_id=" << op.MutationId
+                              << " path=" << ClusterOperationsPath + "/" + op.MutationId
+                              << " error=" << ToString(result);
                 DropRunningOperation(op.MutationId);
             }
             PendingStartOperationRequests.erase(it);

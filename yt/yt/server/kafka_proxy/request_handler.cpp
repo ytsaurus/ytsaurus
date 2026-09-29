@@ -603,7 +603,7 @@ private:
             TRspMetadataBroker{
                 .NodeId = 0,
                 .Host = GetLocalHostName(),
-                .Port = Config_->Port,
+                .Port = Config_->Server->Port,
                 .Rack = "1",
             },
         };
@@ -722,7 +722,7 @@ private:
         TRspFindCoordinator response;
         response.NodeId = 0;
         response.Host = GetLocalHostName();
-        response.Port = Config_->Port;
+        response.Port = Config_->Server->Port;
 
         return response;
     }
@@ -961,7 +961,7 @@ private:
                     topicPartitionResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
                 } else {
                     topicPartitionResponse.HighWatermark = tabletInfos[partitionOffset].TotalRowCount;
-                    auto rowset = rowsetOrError.Value();
+                    auto rowset = rowsetOrError.Value().Rowset;
                     if (rowset->GetRows().empty()) {
                         continue;
                     }

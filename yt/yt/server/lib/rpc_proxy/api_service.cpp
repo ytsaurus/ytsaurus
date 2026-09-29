@@ -5263,7 +5263,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PullQueue)
                 options);
         },
         [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
-        (const auto& context, const auto& queueRowset) {
+        (const auto& context, const auto& result) {
+            const auto& queueRowset = result.Rowset;
             auto* response = &context->Response();
             response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
             response->set_start_offset(queueRowset->GetStartOffset());
@@ -5338,7 +5339,8 @@ void TApiService::PullQueueConsumerImpl(
                 options);
         },
         [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
-        (const auto& context, const auto& queueRowset) {
+        (const auto& context, const auto& result) {
+            const auto& queueRowset = result.Rowset;
             auto* response = &context->Response();
             response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
             response->set_start_offset(queueRowset->GetStartOffset());

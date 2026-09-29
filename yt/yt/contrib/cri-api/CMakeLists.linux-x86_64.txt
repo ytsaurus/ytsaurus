@@ -38,7 +38,13 @@ get_built_tool_path(
 add_library(yt-contrib-cri-api)
 
 
+set_property(TARGET yt-contrib-cri-api PROPERTY PROTO_NAMESPACE
+  yt/yt/contrib/cri-api
+)
+
 set_property(TARGET yt-contrib-cri-api PROPERTY PROTOC_EXTRA_OUTS
+  .grpc.pb.cc
+  .grpc.pb.h
   .deps.pb.h
 )
 

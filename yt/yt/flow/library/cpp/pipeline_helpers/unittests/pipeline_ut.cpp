@@ -355,7 +355,7 @@ TIntrusivePtr<StrictMock<TMockClient>> MakeClientWithEmptyLog()
         CreateRowset(nameTable, TSharedRange<NTableClient::TUnversionedRow>()),
         /*startOffset*/ 0);
     EXPECT_CALL(*client, PullQueue(_, _, _, _, _))
-        .WillRepeatedly(Return(MakeFuture(emptyLogBatch)));
+        .WillRepeatedly(Return(MakeFuture(TPullQueueResult{.Rowset = std::move(emptyLogBatch)})));
     return client;
 }
 

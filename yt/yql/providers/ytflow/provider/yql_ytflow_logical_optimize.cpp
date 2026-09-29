@@ -43,7 +43,6 @@ public:
         AddHandler(0, &TCoExtractMembers::Match, HNDL(ExtractMembersOverReadWrap));
         AddHandler(0, &TCoUnordered::Match, HNDL(UnorderedOverReadWrap));
         AddHandler(0, &TCoSync::Match, HNDL(SyncOverPublish));
-        AddHandler(0, &TYtflowWriteWrap::Match, HNDL(WriteWrapOverSort));
         AddHandler(0, &TCoFilterNullMembers::Match, HNDL(FilterNullMembers<TCoFilterNullMembers>));
         AddHandler(0, &TCoSkipNullMembers::Match, HNDL(FilterNullMembers<TCoSkipNullMembers>));
         AddHandler(1, &TYtflowReadWrap::Match, HNDL(ExtractMembersOverReadWrapMultiUsage));
@@ -271,41 +270,6 @@ private:
         }
 
         return node;
-    }
-
-    TMaybeNode<TExprBase> WriteWrapOverSort(TExprBase node, TExprContext& ctx) {
-        auto writeWrap = node.Cast<TYtflowWriteWrap>();
-        auto providerWrite = writeWrap.Input();
-
-        auto* ytflowIntegration = GetYtflowIntegration(providerWrite.Ref(), *State_->Types);
-        YQL_ENSURE(ytflowIntegration, "Unknown provider write: " << providerWrite.Ref().Content());
-
-        auto content = ytflowIntegration->GetWriteContent(providerWrite.Ref(), ctx);
-
-        auto maybeSort = TMaybeNode<TCoSort>(content);
-        if (!maybeSort) {
-            return node;
-        }
-
-        auto sort = maybeSort.Cast();
-
-        auto* ytflowOptimization = GetYtflowOptimization(providerWrite.Ref(), *State_->Types);
-        YQL_ENSURE(ytflowOptimization, "Unknown provider write: " << providerWrite.Ref().Content());
-
-        auto writeWithoutSort = ytflowIntegration->UpdateWriteContent(
-            providerWrite.Ptr(), sort.Input().Ptr(), ctx);
-
-        auto newProviderWrite = ytflowOptimization->ApplySort(
-            writeWithoutSort, sort.Ptr(), ctx);
-
-        if (!newProviderWrite) {
-            return {};
-        }
-
-        return Build<TYtflowWriteWrap>(ctx, node.Pos())
-            .InitFrom(writeWrap)
-            .Input(std::move(newProviderWrite))
-            .Done();
     }
 
     TMaybeNode<TExprBase> SyncOverPublish(TExprBase node, TExprContext& ctx) {

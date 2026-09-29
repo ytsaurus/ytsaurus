@@ -80,7 +80,8 @@ public:
             /*offset*/ *CurrentOffset_,
             /*partitionIndex*/ 0,
             NQueueClient::TQueueRowBatchReadOptions{}))
-            .ValueOrThrow();
+            .ValueOrThrow()
+            .Rowset;
 
         const int valueColumnIndex = logRows->GetNameTable()->GetIdOrThrow(dataColumnName);
         for (const auto& row : logRows->GetRows()) {

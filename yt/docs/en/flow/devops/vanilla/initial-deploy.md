@@ -6,7 +6,7 @@ This is the simplest way to run Flow: you don’t need a separate long-running d
 
 You need a configuration file:
 
-* `pipeline.yson` — [runner config](../../concepts/spec.md#config) with the pipeline spec. For the pipeline to run in a Vanilla operation, it must include a `vanilla` block with `enable = %true` (see [How to enable](#enable)). You don’t need a separate `config.yson` — the node config inside the jobs is built automatically.
+* `pipeline.yson` — [runner config](../../concepts/spec.md#runner-config) with the pipeline spec. For the pipeline to run in a Vanilla operation, it must include a `vanilla` block with `enable = %true` (see [How to enable](#enable)). You don’t need a separate `config.yson` — the node config inside the jobs is built automatically.
 
 And binaries — their roles depend on the language:
 
@@ -19,17 +19,17 @@ And binaries — their roles depend on the language:
 - Python
 
   * `pipeline` — a lightweight Python binary: launcher plus companion.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./py_companion` as is and assumes the companion is already in the job environment.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./py_companion` as is and assumes the companion is already in the job environment.
 
 - Java
 
   * `run.sh` — the Java launcher script for the jar and companion; it takes the fully qualified main class as its first argument.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `classpath` out of the companion resource parameters: the runner keeps a declared `classpath` as is and assumes the jars are already in the job environment.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `classpath` out of the companion resource parameters: the runner keeps a declared `classpath` as is and assumes the jars are already in the job environment.
 
 - Go
 
   * `pipeline` — a Go binary: launcher plus companion.
-  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin`. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./go_companion` as is and assumes the companion is already in the job environment.
+  * `flow_server` — the Flow server binary (`yt/yt/flow/bin/flow_server`) that works as a controller and worker; its path is passed to the runner via `--flow-bin` or the `YT_FLOW_BIN` environment variable. The companion is delivered to the job automatically. Leave `entrypoint` out of the companion resource parameters: the runner keeps a declared `executable` other than `./go_companion` as is and assumes the companion is already in the job environment.
 
 {% endlist %}
 

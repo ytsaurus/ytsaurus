@@ -3205,7 +3205,7 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
     }
 
     if (newConfig->TemporarilyUnavailableExtraFailureDomainTolerance !=
-            oldConfig->ChunkManager->TemporarilyUnavailableExtraFailureDomainTolerance)
+        oldConfig->ChunkManager->TemporarilyUnavailableExtraFailureDomainTolerance)
     {
         ScheduleGlobalChunkRefresh();
     }

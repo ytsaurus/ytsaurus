@@ -52,6 +52,7 @@ class TestBase(FlowTestBase):
         finite=True,
         processing_mode="exactly_once",
         throttled_computation=None,
+        output_buffer_limit=None,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -87,9 +88,26 @@ class TestBase(FlowTestBase):
                 }
             }
 
+        if output_buffer_limit is not None:
+            output_buffer = dynamic_spec["job_tracker"]["buffer_state_manager"]["output_buffer"]
+            output_buffer["job_guarantee"] = output_buffer_limit
+            output_buffer["job_limit"] = output_buffer_limit
+
         self.patch_config(pipeline_config)
 
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
+
+    def set_output_buffer_limit(self, limit):
+        dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+        output_buffer = dynamic_spec["spec"]["job_tracker"]["buffer_state_manager"]["output_buffer"]
+        output_buffer["job_guarantee"] = limit
+        output_buffer["job_limit"] = limit
+        self.client.set_pipeline_dynamic_spec(
+            self.pipeline_path,
+            dynamic_spec["spec"],
+            expected_version=dynamic_spec["version"],
+        )
+        self.wait_dynamic_spec_sync()
 
     def release_input_throttler(self, computation_id):
         dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)

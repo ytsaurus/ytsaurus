@@ -49,7 +49,6 @@ DEFINE_ENUM(ETabletReign,
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
     ((CancelTabletTransition)                      (101201)) // ifsmirnov
-    ((PerRowSequencer)                             (101202)) // ponasenko-rs
     ((FixHunkStorageUnmountRoutine)                (101203)) // akozhikhov
     ((AddTabletMountTime)                          (101204)) // alexelexa
     ((CheckChaosTransactionsInPrepare)             (101205)) // savrus

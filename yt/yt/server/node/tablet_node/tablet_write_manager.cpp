@@ -791,12 +791,6 @@ public:
                 PrepareLocklessRows(transaction, /*persistent*/ true, /*snapshotLoading*/ true);
             }
 
-            // COMPAT(ponasenko-rs): Remove after ETabletReign::PerRowSequencer
-            if (!writeLogState->SomeRowsCommitted) {
-                auto transactionState = transaction->GetPersistentState();
-                writeLogState->SomeRowsCommitted = transactionState == ETransactionState::Committed || transactionState == ETransactionState::Serialized;
-            }
-
             if (writeLogState->SomeRowsCommitted) {
                 writeLogState->BuildDelayedWriteMapping(Logger, transactionId, Tablet_);
             }
@@ -892,9 +886,7 @@ private:
             using NYT::Load;
 
             Load(context, RowsPrepared);
-            if (context.GetVersion() >= ETabletReign::PerRowSequencer) {
-                Load(context, SomeRowsCommitted);
-            }
+            Load(context, SomeRowsCommitted);
         }
 
         TCallback<void(TSaveContext&)> AsyncSave()

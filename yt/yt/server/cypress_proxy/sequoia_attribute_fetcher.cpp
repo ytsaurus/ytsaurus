@@ -809,7 +809,7 @@ public:
         if (auto* req = std::get_if<TReqGetComposite>(&Request_);
             !AttributeRequest_.ShouldFetchAttributes() &&
             !std::holds_alternative<TReqGet>(Request_) &&
-            (!req || req->ScalarNodeIds_->empty()))
+            (!req || req->ScalarNodeIds->empty()))
         {
             return MakeFuture<TNodeIdToAttributes>({});
         }
@@ -887,7 +887,7 @@ private:
     struct TReqGetComposite
     {
         const TNodeIdToChildDescriptors* NodeIdToChildren = nullptr;
-        const std::vector<TNodeId>* ScalarNodeIds_ = nullptr;
+        const std::vector<TNodeId>* ScalarNodeIds = nullptr;
     };
 
     using TRequest = std::variant<TReqGetAttributes, TReqGet, TReqList, TReqGetComposite>;
@@ -1067,7 +1067,7 @@ private:
                 return rootNodeHolder;
             },
             [&] (const TReqGetComposite& req) -> TRange<TNodeId> {
-                return *(req.ScalarNodeIds_);
+                return *(req.ScalarNodeIds);
             },
             [&] <class TReq>(const TReq&) -> TRange<TNodeId>
                 requires std::same_as<TReq, TReqGetAttributes> || std::same_as<TReq, TReqList>

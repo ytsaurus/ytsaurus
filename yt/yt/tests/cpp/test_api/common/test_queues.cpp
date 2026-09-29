@@ -103,7 +103,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
         AssertPermissionAllowed(testUser, queue->GetPath(), EPermission::Read);
 
         auto rowset = WaitFor(userClient->PullQueue(queue->GetRichPath(), 0, 0, {}))
-            .ValueOrThrow();
+            .ValueOrThrow().Rowset;
         EXPECT_FALSE(rowset->GetRows().empty());
 
         WaitFor(Client_->SetNode(
@@ -163,7 +163,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueueConsumer)
         .ThrowOnError();
 
     auto rowset = WaitFor(userClient->PullQueueConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
-        .ValueOrThrow();
+        .ValueOrThrow().Rowset;
     EXPECT_FALSE(rowset->GetRows().empty());
 
     WaitFor(Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath()))

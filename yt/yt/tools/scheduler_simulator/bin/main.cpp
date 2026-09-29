@@ -43,6 +43,8 @@
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
+#include <util/stream/buffered.h>
+
 #include <util/system/fs.h>
 
 namespace NYT {
@@ -154,7 +156,7 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
 {
     std::vector<TOperationDescription> operations;
     {
-        TStreamLoadContext context(&Cin);
+        NPhoenix::TLoadContext context(&Cin);
         Load(context, operations);
     }
     if (shiftOperationsToStart) {
@@ -360,7 +362,8 @@ private:
             auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
             // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
             TUnbufferedFileOutput outputTemp{TString(destinationTemp)};
-            TStreamSaveContext context(&outputTemp);
+            TBufferedOutput bufferedOutputTemp(&outputTemp);
+            NPhoenix::TSaveContext context(&bufferedOutputTemp);
             TYsonListExtractor<TOperationDescription> extractor(
                 [&] (const TOperationDescription& entry) { Save(context, entry); },
                 Logger);

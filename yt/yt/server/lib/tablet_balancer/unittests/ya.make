@@ -17,6 +17,10 @@ PEERDIR(
     yt/yt/core/test_framework
 )
 
+FORK_SUBTESTS()
+
+SPLIT_FACTOR(2)
+
 SIZE(SMALL)
 
 END()
