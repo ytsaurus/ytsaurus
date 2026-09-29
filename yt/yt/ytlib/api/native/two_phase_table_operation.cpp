@@ -133,7 +133,7 @@ TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
 }
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
-    TObjectServiceProxy& proxy,
+    TObjectServiceProxy* proxy,
     const TYPath& path)
 {
     TTableId tableId;
