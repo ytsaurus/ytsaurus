@@ -28,4 +28,5 @@ END()
 
 RECURSE(
     gotest
+    ytmock
 )
