@@ -521,6 +521,8 @@ message TEditionFlagOptions
     optional bool initial_value = 3 [default = false];
     // Human-readable summary for self-describing code and automated reports/nudges.
     optional string description = 4;
+    // Export the resolved flag value through the generated C++ codegen feature interface.
+    optional bool expose_to_cpp = 5 [default = false];
 }
 
 // Options for options! Set a |project_flag| field option on a boolean file option to require each ORM
