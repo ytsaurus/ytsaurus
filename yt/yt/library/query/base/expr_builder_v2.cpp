@@ -364,7 +364,6 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
             });
     }
 
-    auto intermediateType = current;
     auto resultType = current;
 
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
@@ -393,7 +392,7 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
         resultType = MakeOptionalIfNot(std::move(resultType));
     }
 
-    return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
+    return {std::move(nestedStructOrTupleItemAccessor), std::move(current), std::move(resultType)};
 }
 
 TConstExpressionPtr TExpressionBuilderV2::UnwrapListOrDictItemAccessor(
