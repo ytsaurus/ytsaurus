@@ -3902,12 +3902,17 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& config = GetDynamicConfig()->DataNodeTracker;
+        if (config->Testing->SuppressRegistrationRevisionValidation) {
+            return;
+        }
+
         auto expectedRevision = node->GetRegistrationRevision();
         if (receivedRevision == expectedRevision) {
             return;
         }
 
-        auto enforceValidation = GetDynamicConfig()->DataNodeTracker->EnableRegistrationRevisionValidation;
+        bool enforceValidation = config->EnableRegistrationRevisionValidation;
         if (!enforceValidation || receivedRevision > expectedRevision) {
             YT_TLOG_ALERT("Data node heartbeat registration revision mismatch")
                 .With("NodeId", node->GetId())

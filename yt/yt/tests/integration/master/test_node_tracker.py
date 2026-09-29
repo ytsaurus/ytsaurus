@@ -747,8 +747,13 @@ class TestHeartbeatRegistrationRevision(YTEnvSetup):
 
     @authors("evanevannnn")
     @pytest.mark.parametrize("enforce_validation", [False, True])
-    def test_missing_heartbeat_registration_revision(self, enforce_validation):
+    @pytest.mark.parametrize("suppress_validation", [False, True])
+    def test_missing_heartbeat_registration_revision(self, enforce_validation, suppress_validation):
         set("//sys/@config/chunk_manager/data_node_tracker/enable_registration_revision_validation", enforce_validation)
+        set(
+            "//sys/@config/chunk_manager/data_node_tracker/testing/suppress_registration_revision_validation",
+            suppress_validation,
+        )
 
         node = ls("//sys/cluster_nodes")[0]
         node_path = f"//sys/cluster_nodes/{node}"
@@ -757,7 +762,6 @@ class TestHeartbeatRegistrationRevision(YTEnvSetup):
 
         master_log = os.path.join(self.path_to_run, "logs/master-0-0.debug.log")
         node_log = os.path.join(self.path_to_run, "logs/node-0.debug.log")
-        master_log_offset = os.path.getsize(master_log)
         node_log_offset = os.path.getsize(node_log)
 
         try:
@@ -765,19 +769,33 @@ class TestHeartbeatRegistrationRevision(YTEnvSetup):
                 "data_node": {"testing_options": {"omit_heartbeat_registration_revision": True}},
             })
 
-            if enforce_validation:
+            if enforce_validation and not suppress_validation:
                 wait(lambda: "Data node heartbeat belongs to an outdated registration" in self._read_log(
                     node_log, node_log_offset))
                 # A new lease proves that the node re-registered; the offline state can be too brief to observe.
                 wait(lambda: get(f"{node_path}/@lease_transaction_id", default=None) not in (
                     None, lease_transaction_id))
             else:
-                def mismatched_heartbeat_was_processed():
-                    log = self._read_log(master_log, master_log_offset)
-                    alert_position = log.find("Data node heartbeat registration revision mismatch")
-                    return alert_position >= 0 and "Processing incremental data node heartbeat" in log[alert_position:]
+                master_log_offset = os.path.getsize(master_log)
 
-                wait(mismatched_heartbeat_was_processed)
+                if suppress_validation:
+                    # The first heartbeat may have been in flight during reconfiguration.
+                    wait(lambda: self._read_log(master_log, master_log_offset).count(
+                        "Processing incremental data node heartbeat") >= 2)
+                    assert "Data node heartbeat registration revision mismatch" not in self._read_log(
+                        master_log, master_log_offset
+                    )
+                else:
+                    def heartbeat_was_processed_after_alert():
+                        log = self._read_log(master_log, master_log_offset)
+                        alert_position = log.find("Data node heartbeat registration revision mismatch")
+                        return (
+                            alert_position >= 0
+                            and "Processing incremental data node heartbeat" in log[alert_position:]
+                        )
+
+                    wait(heartbeat_was_processed_after_alert)
+
                 assert get(f"{node_path}/@state") == "online"
                 assert get(f"{node_path}/@lease_transaction_id") == lease_transaction_id
         finally:

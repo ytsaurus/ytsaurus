@@ -319,6 +319,8 @@ void TDynamicDataNodeTrackerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("full_heartbeat_delay", &TThis::FullHeartbeatDelay)
         .Optional();
+    registrar.Parameter("suppress_registration_revision_validation", &TThis::SuppressRegistrationRevisionValidation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

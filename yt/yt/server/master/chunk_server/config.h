@@ -306,6 +306,8 @@ struct TDynamicDataNodeTrackerTestingConfig
     : public NYTree::TYsonStruct
 {
     std::optional<TDuration> FullHeartbeatDelay;
+    // COMPAT(evanevannnn)
+    bool SuppressRegistrationRevisionValidation;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerTestingConfig);
 
