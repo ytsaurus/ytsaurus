@@ -654,6 +654,20 @@ protected:
             return Controller_->GetPartitionJobType(IsRoot());
         }
 
+        // NB(apollo1321): Unlike other tasks, completed jobs do not imply accounted output here:
+        // shuffle chunk pools may finalize it later. The task is completed only when all its jobs
+        // are completed and all shuffle chunk pools of its level are finalized.
+        bool IsCompleted() const override
+        {
+            return TTask::IsCompleted() &&
+                FinalizedShuffleChunkPoolCount_ == std::ssize(Controller_->IntermediatePartitionsByLevels_[Level_]);
+        }
+
+        void OnShuffleChunkPoolOutputsFinalized()
+        {
+            ++FinalizedShuffleChunkPoolCount_;
+        }
+
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
@@ -678,6 +692,8 @@ protected:
         TDataBalancerPtr DataBalancer_;
 
         int Level_ = -1;
+
+        int FinalizedShuffleChunkPoolCount_ = 0;
 
         IPersistentChunkPoolInputPtr ChunkPoolInput_;
         IPersistentChunkPoolOutputPtr ChunkPoolOutput_;
@@ -803,7 +819,7 @@ protected:
                 Controller_->UpdateTask(Controller_->UnorderedMergeTask_.Get());
                 Controller_->UpdateTask(Controller_->IntermediateSortTask_.Get());
                 Controller_->UpdateTask(Controller_->FinalSortTask_.Get());
-                Controller_->TryDispatchPhysicalPartitionsForProcessing(partition, /*isAllDataCollected*/ false);
+                Controller_->TryDispatchPhysicalPartitionsForProcessing(partition);
             }
 
             // NB: This should be done not only in OnTaskCompleted:
@@ -870,10 +886,6 @@ protected:
         void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
-
-            for (const auto& partition : Controller_->IntermediatePartitionsByLevels_[Level_]) {
-                partition->ShuffleChunkPoolInput()->Finish();
-            }
 
             if (IsIntermediate()) {
                 const auto& nextPartitionTask = GetNextPartitionTask();
@@ -1915,8 +1927,7 @@ protected:
 
     void TryDispatchPhysicalPartitionsForProcessing(
         const TIntermediatePartitionPtr& intermediatePartition,
-        TCompactVector<int, 1> physicalPartitionIndices,
-        bool isAllDataCollected)
+        TCompactVector<int, 1> physicalPartitionIndices)
     {
         YT_VERIFY(!physicalPartitionIndices.empty());
         YT_ASSERT(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
@@ -1946,24 +1957,25 @@ protected:
 
         bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&
             intermediatePartition->IsPhysicalPartitionManiac(physicalPartitionIndices[0]);
+        bool areShuffleOutputsFinalized = intermediatePartition->ShuffleChunkPool()->AreOutputsFinalized();
 
         auto dispatchDecision = [&] () -> std::optional<EPartitionDispatchDecision> {
-            if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && isAllDataCollected) {
+            if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::Skip;
             }
             if (ShouldForceSortedMerge() || (!isManiac && chunkPoolOutput->GetJobCounter()->GetTotal() > 1)) {
                 return EPartitionDispatchDecision::IntermediateSortAndMerge;
             }
-            if (isManiac && isAllDataCollected) {
+            if (isManiac && areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::NoSort;
             }
-            if (isAllDataCollected) {
+            if (areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::SortInSingleJob;
             }
             return std::nullopt;
         }();
 
-        YT_VERIFY(!isAllDataCollected || dispatchDecision.has_value());
+        YT_VERIFY(!areShuffleOutputsFinalized || dispatchDecision.has_value());
 
         if (!dispatchDecision.has_value()) {
             YT_VERIFY(std::ssize(physicalPartitionIndices) == 1);
@@ -2027,9 +2039,7 @@ protected:
     }
 
     // Attempts to determine and apply a dispatch decision for physical partitions of intermediate partition.
-    void TryDispatchPhysicalPartitionsForProcessing(
-        const TIntermediatePartitionPtr& partition,
-        bool isAllDataCollected)
+    void TryDispatchPhysicalPartitionsForProcessing(const TIntermediatePartitionPtr& partition)
     {
         // NB(apollo1321): The greedy algorithm is optimal for sequential bin packing,
         // where partitions order must be preserved. However, for hash-based partitioning,
@@ -2044,7 +2054,7 @@ protected:
                 return;
             }
 
-            TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices, isAllDataCollected);
+            TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices);
 
             accumulatedDataWeight = 0;
             accumulatedDataSliceCount = 0;
@@ -2053,6 +2063,7 @@ protected:
         };
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
+        bool areShuffleOutputsFinalized = partition->ShuffleChunkPool()->AreOutputsFinalized();
 
         for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
@@ -2069,7 +2080,7 @@ protected:
             i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
             if (!partitionDataWeightForMerging.has_value() ||
-                !isAllDataCollected ||
+                !areShuffleOutputsFinalized ||
                 IsPartitionOversized(
                     accumulatedDataWeight + dataWeight,
                     accumulatedRowCount + rowCount,
@@ -2117,21 +2128,33 @@ protected:
                     .With("PartitionIndex", childPartition->GetIndex())
                     .With("PartitionDataWeight", childPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
             }
+        }
 
-            // NB(apollo1321): Finish may run callbacks in-place, so Finish() should not
-            // be called before marking all child partitions as completed.
-            partition->ShuffleChunkPoolInput()->Finish();
-        } else {
+        // NB(apollo1321): Finish may run callbacks in-place, so Finish() should not
+        // be called before marking all child partitions as completed.
+        partition->ShuffleChunkPoolInput()->Finish();
+    }
+
+    void OnPartitionOutputsFinalized(TWeakPtr<TIntermediatePartition> weakPartition)
+    {
+        auto partition = weakPartition.Lock();
+        if (!partition) {
+            return;
+        }
+
+        if (partition->GetLevel() + 1 == std::ssize(IntermediatePartitionsByLevels_)) {
             YT_TLOG_DEBUG("Dispatching physical partitions for final level intermediate partition")
                 .With("PartitionLevel", partition->GetLevel())
                 .With("PartitionIndex", partition->GetIndex())
                 .With("PhysicalPartitionCount", partition->GetPhysicalPartitionCount());
 
-            partition->ShuffleChunkPoolInput()->Finish();
-
-            TryDispatchPhysicalPartitionsForProcessing(partition, /*isAllDataCollected*/ true);
+            TryDispatchPhysicalPartitionsForProcessing(partition);
             YT_VERIFY(std::ssize(partition->DispatchedPhysicalPartitions()) == partition->GetPhysicalPartitionCount());
         }
+
+        const auto& partitionTask = PartitionTasks_[partition->GetLevel()];
+        partitionTask->OnShuffleChunkPoolOutputsFinalized();
+        UpdateTask(partitionTask.Get());
     }
 
     void SetupPartitioningCompletedCallbacks()
@@ -2140,6 +2163,15 @@ protected:
         for (const auto& partition : IntermediatePartitionsByLevels_ | std::views::join) {
             partition->ChunkPoolOutput()->SubscribeCompleted(BIND(
                 &TSortControllerBase::OnPartitionProcessedByJobs,
+                MakeWeak(this),
+                MakeWeak(partition)));
+
+            if (partition->ShuffleChunkPool()->AreOutputsFinalized()) {
+                PartitionTasks_[partition->GetLevel()]->OnShuffleChunkPoolOutputsFinalized();
+            }
+
+            partition->ShuffleChunkPool()->SubscribeOutputsFinalized(BIND(
+                &TSortControllerBase::OnPartitionOutputsFinalized,
                 MakeWeak(this),
                 MakeWeak(partition)));
         }

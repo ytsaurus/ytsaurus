@@ -40,6 +40,9 @@ class TShuffleChunkPool
     , public IShuffleChunkPool
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(void(), OutputsFinalized);
+
+public:
     //! For persistence only.
     TShuffleChunkPool() = default;
 
@@ -164,6 +167,13 @@ public:
             output->FinishInput();
             output->CheckCompleted();
         }
+
+        OutputsFinalized_.Fire();
+    }
+
+    bool AreOutputsFinalized() const override
+    {
+        return Finished;
     }
 
     i64 GetTotalDataSliceCount() const override
