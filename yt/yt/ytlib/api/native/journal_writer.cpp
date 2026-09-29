@@ -263,6 +263,7 @@ private:
         TPromise<void> OpenedPromise_ = NewPromise<void>();
 
         bool Closing_ = false;
+        bool FailedOrCancelled_ = false;
         TPromise<void> ClosedPromise_ = NewPromise<void>();
 
         NApi::ITransactionPtr Transaction_;
@@ -343,6 +344,7 @@ private:
             EChunkSessionState State = EChunkSessionState::Allocating;
             bool SwitchScheduled = false;
             bool SealScheduled = false;
+            bool CleanupStarted = false;
 
             //! Row is called completed iff it is written to all the replicas.
             i64 ReplicationFactorFlushedRowCount = 0;
@@ -429,11 +431,32 @@ private:
         }
 
 
+        bool IsNodeBanned(const std::string& address, TInstant now) const
+        {
+            auto it = BannedNodeToDeadline_.find(address);
+            return it != BannedNodeToDeadline_.end() && it->second >= now;
+        }
+
         void BanNode(const std::string& address)
         {
             if (BannedNodeToDeadline_.emplace(address, TInstant::Now() + Config_->NodeBanTimeout).second) {
                 YT_TLOG_DEBUG("Node banned")
                     .With("Address", address);
+            }
+
+            if (!AllocatedChunkSessionPromise_ || !AllocatedChunkSessionPromise_.IsSet()) {
+                return;
+            }
+
+            const auto& sessionOrError = AllocatedChunkSessionPromise_.GetOrCrash();
+            if (sessionOrError.IsOK()) {
+                const auto& session = sessionOrError.Value();
+                if (session->State == EChunkSessionState::Allocated && ContainsBannedNode(session)) {
+                    YT_TLOG_DEBUG("Discarding preallocated chunk session due to banned node")
+                        .With("SessionId", session->Id)
+                        .With("Address", address);
+                    DiscardAllocatedChunkSession(session);
+                }
             }
         }
 
@@ -444,7 +467,7 @@ private:
             auto it = BannedNodeToDeadline_.begin();
             while (it != BannedNodeToDeadline_.end()) {
                 auto jt = it++;
-                if (jt->second < now) {
+                if (!IsNodeBanned(jt->first, now)) {
                     YT_TLOG_DEBUG("Node unbanned")
                         .With("Address", jt->first);
                     BannedNodeToDeadline_.erase(jt);
@@ -453,6 +476,58 @@ private:
                 }
             }
             return result;
+        }
+
+        bool ContainsBannedNode(const TChunkSessionPtr& session) const
+        {
+            auto now = TInstant::Now();
+            return std::ranges::any_of(session->Nodes, [&] (const auto& node) {
+                return IsNodeBanned(node->Descriptor.GetDefaultAddress(), now);
+            });
+        }
+
+        void FinishChunkSession(const TChunkSessionPtr& session)
+        {
+            for (const auto& node : session->Nodes) {
+                auto req = node->LightProxy.FinishChunk();
+                ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
+                req->Invoke().Subscribe(
+                    BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
+                        .Via(Invoker_));
+                if (node->PingExecutor) {
+                    YT_UNUSED_FUTURE(node->PingExecutor->Stop());
+                    node->PingExecutor.Reset();
+                }
+            }
+        }
+
+        void CleanupDiscardedChunkSession(const TChunkSessionPtr& session)
+        {
+            if (std::exchange(session->CleanupStarted, true)) {
+                return;
+            }
+
+            FinishChunkSession(session);
+            ScheduleChunkSessionSeal(session);
+        }
+
+        void DiscardAllocatedChunkSession(const TChunkSessionPtr& session)
+        {
+            auto wasAllocated = session->State == EChunkSessionState::Allocated;
+            session->State = EChunkSessionState::Discarded;
+
+            if (wasAllocated) {
+                CleanupDiscardedChunkSession(session);
+            }
+
+            if (AllocatedChunkSessionIndex_ == session->Index) {
+                YT_TLOG_DEBUG("Resetting chunk session promise");
+                AllocatedChunkSessionIndex_ = -1;
+                AllocatedChunkSessionPromise_.Reset();
+                if (IsChunkPreallocationEnabled() && !Closing_ && !FailedOrCancelled_) {
+                    ScheduleChunkSessionAllocation();
+                }
+            }
         }
 
         void OpenJournal()
@@ -729,16 +804,38 @@ private:
                     ? std::make_optional(NNet::GetLocalHostName())
                     : std::nullopt;
 
-                replicas = AllocateWriteTargets(
-                    Client_,
-                    session->Id,
-                    ReplicaCount_,
-                    ReplicaCount_,
-                    /*replicationFactorOverride*/ std::nullopt,
-                    preferredReplica,
-                    GetBannedNodes(),
-                    /*allocatedAddresses*/ {},
-                    Logger);
+                auto allocateWriteTargets = [&] (const std::vector<std::string>& forbiddenAddresses) {
+                    return AllocateWriteTargets(
+                        Client_,
+                        session->Id,
+                        ReplicaCount_,
+                        ReplicaCount_,
+                        /*replicationFactorOverride*/ std::nullopt,
+                        preferredReplica,
+                        forbiddenAddresses,
+                        /*allocatedAddresses*/ {},
+                        Logger);
+                };
+
+                if (Config_->TryDisjointPreallocatedSessionNodes && CurrentChunkSession_) {
+                    auto forbiddenAddresses = GetBannedNodes();
+                    for (const auto& node : CurrentChunkSession_->Nodes) {
+                        forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
+                    }
+                    try {
+                        replicas = allocateWriteTargets(forbiddenAddresses);
+                    } catch (const TErrorException& ex) {
+                        if (ex.Error().FindMatching(NChunkClient::EErrorCode::NotEnoughAvailableNodes)) {
+                            YT_TLOG_WARNING("Failed to allocate disjoint write targets; falling back to non-disjoint allocation")
+                                .With(ex);
+                            replicas = allocateWriteTargets(GetBannedNodes());
+                        } else {
+                            throw;
+                        }
+                    }
+                } else {
+                    replicas = allocateWriteTargets(GetBannedNodes());
+                }
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Error allocating write targets")
                     .With(ex);
@@ -975,7 +1072,15 @@ private:
                         }
 
                         if (session->State == EChunkSessionState::Discarded) {
-                            ScheduleChunkSessionSeal(session);
+                            CleanupDiscardedChunkSession(session);
+                        } else if (
+                            session->State == EChunkSessionState::Allocated &&
+                            IsChunkPreallocationEnabled() &&
+                            ContainsBannedNode(session))
+                        {
+                            YT_TLOG_DEBUG("Discarding preallocated chunk session due to banned node")
+                                .With("SessionId", session->Id);
+                            DiscardAllocatedChunkSession(session);
                         }
 
                         YT_TLOG_DEBUG("Chunk session allocated")
@@ -1004,6 +1109,13 @@ private:
                 }
 
                 if (session->State == EChunkSessionState::Allocated) {
+                    if (IsChunkPreallocationEnabled() && ContainsBannedNode(session)) {
+                        YT_TLOG_DEBUG("Discarding preallocated chunk session due to banned node")
+                            .With("SessionId", session->Id);
+                        DiscardAllocatedChunkSession(session);
+                        continue;
+                    }
+
                     YT_VERIFY(session->State == EChunkSessionState::Allocated);
                     session->State = EChunkSessionState::Current;
                     return session;
@@ -1111,6 +1223,7 @@ private:
 
         [[noreturn]] void HandleCancel()
         {
+            FailedOrCancelled_ = true;
             if (AllocatedChunkSessionPromise_) {
                 AllocatedChunkSessionPromise_.TrySet(TError(NYT::EErrorCode::Canceled, "Writer canceled"));
             }
@@ -1211,17 +1324,7 @@ private:
 
             YT_TLOG_DEBUG("Finishing chunk session");
 
-            for (const auto& node : session->Nodes) {
-                auto req = node->LightProxy.FinishChunk();
-                ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
-                req->Invoke().Subscribe(
-                    BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
-                        .Via(Invoker_));
-                if (node->PingExecutor) {
-                    YT_UNUSED_FUTURE(node->PingExecutor->Stop());
-                    node->PingExecutor.Reset();
-                }
-            }
+            FinishChunkSession(session);
 
             if (IsChunkPreallocationEnabled()) {
                 ScheduleChunkSessionSeal(session);
@@ -1290,6 +1393,10 @@ private:
         {
             YT_TLOG_WARNING("Journal writer failed")
                 .With(error);
+
+            // NB: Set before the first yield so that no ping/FinishChunk callback
+            // can re-enter BanNode and start a fresh allocation for a dead writer.
+            FailedOrCancelled_ = true;
 
             GracefullyAbortOpeningUpload();
 
@@ -1894,15 +2001,7 @@ private:
 
                 case EChunkSessionState::Allocating:
                 case EChunkSessionState::Allocated:
-                    session->State = EChunkSessionState::Discarded;
-                    if (AllocatedChunkSessionIndex_ == session->Index) {
-                        YT_TLOG_DEBUG("Resetting chunk session promise");
-                        AllocatedChunkSessionIndex_ = -1;
-                        AllocatedChunkSessionPromise_.Reset();
-                        if (IsChunkPreallocationEnabled()) {
-                            ScheduleChunkSessionAllocation();
-                        }
-                    }
+                    DiscardAllocatedChunkSession(session);
                     break;
 
                 case EChunkSessionState::Discarded:

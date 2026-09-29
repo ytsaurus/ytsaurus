@@ -1119,7 +1119,7 @@ TEST_F(TDistributedChunkSessionTest, StartSessionWithNotEnoughNodes)
 
     auto startError = WaitFor(controller->StartSession());
     EXPECT_FALSE(startError.IsOK());
-    EXPECT_THAT(startError.GetMessage(), HasSubstr("Not enough"));
+    EXPECT_TRUE(startError.FindMatching(NChunkClient::EErrorCode::NotEnoughAvailableNodes));
 
     // GetClosedFuture must already be resolved with the same error
     // since DoStartSession set ClosedPromise_ on failure.
