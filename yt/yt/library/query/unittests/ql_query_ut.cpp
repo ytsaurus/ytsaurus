@@ -8030,6 +8030,34 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
     }
 }
 
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorOptionalListAndDict)
+{
+    auto split = MakeSplit({
+        {"list", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+        {"dict", OptionalLogicalType(DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))))}});
+
+    auto source = TSource{
+        "list=[1;2;3];dict={a=b;c=d}",
+        "list=[4];dict={a=e}",
+        "list=[];dict={}",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::String)}});
+        auto result = YsonToRows({"a=b", "a=e", "a=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.dict['a'] as a from `//t` as t limit 3", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=4", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.list[0] as c from `//t` as t limit 3", split, source, ResultMatcher(result));
+    }
+}
+
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
 {
     auto split = MakeSplit({
