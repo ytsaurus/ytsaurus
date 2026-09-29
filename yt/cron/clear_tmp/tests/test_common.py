@@ -36,7 +36,11 @@ def test_cleanup_counters(yt_env, capfd, dry_run):  # noqa
     assert "Skipped (locked): 1" in stderr
     if dry_run:
         assert "Cleanup counters: collected=6, skipped=6, removed=0" in stderr
-        assert "Skipped (dry_run): 4" in stderr
+        assert "Skipped (dont_prune): 1" in stderr
+        assert "Skipped (dry_run): 2" in stderr
+        assert "Skipped (locked): 1" in stderr
+        assert "Skipped (non_empty_directory): 1" in stderr
+        assert "Skipped (root_directory): 1" in stderr
         assert "Removed (" not in stderr
         assert client.exists("//tmp/counters/dir/subdir/table")
     else:
@@ -47,6 +51,34 @@ def test_cleanup_counters(yt_env, capfd, dry_run):  # noqa
         assert not client.exists("//tmp/counters/dir")
     assert client.exists("//tmp/counters/protected")
     assert client.exists("//tmp/counters/locked")
+
+
+@pytest.mark.parametrize("limits, create_table, remaining_directories", [
+    (["--max-node-count", "4"], False, 3),
+    (["--max-dir-node-count", "3"], False, 3),
+    (["--max-node-count", "5"], True, 4),
+])
+def test_directory_cleanup_stops_at_quota(yt_env, limits, create_table, remaining_directories):  # noqa
+    client = yt_env.yt_client
+    directory = "//tmp/directory_quota"
+    client.create("map_node", directory)
+    subdirectories = [yt.ypath_join(directory, f"dir_{index}") for index in range(4)]
+    for subdirectory in subdirectories:
+        client.create("map_node", subdirectory)
+    table = yt.ypath_join(directory, "table")
+    if create_table:
+        client.create("table", table)
+
+    # The first two cases need only one directory removal. In the third,
+    # removing the table already satisfies the quota, so all directories stay.
+    run_clear_tmp(
+        yt_env.yt_instance.get_proxy_address(),
+        COMMON_ARGS + ["--directory", directory, "--safe-age", "0"] + limits)
+
+    assert client.exists(directory)
+    assert sum(client.exists(path) for path in subdirectories) == remaining_directories
+    if create_table:
+        assert not client.exists(table)
 
 
 def create_account_with_directory(client, account, disk_space, node_count, chunk_count):
