@@ -20,6 +20,16 @@ DEFINE_ENUM(EMalformedKafkaMessagePolicy,
     ((Fail)   (2))
 );
 
+//! What #TKafkaSink guarantees about the records a restart replays.
+DEFINE_ENUM(EKafkaDeliveryGuarantee,
+    //! Replayed messages may be written again.
+    ((AtLeastOnce)   (0))
+    //! Records are written in Kafka transactions, and replayed messages already committed are not written
+    //! again, unless #TDynamicKafkaSinkParameters::AllowMissingProgressMarker lets the sink start without
+    //! its progress marker. Consumers must read with `isolation.level=read_committed`.
+    ((ExactlyOnce)   (1))
+);
+
 DECLARE_REFCOUNTED_STRUCT(TUnparsedKafkaPayload);
 
 DECLARE_REFCOUNTED_STRUCT(TKafkaClientConfig);
@@ -44,7 +54,10 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicAtLeastOnceKafkaSinkParameters);
 DECLARE_REFCOUNTED_STRUCT(TKafkaSinkControllerParameters);
 DECLARE_REFCOUNTED_STRUCT(TDynamicKafkaSinkControllerParameters);
 
+DECLARE_REFCOUNTED_STRUCT(TKafkaSinkState);
+
 DECLARE_REFCOUNTED_CLASS(TRetryableKafkaWriter);
+DECLARE_REFCOUNTED_CLASS(TTransactionalKafkaWriter);
 DECLARE_REFCOUNTED_CLASS(TKafkaSink);
 DECLARE_REFCOUNTED_CLASS(TAtLeastOnceKafkaSink);
 DECLARE_REFCOUNTED_CLASS(TKafkaSinkController);

@@ -16,6 +16,7 @@ SRCS(
     sink.cpp
     source.cpp
     spec.cpp
+    transactional_writer.cpp
     GLOBAL register.cpp
 )
 

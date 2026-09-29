@@ -74,11 +74,29 @@ void TCommonKafkaSinkParameters::Register(TRegistrar registrar)
         .Default();
 }
 
-void TKafkaSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
+void TKafkaSinkParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delivery_guarantee", &TThis::DeliveryGuarantee)
+        .Default(EKafkaDeliveryGuarantee::AtLeastOnce);
+    registrar.Parameter("transactional_id_prefix", &TThis::TransactionalIdPrefix)
+        .Default("flow-");
+    // librdkafka rejects a shorter one.
+    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
+        .GreaterThanOrEqual(TDuration::Seconds(1))
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("max_transaction_record_count", &TThis::MaxTransactionRecordCount)
+        .GreaterThan(0)
+        .Default(10'000);
+    registrar.Parameter("max_transaction_byte_size", &TThis::MaxTransactionByteSize)
+        .GreaterThan(0)
+        .Default(16_MB);
+}
 
-void TDynamicKafkaSinkParameters::Register(TRegistrar /*registrar*/)
-{ }
+void TDynamicKafkaSinkParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allow_missing_progress_marker", &TThis::AllowMissingProgressMarker)
+        .Default(false);
+}
 
 void TAtLeastOnceKafkaSinkParameters::Register(TRegistrar /*registrar*/)
 { }

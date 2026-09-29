@@ -62,6 +62,7 @@ target_sources(yt-flow-extensions-kafka-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/read_buffer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/source_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/spec_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/transactional_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/extensions/kafka/unittests/write_queue_ut.cpp
 )
 

@@ -80,6 +80,17 @@ void TOrderedAsyncSinkBase::Sync(NApi::IDynamicTableTransactionPtr /*transaction
     }
 }
 
+i64 TOrderedAsyncSinkBase::GetMaxPersistedSeqNo() const
+{
+    return State_->MaxPersistedSeqNo;
+}
+
+i64 TOrderedAsyncSinkBase::GetLastDistributedSeqNo() const
+{
+    auto guard = Guard(Lock_);
+    return LastDistributedSeqNo_;
+}
+
 void TOrderedAsyncSinkBase::Commit()
 {
     std::deque<TRequest> persistedRequests;
