@@ -56,7 +56,6 @@ TFuture<void> TKeyRotator::Stop()
 {
     YT_TLOG_DEBUG("Stopping key rotation");
 
-    auto guard = Guard(ReconfigureSpinLock_);
     return Executor_->Stop();
 }
 

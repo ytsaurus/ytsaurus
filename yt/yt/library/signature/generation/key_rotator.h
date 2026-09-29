@@ -37,7 +37,6 @@ public:
     //! Schedules an out-of-order key rotation.
     TFuture<void> Rotate();
 
-    //! Applies a new configuration.
     void Reconfigure(TKeyRotatorConfigPtr config);
 
 private:

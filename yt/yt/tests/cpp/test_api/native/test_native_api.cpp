@@ -1912,7 +1912,6 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
 
 TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
 {
-    // Start with generation disabled.
     Config->Generation->Enabled = false;
     Components = New<TSignatureComponents>(Config, OwnerId, NativeConnection, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
