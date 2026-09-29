@@ -45,6 +45,12 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
+    //! The seqNo of the last message the persisted state marks as distributed; such messages are never
+    //! distributed again.
+    i64 GetMaxPersistedSeqNo() const;
+    //! The seqNo of the last message registered by #Distribute().
+    i64 GetLastDistributedSeqNo() const;
+
 private:
     struct TRequest
     {

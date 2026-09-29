@@ -9,6 +9,7 @@ SRCS(
     read_buffer_ut.cpp
     source_ut.cpp
     spec_ut.cpp
+    transactional_writer_ut.cpp
     write_queue_ut.cpp
 )
 

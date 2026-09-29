@@ -330,6 +330,37 @@ TEST(TKafkaWriteQueueTest, ARejectedSeqNoPoisonsAnEstablishedFrontierInOrder)
     EXPECT_FALSE(queue.GetFatalError().IsOK());
 }
 
+TEST(TKafkaWriteQueueTest, TakesABoundedPrefix)
+{
+    TKafkaWriteQueue queue;
+    for (i64 seqNo = 1; seqNo <= 5; ++seqNo) {
+        Y_UNUSED(queue.Enqueue(MakeMessage(seqNo)));
+    }
+
+    auto seqNos = [] (const std::deque<TKafkaMessageToWrite>& records) {
+        std::vector<i64> result;
+        for (const auto& record : records) {
+            result.push_back(record.SeqNo);
+        }
+        return result;
+    };
+    // Each record carries nine bytes: "payload-N".
+    EXPECT_EQ(seqNos(queue.TakePending(/*maxCount*/ 2, /*maxByteSize*/ 1'000)), (std::vector<i64>{1, 2}));
+    EXPECT_EQ(seqNos(queue.TakePending(/*maxCount*/ 10, /*maxByteSize*/ 20)), (std::vector<i64>{3, 4}));
+    // A record above the byte limit still goes, alone.
+    EXPECT_EQ(seqNos(queue.TakePending(/*maxCount*/ 10, /*maxByteSize*/ 1)), (std::vector<i64>{5}));
+    EXPECT_TRUE(queue.TakePending(/*maxCount*/ 10, /*maxByteSize*/ 1'000).empty());
+}
+
+TEST(TKafkaWriteQueueTest, CountsTheBytesOfARecord)
+{
+    auto record = TKafkaMessageToWrite{.SeqNo = 1, .Key = "key", .Value = "value", .MessageId = "id"};
+    EXPECT_EQ(record.GetByteSize(), 10);
+
+    // A tombstone without a key or a message id carries nothing.
+    EXPECT_EQ(TKafkaMessageToWrite{.SeqNo = 1}.GetByteSize(), 0);
+}
+
 TEST(TKafkaWriteQueueTest, CarriesTheMessageIdHeaderValue)
 {
     TKafkaWriteQueue queue;

@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "kafka_client.h"
 #include "private.h"
+#include "transactional_writer.h"
 
 #include <yt/yt/flow/library/cpp/common/message.h>
 
@@ -28,7 +29,6 @@
 #include <util/datetime/base.h>
 
 #include <chrono>
-#include <limits>
 
 namespace NYT::NFlow {
 
@@ -52,9 +52,16 @@ i64 DecodeSeqNo(void* userData)
     return static_cast<i64>(reinterpret_cast<intptr_t>(userData));
 }
 
-//! Produces one message, retrying only the transient "local queue full" error (draining delivery
-//! reports between attempts). Any other error is thrown immediately instead of being retried blindly.
-void ProduceMessage(cppkafka::Producer& producer, const cppkafka::MessageBuilder& builder)
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 TKafkaMessageToWrite::GetByteSize() const
+{
+    return (Key ? std::ssize(*Key) : 0) + (Value ? std::ssize(*Value) : 0) + (MessageId ? std::ssize(*MessageId) : 0);
+}
+
+void ProduceKafkaMessage(cppkafka::Producer& producer, const cppkafka::MessageBuilder& builder)
 {
     for (int retry = 0;; ++retry) {
         try {
@@ -70,7 +77,25 @@ void ProduceMessage(cppkafka::Producer& producer, const cppkafka::MessageBuilder
     }
 }
 
-} // namespace
+cppkafka::MessageBuilder MakeKafkaMessageBuilder(
+    const std::string& topic,
+    const TKafkaMessageToWrite& record,
+    const std::string& messageIdHeader)
+{
+    cppkafka::MessageBuilder builder(topic);
+    if (record.Value) {
+        builder.payload(cppkafka::Buffer(*record.Value));
+    }
+    if (record.Key) {
+        builder.key(cppkafka::Buffer(*record.Key));
+    }
+    if (record.MessageId && !messageIdHeader.empty()) {
+        builder.header(cppkafka::Header<cppkafka::Buffer>(
+            messageIdHeader,
+            cppkafka::Buffer(*record.MessageId)));
+    }
+    return builder;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,6 +191,24 @@ std::deque<TKafkaMessageToWrite> TKafkaWriteQueue::TakePending()
 {
     auto guard = Guard(Lock_);
     return std::exchange(Pending_, {});
+}
+
+std::deque<TKafkaMessageToWrite> TKafkaWriteQueue::TakePending(i64 maxCount, i64 maxByteSize)
+{
+    YT_VERIFY(maxCount > 0);
+    std::deque<TKafkaMessageToWrite> taken;
+    i64 byteSize = 0;
+    auto guard = Guard(Lock_);
+    while (!Pending_.empty() && std::ssize(taken) < maxCount) {
+        auto recordByteSize = Pending_.front().GetByteSize();
+        if (!taken.empty() && byteSize + recordByteSize > maxByteSize) {
+            break;
+        }
+        byteSize += recordByteSize;
+        taken.push_back(std::move(Pending_.front()));
+        Pending_.pop_front();
+    }
+    return taken;
 }
 
 void TKafkaWriteQueue::Complete(i64 seqNo, TError error)
@@ -300,6 +343,11 @@ void TRetryableKafkaWriter::Reject(i64 seqNo, TError error)
     Queue_.Reject(seqNo, std::move(error));
 }
 
+TError TRetryableKafkaWriter::GetFatalError() const
+{
+    return Queue_.GetFatalError();
+}
+
 void TRetryableKafkaWriter::Run()
 {
     // Retrying construction is free (nothing produced yet, enqueued writes wait); exiting would
@@ -339,21 +387,10 @@ void TRetryableKafkaWriter::Run()
         bool produceFailed = false;
         for (const auto& message : batch) {
             try {
-                cppkafka::MessageBuilder builder(Topic_);
-                if (message.Value) {
-                    builder.payload(cppkafka::Buffer(*message.Value));
-                }
-                if (message.Key) {
-                    builder.key(cppkafka::Buffer(*message.Key));
-                }
-                if (message.MessageId) {
-                    builder.header(cppkafka::Header<cppkafka::Buffer>(
-                        MessageIdHeader_,
-                        cppkafka::Buffer(*message.MessageId)));
-                }
+                auto builder = MakeKafkaMessageBuilder(Topic_, message, MessageIdHeader_);
                 builder.user_data(EncodeSeqNo(message.SeqNo));
 
-                ProduceMessage(*producer, builder);
+                ProduceKafkaMessage(*producer, builder);
             } catch (const std::exception& ex) {
                 // produce() failed for this record; the delivery-report path will never fire for it,
                 // so resolve its promise here instead of dropping the rest of the batch.
@@ -447,7 +484,7 @@ std::optional<std::string> GetOptionalColumnValue(const TOutputMessage& message,
 
 } // namespace
 
-TFuture<void> TCommonKafkaSink::Write(const TOutputMessageConstPtr& message, i64 seqNo)
+TKafkaMessageToWrite TCommonKafkaSink::MakeRecord(const TOutputMessageConstPtr& message, i64 seqNo) const
 {
     auto value = GetOptionalColumnValue(*message, Parameters_->PayloadColumn);
     std::optional<std::string> key;
@@ -460,12 +497,17 @@ TFuture<void> TCommonKafkaSink::Write(const TOutputMessageConstPtr& message, i64
     if (!Parameters_->MessageIdHeader.empty()) {
         messageId = std::string(message->GetMeta().MessageId.Underlying());
     }
-    return Writer_->Write({
+    return {
         .SeqNo = seqNo,
         .Key = std::move(key),
         .Value = std::move(value),
         .MessageId = std::move(messageId),
-    });
+    };
+}
+
+TFuture<void> TCommonKafkaSink::Write(const TOutputMessageConstPtr& message, i64 seqNo)
+{
+    return Writer_->Write(MakeRecord(message, seqNo));
 }
 
 TFuture<void> TCommonKafkaSink::WriteRecords(i64 seqNo, std::vector<TKafkaMessageToWrite> records)
@@ -483,6 +525,24 @@ const std::string& TCommonKafkaSink::PayloadColumn() const
     return Parameters_->PayloadColumn;
 }
 
+const TKafkaClientPtr& TCommonKafkaSink::GetClient() const
+{
+    return Client_;
+}
+
+TError TCommonKafkaSink::GetWriterError() const
+{
+    return Writer_ ? Writer_->GetFatalError() : TError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TKafkaSinkState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_distributed_seq_no", &TThis::MaxDistributedSeqNo)
+        .Default(0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TKafkaSink::TKafkaSink(
@@ -492,14 +552,85 @@ TKafkaSink::TKafkaSink(
     , TCommonKafkaSink(GetContext(), GetParameters(), GetContext()->StatusProfiler, TOrderedAsyncSinkBase::Logger)
 { }
 
+TKafkaSink::~TKafkaSink()
+{
+    if (TransactionalWriter_) {
+        // See ~TCommonKafkaSink.
+        GetFinalizerInvoker()->Invoke(BIND([writer = std::move(TransactionalWriter_)] {
+            writer->Terminate();
+        }));
+    }
+}
+
+void TKafkaSink::Init(IInitContextPtr initContext)
+{
+    initContext->InitClient<TKafkaSinkState>(TransactionalState_, "kafka_v0");
+    if (GetParameters()->DeliveryGuarantee == EKafkaDeliveryGuarantee::AtLeastOnce) {
+        // A bound left from an exactly-once run would describe a writer that no longer exists.
+        TransactionalState_.Clear();
+    }
+    TOrderedAsyncSinkBase::Init(std::move(initContext));
+}
+
 void TKafkaSink::DoInit(const std::string& producerId)
 {
-    InitSession(producerId);
+    const auto& parameters = GetParameters();
+    if (parameters->DeliveryGuarantee == EKafkaDeliveryGuarantee::AtLeastOnce) {
+        InitSession(producerId);
+        return;
+    }
+
+    // Kept until the replay passes it: the restored bound still covers what earlier sessions may have
+    // committed, however little of it this session has registered.
+    MaxDistributedSeqNo_ = std::max(TransactionalState_->MaxDistributedSeqNo, GetMaxPersistedSeqNo());
+
+    TransactionalWriter_ = New<TTransactionalKafkaWriter>(
+        GetClient(),
+        TTransactionalKafkaWriterOptions{
+            .Topic = parameters->Topic,
+            // The producer id is persisted with the sink state, so the transactional id outlives the job.
+            .TransactionalId = parameters->TransactionalIdPrefix + producerId,
+            .MessageIdHeader = parameters->MessageIdHeader,
+            .TransactionTimeout = parameters->TransactionTimeout,
+            .MaxTransactionRecordCount = parameters->MaxTransactionRecordCount,
+            .MaxTransactionByteSize = parameters->MaxTransactionByteSize,
+            .AllowMissingProgressMarker = GetDynamicParameters()->AllowMissingProgressMarker,
+        },
+        TKafkaTransactionalRecovery{
+            .MaxPersistedSeqNo = GetMaxPersistedSeqNo(),
+            .MaxDistributedSeqNo = MaxDistributedSeqNo_,
+        },
+        Logger,
+        GetContext()->StatusProfiler->WithPrefix("/session"));
+    TransactionalWriter_->Start();
 }
 
 TFuture<void> TKafkaSink::DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo)
 {
+    if (TransactionalWriter_) {
+        // The recovery check relies on it: a message reaches the writer only after an epoch persisting a
+        // bound that covers it commits.
+        YT_VERIFY(seqNo <= MaxDistributedSeqNo_);
+        return TransactionalWriter_->Write(MakeRecord(message, seqNo));
+    }
     return Write(message, seqNo);
+}
+
+void TKafkaSink::Sync(NApi::IDynamicTableTransactionPtr transaction)
+{
+    // A failed writer never acknowledges again; restarting the job replays what it did not write.
+    auto writerError = TransactionalWriter_ ? TransactionalWriter_->GetFatalError() : GetWriterError();
+    if (!writerError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Kafka writer failed")
+            .With(writerError);
+    }
+    TOrderedAsyncSinkBase::Sync(std::move(transaction));
+    if (TransactionalWriter_) {
+        // Everything registered so far is distributed once this epoch commits. The bound never shrinks:
+        // after a restart, an epoch may commit before the replay registers what it covers.
+        MaxDistributedSeqNo_ = std::max(MaxDistributedSeqNo_, GetLastDistributedSeqNo());
+        TransactionalState_->MaxDistributedSeqNo = MaxDistributedSeqNo_;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
