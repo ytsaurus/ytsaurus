@@ -1,10 +1,16 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/actions/invoker_util.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <yt/yt/library/signature/common/test_helpers/mock_keystore.h>
 
 #include <yt/yt/library/signature/generation/config.h>
 #include <yt/yt/library/signature/generation/key_rotator.h>
 #include <yt/yt/library/signature/generation/signature_generator.h>
+
+#include <util/system/event.h>
 
 namespace NYT::NSignature {
 namespace {
@@ -94,6 +100,42 @@ TEST_F(TKeyRotatorTest, MethodsFailWhileStopped)
     EXPECT_THROW_WITH_ERROR_CODE(
         WaitFor(Rotator->Rotate()).ThrowOnError(),
         NYT::EErrorCode::Canceled);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TKeyRotatorTest, StopAllowsReentrantFutureSubscriber)
+{
+    EXPECT_CALL(*Store, RegisterKey(_))
+        .Times(0);
+
+    Rotator = New<TKeyRotator>(Config, GetNullInvoker(), Store, Generator);
+    auto startFuture = Rotator->Start();
+    ASSERT_FALSE(startFuture.IsSet());
+
+    auto reentryQueue = New<TActionQueue>("RotatorReentry");
+    TManualEvent reentryStarted;
+    TManualEvent reentryFinished;
+    TFuture<void> reentryFuture;
+
+    startFuture.Subscribe(BIND([&] (const TError& /*error*/) {
+        reentryFuture = BIND([&] {
+            reentryStarted.Signal();
+            YT_UNUSED_FUTURE(Rotator->Stop());
+            reentryFinished.Signal();
+        })
+            .AsyncVia(reentryQueue->GetInvoker())
+            .Run();
+
+        ASSERT_TRUE(reentryStarted.WaitT(TDuration::Seconds(5)));
+        EXPECT_TRUE(reentryFinished.WaitT(TDuration::Seconds(5)));
+    }));
+
+    WaitFor(Rotator->Stop())
+        .ThrowOnError();
+    WaitFor(reentryFuture.WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    reentryQueue->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
