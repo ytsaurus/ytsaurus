@@ -1,5 +1,7 @@
 #include "operation_description.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -33,15 +35,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobDescription::Persist(const TStreamPersistenceContext& context)
+void TJobDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Duration);
-    Persist(context, ResourceLimits);
-    Persist(context, Id);
-    Persist(context, Type);
-    Persist(context, State);
+    PHOENIX_REGISTER_FIELD(1, Duration);
+    PHOENIX_REGISTER_FIELD(2, ResourceLimits);
+    PHOENIX_REGISTER_FIELD(3, Id);
+    PHOENIX_REGISTER_FIELD(4, Type);
+    PHOENIX_REGISTER_FIELD(5, State);
 }
+
+PHOENIX_DEFINE_TYPE(TJobDescription);
 
 void Deserialize(TJobDescription& value, NYTree::INodePtr node)
 {
@@ -65,19 +68,20 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationDescription::Persist(const TStreamPersistenceContext& context)
+void TOperationDescription::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Id);
-    Persist(context, JobDescriptions);
-    Persist(context, StartTime);
-    Persist(context, Duration);
-    Persist(context, AuthenticatedUser);
-    Persist(context, Type);
-    Persist(context, State);
-    Persist(context, InTimeframe);
-    Persist(context, Spec);
+    PHOENIX_REGISTER_FIELD(1, Id);
+    PHOENIX_REGISTER_FIELD(2, JobDescriptions);
+    PHOENIX_REGISTER_FIELD(3, StartTime);
+    PHOENIX_REGISTER_FIELD(4, Duration);
+    PHOENIX_REGISTER_FIELD(5, AuthenticatedUser);
+    PHOENIX_REGISTER_FIELD(6, Type);
+    PHOENIX_REGISTER_FIELD(7, State);
+    PHOENIX_REGISTER_FIELD(8, InTimeframe);
+    PHOENIX_REGISTER_FIELD(9, Spec);
 }
+
+PHOENIX_DEFINE_TYPE(TOperationDescription);
 
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
 {
