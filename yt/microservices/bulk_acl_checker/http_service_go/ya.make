@@ -21,6 +21,10 @@ ELSE()
     )
 ENDIF()
 
+GO_TEST_SRCS(
+    run_test.go
+)
+
 PEERDIR(
     ${GOSTD}/log
 )
@@ -28,5 +32,5 @@ PEERDIR(
 END()
 
 RECURSE_FOR_TESTS(
-    tests
+    gotest
 )
