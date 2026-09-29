@@ -1306,7 +1306,7 @@ void TDynamicBufferStateManagerSpec::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_v2", &TThis::EnableV2)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("v2_gain_epochs", &TThis::V2GainEpochs)
         .GreaterThan(1.0)
         .Default(2.0);

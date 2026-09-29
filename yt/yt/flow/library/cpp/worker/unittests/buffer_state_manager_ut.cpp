@@ -118,6 +118,7 @@ TDynamicBufferStateManagerSpecPtr CreateDynamicSpec(
     };
 
     auto spec = New<TDynamicBufferStateManagerSpec>();
+    spec->EnableV2 = false;
     spec->DemandWindow = TDuration::Minutes(1);
     spec->InputBuffer = makeOneSide(inputGuarantee, inputLimit);
     spec->OutputBuffer = makeOneSide(outputGuarantee, outputLimit);
@@ -1703,6 +1704,7 @@ TEST(TWorkerGroupPoolOverridesTest, PerSideMaxAndFallback)
             return side;
         };
         auto spec = New<TDynamicBufferStateManagerSpec>();
+        spec->EnableV2 = false;
         spec->DemandWindow = TDuration::Minutes(1);
         spec->InputBuffer = makeOneSide(10_MB);
         spec->OutputBuffer = makeOneSide(10_MB);
