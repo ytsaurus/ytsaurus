@@ -249,9 +249,15 @@ private:
             .With("Path", Directory_);
 
         bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+        auto cluster = Directory_.GetCluster();
+        bool shouldUseSnapshot = sync || cluster.has_value();
 
-        if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
-            queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
+        if (shouldUseSnapshot && queryContext->QueryKind == EQueryKind::InitialQuery) {
+            if (cluster) {
+                queryContext->AcquireSnapshotLocks({Directory_.GetPath()}, *cluster);
+            } else {
+                queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
+            }
         }
 
         TListNodeOptions options;
@@ -261,21 +267,26 @@ private:
         };
         options.SuppressAccessTracking = true;
         options.SuppressExpirationTimeoutRenewal = true;
-        if (sync) {
-            options.TransactionId = queryContext->ReadTransactionId;
+        if (shouldUseSnapshot) {
+            options.TransactionId = queryContext->GetReadTransactionId(cluster);
         }
 
-        auto nodeIdOrPath = queryContext->GetNodeIdOrPath(Directory_.GetPath());
-        auto items = ConvertTo<IListNodePtr>(WaitFor(queryContext->Client()->ListNode(nodeIdOrPath, options))
+        auto nodeIdOrPath = cluster
+            ? queryContext->GetNodeIdOrPath(Directory_.GetPath(), *cluster)
+            : queryContext->GetNodeIdOrPath(Directory_.GetPath());
+        auto client = queryContext->Client(cluster);
+        auto items = ConvertTo<IListNodePtr>(WaitFor(client->ListNode(nodeIdOrPath, options))
             .ValueOrThrow())
             ->GetChildren();
 
-        if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+        if (shouldUseSnapshot && queryContext->QueryKind == EQueryKind::InitialQuery) {
             std::vector<TString> paths(items.size());
             std::ranges::transform(items, paths.begin(), [] (const INodePtr& item) {
                 return item->Attributes().Get<TYPath>("path");
             });
-            auto errors = queryContext->TryAcquireSnapshotLocks(paths);
+            auto errors = cluster
+                ? queryContext->TryAcquireSnapshotLocks(paths, *cluster)
+                : queryContext->TryAcquireSnapshotLocks(paths);
 
             std::vector<INodePtr> lockedItems;
             lockedItems.reserve(items.size());
@@ -288,7 +299,7 @@ private:
         }
 
         if (auto breakpointFilename = queryContext->SessionSettings->Testing->ConcatTableRangeBreakpoint) {
-            HandleBreakpoint(*breakpointFilename, queryContext->Client());
+            HandleBreakpoint(*breakpointFilename, client);
             YT_TLOG_DEBUG("Concat tables range function handled breakpoint")
                 .With("Breakpoint", *breakpointFilename);
         }

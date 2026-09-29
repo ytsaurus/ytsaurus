@@ -82,6 +82,8 @@ public:
         TDuration timeout);
 
     const TTableSchemaCachePtr& GetTableSchemaCache() const;
+    TTableSchemaCachePtr GetTableSchemaCache(
+        const NApi::NNative::IConnectionPtr& connection) const;
 
     const NObjectClient::TObjectAttributeCachePtr& GetObjectAttributeCache() const;
 
@@ -112,6 +114,9 @@ public:
     NApi::NNative::IClientPtr GetDictionariesClient() const;
     NApi::NNative::IClientPtr GetSqlObjectsClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
+    NApi::NNative::IClientPtr CreateClient(
+        const std::string& user,
+        const std::optional<std::string>& cluster) const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol

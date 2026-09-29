@@ -113,6 +113,72 @@ static const std::vector<std::string> DiscoveryAttributes{
     "clique_incarnation",
 };
 
+DECLARE_REFCOUNTED_CLASS(TRemoteTableSchemaCacheEntry)
+
+class TRemoteTableSchemaCacheEntry
+    : public TRefCounted
+{
+public:
+    explicit TRemoteTableSchemaCacheEntry(NNative::IConnectionPtr connection)
+        : Connection_(std::move(connection))
+        , CachePromise_(NewPromise<TTableSchemaCachePtr>())
+    { }
+
+    bool TryBeginInitialization()
+    {
+        auto guard = Guard(Lock_);
+        if (InitializationStarted_) {
+            return false;
+        }
+        InitializationStarted_ = true;
+        return true;
+    }
+
+    TFuture<TTableSchemaCachePtr> GetCacheFuture() const
+    {
+        return CachePromise_.ToFuture();
+    }
+
+    void SetCache(TTableSchemaCachePtr cache)
+    {
+        CachePromise_.Set(std::move(cache));
+        InitializationFinished_.store(true, std::memory_order::release);
+    }
+
+    void SetError(const TError& error)
+    {
+        CachePromise_.Set(error);
+        InitializationFinished_.store(true, std::memory_order::release);
+    }
+
+    bool IsInitializationFinished() const
+    {
+        return InitializationFinished_.load(std::memory_order::acquire);
+    }
+
+    void Touch(ui64 accessIndex)
+    {
+        LastAccessIndex_.store(accessIndex, std::memory_order::relaxed);
+    }
+
+    ui64 GetLastAccessIndex() const
+    {
+        return LastAccessIndex_.load(std::memory_order::relaxed);
+    }
+
+private:
+    // Keeps the raw pointer used as the map key alive.
+    const NNative::IConnectionPtr Connection_;
+    const TPromise<TTableSchemaCachePtr> CachePromise_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    bool InitializationStarted_ = false;
+    std::atomic<bool> InitializationFinished_ = false;
+    std::atomic<ui64> LastAccessIndex_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteTableSchemaCacheEntry)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class THost::TImpl
@@ -147,6 +213,7 @@ public:
         , TaskPullerThreadPool_(CreateThreadPool(Config_->TaskPullerThreadCount, "TaskPuller"))
         , ClickHouseTaskPullerInvoker_(CreateClickHouseInvoker(TaskPullerThreadPool_->GetInvoker()))
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
+        , RemoteTableSchemaCaches_(RemoteClustersLimit)
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         TableAttributesToFetch_ = TableAttributesToFetch;
@@ -573,6 +640,86 @@ public:
         return TableSchemaCache_;
     }
 
+    TTableSchemaCachePtr GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+    {
+        if (!TableSchemaCache_) {
+            return nullptr;
+        }
+
+        TRemoteTableSchemaCacheEntryPtr entry;
+        TRemoteTableSchemaCacheEntryPtr evictedEntry;
+        {
+            auto guard = Guard(RemoteTableSchemaCachesLock_);
+            auto it = RemoteTableSchemaCaches_.find(connection.Get());
+            if (it != RemoteTableSchemaCaches_.end()) {
+                entry = it->second;
+                entry->Touch(++RemoteTableSchemaCacheAccessIndex_);
+            }
+        }
+
+        if (!entry) {
+            auto candidate = New<TRemoteTableSchemaCacheEntry>(connection);
+            bool limitExceeded = false;
+            {
+                auto guard = Guard(RemoteTableSchemaCachesLock_);
+                auto it = RemoteTableSchemaCaches_.find(connection.Get());
+                if (it == RemoteTableSchemaCaches_.end() &&
+                    RemoteTableSchemaCaches_.size() >= RemoteClustersLimit)
+                {
+                    auto victimIt = RemoteTableSchemaCaches_.end();
+                    for (auto currentIt = RemoteTableSchemaCaches_.begin();
+                        currentIt != RemoteTableSchemaCaches_.end();
+                        ++currentIt)
+                    {
+                        if (currentIt->second->IsInitializationFinished() &&
+                            (victimIt == RemoteTableSchemaCaches_.end() ||
+                                currentIt->second->GetLastAccessIndex() < victimIt->second->GetLastAccessIndex()))
+                        {
+                            victimIt = currentIt;
+                        }
+                    }
+                    if (victimIt == RemoteTableSchemaCaches_.end()) {
+                        limitExceeded = true;
+                    } else {
+                        evictedEntry = std::move(victimIt->second);
+                        RemoteTableSchemaCaches_.erase(victimIt);
+                    }
+                }
+
+                if (!limitExceeded) {
+                    if (it == RemoteTableSchemaCaches_.end()) {
+                        it = RemoteTableSchemaCaches_.emplace(connection.Get(), candidate).first;
+                    }
+                    entry = it->second;
+                    entry->Touch(++RemoteTableSchemaCacheAccessIndex_);
+                }
+            }
+
+            if (limitExceeded) {
+                THROW_ERROR_EXCEPTION("Remote table schema cache limit exceeded")
+                    .With("cluster", connection->GetClusterName().value_or("unknown"))
+                    .With("limit", RemoteClustersLimit);
+            }
+        }
+
+        if (entry->TryBeginInitialization()) {
+            auto clusterName = connection->GetClusterName().value_or("unknown");
+            try {
+                entry->SetCache(New<TTableSchemaCache>(
+                    Config_->TableSchemaCache,
+                    ClickHouseYtProfiler()
+                        .WithPrefix("/table_schema_cache")
+                        .WithTag("remote_cluster", clusterName)));
+                YT_TLOG_INFO("Remote table schema cache created")
+                    .With("Cluster", clusterName);
+            } catch (const std::exception& ex) {
+                entry->SetError(TError(ex));
+            }
+        }
+
+        return WaitFor(entry->GetCacheFuture()).ValueOrThrow();
+    }
+
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
     {
         return TableAttributeCache_;
@@ -733,6 +880,26 @@ public:
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
         return ClientCache_->Get(identity, options);
+    }
+
+    NApi::NNative::IClientPtr CreateClient(
+        const std::string& user,
+        const std::optional<std::string>& cluster) const
+    {
+        if (!cluster) {
+            return CreateClient(user);
+        }
+
+        auto connection = WaitFor(NApi::NNative::InsistentGetRemoteConnection(
+            Connection_,
+            *cluster,
+            NApi::NNative::EInsistentGetRemoteConnectionMode::Sync))
+            .ValueOrThrow();
+        connection->GetNodeDirectorySynchronizer()->Start();
+
+        auto identity = NRpc::TAuthenticationIdentity(user);
+        auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
+        return connection->CreateNativeClient(options);
     }
 
     void HandleSigint()
@@ -1005,6 +1172,9 @@ private:
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
+    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteTableSchemaCachesLock_);
+    mutable THashMap<const NNative::IConnection*, TRemoteTableSchemaCacheEntryPtr> RemoteTableSchemaCaches_;
+    mutable std::atomic<ui64> RemoteTableSchemaCacheAccessIndex_ = 0;
 
     std::vector<std::string> TableAttributesToFetch_;
 
@@ -1372,6 +1542,11 @@ const TTableSchemaCachePtr& THost::GetTableSchemaCache() const
     return Impl_->GetTableSchemaCache();
 }
 
+TTableSchemaCachePtr THost::GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+{
+    return Impl_->GetTableSchemaCache(connection);
+}
+
 const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
 {
     return Impl_->GetObjectAttributeCache();
@@ -1465,6 +1640,13 @@ NApi::NNative::IClientPtr THost::GetSqlObjectsClient() const
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
+}
+
+NApi::NNative::IClientPtr THost::CreateClient(
+    const std::string& user,
+    const std::optional<std::string>& cluster) const
+{
+    return Impl_->CreateClient(user, cluster);
 }
 
 TFuture<void> THost::GetIdleFuture() const
