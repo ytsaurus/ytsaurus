@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 )
@@ -29,18 +30,25 @@ func (c *recordingGetNodeClient) GetNode(
 	return c.err
 }
 
-func requireRichAttrsPath(t *testing.T, path ypath.YPath) {
-	t.Helper()
-
-	rich, ok := path.(*ypath.Rich)
-	require.True(t, ok)
-	require.Equal(t, ypath.Path("//tmp/input/@"), rich.Path)
-	require.Equal(t, "other", rich.Cluster)
+func TestIsClusterQualifiedPath(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path ypath.YPath
+		want bool
+	}{
+		{name: "plain path", path: ypath.Path("//tmp/input")},
+		{name: "rich path", path: ypath.NewRich("//tmp/input")},
+		{name: "rich path with cluster", path: ypath.NewRich("//tmp/input").SetCluster("other"), want: true},
+		{name: "encoded path with cluster", path: ypath.Path(`<cluster="other">//tmp/input`), want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, isClusterQualifiedPath(tc.path))
+		})
+	}
 }
 
-func TestGetInputTableSchemasPreservesRichPathAttributes(t *testing.T) {
-	getNodeErr := errors.New("stop after recording GetNode")
-	yc := &recordingGetNodeClient{err: getNodeErr}
+func TestGetInputTableSchemasSkipsClusterQualifiedPaths(t *testing.T) {
+	yc := &recordingGetNodeClient{err: errors.New("GetNode must not be called")}
 	p := &prepare{
 		mr:  &client{yc: yc},
 		ctx: context.Background(),
@@ -49,15 +57,14 @@ func TestGetInputTableSchemasPreservesRichPathAttributes(t *testing.T) {
 		}},
 	}
 
-	_, err := p.getInputTableSchemas()
-	require.ErrorIs(t, err, getNodeErr)
-	require.Len(t, yc.paths, 1)
-	requireRichAttrsPath(t, yc.paths[0])
+	schemas, err := p.getInputTableSchemas()
+	require.NoError(t, err)
+	require.Equal(t, []*schema.Schema{nil}, schemas)
+	require.Empty(t, yc.paths)
 }
 
-func TestPrepareInputValidationPreservesRichPathAttributes(t *testing.T) {
-	getNodeErr := errors.New("stop after recording GetNode")
-	yc := &recordingGetNodeClient{err: getNodeErr}
+func TestPrepareInputValidationSkipsClusterQualifiedPaths(t *testing.T) {
+	yc := &recordingGetNodeClient{err: errors.New("GetNode must not be called")}
 	mr := New(yc).(*client)
 	p := &prepare{
 		mr:  mr,
@@ -71,7 +78,24 @@ func TestPrepareInputValidationPreservesRichPathAttributes(t *testing.T) {
 	}
 
 	err := p.prepare(nil)
+	require.NoError(t, err)
+	require.Empty(t, yc.paths)
+}
+
+func TestPrepareInputValidationChecksLocalPaths(t *testing.T) {
+	getNodeErr := errors.New("stop after recording GetNode")
+	yc := &recordingGetNodeClient{err: getNodeErr}
+	mr := New(yc).(*client)
+	p := &prepare{
+		mr:  mr,
+		ctx: context.Background(),
+		spec: &spec.Spec{
+			Type:            yt.OperationSort,
+			InputTablePaths: []ypath.YPath{ypath.Path("//tmp/input")},
+		},
+	}
+
+	err := p.prepare(nil)
 	require.ErrorIs(t, err, getNodeErr)
-	require.Len(t, yc.paths, 1)
-	requireRichAttrsPath(t, yc.paths[0])
+	require.Equal(t, []ypath.YPath{ypath.Path("//tmp/input/@")}, yc.paths)
 }
