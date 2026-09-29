@@ -5,19 +5,19 @@
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <functional>
 
-namespace NYT {
+namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NProfiling;
-
-namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +302,13 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NYT::NScheduler
 
-} // namespace NYT
+PHOENIX_DEFINE_EXTERNAL_TYPE(NYT::NScheduler::TJobResources)
+{
+    PHOENIX_REGISTER_FIELD(1, UserSlots_);
+    PHOENIX_REGISTER_FIELD(2, Cpu_);
+    PHOENIX_REGISTER_FIELD(3, Gpu_);
+    PHOENIX_REGISTER_FIELD(4, Memory_);
+    PHOENIX_REGISTER_FIELD(5, Network_);
+}
