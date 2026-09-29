@@ -622,7 +622,7 @@ class CacheLocationOverflowBase(YTEnvSetup):
 
         node = ls("//sys/cluster_nodes")[0]
 
-        assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1)
         assert not os.path.exists(f"{self.cache_volume_path}/disabled")
 
         controller_agent_address = ls("//sys/controller_agents/instances")[0]
@@ -790,7 +790,7 @@ class TestSlotLocationOverflow(YTEnvSetup):
 
         wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@state") == "online")
         assert self._slot_location_alert() is None
-        assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1
+        wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 1)
 
         initial_enospc_count = self._get_enospc_count()
 
@@ -843,7 +843,7 @@ class TestSlotLocationOverflow(YTEnvSetup):
 
             wait(lambda: self._slot_location_alert() is not None)
             assert not self._get_slot_location()["enabled"]
-            assert get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 0
+            wait(lambda: get(f"//sys/cluster_nodes/{self.node_address}/@resource_limits/user_slots") == 0)
 
             def check_abort_entries():
                 abort_entries = self._read_job_abort_entries(op.id, from_barrier, to_barrier)
