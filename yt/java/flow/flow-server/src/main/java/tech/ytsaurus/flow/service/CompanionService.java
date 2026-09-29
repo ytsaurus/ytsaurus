@@ -157,6 +157,9 @@ public class CompanionService extends CompanionServiceGrpc.CompanionServiceImplB
             if (!outcome.errorMessage().isEmpty()) {
                 response.setError(TError.newBuilder().setCode(1).setMessage(outcome.errorMessage()).build());
             }
+            if (outcome.result() != null) {
+                response.setResult(YsonUtils.protoFromYTree(outcome.result()));
+            }
             return response.build();
         });
     }

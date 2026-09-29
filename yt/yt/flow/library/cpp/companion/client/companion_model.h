@@ -227,6 +227,8 @@ struct TCompanionResourceExecuteResponse
 {
     ECompanionResourceExecuteStatus Status{};
     TError Error;
+    //! Per-command result, if the companion returned one.
+    NYson::TYsonString Result;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionResourceExecuteResponse);

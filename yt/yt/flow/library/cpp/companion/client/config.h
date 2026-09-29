@@ -60,6 +60,8 @@ struct TCompanionExecutionConfig
     std::string ClusterUrl;
     NYPath::TYPath PipelinePath;
     TCompanionMonitoringConfigPtr Monitoring;
+    //! Identifies one worker spawn of the companion; all processes of a multi-process companion share it.
+    std::string SessionId;
 
     REGISTER_YSON_STRUCT(TCompanionExecutionConfig);
 

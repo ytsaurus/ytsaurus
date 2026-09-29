@@ -65,6 +65,9 @@ void TCompanionExecutionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("monitoring", &TThis::Monitoring)
         .DefaultNew();
+    registrar.Parameter("session_id", &TThis::SessionId)
+        .Default()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

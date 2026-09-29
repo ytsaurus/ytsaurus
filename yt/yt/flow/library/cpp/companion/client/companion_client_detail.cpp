@@ -145,6 +145,20 @@ void VerifyRequestResponseIds(const NYT::NProto::TGuid& reqReqId, const NYT::NPr
     YT_VERIFY(reqReqId.second() == rspReqId.second());
 }
 
+TCompanionResourceExecuteResponsePtr ParseResourceExecuteResponse(
+    const NProto::NCompanion::TRspResourceExecute& protoResponse)
+{
+    auto response = New<TCompanionResourceExecuteResponse>();
+    response->Status = static_cast<ECompanionResourceExecuteStatus>(protoResponse.status());
+    if (protoResponse.has_error()) {
+        response->Error = FromProto<TError>(protoResponse.error());
+    }
+    if (protoResponse.has_result()) {
+        FromProto(&response->Result, protoResponse.result());
+    }
+    return response;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,16 +493,11 @@ TFuture<TCompanionResourceExecuteResponsePtr> TCompanionClient::ResourceExecute(
     // Future.GetOrCrash called after WaitFor at ExecuteWithRetry function.
     auto response = responseFuture.GetOrCrash().Value();
     VerifyRequestResponseIds(reqReqId, response->request_id());
-    auto responseStatus = static_cast<ECompanionResourceExecuteStatus>(response->status());
+    auto executeResponse = ParseResourceExecuteResponse(*response);
     YT_TLOG_DEBUG("Received resource execute response from companion")
         .With("ResourceId", resourceId)
         .With("Command", command)
-        .With("Status", responseStatus);
-    auto executeResponse = New<TCompanionResourceExecuteResponse>();
-    executeResponse->Status = responseStatus;
-    if (response->has_error()) {
-        executeResponse->Error = FromProto<TError>(response->error());
-    }
+        .With("Status", executeResponse->Status);
     return MakeFuture(std::move(executeResponse));
 }
 

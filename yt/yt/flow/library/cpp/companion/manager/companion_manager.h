@@ -80,6 +80,14 @@ public:
     //! Starts the companion process and waits for it to become ready.
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override;
 
+    //! Returns the session of the most recently spawned companion process.
+    //! Available after #Load() is called.
+    std::string GetSessionId() const;
+
+    //! Fired on the manager's invoker with the session of a companion process once it exits.
+    //! Subscribers must not throw. Available after #Load() is called.
+    DECLARE_SIGNAL(void(const std::string& sessionId), SessionFinished);
+
     //! Records that |jobId|'s computation exists in this worker process.
     /*!
      *  Must be called strictly before the job's first registration is sent to
