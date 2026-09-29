@@ -277,7 +277,8 @@ public:
             pluginInitialDynamicConfig,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            Config_->EnableDQ && !Config_->UseQtWorkerYqlPlugin,
+            /*startDqManager*/ Config_->EnableDQ && !Config_->UseQtWorkerYqlPlugin,
+            /*enableClique*/ Config_->UseQtWorkerYqlPlugin,
             Config_->UseTokenResolver,
             tokenServiceSocketPath);
 

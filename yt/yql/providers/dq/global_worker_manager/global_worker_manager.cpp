@@ -1497,12 +1497,17 @@ private:
 
         // any cluster has at least 50% of workers with actual vanilla job ready
         bool isReady = false;
+        bool hasCommunalBackends = false;
         ui32 totalWorkers = Workers.GetList().size();
         for (const auto& [cluster,pair] : clusterMap) {
             YQL_CLOG(DEBUG, ProviderDq) << cluster << " ready: " << pair.second << "/" << pair.first
                 << " workers ready (total_workers=" << totalWorkers << ", required_files=" << resources.size() << ")";
-            isReady |= pair.second * 2 >= pair.first;
+            if (pair.first > 0) {
+                hasCommunalBackends = true;
+                isReady |= pair.second * 2 >= pair.first;
+            }
         }
+        isReady = !hasCommunalBackends || isReady;
 
         YQL_CLOG(DEBUG, ProviderDq) << "IsReady status : " << isReady;
 

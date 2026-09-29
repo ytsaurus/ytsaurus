@@ -30,6 +30,7 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     bool startDqManager,
+    bool enableClique,
     bool useTokenResolver,
     const std::string& tokenServiceSocketPath)
 {
@@ -49,6 +50,7 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
         .InitialDynamicConfig = ConvertToYsonString(initialDynamicConfig),
         .YTTokenPath = config->YTTokenPath,
         .StartDqManager = startDqManager,
+        .EnableClique = enableClique,
     };
 
     if (useTokenResolver) {

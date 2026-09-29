@@ -19,6 +19,9 @@ void UploadWarmupArtifactsToYt(
     const TIntrusivePtr<ICoordinationHelper>& coordinator,
     const TVector<TResourceManagerOptions>& ytBackends,
     const TString& vanillaJobLite,
-    const TMap<TString, TString>& udfsWithMd5);
+    const TString& vanillaJobLiteMd5,
+    const TMap<TString, TString>& udfsWithMd5,
+    bool enableStrip,
+    const TFileStoragePtr& fileStorage);
 
 } // namespace NYql

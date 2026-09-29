@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yql/providers/dq/actors/yt/resource_manager.h>
+
 #include <functional>
 
 #include <util/generic/maybe.h>
@@ -45,6 +47,13 @@ TDqYtClusterResolver MakeYtBackendResolver(
 TDqYtClusterBinding ResolveYtClusterBindingOrThrow(
     const TDqYtClusterResolver& resolveYtCluster,
     const TString& ytClusterShortcut);
+
+TString GetDqCliqueUploadPrefix(const NProto::TDqConfig_TYtBackend& backend);
+
+void ConfigureDqCliqueUploadOptions(
+    const TVector<NProto::TDqConfig_TYtBackend>& backends,
+    const TString& cliqueValue,
+    TResourceManagerOptions* options);
 
 // Validates pragma dq.Clique value: format and YT backend ClusterName (no network I/O).
 void ValidateDqCliqueYtBackend(

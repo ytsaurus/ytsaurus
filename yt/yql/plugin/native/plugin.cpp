@@ -36,12 +36,15 @@
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/providers/common/udf_resolve/yql_simple_udf_resolver.h>
 
+#include <yt/yql/providers/dq/common/yql_dq_clique.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_gateway.h>
 #include <yt/yql/providers/dq/gateway/yql_dq_gateway_factory.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_provider.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_state.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/exec/yql_dq_exectransformer.h>
 #include <contrib/ydb/library/yql/providers/dq/helper/yql_dq_helper_impl.h>
+#include <yt/yql/providers/dq/clique/yql_dq_clique_routing_gateway.h>
+#include <yt/yql/providers/dq/global_worker_manager/dq_gateway_with_uploader.h>
 
 #include <yql/essentials/ast/yql_expr.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/yql_common_dq_factory.h>
@@ -389,6 +392,7 @@ public:
     TYqlPlugin(TYqlNativePluginOptions options)
         : DqManagerConfig_(options.DqManagerConfig ? NYTree::ConvertTo<TDqManagerConfigPtr>(options.DqManagerConfig) : nullptr)
         , StartDqManager_(options.StartDqManager)
+        , EnableClique_(options.EnableClique)
     {
         try {
             if (StartDqManager_) {
@@ -581,6 +585,14 @@ public:
         YQL_LOG(INFO) << "YQL plugin initialized";
     }
 
+    ~TYqlPlugin() override
+    {
+        if (DqGateway_) {
+            DqGateway_->Stop();
+            DqGateway_.Reset();
+        }
+    }
+
     void Start() override
     {
         if (DqManager_ && StartDqManager_) {
@@ -590,6 +602,7 @@ public:
             // This pool is required for all DQ queries
             DqGatewayOffloadThreadPool_->Start(1);
         }
+        InitializeDqGateway();
     }
 
     TClustersResult GuardedGetUsedClusters(
@@ -1189,7 +1202,10 @@ public:
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
     const bool StartDqManager_;
+    const bool EnableClique_;
     TDqManagerPtr DqManager_;
+    NYql::IDqGateway::TPtr DqGateway_;
+    TVector<NYql::NProto::TDqConfig::TYtBackend> CliqueBackends_;
     THolder<IThreadPool> DqGatewayOffloadThreadPool_;
     TConfigClusters::TPtr YtClusters_;
     NYql::TFileStoragePtr FileStorage_;
@@ -1361,6 +1377,64 @@ private:
         return std::move(dynamicConfig);
     }
 
+    void InitializeDqGateway()
+    {
+        if (!DqManagerConfig_) {
+            return;
+        }
+
+        NYql::NProto::TDqConfig dqConfig;
+        dqConfig.SetPort(DqManagerConfig_->GrpcPort);
+        dqConfig.SetOpenSessionTimeoutMs(TDuration::Minutes(60).MilliSeconds());
+        dqConfig.SetRequestTimeoutMs(TDuration::Max().MilliSeconds());
+
+        if (DqManager_) {
+            if (const auto& vanillaJobLite = DqManager_->GetVanillaJobLite()) {
+                auto* ytBackend = dqConfig.AddYtBackends();
+                ytBackend->SetVanillaJobLite(vanillaJobLite->GetPath());
+                ytBackend->SetVanillaJobLiteMd5(vanillaJobLite->GetMd5());
+            }
+            if (EnableClique_) {
+                const auto& backends = DqManager_->GetYtBackends();
+                CliqueBackends_.assign(backends.begin(), backends.end());
+            }
+        }
+
+        DqGateway_ = NYql::CreateDqGateway(dqConfig);
+        if (CliqueBackends_.empty()) {
+            return;
+        }
+
+        const auto resolveYtCluster = NYql::MakeYtBackendResolver(CliqueBackends_);
+        DqGateway_ = NYql::CreateDqCliqueRoutingGateway(DqGateway_, resolveYtCluster);
+
+        if (!StartDqManager_) {
+            return;
+        }
+
+        TResourceManagerOptions uploadOptions;
+        uploadOptions.YtBackend = CliqueBackends_.front();
+        uploadOptions.UploadPrefix = NYql::GetDqCliqueUploadPrefix(uploadOptions.YtBackend);
+
+        auto resolveUploadCluster = [backends = CliqueBackends_] (
+            TResourceManagerOptions* options,
+            const NYql::TDqSettings::TPtr& settings)
+        {
+            if (!settings || !settings->Clique.Get()) {
+                return false;
+            }
+            NYql::ConfigureDqCliqueUploadOptions(backends, *settings->Clique.Get(), options);
+            return true;
+        };
+
+        DqGateway_ = NYql::CreateDqGatewayWithUploader(
+            DqGateway_,
+            DqManager_->GetActorSystem(),
+            std::move(uploadOptions),
+            DqManager_->GetCoordinator(),
+            std::move(resolveUploadCluster));
+    }
+
     NYql::TProgramFactoryPtr CreateProgramFactory(TQueryId queryId, TDynamicConfig& dynamicConfig) {
         YQL_LOG_CTX_ROOT_SESSION_SCOPE(ToString(queryId));
 
@@ -1378,23 +1452,12 @@ private:
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
-            NYql::NProto::TDqConfig dqConfig;
-            dqConfig.SetPort(DqManagerConfig_->GrpcPort);
-            dqConfig.SetOpenSessionTimeoutMs(TDuration::Minutes(60).MilliSeconds());
-            dqConfig.SetRequestTimeoutMs(TDuration::Max().MilliSeconds());
+            YT_VERIFY(DqGateway_);
 
-            if (DqManager_) {
-                const auto vanillaJobLite = DqManager_->GetVanillaJobLite();
-                auto* ytBackend = dqConfig.AddYtBackends();
-                ytBackend->SetVanillaJobLite(vanillaJobLite->GetPath());
-                ytBackend->SetVanillaJobLiteMd5(vanillaJobLite->GetMd5());
-            }
-
-            auto dqGateway = NYql::CreateDqGateway(dqConfig);
             // NOTE: prevent deadlock upon thread joining
             // details in https://st.yandex-team.ru/YT-26302
             auto dqGatewayWithOffloading = CreateDqGatewayWithOffloading(
-                std::move(dqGateway),
+                DqGateway_,
                 DqGatewayOffloadThreadPool_.Get());
 
             auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
@@ -1404,13 +1467,22 @@ private:
                 GetPgFactory()
             });
 
+            NYql::TDqCliqueValidator cliqueValidator;
+            if (!CliqueBackends_.empty()) {
+                cliqueValidator = [backends = CliqueBackends_] (const TString& value) {
+                    NYql::ValidateDqCliqueYtBackend(backends, value);
+                };
+            }
+
             dataProvidersInit.push_back(
                 GetDqDataProviderInitializer(
                     NYql::CreateDqExecTransformerFactory(MakeIntrusive<TSkiffConverter>()),
                     std::move(dqGatewayWithOffloading),
                     std::move(dqCompFactory),
                     {},
-                    FileStorage_));
+                    FileStorage_,
+                    /*externalUser*/ false,
+                    std::move(cliqueValidator)));
         }
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);
