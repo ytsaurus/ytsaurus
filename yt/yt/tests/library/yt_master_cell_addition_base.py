@@ -15,7 +15,8 @@ from yt_env_setup import (
 from yt_commands import (
     align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error,
     read_table, remote_copy, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
-    exists, get, set, ls, create, remove, create_account, create_domestic_medium, remove_account,
+    exists, get, set, ls, create, remove, create_account, remove_account,
+    create_domestic_medium, create_s3_medium,
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
@@ -626,10 +627,18 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         },
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_offshore_media": True,
+        },
+    }
+
     def check_media(self):
         create_domestic_medium("ssd")
         create_account("a")
         set("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd", 42)
+
+        create_s3_medium("s3", {})
 
         yield
 
