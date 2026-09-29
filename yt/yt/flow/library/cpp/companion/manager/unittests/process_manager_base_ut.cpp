@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/companion/client/companion_singleton_state.h>
 #include <yt/yt/flow/library/cpp/companion/client/config.h>
+#include <yt/yt/flow/library/cpp/companion/manager/companion_entrypoint.h>
+#include <yt/yt/flow/library/cpp/companion/manager/companion_process_manager.h>
 #include <yt/yt/flow/library/cpp/companion/manager/process_manager_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -9,9 +11,15 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/context_switch.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt/library/process/process.h>
 
 #include <library/cpp/testing/common/network.h>
+
+#include <util/folder/path.h>
+#include <util/folder/tempdir.h>
+#include <util/stream/file.h>
 
 #include <stdexcept>
 
@@ -69,6 +77,13 @@ public:
         return StatusProfiler_;
     }
 
+    //! Returns the session passed to each incarnation in its execution config.
+    std::vector<std::string> GetIncarnationSessionIds() const
+    {
+        auto guard = Guard(SessionLock_);
+        return IncarnationSessionIds_;
+    }
+
     //! Makes every health check hang on |future| instead of consulting the script.
     //! Must be called before Start().
     void SetHealthCheckFuture(TFuture<void> future)
@@ -84,9 +99,13 @@ protected:
         }
     }
 
-    TIntrusivePtr<TProcessBase> CreateProcessIncarnation() override
+    TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config) override
     {
         ++IncarnationCount_;
+        {
+            auto guard = Guard(SessionLock_);
+            IncarnationSessionIds_.push_back(config->SessionId);
+        }
         if (SpawnFailingProcess_) {
             // A process that exits immediately, emulating a companion that fails right after start.
             auto process = New<TSimpleProcess>("/bin/false", /*copyEnv*/ true);
@@ -115,9 +134,27 @@ private:
     const bool InvalidParameters_ = false;
     std::atomic<int> IncarnationCount_ = 0;
     std::atomic<int> HealthCheckCount_ = 0;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SessionLock_);
+    std::vector<std::string> IncarnationSessionIds_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFakeProcessManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Companion process manager whose health checks always pass.
+class THealthyCompanionProcessManager
+    : public TCompanionProcessManager
+{
+public:
+    using TCompanionProcessManager::TCompanionProcessManager;
+
+protected:
+    TFuture<void> HealthCheck() override
+    {
+        return OKFuture;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -234,6 +271,92 @@ TEST_F(TProcessManagerBaseTest, ReportsRetryableErrorAfterStartFailure)
         }
         return false;
     });
+
+    manager->Shutdown();
+}
+
+TEST_F(TProcessManagerBaseTest, EachIncarnationGetsANewSessionThatFinishesOnExit)
+{
+    // The process exits right away, so the manager keeps spawning new incarnations.
+    auto manager = New<TFakeProcessManager>(
+        ActionQueue_->GetInvoker(),
+        /*startupGracePeriod*/ TDuration::Minutes(1),
+        [] (int /*healthCheckIndex*/) {
+            return TError();
+        },
+        /*spawnFailingProcess*/ true);
+    EXPECT_TRUE(manager->GetSessionId().empty());
+
+    // Shared with the callback, which may still run after the test body while a killed process exits.
+    struct TFinishedSessions
+    {
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        std::vector<std::string> SessionIds;
+
+        std::vector<std::string> Get()
+        {
+            auto guard = Guard(Lock);
+            return SessionIds;
+        }
+    };
+
+    auto finishedSessions = std::make_shared<TFinishedSessions>();
+    manager->SubscribeSessionFinished(BIND([finishedSessions] (const std::string& sessionId) {
+        auto guard = Guard(finishedSessions->Lock);
+        finishedSessions->SessionIds.push_back(sessionId);
+    }));
+    manager->Start();
+
+    WaitForPredicate([&] {
+        return finishedSessions->Get().size() >= 3;
+    });
+    manager->Shutdown();
+
+    // An incarnation spawned during shutdown may still be running, so compare prefixes.
+    auto incarnationSessionIds = manager->GetIncarnationSessionIds();
+    auto finished = finishedSessions->Get();
+    ASSERT_LE(finished.size(), incarnationSessionIds.size());
+    for (int index = 0; index < std::ssize(finished); ++index) {
+        EXPECT_EQ(incarnationSessionIds[index], finished[index]);
+    }
+    EXPECT_EQ(incarnationSessionIds.back(), manager->GetSessionId());
+    THashSet<std::string> uniqueSessionIds(incarnationSessionIds.begin(), incarnationSessionIds.end());
+    EXPECT_EQ(incarnationSessionIds.size(), uniqueSessionIds.size());
+    EXPECT_FALSE(uniqueSessionIds.contains(""));
+}
+
+TEST_F(TProcessManagerBaseTest, CompanionProcessReceivesItsSession)
+{
+    TTempDir directory;
+    auto configPath = (TFsPath(directory.Name()) / "config").GetPath();
+    auto entrypoint = New<TCompanionEntrypoint>();
+    entrypoint->Executable = "/bin/sh";
+    // Publish the config atomically, then stay alive so that the session does not change.
+    entrypoint->Args = {
+        "-c",
+        Format("printenv YT_FLOW_COMPANION_CONFIG > %v.tmp && mv %v.tmp %v && exec sleep 30", configPath, configPath, configPath),
+    };
+    auto manager = New<THealthyCompanionProcessManager>(
+        ActionQueue_->GetInvoker(),
+        /*companionClient*/ nullptr,
+        TExponentialBackoffOptions{},
+        /*restartDelay*/ TDuration::MilliSeconds(10),
+        /*healthCheckInterval*/ TDuration::Hours(1),
+        /*startupGracePeriod*/ TDuration::Minutes(1),
+        /*metricsCollectionInterval*/ TDuration::Hours(1),
+        NLogging::TLogger("CompanionProcessManager"),
+        NProfiling::TProfiler(),
+        CreateSyncStatusProfiler(),
+        entrypoint);
+    manager->Start();
+
+    WaitForPredicate([&] {
+        return TFsPath(configPath).Exists();
+    });
+    auto config = NYTree::ConvertTo<TCompanionExecutionConfigPtr>(
+        NYson::TYsonString(TUnbufferedFileInput(configPath).ReadAll()));
+    EXPECT_FALSE(config->SessionId.empty());
+    EXPECT_EQ(manager->GetSessionId(), config->SessionId);
 
     manager->Shutdown();
 }

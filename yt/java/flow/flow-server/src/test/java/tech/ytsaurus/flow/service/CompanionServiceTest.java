@@ -27,6 +27,8 @@ import tech.ytsaurus.flow.rpc.TRspProcessBatch;
 import tech.ytsaurus.flow.rpc.TRspPutJob;
 import tech.ytsaurus.flow.rpc.TRspResourceExecute;
 import tech.ytsaurus.flow.testutils.ProtobufRequestBuilder;
+import tech.ytsaurus.flow.utils.YsonUtils;
+import tech.ytsaurus.ysontree.YTree;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -207,7 +209,28 @@ class CompanionServiceTest {
         assertEquals(request.getRequestId(), observer.response.getRequestId());
         assertEquals(EResourceExecuteStatus.RES_RESOURCE_NOT_INITIALIZED, observer.response.getStatus());
         assertEquals("dependency missing", observer.response.getError().getMessage());
+        assertFalse(observer.response.hasResult());
         verify(processor).resourceExecute(request);
+    }
+
+    @Test
+    void resourceResultTravelsAsYson() {
+        var processor = mock(CompanionRequestProcessor.class);
+        var service = new CompanionService(processor, new SimpleMeterRegistry());
+        var request = TReqResourceExecute.newBuilder()
+                .setRequestId(createRequest().getRequestId())
+                .setResourceId("r").setCommand(EResourceCommand.RC_INIT).build();
+        var result = YTree.mapBuilder().key("ready").value(true).buildMap();
+        when(processor.resourceExecute(request)).thenReturn(
+                new ExecuteOutcome(EResourceExecuteStatus.RES_OK, "", result));
+        var observer = new CapturingObserver<TRspResourceExecute>();
+
+        service.resourceExecute(request, observer);
+
+        assertNull(observer.error);
+        assertEquals(EResourceExecuteStatus.RES_OK, observer.response.getStatus());
+        assertFalse(observer.response.hasError());
+        assertEquals(result, YsonUtils.yTreeFromProto(observer.response.getResult()));
     }
 
     @Test

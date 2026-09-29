@@ -37,7 +37,7 @@ protected:
     void ValidateParameters() const override;
 
     //! Creates a new process incarnation as described by the entrypoint.
-    TIntrusivePtr<TProcessBase> CreateProcessIncarnation() override;
+    TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config) override;
 
 private:
     //! Entrypoint describing how to spawn the companion process.

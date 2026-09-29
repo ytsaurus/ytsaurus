@@ -112,6 +112,9 @@ protected:
     virtual TFuture<TResourceRevisionPtr> PrepareResourceRevision(
         const TResourceRevisionPtr& targetRevision);
 
+    //! Returns the client of the primary companion channel; set once #Load() completes.
+    const ICompanionClientPtr& GetCompanionClient() const;
+
 private:
     struct TCompanionDependency
     {

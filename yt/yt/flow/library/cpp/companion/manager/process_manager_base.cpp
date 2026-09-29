@@ -7,7 +7,10 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/library/process/process.h>
+
+#include <library/cpp/yt/misc/guid.h>
 
 #include <util/string/strip.h>
 #include <util/system/getpid.h>
@@ -219,6 +222,12 @@ void TProcessManagerBase::CheckCompanionAvailability()
     }
 }
 
+std::string TProcessManagerBase::GetSessionId()
+{
+    auto guard = Guard(Lock_);
+    return SessionId_;
+}
+
 bool TProcessManagerBase::IsStarted()
 {
     auto guard = Guard(Lock_);
@@ -250,6 +259,7 @@ void TProcessManagerBase::DoStart()
 {
     TFuture<void> spawnFuture;
     std::string commandLine;
+    std::string sessionId;
     {
         auto guard = Guard(Lock_);
         // Check if we should still start the process.
@@ -266,7 +276,11 @@ void TProcessManagerBase::DoStart()
             ErrorState_->SetError(error);
             THROW_ERROR error;
         }
-        auto processIncarnation = CreateProcessIncarnation();
+        SessionId_ = ToString(TGuid::Create());
+        sessionId = SessionId_;
+        auto config = NYTree::CloneYsonStruct(CompanionConfig_);
+        config->SessionId = sessionId;
+        auto processIncarnation = CreateProcessIncarnation(config);
         // Publish restarts metric.
         RestartCounter_.Increment();
         // Create process group for robust process termination.
@@ -277,8 +291,14 @@ void TProcessManagerBase::DoStart()
         spawnFuture = CurrentSpawnFuture_;
         commandLine = processIncarnation->GetCommandLine();
     }
-    spawnFuture.Subscribe(BIND([this, weakThis = MakeWeak(this), commandLine] (const TError& error) {
+    spawnFuture.Subscribe(BIND([this, weakThis = MakeWeak(this), commandLine, sessionId] (const TError& error) {
         if (auto strongThis = weakThis.Lock()) {
+            // The exit is observed on a shared timer thread, which subscribers must not block.
+            Invoker_->Invoke(BIND([weakThis, sessionId] {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->SessionFinished_.Fire(sessionId);
+                }
+            }));
             OnProcessStopped(error, commandLine);
             return;
         }

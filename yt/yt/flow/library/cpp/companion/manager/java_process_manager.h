@@ -37,7 +37,7 @@ protected:
     void ValidateParameters() const override;
 
     //! Creates a new JVM process incarnation using the configured JDK, classpath, and main class.
-    TIntrusivePtr<TProcessBase> CreateProcessIncarnation() override;
+    TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config) override;
 
 private:
     //! Path to the JDK bin directory (e.g. containing the `java` executable).

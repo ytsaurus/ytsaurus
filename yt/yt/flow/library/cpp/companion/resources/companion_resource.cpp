@@ -149,6 +149,11 @@ TFuture<TResourceRevisionPtr> TCompanionResource::PrepareResourceRevision(
     return MakeFuture(targetRevision);
 }
 
+const ICompanionClientPtr& TCompanionResource::GetCompanionClient() const
+{
+    return CompanionClient_;
+}
+
 void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& dependencies)
 {
     CompanionClient_ = CreateCompanionClient(dependencies);

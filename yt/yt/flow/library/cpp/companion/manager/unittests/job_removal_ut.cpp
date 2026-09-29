@@ -219,7 +219,7 @@ protected:
     void ValidateParameters() const override
     { }
 
-    TIntrusivePtr<TProcessBase> CreateProcessIncarnation() override
+    TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& /*config*/) override
     {
         YT_UNIMPLEMENTED();
     }

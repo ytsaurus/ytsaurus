@@ -45,7 +45,7 @@ void TCompanionProcessManager::ValidateParameters() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation()
+TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config)
 {
     YT_TLOG_INFO("Spawning companion process")
         .With("Executable", Entrypoint_->Executable)
@@ -56,7 +56,7 @@ TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation()
     process->AddArguments(Entrypoint_->Args);
 
     // Not logged: the config may carry HTTPS client credentials.
-    auto configTxt = NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
+    auto configTxt = NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text);
     process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
 
     for (const auto& [name, value] : Entrypoint_->Env) {
