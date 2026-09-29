@@ -12,6 +12,10 @@
 #
 # Geometry (page shift, radix fan-out) is read from the page-map type itself, so
 # this adapts to the build's tcmalloc configuration rather than hard-coding it.
+#
+# Leaf layout: older tcmalloc keeps a plain `Span* span[]`; since 2025-02 it is
+# `PackedSpanAndSizeclass span_and_sizeclass[]` -- a uintptr_t `packed_value_`
+# holding the Span* in the low 48 bits and a copy of the size class above them.
 
 import gdb
 
@@ -22,6 +26,9 @@ _PAGEMAP = "tcmalloc::tcmalloc_internal::Static::pagemap_.map_"
 _SIZEMAP = "tcmalloc::tcmalloc_internal::Static::sizemap_"
 
 _cfg = None  # None = not probed, False = unavailable, dict = ready
+
+# PackedSpanAndSizeclass::kSizeclassShift.
+_PACKED_SPAN_MASK = (1 << 48) - 1
 
 
 def _ilog2(n):
@@ -44,11 +51,14 @@ def _config():
         root_len = int(root.type.range()[1]) + 1          # kRootLength
         leaf_type = root.type.target().target()           # Leaf* -> Leaf
         leaf_len = None
+        span_field = None
         for f in leaf_type.fields():
-            if f.name == "span":
+            if f.name in ("span", "span_and_sizeclass"):
+                span_field = f.name
                 leaf_len = int(f.type.range()[1]) + 1      # kLeafLength
         if not leaf_len:
-            raise gdb.error("no span[] in Leaf")
+            raise gdb.error("no span[] / span_and_sizeclass[] in Leaf")
+        span_type = gdb_type("tcmalloc::tcmalloc_internal::Span").pointer()
         try:
             addr_bits = int(gdb.parse_and_eval("tcmalloc::tcmalloc_internal::kAddressBits"))
         except gdb.error:
@@ -62,6 +72,8 @@ def _config():
     _cfg = {
         "root": root,
         "sizemap": sizemap,
+        "span_field": span_field,
+        "span_type": span_type,
         "root_len": root_len,
         "leaf_bits": leaf_bits,
         "leaf_mask": leaf_len - 1,
@@ -89,7 +101,10 @@ def _span_of(addr):
             return None, None
         i2 = page & cfg["leaf_mask"]
         leaf = leaf.dereference()
-        span = leaf["span"][i2]
+        span = leaf[cfg["span_field"]][i2]
+        if cfg["span_field"] == "span_and_sizeclass":
+            ptr = int(span["packed_value_"]) & _PACKED_SPAN_MASK
+            span = gdb.Value(ptr).cast(cfg["span_type"])
         if int(span) == 0:
             return None, None
         return span.dereference(), int(leaf["sizeclass"][i2])
