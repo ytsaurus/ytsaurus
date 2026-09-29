@@ -1,0 +1,74 @@
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>:100:1: Warning: At function: RemovePrefixMembers, At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple
+    	SELECT
+	^
+        <tmp_path>/program.sql:<main>:100:1: Warning: At tuple
+        	SELECT
+	^
+            <tmp_path>/program.sql:<main>:7:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(ss_ext_sales_price) AS ss_item_rev
+	                                   ^
+                <tmp_path>/program.sql:<main>:5:5: Warning: At function: YqlSetItem, At tuple
+                	    SELECT
+	    ^
+                    <tmp_path>/program.sql:<main>: Warning: At tuple
+                    
+                        <tmp_path>/program.sql:<main>:5:5: Warning: At function: YqlWhere, At lambda
+                        	    SELECT
+	    ^
+                            <tmp_path>/program.sql:<main>:31:32: Warning: At function: And, At function: And
+                            	        AND ss_sold_date_sk == d_date_sk
+	                               ^
+                                <tmp_path>/program.sql:<main>:18:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:18:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^
+        <tmp_path>/program.sql:<main>:100:1: Warning: At tuple
+        	SELECT
+	^
+            <tmp_path>/program.sql:<main>:39:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(cs_ext_sales_price) AS cs_item_rev
+	                                   ^
+                <tmp_path>/program.sql:<main>:37:5: Warning: At function: YqlSetItem, At tuple
+                	    SELECT
+	    ^
+                    <tmp_path>/program.sql:<main>: Warning: At tuple
+                    
+                        <tmp_path>/program.sql:<main>:37:5: Warning: At function: YqlWhere, At lambda
+                        	    SELECT
+	    ^
+                            <tmp_path>/program.sql:<main>:63:32: Warning: At function: And, At function: And
+                            	        AND cs_sold_date_sk == d_date_sk
+	                               ^
+                                <tmp_path>/program.sql:<main>:50:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:50:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^
+        <tmp_path>/program.sql:<main>:100:1: Warning: At tuple
+        	SELECT
+	^
+            <tmp_path>/program.sql:<main>:71:36: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, At tuple, At tuple, At tuple, At tuple, At function: YqlSelect, At tuple, At tuple, At tuple
+            	        Sum(ws_ext_sales_price) AS ws_item_rev
+	                                   ^
+                <tmp_path>/program.sql:<main>:69:5: Warning: At function: YqlSetItem, At tuple
+                	    SELECT
+	    ^
+                    <tmp_path>/program.sql:<main>: Warning: At tuple
+                    
+                        <tmp_path>/program.sql:<main>:69:5: Warning: At function: YqlWhere, At lambda
+                        	    SELECT
+	    ^
+                            <tmp_path>/program.sql:<main>:95:32: Warning: At function: And, At function: And
+                            	        AND ws_sold_date_sk == d_date_sk
+	                               ^
+                                <tmp_path>/program.sql:<main>:82:17: Warning: At function: YqlSubLink
+                                	                d_date
+	                ^
+                                    <tmp_path>/program.sql:<main>:82:17: Warning: IN may produce unexpected result when used with nullable arguments. Consider adding 'PRAGMA AnsiInForEmptyOrNullableItemsCollections;'
+                                    	                d_date
+	                ^
