@@ -1,11 +1,73 @@
 import pytest
+import os
 
 from yt.common import YtError, YtResponseError, date_string_to_datetime
+from yt.environment import yt_env
 from yt.environment.yt_env import YTInstance
 
 # Large on purpose: a stall before the first loop check leaves the condition unpolled.
 SUCCESS_WAIT_TIME = 60
 TIMEOUT_WAIT_TIME = 2
+
+
+@pytest.mark.parametrize("use_instance_bin", [False, True])
+def test_ytrecipe_tools_bind_resolves_symlink_target(tmp_path, monkeypatch, use_instance_bin):
+    binary = tmp_path / "binary" / "ytserver-all"
+    binary.parent.mkdir()
+    binary.write_bytes(b"binary")
+    binary.chmod(0o755)
+
+    package_binary = tmp_path / "package" / "ytserver-all"
+    package_binary.parent.mkdir()
+    package_binary.symlink_to(binary)
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "ytserver-tools").symlink_to(package_binary)
+    instance_bin_dir = tmp_path / "instance_bin"
+    instance_bin_dir.mkdir()
+    if use_instance_bin:
+        (instance_bin_dir / "ytserver-tools").symlink_to(package_binary)
+
+    existing_bind = {"external_path": "/tmp/events", "internal_path": "/tmp/events", "read_only": False}
+    node_configs = [
+        {"exec_node": {"root_fs_binds": [existing_bind]}},
+        {"exec_node": {}},
+    ]
+    cluster_configuration = {"node": node_configs}
+
+    monkeypatch.setenv("YT_OUTPUT", str(tmp_path / "yt_output"))
+    monkeypatch.setenv("PATH", str(bin_dir))
+    tools_path = yt_env._get_yt_binary_path("ytserver-tools", custom_paths=[str(instance_bin_dir)])
+    assert tools_path == str((instance_bin_dir if use_instance_bin else bin_dir) / "ytserver-tools")
+
+    yt_env._add_ytrecipe_tools_root_fs_bind(cluster_configuration, tools_path)
+
+    expected_bind = {
+        "external_path": str(binary),
+        "internal_path": str(package_binary),
+        "read_only": True,
+    }
+    assert node_configs[0]["exec_node"]["root_fs_binds"] == [existing_bind, expected_bind]
+    assert node_configs[1]["exec_node"]["root_fs_binds"] == [expected_bind]
+    assert os.path.islink(tools_path)
+
+
+def test_ytrecipe_tools_bind_leaves_relative_symlink_unchanged(tmp_path, monkeypatch):
+    binary = tmp_path / "ytserver-all"
+    binary.write_bytes(b"binary")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    tools_path = bin_dir / "ytserver-tools"
+    tools_path.symlink_to("../ytserver-all")
+    cluster_configuration = {"node": [{"exec_node": {}}]}
+
+    monkeypatch.setenv("YT_OUTPUT", str(tmp_path / "yt_output"))
+    with pytest.raises(YtError, match="absolute symlink"):
+        yt_env._add_ytrecipe_tools_root_fs_bind(cluster_configuration, str(tools_path))
+
+    assert os.readlink(tools_path) == "../ytserver-all"
+    assert cluster_configuration["node"][0]["exec_node"] == {}
 
 
 class _StderrCollector:
