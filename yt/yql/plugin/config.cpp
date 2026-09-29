@@ -348,6 +348,8 @@ void TDQManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("address_resolver", &TThis::AddressResolver)
         .Default();
+    registrar.Parameter("enable_clique_warmup", &TThis::EnableCliqueWarmup)
+        .Default(false);
 
     registrar.Parameter("yt_backends", &TThis::YTBackends)
         .Default();

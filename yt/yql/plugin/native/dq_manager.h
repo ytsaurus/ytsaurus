@@ -5,6 +5,7 @@
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
+#include <yt/yql/providers/dq/config/config.pb.h>
 #include <yt/yql/providers/dq/service/service_node.h>
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
 
@@ -33,6 +34,8 @@ struct TDqManagerConfig
     NYTree::INodePtr ICSettings;
     NYTree::INodePtr AddressResolver;
 
+    bool EnableCliqueWarmup;
+
     TMap<TString, TString> UdfsWithMd5; // autofilled by yql_plugin
     NYql::TFileStoragePtr FileStorage; // autofilled by yql_plugin
 
@@ -56,17 +59,21 @@ public:
     void Start();
 
     NYql::TFileLinkPtr GetVanillaJobLite() const;
+    NActors::TActorSystem* GetActorSystem() const;
+    const ICoordinationHelper::TPtr& GetCoordinator() const;
+    const std::vector<NYql::NProto::TDqConfig::TYtBackend>& GetYtBackends() const;
 
 private:
     TDqManagerConfigPtr Config_;
+    std::vector<NYql::NProto::TDqConfig::TYtBackend> YtBackends_;
     NYql::TFileLinkPtr VanillaJobLite_;
     NYql::TFileLinkPtr StrippedVanillaJobLite_;
 
-    NActors::TActorSystem* ActorSystem_;
+    NActors::TActorSystem* ActorSystem_ = nullptr;
     ICoordinationHelper::TPtr Coordinator_;
     THolder<TServiceNode> ServiceNode_;
     IMetricsRegistryPtr MetricsRegistry_;
-    NActors::IActor* StatsCollector_;
+    NActors::IActor* StatsCollector_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

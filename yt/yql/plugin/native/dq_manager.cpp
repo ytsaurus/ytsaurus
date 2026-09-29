@@ -3,7 +3,9 @@
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
 #include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
 #include <yt/yql/providers/dq/metrics/metrics_printer.h>
-#include <yt/yql/providers/dq/control/yql_dq_control.h>
+#include <yt/yql/providers/dq/common/yql_dq_clique.h>
+#include <yt/yql/providers/dq/common/yql_dq_warmup.h>
+#include <yt/yql/providers/dq/global_worker_manager/dq_warmup.h>
 #include <yt/yql/providers/dq/service/interconnect_helpers.h>
 #include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
@@ -16,8 +18,11 @@
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/proto/logger_config.pb.h>
 
-#include <util/folder/path.h>
 #include <util/datetime/base.h>
+#include <util/folder/path.h>
+#include <util/generic/scope.h>
+
+#include <algorithm>
 
 namespace NYT::NYqlPlugin {
 
@@ -38,6 +43,8 @@ void TDqManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("address_resolver", &TThis::AddressResolver)
         .Default();
+    registrar.Parameter("enable_clique_warmup", &TThis::EnableCliqueWarmup)
+        .Default(false);
 
     registrar.Parameter("yt_backends", &TThis::YtBackends)
         .Default();
@@ -56,29 +63,65 @@ TDqManager::TDqManager(const TDqManagerConfigPtr& config)
     : Config_(config)
 {
     YT_VERIFY(Config_->FileStorage);
+
     YT_VERIFY(!Config_->YtBackends.empty());
 
     NYson::TProtobufWriterOptions protobufWriterOptions;
     protobufWriterOptions.ConvertSnakeToCamelCase = true;
 
-    NYql::NProto::TDqConfig::TYtBackend backend;
-    backend.ParseFromStringOrThrow(NYson::YsonStringToProto(
-        ConvertToYsonString(Config_->YtBackends.front()),
-        NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
-        protobufWriterOptions));
+    for (const auto& ytBackendConfig : Config_->YtBackends) {
+        NYql::NProto::TDqConfig::TYtBackend backend;
+        backend.ParseFromStringOrThrow(NYson::YsonStringToProto(
+            ConvertToYsonString(ytBackendConfig),
+            NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
+            protobufWriterOptions));
+        backend = NYql::NormalizeYtBackendCredentials(backend);
+        if (!backend.HasProxyAddress()) {
+            *backend.MutableProxyAddress() = backend.GetClusterName();
+        }
+        if (!backend.HasPrefix()) {
+            ythrow yexception() << "YT backend " << backend.GetClusterName()
+                << " does not have a prefix specified";
+        }
+        if (!backend.HasUploadPrefix()) {
+            backend.SetUploadPrefix(backend.GetPrefix() + "/tmp");
+        }
+        if (!VanillaJobLite_ && NYql::IsCommunalYtBackend(backend)) {
+            const auto& vanillaJobLite = backend.GetVanillaJobLite();
+            YT_VERIFY(!vanillaJobLite.empty());
 
-    const auto& vanillaJobLite = backend.GetVanillaJobLite();
-    YT_VERIFY(!vanillaJobLite.empty());
-
-    VanillaJobLite_ = Config_->FileStorage->PutFile(vanillaJobLite, TFsPath(vanillaJobLite).GetName());
-    // Keep the stripped copy alive, as yqlworker does.
-    StrippedVanillaJobLite_ = Config_->FileStorage->PutFileStripped(VanillaJobLite_->GetPath(), VanillaJobLite_->GetMd5());
+            VanillaJobLite_ = Config_->FileStorage->PutFile(
+                vanillaJobLite,
+                TFsPath(vanillaJobLite).GetName());
+            // Keep the stripped copy alive, as yqlworker does.
+            StrippedVanillaJobLite_ = Config_->FileStorage->PutFileStripped(
+                VanillaJobLite_->GetPath(),
+                VanillaJobLite_->GetMd5());
+        }
+        YtBackends_.push_back(std::move(backend));
+    }
 }
 
 NYql::TFileLinkPtr TDqManager::GetVanillaJobLite() const
 {
-    YT_VERIFY(VanillaJobLite_);
     return VanillaJobLite_;
+}
+
+NActors::TActorSystem* TDqManager::GetActorSystem() const
+{
+    YT_VERIFY(ActorSystem_);
+    return ActorSystem_;
+}
+
+const ICoordinationHelper::TPtr& TDqManager::GetCoordinator() const
+{
+    YT_VERIFY(Coordinator_);
+    return Coordinator_;
+}
+
+const std::vector<NYql::NProto::TDqConfig::TYtBackend>& TDqManager::GetYtBackends() const
+{
+    return YtBackends_;
 }
 
 void TDqManager::Start()
@@ -143,16 +186,23 @@ void TDqManager::Start()
                   << coordinatorConfig.GetClusterName()
                   << ", proxy=" << coordinatorConfig.GetProxyAddress()
                   << ", prefix=" << coordinatorConfig.GetPrefix();
-    auto Coordinator_ = CreateCoordiantionHelper(coordinatorConfig, schedulerConfig, "service_node", interconnectPort, hostName, localAddress);
+    auto coordinator = CreateCoordiantionHelper(
+        coordinatorConfig,
+        schedulerConfig,
+        "service_node",
+        interconnectPort,
+        hostName,
+        localAddress);
 
     YQL_LOG(INFO) << "DQ startup stage: acquiring service node ID";
-    auto nodeId = Coordinator_->GetNodeId(
+    auto nodeId = coordinator->GetNodeId(
         Nothing(),
         {ToString(grpcPort)},
         static_cast<ui32>(NDqs::ENodeIdLimits::MinServiceNodeId),
         static_cast<ui32>(NDqs::ENodeIdLimits::MaxServiceNodeId),
         {}
     );
+    Coordinator_ = std::move(coordinator);
     YQL_LOG(INFO) << "DQ service node ID acquired: node_id=" << nodeId;
 
     NYql::NDqs::TServiceNodeConfig serviceNodeConfig;
@@ -174,6 +224,8 @@ void TDqManager::Start()
     serviceNodeConfig.NameserverFactory = [](const auto setup) {
         return NYql::NDqs::CreateDynamicNameserver(setup);
     };
+    // Route gRPC worker-manager messages to GWM (not LWM), same as dq_service_process.
+    serviceNodeConfig.WorkerManagerActorId = NDqs::MakeGlobalWorkerManagerActorID(nodeId);
 
     YQL_LOG(INFO) << "DQ startup stage: starting service node: interconnect="
                   << serviceNodeConfig.InterconnectAddress << ":" << serviceNodeConfig.Port
@@ -196,39 +248,37 @@ void TDqManager::Start()
     YQL_LOG(INFO) << "DQ actor system and service node started";
 
     TVector<NActors::TActorId> ytRMs;
-    ytRMs.reserve(Config_->YtBackends.size());
+    ytRMs.reserve(YtBackends_.size());
 
     TVector<TResourceManagerOptions> uploadResourcesOptions;
+    const auto communalBackendCount = std::count_if(
+        YtBackends_.begin(),
+        YtBackends_.end(),
+        [] (const auto& backend) {
+            return NYql::IsCommunalYtBackend(backend);
+        });
     auto nodesPerCluster = static_cast<ui32>(NDqs::ENodeIdLimits::MaxWorkerNodeId) - static_cast<ui32>(NDqs::ENodeIdLimits::MinWorkerNodeId);
-    nodesPerCluster /= Config_->YtBackends.size();
+    if (communalBackendCount > 0) {
+        nodesPerCluster /= communalBackendCount;
+    }
     auto startNodeId = static_cast<ui32>(NDqs::ENodeIdLimits::MinWorkerNodeId);
 
-    for (const auto& ytBackendConfig : Config_->YtBackends) {
+    for (const auto& ytBackend : YtBackends_) {
         TResourceManagerOptions rmOptions;
-        rmOptions.YtBackend.ParseFromStringOrThrow(NYson::YsonStringToProto(
-            ConvertToYsonString(ytBackendConfig),
-            NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
-            protobufWriterOptions));
+        rmOptions.YtBackend = ytBackend;
 
-        rmOptions.YtBackend.SetVanillaJobLite(VanillaJobLite_->GetPath());
-        rmOptions.YtBackend.SetVanillaJobLiteMd5(VanillaJobLite_->GetMd5());
+        if (VanillaJobLite_) {
+            rmOptions.YtBackend.SetVanillaJobLite(VanillaJobLite_->GetPath());
+            rmOptions.YtBackend.SetVanillaJobLiteMd5(VanillaJobLite_->GetMd5());
+        }
 
         if (!rmOptions.YtBackend.HasICSettings()) {
             *rmOptions.YtBackend.MutableICSettings() = iCSettings;
         }
 
-        if (!rmOptions.YtBackend.HasProxyAddress()) {
-            *rmOptions.YtBackend.MutableProxyAddress() = rmOptions.YtBackend.GetClusterName();
-        }
-
-        if (!rmOptions.YtBackend.HasPrefix()) {
-            YQL_LOG(FATAL) << "At least one of YtBackends does not have a prefix specified";
-            exit(1);
-        }
-        if (!rmOptions.YtBackend.HasUploadPrefix()) {
-            rmOptions.YtBackend.SetUploadPrefix(rmOptions.YtBackend.GetPrefix() + "/tmp");
-        }
-        if (!rmOptions.YtBackend.HasMinNodeId() || !rmOptions.YtBackend.HasMaxNodeId()) {
+        if (NYql::IsCommunalYtBackend(rmOptions.YtBackend) &&
+            (!rmOptions.YtBackend.HasMinNodeId() || !rmOptions.YtBackend.HasMaxNodeId()))
+        {
             rmOptions.YtBackend.SetMinNodeId(startNodeId);
             rmOptions.YtBackend.SetMaxNodeId(startNodeId + nodesPerCluster);
             startNodeId += nodesPerCluster;
@@ -249,23 +299,18 @@ void TDqManager::Start()
                       << ", " << rmOptions.YtBackend.GetMaxNodeId() << ")";
 
         if (!rmOptions.YtBackend.HasToken()) {
-            if (!rmOptions.YtBackend.HasTokenFile()) {
-                YQL_LOG(FATAL) << "Either token or token file must be specified in all YtBackends configs";
-                exit(1);
-            }
-
-            TFsPath path(rmOptions.YtBackend.GetTokenFile());
-            auto token = TIFStream(path).ReadAll();
-            rmOptions.YtBackend.SetToken(token);
+            rmOptions.YtBackend = NYql::NormalizeYtBackendCredentials(rmOptions.YtBackend);
         }
 
         // Add vanilla job starter and other required files for upload
         for (const auto& jobFile : rmOptions.YtBackend.GetVanillaJobFile()) {
             rmOptions.Files.push_back(jobFile.GetLocalPath());
         }
-        rmOptions.Files.push_back(rmOptions.YtBackend.GetVanillaJobLite());
+        if (VanillaJobLite_) {
+            rmOptions.Files.push_back(rmOptions.YtBackend.GetVanillaJobLite());
+        }
 
-        {
+        if (!rmOptions.Files.empty()) {
             // uploader
             rmOptions.UploadPrefix = rmOptions.YtBackend.GetUploadPrefix() + "/bin/" + ToString(GetProgramCommitId());
             rmOptions.LockName = TString("ytuploader.") + rmOptions.YtBackend.GetClusterName();
@@ -296,9 +341,11 @@ void TDqManager::Start()
             ActorSystem_->Register(CreateResourceCleaner(rmOptions, Coordinator_));
         }
 
-        {
+        if (NYql::IsCommunalYtBackend(rmOptions.YtBackend)) {
             // resource manager
-            rmOptions.Files.pop_back(); // don't need lite verstion for operation start
+            if (VanillaJobLite_) {
+                rmOptions.Files.pop_back(); // don't need lite version for operation start
+            }
             rmOptions.LockName = TString("ytrm.") + rmOptions.YtBackend.GetClusterName();
             rmOptions.UploadPrefix = rmOptions.YtBackend.GetUploadPrefix() + "/bin/" + ToString(GetProgramCommitId());
             rmOptions.Counters = MetricsRegistry_->GetSensors()->GetSubgroup("counters", "ytrm")->GetSubgroup("ytname", rmOptions.YtBackend.GetClusterName());
@@ -314,22 +361,45 @@ void TDqManager::Start()
     Coordinator_->StartGlobalWorker(ActorSystem_, uploadResourcesOptions, MetricsRegistry_);
     YQL_LOG(INFO) << "DQ resource managers and global worker manager started; waiting for worker registration";
 
+    if (communalBackendCount == 0) {
+        YQL_LOG(INFO) << "No communal YT backends (MaxJobs=0), started routing-only GWM";
+    }
+
+    if (Config_->EnableCliqueWarmup) {
+        UploadWarmupArtifactsToYt(
+            ActorSystem_,
+            Coordinator_,
+            uploadResourcesOptions,
+            VanillaJobLite_ ? VanillaJobLite_->GetPath().GetPath() : TString{},
+            VanillaJobLite_ ? VanillaJobLite_->GetMd5() : TString{},
+            Config_->UdfsWithMd5,
+            /*enableStrip*/ true,
+            Config_->FileStorage);
+    }
+
     // Wait here until the DQ component is ready
-    auto dqControlFactory = CreateDqControlFactory(
+    auto dqWarmupFactory = CreateDqWarmupControlFactory(
+        hostName,
         grpcPort,
-        VanillaJobLite_->GetPath(),
-        VanillaJobLite_->GetMd5(),
+        VanillaJobLite_ ? VanillaJobLite_->GetPath().GetPath() : TString{},
+        VanillaJobLite_ ? VanillaJobLite_->GetMd5() : TString{},
         /*enableStrip*/ true,
+        Config_->EnableCliqueWarmup,
         /*indexedUdfFilter*/ {},
         Config_->UdfsWithMd5,
-        Config_->FileStorage);
-    auto dqControl = dqControlFactory->GetControl();
+        Config_->FileStorage,
+        uploadResourcesOptions);
+    auto dqControl = dqWarmupFactory->GetControl();
+    Y_DEFER {
+        dqControl->Stop();
+    };
     const auto warmupStartedAt = TInstant::Now();
     auto nextProgressLogAt = warmupStartedAt + TDuration::Seconds(30);
-    auto isDqReady = dqControl->IsReady({});
+    const auto warmupPollPeriod = TDuration::Seconds(15);
+    auto isDqReady = dqControl->IsReady();
     YQL_LOG(INFO) << "DQ warmup started: ready=" << isDqReady;
     while (!isDqReady) {
-        Sleep(TDuration::Seconds(3));
+        Sleep(warmupPollPeriod);
         isDqReady = dqControl->IsReady();
         const auto now = TInstant::Now();
         if (!isDqReady && now >= nextProgressLogAt) {

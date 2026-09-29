@@ -682,12 +682,15 @@ private:
 
     void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig)
     {
+        const bool startDqManager = Config_->EnableDQ
+            && !Config_->DQManagerConfig->YTBackends.empty();
         auto options = ConvertToNativePluginOptions(
             Config_,
             DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            true,
+            /*startDqManager*/ startDqManager,
+            /*enableClique*/ false,
             ConfigTemplate_->UseTokenResolver,
             ConfigTemplate_->TokenServiceSocketPath);
         DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));

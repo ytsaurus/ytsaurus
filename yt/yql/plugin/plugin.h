@@ -45,6 +45,7 @@ struct TYqlNativePluginOptions
     THolder<TLogBackend> LogBackend;
 
     bool StartDqManager;
+    bool EnableClique = false;
 };
 
 //! Applicable only for qtworker plugin.
@@ -168,6 +169,7 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     bool startDqManager = false,
+    bool enableClique = false,
     bool useTokenResolver = false,
     const std::string& tokenServiceSocketPath = {});
 

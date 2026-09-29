@@ -95,6 +95,7 @@ struct TDQManagerConfig
     ui16 GrpcPort;
     ui32 ActorThreads;
     bool UseIPv4;
+    bool EnableCliqueWarmup;
     std::vector<TDQYTBackendPtr> YTBackends;
     TDQYTCoordinatorPtr YTCoordinator;
 
