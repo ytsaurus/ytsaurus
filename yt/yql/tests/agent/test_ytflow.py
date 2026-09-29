@@ -1084,7 +1084,9 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_create_sorted_table_by_order_by(self, query_tracker, yql_agent, run_query):
+    def test_create_sorted_table_by_primary_key_setting(
+        self, query_tracker, yql_agent, run_query
+    ):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "key", "type": "string"},
@@ -1101,9 +1103,8 @@ select * from $stream;
         out_table_path = self._allocate_yt_table_path()
 
         run_query(f"""
-replace into `{out_table_path}`
-select key, value from `{input_table_path}`
-order by key;
+replace into `{out_table_path}` with primary_key = "[key]"
+select key, value from `{input_table_path}`;
 """)
 
         self._assert_yt_table_key_columns(out_table_path, ["key"])
@@ -1111,8 +1112,10 @@ order by key;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    @pytest.mark.parametrize("order_by_keys", [("key_a", "key_b"), ("key_b", "key_a")])
-    def test_create_sorted_table_by_composite_order_by(self, query_tracker, yql_agent, run_query, order_by_keys):
+    @pytest.mark.parametrize("key_columns", [("key_a", "key_b"), ("key_b", "key_a")])
+    def test_create_sorted_table_by_composite_primary_key_setting(
+        self, query_tracker, yql_agent, run_query, key_columns
+    ):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "key_a", "type": "int64"},
@@ -1130,12 +1133,11 @@ order by key;
         out_table_path = self._allocate_yt_table_path()
 
         run_query(f"""
-replace into `{out_table_path}`
-select key_a, key_b, value from `{input_table_path}`
-order by {", ".join(order_by_keys)};
+replace into `{out_table_path}` with primary_key = "[{";".join(key_columns)}]"
+select key_a, key_b, value from `{input_table_path}`;
 """)
 
-        self._assert_yt_table_key_columns(out_table_path, order_by_keys)
+        self._assert_yt_table_key_columns(out_table_path, key_columns)
         self._assert_yt_table_content(out_table_path, input_data)
 
     @authors("artemmashin")
@@ -1327,9 +1329,8 @@ class TestYtflowRemoteCluster(TestYtflowBase):
             output_path = self._allocate_yt_table_path()
 
             run_query(f"""
-replace into remote_0.`{output_path}`
-select key, value from remote_0.`{input_path}`
-order by key;
+replace into remote_0.`{output_path}` with primary_key = "[key]"
+select key, value from remote_0.`{input_path}`;
 """)
         else:
             output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
@@ -1363,11 +1364,11 @@ select * from remote_0.`{input_path}`;
             remote_path = self._allocate_yt_table_path()
 
             run_query(f"""
-replace into `{local_path}`
-select key, value from `{input_path}` order by key;
+replace into `{local_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
 
-replace into remote_0.`{remote_path}`
-select key, value from `{input_path}` order by key;
+replace into remote_0.`{remote_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
 """)
         else:
             local_path = self._create_yt_table(dict(schema=schema))
@@ -1418,11 +1419,11 @@ select * from `{input_path}`;
             output_1 = self._allocate_yt_table_path()
 
             run_query(f"""
-replace into remote_0.`{output_0}`
-select key, value from `{input_path}` order by key;
+replace into remote_0.`{output_0}` with primary_key = "[key]"
+select key, value from `{input_path}`;
 
-replace into remote_1.`{output_1}`
-select key, value from `{input_path}` order by key;
+replace into remote_1.`{output_1}` with primary_key = "[key]"
+select key, value from `{input_path}`;
 """)
 
             self._assert_yt_table_content(output_0, rows, cluster="remote_0")
