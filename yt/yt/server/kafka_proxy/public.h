@@ -12,6 +12,7 @@ constexpr TStringBuf KafkaProxiesInstancesPath = "//sys/kafka_proxies/instances"
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TStringTransformationConfig)
+DECLARE_REFCOUNTED_STRUCT(TKafkaServerConfig)
 DECLARE_REFCOUNTED_STRUCT(TProxyBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TProxyProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TGroupCoordinatorConfig)
