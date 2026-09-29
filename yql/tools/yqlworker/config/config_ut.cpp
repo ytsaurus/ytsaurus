@@ -22,6 +22,7 @@ Y_UNIT_TEST_SUITE(TConfigTest)
 
             "fs.MaxFiles=300",
             "fs.MaxSizeMb=512",
+            "fs.DownloadBandwidthLimitBytes=100",
 
             "g.Yt.MrJobBin=",
         };
@@ -60,6 +61,7 @@ Y_UNIT_TEST_SUITE(TConfigTest)
         const auto& fs = config.FileStorage;
         UNIT_ASSERT_EQUAL(fs.GetMaxFiles(), 300);
         UNIT_ASSERT_EQUAL(fs.GetMaxSizeMb(), 512);
+        UNIT_ASSERT_VALUES_EQUAL(fs.GetDownloadBandwidthLimitBytes(), 100);
 
         // (3) gateways config
         const auto& g = config.Gateways;
