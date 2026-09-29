@@ -2683,28 +2683,12 @@ TEST(Operations, LockFileStorage)
         os << CreateGuidAsString();
     }
 
-    const auto poolName = TString("lock_file_storage");
-    auto poolGuard = CreateSchedulerPool(client, poolName, TNode()("max_running_operation_count", 1));
+    // Operations keep their file transaction (and thus the lock) alive until they leave
+    // the initializing state; hold them there so the lock can be observed.
+    auto delayInitializeSpec = TNode()("testing", TNode()("delay_inside_initialize", 60'000));
 
-    auto sleepingOp = client->Map(
-        TMapOperationSpec()
-            .Pool(poolName)
-            .AddInput<TNode>(workingDir + "/input")
-            .AddOutput<TNode>(workingDir + "/output"),
-        new TSleepingMapper(TDuration::Minutes(10)),
-        TOperationOptions()
-            .Wait(false));
-
-    auto abortSleepingOpGuard = Finally([&] {
-        if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
-            sleepingOp->AbortOperation();
-        }
-    });
-
-    // Pending operations keep their file transaction (and thus the lock) alive.
     auto customStorageOp = client->Map(
         TMapOperationSpec()
-            .Pool(poolName)
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output_1")
             .MapperSpec(TUserJobSpec()
@@ -2712,6 +2696,7 @@ TEST(Operations, LockFileStorage)
         new TIdMapper,
         TOperationOptions()
             .Wait(false)
+            .Spec(delayInitializeSpec)
             .FileStorage(workingDir + "/file_storage"));
 
     auto abortCustomStorageOpGuard = Finally([&] {
@@ -2722,14 +2707,14 @@ TEST(Operations, LockFileStorage)
 
     auto defaultStorageOp = client->Map(
         TMapOperationSpec()
-            .Pool(poolName)
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output_2")
             .MapperSpec(TUserJobSpec()
                 .AddLocalFile(tempFile.Name())),
         new TIdMapper,
         TOperationOptions()
-            .Wait(false));
+            .Wait(false)
+            .Spec(delayInitializeSpec));
 
     auto abortDefaultStorageOpGuard = Finally([&] {
         if (defaultStorageOp->GetBriefState() == EOperationBriefState::InProgress) {
