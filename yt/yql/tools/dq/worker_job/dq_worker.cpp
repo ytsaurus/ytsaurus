@@ -257,6 +257,7 @@ namespace NYql::NDq::NWorker {
             pfOptions.Env["YT_FORBID_REQUESTS_FROM_JOB"] = "1";
         }
         pfOptions.EnablePorto = enablePorto;
+        pfOptions.EnablePortoAnonLimitRaiseBeforeDestroy = backendConfig.GetEnablePortoAnonLimitRaiseBeforeDestroy();
         pfOptions.PortoLayer = backendConfig.GetPortoLayer().size() == 0 ? "" : layerDir;
         pfOptions.MaxProcesses = capacity*1.5;
         pfOptions.ContainerName = "Outer";
