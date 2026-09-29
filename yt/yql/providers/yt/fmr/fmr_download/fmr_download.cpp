@@ -1,4 +1,5 @@
 #include "fmr_download.h"
+#include <yql/essentials/core/file_storage/download/download_limiter.h>
 #include <yql/essentials/core/file_storage/http_download/http_download.h>
 #include <yt/yql/providers/yt/fmr/vanilla/peer_tracker/yql_yt_vanilla_peer_tracker.h>
 
@@ -32,7 +33,7 @@ public:
         return NUri::EqualNoCase(rawScheme, "fmr");
     }
 
-    std::tuple<NYql::NFS::TDataProvider, TString, TString> Download(const THttpURL& url, const TString& oauthToken, const TString& oldEtag, const TString& oldLastModified) final {
+    std::tuple<NYql::NFS::TDataProvider, TString, TString> Download(const THttpURL& url, const TString& oauthToken, const TString& oldEtag, const TString& oldLastModified, TDownloadLimiter limiter) final {
         TString ytCluster(url.GetField(NUri::TField::FieldHost));
         TFsPath path(url.GetField(NUri::TField::FieldPath));
         auto split = path.PathSplit();
@@ -71,7 +72,7 @@ public:
         }
 
         THttpURL httpUrl(host, FMR_HTTP_MON_PORT, rest.GetPath());
-        return Http_->Download(httpUrl, oauthToken, oldEtag, oldLastModified);
+        return Http_->Download(httpUrl, oauthToken, oldEtag, oldLastModified, limiter);
     }
 
 private:
