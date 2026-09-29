@@ -3,6 +3,7 @@ GTEST(unittester-library-query-portable-engine)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    program_ut.cpp
     registry_ut.cpp
 )
 

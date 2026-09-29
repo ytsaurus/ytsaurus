@@ -343,6 +343,39 @@ TEST(TPortableExpressionRegistryTest, RejectsInvalidNamesOpcodesAndArity)
         "arity 2");
 }
 
+TEST(TPortableExpressionRegistryTest, RejectsLazyFunctions)
+{
+    TExpressionRegistryBuilder builder;
+
+    for (const auto& functionName : {"if", "coalesce"}) {
+        SCOPED_TRACE(functionName);
+        EXPECT_THROW_WITH_SUBSTRING(
+            builder.RegisterFunction(functionName, MakeDescriptor({EValueType::Int64})),
+            "requires lazy argument evaluation");
+        EXPECT_THROW_WITH_SUBSTRING(
+            builder.RegisterVariadicFunction(functionName, MakeVariadicDescriptor({EValueType::Int64})),
+            "requires lazy argument evaluation");
+        EXPECT_FALSE(builder.Build().FindFunction(functionName, {EValueType::Int64}, EValueType::Int64));
+    }
+}
+
+TEST(TPortableExpressionRegistryTest, AllowsEagerIfNullFunction)
+{
+    TExpressionRegistryBuilder exactBuilder;
+    exactBuilder.RegisterFunction("if_null", MakeDescriptor({EValueType::Int64, EValueType::Int64}));
+    EXPECT_TRUE(exactBuilder.Build().FindFunction(
+        "if_null",
+        {EValueType::Int64, EValueType::Int64},
+        EValueType::Int64));
+
+    TExpressionRegistryBuilder variadicBuilder;
+    variadicBuilder.RegisterVariadicFunction("if_null", MakeVariadicDescriptor({EValueType::Int64}));
+    EXPECT_TRUE(variadicBuilder.Build().FindFunction(
+        "if_null",
+        {EValueType::Int64, EValueType::Int64},
+        EValueType::Int64));
+}
+
 TEST(TPortableExpressionRegistryTest, RejectsMixingExactAndVariadicFunctions)
 {
     TExpressionRegistryBuilder exactFirstBuilder;
