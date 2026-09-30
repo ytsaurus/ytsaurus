@@ -6092,6 +6092,15 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: lease_id in _get_shortcuts(alpha_cell))
         wait(lambda: lease_id in _get_shortcuts(beta_cell))
 
+        cluster_names = self.get_cluster_names()
+        new_coordinator_cell = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=cluster_names[-2:-1],
+            meta_cluster_names=cluster_names[:-2] + cluster_names[-1:])
+        drivers[new_coordinator_cell] = remote_driver1
+
+        wait(lambda: lease_id in _get_shortcuts(new_coordinator_cell))
+
         txs = [start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id]) for i in range(tx_count)]
         rows = [{"key": i, "value": str(i)} for i in range(tx_count)]
 
