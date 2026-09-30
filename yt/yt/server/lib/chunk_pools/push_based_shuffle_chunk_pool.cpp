@@ -104,6 +104,9 @@ class TPushBasedShuffleChunkPool
     , public IPushBasedShuffleChunkPool
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(void(), OutputsFinalized);
+
+public:
     TPushBasedShuffleChunkPool() = default;
 
     explicit TPushBasedShuffleChunkPool(TPushBasedShuffleChunkPoolOptions options)
@@ -178,14 +181,18 @@ public:
             return;
         }
 
-        YT_VERIFY(FinishedSessionCount_ == std::ssize(Sessions_));
-
         TChunkPoolInputBase::Finish();
 
         YT_TLOG_DEBUG("Push-based shuffle chunk pool input finished")
-            .With("SessionCount", Sessions_.size());
+            .With("SessionCount", Sessions_.size())
+            .With("FinishedSessionCount", FinishedSessionCount_);
 
-        FinalizeJobs();
+        MaybeFinalizeJobs();
+    }
+
+    bool AreOutputsFinalized() const final
+    {
+        return JobsFinalized_;
     }
 
     void RegisterChunkWriteSession(
@@ -193,8 +200,14 @@ public:
         TChunkId chunkId,
         const TChunkReplicaWithMediumList& replicas) final
     {
-        YT_VERIFY(!Finished);
         YT_VERIFY(partitionIndex >= 0 && partitionIndex < std::ssize(Outputs_));
+
+        if (IsLateSession(chunkId)) {
+            YT_TLOG_DEBUG("Ignoring chunk write session started after jobs were finalized")
+                .With("ChunkId", chunkId)
+                .With("PartitionIndex", partitionIndex);
+            return;
+        }
 
         auto inputChunk = New<TInputChunk>();
         inputChunk->SetChunkId(chunkId);
@@ -229,7 +242,9 @@ public:
         TChunkId chunkId,
         const TDistributedChunkSessionProgress& progress) final
     {
-        YT_VERIFY(!Finished);
+        if (IsLateSession(chunkId)) {
+            return;
+        }
 
         auto& session = GetOrCrash(Sessions_, chunkId);
         YT_VERIFY(!session.Finished);
@@ -240,6 +255,10 @@ public:
         TChunkId chunkId,
         const TDistributedChunkSessionProgress& progress) final
     {
+        if (IsLateSession(chunkId)) {
+            return;
+        }
+
         auto& session = GetOrCrash(Sessions_, chunkId);
         YT_VERIFY(!session.Finished);
         ApplyExactProgress(&session, progress);
@@ -260,6 +279,10 @@ public:
         TChunkId chunkId,
         const TSessionSealSummary& summary) final
     {
+        if (IsLateSession(chunkId)) {
+            return;
+        }
+
         auto& session = GetOrCrash(Sessions_, chunkId);
         YT_VERIFY(!session.Finished);
         YT_VERIFY(summary.RecordCount >= 0);
@@ -615,11 +638,30 @@ private:
 
     void TerminateSession(TChunkWriteSessionState* session)
     {
-        YT_VERIFY(!Finished);
+        YT_VERIFY(!JobsFinalized_);
         YT_VERIFY(!session->Finished);
         YT_VERIFY(FinishedSessionCount_ < std::ssize(Sessions_));
         session->Finished = true;
         ++FinishedSessionCount_;
+
+        MaybeFinalizeJobs();
+    }
+
+    bool IsLateSession(TChunkId chunkId) const
+    {
+        if (!JobsFinalized_) {
+            return false;
+        }
+
+        YT_VERIFY(!Sessions_.contains(chunkId));
+        return true;
+    }
+
+    void MaybeFinalizeJobs()
+    {
+        if (Finished && FinishedSessionCount_ == std::ssize(Sessions_)) {
+            FinalizeJobs();
+        }
     }
 
     void FinalizeJobs()
@@ -642,6 +684,8 @@ private:
         for (const auto& output : Outputs_) {
             output->CheckCompleted();
         }
+
+        OutputsFinalized_.Fire();
     }
 
     PHOENIX_DECLARE_FRIEND();

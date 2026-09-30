@@ -73,46 +73,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPushBasedShuffleChunkPoolDeathTest, RegisterAfterFinishAborts)
-{
-    EXPECT_DEATH({
-        auto pool = CreatePool(
-            /*partitionCount*/ 1,
-            /*targetUncompressedDataSizePerJob*/ 1000,
-            /*maxDataSliceCountPerJob*/ 10,
-            GetTestLogger());
-        pool->GetInput()->Finish();
-
-        try {
-            pool->RegisterChunkWriteSession(
-                /*partitionIndex*/ 0,
-                MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42)),
-                /*replicas*/ {});
-        } catch (...) {
-        }
-    }, "!Finished");
-}
-
-TEST_F(TPushBasedShuffleChunkPoolDeathTest, FinishWithUnfinishedSessionAborts)
-{
-    EXPECT_DEATH({
-        auto pool = CreatePool(
-            /*partitionCount*/ 1,
-            /*targetUncompressedDataSizePerJob*/ 1000,
-            /*maxDataSliceCountPerJob*/ 10,
-            GetTestLogger());
-        pool->RegisterChunkWriteSession(
-            /*partitionIndex*/ 0,
-            MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42)),
-            /*replicas*/ {});
-
-        try {
-            pool->GetInput()->Finish();
-        } catch (...) {
-        }
-    }, "FinishedSessionCount_ == std::ssize\\(Sessions_\\)");
-}
-
 TEST_F(TPushBasedShuffleChunkPoolDeathTest, InvalidPartitionIndexAborts)
 {
     EXPECT_DEATH({
@@ -677,6 +637,86 @@ TEST_F(TPushBasedShuffleChunkPoolTest, EmptyPoolFinalizesEveryPartition)
     EXPECT_TRUE(secondOutput->IsCompleted());
     EXPECT_EQ(IChunkPoolOutput::NullCookie, firstOutput->Extract());
     EXPECT_EQ(IChunkPoolOutput::NullCookie, secondOutput->Extract());
+}
+
+TEST_F(TPushBasedShuffleChunkPoolTest, OutputsAreFinalizedOnlyAfterAllSessionsFinish)
+{
+    auto pool = CreatePool(
+        /*partitionCount*/ 1,
+        /*targetUncompressedDataSizePerJob*/ 1000,
+        /*maxDataSliceCountPerJob*/ 10,
+        GetTestLogger());
+    auto output = pool->GetOutput(0);
+
+    int outputsFinalizedCount = 0;
+    pool->SubscribeOutputsFinalized(BIND([&] {
+        EXPECT_TRUE(pool->AreOutputsFinalized());
+        EXPECT_EQ(1, output->GetJobCounter()->GetPending());
+        ++outputsFinalizedCount;
+    }));
+
+    auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, /*replicas*/ {});
+
+    pool->GetInput()->Finish();
+    pool->GetInput()->Finish();
+
+    EXPECT_TRUE(pool->GetInput()->IsFinished());
+    EXPECT_FALSE(pool->AreOutputsFinalized());
+    EXPECT_FALSE(output->IsCompleted());
+
+    auto lateChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, lateChunkId, /*replicas*/ {});
+    pool->FinishChunkWriteSession(chunkId, {
+        .DataWeight = 40,
+        .CompressedDataSize = 20,
+        .UncompressedDataSize = 40,
+        .RecordCount = 2,
+        .RowCount = 20,
+    });
+
+    EXPECT_FALSE(pool->AreOutputsFinalized());
+    EXPECT_EQ(0, output->GetJobCounter()->GetPending());
+
+    pool->FinishChunkWriteSessionFromSeal(lateChunkId, MakeSealSummary());
+
+    EXPECT_TRUE(pool->AreOutputsFinalized());
+    EXPECT_EQ(1, output->GetJobCounter()->GetPending());
+    EXPECT_EQ(1, outputsFinalizedCount);
+}
+
+TEST_F(TPushBasedShuffleChunkPoolTest, IgnoresSessionsStartedAfterOutputsAreFinalized)
+{
+    auto pool = CreatePool(
+        /*partitionCount*/ 1,
+        /*targetUncompressedDataSizePerJob*/ 1000,
+        /*maxDataSliceCountPerJob*/ 10,
+        GetTestLogger());
+    pool->GetInput()->Finish();
+    ASSERT_TRUE(pool->AreOutputsFinalized());
+
+    TDistributedChunkSessionProgress progress{
+        .DataWeight = 40,
+        .CompressedDataSize = 20,
+        .UncompressedDataSize = 40,
+        .RecordCount = 2,
+        .RowCount = 20,
+    };
+
+    auto exactChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, exactChunkId, /*replicas*/ {});
+    pool->UpdateChunkWriteSession(exactChunkId, progress);
+    pool->FinishChunkWriteSession(exactChunkId, progress);
+
+    auto sealedChunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
+    pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, sealedChunkId, /*replicas*/ {});
+    pool->FinishChunkWriteSessionFromSeal(sealedChunkId, MakeSealSummary(2, 20));
+
+    auto output = pool->GetOutput(0);
+    EXPECT_TRUE(output->IsCompleted());
+    EXPECT_EQ(0, pool->GetTotalJobCount());
+    EXPECT_EQ(0, pool->GetTotalDataSliceCount());
+    EXPECT_EQ(IChunkPoolOutput::NullCookie, output->Extract());
 }
 
 TEST_F(TPushBasedShuffleChunkPoolTest, SplitsConfirmedRecordsAtTargetAndFlushesRemainder)
