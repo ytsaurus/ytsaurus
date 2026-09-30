@@ -68,11 +68,12 @@ def launch(config_path, flow_bin):
                 "the job environment provides it"
             )
         # Python has no monitoring endpoint, so reserve only node RPC/monitoring and companion RPC.
+        # An explicit port_count = 0 keeps the fixed ports configured for the worker.
         port_count = worker.get("port_count")
         if (
             port_count is None
             or isinstance(port_count, yson.YsonEntity)
-            or (isinstance(port_count, int) and port_count < _PYTHON_COMPANION_PORT_COUNT)
+            or (isinstance(port_count, int) and port_count != 0 and port_count < _PYTHON_COMPANION_PORT_COUNT)
         ):
             worker["port_count"] = _PYTHON_COMPANION_PORT_COUNT
 

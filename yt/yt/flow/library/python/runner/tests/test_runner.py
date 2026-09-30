@@ -13,7 +13,7 @@ from yt.yt.flow.library.python import runner
         ({}, 3),
         ({"port_count": None}, 3),
         ({"port_count": -1}, 3),
-        ({"port_count": 0}, 3),
+        ({"port_count": 0}, 0),
         ({"port_count": 1}, 3),
         ({"port_count": 2}, 3),
         ({"port_count": 3}, 3),
