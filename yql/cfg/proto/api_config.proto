@@ -21,6 +21,15 @@ message TClickHouseConfig {
     optional TClickHouseRunnerConfig Runner = 6;
 }
 
+message TKikimrMvpConfig {
+    optional uint32 CacheTtlSeconds = 1 [default = 30];
+    // Age of accepted data after which a valid response bypasses the size check; errors never replace data.
+    // Zero disables size-based rejection.
+    optional uint32 CacheUpdateHardLimitSeconds = 2 [default = 900];
+    // Minimum new database count as a percentage of the cached count, within [0, 100].
+    optional uint32 CacheUpdateMinSizePercent = 3 [default = 50];
+}
+
 message THttpServerConfig {
     optional string Bind = 1;
     optional uint32 Port = 2;
@@ -320,6 +329,7 @@ message TApiConfig {
     optional TAbcSyncConfig Abc = 16;
     optional TTvmConfig DelegationTvm = 17;
     optional TQtRunnerConfig QtRunner = 18;
+    optional TKikimrMvpConfig KikimrMvp = 19;
 
     // misc options
     optional string SystemYqlUsername = 100;
