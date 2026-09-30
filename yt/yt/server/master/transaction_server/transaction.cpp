@@ -292,6 +292,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, SequoiaWriteSet_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, InitiatorId_);
     if (IsCypressTransactionType(GetType())) {
         Save(context, NativeTxExternalizationEnabled_);
     }
@@ -367,6 +368,14 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
+    // COMPAT(ivpiskarev)
+    if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
+        Load(context, InitiatorId_);
+    } else {
+        // We are supposed to be in LoadValues, so all objects should have been
+        // allocated and should have correct ids.
+        InitiatorId_ = Acd_.GetOwner()->AsUser()->GetId();
+    }
 
     auto version = context.GetVersion();
     if (version < EMasterReign::RemoveNativeTxExternalizationEnabledFlag ||

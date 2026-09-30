@@ -19,6 +19,7 @@
     XX(AcquisitionTime, acquisition_time) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
+    XX(ActiveTransactionCountAlertThresholdAndLimitOverride, active_transaction_count_alert_threshold_and_limit_override) \
     XX(ActualTabletState, actual_tablet_state) \
     XX(Addresses, addresses) \
     XX(AlertCount, alert_count) \
@@ -293,6 +294,7 @@
     XX(IndexTablePath, index_table_path) \
     XX(IndexTo, index_to) \
     XX(InheritAcl, inherit_acl) \
+    XX(InitiatorId, initiator_id) \
     XX(InplaceReshard, inplace_reshard) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \

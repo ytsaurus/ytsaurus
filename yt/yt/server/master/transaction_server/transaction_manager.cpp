@@ -12,6 +12,7 @@
 #include "transaction_type_handler.h"
 #include "transaction.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -568,6 +569,15 @@ public:
             TDynamicTransactionManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
 
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TTransactionManager::GetAlerts, MakeStrong(this)));
+
+        AlertFlushingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TTransactionManager::FlushAlerts, MakeWeak(this)),
+            TDynamicTransactionManagerConfig::DefaultAlertFlushPeriod);
+        AlertFlushingExecutor_->Start();
+
         // Start Cypress Tx
         // Coordinator: TReqStartCypressTransaction, late prepare
         // Participant: TReqStartForeignTransaction, commit only
@@ -938,6 +948,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         transaction->Acd().SetOwner(user);
+        transaction->SetInitiatorId(user->GetId());
 
         try {
             objectManager->FillAttributes(transaction, attributes);
@@ -960,6 +971,8 @@ public:
             }
         }
 
+        auto activeTransactionCount = MaybeIncrementUserActiveTransactionCount(transaction);
+
         TransactionStarted_.Fire(transaction);
 
         auto time = timer.GetElapsedTime();
@@ -978,6 +991,8 @@ public:
             .With("Timeout", transaction->GetTimeout())
             .With("Deadline", transaction->GetDeadline())
             .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
             .With("Title", title)
             .With("WallTime", time)
             .With("MirroredToSequoia", IsCypressTransactionMirroredToSequoia(transactionId));
@@ -1180,6 +1195,8 @@ public:
             CloseLease(transaction);
         }
 
+        auto activeTransactionCount = MaybeDecrementUserActiveTransactionCount(transaction);
+
         transaction->SetPersistentState(ETransactionState::Committed);
 
         TTransactionContextGuard guard(Bootstrap_, transaction, options.CommitTimestamp);
@@ -1216,6 +1233,8 @@ public:
         YT_TLOG_DEBUG("Transaction committed")
             .With("TransactionId", transactionId)
             .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
             .WithFormat("CommitTimestamp", "%v@%v", options.CommitTimestamp, options.CommitTimestampClusterTag)
             .With("WallTime", time);
 
@@ -1316,6 +1335,8 @@ public:
 
         transaction->BulkInsertState().OnTransactionAborted();
 
+        auto activeTransactionCount = MaybeDecrementUserActiveTransactionCount(transaction);
+
         transaction->SetPersistentState(ETransactionState::Aborted);
 
         TTransactionContextGuard guard(Bootstrap_, transaction, /*commitTimestamp*/ std::nullopt);
@@ -1347,6 +1368,8 @@ public:
         YT_TLOG_DEBUG("Transaction aborted")
             .With("TransactionId", transactionId)
             .With("User", user->GetName())
+            .With("InitiatorId", transaction->GetInitiatorId())
+            .WithIf(activeTransactionCount.has_value(), "InitiatorActiveTransactionCount", activeTransactionCount)
             .With("Force", options.Force)
             .With("Title", transaction->GetTitle())
             .With("WallTime", time);
@@ -2123,6 +2146,18 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        if (TryReplyFromResponseKeeper(context.Get())) {
+            return;
+        }
+
+        auto* user = Bootstrap_->GetSecurityManager()->GetUserByNameOrAliasOrThrow(
+            context->GetAuthenticationIdentity().User,
+            /*activeLifeStageOnly*/ true);
+        if (auto error = CheckUserActiveTransactionCount(user); !error.IsOK()) {
+            context->Reply(std::move(error));
+            return;
+        }
+
         if (IsMirroringToSequoiaEnabled()) {
             auto nonMirroredTransactionId = FindUsedNonMirroredTransaction(context);
             if (!nonMirroredTransactionId) {
@@ -2647,6 +2682,7 @@ private:
 
     NProfiling::TBufferedProducerPtr BufferedProducer_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    NConcurrency::TPeriodicExecutorPtr AlertFlushingExecutor_;
 
     const ITransactionLeaseTrackerPtr LeaseTracker_;
 
@@ -2662,6 +2698,21 @@ private:
     THashSet<TTransaction*> NativeTransactions_;
 
     TLeasePersistentReferenceTracker LeasePersistentReferenceTracker_;
+
+    THashMap<TUserId, int> UserIdToActiveTransactionCount_;
+
+    struct TUserExceededActiveTransactionCountAlertThresholdReport
+    {
+        std::string Name;
+        int AlertThresholdExceededCount = 0;
+        int LimitExceededCount = 0;
+        int DenyStartTransactionCount = 0;
+        int ActiveTransactionCount = 0;
+        int Limit = 0;
+        int AlertThreshold = 0;
+    };
+    // This map is transient and used for alert accumulation.
+    THashMap<TUserId, TUserExceededActiveTransactionCountAlertThresholdReport> UserIdToActiveTransactionCountExceededAlertReport_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BarrierLock_);
     // This map is not saved to the snapshot and should not be updated during recovery.
@@ -3838,8 +3889,13 @@ public:
 
         CacheTransactionFinished(transaction);
 
+        auto transactionId = transaction->GetId();
+
         // Kill the artificial reference thus destroying the object.
-        objectManager->UnrefObject(transaction);
+        int refCounter = objectManager->UnrefObject(transaction);
+        YT_TLOG_ALERT_UNLESS(refCounter == 0, "Transaction is still alive after finishing")
+            .With("TransactionId", transactionId)
+            .With("RefCounter", refCounter);
     }
 
 private:
@@ -4170,6 +4226,18 @@ private:
             StuckTransactions_.push_back(id);
         }
 
+        // Reconstruct UserIdToActiveTransactionCount.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+            auto state = transaction->GetPersistentState();
+            if (state == ETransactionState::Active || state == ETransactionState::PersistentCommitPrepared) {
+                MaybeIncrementUserActiveTransactionCount(transaction);
+            }
+        }
+        AlertOnUsersExceedingActiveTransactionCountAlertThresholds();
+
         // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions
         if (NeedUnrefStagedNodes_) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4244,6 +4312,8 @@ private:
         ForeignTransactions_.clear();
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
+        UserIdToActiveTransactionCount_.clear();
+        UserIdToActiveTransactionCountExceededAlertReport_.clear();
         TransactionPresenceCache_->Clear();
         // COMPAT(theevilbird): EMasterReign::RemoveStagedNodesInTransactions. Remove after 26.1.
         NeedUnrefStagedNodes_ = false;
@@ -4608,7 +4678,58 @@ private:
             transactionFinisher->OnProfiling(&buffer);
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        for (auto [userId, count] : UserIdToActiveTransactionCount_) {
+            auto* user = securityManager->FindUser(userId);
+            TWithTagGuard guard(&buffer);
+            guard.AddTag("user_id", ToString(userId));
+            guard.AddTag("user", IsObjectAlive(user) ? user->GetName() : "<unknown>");
+            buffer.AddGauge("/active_transaction_count", count);
+        }
+
         BufferedProducer_->Update(std::move(buffer));
+    }
+
+    std::vector<TError> GetAlerts()
+    {
+        VerifyPersistentStateRead();
+
+        std::vector<TError> alerts;
+
+        const auto& dynamicConfig = GetDynamicConfig();
+        int alertThreshold = dynamicConfig->ActiveTransactionCountAlertThreshold;
+        int limit = dynamicConfig->ActiveTransactionCountLimit;
+        if (limit < alertThreshold) {
+            alerts.push_back(TError("Possible transaction_manager misconfiguration: active_transaction_count_alert_threshold is greater than active_transaction_count_limit")
+                .With("alert_threshold", alertThreshold)
+                .With("limit", limit));
+        }
+
+        return alerts;
+    }
+
+    void FlushUserActiveTransactionCountAlertThresholdExceededReports()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& [userId, alertReport] : UserIdToActiveTransactionCountExceededAlertReport_) {
+            YT_TLOG_ALERT("User active transaction count exceeded alert threshold")
+                .With("User", alertReport.Name)
+                .With("ActiveTransactionCount", alertReport.ActiveTransactionCount)
+                .With("AlertThreshold", alertReport.AlertThreshold)
+                .With("Limit", alertReport.Limit)
+                .With("AlertThresholdExceededCount", alertReport.AlertThresholdExceededCount)
+                .With("LimitExceededCount", alertReport.LimitExceededCount)
+                .With("DenyStartTransactionCount", alertReport.DenyStartTransactionCount);
+        }
+        UserIdToActiveTransactionCountExceededAlertReport_.clear();
+    }
+
+    void FlushAlerts()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        FlushUserActiveTransactionCountAlertThresholdExceededReports();
     }
 
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
@@ -4620,6 +4741,7 @@ private:
     {
         const auto& newConfig = GetDynamicConfig();
         ProfilingExecutor_->SetPeriod(newConfig->ProfilingPeriod);
+        AlertFlushingExecutor_->SetPeriod(newConfig->AlertFlushPeriod);
 
         auto getCypressTransactionMirroringEnabled = [] (const TDynamicClusterConfigPtr& config) {
             const auto& sequoiaManager = config->SequoiaManager;
@@ -4722,6 +4844,104 @@ private:
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             securityManager->ValidatePermission(transaction, EPermission::Write);
         }
+    }
+
+    bool ShouldTransactionContributeToUserActiveTransactionCount(TTransaction* transaction)
+    {
+        return transaction->IsNative() && transaction->IsCypressTransaction();
+    }
+
+    std::optional<int> MaybeIncrementUserActiveTransactionCount(TTransaction* transaction)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!ShouldTransactionContributeToUserActiveTransactionCount(transaction)) {
+            return std::nullopt;
+        }
+        return ++UserIdToActiveTransactionCount_[transaction->GetInitiatorId()];
+    }
+
+    std::optional<int> MaybeDecrementUserActiveTransactionCount(TTransaction* transaction)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!ShouldTransactionContributeToUserActiveTransactionCount(transaction)) {
+            return std::nullopt;
+        }
+
+        auto userId = transaction->GetInitiatorId();
+        auto it = UserIdToActiveTransactionCount_.insert({userId, 0}).first;
+        if (--it->second < 0) {
+            YT_TLOG_ALERT("User active transaction count went negative and was reset to zero")
+                .With("UserId", userId)
+                .With("ActiveTransactionCount", it->second)
+                .With("TransactionId", transaction->GetId());
+            it->second = 0;
+        }
+        auto count = it->second;
+        if (count == 0) {
+            UserIdToActiveTransactionCount_.erase(it);
+        }
+        return count;
+    }
+
+    TError CheckUserActiveTransactionCount(TUser* user)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        auto [alertThreshold, limit] = user->GetActiveTransactionCountAlertThresholdAndLimitOverride()
+            .value_or(TUser::TActiveTransactionCountLimitsOverride{
+                .AlertThreshold = dynamicConfig->ActiveTransactionCountAlertThreshold,
+                .Limit = dynamicConfig->ActiveTransactionCountLimit,
+            });
+
+        int count = GetOrDefault(UserIdToActiveTransactionCount_, user->GetId(), 0);
+
+        bool alertThresholdExceeded = alertThreshold <= count;
+        bool limitExceeded = limit <= count;
+        bool denyStartTransaction = limitExceeded && dynamicConfig->EnforceActiveTransactionCountLimit &&
+            !Bootstrap_->GetSecurityManager()->IsSuperuser(user);
+
+        if (alertThresholdExceeded) {
+            auto& alertReport = UserIdToActiveTransactionCountExceededAlertReport_[user->GetId()];
+            alertReport.AlertThresholdExceededCount += 1;
+            alertReport.LimitExceededCount += limitExceeded;
+            alertReport.DenyStartTransactionCount += denyStartTransaction;
+            alertReport.ActiveTransactionCount = count;
+            alertReport.AlertThreshold = alertThreshold;
+            alertReport.Limit = limit;
+            if (alertReport.AlertThresholdExceededCount == 1) {
+                alertReport.Name = user->GetName();
+            }
+        }
+
+        if (denyStartTransaction) {
+            return TError("Active transaction count limit exceeded")
+                .With("user", user->GetName())
+                .With("active_transaction_count", count)
+                .With("active_transaction_count_limit", limit);
+        }
+        return TError();
+    }
+
+    void AlertOnUsersExceedingActiveTransactionCountAlertThresholds()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        for (auto [userId, count] : UserIdToActiveTransactionCount_) {
+            if (auto* user = securityManager->FindUser(userId); IsObjectAlive(user)) {
+                Y_UNUSED(CheckUserActiveTransactionCount(user));
+            } else {
+                YT_TLOG_WARNING("User not found, but has non-zero active transaction count")
+                    .With("UserId", userId)
+                    .With("ActiveTransactionCount", count);
+            }
+        }
+
+        FlushUserActiveTransactionCountAlertThresholdExceededReports();
     }
 };
 
