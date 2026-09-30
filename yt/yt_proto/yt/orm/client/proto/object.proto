@@ -239,6 +239,15 @@ message TSatelliteTable
     // Stores values in an "any" column, so attributes of different value types may share the table.
     // Set it upfront if such an attribute may be appended later.
     optional bool merge_types = 4;
+
+    // Defaults to CRP_REMOVE. Only CRP_REMOVE, CRP_AWAIT_FOREIGN and CRP_FORBID are allowed.
+    // CRP_AWAIT_FOREIGN leaves a non-empty table in place under the `_orm_satellites` finalizer,
+    // which completes once the maps are drained with ordinary removals.
+    optional ECascadingRemovalPolicy removal_policy = 5;
+
+    // Aggregate function of the |value| column; incompatible with |merge_types|.
+    // Description: https://yt.yandex-team.ru/docs/user-guide/dynamic-tables/sorted-dynamic-tables#aggr_columns
+    optional string values_aggregate = 6;
 }
 
 // Next field number 62.
