@@ -231,7 +231,7 @@ void TBundleStateProviderConfig::Register(TRegistrar registrar)
     registrar.Parameter("performance_counters_fetch_period", &TThis::PerformanceCountersFetchPeriod)
         .Default();
 
-    registrar.Parameter("chunk_invariants", &TThis::CheckInvariants)
+    registrar.Parameter("check_invariants", &TThis::CheckInvariants)
         .Default(true);
 }
 
