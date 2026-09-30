@@ -875,7 +875,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
         }
         if (options.MasterExpirationMode) {
-            THROW_ERROR_EXCEPTION("Cannot set \"master_expiration_mode\" for a tablet transaction");
+            THROW_ERROR_EXCEPTION("Cannot set master expiration mode for a tablet transaction");
         }
         if (options.Atomicity == EAtomicity::Full && options.Durability != EDurability::Sync) {
             THROW_ERROR_EXCEPTION("Durability must be %Qlv for tablet transactions with %Qlv atomicity",

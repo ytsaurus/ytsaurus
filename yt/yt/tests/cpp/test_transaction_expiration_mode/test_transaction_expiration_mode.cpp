@@ -65,7 +65,6 @@ TEST_F(TTransactionExpirationModeTest, PessimisticMasterTransactionSelfFences)
         [&] { return aborted.load(); },
         /*iterationCount*/ 100,
         /*period*/ TDuration::MilliSeconds(200));
-    EXPECT_TRUE(aborted.load());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
