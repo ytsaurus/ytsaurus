@@ -8,6 +8,8 @@
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/types.h>
@@ -38,6 +40,9 @@ TNbdSession::TNbdSession(
     , Bootstrap_(std::move(bootstrap))
     , Id_(sessionId)
     , Options_(std::move(options))
+    , StorageHeavyInvoker_(CreateFixedPriorityInvoker(
+        Bootstrap_->GetStorageHeavyInvoker(),
+        Options_.WorkloadDescriptor.GetPriority()))
     , StoreLocation_(std::move(storeLocation))
     , Lease_(std::move(lease))
     , LockedChunkGuard_(std::move(lockedChunkGuard))
@@ -51,7 +56,7 @@ TNbdSession::TNbdSession(
         Id_.ChunkId,
         Options_.WorkloadDescriptor,
         StoreLocation_,
-        Bootstrap_->GetStorageHeavyInvoker(),
+        StorageHeavyInvoker_,
         Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor),
         Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor));
 }
@@ -123,7 +128,7 @@ TFuture<void> TNbdSession::Create()
             throw;
         }
     })
-    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
+    .AsyncVia(StorageHeavyInvoker_));
 }
 
 //! Remove NBD chunk.
@@ -136,7 +141,7 @@ TFuture<void> TNbdSession::Destroy()
         // Unlock NBD chunk and unregister session.
         Finished_.Fire(Error_);
     })
-    .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
+    .AsyncVia(StorageHeavyInvoker_));
 }
 
 /*
