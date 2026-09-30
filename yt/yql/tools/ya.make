@@ -1,6 +1,7 @@
 RECURSE(
     fmrrun
     mrjob
+    mrjob/impl
     ytflowrun
     ytflow_worker
     ytrun

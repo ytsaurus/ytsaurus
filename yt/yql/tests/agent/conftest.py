@@ -32,7 +32,7 @@ class YqlAgent():
         config = {
             "count": count,
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
-            "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/mrjob"),
+            "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/impl/mrjob"),
             "mr_job_udfs_dir": yatest.common.binary_path("yql/essentials/udfs/common"),
             "native_client_supported": True,
             "libraries": libraries,
@@ -159,7 +159,8 @@ def build_yql_agent_config(cls):
         config["qtworker_gateways_conf"] = yatest.common.source_path(
             "yt/yql/cfg/tests/gateways.conf")
         config["qtworker_udf_resolver_path"] = yatest.common.binary_path(
-            "yql/essentials/tools/udf_resolver/udf_resolver")
+            "yql/essentials/tools/udf_resolver/impl/udf_resolver"
+        )
         config["qtworker_udf_dep_stub_path"] = yatest.common.binary_path(
             "yql/essentials/tools/udf_dep_stub/libyql_udf_dep_stub.so")
         config["qtworker_skip_instances"] = getattr(cls, "YQL_QTWORKER_SKIP_INSTANCES", None)
