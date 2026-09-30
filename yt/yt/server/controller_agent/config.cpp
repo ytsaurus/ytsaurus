@@ -10,11 +10,17 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 
 #include <yt/yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/yt/ytlib/push_based_shuffle_client/config.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/client/api/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -534,6 +540,48 @@ void TEraseOperationOptions::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPushBasedShuffleOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("seal_fallback_compression_ratio", &TThis::SealFallbackCompressionRatio)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0)
+        .Default(1.0 / 3.0);
+    registrar.Parameter("seal_fallback_row_count_per_record", &TThis::SealFallbackRowCountPerRecord)
+        .GreaterThan(0)
+        .Default(1);
+    registrar.Parameter("per_partition_metadata_estimate", &TThis::PerPartitionMetadataEstimate)
+        .GreaterThan(0)
+        .Default(5_KB / 2);
+    registrar.Parameter("per_sequencer_connection_estimate", &TThis::PerSequencerConnectionEstimate)
+        .GreaterThan(0)
+        .Default(64_KB);
+    registrar.Parameter("target_uncompressed_record_size", &TThis::TargetUncompressedRecordSize)
+        .GreaterThan(0)
+        .Default(256_KB);
+
+    registrar.Parameter("shuffle_writer_config", &TThis::ShuffleWriterConfig)
+        .DefaultCtor([] {
+            auto config = New<NPushBasedShuffleClient::TShuffleWriterConfig>();
+            config->BuildersBudgetFraction = 0.3;
+            return config;
+        });
+    registrar.Parameter("partition_reader_config", &TThis::PartitionReaderConfig)
+        .DefaultNew();
+    registrar.Parameter("sort_reader_config", &TThis::SortReaderConfig)
+        .DefaultNew();
+    registrar.Parameter("sort_thread_count", &TThis::SortThreadCount)
+        .GreaterThan(0)
+        .Default(1);
+    registrar.Parameter("journal_writer_config", &TThis::JournalWriterConfig)
+        .DefaultNew();
+    registrar.Parameter("session_pool_config", &TThis::SessionPoolConfig)
+        .DefaultNew();
+    registrar.Parameter("session_controller_config", &TThis::SessionControllerConfig)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSortOperationOptionsBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_partition_job_count", &TThis::MaxPartitionJobCount)
@@ -602,6 +650,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_final_partitions_merging_by_default", &TThis::EnableFinalPartitionsMergingByDefault)
         .Default(true);
+
+    registrar.Parameter("push_based_shuffle", &TThis::PushBasedShuffle)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -772,6 +823,9 @@ void TPushBasedShuffleConfig::Register(TRegistrar registrar)
     registrar.Parameter("thread_count", &TThis::ThreadCount)
         .Default(2)
         .GreaterThan(0);
+
+    registrar.Parameter("seal_monitor", &TThis::SealMonitor)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

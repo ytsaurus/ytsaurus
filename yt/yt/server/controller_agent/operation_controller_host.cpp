@@ -207,6 +207,11 @@ const TPushBasedShuffleRegistryPtr& TOperationControllerHost::GetPushBasedShuffl
     return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleRegistry();
 }
 
+const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& TOperationControllerHost::GetPushBasedShuffleSealMonitor() const
+{
+    return Bootstrap_->GetControllerAgent()->GetPushBasedShuffleSealMonitor();
+}
+
 void TOperationControllerHost::Disconnect(const TError& error)
 {
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));

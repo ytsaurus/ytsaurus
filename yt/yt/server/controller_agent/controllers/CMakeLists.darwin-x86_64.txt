@@ -62,6 +62,8 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/probing_job_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/push_based_shuffle.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/push_based_shuffle_job_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/remote_copy_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sink.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/sort_controller.cpp

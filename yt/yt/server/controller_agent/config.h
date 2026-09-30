@@ -16,9 +16,13 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
+
 #include <yt/yt/ytlib/event_log/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt/ytlib/push_based_shuffle_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -292,6 +296,35 @@ DEFINE_REFCOUNTED_TYPE(TDataBalancerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPushBasedShuffleOptions
+    : public NYTree::TYsonStruct
+{
+    double SealFallbackCompressionRatio;
+    i64 SealFallbackRowCountPerRecord;
+
+    //! Controller-side estimates that size the partition job writer memory budget.
+    i64 PerPartitionMetadataEstimate;
+    i64 PerSequencerConnectionEstimate;
+    i64 TargetUncompressedRecordSize;
+
+    NPushBasedShuffleClient::TShuffleWriterConfigPtr ShuffleWriterConfig;
+    NPushBasedShuffleClient::TPartitionReaderConfigPtr PartitionReaderConfig;
+    NPushBasedShuffleClient::TSortReaderConfigPtr SortReaderConfig;
+    int SortThreadCount;
+
+    NApi::TJournalChunkWriterConfigPtr JournalWriterConfig;
+    NDistributedChunkSessionClient::TDistributedChunkSessionPoolConfigPtr SessionPoolConfig;
+    NDistributedChunkSessionClient::TDistributedChunkSessionControllerConfigPtr SessionControllerConfig;
+
+    REGISTER_YSON_STRUCT(TPushBasedShuffleOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPushBasedShuffleOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobOptions
     : public NYTree::TYsonStruct
 {
@@ -542,6 +575,7 @@ struct TSortOperationOptionsBase
     TDataBalancerOptionsPtr DataBalancer;
     i64 DefaultPartitionDataWeightForMerging;
     bool EnableFinalPartitionsMergingByDefault;
+    TPushBasedShuffleOptionsPtr PushBasedShuffle;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
@@ -790,6 +824,8 @@ struct TPushBasedShuffleConfig
     : public NYTree::TYsonStruct
 {
     int ThreadCount;
+
+    NDistributedChunkSessionClient::TDistributedChunkSessionSealMonitorConfigPtr SealMonitor;
 
     REGISTER_YSON_STRUCT(TPushBasedShuffleConfig);
 
