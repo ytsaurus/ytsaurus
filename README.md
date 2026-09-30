@@ -1,4 +1,4 @@
-<img width="64" src="yt/docs/images/logo.png"/><br/>
+<img width="64" src="yt/docs/_images/logo.png"/><br/>
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/ytsaurus/ytsaurus/blob/main/LICENSE)
 [![Telegram](https://img.shields.io/badge/chat-on%20Telegram-2ba2d9.svg)](https://t.me/ytsaurus)
@@ -13,7 +13,7 @@ YTsaurus is a distributed storage and processing platform for big data with supp
 
 You can read [post about YTsaurus](https://medium.com/p/42e7f5fa5fc6) or check video:
 
-[![video about YTsaurus](yt/docs/images/ytsaurus-promo-video.png)](https://youtu.be/4Q2EB_uimLs)
+[![video about YTsaurus](yt/docs/_images/ytsaurus-promo-video.png)](https://youtu.be/4Q2EB_uimLs)
 
 ## Advantages of the platform
 
