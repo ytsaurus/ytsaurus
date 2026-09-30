@@ -208,7 +208,6 @@ void TSimpleRunnerProgram::DoRun()
         setFlowCoreTarget,
         /*graceful*/ {},
         DefaultWaitPipelineTimeout,
-        /*enablePipelineCreation*/ true,
         /*enablePipelineStopOrPause*/ true,
         vanillaOperation);
 
