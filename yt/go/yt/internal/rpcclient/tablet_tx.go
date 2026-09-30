@@ -43,12 +43,6 @@ func (c *client) BeginTabletTx(
 ) (yt.TabletTx, error) {
 	var tx tabletTx
 
-	var err error
-	tx.coordinator, err = c.pickRPCProxy(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	tx.StartCall = c.StartCall
 	tx.Invoke = tx.do
 	tx.InvokeReadRow = tx.doReadRow
@@ -76,6 +70,7 @@ func (c *client) BeginTabletTx(
 		PrerequisiteTransactionIDs: opts.PrerequisiteTransactionIDs,
 	}
 
+	var err error
 	tx.txID, tx.txStartTimestamp, err = tx.startTabletTx(ctx, startOptions)
 	tx.ctx = ctx
 	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, time.Duration(txTimeout), c.conf.GetTxPingPeriod(), c.stop, nil)
@@ -97,12 +92,17 @@ func (tx *tabletTx) LockRows(
 }
 
 func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
+	if call.Method == MethodStartTransaction {
+		if err = tx.c.Invoke(ctx, call, rsp, opts...); err == nil {
+			tx.coordinator = call.SelectedProxy
+		}
+		return
+	}
+
 	call.RequestedProxy = tx.coordinator
+	call.DisableRetries = true
 
 	switch call.Method {
-	case MethodStartTransaction:
-		return tx.c.Invoke(ctx, call, rsp, opts...)
-
 	case MethodCommitTransaction:
 		err = tx.pinger.TryCommit(func() error {
 			return tx.c.Invoke(ctx, call, rsp, opts...)

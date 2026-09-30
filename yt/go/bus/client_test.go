@@ -108,6 +108,7 @@ func TestClient_errors(t *testing.T) {
 		req := &testservice.TReqDoNothing{}
 
 		_, err := c.DoNothing(ctx, req, SendOptionAfterFunc(func(req *clientReq) {
+			require.Equal(t, 15*time.Second, *req.acknowledgementTimeout)
 			require.True(t, req.acked.Load())
 		}))
 		require.NoError(t, err)
