@@ -125,6 +125,11 @@ public:
      */
     const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const;
+
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;
 

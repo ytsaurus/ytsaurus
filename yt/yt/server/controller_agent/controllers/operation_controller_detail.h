@@ -1086,6 +1086,7 @@ protected:
     NYson::TYsonString ConvertToYsonStringNestingLimited(const T& value) const;
 
     i64 GetFastIntermediateMediumLimit() const;
+    bool IsFastIntermediateMediumEnabled() const;
 
     void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 

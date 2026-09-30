@@ -38,6 +38,9 @@
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_monitor.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_summary_fetcher.h>
+
 #include <yt/yt/ytlib/event_log/config.h>
 #include <yt/yt/ytlib/event_log/event_log.h>
 
@@ -82,6 +85,7 @@ using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NDistributedChunkSessionClient;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NEventLog;
@@ -242,6 +246,22 @@ public:
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
         , PushBasedShuffleRegistry_(New<TPushBasedShuffleRegistry>())
+        , PushBasedShuffleSealMonitor_(CreateDistributedChunkSessionSealMonitor(
+            Config_->PushBasedShuffle->SealMonitor,
+            BIND_NO_PROPAGATE([
+                client = Bootstrap_->GetClient(),
+                invoker = PushBasedShuffleThreadPool_->GetInvoker(),
+                throttlerManager = ChunkLocationThrottlerManager_
+            ] (std::vector<TChunkId> chunkIds) {
+                return FetchDistributedChunkSessionSealSummaries(
+                    client,
+                    invoker,
+                    throttlerManager,
+                    std::move(chunkIds),
+                    ControllerAgentLogger());
+            }),
+            PushBasedShuffleThreadPool_->GetInvoker(),
+            ControllerAgentLogger()))
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
@@ -440,6 +460,13 @@ public:
         return PushBasedShuffleRegistry_;
     }
 
+    const IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return PushBasedShuffleSealMonitor_;
+    }
+
     const TMediumDirectoryPtr& GetMediumDirectory() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -476,6 +503,7 @@ public:
         PushBasedShuffleThreadPool_->SetThreadCount(Config_->PushBasedShuffle->ThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
+        PushBasedShuffleSealMonitor_->Reconfigure(Config_->PushBasedShuffle->SealMonitor);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -1219,6 +1247,7 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
     const TPushBasedShuffleRegistryPtr PushBasedShuffleRegistry_;
+    const IDistributedChunkSessionSealMonitorPtr PushBasedShuffleSealMonitor_;
 
     bool Connected_ = false;
     bool ConnectScheduled_ = false;
@@ -2524,6 +2553,11 @@ TJobTracker* TControllerAgent::GetJobTracker() const
 const TPushBasedShuffleRegistryPtr& TControllerAgent::GetPushBasedShuffleRegistry() const
 {
     return Impl_->GetPushBasedShuffleRegistry();
+}
+
+const IDistributedChunkSessionSealMonitorPtr& TControllerAgent::GetPushBasedShuffleSealMonitor() const
+{
+    return Impl_->GetPushBasedShuffleSealMonitor();
 }
 
 bool TControllerAgent::IsConnected() const
