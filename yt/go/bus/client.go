@@ -25,7 +25,7 @@ import (
 
 const (
 	// defaultAcknowledgementTimeout is a default timeout used to cancel inflight unacked requests.
-	defaultAcknowledgementTimeout = time.Second * 5
+	defaultAcknowledgementTimeout = time.Second * 15
 
 	// effectiveTimeout is a request timeout used when user has
 	// neither set context deadline nor specified request timeout.
