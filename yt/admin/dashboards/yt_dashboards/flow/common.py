@@ -13,7 +13,7 @@ from yt_dashboard_generator.backends.monitoring import (
     MonitoringLabelDashboardParameter,
     MonitoringTextDashboardParameter,
 )
-from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
+from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, DownsamplingAggregation
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor, Text
@@ -126,6 +126,12 @@ def build_dashboard_links(dashboard_short_name: str):
 
 
 def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
+    def spec_version_change(sensor, alias):
+        version = MonitoringExpr(FlowController(sensor))
+        if backend == "monitoring":
+            version = version.downsampling_aggregation(DownsamplingAggregation.Last)
+        return version.derivative().sign().alias(alias)
+
     def make_url(name):
         return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/{name}"
             "?p[project]={{project}}&p[cluster]={{cluster}}"
@@ -167,14 +173,8 @@ def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
             .cell(
                 "Specs version change",
                 MultiSensor(
-                    MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
-                        .derivative()
-                        .sign()
-                        .alias("Spec change"),
-                    MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
-                        .derivative()
-                        .sign()
-                        .alias("Dynamic spec change")),
+                    spec_version_change("yt.flow.controller.spec_version", "Spec change"),
+                    spec_version_change("yt.flow.controller.dynamic_spec_version", "Dynamic spec change")),
                 description="Spikes mean that [dynamic] spec has been changed")
             .cell("", Text(description_text))
     ).owner
