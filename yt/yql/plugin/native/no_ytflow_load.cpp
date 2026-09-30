@@ -5,6 +5,7 @@ namespace NYT::NYqlPlugin {
 
 void ExtYtflow(
     const NYql::TGatewaysConfig& /*gatewaysConfig*/,
+    const NYql::TStaticGatewaysConfig& /*staticGatewaysConfig*/,
     const NKikimr::NMiniKQL::IFunctionRegistry* /*funcRegistry*/,
     TVector<NYql::TDataProviderInitializer>& /*dataProvidersInit*/,
     const NYql::TFileStoragePtr& /*fileStorage*/)
