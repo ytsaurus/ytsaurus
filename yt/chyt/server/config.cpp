@@ -416,6 +416,15 @@ void TSubqueryConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("min_slice_data_weight", &TThis::MinSliceDataWeight)
         .Default(1_MB);
+
+    registrar.Parameter("chunk_spec_cache", &TThis::ChunkSpecCache)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ChunkSpecCache && !config->ChunkSpecCache->Capacity) {
+            config->ChunkSpecCache->Capacity = 1_GB;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

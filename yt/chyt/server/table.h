@@ -36,6 +36,11 @@ struct TTable
     bool IsPartitioned = false;
     //! Total row count in the table from row_count attribute. Make sense only for static tables.
     std::optional<i64> RowCount;
+    //! Revision of the table's chunk merger info, bumped by master every time
+    //! ChunkMerger replaces the table's chunk list. Used to proactively detect
+    //! chunk spec cache staleness caused by chunk merging (which does not bump
+    //! #ContentRevision).
+    i64 ChunkMergerRevision = 0;
 
     //! Only for dynamic tables.
     NTabletClient::TTableMountInfoPtr TableMountInfo;

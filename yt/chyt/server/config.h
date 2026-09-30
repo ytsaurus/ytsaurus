@@ -535,6 +535,11 @@ struct TSubqueryConfig
 
     i64 MinSliceDataWeight;
 
+    //! If set, chunk specs of static tables fetched from master for a full (trivial)
+    //! read range are cached; null (the default) disables caching entirely. Does not
+    //! apply to dynamic tables.
+    TSlruCacheConfigPtr ChunkSpecCache;
+
     REGISTER_YSON_STRUCT(TSubqueryConfig);
 
     static void Register(TRegistrar registrar);
