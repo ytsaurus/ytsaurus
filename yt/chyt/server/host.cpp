@@ -26,6 +26,9 @@
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -56,6 +59,9 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <Access/AccessControl.h>
 #include <Access/User.h>
@@ -125,12 +131,16 @@ public:
         IInvokerPtr controlInvoker,
         TYtConfigPtr config,
         TConnectionCompoundConfigPtr connectionConfig,
+        EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+        NYTree::INodePtr clusterConnectionNode,
         TPorts ports)
         : Owner_(owner)
         , ControlInvoker_(std::move(controlInvoker))
         , Config_(std::move(config))
         , Ports_(ports)
         , ConnectionConfig_(std::move(connectionConfig))
+        , ConnectionDynamicConfigPolicy_(connectionDynamicConfigPolicy)
+        , ClusterConnectionNode_(std::move(clusterConnectionNode))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -746,6 +756,11 @@ public:
         return ClientCache_->Get(identity, options);
     }
 
+    NApi::NNative::IConnectionPtr GetConnection() const
+    {
+        return Connection_;
+    }
+
     void HandleSigint()
     {
         ++SigintCounter_;
@@ -999,6 +1014,8 @@ private:
     const TYtConfigPtr Config_;
     TPorts Ports_;
     const TConnectionCompoundConfigPtr ConnectionConfig_;
+    const EClusterConnectionDynamicConfigPolicy ConnectionDynamicConfigPolicy_;
+    const NYTree::INodePtr ClusterConnectionNode_;
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
@@ -1063,6 +1080,25 @@ private:
             ConnectionConfig_,
             connectionOptions);
         ChannelFactory_ = Connection_->GetChannelFactory();
+
+        if (ConnectionDynamicConfigPolicy_ != EClusterConnectionDynamicConfigPolicy::FromStaticConfig) {
+            // Cache sizes belong to the clique's memory budget, including overrides
+            // applied by the bootstrap config postprocessor.
+            auto cachePatch = BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("block_cache").Value(ConnectionConfig_->Dynamic->BlockCache)
+                    .Item("chunk_meta_cache").Value(ConnectionConfig_->Dynamic->ChunkMetaCache)
+                .EndMap();
+            auto staticPatch = ConnectionDynamicConfigPolicy_ == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
+                ? cachePatch
+                : PatchNode(ClusterConnectionNode_, cachePatch);
+            NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
+                Connection_,
+                EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
+                staticPatch,
+                Logger());
+            Connection_->GetClusterDirectorySynchronizer()->Start();
+        }
 
         // Kick-start node directory synchronizing; otherwise it will start only with first query.
         Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -1327,12 +1363,16 @@ THost::THost(
     IInvokerPtr controlInvoker,
     TPorts ports,
     TYtConfigPtr config,
-    TConnectionCompoundConfigPtr connectionConfig)
+    TConnectionCompoundConfigPtr connectionConfig,
+    EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+    NYTree::INodePtr clusterConnectionNode)
     : Impl_(New<TImpl>(
         this,
         std::move(controlInvoker),
         std::move(config),
         std::move(connectionConfig),
+        connectionDynamicConfigPolicy,
+        std::move(clusterConnectionNode),
         ports))
 { }
 
@@ -1498,6 +1538,11 @@ NApi::NNative::IClientPtr THost::GetSqlObjectsClient() const
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
+}
+
+NApi::NNative::IConnectionPtr THost::GetConnection() const
+{
+    return Impl_->GetConnection();
 }
 
 TFuture<void> THost::GetIdleFuture() const
