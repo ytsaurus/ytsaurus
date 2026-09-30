@@ -576,6 +576,11 @@ items:
         href: api/query-parameters.md
       - name: Коды ошибок
         href: api/error-codes.md
+  - name: Flow
+    when: audience == "public"
+    include:
+      mode: link
+      path: flow/toc-flow.yaml
   - name: Руководство администратора
     items:
       - name: Обзор

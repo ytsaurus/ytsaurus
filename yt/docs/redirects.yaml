@@ -1095,3 +1095,44 @@ ru:
     - from: /flow/yandex/(.*)
       to: /flow/$1
       type: redirect
+
+en:
+    - from: /flow/release/auth.md
+      to: /flow/devops/vanilla/security.md
+      type: redirect
+
+    - from: /flow/release/basic-rules.md
+      to: /flow/devops/vanilla/releases.md#release-and-configure-basic-rules
+      type: redirect
+
+    - from: /flow/release/cli.md
+      to: /flow/tools/cli.md
+      type: redirect
+
+    - from: /flow/release/flow-core-target.md
+      to: /flow/devops/vanilla/releases.md#flow-core-target
+      type: redirect
+
+    - from: /flow/release/launch-vanilla.md
+      to: /flow/devops/vanilla/initial-deploy.md
+      type: redirect
+
+    - from: /flow/release/logs.md
+      to: /flow/devops/vanilla/diagnostics/logs.md
+      type: redirect
+
+    - from: /flow/release/pipeline-operations.md
+      to: /flow/devops/vanilla/pipeline-operations.md
+      type: redirect
+
+    - from: /flow/release/releases.md
+      to: /flow/devops/vanilla/releases.md
+      type: redirect
+
+    - from: /flow/release/security.md
+      to: /flow/devops/vanilla/security.md
+      type: redirect
+
+    - from: /flow/release/yt-sync-rules.md
+      to: /flow/devops/vanilla/releases.md#yt-sync
+      type: redirect
