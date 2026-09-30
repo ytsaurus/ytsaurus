@@ -2229,6 +2229,8 @@ struct TSortOperationSpecBase
 
     std::optional<bool> EnableFinalPartitionsMerging;
 
+    bool UsePushBasedShuffle;
+
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 
     static void Register(TRegistrar registrar);

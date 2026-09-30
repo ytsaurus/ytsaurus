@@ -9,7 +9,7 @@ namespace NYT::NPushBasedShuffleClient {
 void TShuffleWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("memory_budget", &TThis::MemoryBudget)
-        .GreaterThanOrEqual(1_MB)
+        .GreaterThanOrEqual(MinShuffleWriterMemoryBudget)
         .Default(64_MB);
     registrar.Parameter("builders_budget_fraction", &TThis::BuildersBudgetFraction)
         .InRange(0.01, 0.99)

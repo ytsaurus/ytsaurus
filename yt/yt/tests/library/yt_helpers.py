@@ -1,4 +1,6 @@
-from yt_commands import get, get_driver, set, ls, create_pool_tree, print_debug, master_exit_read_only
+from yt_commands import (
+    alter_table, exists, get, get_driver, set, ls, create_pool_tree, print_debug,
+    master_exit_read_only, prepare_path, remember_controller_agent_config, update_controller_agent_config)
 from yt.test_helpers import wait
 from yt.test_helpers.profiler import ProfilerFactory
 
@@ -14,6 +16,7 @@ from dateutil import parser
 from dateutil.tz import tzlocal
 from fnmatch import fnmatchcase
 
+import functools
 import inspect
 import json
 import os.path
@@ -483,3 +486,193 @@ def validate_operation_statistics_descriptions(statistics):
             undescribed.add(path)
 
     assert not undescribed, f"Undescribed operation statistics: {undescribed}"
+
+
+_SHUFFLE_COLUMN_TYPE_BY_PYTHON_TYPE = {
+    bool: "boolean",
+    int: "int64",
+    float: "double",
+    str: "string",
+    bytes: "string",
+}
+
+
+def _strip_ypath_attributes(path):
+    return str(prepare_path(path))
+
+
+def _infer_shuffled_column_type(values):
+    types = {_SHUFFLE_COLUMN_TYPE_BY_PYTHON_TYPE.get(type(value), "any") for value in values if value is not None}
+    if len(types) != 1:
+        return "any"
+    return types.pop()
+
+
+def _sort_orders(sorted_by):
+    if isinstance(sorted_by, str):
+        sorted_by = [sorted_by]
+
+    sort_orders = {}
+    for sort_column in sorted_by or []:
+        if isinstance(sort_column, dict):
+            sort_orders[sort_column["name"]] = sort_column.get("sort_order", "ascending")
+        else:
+            sort_orders[sort_column] = "ascending"
+    return sort_orders
+
+
+def _infer_strict_schema(rows, sorted_by):
+    sort_orders = _sort_orders(sorted_by)
+
+    values_by_column = defaultdict(list)
+    for row in rows:
+        for name, value in row.items():
+            values_by_column[name].append(value)
+
+    names = list(sort_orders) + [name for name in values_by_column if name not in sort_orders]
+
+    schema = []
+    for name in names:
+        column = {"name": name, "type": _infer_shuffled_column_type(values_by_column[name])}
+        if name in sort_orders:
+            column["sort_order"] = sort_orders[name]
+        schema.append(column)
+    return schema
+
+
+def _write_table_with_strict_schema(write_table):
+    @functools.wraps(write_table)
+    def wrapper(path, value=None, is_raw=False, **kwargs):
+        rows = value
+        if isinstance(rows, dict):
+            rows = [rows]
+        if is_raw or not isinstance(rows, list):
+            rows = None
+        if rows and all(isinstance(row, dict) for row in rows):
+            stripped_path = _strip_ypath_attributes(path)
+            if (exists(stripped_path) and
+                    get("{}/@row_count".format(stripped_path)) == 0 and
+                    not get("{}/@schema/@strict".format(stripped_path))):
+                alter_table(
+                    stripped_path,
+                    schema=_infer_strict_schema(rows, kwargs.get("sorted_by")))
+
+        return write_table(path, value, is_raw=is_raw, **kwargs)
+
+    return wrapper
+
+
+def _table_schema_for_output_stream(path):
+    schema = get("{}/@schema".format(_strip_ypath_attributes(path)))
+    return [
+        {key: value for key, value in column.items() if key in ["name", "type", "type_v3"]}
+        for column in schema
+    ]
+
+
+def _with_sort_columns_first(schema, sorted_by):
+    sort_orders = _sort_orders(sorted_by)
+    column_by_name = {column["name"]: column for column in schema}
+
+    columns = []
+    for name, sort_order in sort_orders.items():
+        column = dict(column_by_name.get(name, {"name": name, "type": "any"}))
+        column["sort_order"] = sort_order
+        columns.append(column)
+    columns += [
+        {key: value for key, value in column.items() if key != "sort_order"}
+        for column in schema
+        if column["name"] not in sort_orders
+    ]
+    return columns
+
+
+def _map_reduce_with_output_streams(map_reduce, *, mapper_output_schema):
+    @functools.wraps(map_reduce)
+    def wrapper(**kwargs):
+        spec = kwargs.setdefault("spec", {})
+        schema = mapper_output_schema
+        if schema is None:
+            input_paths = kwargs.get("in_")
+            if isinstance(input_paths, list):
+                input_paths = input_paths[0]
+            schema = _table_schema_for_output_stream(input_paths)
+        schema = _with_sort_columns_first(schema, kwargs.get("sort_by") or spec.get("sort_by"))
+
+        has_mapper = "mapper_command" in kwargs or "command" in spec.get("mapper", {})
+        if has_mapper and "output_streams" not in spec.get("mapper", {}):
+            spec.setdefault("mapper", {})["output_streams"] = [{"schema": schema}]
+
+        return map_reduce(**kwargs)
+
+    return wrapper
+
+
+def with_push_based_shuffle(mapper_output_schema=None):
+    spec_template = {"use_push_based_shuffle": True}
+    spec_template_by_operation_options = {
+        "sort_operation_options": spec_template,
+        "map_reduce_operation_options": dict(
+            spec_template,
+            enable_table_index_if_has_trivial_mapper=False),
+    }
+
+    def decorate(func):
+        @functools.wraps(func)
+        def wrapper(self, push_based_shuffle, *args, **kwargs):
+            if not push_based_shuffle:
+                return func(self, *args, **kwargs)
+
+            for component in ["controller-agent", "node", "job-proxy"]:
+                skip_if_component_old(
+                    self.Env,
+                    (26, 2),
+                    component,
+                    "does not support push-based shuffle")
+
+            with remember_controller_agent_config():
+                for operation_options, template in spec_template_by_operation_options.items():
+                    update_controller_agent_config(
+                        "{}/spec_template".format(operation_options),
+                        template,
+                        wait_for_orchid=False)
+                    update_controller_agent_config(
+                        "{}/spec_template/use_push_based_shuffle".format(operation_options),
+                        True)
+                update_controller_agent_config(
+                    "testing_options/enable_snapshot_cycle_after_materialization",
+                    False)
+
+                test_globals = func.__globals__
+                decorate_command = {
+                    "write_table": _write_table_with_strict_schema,
+                    "map_reduce": functools.partial(
+                        _map_reduce_with_output_streams,
+                        mapper_output_schema=mapper_output_schema),
+                }
+                patched = {
+                    name: decorator(test_globals[name])
+                    for name, decorator in decorate_command.items()
+                    if name in test_globals
+                }
+                original = {name: test_globals[name] for name in patched}
+                test_globals.update(patched)
+                try:
+                    return func(self, *args, **kwargs)
+                finally:
+                    test_globals.update(original)
+
+        signature = inspect.signature(func)
+        parameters = list(signature.parameters.values())
+        wrapper.__signature__ = signature.replace(parameters=[
+            parameters[0],
+            inspect.Parameter("push_based_shuffle", inspect.Parameter.POSITIONAL_OR_KEYWORD),
+            *parameters[1:],
+        ])
+
+        return pytest.mark.parametrize(
+            "push_based_shuffle",
+            [False, True],
+            ids=["pull_based_shuffle", "push_based_shuffle"])(wrapper)
+
+    return decorate

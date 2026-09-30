@@ -1,5 +1,7 @@
 from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
+from yt_helpers import with_push_based_shuffle
+
 from yt_commands import (
     authors, create, get, set, copy, remove, exists, wait,
     create_account, create_user, assert_statistics, extract_statistic_v2, raises_yt_error, sorted_dicts,
@@ -450,6 +452,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             )
 
     @authors("psushin")
+    @with_push_based_shuffle()
     def test_max_value_count_per_simple_sort_job(self):
         schema = make_schema(
             [{"name": "key", "type": "string"}] +
@@ -759,6 +762,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert len(read_table("//tmp/t_out")) == 50
 
     @authors("max42")
+    @with_push_based_shuffle()
     def test_incomplete_sample_fetching(self):
         max_sample_size = 64 * 1024
         v1 = {"key": "a" * max_sample_size + "a"}
@@ -791,6 +795,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_many_merge(self, sort_order):
         v1 = {"key": "aaa"}
         v2 = {"key": "bb"}
@@ -822,6 +827,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
     @authors("max42")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_several_merge_jobs_per_partition(self, sort_order):
         create("table", "//tmp/t_in")
         rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in range(500)]
@@ -1074,18 +1080,21 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_two_partitions_no_merge(self, optimize_for, sort_order):
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 2})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_ten_partitions_no_merge(self, optimize_for, sort_order):
         self.sort_with_options(optimize_for, sort_order, spec={"partition_count": 10})
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_two_partitions_with_merge(self, optimize_for, sort_order):
         self.sort_with_options(
             optimize_for,
@@ -1866,6 +1875,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             sort(in_="//tmp/t1", out="//tmp/t2", spec={"input_query": "a where a > 0"})
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1925,6 +1935,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert check_operation_tasks(op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"})
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys_descending(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -2077,6 +2088,7 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
         assert data_flow_graph["edges"]["unordered_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
     @authors("max42")
+    @with_push_based_shuffle()
     def test_proper_key_comparison(self):
         # YT-13530.
         create(

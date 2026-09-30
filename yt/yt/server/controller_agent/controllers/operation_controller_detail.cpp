@@ -11618,10 +11618,7 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
 
     descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();
 
-    bool fastIntermediateMediumEnabled = Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
-        GetFastIntermediateMediumLimit() > 0;
-
-    if (fastIntermediateMediumEnabled) {
+    if (IsFastIntermediateMediumEnabled()) {
         descriptor->SlowMedium = descriptor->TableWriterOptions->MediumName;
         descriptor->TableWriterOptions->MediumName = Config_->FastIntermediateMedium;
         if (auto tableWriterConfig = Spec_->FastIntermediateMediumTableWriterConfig) {
@@ -11638,7 +11635,7 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
             .With("EnableStripedErasure", descriptor->TableWriterOptions->EnableStripedErasure);
     }
 
-    descriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(Spec_, fastIntermediateMediumEnabled);
+    descriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(Spec_, IsFastIntermediateMediumEnabled());
 
     descriptor->RequiresRecoveryInfo = true;
     return descriptor;
@@ -12364,6 +12361,12 @@ TYsonString TOperationControllerBase::ConvertToYsonStringNestingLimited(const T&
 i64 TOperationControllerBase::GetFastIntermediateMediumLimit() const
 {
     return FastIntermediateMediumLimit_;
+}
+
+bool TOperationControllerBase::IsFastIntermediateMediumEnabled() const
+{
+    return Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
+        GetFastIntermediateMediumLimit() > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

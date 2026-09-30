@@ -1974,7 +1974,29 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
 
+    registrar.Parameter("use_push_based_shuffle", &TThis::UsePushBasedShuffle)
+        .Default(false);
+
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
+        if (spec->UsePushBasedShuffle) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->EnablePartitionedDataBalancing,
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_partitioned_data_balancing");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->EnableFinalPartitionsMerging.value_or(false),
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_final_partitions_merging");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->IntermediateDirectUploadNodeCount.has_value(),
+                "Option %Qv is not applicable to push-based shuffle",
+                "intermediate_direct_upload_node_count");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->ProbingRatio.has_value(),
+                "Option %Qv is not supported by push-based shuffle",
+                "probing_ratio");
+        }
+
         NTableClient::ValidateSortColumns(spec->SortBy);
 
         // Validate pivot_keys.
@@ -2205,6 +2227,44 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TMapReduceOperationSpec* spec) {
+        if (spec->UsePushBasedShuffle) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->MapperOutputTableCount != 0,
+                "Push-based shuffle does not support nonzero %Qv",
+                "mapper_output_table_count");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->InputQuery.has_value(),
+                "Option %Qv is not supported by push-based shuffle",
+                "input_query");
+            THROW_ERROR_EXCEPTION_IF(
+                !spec->HasNontrivialMapper() && spec->EnableTableIndexIfHasTrivialMapper,
+                "Option %Qv is not supported by push-based shuffle",
+                "enable_table_index_if_has_trivial_mapper");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->DisableSortedInputInReducer,
+                "Option %Qv is not supported by push-based shuffle",
+                "disable_sorted_input_in_reducer");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->HasNontrivialReduceCombiner() || spec->ForceReduceCombiners,
+                "Reduce combiners are not supported by push-based shuffle");
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Reducer->EnableInputTableIndex.value_or(false) ||
+                    spec->MergeJobIO->ControlAttributes->EnableTableIndex ||
+                    spec->SortJobIO->ControlAttributes->EnableTableIndex,
+                "Reducer-side %Qlv control attribute is not supported by push-based shuffle",
+                NTableClient::EControlAttribute::TableIndex);
+
+            if (spec->HasNontrivialMapper()) {
+                THROW_ERROR_EXCEPTION_IF(
+                    std::ssize(spec->Mapper->OutputStreams) != 1,
+                    "Push-based shuffle requires the mapper to declare exactly one output stream")
+                    .With("output_stream_count", std::ssize(spec->Mapper->OutputStreams));
+                THROW_ERROR_EXCEPTION_IF(
+                    !spec->Mapper->OutputStreams[0]->Schema->IsStrict(),
+                    "Push-based shuffle requires a strict mapper output stream schema");
+            }
+        }
+
         auto throwError = [] (NTableClient::EControlAttribute attribute, const std::string& jobType) {
             THROW_ERROR_EXCEPTION(
                 "%Qlv control attribute is not supported by %Qlv jobs in map-reduce operation",

@@ -100,6 +100,7 @@ public:
     const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const override;
 
     const TPushBasedShuffleRegistryPtr& GetPushBasedShuffleRegistry() const override;
+    const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const override;
 
     void Disconnect(const TError& error) override;
 

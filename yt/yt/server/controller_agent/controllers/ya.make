@@ -29,6 +29,8 @@ SRCS(
     ordered_controller.cpp
     private.cpp
     probing_job_manager.cpp
+    push_based_shuffle.cpp
+    push_based_shuffle_job_spec.cpp
     remote_copy_controller.cpp
     sink.cpp
     sort_controller.cpp

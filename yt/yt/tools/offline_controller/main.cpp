@@ -111,6 +111,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NDistributedChunkSessionClient::IDistributedChunkSessionSealMonitorPtr& GetPushBasedShuffleSealMonitor() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void InterruptJob(
         TJobId /*jobId*/,
         EInterruptionReason /*reason*/,
