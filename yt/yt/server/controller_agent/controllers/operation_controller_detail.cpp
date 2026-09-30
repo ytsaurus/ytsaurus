@@ -7691,23 +7691,28 @@ void TOperationControllerBase::LockUserFiles()
     auto proxy = CreateObjectServiceWriteProxy(OutputClient_);
     auto batchReq = proxy.ExecuteBatch();
 
-    auto lockFile = [&batchReq] (TUserFile& file) {
-        auto req = TFileYPathProxy::Lock(file.Path.GetPath());
-        req->set_mode(ToProto(ELockMode::Snapshot));
-        GenerateMutationId(req);
-        SetTransactionId(req, *file.TransactionId);
-        req->Tag() = &file;
-        batchReq->AddRequest(req);
+    THashMap<std::pair<TYPath, TTransactionId>, std::vector<TUserFile*>> pathToUserFiles;
+    auto registerFile = [&pathToUserFiles] (TUserFile* file) {
+        pathToUserFiles[std::pair{file->Path.GetPath(), *file->TransactionId}].push_back(file);
     };
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         for (auto& file : files) {
-            lockFile(file);
+            registerFile(&file);
         }
     }
 
     if (BaseLayer_) {
-        lockFile(*BaseLayer_);
+        registerFile(&*BaseLayer_);
+    }
+
+    for (const auto& [pathTransactionIdPair, files] : pathToUserFiles) {
+        auto req = TFileYPathProxy::Lock(pathTransactionIdPair.first);
+        req->set_mode(ToProto(ELockMode::Snapshot));
+        GenerateMutationId(req);
+        SetTransactionId(req, pathTransactionIdPair.second);
+        req->Tag() = &files;
+        batchReq->AddRequest(req);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -7718,11 +7723,13 @@ void TOperationControllerBase::LockUserFiles()
     const auto& batchRsp = batchRspOrError.Value();
     for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
         const auto& rsp = rspOrError.Value();
-        auto* file = std::any_cast<TUserFile*>(rsp->Tag());
-        file->ObjectId = FromProto<TObjectId>(rsp->node_id());
-        file->ExternalTransactionId = rsp->has_external_transaction_id()
-            ? FromProto<TTransactionId>(rsp->external_transaction_id())
-            : *file->TransactionId;
+        const auto& files = *std::any_cast<const std::vector<TUserFile*>*>(rsp->Tag());
+        for (auto* file : files) {
+            file->ObjectId = FromProto<TObjectId>(rsp->node_id());
+            file->ExternalTransactionId = rsp->has_external_transaction_id()
+                ? FromProto<TTransactionId>(rsp->external_transaction_id())
+                : *file->TransactionId;
+        }
     }
 }
 
