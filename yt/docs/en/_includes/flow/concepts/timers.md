@@ -53,7 +53,13 @@ Explanations:
 
 - `streams` / `streams_with_delays` — let you limit which input streams contribute to the watermark calculation for this timer. `streams_with_delays` also lets you set an individual delay for each stream.
 
-- `deduplicate_equal_timestamps` — when you create multiple timers with the same key and `TriggerTimestamp`, only one is kept (the one with the smallest `EventTimestamp`). This is enabled by default.
+- `deduplicate_equal_timestamps` — merges timers in the same stream with the same key and `TriggerTimestamp`, keeping the smallest `EventTimestamp`. Deduplication is not guaranteed: duplicates are possible. Enabled by default.
+
+## Processing order {#timer-ordering}
+
+Within one timer stream, timers for the same key are processed in `TriggerTimestamp` order.
+
+Processing order across timer streams is not guaranteed. To make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
 
 ## Timer structure {#timer-structure}
 
