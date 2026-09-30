@@ -225,6 +225,7 @@ type output struct {
 
 	toCompress     chan sendItem
 	toSend         chan sendItem
+	toPush         chan []sendItem
 	compressorDone chan struct{}
 	senderDone     chan struct{}
 
@@ -242,11 +243,13 @@ type sendItem struct {
 func (o *output) startAsync() {
 	o.toCompress = make(chan sendItem, 1)
 	o.toSend = make(chan sendItem, 1)
+	o.toPush = make(chan []sendItem)
 	o.compressorDone = make(chan struct{})
 	o.senderDone = make(chan struct{})
 
 	go o.compressorLoop()
 	go o.senderLoop()
+	go o.pusherLoop()
 }
 
 func (o *output) compressorLoop() {
@@ -305,7 +308,7 @@ func (o *output) notifyLargeRow(offset pipelines.FilePosition, kind pipelines.La
 }
 
 func (o *output) senderLoop() {
-	defer close(o.senderDone)
+	defer close(o.toPush)
 
 	var batch []sendItem
 	var totalRowsBytes int
@@ -319,8 +322,8 @@ func (o *output) senderLoop() {
 	}
 
 	flush := func() {
-		o.flushBatch(batch)
-		batch = batch[:0]
+		o.toPush <- batch
+		batch = nil
 		totalRowsBytes = 0
 		if timer != nil {
 			timer.Stop()
@@ -345,6 +348,14 @@ func (o *output) senderLoop() {
 		case <-timerCh:
 			flush()
 		}
+	}
+}
+
+func (o *output) pusherLoop() {
+	defer close(o.senderDone)
+
+	for batch := range o.toPush {
+		o.flushBatch(batch)
 	}
 }
 
