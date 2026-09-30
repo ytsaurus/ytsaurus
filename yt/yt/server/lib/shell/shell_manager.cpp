@@ -385,8 +385,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
             THashMap<std::string, std::string> volumeProperties;
-            // Preserve volumes mounted inside the tools directory.
-            volumeProperties["backend"] = "rbind";
+            volumeProperties["backend"] = "bind";
             volumeProperties["read_only"] = "true";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 
