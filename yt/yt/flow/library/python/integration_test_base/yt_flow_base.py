@@ -18,7 +18,6 @@ import yt.wrapper as yt_wrapper
 from yt.recipe.basic.lib import get_yt_clusters
 from yt.wrapper import yson
 from yt.wrapper.constants import UI_ADDRESS_PATTERN
-from yt.wrapper.flow_commands import get_controller_logs
 from yt.common import wait, WaitFailed
 
 from . import default_config_parameters
@@ -605,37 +604,14 @@ class FlowTestBase:
         except Exception as e:
             log.error("Can't dump flow description", exc_info=e)
 
-    def _get_recent_controller_messages(self, count=5, scan_count=1000):
-        """Return the last `count` error-level and last `count` warning-level lines
-        from the controller public log (errors first)."""
-        try:
-            rows, _ = get_controller_logs(self.pipeline_path, count=scan_count, client=self.client)
-        except Exception as e:
-            log.warning("Can't read controller logs for timeout error enrichment", exc_info=e)
-            return []
-
-        errors = []
-        warnings = []
-        for row in rows:
-            data = row.get("data", "")
-            # Log line format: "<datetime>\t<level>\t<category>\t<message>...".
-            fields = data.split("\t")
-            if len(fields) < 2:
-                continue
-            if fields[1] == "E":
-                errors.append(data)
-            elif fields[1] == "W":
-                warnings.append(data)
-        return errors[-count:] + warnings[-count:]
-
     def wait_pipeline_state(self, state, timeout=180):
         """Wait until the pipeline reaches the given state (or one of the given states).
 
         Tolerates transient errors (e.g. "Cannot connect to pipeline controller leader")
         that occur while the controller is starting up or restarting.
 
-        On timeout the raised error is enriched with the last controller error and warning
-        log lines, so a stuck pipeline (e.g. a repeatedly failing job) shows its cause directly.
+        On timeout the original error is enriched with server-aggregated pipeline warnings
+        and errors when they are available.
 
         Args:
             state: a string (e.g. "completed") or a list of strings (e.g. ["working", "completed"]).
@@ -649,15 +625,25 @@ class FlowTestBase:
                 timeout=timeout,
                 ignore_exceptions=True,
             )
-        except WaitFailed:
-            messages = self._get_recent_controller_messages()
-            if not messages:
-                raise
-            raise WaitFailed(
-                "Pipeline did not reach state {} in {}s. Recent controller errors and warnings:\n{}".format(
-                    state, timeout, "\n".join(messages)
+        except WaitFailed as error:
+            try:
+                description = self.client.flow_execute(
+                    self.pipeline_path,
+                    flow_command="describe-pipeline",
+                    flow_argument={"status_only": True},
                 )
-            )
+                messages = [
+                    message
+                    for message in description["messages"]
+                    if yson.get_bytes(message["level"]).decode("utf-8").lower()
+                    in {"warning", "error", "alert", "fatal"}
+                ]
+                if messages:
+                    rendered_messages = yson.dumps(messages, yson_format="pretty").decode("utf-8")
+                    error.add_note(f"Pipeline warnings and errors:\n{rendered_messages.rstrip()}")
+            except Exception:
+                pass
+            raise
 
     def wait_jobs_initialized(self, timeout=180):
         def jobs_initialized():
@@ -687,12 +673,14 @@ class FlowTestBase:
         )
 
     def wait_for_pipeline_error(self, error_substring, timeout=60):
-        """Wait until an error containing the given substring appears in the flow view."""
+        """Wait until the pipeline description contains the given error substring."""
 
-        # TODO: Search only in feedback/retryable_errors instead of the entire flow view.
         def check():
-            view = self.client.get_flow_view(self.pipeline_path, cache=False)
-            return error_substring in str(view)
+            description = self.client.flow_execute(
+                self.pipeline_path,
+                flow_command="describe-pipeline",
+            )
+            return error_substring in str(description)
 
         wait(check, timeout=timeout, ignore_exceptions=True)
 
