@@ -10,6 +10,7 @@ SRCS(
     instance_limits_tracker.cpp
     process.cpp
     porto_executor.cpp
+    porto_helpers.cpp
     porto_resource_tracker.cpp
     porto_health_checker.cpp
 )

@@ -749,6 +749,28 @@ class TestJobShellInSubcontainer(TestJobProber):
                 task_patch={"enable_porto": "isolate"},
             )
 
+    @authors("krasovav")
+    @pytest.mark.parametrize(
+        "subcontainer",
+        ["/../../js", "/..", "/N/../../js", "/N/.", "N", "-evil"],
+    )
+    def test_job_shell_invalid_subcontainer(self, subcontainer):
+        with raises_yt_error("Container subpath"):
+            run_test_vanilla(
+                with_breakpoint("BREAKPOINT"),
+                spec={
+                    "enable_porto": "isolate",
+                    "job_shells": [
+                        {
+                            "name": "evil",
+                            "subcontainer": subcontainer,
+                            "owners": [],
+                        },
+                    ],
+                },
+                task_patch={"enable_porto": "isolate"},
+            )
+
     @authors("gritukan")
     def test_job_shell_owners_update(self):
         create_user("nirvana_dev")

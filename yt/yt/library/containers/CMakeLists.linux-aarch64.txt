@@ -50,6 +50,7 @@ target_sources(yt-library-containers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/process.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_resource_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/porto_health_checker.cpp
 )
