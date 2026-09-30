@@ -98,7 +98,6 @@ TEST(TRunPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
             /*setFlowCoreTarget*/ false,
             /*graceful*/ true,
             TDuration::Hours(1),
-            /*enablePipelineCreation*/ false,
             /*enablePipelineStopOrPause*/ true,
             TVanillaOperationHandle{.Client = client, .OperationId = operationId}),
         "Vanilla operation 1-2-3-4 is failed");

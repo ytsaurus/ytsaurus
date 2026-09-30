@@ -291,7 +291,6 @@ void RunPipeline(
     bool setFlowCoreTarget,
     std::optional<bool> graceful,
     TDuration waitTimeout,
-    bool enablePipelineCreation,
     bool enablePipelineStopOrPause)
 {
     auto connection = NApi::NRpcProxy::CreateConnection(
@@ -306,7 +305,6 @@ void RunPipeline(
         setFlowCoreTarget,
         graceful,
         waitTimeout,
-        enablePipelineCreation,
         enablePipelineStopOrPause);
 }
 
@@ -318,7 +316,6 @@ void RunPipeline(
     bool setFlowCoreTarget,
     std::optional<bool> graceful,
     TDuration waitTimeout,
-    bool enablePipelineCreation,
     bool enablePipelineStopOrPause,
     const std::optional<TVanillaOperationHandle>& vanillaOperation)
 {
@@ -340,14 +337,8 @@ void RunPipeline(
                 .ValueOrThrow();
 
             if (!alreadyExists) {
-                if (enablePipelineCreation) {
-                    WaitFor(client->CreateNode(root, NObjectClient::EObjectType::Pipeline))
-                        .ThrowOnError();
-                } else {
-                    fatalError = true;
-
-                    THROW_ERROR_EXCEPTION("Pipeline %Qv doesn't exist", root);
-                }
+                fatalError = true;
+                THROW_ERROR_EXCEPTION("Pipeline %Qv doesn't exist", root);
             }
 
             if (!controllerLogReader.IsOpen()) {
