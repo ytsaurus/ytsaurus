@@ -130,8 +130,7 @@ public:
         if (LimitReached_) {
             return;
         }
-        auto remainingOutputSize = Limit_ - std::ssize(Result_);
-        YT_ASSERT(remainingOutputSize > 0);
+        i64 remainingOutputSize = GetRemainingOutputSize();
         Writer_.OnKeyedItem(name.substr(0, std::min(std::ssize(name), remainingOutputSize)));
         // NB: Postprocess intentionally is not performed.
     }
