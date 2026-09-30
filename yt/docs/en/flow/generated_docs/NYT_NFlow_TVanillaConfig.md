@@ -33,17 +33,12 @@ The maximum number of failed jobs after which the vanilla operation fails. ||
 || `wait_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `5m`
 Timeout for waiting for pipeline states during a graceful stop of the previous vanilla operation. ||
-{% if audience == "internal" %}
-|| `solomon_resolver_tag` | **Type**: `std::string`
-**Default value**: `ytflow_vanilla_common`
-Tag for the Solomon resolver, written into the operation annotations. ||
-{% endif %}
 || `alias` | **Type**: `std::optional<std::string>`
 An explicit alias for the vanilla operation. If not set, it is generated as `*flow-runner <cluster>:<path>`. ||
 || `title` | **Type**: `std::optional<std::string>`
 Title of the vanilla operation. ||
 || `network_project` | **Type**: `std::optional<std::string>`
-The network project in which the vanilla operation runs.{% if audience == "internal" %} Internal builds use `yt_flow_common` by default; set it to `#` to disable the default.{% else %} Open-source builds have no default.{% endif %} ||
+The network project for a vanilla operation has no default in open-source builds. ||
 || `proxy_url_aliasing_rules` | **Type**: `THashMap<std::string, std::string>`
 **Default value**: `{}`
 Aliases for proxy URLs, injected into the flow-server inside the vanilla jobs. ||

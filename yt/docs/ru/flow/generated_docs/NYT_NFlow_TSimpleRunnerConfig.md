@@ -79,6 +79,9 @@
 || `set_flow_core_target` | **Тип**: `bool`
 **Значение по умолчанию**: `true`
  ||
+|| `direct_controller_commands` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDirectControllerCommandsConfig](./all_yson_structs#NYT_NFlow_TDirectControllerCommandsConfig)`>`
+**Значение по умолчанию**: `{}`
+ ||
 |#
 
 

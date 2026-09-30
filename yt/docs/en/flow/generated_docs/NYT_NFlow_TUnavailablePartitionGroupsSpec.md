@@ -3,13 +3,5 @@
 <!-- Before using doc generation tool check readme: yt/yt/flow/yandex/tools/generate_yson_struct_doc/README.md -->
 Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/library/cpp/common/spec.h)
 
-#|
-|| **Parameter** | **Description** ||
-{% if audience == "internal" %}|| `max_unavailable_groups` | **Type**: `int`
-**Default value**: `1`
-How many partition availability groups can be unavailable while the watermark still advances (their watermark is hidden). For example, when reading from a primary `Logbroker` installation across three data centers, a value of `1` allows the watermark to continue advancing if one data center goes down. ||{% endif %}
-{% if audience == "internal" %}|| `min_available_groups` | **Type**: `int`
-**Default value**: `1`
-How many partition availability groups must be available for the watermark to advance. Protects sources with a single group (`lbkx` and non-`Logbroker`): if the only group is unavailable, the watermark does not advance to avoid losing the pro-join. ||{% endif %}
-|#
+**This structure has no main parameters.**
 

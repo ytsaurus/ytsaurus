@@ -15,6 +15,8 @@ Source: [yt/yt/client/api/rpc_proxy/config.h]({{source-root}}/yt/yt/client/api/r
  ||
 || `replication_card_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TReplicationCardCacheConfig](./all_yson_structs#NYT_NChaosClient_TReplicationCardCacheConfig)`>`
  ||
+|| `chaos_lease_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TChaosLeaseCacheConfig](./all_yson_structs#NYT_NChaosClient_TChaosLeaseCacheConfig)`>`
+ ||
 || `cluster_url` | **Type**: `std::optional<std::string>`
  ||
 || `cluster_tag` | **Type**: `std::optional<NYT::TStrongTypedef<unsigned short, NYT::NObjectClient::TCellTagTag, NYT::TStrongTypedefOptions{true}>>`

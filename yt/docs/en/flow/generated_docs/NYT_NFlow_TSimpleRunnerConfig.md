@@ -79,6 +79,9 @@ If set and `enable=%true`, the runner starts a vanilla operation on {{product-na
 || `set_flow_core_target` | **Type**: `bool`
 **Default value**: `true`
  ||
+|| `direct_controller_commands` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDirectControllerCommandsConfig](./all_yson_structs#NYT_NFlow_TDirectControllerCommandsConfig)`>`
+**Default value**: `{}`
+ ||
 |#
 
 

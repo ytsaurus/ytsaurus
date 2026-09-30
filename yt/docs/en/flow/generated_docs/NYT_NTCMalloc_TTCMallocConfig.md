@@ -31,6 +31,9 @@ Source: [yt/yt/library/tcmalloc/config.h]({{source-root}}/yt/yt/library/tcmalloc
 || `background_release_rate` | **Type**: `long`
 **Default value**: `33554432`
  ||
+|| `fail_fast_on_oom` | **Type**: `bool`
+**Default value**: `true`
+ ||
 || `heap_size_limit` | **Type**: `NYT::TIntrusivePtr<`[NYT::NTCMalloc::THeapSizeLimitConfig](./all_yson_structs#NYT_NTCMalloc_THeapSizeLimitConfig)`>`
 **Default value**: `{}`
  ||

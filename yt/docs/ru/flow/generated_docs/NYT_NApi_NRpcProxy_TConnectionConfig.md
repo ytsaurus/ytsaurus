@@ -15,6 +15,8 @@
  ||
 || `replication_card_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TReplicationCardCacheConfig](./all_yson_structs#NYT_NChaosClient_TReplicationCardCacheConfig)`>`
  ||
+|| `chaos_lease_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TChaosLeaseCacheConfig](./all_yson_structs#NYT_NChaosClient_TChaosLeaseCacheConfig)`>`
+ ||
 || `cluster_url` | **Тип**: `std::optional<std::string>`
  ||
 || `cluster_tag` | **Тип**: `std::optional<NYT::TStrongTypedef<unsigned short, NYT::NObjectClient::TCellTagTag, NYT::TStrongTypedefOptions{true}>>`
