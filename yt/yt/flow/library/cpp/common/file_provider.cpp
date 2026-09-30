@@ -70,6 +70,8 @@ void TFileProviderRevision::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("size", &TThis::Size)
         .Default();
+    registrar.Parameter("timestamp", &TThis::Timestamp)
+        .Default();
     registrar.Parameter("locator", &TThis::Locator)
         .DefaultCtor([] {
             return GetEphemeralNodeFactory()->CreateMap();

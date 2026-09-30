@@ -262,6 +262,24 @@ TEST(TYTFileProviderTest, RejectsChangedSourceBeforeReading)
     }
 }
 
+TEST(TYTFileProviderTest, TimestampDoesNotChangeCacheIdentity)
+{
+    const auto objectId = MakeFileId(1);
+    auto client = New<testing::StrictMock<TMockClient>>();
+    auto provider = MakeProvider("//current", client);
+    auto node = ConvertToNode(MakeFileNode(objectId, TRevision{11}, 6));
+    const auto timestamp = TInstant::ParseIso8601("2026-07-01T00:00:00Z");
+    node->MutableAttributes()->Set("modification_time", timestamp);
+    ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
+    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    EXPECT_EQ(first->Timestamp, timestamp);
+    node->MutableAttributes()->Set("modification_time", timestamp + TDuration::Hours(1));
+    ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
+    auto second = WaitFor(provider->Discover()).ValueOrThrow();
+    EXPECT_EQ(second->Timestamp, timestamp + TDuration::Hours(1));
+    EXPECT_EQ(first->ObjectId, second->ObjectId);
+}
+
 TEST(TYTFileProviderTest, DownloadsOriginalTargetAfterRejectedReplacement)
 {
     auto objectId = MakeFileId(1);

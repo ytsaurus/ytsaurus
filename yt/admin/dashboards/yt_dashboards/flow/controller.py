@@ -345,11 +345,51 @@ def build_alignment_timestamp():
     )
 
 
+def build_file_resources():
+    def target(metric):
+        return (
+            FlowController(f"yt.flow.controller.resource_controller.{metric}")
+            .all("resource", "file_provider_id", "revision_id", "display_version")
+            .aggr("host")
+        )
+
+    return (
+        Rowset()
+        .stack(False)
+        .row()
+        .cell(
+            "Resource/File/Active",
+            target("file_provider_target_revision").value("state", "active").unit("UNIT_COUNT"),
+            description="Controller target. The revision label identifies cached bytes; display_version identifies the source version.",
+        )
+        .cell(
+            "Resource/File/Preparing",
+            target("file_provider_target_revision").value("state", "preparing").unit("UNIT_COUNT"),
+            description="Candidate awaiting validation before becoming the active target.",
+        )
+        .row()
+        .cell(
+            "Resource/File/Instances",
+            FlowController("yt.flow.controller.resource_controller.file_provider_revision_instance_count")
+            .all("resource", "file_provider_id", "revision_id", "state")
+            .aggr("host")
+            .unit("UNIT_COUNT"),
+            description="Worker-reported revision states, distinct from the controller target.",
+        )
+        .cell(
+            "Resource/File/Age",
+            target("file_provider_target_revision_age").all("state").unit("UNIT_SECONDS"),
+            description="Now minus the source timestamp of each target revision. Unknown timestamps are omitted; this is not time since download or rollout.",
+        )
+    )
+
+
 def build_flow_controller(backend="monitoring"):
     def fill(d):
         d.add(build_pipeline_state())
         d.add(build_resource_usage("controller", add_component_to_title=False, backend=backend))
         d.add(build_flow_layout())
+        d.add(build_file_resources())
         d.add(build_flow_layout_mutations(backend))
         d.add(build_controller_iterations(backend))
         d.add(build_heartbeats())
