@@ -45,6 +45,7 @@ struct TLockedYTFileProviderObject
     TObjectId ObjectId;
     TRevision ContentRevision;
     std::optional<i64> Size;
+    std::optional<TInstant> Timestamp;
 };
 
 std::string ResolveCluster(
@@ -84,6 +85,7 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
         "id",
         "type",
         "content_revision",
+        "modification_time",
         "uncompressed_data_size",
         "dynamic",
         "schema",
@@ -145,6 +147,7 @@ TLockedYTFileProviderObject LockYTFileProviderObject(
         .ObjectId = objectId,
         .ContentRevision = contentRevision,
         .Size = size,
+        .Timestamp = attributes.Find<TInstant>("modification_time"),
     };
 }
 
@@ -307,13 +310,15 @@ TFuture<TFileProviderRevisionPtr> DiscoverYTFileProvider(
         AbortTransaction(transaction);
     });
 
-    return MakeFuture(MakeYTFileProviderRevision(
+    auto revision = MakeYTFileProviderRevision(
         fileProviderClassName,
         path,
         cluster,
         object.ObjectId,
         object.ContentRevision,
-        object.Size));
+        object.Size);
+    revision->Timestamp = object.Timestamp;
+    return MakeFuture(std::move(revision));
 }
 
 TFuture<void> DownloadYTFile(

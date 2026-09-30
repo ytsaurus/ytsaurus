@@ -7,6 +7,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/library/profiling/solomon
     yt/yt/core/test_framework
     yt/yt/client/cache
     yt/yt/client/unittests/mock
