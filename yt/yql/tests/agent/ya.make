@@ -19,7 +19,7 @@ DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
     yt/yql/tests/agent/throwing_udf
-    yt/yql/tools/mrjob
+    yt/yql/tools/mrjob/impl
     yt/yql/tools/ytflow_worker
 
     yql/essentials/udfs/common/datetime2
