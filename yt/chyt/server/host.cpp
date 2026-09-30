@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "chunk_spec_cache.h"
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
 #include "config.h"
@@ -237,6 +238,16 @@ public:
             AttributeFetchTimeCounter_ = ClickHouseYtProfiler().Timer("/object_attribute_fetch/execution");
         }
         AttributeFetchBatchSizeCounter_ = ClickHouseYtProfiler().Summary("/object_attribute_fetch/batch_size");
+
+        if (timeHistogramConfig && timeHistogramConfig->ExponentialBounds) {
+            const auto& exponentialBounds = *timeHistogramConfig->ExponentialBounds;
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/chunk_specs_fetch/execution", exponentialBounds->Min, exponentialBounds->Max);
+        } else if (timeHistogramConfig && timeHistogramConfig->CustomBounds) {
+            const auto& customBounds = *timeHistogramConfig->CustomBounds;
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/chunk_specs_fetch/execution", customBounds);
+        } else {
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().Timer("/chunk_specs_fetch/execution");
+        }
     }
 
     void SetContext(DB::ContextMutablePtr context_)
@@ -779,6 +790,16 @@ public:
         return TableColumnarStatisticsCache_;
     }
 
+    TChunkSpecCachePtr GetChunkSpecCache() const
+    {
+        return ChunkSpecCache_;
+    }
+
+    NProfiling::TEventTimer& GetChunkSpecsFetchTimeCounter()
+    {
+        return ChunkSpecsFetchTimeCounter_;
+    }
+
     bool HasUserDefinedSqlObjectStorage() const
     {
         return Config_->UserDefinedSqlObjectsStorage->Enabled;
@@ -1005,6 +1026,7 @@ private:
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
+    TChunkSpecCachePtr ChunkSpecCache_;
 
     std::vector<std::string> TableAttributesToFetch_;
 
@@ -1026,6 +1048,7 @@ private:
 
     NProfiling::TEventTimer AttributeFetchTimeCounter_;
     NProfiling::TSummary AttributeFetchBatchSizeCounter_;
+    NProfiling::TEventTimer ChunkSpecsFetchTimeCounter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -1083,6 +1106,16 @@ private:
             TableSchemaCache_ = New<TTableSchemaCache>(
                 Config_->TableSchemaCache,
                 ClickHouseYtProfiler().WithPrefix("/table_schema_cache"));
+        }
+
+        if (Config_->Subquery->ChunkSpecCache) {
+            ChunkSpecCache_ = New<TChunkSpecCache>(
+                Config_->Subquery->ChunkSpecCache,
+                Config_->Subquery->MaxChunksPerFetch,
+                Config_->Subquery->MaxChunksPerLocateRequest,
+                FetcherInvoker_,
+                Logger(),
+                ClickHouseYtProfiler().WithPrefix("/chunk_specs_cache"));
         }
     }
 
@@ -1520,6 +1553,16 @@ void THost::InitSingletones()
 NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatisticsCache() const
 {
     return Impl_->GetTableColumnarStatisticsCache();
+}
+
+TChunkSpecCachePtr THost::GetChunkSpecCache() const
+{
+    return Impl_->GetChunkSpecCache();
+}
+
+NProfiling::TEventTimer& THost::GetChunkSpecsFetchTimeCounter() const
+{
+    return Impl_->GetChunkSpecsFetchTimeCounter();
 }
 
 THost::~THost() = default;

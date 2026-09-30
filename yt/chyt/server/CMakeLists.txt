@@ -71,6 +71,7 @@ target_link_libraries(yt-chyt-server PUBLIC
 target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/chunk_spec_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/clickhouse_server.cpp

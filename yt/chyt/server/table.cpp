@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/ytree/node.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -132,6 +134,10 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Revision = attributes->Get<NHydra::TRevision>("revision");
+    ContentRevision = attributes->Get<NHydra::TRevision>("content_revision", Revision);
+    if (auto chunkMergerInfo = attributes->Find<INodePtr>("chunk_merger_info")) {
+        ChunkMergerRevision = chunkMergerInfo->AsMap()->FindChildValue<i64>("revision").value_or(0);
+    }
     RowCount = attributes->Find<i64>("row_count");
 
     SchemaId = attributes->Get<TObjectId>("schema_id", NullObjectId);

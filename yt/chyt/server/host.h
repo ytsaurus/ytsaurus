@@ -153,6 +153,11 @@ public:
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
 
+    //! Returns nullptr if chunk spec caching is disabled (TSubqueryConfig::ChunkSpecCache is unset).
+    TChunkSpecCachePtr GetChunkSpecCache() const;
+
+    NProfiling::TEventTimer& GetChunkSpecsFetchTimeCounter() const;
+
     bool HasUserDefinedSqlObjectStorage() const;
     IUserDefinedSqlObjectsYTStorage* GetUserDefinedSqlObjectStorage();
 

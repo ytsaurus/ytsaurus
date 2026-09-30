@@ -16,6 +16,8 @@ const std::vector<std::string> TableAttributesToFetch{
     "external",
     "external_cell_tag",
     "revision",
+    "content_revision",
+    "chunk_merger_info",
     "boundary_keys",
     "enable_dynamic_store_read",
     "chyt_banned",

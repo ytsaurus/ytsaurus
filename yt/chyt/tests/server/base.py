@@ -104,6 +104,8 @@ class Clique(object):
                  export_query_log=False,
                  enable_object_repository=True,
                  remove_storage_artifacts_on_exit=True,
+                 disable_chunk_spec_cache=False,
+                 chunk_spec_cache_capacity=None,
                  **kwargs):
         """
         alias: str
@@ -137,9 +139,14 @@ class Clique(object):
                 "user_defined_sql_objects_storage": {
                     "update_period": 300,
                     "expire_after_successful_sync_time": 1000,
-                }
+                },
             },
         }
+        if not disable_chunk_spec_cache:
+            chunk_spec_cache_config = {}
+            if chunk_spec_cache_capacity is not None:
+                chunk_spec_cache_config["capacity"] = chunk_spec_cache_capacity
+            discovery_patch["yt"]["subquery"] = {"chunk_spec_cache": chunk_spec_cache_config}
         config = update(Clique.base_config, discovery_patch)
 
         if export_query_log:
