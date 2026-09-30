@@ -141,8 +141,11 @@ bool TSchedulingHeartbeatContextBase::CanStartAllocation(
             diskRequest.DiskSpaceWithoutMedium.reset();
         }
 
-        i64 totalDiskQuotaDiscount = Discount_.DiscountMediumDiskQuota;
-        diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] = std::max(diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] - totalDiskQuotaDiscount, 0l);
+        auto it = diskRequest.DiskSpacePerMedium.find(*DiscountMediumIndex_);
+        if (it != diskRequest.DiskSpacePerMedium.end()) {
+            i64& diskSpace = it->second;
+            diskSpace = std::max(diskSpace - Discount_.DiscountMediumDiskQuota, i64{0});
+        }
     }
 
     std::vector<TDiskQuota> diskRequests(DiskRequests_);
