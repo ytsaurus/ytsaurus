@@ -79,6 +79,8 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
+    registrar.Parameter("alert_flush_period", &TThis::AlertFlushPeriod)
+        .Default(DefaultAlertFlushPeriod);
     registrar.Parameter("check_transaction_is_compatible_with_method", &TThis::CheckTransactionIsCompatibleWithMethod)
         .Default(true);
     registrar.Parameter("alert_transaction_is_not_compatible_with_method", &TThis::AlertTransactionIsNotCompatibleWithMethod)
@@ -123,6 +125,17 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("transaction_finisher", &TThis::TransactionFinisher)
         .DefaultNew();
+
+    registrar.Parameter("active_transaction_count_alert_threshold", &TThis::ActiveTransactionCountAlertThreshold)
+        .GreaterThanOrEqual(0)
+        .Default(200'000);
+
+    registrar.Parameter("active_transaction_count_limit", &TThis::ActiveTransactionCountLimit)
+        .GreaterThanOrEqual(0)
+        .Default(300'000);
+
+    registrar.Parameter("enforce_active_transaction_count_limit", &TThis::EnforceActiveTransactionCountLimit)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

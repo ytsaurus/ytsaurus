@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_domestic_medium,
-    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows, gc_collect)
+    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows, gc_collect, create_user, remove_user)
 from yt_helpers import master_exit_read_only_sync, account_usage_all_zero
 
 from yt_type_helpers import make_schema, normalize_schema
@@ -715,6 +715,47 @@ def check_hunk_media():
     assert get("//tmp/t_medium/@hunk_media") == {"m1": {"replication_factor": 5, "data_parts_only": False}}
 
 
+def check_user_active_transaction_count():
+    def get_reign():
+        return get(f"//sys/primary_masters/{ls('//sys/primary_masters')[0]}/orchid/reign")
+
+    prev_reign = get_reign()
+
+    name1 = "u1__check_user_active_transaction_count"
+    name2 = "u2__check_user_active_transaction_count"
+    create_user(name1)
+    create_user(name2)
+    user1_id = get(f"//sys/users/{name1}/@id")
+    user2_id = get(f"//sys/users/{name2}/@id")
+
+    txs1 = [start_transaction(authenticated_user=name1) for _ in range(2)]
+    txs2 = [start_transaction(authenticated_user=name2) for _ in range(3)]
+
+    remove_user(name2)
+
+    yield
+
+    new_reign = get_reign()
+
+    set(f"//sys/users/{name1}/@active_transaction_count_alert_threshold_and_limit_override", {"alert_threshold": 10, "limit": 3}, force=True)
+    set("//sys/@config/transaction_manager/enforce_active_transaction_count_limit", True)
+
+    txs1 += [start_transaction(authenticated_user=name1)]
+
+    for txs, user_id in [(txs1, user1_id)] + (prev_reign == new_reign) * [(txs2, user2_id)]:
+        for tx in txs:
+            assert get(f"#{tx}/@initiator_id") == user_id
+
+    with raises_yt_error("Active transaction count limit exceeded"):
+        start_transaction(authenticated_user=name1)
+
+    for i, tx in enumerate(txs1 + txs2):
+        (commit_transaction, abort_transaction)[i % 2](tx)
+
+    remove_user(name1)
+    set("//sys/@config/transaction_manager/enforce_active_transaction_count_limit", False)
+
+
 def get_monitoring(monitoring_prefix, master):
     return get(
         "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
@@ -771,6 +812,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_queue_agent_objects,
     check_secondary_indices,
     check_hunk_media,
+    check_user_active_transaction_count,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
@@ -809,10 +851,11 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("ermolovd")
     def test(self):
+        checker_list = deepcopy(MASTER_SNAPSHOT_CHECKER_LIST)
         if self.is_multicell():
-            MASTER_SNAPSHOT_CHECKER_LIST.append(check_transactions)
+            checker_list += [check_transactions]
 
-        checker_state_list = [iter(c()) for c in MASTER_SNAPSHOT_CHECKER_LIST]
+        checker_state_list = [iter(c()) for c in checker_list]
         for s in checker_state_list:
             next(s)
 

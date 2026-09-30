@@ -156,6 +156,8 @@ def get_dynamic_master_config():
 
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
+            "profiling_period": 100,
+            "alert_flush_period": 100,
         },
         "table_manager": {
             "enable_column_constraints_for_tables": True,

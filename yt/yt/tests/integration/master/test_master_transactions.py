@@ -8,8 +8,10 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep)
+    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep,
+    get_active_primary_master_leader_address)
 
+from yt_helpers import profiler_factory
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
 from yt.environment.helpers import assert_items_equal
@@ -22,6 +24,7 @@ import builtins
 from datetime import datetime, timedelta
 from time import sleep
 
+import re
 
 ##################################################################
 
@@ -700,6 +703,159 @@ class TestMasterTransactions(YTEnvSetup):
             set(f"#{tx}/@owner", "g", authenticated_user="root")
         commit_transaction(tx)
 
+    @authors("ivpiskarev")
+    def test_start_tx_from_nonexistent_user(self):
+        with raises_yt_error("No such user"):
+            start_transaction(authenticated_user="nonexistent_user")
+
+    @authors("ivpiskarev")
+    def test_active_transaction_count_limit(self):
+        # To force all transactions to live on a single cell.
+        parent_tx = start_transaction(authenticated_user="root", timeout=10**6)
+        cell_tag = get(f"#{parent_tx}/@native_cell_tag")
+
+        def start_tx(**kwargs):
+            return start_transaction(tx=parent_tx, **kwargs)
+
+        create_user("u")
+
+        def set_and_wait(path, value, **kwargs):
+            set(path, value, **kwargs)
+            wait(lambda: get(path, driver=get_driver(cell_tag - 10)) == value)
+
+        def check(user, limit, enforced=True):
+            txs = [start_tx(authenticated_user=user) for _ in range(limit)]
+            if enforced:
+                for i in range(3):
+                    with raises_yt_error("Active transaction count limit exceeded"):
+                        start_tx(authenticated_user=user)
+                    if limit > 0:
+                        (commit_transaction, abort_transaction)[i % 2](txs.pop(0))
+                        txs += [start_tx(authenticated_user=user)]
+            else:
+                txs += [start_tx(authenticated_user=user)]
+            txs += [start_tx()]
+            for i, tx in enumerate(txs):
+                (commit_transaction, abort_transaction)[i % 2](tx)
+
+        set_and_wait("//sys/@config/transaction_manager/active_transaction_count_limit", 2)
+        check("u", 2, enforced=False)  # Limit is not enforced by default. At least for now.
+        set_and_wait("//sys/@config/transaction_manager/enforce_active_transaction_count_limit", True)
+        check("u", 2)
+        for limit in [1, 2, 3]:
+            set_and_wait("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override",
+                         {"alert_threshold": 10, "limit": limit}, force=True)
+            check("u", limit)
+        remove("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override")
+        wait(lambda: not exists("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override", driver=get_driver(cell_tag - 10)))
+        check("u", 2)
+        check("root", 2, enforced=False)
+        set_and_wait("//sys/@config/transaction_manager/enforce_active_transaction_count_limit", False)
+        check("u", 2, enforced=False)
+
+        commit_transaction(parent_tx)
+
+    @authors("ivpiskarev")
+    def test_active_transaction_count_limits_configuration(self):
+        create_user("u")
+        attr = "active_transaction_count_alert_threshold_and_limit_override"
+
+        set("//sys/@config/transaction_manager/active_transaction_count_alert_threshold", 5)
+        set("//sys/@config/transaction_manager/active_transaction_count_limit", 10)
+        assert get("//sys/@config/transaction_manager/active_transaction_count_alert_threshold") == 5
+        assert get("//sys/@config/transaction_manager/active_transaction_count_limit") == 10
+
+        set(f"//sys/users/u/@{attr}", {"alert_threshold": 5, "limit": 10})
+        assert get(f"//sys/users/u/@{attr}") == {"alert_threshold": 5, "limit": 10}
+        set(f"//sys/users/u/@{attr}/alert_threshold", 3)
+        assert get(f"//sys/users/u/@{attr}/alert_threshold") == 3
+        assert get(f"//sys/users/u/@{attr}") == {"alert_threshold": 3, "limit": 10}
+        set(f"//sys/users/u/@{attr}/limit", 20)
+        assert get(f"//sys/users/u/@{attr}/limit") == 20
+        assert get(f"//sys/users/u/@{attr}") == {"alert_threshold": 3, "limit": 20}
+
+        for value, force in [({"alert_threshold": 4, "limit": 5}, False), ({"alert_threshold": 8, "limit": 7}, True)]:
+            set(f"//sys/users/u/@{attr}", value, force=force)
+            for cell_tag in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+                wait(lambda: get(f"//sys/users/u/@{attr}", driver=get_driver(cell_tag)) == value)
+
+        with raises_yt_error("Use format"):
+            set(f"//sys/users/u/@{attr}", {"alert_threshold": 5})
+        with raises_yt_error("Use format"):
+            set(f"//sys/users/u/@{attr}/meow", "meow")
+        remove(f"//sys/users/u/@{attr}")
+        with raises_yt_error("(no child|not found)"):
+            get(f"//sys/users/u/@{attr}")
+        with raises_yt_error("Use format"):
+            set(f"//sys/users/u/@{attr}", {"alert_threshold": 5, "limit": 10, "woof": "woof"})
+        for threshold, limit in [(5, 10**10), (10**10, 10**12)]:
+            with raises_yt_error("Use format"):
+                set(f"//sys/users/u/@{attr}", {"alert_threshold": threshold, "limit": limit})
+
+        with raises_yt_error("misconfiguration"):
+            set(f"//sys/users/u/@{attr}", {"alert_threshold": 10, "limit": 5})
+        for threshold, limit in [(-1, 1), (1, -1), (-1, -1)]:
+            with raises_yt_error("cannot be negative"):
+                set(f"//sys/users/u/@{attr}", {"alert_threshold": threshold, "limit": limit}, force=True)
+        set(f"//sys/users/u/@{attr}", {"alert_threshold": 5, "limit": 10})
+        for it in ["alert_threshold", "limit"]:
+            with raises_yt_error("cannot be negative"):
+                set(f"//sys/users/u/@{attr}/{it}", -1, force=True)
+
+        def has_alert(pattern):
+            return any(bool(re.search(pattern, alert["message"], re.IGNORECASE)) for alert in get("//sys/@master_alerts"))
+
+        set("//sys/@config/transaction_manager/active_transaction_count_limit", 5)
+        set("//sys/@config/transaction_manager/active_transaction_count_alert_threshold", 10)
+        wait(lambda: has_alert(r"alert_?threshold\w* is greater than \w*limit"))
+
+    @authors("ivpiskarev")
+    def test_active_transaction_count_metrics(self):
+        # To force all transactions to live on a single cell.
+        parent_tx = start_transaction(authenticated_user="root", timeout=10**6)
+        cell_tag = get(f"#{parent_tx}/@native_cell_tag")
+
+        def start_tx(**kwargs):
+            return start_transaction(tx=parent_tx, **kwargs)
+
+        create_user("u")
+        user_id = get("//sys/users/u/@id")
+
+        if cell_tag == 10:
+            profiler = profiler_factory().at_primary_master(get_active_primary_master_leader_address(self))
+        else:
+            profiler = profiler_factory().at_secondary_master(cell_tag, ls(f"//sys/secondary_masters/{cell_tag}")[0])
+
+        def check(count, tags):
+            values = profiler.gauge("transaction_server/active_transaction_count", fixed_tags=tags).get_all()
+            expected_values = [{"tags": tags, "value": float(count)}]
+            return all(value in values for value in expected_values)
+
+        tx1 = start_tx(authenticated_user="u")
+        wait(lambda: check(1, {"user": "u", "user_id": user_id}))
+        tx2 = start_tx(authenticated_user="u")
+        wait(lambda: check(2, {"user": "u", "user_id": user_id}))
+        commit_transaction(tx1)
+        wait(lambda: check(1, {"user": "u", "user_id": user_id}))
+        commit_transaction(tx2)
+        # Not waiting for check(0, ...), because user's active_transaction_count is not reported when it is zero.
+
+        for i, sweep_period in enumerate([50_000, None, 10, None]):
+            if sweep_period is not None:
+                set("//sys/@config/object_manager/gc_sweep_period", sweep_period)
+            name = f"u_{i}"
+            create_user(name)
+            user_id = get(f"//sys/users/{name}/@id")
+            txs = [start_tx(authenticated_user=name) for _ in range(3)]
+            wait(lambda: check(len(txs), {"user": name, "user_id": user_id}))
+            remove(f"//sys/users/{name}")
+            while len(txs):
+                wait(lambda: check(len(txs), {"user": "<unknown>", "user_id": user_id}))
+                (commit_transaction, abort_transaction)[len(txs) % 2](txs.pop(0))
+
+        commit_transaction(parent_tx)
+        set("//sys/@config/object_manager/gc_sweep_period", 10)
+
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
@@ -997,6 +1153,62 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         commit_transaction(tx)
         wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
+
+    @authors("ivpiskarev")
+    def test_active_transaction_count_limit_sharded_tx(self):
+        cell_tags = [14, 15]
+
+        def set_and_wait(path, value, **kwargs):
+            set(path, value, **kwargs)
+            for cell_tag in cell_tags:
+                wait(lambda: get(path, driver=get_driver(cell_tag - 10)) == value)
+
+        def gen_txs(cell_tags):
+            txs = []
+            txs_cell_tags = []
+            while not all(tag in txs_cell_tags for tag in cell_tags):
+                assert len(txs) <= 10
+                txs += [start_transaction()]
+                txs_cell_tags += [get(f"#{txs[-1]}/@native_cell_tag")]
+            result = []
+            for tag in cell_tags:
+                ind = txs_cell_tags.index(tag)
+                result += [txs.pop(ind)]
+                txs_cell_tags.pop(ind)
+            for tx in txs:
+                abort_transaction(tx)
+            return result
+
+        def check(user, limit):
+            parent_txs = gen_txs(cell_tags)
+            txs = []
+            for it in range(2):
+                for i in range(limit):
+                    txs += [start_transaction(tx=parent_txs[it], authenticated_user=user)]
+                with raises_yt_error("Active transaction count limit exceeded"):
+                    start_transaction(tx=parent_txs[it], authenticated_user=user)
+            for i, tx in enumerate(txs):
+                create("table", f"//tmp/t_{i}", tx=tx, authenticated_user=user)
+            for tx in txs:
+                commit_transaction(tx, authenticated_user=user)
+            for tx in parent_txs:
+                commit_transaction(tx)
+            for i in range(len(txs)):
+                remove(f"//tmp/t_{i}")
+
+        create_user("u")
+
+        set_and_wait("//sys/@config/transaction_manager/active_transaction_count_limit", 2)
+        set_and_wait("//sys/@config/transaction_manager/enforce_active_transaction_count_limit", True)
+        check("u", 2)
+        for limit in [3, 2, 1]:
+            set_and_wait("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override",
+                         {"alert_threshold": 10, "limit": limit}, force=True)
+            check("u", limit)
+        remove("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override")
+        for cell_tag in cell_tags:
+            wait(lambda: not exists("//sys/users/u/@active_transaction_count_alert_threshold_and_limit_override", driver=get_driver(cell_tag - 10)))
+        check("u", 2)
 
 
 @authors("kvk1920")
