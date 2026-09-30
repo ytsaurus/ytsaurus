@@ -80,7 +80,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
     if get_gateway_cfg_suffix() != '' and what != 'Results':
         pytest.skip('non-trivial gateways.conf')
 
-    ytfilerun_binary = yql_binary_path('yt/yql/tools/ytfilerun/ytfilerun')
+    ytfilerun_binary = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
     config = get_config(suite, case, cfg, data_path=DATA_PATH)
     cfg_postprocess = add_table_clusters(suite, config)
 

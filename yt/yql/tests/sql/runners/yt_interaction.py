@@ -22,7 +22,7 @@ from yt.yql.tests.common.test_framework.test_utils import infer_yt_schema
 from yt.yql.tests.sql.runners.common import DATA_PATH, resolve_langver, maybe_append_table_attr_canon, iter_out_tables_for_canon
 from yt.yql.tests.sql.runners.yt_setup import upload_yt_files
 
-YTFILERUN_PATH = yql_binary_path('yt/yql/tools/ytfilerun/ytfilerun')
+YTFILERUN_PATH = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
 YSONDIFF_PATH = yql_binary_path('yql/essentials/tools/ysondiff/ysondiff')
 
 

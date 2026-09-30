@@ -1,7 +1,5 @@
-PROGRAM(ytfilerun)
-
 SRCS(
-    ytfilerun.cpp
+    yt/yql/tools/ytfilerun/ytfilerun.cpp
 )
 
 PEERDIR(
@@ -11,5 +9,3 @@ PEERDIR(
 INCLUDE(${ARCADIA_ROOT}/yql/tools/yqlrun/ya.make.inc)
 
 YQL_LAST_ABI_VERSION()
-
-END()
