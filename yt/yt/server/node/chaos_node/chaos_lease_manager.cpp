@@ -36,6 +36,7 @@ using namespace NYTree;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NChaosClient;
+using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NConcurrency;
@@ -329,7 +330,7 @@ public:
             if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
                 reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
             {
-                chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
+                chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds(), NullTimestamp);
             }
 
             YT_TLOG_DEBUG("Chaos lease migrated")
@@ -339,7 +340,7 @@ public:
                 ChaosLeasesWatcher_->RegisterObject(
                     chaosLeaseId,
                     chaosLease->ConvertToClientLease(),
-                    NTransactionClient::NullTimestamp);
+                    NullTimestamp);
             }
         }
 
@@ -872,7 +873,7 @@ private:
             .With("LeaseId", chaosLeaseId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
+        chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds(), NullTimestamp);
 
         ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 
@@ -884,7 +885,7 @@ private:
         ChaosLeasesWatcher_->RegisterObject(
             chaosLeaseId,
             chaosLease->ConvertToClientLease(),
-            NTransactionClient::NullTimestamp);
+            NullTimestamp);
     }
 
     void OnLeaseExpired(TChaosLeaseId chaosLeaseId)
@@ -938,7 +939,7 @@ private:
             convertedLeases.push_back(IChaosLeasesWatcher::TSnapshot{
                 .ObjectId = leaseId,
                 .Object = lease->ConvertToClientLease(),
-                .CacheTimestamp = NTransactionClient::NullTimestamp,
+                .CacheTimestamp = NullTimestamp,
             });
         }
 
