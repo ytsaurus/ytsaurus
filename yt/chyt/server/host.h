@@ -20,6 +20,7 @@
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
+#include <yt/yt/core/ytree/public.h>
 
 #include <string>
 
@@ -41,7 +42,9 @@ public:
         IInvokerPtr controlInvoker,
         TPorts ports,
         TYtConfigPtr config,
-        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig);
+        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig,
+        NApi::NNative::EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+        NYTree::INodePtr clusterConnectionNode);
 
     virtual ~THost() override;
 
@@ -112,6 +115,7 @@ public:
     NApi::NNative::IClientPtr GetDictionariesClient() const;
     NApi::NNative::IClientPtr GetSqlObjectsClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
+    NApi::NNative::IConnectionPtr GetConnection() const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol

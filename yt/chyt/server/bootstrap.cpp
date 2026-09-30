@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -152,7 +154,21 @@ void TBootstrap::DoRun()
     RpcServer_->Configure(Config_->RpcServer);
 
     {
-        auto host = New<THost>(GetControlInvoker(), Config_->GetPorts(), Config_->Yt, Config_->ClusterConnection);
+        auto host = New<THost>(
+            GetControlInvoker(),
+            Config_->GetPorts(),
+            Config_->Yt,
+            Config_->ClusterConnection,
+            Config_->ClusterConnectionDynamicConfigPolicy,
+            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"));
+
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/cluster_connection",
+                CreateVirtualNode(host->GetConnection()->GetOrchidService()));
+        }
+
         ClickHouseServer_ = CreateClickHouseServer(host.Get(), Config_->ClickHouse);
         // We dont need this caches, but they must be initialized to read system.server_settings, delete this when it's fixed in upstream.
         {
