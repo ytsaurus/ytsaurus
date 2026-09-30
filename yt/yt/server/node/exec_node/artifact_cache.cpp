@@ -1117,7 +1117,6 @@ private:
         i64 TotalSize = 0;
     };
 
-    // The artifact file content is the concatenation of its chunk data in chunk spec order.
     static std::optional<TFileChunkLayout> TryGetFileChunkLayout(const TArtifactKey& key)
     {
         std::vector<i64> offsets;
