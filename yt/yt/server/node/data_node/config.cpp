@@ -371,6 +371,11 @@ void TArtifactCacheReaderConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(1);
 
+    // Zero disables incremental writeback.
+    registrar.Parameter("writeback_batch_size", &TThis::WritebackBatchSize)
+        .GreaterThanOrEqual(0)
+        .Default(64_MB);
+
     registrar.Preprocessor([] (TThis* config) {
         config->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
     });

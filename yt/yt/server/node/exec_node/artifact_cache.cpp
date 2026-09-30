@@ -275,6 +275,103 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Triggers incremental writeback via sync_file_range every WritebackBatchSize bytes
+// so that the final Flush() does not have to flush the whole file at once.
+// Non-positive writebackBatchSize disables writeback.
+class TIncrementalWritebackOutput
+    : public IOutputStream
+{
+public:
+    TIncrementalWritebackOutput(
+        TFile file,
+        i64 startOffset,
+        i64 writebackBatchSize,
+        NLogging::TLogger logger,
+        std::unique_ptr<IOutputStream> underlying)
+        : Underlying_(std::move(underlying))
+        , WritebackBatchSize_(writebackBatchSize)
+        , Logger(std::move(logger))
+        , File_(std::move(file))
+        , FlushedOffset_(startOffset)
+    { }
+
+private:
+    const std::unique_ptr<IOutputStream> Underlying_;
+    const i64 WritebackBatchSize_;
+    const NLogging::TLogger Logger;
+
+    TFile File_;
+    i64 FlushedOffset_;
+    i64 UnflushedBytes_ = 0;
+
+    void AccountForWrittenBytes(i64 size)
+    {
+        if (WritebackBatchSize_ <= 0) {
+            return;
+        }
+
+        UnflushedBytes_ += size;
+
+        if (UnflushedBytes_ >= WritebackBatchSize_) {
+            FlushUnflushedBytes();
+        }
+    }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        Underlying_->Write(buf, len);
+        AccountForWrittenBytes(len);
+    }
+
+    void DoWriteV(const TPart* parts, size_t count) override
+    {
+        i64 totalSize = 0;
+        for (size_t index = 0; index < count; ++index) {
+            totalSize += parts[index].len;
+        }
+        Underlying_->Write(parts, count);
+        AccountForWrittenBytes(totalSize);
+    }
+
+    void DoFlush() override
+    {
+        Underlying_->Flush();
+    }
+
+    void DoFinish() override
+    {
+        // NB: Finish() is not forwarded to the underlying stream: neither TPositionalFileOutput
+        // nor TUnbufferedFileOutput needs it for correctness, and TUnbufferedFileOutput::DoFinish()
+        // would fsync the file before the final Flush() in ProduceArtifactFile,
+        // defeating the purpose of this class.
+        FlushUnflushedBytes();
+    }
+
+    void FlushUnflushedBytes()
+    {
+        if (UnflushedBytes_ == 0) {
+            return;
+        }
+
+        // NB: Errors are logged and swallowed: sync_file_range fails on some file systems
+        // (e.g. tmpfs), the final Flush() guarantees durability anyway, and an exception
+        // would disable the location.
+        try {
+            File_.FlushCache(FlushedOffset_, UnflushedBytes_, /*wait*/ false);
+        } catch (const std::exception& ex) {
+            YT_TLOG_DEBUG("Incremental writeback failed")
+                .With("FileName", File_.GetName())
+                .With("Offset", FlushedOffset_)
+                .With("Bytes", UnflushedBytes_)
+                .With(ex);
+        }
+        FlushedOffset_ += UnflushedBytes_;
+        UnflushedBytes_ = 0;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TErrorInterceptingChunkWriter
     : public IChunkWriter
 {
@@ -1407,7 +1504,8 @@ private:
         const TArtifactDownloadOptions& artifactDownloadOptions,
         const TClientChunkReadOptions& chunkReadOptions,
         const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager,
-        const std::function<void()>& cleanupTempFiles)
+        const std::function<void()>& cleanupTempFiles,
+        const NLogging::TLogger& Logger)
     {
         auto readerConfig = GetArtifactCacheReaderConfig();
 
@@ -1416,12 +1514,17 @@ private:
         auto childMemoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(
             readerConfig->WindowSize);
 
-        auto positionalOutput = std::make_unique<TPositionalFileOutput>(std::move(dataFile), offset);
+        auto positionalOutput = std::make_unique<TPositionalFileOutput>(dataFile, offset);
         auto* positionalOutputPtr = positionalOutput.get();
 
         TErrorInterceptingOutput checkedOutput(
             location,
-            std::move(positionalOutput),
+            std::make_unique<TIncrementalWritebackOutput>(
+                std::move(dataFile),
+                offset,
+                readerConfig->WritebackBatchSize,
+                Logger,
+                std::move(positionalOutput)),
             Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
             cleanupTempFiles);
 
@@ -1434,6 +1537,7 @@ private:
             std::move(childMemoryManager));
 
         producer(&checkedOutput);
+        checkedOutput.Finish();
 
         auto writtenBytes = positionalOutputPtr->GetPosition() - offset;
         if (writtenBytes != expectedSize) {
@@ -1487,7 +1591,8 @@ private:
                         artifactDownloadOptions,
                         chunkReadOptions,
                         multiReaderMemoryManager,
-                        context.CleanupTempFiles)
+                        context.CleanupTempFiles,
+                        Logger)
                         .AsyncVia(location->GetAuxPoolInvoker()));
             }
 
@@ -1773,11 +1878,17 @@ private:
         auto dataFileFiller = [&] (const TArtifactDataContext& context) {
             TErrorInterceptingOutput checkedOutput(
                 location,
-                std::make_unique<TUnbufferedFileOutput>(context.DataFile),
+                std::make_unique<TIncrementalWritebackOutput>(
+                    context.DataFile,
+                    /*startOffset*/ 0,
+                    GetArtifactCacheReaderConfig()->WritebackBatchSize,
+                    Logger,
+                    std::make_unique<TUnbufferedFileOutput>(context.DataFile)),
                 Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
                 context.CleanupTempFiles);
 
             producer(&checkedOutput);
+            checkedOutput.Finish();
         };
 
         return ProduceArtifactFile(
