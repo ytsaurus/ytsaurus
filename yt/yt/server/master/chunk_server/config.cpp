@@ -315,6 +315,8 @@ void TDynamicDataNodeTrackerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("full_heartbeat_delay", &TThis::FullHeartbeatDelay)
         .Optional();
+    registrar.Parameter("suppress_registration_revision_validation", &TThis::SuppressRegistrationRevisionValidation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +375,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("reject_simultaneous_incremental_heartbeats", &TThis::RejectSimultaneousIncrementalHeartbeats)
         .Default(true)
         .DontSerializeDefault();
+    registrar.Parameter("enable_registration_revision_validation", &TThis::EnableRegistrationRevisionValidation)
+        .Default(false);
 
     registrar.Parameter("expected_data_node_heartbeat_duration", &TThis::ExpectedDataNodeHeartbeatDuration)
         .Default(TDuration::Seconds(5));

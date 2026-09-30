@@ -3875,6 +3875,10 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
+        ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(request.registration_revision()));
+
         if (!request.caused_by_node_disposal()) {
             node->ValidateRegistered();
         }
@@ -3889,6 +3893,44 @@ private:
                     request.caused_by_validation());
             }
         }
+    }
+
+    void ValidateHeartbeatRegistrationRevision(
+        const TNode* node,
+        TRevision receivedRevision) const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& config = GetDynamicConfig()->DataNodeTracker;
+        if (config->Testing->SuppressRegistrationRevisionValidation) {
+            return;
+        }
+
+        auto expectedRevision = node->GetRegistrationRevision();
+        if (receivedRevision == expectedRevision) {
+            return;
+        }
+
+        bool enforceValidation = config->EnableRegistrationRevisionValidation;
+        if (!enforceValidation || receivedRevision > expectedRevision) {
+            YT_TLOG_ALERT("Data node heartbeat registration revision mismatch")
+                .With("NodeId", node->GetId())
+                .With("NodeAddress", node->GetDefaultAddress())
+                .With("ExpectedRegistrationRevision", expectedRevision)
+                .With("ReceivedRegistrationRevision", receivedRevision);
+        }
+
+        if (!enforceValidation) {
+            return;
+        }
+
+        THROW_ERROR_EXCEPTION(
+            NNodeTrackerClient::EErrorCode::InvalidState,
+            "Data node heartbeat belongs to an outdated registration")
+            .With("node_id", node->GetId())
+            .With("node_address", node->GetDefaultAddress())
+            .With("expected_registration_revision", expectedRevision)
+            .With("received_registration_revision", receivedRevision);
     }
 
     void DoPrepareModifyReplicas(const TReqModifyReplicas& request)

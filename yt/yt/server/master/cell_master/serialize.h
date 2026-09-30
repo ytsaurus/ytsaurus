@@ -225,6 +225,7 @@ DEFINE_ENUM(EMasterReign,
     ((IntroduceStoresUpdateThrottler)                               (3350))  // alexelexa
     ((MasterCellGroups)                                             (3351))  // evanevannnn
     ((LegacyBaseIOConfigs)                                          (3352))  // ifsmirnov
+    ((NodeRegistrationRevision)                                     (3353))  // evanevannnn
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

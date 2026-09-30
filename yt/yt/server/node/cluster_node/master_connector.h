@@ -97,6 +97,14 @@ struct IMasterConnector
     */
     virtual TMasterEpoch GetEpoch() const = 0;
 
+    //! Returns the registration revision assigned by the primary master, or
+    //! |NHydra::NullRevision| if the primary master does not support it.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual NHydra::TRevision GetRegistrationRevision() const = 0;
+
     //! Returns list of all master cell tags (including the primary).
     /*!
     *  \note

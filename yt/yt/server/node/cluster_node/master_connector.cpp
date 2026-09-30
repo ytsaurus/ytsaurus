@@ -65,6 +65,7 @@ using namespace NCellMasterClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDataNode;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NNodeTrackerServer;
@@ -272,7 +273,7 @@ public:
         const auto& client = Bootstrap_->GetClient();
         const auto& connection = client->GetNativeConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
-        return cellDirectory->GetChannelByCellId(cellId, NHydra::EPeerKind::Leader);
+        return cellDirectory->GetChannelByCellId(cellId, EPeerKind::Leader);
     }
 
     bool IsConnected() const override
@@ -308,6 +309,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Epoch_.load();
+    }
+
+    TRevision GetRegistrationRevision() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return RegistrationRevision_.load();
     }
 
     THashSet<TCellTag> GetMasterCellTags() const override
@@ -410,6 +418,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
+
+    std::atomic<TRevision> RegistrationRevision_ = NullRevision;
 
     TSecondaryMasterConnectionConfigs ParseSecondaryMasterConnectionConfigsFromResponse(const auto& protoSecondaryMastersConfigs)
     {
@@ -540,7 +550,9 @@ private:
         MasterConnectionContext_ = New<TCancelableContext>();
         MasterConnectionInvoker_ = MasterConnectionContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
 
-        NodeId_.store(InvalidNodeId);
+        if (NodeId_.exchange(InvalidNodeId) != InvalidNodeId) {
+            RegistrationRevision_.store(NullRevision);
+        }
         Epoch_++;
 
         MasterDisconnected_.Fire();
@@ -706,6 +718,8 @@ private:
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
+
+        RegistrationRevision_.store(FromProto<TRevision>(rsp->registration_revision()));
 
         auto tags = FromProto<std::vector<std::string>>(rsp->tags());
         UpdateTags(std::move(tags));

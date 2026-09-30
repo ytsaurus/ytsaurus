@@ -269,6 +269,10 @@ public:
                     auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
                     replaceLocationRequest->set_node_id(ToProto(node->GetId()));
                     replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
+                    if (preparedRequest->SequoiaRequest->has_registration_revision()) {
+                        replaceLocationRequest->set_registration_revision(
+                            preparedRequest->SequoiaRequest->registration_revision());
+                    }
                     *replaceLocationRequest->mutable_chunks() = std::move(*preparedRequest->SequoiaRequest->mutable_added_chunks());
 
                     if (preparedRequest->NonSequoiaRequest.is_validation()) {
@@ -367,6 +371,9 @@ public:
             THROW_ERROR_EXCEPTION("Full data node heartbeats are not supported for restarted nodes, the node will be disposed for standard registration");
         }
 
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(context->Request().registration_revision()));
         ValidateHeartbeatRequest(node, context->Request());
         auto locationDirectory = ParseLocationDirectory(node, context->Request());
         DoProcessFullHeartbeat(node, context, locationDirectory);
@@ -378,6 +385,9 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(context->Request().registration_revision()));
         ValidateHeartbeatRequest(node, context->Request());
 
         auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
@@ -411,6 +421,10 @@ public:
         const TNode* node,
         const TCtxFinalizeFullHeartbeatSessionPtr& context) override
     {
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(context->Request().registration_revision()));
+
         auto reportedLocationUuids = GetLocationsReportedInStatistics(context->Request().statistics());
 
         std::vector<TFuture<void>> sequoiaReplaceLocationReplicasFutures;
@@ -435,6 +449,10 @@ public:
                         auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
                         replaceLocationRequest->set_node_id(ToProto(node->GetId()));
                         replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
+                        if (context->Request().has_registration_revision()) {
+                            replaceLocationRequest->set_registration_revision(
+                                context->Request().registration_revision());
+                        }
 
                         auto chunkManager = Bootstrap_->GetChunkManager();
                         sequoiaReplaceLocationReplicasFutures.push_back(chunkManager->ReplaceSequoiaLocationReplicas(
@@ -514,6 +532,9 @@ public:
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(originalRequest.registration_revision()));
         ValidateHeartbeatRequest(node, originalRequest);
 
         if (!NodesWithOngoingIncrementalHeartbeat_.insert(nodeId).second) {
@@ -1376,6 +1397,10 @@ private:
             auto& sequoiaRequest = preparedRequest->SequoiaRequest;
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             sequoiaRequest->set_node_id(originalRequest.node_id());
+            if (originalRequest.has_registration_revision()) {
+                sequoiaRequest->set_registration_revision(
+                    originalRequest.registration_revision());
+            }
 
             if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
                 sequoiaRequest->set_is_incremental_heartbeat(true);
@@ -1483,6 +1508,9 @@ private:
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(request->registration_revision()));
 
         if (!node->ReportedDataNodeHeartbeat()) {
             THROW_ERROR_EXCEPTION(
@@ -1545,6 +1573,9 @@ private:
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(request->registration_revision()));
 
         if (node->ReportedDataNodeHeartbeat()) {
             THROW_ERROR_EXCEPTION(
@@ -1592,6 +1623,9 @@ private:
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(request->registration_revision()));
 
         if (!validation && node->ReportedDataNodeHeartbeat()) {
             THROW_ERROR_EXCEPTION(
@@ -1636,6 +1670,9 @@ private:
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
+        Bootstrap_->GetChunkManager()->ValidateHeartbeatRegistrationRevision(
+            node,
+            FromProto<TRevision>(request->registration_revision()));
 
         if (node->ReportedDataNodeHeartbeat()) {
             THROW_ERROR_EXCEPTION(

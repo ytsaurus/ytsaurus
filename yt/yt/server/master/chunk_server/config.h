@@ -306,6 +306,8 @@ struct TDynamicDataNodeTrackerTestingConfig
     : public NYTree::TYsonStruct
 {
     std::optional<TDuration> FullHeartbeatDelay;
+    // COMPAT(evanevannnn)
+    bool SuppressRegistrationRevisionValidation;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerTestingConfig);
 
@@ -362,6 +364,10 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(aleksandra-zh): these are just in case.
     bool RejectSimultaneousFullHeartbeats;
     bool RejectSimultaneousIncrementalHeartbeats;
+
+    // When disabled, registration revision mismatches are alerted but heartbeats are not rejected.
+    // Enable only after upgrading nodes to send revisions; missing revisions are rejected too.
+    bool EnableRegistrationRevisionValidation;
 
     TDuration ExpectedDataNodeHeartbeatDuration;
 

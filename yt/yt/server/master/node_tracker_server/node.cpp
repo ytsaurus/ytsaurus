@@ -701,6 +701,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, LastGossipState_);
     Save(context, NextValidationFullHeartbeatTime_);
     Save(context, LastCellAggregatedStateReliability_);
+    Save(context, RegistrationRevision_);
 }
 
 namespace {
@@ -772,6 +773,9 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         context.GetVersion() >= EMasterReign::PersistLastCellAggregatedStateReliability_25_4))
     {
         Load(context, LastCellAggregatedStateReliability_);
+    }
+    if (context.GetVersion() >= EMasterReign::NodeRegistrationRevision) {
+        Load(context, RegistrationRevision_);
     }
 
     ComputeDefaultAddress();

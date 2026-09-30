@@ -584,6 +584,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("min_epoch_to_start_heartbeats", &TThis::MinEpochToStartHeartbeats)
         .Default();
+
+    registrar.Parameter("omit_heartbeat_registration_revision", &TThis::OmitHeartbeatRegistrationRevision)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
