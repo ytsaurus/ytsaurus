@@ -1,0 +1,56 @@
+name: Debug runner registration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - members/ilyaibraev/debug-runner-registration-20260930
+    paths:
+      - .github/workflows/debug-runner-registration.yaml
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+concurrency:
+  group: debug-runner-registration
+  cancel-in-progress: false
+
+jobs:
+  start-vm:
+    name: Start VM and retain for debugging
+    runs-on: trampoline
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v2.1.0
+        with:
+          mode: start
+          retry-timeout: PT5M
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 64GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 837GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT2H
+          runner-home-dir: /actions-runner
+
+      - name: Report retained VM
+        if: always()
+        env:
+          INSTANCE_ID: ${{ steps.start-yc-runner.outputs.instance-id }}
+          RUNNER_LABEL: ${{ steps.start-yc-runner.outputs.label }}
+        run: |
+          {
+            printf 'Retained instance: %s\n\n' "$INSTANCE_ID"
+            printf 'Runner label: %s\n\n' "$RUNNER_LABEL"
+            printf 'The VM is retained for SSH diagnosis; delete it after debugging.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
