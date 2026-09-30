@@ -1,5 +1,9 @@
 #include "sink.h"
 
+#include "retrying_writer.h"
+
+#include <yt/yt/flow/library/cpp/connectors/common/sync_replica.h>
+
 #include <yt/yt/flow/library/cpp/resources/yt_client_factory.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -12,11 +16,22 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/queue_client/producer_client.h>
+#include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/config.h>
+
+#include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/node.h>
+
+#include <algorithm>
+#include <limits>
 
 namespace NYT::NFlow::NSortedDynamicTable {
 
@@ -128,6 +143,86 @@ DEFINE_REFCOUNTED_TYPE(TSyncSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAsyncSink::TAsyncSink(
+    TSinkContextPtr context,
+    TDynamicSinkContextPtr dynamicContext)
+    : TOrderedBatchingAsyncSinkBase(std::move(context), std::move(dynamicContext))
+    , Logger(TOrderedBatchingAsyncSinkBase::Logger.WithTag("TablePath", GetParameters()->TablePath))
+    , Client_(GetParameters()->TablePath.GetCluster()
+            ? GetContext()->ClientsCache->GetClient(*GetParameters()->TablePath.GetCluster())
+            : GetContext()->GetClient())
+    , NameTable_(GenerateNameTable(GetContext(), GetSpec(), GetParameters()))
+    , WriteErrorState_(GetContext()->StatusProfiler->ErrorState("/async_write"))
+    , WriteSemaphore_(New<NConcurrency::TAsyncSemaphore>(/*totalSlots*/ 1))
+{ }
+
+void TAsyncSink::DoInit(const std::string& /*producerId*/)
+{ }
+
+bool TAsyncSink::TryWriteBatch(const std::vector<TOutputMessageConstPtr>& messages)
+{
+    try {
+        YT_TLOG_INFO("Asynchronously modifying rows in table")
+            .With("MessagesCount", std::ssize(messages))
+            .With("DeleteRows", GetParameters()->DeleteRows);
+
+        auto transaction = NConcurrency::WaitFor(
+            Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        auto modifications = PackRowModifications(
+            messages,
+            NameTable_,
+            /*aggregateColumns*/ std::nullopt,
+            GetParameters()->DeleteRows);
+
+        NApi::TModifyRowsOptions options;
+        options.RequireSyncReplica = GetParameters()->RequireSyncReplica;
+        transaction->ModifyRows(
+            GetParameters()->TablePath.GetPath(),
+            NameTable_,
+            std::move(modifications),
+            options);
+
+        NConcurrency::WaitFor(transaction->Commit()).ThrowOnError();
+        WriteErrorState_->ClearError();
+        return true;
+    } catch (const TErrorException& ex) {
+        auto error = TError(ex);
+        if (error.FindMatching(NYT::EErrorCode::Canceled)) {
+            throw;
+        }
+        auto wrapped = TError("Failed to write to sorted dynamic table").With(error);
+        WriteErrorState_->SetError(wrapped);
+        YT_TLOG_WARNING("Retrying write to sorted dynamic table")
+            .With(wrapped);
+        return false;
+    }
+}
+
+TFuture<void> TAsyncSink::DoDistribute(const std::vector<TOutputMessageConstPtr>& messages, i64 /*seqNo*/)
+{
+    // Serialize tablet writes: concurrent commits to the same sorted table
+    // (especially chaos CRT) deadlock / hang on overlapping keys.
+    const auto initialBackoff = GetDynamicParameters()->BackoffDuration;
+    return NDetail::RunSerializedRetries(
+        MakeWeak(this),
+        WriteSemaphore_,
+        GetContext()->SerializedInvoker,
+        TExponentialBackoffOptions{
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = initialBackoff,
+            .MaxBackoff = std::max(initialBackoff, TDuration::Minutes(1)),
+        },
+        [messages] (TAsyncSink* sink) {
+            return sink->TryWriteBatch(messages);
+        });
+}
+
+DEFINE_REFCOUNTED_TYPE(TAsyncSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSinkController::TSinkController(
     TSinkControllerContextPtr context,
     TDynamicSinkControllerContextPtr dynamicContext)
@@ -158,24 +253,43 @@ void TSinkController::Commit()
 void TSinkController::TryUpdatePartitionCount()
 {
     try {
+        const auto& tablePath = GetParameters()->TablePath.GetPath();
+
         NApi::TGetNodeOptions options;
-        options.Attributes = {"tablet_count", "type"};
-        auto ysonString = NConcurrency::WaitFor(Client_->GetNode(GetParameters()->TablePath.GetPath(), options))
+        options.Attributes = {"tablet_count", "type", "replicas"};
+        auto ysonString = NConcurrency::WaitFor(Client_->GetNode(tablePath, options))
             .ValueOrThrow();
         auto node = NYTree::ConvertToNode(ysonString);
         const auto& attributes = node->Attributes();
         auto type = attributes.Get<NObjectClient::EObjectType>("type");
+
+        int tabletCount = 0;
         if (type == NObjectClient::EObjectType::ChaosReplicatedTable) {
-            THROW_ERROR_EXCEPTION("No support for chaos yet")
-                .With("queue_path", GetParameters()->TablePath);
+            auto location = FindEnabledReplica(
+                attributes.Get<NYTree::IMapNodePtr>("replicas"),
+                tablePath,
+                "data");
+            auto replicaClient = GetContext()->ClientsCache->GetClient(location.ClusterName);
+            NApi::TGetNodeOptions replicaOptions;
+            replicaOptions.Attributes = {"tablet_count"};
+            replicaOptions.ReadFrom = NApi::EMasterChannelKind::Cache;
+            auto replicaYson = NConcurrency::WaitFor(
+                replicaClient->GetNode(location.Path, replicaOptions))
+                .ValueOrThrow();
+            tabletCount = NYTree::ConvertToNode(replicaYson)->Attributes().Get<int>("tablet_count");
+        } else {
+            tabletCount = attributes.Get<int>("tablet_count");
         }
+
         auto guard = Guard(StateLock_);
-        State_->CachedPartitionCount = attributes.Get<int>("tablet_count");
+        State_->CachedPartitionCount = tabletCount;
         YT_TLOG_INFO("Table partition count was updated")
             .With("CurrentPartitionCount", State_->CachedPartitionCount);
         UpdatePartitionCountErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to update partition count").With(ex);
+        auto error = TError("Failed to update partition count")
+            .With(ex)
+            .With("table_path", GetParameters()->TablePath);
         UpdatePartitionCountErrorState_->SetError(error);
     }
 }

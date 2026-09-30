@@ -134,6 +134,7 @@ enum class EYtSettingType: ui64 {
     MutationId               /* "mutationid", "mutation_id" */,
     ColumnGroups             /* "column_groups", "columngroups" */,
     SecurityTags             /* "security_tags", "securitytags" */,
+    PrimaryKey               /* "primary_key" "primarykey" */,
     // Create, Alter
     Columns                  /* "columns"*/,
     Actions                  /* "actions"*/,
@@ -194,6 +195,7 @@ const auto DqOpSupportedSettings = EYtSettingType::Ordered | EYtSettingType::Lim
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, TExprContext& ctx);
+bool ParseWritePrimaryKey(TExprNode& setting, TVector<TString>& keyColumns, TExprContext& ctx);
 
 template <class TContainer>
 TExprNode::TPtr ToAtomList(const TContainer& columns, TPositionHandle pos, TExprContext& ctx) {

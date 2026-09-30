@@ -53,6 +53,8 @@ target_link_options(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittest
 
 target_sources(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/sorted_dynamic_table/unittests/registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/sorted_dynamic_table/unittests/retrying_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/sorted_dynamic_table/unittests/spec_ut.cpp
 )
 
 

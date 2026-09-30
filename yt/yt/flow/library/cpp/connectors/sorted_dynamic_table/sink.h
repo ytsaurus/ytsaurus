@@ -2,33 +2,20 @@
 
 #include "spec.h"
 
-#include <yt/yt/core/concurrency/nonblocking_batcher.h>
-
+#include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sync_sink_base.h>
 
-#include <yt/yt/client/queue_client/public.h>
-#include <yt/yt/client/table_client/public.h>
-
-#include <yt/yt/client/ypath/rich.h>
-
-#include <yt/yt/client/queue_client/public.h>
-
-#include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/core/ypath/public.h>
-
-
 #include <yt/yt/flow/library/cpp/common/init_context.h>
-#include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 
-#include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/logging/public.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/client/api/public.h>
-#include <yt/yt/client/ypath/rich.h>
+#include <yt/yt/client/table_client/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/logging/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow::NSortedDynamicTable {
@@ -76,7 +63,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr Executor_;
 };
 
-DECLARE_REFCOUNTED_TYPE(TInfoControllerState);
+DECLARE_REFCOUNTED_TYPE(TSinkController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,6 +92,37 @@ private:
 };
 
 DECLARE_REFCOUNTED_TYPE(TSyncSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAsyncSink
+    : public TOrderedBatchingAsyncSinkBase
+{
+public:
+    YT_FLOW_EXTEND_PARAMETERS(TAsyncSinkParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TDynamicAsyncSinkParameters);
+
+    using TSinkController = TSinkController;
+
+    TAsyncSink(
+        TSinkContextPtr context,
+        TDynamicSinkContextPtr dynamicContext);
+
+private:
+    const NLogging::TLogger Logger;
+    const NApi::IClientPtr Client_;
+    const NTableClient::TNameTablePtr NameTable_;
+    const IStatusErrorStatePtr WriteErrorState_;
+    const NConcurrency::TAsyncSemaphorePtr WriteSemaphore_;
+
+private:
+    void DoInit(const std::string& producerId) final;
+    TFuture<void> DoDistribute(const std::vector<TOutputMessageConstPtr>& messages, i64 seqNo) final;
+
+    bool TryWriteBatch(const std::vector<TOutputMessageConstPtr>& messages);
+};
+
+DECLARE_REFCOUNTED_TYPE(TAsyncSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 

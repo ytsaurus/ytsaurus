@@ -65,6 +65,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         read_chaos_tables
         sorted_dynamic_table
+        write_chaos_sorted_table
     )
 
     RECURSE(

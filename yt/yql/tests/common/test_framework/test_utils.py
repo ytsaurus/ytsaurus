@@ -318,7 +318,10 @@ class FlowLogsReplicator(threading.Thread):
         return True
 
 
-def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
+def dump_pipeline_jobs_stderr(
+    pipeline_path, jobs_stderr_file_path, client,
+    operation_driver_factory=None,
+):
     import yt.yson
 
     vanilla_info_attribute = "_yql_ytflow_vanilla_info"
@@ -337,10 +340,28 @@ def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
         write_info("No operation found in pipeline attributes\n")
         return
 
-    operation_id = pipeline_attributes.attributes[vanilla_info_attribute]["operation_id"]
+    vanilla_info = pipeline_attributes.attributes[vanilla_info_attribute]
+    operation_id = vanilla_info["operation_id"]
+
+    if operation_driver_factory is not None:
+        from yt_commands import get_job_stderr, list_jobs
+
+        operation_driver = operation_driver_factory(vanilla_info["runtime_cluster"])
+
+        def list_operation_jobs():
+            return list_jobs(operation_id, with_stderr=True, driver=operation_driver)
+
+        def read_job_stderr(job_id):
+            return get_job_stderr(operation_id, job_id, driver=operation_driver)
+    else:
+        def list_operation_jobs():
+            return client.list_jobs(operation_id, with_stderr=True)
+
+        def read_job_stderr(job_id):
+            return client.get_job_stderr(operation_id, job_id).read()
 
     try:
-        jobs = client.list_jobs(operation_id, with_stderr=True)
+        jobs = list_operation_jobs()
     except Exception:
         write_info(traceback.format_exc())
         return
@@ -363,9 +384,7 @@ def dump_pipeline_jobs_stderr(pipeline_path, jobs_stderr_file_path, client):
                 jobs_stderr_file.write("\n")
 
             try:
-                job_stderr = client.get_job_stderr(operation_id, job["id"]) \
-                    .read() \
-                    .decode("utf8")
+                job_stderr = read_job_stderr(job["id"]).decode("utf8")
 
                 jobs_stderr_file.write(job_stderr)
             except Exception:

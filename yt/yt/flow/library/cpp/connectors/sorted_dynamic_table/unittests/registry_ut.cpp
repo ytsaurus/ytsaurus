@@ -7,11 +7,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSortedDynamicTableRegistryTest, SinkIsRegistered)
+TEST(TSortedDynamicTableRegistryTest, SinksAreRegistered)
 {
-    EXPECT_THAT(
-        TRegistry::Get()->GetSinkTypeNames(),
-        testing::Contains("NYT::NFlow::NSortedDynamicTable::TSyncSink"));
+    const auto& sinkTypeNames = TRegistry::Get()->GetSinkTypeNames();
+    EXPECT_THAT(sinkTypeNames, testing::Contains("NYT::NFlow::NSortedDynamicTable::TSyncSink"));
+    EXPECT_THAT(sinkTypeNames, testing::Contains("NYT::NFlow::NSortedDynamicTable::TAsyncSink"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

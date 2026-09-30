@@ -1,3 +1,4 @@
+import copy
 import functools
 import itertools
 import json
@@ -25,6 +26,7 @@ from yt.environment.helpers import (
 )
 
 from yt.wrapper.flow_commands import PipelineState
+from yt.wrapper.ypath import parse_ypath
 
 from yt.yql.tests.common.test_framework.test_utils import (
     wait_pipeline_condition_or_failed_jobs,
@@ -38,7 +40,7 @@ from yt.yql.tests.common.test_framework.test_utils import (
 
 from yt_commands import (
     authors, create, sync_mount_table, insert_rows, select_rows,
-    list_queue_consumer_registrations, raises_yt_error, get,
+    list_queue_consumer_registrations, raises_yt_error, get, get_driver,
 )
 
 from yt_queries import start_query
@@ -210,12 +212,12 @@ class TestYtflowBase(TestQueueAgentBase):
         }
 
         yt_cluster_mapping = gateways_config['yt']['cluster_mapping']
-        assert len(yt_cluster_mapping) == 1
-        yt_cluster_mapping[0]['YTToken'] = "dummy_token"
+        for mapping in yt_cluster_mapping:
+            mapping['YTToken'] = "dummy_token"
 
         ytflow_cluster_mapping = gateways_config['ytflow']['cluster_mapping']
-        assert len(ytflow_cluster_mapping) == 1
-        ytflow_cluster_mapping[0]['token'] = "dummy_token"
+        for mapping in ytflow_cluster_mapping:
+            mapping['token'] = "dummy_token"
 
         cls.extend_debug_gateways_config(gateways_config, yql_agent_config)
 
@@ -261,23 +263,26 @@ class TestYtflowBase(TestQueueAgentBase):
         table_path = self.YT_TABLE_PATH + str(table_index)
         return table_path
 
-    def _create_yt_table(self, input_table_attrs):
+    def _create_yt_table(self, input_table_attrs, cluster=None):
         table_path = self._allocate_yt_table_path()
         input_table_attrs.update(dynamic=True)
-        create("table", table_path, attributes=input_table_attrs)
-        sync_mount_table(table_path)
+        driver = get_driver(cluster=cluster) if cluster is not None else None
+        create("table", table_path, attributes=input_table_attrs, driver=driver)
+        sync_mount_table(table_path, driver=driver)
         return table_path
 
-    def _write_yt_table(self, table_path, rows):
-        insert_rows(table_path, rows)
+    def _write_yt_table(self, table_path, rows, cluster=None):
+        driver = get_driver(cluster=cluster) if cluster is not None else None
+        insert_rows(table_path, rows, driver=driver)
 
-    def _read_yt_table(self, table_path):
-        result = list(select_rows(f"* from [{table_path}]"))
+    def _read_yt_table(self, table_path, cluster=None):
+        driver = get_driver(cluster=cluster) if cluster is not None else None
+        result = list(select_rows(f"* from [{table_path}]", driver=driver))
         self._remove_system_columns(result)
         return result
 
-    def _assert_yt_table_content(self, table_path, expected_rows):
-        assert_items_equal(self._read_yt_table(table_path), expected_rows)
+    def _assert_yt_table_content(self, table_path, expected_rows, cluster=None):
+        assert_items_equal(self._read_yt_table(table_path, cluster=cluster), expected_rows)
 
     def _get_yt_table_key_columns(self, table_path):
         schema = get(f"{table_path}/@schema")
@@ -483,7 +488,8 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
                             invocation_output_directory,
                             "pipeline_jobs.stderr",
                         ),
-                        client=client)
+                        client=client,
+                        operation_driver_factory=lambda cluster: get_driver(cluster=cluster))
 
                 call_stacks.append(stack.pop_all())
                 return client
@@ -1068,7 +1074,9 @@ select * from $stream;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    def test_create_sorted_table_by_order_by(self, query_tracker, yql_agent, run_query):
+    def test_create_sorted_table_by_primary_key_setting(
+        self, query_tracker, yql_agent, run_query
+    ):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "key", "type": "string"},
@@ -1085,9 +1093,8 @@ select * from $stream;
         out_table_path = self._allocate_yt_table_path()
 
         run_query(f"""
-replace into `{out_table_path}`
-select key, value from `{input_table_path}`
-order by key;
+replace into `{out_table_path}` with primary_key = "[key]"
+select key, value from `{input_table_path}`;
 """)
 
         self._assert_yt_table_key_columns(out_table_path, ["key"])
@@ -1095,8 +1102,10 @@ order by key;
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
-    @pytest.mark.parametrize("order_by_keys", [("key_a", "key_b"), ("key_b", "key_a")])
-    def test_create_sorted_table_by_composite_order_by(self, query_tracker, yql_agent, run_query, order_by_keys):
+    @pytest.mark.parametrize("key_columns", [("key_a", "key_b"), ("key_b", "key_a")])
+    def test_create_sorted_table_by_composite_primary_key_setting(
+        self, query_tracker, yql_agent, run_query, key_columns
+    ):
         input_table_path = self._create_yt_table(dict(
             schema=self._make_queue_schema([
                 {"name": "key_a", "type": "int64"},
@@ -1114,12 +1123,11 @@ order by key;
         out_table_path = self._allocate_yt_table_path()
 
         run_query(f"""
-replace into `{out_table_path}`
-select key_a, key_b, value from `{input_table_path}`
-order by {", ".join(order_by_keys)};
+replace into `{out_table_path}` with primary_key = "[{";".join(key_columns)}]"
+select key_a, key_b, value from `{input_table_path}`;
 """)
 
-        self._assert_yt_table_key_columns(out_table_path, order_by_keys)
+        self._assert_yt_table_key_columns(out_table_path, key_columns)
         self._assert_yt_table_content(out_table_path, input_data)
 
     @authors("artemmashin")
@@ -1255,3 +1263,208 @@ select DateTime::Format('{datetime_format}')(DateTime::FromSeconds(value)) as ti
 
         expected_data = [{"time": datetime.fromtimestamp(timestamp, timezone.utc).strftime(datetime_format)} for timestamp in input_timestamps]
         self._assert_yt_table_content(out_table_path, expected_data)
+
+
+class TestYtflowRemoteCluster(TestYtflowBase):
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_TEST_PARTITIONS = 4
+
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "state_read_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/consumer_registrations"),
+        "state_write_path": parse_ypath("primary://sys/queue_agents/consumer_registrations"),
+    }
+
+    @classmethod
+    def _use_primary_timestamp_provider(cls, config, cluster_index):
+        # The queue agent uses primary-cluster clocks for both clusters' tablet bundles.
+        if cluster_index > 0:
+            config["cluster_connection"]["timestamp_provider"] = copy.deepcopy(
+                cls.Env.configs["master"][0]["cluster_connection"]["timestamp_provider"])
+
+    @classmethod
+    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
+        cls._use_primary_timestamp_provider(config, cluster_index)
+
+    @classmethod
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
+        cls._use_primary_timestamp_provider(config, cluster_index)
+
+    @classmethod
+    def extend_yql_agent_config(cls, config):
+        for remote_env in cls.remote_envs:
+            config['yql_agent']['ytflow_gateway_config']['cluster_mapping'].append(dict(
+                name=remote_env.id,
+                real_name=remote_env.id,
+                proxy_url=remote_env.get_http_proxy_address(),
+            ))
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_remote_read_and_write(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+        self._write_yt_table(input_path, rows, cluster="remote_0")
+
+        if kind == "sorted_table":
+            output_path = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into remote_0.`{output_path}` with primary_key = "[key]"
+select key, value from remote_0.`{input_path}`;
+""")
+        else:
+            output_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+            run_query(f"""
+insert into remote_0.`{output_path}`
+select * from remote_0.`{input_path}`;
+""")
+
+        self._assert_yt_table_content(output_path, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_local_read_and_local_and_remote_writes(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        if kind == "sorted_table":
+            local_path = self._allocate_yt_table_path()
+            remote_path = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into `{local_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+
+replace into remote_0.`{remote_path}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+""")
+        else:
+            local_path = self._create_yt_table(dict(schema=schema))
+            remote_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+
+            run_query(f"""
+insert into `{local_path}`
+select * from `{input_path}`;
+
+insert into remote_0.`{remote_path}`
+select * from `{input_path}`;
+""")
+
+        self._assert_yt_table_content(local_path, rows)
+        self._assert_yt_table_content(remote_path, rows, cluster="remote_0")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("kind", ["queue", "sorted_table"])
+    def test_write_to_two_remote_clusters(self, query_tracker, yql_agent, run_query, kind):
+        schema = self._make_queue_schema([
+            {"name": "key", "type": "string"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        rows = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 2},
+        ]
+
+        input_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_path, rows)
+
+        if kind == "queue":
+            output_0 = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+            output_1 = self._create_yt_table(dict(schema=schema), cluster="remote_1")
+
+            with raises_yt_error("Writing into several remote YT queues"):
+                run_query(f"""
+insert into remote_0.`{output_0}`
+select * from `{input_path}`;
+
+insert into remote_1.`{output_1}`
+select * from `{input_path}`;
+""")
+        else:
+            output_0 = self._allocate_yt_table_path()
+            output_1 = self._allocate_yt_table_path()
+
+            run_query(f"""
+replace into remote_0.`{output_0}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+
+replace into remote_1.`{output_1}` with primary_key = "[key]"
+select key, value from `{input_path}`;
+""")
+
+            self._assert_yt_table_content(output_0, rows, cluster="remote_0")
+            self._assert_yt_table_content(output_1, rows, cluster="remote_1")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_copy_remote_queue_to_primary(self, query_tracker, yql_agent, run_query):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"}
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        input_table_path = self._create_yt_table(dict(schema=schema), cluster="remote_0")
+        self._write_yt_table(input_table_path, rows, cluster="remote_0")
+
+        output_table_path = self._create_yt_table(dict(schema=schema))
+
+        run_query(f"""
+insert into `{output_table_path}`
+select * from remote_0.`{input_table_path}`;
+""")
+
+        self._assert_yt_table_content(output_table_path, rows)
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_remote_runtime_cluster(self, query_tracker, yql_agent, run_query, request):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "string"}
+        ])
+
+        rows = [
+            {"value": "foo"},
+            {"value": "bar"},
+        ]
+
+        input_table_path = self._create_yt_table(dict(schema=schema))
+        self._write_yt_table(input_table_path, rows)
+
+        output_table_path = self._create_yt_table(dict(schema=schema))
+
+        run_query(f"""
+pragma Ytflow.RuntimeCluster = "remote_0";
+
+insert into `{output_table_path}`
+select * from `{input_table_path}`;
+""")
+
+        self._assert_yt_table_content(output_table_path, rows)
