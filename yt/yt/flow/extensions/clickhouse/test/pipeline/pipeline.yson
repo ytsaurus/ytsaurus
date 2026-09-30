@@ -1,0 +1,53 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TTypedReader";
+                "output_stream_ids" = ["rows"];
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {
+                            "finite" = %true;
+                        };
+                    };
+                };
+                "sinks" = {
+                    "clickhouse" = {
+                        "sink_class_name" = "NYT::NFlow::TClickHouseBatchingSink";
+                        "input_stream_ids" = ["rows"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {name = "id"; type = "string"; required = %true;};
+                    {name = "seq"; type = "int64"; required = %true;};
+                    {name = "flag"; type = "boolean"; required = %true;};
+                    {name = "category"; type = "string"; required = %true;};
+                    {name = "code"; type = "string"; required = %true;};
+                    {name = "note"; type = "string"; required = %false;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {};
+                "source_streams" = {
+                    "random" = {
+                        "parameters" = {
+                            "partition_count" = 4;
+                            "partition_message_count" = 50;
+                        };
+                    };
+                };
+            };
+        };
+    };
+}
