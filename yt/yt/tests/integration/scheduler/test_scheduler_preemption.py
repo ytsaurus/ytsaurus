@@ -2352,6 +2352,59 @@ class BaseTestDiskPreemption(YTEnvSetup):
         return "{}/node-{}".format(cls.fake_ssd_disk_path, node_index)
 
 
+class TestEmptyDiskRequestOnSsdNodes(BaseTestDiskPreemption):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_NODES = 2
+
+    @classmethod
+    def _setup_media(cls):
+        cls._setup_media_impl(
+            ssd_location_disk_quota=5 * 1024 * 1024,
+            default_medium_name="default",
+        )
+
+    @authors("bystrovserg")
+    def test_empty_disk_request_rejected_by_scheduler(self):
+        update_scheduler_config(
+            "consider_disk_quota_in_preemptive_scheduling_discount",
+            True,
+        )
+
+        # Keep the operation pending despite the absence of a compatible disk location.
+        update_controller_agent_config("safe_online_node_count", self.NUM_NODES + 1)
+
+        nodes = ls("//sys/cluster_nodes")
+        ssd_medium_index = get("//sys/media/{}/@index".format(self.SSD_MEDIUM))
+        default_medium_index = get("//sys/media/default/@index")
+
+        @wait_no_assert
+        def wait_for_disk_resources():
+            for node in nodes:
+                disk_resources = get(scheduler_orchid_node_path(node) + "/disk_resources")
+                assert disk_resources["default_medium_index"] == default_medium_index
+                assert [location["medium_index"] for location in disk_resources["locations"]] == [
+                    ssd_medium_index,
+                ]
+
+        op = run_sleeping_vanilla(job_count=1)
+        op.wait_for_state("running")
+
+        # A pending job alone does not distinguish scheduler rejection from CA rejection.
+        wait(lambda: get(
+            scheduler_orchid_operation_path(op.id)
+            + "/min_needed_resources_unsatisfied_count/disk_quota",
+            default=0,
+        ) >= 10)
+        assert get(op.get_path() + "/controller_orchid/progress/schedule_job_statistics/count") == 0
+        assert op.get_job_count("running") == 0
+
+        ssd_op = self._run_sleeping_vanilla_with_ssd(disk_space=1, job_count=1)
+        wait(lambda: ssd_op.get_job_count("running") == 1)
+
+        ssd_op.abort(wait_until_finished=True)
+        op.abort(wait_until_finished=True)
+
+
 class TestSsdPriorityPreemption(BaseTestDiskPreemption):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
 
