@@ -2746,10 +2746,13 @@ private:
         std::sort(newCells.begin(), newCells.end());
 
         auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+        const bool grantChaosLeaseShortcuts =
+            reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells ||
+            (reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells_26_1 && reign < EChaosReign::Start_26_2);
         for (auto* chaosObject : GetSortedChaosObjects()) {
             // COMPAT(shamteev)
             const bool isReplicationCard = IsReplicationCardType(TypeFromId(chaosObject->GetId()));
-            if (reign < EChaosReign::GrantChaosLeaseShortcutsToNewCells && !isReplicationCard) {
+            if (!grantChaosLeaseShortcuts && !isReplicationCard) {
                 continue;
             }
 
