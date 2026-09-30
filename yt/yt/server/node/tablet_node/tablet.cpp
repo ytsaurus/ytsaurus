@@ -3800,7 +3800,7 @@ NHydra::EPeerState TTablet::GetAutomatonState() const
     return Context_->GetAutomatonState();
 }
 
-IInvokerPtr TTablet::GetStorageHeavyInvoker() const
+IPrioritizedInvokerPtr TTablet::GetStorageHeavyInvoker() const
 {
     return Context_->GetStorageHeavyInvoker();
 }

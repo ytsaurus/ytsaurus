@@ -25,6 +25,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/random.h>
 
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
@@ -108,8 +109,13 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
+    // TODO(depression): Promote a coalesced metadata read when a higher-priority waiter joins it;
+    // otherwise the waiter is blocked on work scheduled at the first request's priority.
     auto cookie = Context_->ChunkMetaManager->BeginInsertCachedMeta(Id_);
     auto asyncMeta = cookie.GetValue();
+    auto invoker = CreateFixedPriorityInvoker(
+        Context_->StorageHeavyInvoker,
+        options.WorkloadDescriptor.GetPriority());
 
     if (cookie.IsActive()) {
         auto callback = BIND(
@@ -118,7 +124,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             session,
             Passed(std::move(cookie)));
 
-        Context_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
+        invoker->Invoke(std::move(callback));
     }
 
     return
@@ -126,7 +132,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
-        .AsyncVia(Context_->StorageHeavyInvoker));
+        .AsyncVia(invoker));
 }
 
 NIO::TBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
