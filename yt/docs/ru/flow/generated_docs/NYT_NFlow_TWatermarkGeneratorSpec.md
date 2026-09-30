@@ -13,9 +13,6 @@
 Ограничение сверху на возможное переупорядочивание событий, используемое для оценки `EventWatermark`. По умолчанию переупорядочивание не учитывается. ||
 || `idle_partitions` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TIdlePartitionsSpec](./all_yson_structs#NYT_NFlow_TIdlePartitionsSpec)`>`
 Настройки эвристики для игнорирования партиций с нулевым потоком записи. ||
-{% if audience == "internal" %}|| `unavailable_partition_groups` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TUnavailablePartitionGroupsSpec](./all_yson_structs#NYT_NFlow_TUnavailablePartitionGroupsSpec)`>`
-**Значение по умолчанию**: `{}`
-Настройки эвристики для игнорирования недоступных групп партиций (например, партиций в отключённом датацентре основной инсталляции `Logbroker`) ||{% endif %}
 || `late_data_partitions` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TLateDataPartitionsSpec](./all_yson_structs#NYT_NFlow_TLateDataPartitionsSpec)`>`
  ||
 |#

@@ -31,6 +31,9 @@
 || `background_release_rate` | **Тип**: `long`
 **Значение по умолчанию**: `33554432`
  ||
+|| `fail_fast_on_oom` | **Тип**: `bool`
+**Значение по умолчанию**: `true`
+ ||
 || `heap_size_limit` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NTCMalloc::THeapSizeLimitConfig](./all_yson_structs#NYT_NTCMalloc_THeapSizeLimitConfig)`>`
 **Значение по умолчанию**: `{}`
  ||

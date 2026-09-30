@@ -22,5 +22,7 @@
  ||
 || `memory_profile_dump_filename_suffix` | **Тип**: `std::optional<std::string>`
  ||
+|| `memory_profile_retention` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NTCMalloc::TMemoryProfileRetentionConfig](./all_yson_structs#NYT_NTCMalloc_TMemoryProfileRetentionConfig)`>`
+ ||
 |#
 

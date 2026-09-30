@@ -78,24 +78,6 @@ Companion process parameters. Needed by any worker that runs a companion (Python
 || `authenticator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAuthenticatorConfig](./all_yson_structs#NYT_NFlow_TAuthenticatorConfig)`>`
 **Default value**: `{}`
  ||
-{% if audience == "internal" %}|| `tvm` | **Type**: `NYT::TIntrusivePtr<`[NYT::NAuth::TTvmServiceConfig](./all_yson_structs#NYT_NAuth_TTvmServiceConfig)`>`
-**Default value**:
-
-```yson
-{
-    "client_dst_map" = {
-        "logbroker" = 2001059u;
-        "tracing" = 2039211u;
-        "yt" = 2031010u;
-    };
-    "client_enable_service_ticket_checking" = %true;
-    "client_enable_service_ticket_fetching" = %true;
-    "client_self_id_env" = "TVM_ID";
-    "client_self_secret_env" = "TVM_SECRET";
-    "enable_ticket_parse_cache" = %true;
-}
-```
- ||{% endif %}
 || `bus_server` | **Type**: `NYT::TIntrusivePtr<`[NYT::NBus::NTcp::TBusServerConfig](./all_yson_structs#NYT_NBus_NTcp_TBusServerConfig)`>`
 **Default value**: `{}`
  ||

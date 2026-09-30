@@ -33,17 +33,12 @@ Content-addressed кэш, в который заливаются файлы дж
 || `wait_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `5m`
 Таймаут ожидания состояний пайплайна при штатном останове прежней vanilla-операции. ||
-{% if audience == "internal" %}
-|| `solomon_resolver_tag` | **Тип**: `std::string`
-**Значение по умолчанию**: `ytflow_vanilla_common`
-Тег для solomon-резолвера, прописываемый в аннотации операции. ||
-{% endif %}
 || `alias` | **Тип**: `std::optional<std::string>`
 Явный alias vanilla-операции. Если не задан, генерируется как `*flow-runner <cluster>:<path>`. ||
 || `title` | **Тип**: `std::optional<std::string>`
 Title vanilla-операции. ||
 || `network_project` | **Тип**: `std::optional<std::string>`
-Сетевой проект, в котором запускается vanilla-операция.{% if audience == "internal" %} Во внутренних сборках по умолчанию используется `yt_flow_common`; чтобы отключить дефолт, укажите `#`.{% else %} В open-source сборках дефолта нет.{% endif %} ||
+В open-source сборках сетевой проект для vanilla-операции по умолчанию не задан. ||
 || `proxy_url_aliasing_rules` | **Тип**: `THashMap<std::string, std::string>`
 **Значение по умолчанию**: `{}`
 Алиасы прокси-URL, прокидываемые во flow-server внутри vanilla-джоб. ||
