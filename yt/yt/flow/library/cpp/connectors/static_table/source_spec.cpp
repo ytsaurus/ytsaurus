@@ -133,7 +133,7 @@ void TDynamicTableSourceParameters::Register(TRegistrar registrar)
         .Default(TInstant::Zero());
 
     registrar.Parameter("allow_v1_migration", &TThis::AllowV1Migration)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
         .Default(TSize::FromString("10K"));

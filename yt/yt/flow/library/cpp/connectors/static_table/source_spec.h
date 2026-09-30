@@ -98,7 +98,7 @@ struct TDynamicTableSourceParameters
     // Ignore current processing progress if previous start/restart was earlier than RestartInstant.
     TInstant RestartInstant;
 
-    bool AllowV1Migration = false;
+    bool AllowV1Migration{};
 
     // Do not override parameters below if you are not sure.
 
