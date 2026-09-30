@@ -32,12 +32,13 @@ namespace NYT::NLogSlice {
  */
 TInstant ParseQueryTime(TStringBuf input);
 
-//! Parses the timestamp of a plain-text or structured JSON YT log line.
+//! Parses the timestamp of a plain-text, structured JSON or scheduler YSON log line.
 /*!
  *  The expected prefix is "YYYY-MM-DD HH:MM:SS,uuuuuu" interpreted in local
  *  (Moscow) time -- exactly the format produced by TPlainTextEventFormatter.
- *  Structured logs use the standard formatter's string-valued `instant` field.
- *  Returns null if neither supported timestamp representation is present.
+ *  JSON logs use the standard formatter's string-valued `instant` field.
+ *  Scheduler YSON logs use their top-level UTC `timestamp` field.
+ *  Returns null if no supported timestamp representation is present.
  */
 std::optional<TInstant> ParseLogLineTime(TStringBuf line);
 

@@ -40,6 +40,7 @@ from datetime import datetime, timedelta, timezone
 REMOTE_DIR = "/tmp"
 REMOTE_BIN = REMOTE_DIR + "/logslice"
 REMOTE_LOGS_DIR = "logs"
+SCHEDULER_LOGS_DIR = "/yt/scheduler-logs"
 
 # Old rotated logs are moved to a per-service archive root, under per-day
 # subdirectories named "YYYY-MM-DD", e.g.
@@ -63,7 +64,8 @@ OPERATIONAL_FAILURE_EXIT = 2
 COVERAGE_INCOMPLETE_EXIT = 4
 LOG_ROTATION_GAP_TOLERANCE = timedelta(minutes=1)
 STANDARD_LOG_TYPES = ("debug", "info", "error")
-LOG_TYPES = STANDARD_LOG_TYPES + ("access",)
+YSON_LOG_TYPES = ("event_log", "gpu_event_log")
+LOG_TYPES = STANDARD_LOG_TYPES + ("access",) + YSON_LOG_TYPES
 LOG_TYPE_ALIASES = {"access.json": "access"}
 
 # Path of this script inside Arcadia, used both to locate the binary and to
@@ -134,12 +136,18 @@ def parse_log_types(value):
         if item not in LOG_TYPES:
             raise ValueError(
                 "unknown log type {!r}; expected debug, info, error, access, "
-                "access.json, a "
+                "access.json, event_log, gpu_event_log, a "
                 "comma-separated combination, or all".format(item))
         if item not in result:
             result.append(item)
     if not result:
         raise ValueError("at least one log type is required")
+    # YSON merge keys are UTC; the other families use server-local wall time.
+    if any(log_type in YSON_LOG_TYPES for log_type in result) and any(
+            log_type not in YSON_LOG_TYPES for log_type in result):
+        raise ValueError(
+            "event_log and gpu_event_log cannot be combined with debug, info, "
+            "error or access; request them separately")
     return result
 
 
@@ -149,14 +157,21 @@ LOG_RECORD_TIME_RE = re.compile(
 LOG_RECORD_JSON_TIME_RE = re.compile(
     r'(?<!\\)"instant"\s*:\s*"(?P<stamp>\d{4}-\d{2}-\d{2}[ T]'
     r'\d{2}:\d{2}:\d{2}[,.]\d+)"')
+LOG_RECORD_YSON_TIME_RE = re.compile(
+    r'(?<!\\)"timestamp"\s*=\s*"(?P<stamp>\d{4}-\d{2}-\d{2}T'
+    r'\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)"')
 
 
-def _timestamped_record_iter(lines, source_index, line_records=False):
+def _timestamped_record_iter(lines, source_index, line_records=False, parse_yson=False):
     current = None
     ordinal = 0
     for line in lines:
         match = LOG_RECORD_TIME_RE.match(line)
-        if match is None:
+        yson_match = LOG_RECORD_YSON_TIME_RE.search(line) \
+            if parse_yson and match is None else None
+        if yson_match is not None:
+            match = yson_match
+        elif match is None:
             json_matches = list(LOG_RECORD_JSON_TIME_RE.finditer(line))
             match = json_matches[-1] if json_matches else None
         if match or line_records:
@@ -167,6 +182,9 @@ def _timestamped_record_iter(lines, source_index, line_records=False):
             else:
                 stamp = match.group("stamp").replace(",", ".").replace(
                     " ", "T")
+                if yson_match is not None:
+                    stamp = parse_user_time(stamp, utc_offset=timedelta(0)).isoformat(
+                        timespec="microseconds")
             current = [stamp, source_index, ordinal, line]
             ordinal += 1
         elif current is None:
@@ -178,26 +196,28 @@ def _timestamped_record_iter(lines, source_index, line_records=False):
         yield current
 
 
-def _timestamped_records(text, source_index):
-    return list(_timestamped_record_iter(text.splitlines(True), source_index))
+def _timestamped_records(text, source_index, parse_yson=False):
+    return list(_timestamped_record_iter(
+        text.splitlines(True), source_index, parse_yson=parse_yson))
 
 
-def merge_timestamped_outputs(outputs):
+def merge_timestamped_outputs(outputs, parse_yson=False):
     """Merge severity/file outputs by record timestamp, preserving continuations."""
     records = []
     for source_index, text in enumerate(outputs):
-        records.extend(_timestamped_records(text, source_index))
+        records.extend(_timestamped_records(text, source_index, parse_yson=parse_yson))
     records.sort(key=lambda record: (record[0], record[1], record[2]))
     return "".join(record[3] for record in records)
 
 
-def write_merged_pipeline_outputs(outputs, destination):
+def write_merged_pipeline_outputs(outputs, destination, parse_yson=False):
     """Merge ordered pipeline streams without loading them into memory."""
     record_streams = [
         _timestamped_record_iter(
             completed.iter_stdout_lines(),
             source_index,
-            line_records=completed.line_records)
+            line_records=completed.line_records,
+            parse_yson=parse_yson)
         for source_index, completed in enumerate(outputs)
     ]
     for record in heapq.merge(
@@ -206,16 +226,22 @@ def write_merged_pipeline_outputs(outputs, destination):
         destination.write(record[3])
 
 
-def access_output_timestamp_error(completed):
-    """Return an error when an emitted access record lost its merge key."""
+def structured_output_timestamp_error(completed, log_type):
+    """Return an error when an emitted structured record lost its merge key."""
+    if log_type == "access":
+        pattern, field, log_format = LOG_RECORD_JSON_TIME_RE, "instant", "JSON"
+    elif log_type in YSON_LOG_TYPES:
+        pattern, field, log_format = LOG_RECORD_YSON_TIME_RE, "timestamp", "YSON"
+    else:
+        return None
     if completed.operational_returncode != 0 or not completed.has_output:
         return None
     for line_number, line in enumerate(completed.iter_stdout_lines(), 1):
-        if LOG_RECORD_JSON_TIME_RE.search(line) is None:
+        if pattern.search(line) is None:
             return (
-                "access pipeline output line {} has no valid instant; "
-                "retain the JSON instant field for timestamp merging"
-            ).format(line_number)
+                "{} pipeline output line {} has no valid {}; "
+                "retain the {} {} field for timestamp merging"
+            ).format(log_type, line_number, field, log_format, field)
     return None
 
 
@@ -829,7 +855,15 @@ CHANNEL_BY_TYPE = {
     "error": "error",
     "info": "",
     "access": "access.json",
+    "event_log": "event_log",
+    "gpu_event_log": "gpu_event_log",
 }
+
+
+def live_log_dir(log_type):
+    """Return the live directory for a log family."""
+    return SCHEDULER_LOGS_DIR if log_type in YSON_LOG_TYPES else REMOTE_LOGS_DIR
+
 
 # Sidecar agents (e.g. timbertruck) can outnumber the server's own log files and
 # so win the "most files" heuristic, yet are never the component wanted.
@@ -865,25 +899,28 @@ class LogFile:
 
 def parse_log_name(name, directory=REMOTE_LOGS_DIR):
     """Parses a directory entry into a LogFile, or returns None if it is not a
-    recognised plain/zst/gz log file.
+    recognised plain/zst/zstd/gz log file.
 
-    Recognised shape: ``BASE[.channel].log[.rotation][.zst|.gz]`` where BASE is a
-    single dot-free token (``node-vla5-2023``, ``timbertruck``, ...) and channel
-    is ``debug``, ``error`` or empty (info). Anything with a multi-token channel
-    (``lsm.json``, ``tablet_error.yson``) or a trailing index file (``.trindex``)
-    is rejected.
+    Recognised shapes: ``BASE[.channel].log[.rotation][.zst|.zstd|.gz]`` and
+    ``BASE.{event_log,gpu_event_log}.yson[.rotation][.zst|.zstd|.gz]``.
+    Trailing index files (``.trindex``) are rejected.
     """
     stripped = name
-    if stripped.endswith(".zst"):
+    if stripped.endswith(".zstd"):
+        stripped = stripped[:-5]
+    elif stripped.endswith(".zst"):
         stripped = stripped[:-4]
     elif stripped.endswith(".gz"):
         stripped = stripped[:-3]
 
     tokens = stripped.split(".")
-    try:
-        log_index = tokens.index("log")
-    except ValueError:
-        return None
+    if len(tokens) >= 3 and tokens[1] in YSON_LOG_TYPES and tokens[2] == "yson":
+        log_index = 2
+    else:
+        try:
+            log_index = tokens.index("log")
+        except ValueError:
+            return None
 
     base = tokens[0]
     channel = ".".join(tokens[1:log_index])
@@ -952,9 +989,10 @@ def list_remote_dir(ssh, directory):
 
 
 def discover_live(ssh, log_type, component=None):
-    """The live ``logs`` directory: returns (base, ordered_files)."""
-    parsed = [parse_log_name(name, REMOTE_LOGS_DIR)
-              for name in list_remote_dir(ssh, REMOTE_LOGS_DIR)]
+    """The family's live directory: returns (base, ordered_files)."""
+    directory = live_log_dir(log_type)
+    parsed = [parse_log_name(name, directory)
+              for name in list_remote_dir(ssh, directory)]
     return order_series(parsed, log_type, component)
 
 
@@ -1356,9 +1394,10 @@ def discover_component_candidates(ssh, log_type, start_time, end_time,
     Only directory entries are read here. Log contents are untouched until the
     caller resolves an exact component and starts ``FileSelector``.
     """
-    roots = [REMOTE_LOGS_DIR]
+    directory = live_log_dir(log_type)
+    roots = [directory]
     candidates = _candidate_bases(
-        list_remote_dir(ssh, REMOTE_LOGS_DIR), log_type
+        list_remote_dir(ssh, directory), log_type, directory
     )
     if archive_dir is not None and (start_time is not None or end_time is not None):
         days = archive_day_dirs(
@@ -1701,8 +1740,10 @@ def _run_main(context):
               "[--access-log-pipeline pipeline] -- grep_args...")
     parser.add_argument("host", help="remote machine name")
     parser.add_argument("--type", default="debug",
-                        help="log type: debug, error, info, access/access.json, comma-separated "
-                             "types, or all (default: debug)")
+                        help="log type: debug, error, info, access/access.json, "
+                             "event_log, gpu_event_log, comma-separated "
+                             "types, or all (default: debug); event_log and "
+                             "gpu_event_log cannot be combined with other types")
     parser.add_argument(
         "--component",
         default=None,
@@ -1776,6 +1817,11 @@ def _run_main(context):
     if "access" in log_types and not _is_master_route(
             args.host, args.component):
         parser.error("access logs are available only for actual master routes")
+    if any(log_type in YSON_LOG_TYPES for log_type in log_types):
+        role = _role_for_base(args.component) if args.component \
+            else infer_host_component(args.host)[0]
+        if role != "scheduler":
+            parser.error("event_log and gpu_event_log are available only for scheduler routes")
 
     stages = []
     if grep_args:
@@ -1926,14 +1972,13 @@ def _run_main(context):
             file_stages,
             capture=True,
             access_log=log_type == "access")
-        if log_type == "access":
-            timestamp_error = access_output_timestamp_error(completed)
-            if timestamp_error is not None:
-                completed.returncode = OPERATIONAL_FAILURE_EXIT
-                completed.operational_returncode = OPERATIONAL_FAILURE_EXIT
-                completed.stderr = "\n".join(filter(None, [
-                    completed.stderr, timestamp_error]))
-                eprint(timestamp_error)
+        timestamp_error = structured_output_timestamp_error(completed, log_type)
+        if timestamp_error is not None:
+            completed.returncode = OPERATIONAL_FAILURE_EXIT
+            completed.operational_returncode = OPERATIONAL_FAILURE_EXIT
+            completed.stderr = "\n".join(filter(None, [
+                completed.stderr, timestamp_error]))
+            eprint(timestamp_error)
         status = classify_slice_result(
             completed.returncode,
             "output" if completed.has_output else "",
@@ -1965,7 +2010,10 @@ def _run_main(context):
 
     if outputs:
         try:
-            write_merged_pipeline_outputs(outputs, sys.stdout)
+            write_merged_pipeline_outputs(
+                outputs,
+                sys.stdout,
+                parse_yson=any(log_type in YSON_LOG_TYPES for log_type in log_types))
         finally:
             for completed in outputs:
                 completed.close()

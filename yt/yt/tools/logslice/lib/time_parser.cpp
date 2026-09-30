@@ -322,14 +322,15 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
         }
     }
 
-    // Structured access logs are JSON lines. Callers probing a compressed block
+    // Structured logs are JSON or YSON lines. Callers probing a compressed block
     // may pass a prefix containing several records, but the result must describe
-    // the first line. The standard formatter adds its trusted system timestamp
-    // after payload fields, so use the last valid occurrence within that line.
+    // the first line. For JSON, the formatter appends its system instant after
+    // payload fields, so use the last valid occurrence within that line.
     if (auto newline = line.find('\n'); newline != TStringBuf::npos) {
         line = line.SubStr(0, newline);
     }
     constexpr TStringBuf InstantKey = "instant";
+    constexpr TStringBuf TimestampKey = "timestamp";
     std::optional<TInstant> result;
     int objectDepth = 0;
     for (size_t offset = 0; offset < line.size();) {
@@ -360,7 +361,8 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
             break;
         }
         const auto stringEnd = offset++;
-        if (objectDepth != 1 || line.SubStr(stringStart, stringEnd - stringStart) != InstantKey) {
+        auto key = line.SubStr(stringStart, stringEnd - stringStart);
+        if (objectDepth != 1 || (key != InstantKey && key != TimestampKey)) {
             continue;
         }
 
@@ -368,7 +370,8 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
         while (!rest.empty() && IsAsciiSpace(rest.front())) {
             rest.Skip(1);
         }
-        if (rest.empty() || rest.front() != ':') {
+        bool isYsonTimestamp = key == TimestampKey;
+        if (rest.empty() || rest.front() != (isYsonTimestamp ? '=' : ':')) {
             continue;
         }
         rest.Skip(1);
@@ -383,7 +386,13 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
         if (end == TStringBuf::npos) {
             continue;
         }
-        if (auto instant = TryParseLocalFull(rest.SubStr(0, end))) {
+        if (isYsonTimestamp) {
+            // Scheduler timestamps precede snapshots, so probes can stop before the large payload.
+            // The formatter's instant follows the payload and may be outside the probe.
+            if (auto instant = TryParseIsoUtc(rest.SubStr(0, end))) {
+                return instant;
+            }
+        } else if (auto instant = TryParseLocalFull(rest.SubStr(0, end))) {
             result = instant;
         }
     }

@@ -14,6 +14,7 @@ import os
 import shlex
 import subprocess
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
@@ -530,8 +531,49 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["debug", "info", "error"])
         self.assertEqual(logslice.parse_log_types("access"), ["access"])
         self.assertEqual(logslice.parse_log_types("access.json"), ["access"])
+        for value in ("event_log", "gpu_event_log", "event_log,gpu_event_log"):
+            self.assertEqual(logslice.parse_log_types(value), value.split(","))
         with self.assertRaisesRegex(ValueError, "unknown log type"):
             logslice.parse_log_types("debug,warning")
+
+    def test_mixed_yson_and_other_types_are_rejected_before_remote_access(self):
+        for yson_type in ("event_log", "gpu_event_log", "event_log,gpu_event_log"):
+            for other_type in ("debug", "info", "error", "access", "access.json"):
+                for value in (yson_type + "," + other_type, other_type + "," + yson_type):
+                    with self.subTest(log_types=value):
+                        argv = [
+                            "logslice.py", "scheduler-test", "--component", "scheduler-test",
+                            "--type", value,
+                        ]
+                        stderr = io.StringIO()
+                        with mock.patch.object(logslice.sys, "argv", argv), \
+                                mock.patch.object(logslice, "ssh_access_preflight") as preflight, \
+                                contextlib.redirect_stderr(stderr), \
+                                self.assertRaises(SystemExit) as error:
+                            logslice.main()
+                        self.assertEqual(error.exception.code, 2)
+                        self.assertIn("cannot be combined", stderr.getvalue())
+                        self.assertIn("request them separately", stderr.getvalue())
+                        preflight.assert_not_called()
+
+    @unittest.skipUnless(hasattr(time, "tzset"), "requires tzset")
+    def test_merge_yson_uses_utc_and_normalizes_precision(self):
+        before = '{"timestamp"="2026-11-01T05:59:59.9Z";"event_type"="a";};\n'
+        whole_second = '{"timestamp"="2026-11-01T06:00:00Z";"event_type"="b";};\n'
+        after = '{"timestamp"="2026-11-01T06:00:00.000001Z";"event_type"="c";};\n'
+        for client_timezone in ("UTC0", "EST5EDT,M3.2.0,M11.1.0"):
+            with self.subTest(client_timezone=client_timezone):
+                try:
+                    with mock.patch.dict(os.environ, {"TZ": client_timezone}):
+                        time.tzset()
+                        outputs = [logslice.PipelineResult(0, 0, text, "")
+                                   for text in (before + after, whole_second)]
+                        destination = io.StringIO()
+                        logslice.write_merged_pipeline_outputs(
+                            outputs, destination, parse_yson=True)
+                finally:
+                    time.tzset()
+                self.assertEqual(destination.getvalue(), before + whole_second + after)
 
     def test_fixture_merges_severities_by_timestamp(self):
         outputs = []
@@ -604,7 +646,7 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["error"], None, None, allow_broad=False)
 
 
-class AccessLogContractTest(unittest.TestCase):
+class StructuredLogContractTest(unittest.TestCase):
     HOST = "m003-hahn.sas.yp-c.yandex.net"
     COMPONENT = "master-sas5-4416"
     START = "2026-08-21 02:15:00,000"
@@ -617,8 +659,14 @@ class AccessLogContractTest(unittest.TestCase):
             log_types="access",
             access_pipeline=None,
             legacy_selection_result=False):
+        log_type = logslice.parse_log_types(log_types)[0]
+        is_yson = log_type in logslice.YSON_LOG_TYPES
+        component = "scheduler-test" if is_yson else self.COMPONENT
+        host = component if is_yson else self.HOST
+        suffix = ".{}.yson".format(log_type) if is_yson else ".access.json.log"
+        directory = logslice.live_log_dir(log_type)
         argv = [
-            "logslice.py", self.HOST, "--component", self.COMPONENT,
+            "logslice.py", host, "--component", component,
             "--type", log_types, "-t", self.START, "-e", self.END,
             "-x", "grep -F -- 33c20-506275-3fe0191-b2115d4d",
         ]
@@ -626,7 +674,7 @@ class AccessLogContractTest(unittest.TestCase):
             argv += ["--access-log-pipeline", access_pipeline]
         log_files = [
             logslice.parse_log_name(
-                "master-sas5-4416.access.json.log.{}.zst".format(index))
+                "{}{}.{}.zst".format(component, suffix, index), directory=directory)
             for index in range(file_count, 0, -1)
         ]
         start = logslice.parse_user_time(self.START)
@@ -637,7 +685,7 @@ class AccessLogContractTest(unittest.TestCase):
             else None
         selection_result = (
             log_files,
-            [("archive", self.COMPONENT, file_count, log_files)],
+            [("archive", component, file_count, log_files)],
             [(start, end)],
         )
         if not legacy_selection_result:
@@ -654,9 +702,9 @@ class AccessLogContractTest(unittest.TestCase):
                     return_value=None if side_effect else pipeline_result,
                     side_effect=side_effect) as run_pipeline, \
                 mock.patch.object(logslice, "discover_component_candidates",
-                                  return_value=([self.COMPONENT], ["logs"])), \
+                                  return_value=([component], [directory])), \
                 mock.patch.object(logslice, "discover_series", return_value=[
-                    ("archive", self.COMPONENT, log_files)]), \
+                    ("archive", component, log_files)]), \
                 mock.patch.object(logslice, "select_log_files",
                                   return_value=selection_result), \
                 contextlib.redirect_stdout(stdout), \
@@ -787,6 +835,18 @@ class AccessLogContractTest(unittest.TestCase):
         self.assertIn("access pipeline output line 1 has no valid instant", stderr)
         self.assertIn("file_status type=access status=failed", stderr)
 
+    def test_yson_pipeline_rejects_output_without_timestamp(self):
+        for log_type in logslice.YSON_LOG_TYPES:
+            with self.subTest(log_type=log_type):
+                result = logslice.PipelineResult(
+                    0, 0, '{"event_type"="operation_started";};\n', "")
+                exit_code, stdout, stderr, _ = self._run(result, log_types=log_type)
+                self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+                self.assertEqual(stdout, "")
+                self.assertIn(
+                    "{} pipeline output line 1 has no valid timestamp".format(log_type), stderr)
+                self.assertIn("file_status type={} status=failed".format(log_type), stderr)
+
     def test_access_pipeline_is_rejected_without_access_type(self):
         argv = [
             "logslice.py", self.HOST, "--component", self.COMPONENT,
@@ -823,6 +883,25 @@ class AccessLogContractTest(unittest.TestCase):
                 self.assertRaises(SystemExit):
             logslice.main()
         preflight.assert_not_called()
+
+    def test_yson_families_reject_non_scheduler_before_remote_access(self):
+        for log_type in logslice.YSON_LOG_TYPES:
+            for host, component in ((self.HOST, None), ("scheduler-test", self.COMPONENT)):
+                with self.subTest(log_type=log_type, host=host, component=component):
+                    argv = ["logslice.py", host, "--type", log_type]
+                    if component is not None:
+                        argv += ["--component", component]
+                    stderr = io.StringIO()
+                    with mock.patch.object(logslice.sys, "argv", argv), \
+                            mock.patch.object(logslice, "ssh_access_preflight") as preflight, \
+                            contextlib.redirect_stderr(stderr), \
+                            self.assertRaises(SystemExit) as error:
+                        logslice.main()
+                    self.assertEqual(error.exception.code, 2)
+                    self.assertIn(
+                        "event_log and gpu_event_log are available only for scheduler routes",
+                        stderr.getvalue())
+                    preflight.assert_not_called()
 
 
 class AuthenticationPreflightTest(unittest.TestCase):
@@ -1730,6 +1809,35 @@ def _names_with_dirs(selected):
 
 
 class ArchiveParsingTest(unittest.TestCase):
+    def test_scheduler_yson_families(self):
+        archive_root = "/yt/scheduler-logs-archive"
+        archive_day = archive_root + "/2026-06-19"
+        live = "/yt/scheduler-logs"
+        start = datetime(2026, 6, 19, 10, 59)
+        end = datetime(2026, 6, 19, 11, 1)
+        for kind in ("event_log", "gpu_event_log"):
+            with self.subTest(kind=kind):
+                older = "scheduler-test.{}.yson.2026-06-19_11-00.zst".format(kind)
+                current = "scheduler-test.{}.yson".format(kind)
+                ssh = FakeSsh(
+                    {archive_root: ["2026-06-19"], archive_day: [older],
+                     live: [current, current + ".trindex"]},
+                    {archive_day + "/" + older: ((10, 45), (11, 0)),
+                     live + "/" + current: ((11, 0), (11, 15))})
+                candidates, roots = logslice.discover_component_candidates(
+                    ssh, kind, start, end, archive_root)
+                self.assertEqual(candidates, ["scheduler-test"])
+                self.assertIn(live, roots)
+                series = logslice.discover_series(
+                    ssh, kind, start, end, archive_root, component="scheduler-test")
+                selected, _, _, _ = logslice.select_log_files(
+                    ssh, "/tmp/logslice", series, start, end)
+                self.assertEqual([f.path for f in selected],
+                                 [archive_day + "/" + older, live + "/" + current])
+                for suffix in (".1", ".2.gz", ".1.zstd"):
+                    self.assertIsNotNone(logslice.parse_log_name(current + suffix))
+                self.assertIsNone(logslice.parse_log_name(current + ".trindex"))
+
     def test_parses_archive_filename(self):
         from datetime import datetime
         f = logslice.parse_log_name(ARCH_LATE, ARCHIVE_DAY)
@@ -2262,7 +2370,9 @@ class ArchiveSelectionTest(unittest.TestCase):
 @unittest.skipUnless(_ssh_localhost_works(), "ssh localhost unavailable")
 class SshIntegrationTest(unittest.TestCase):
     def setUp(self):
-        self.ssh = logslice.Ssh("localhost")
+        # These tests exercise pipelines, not connection reuse. The test runner's
+        # temporary directory may exceed the Unix control socket path limit.
+        self.ssh = logslice.Ssh("localhost", control_socket="none")
 
     def test_example_pipeline_runs(self):
         # The documented example "grep Error | wc -l" over a sample log: printf
