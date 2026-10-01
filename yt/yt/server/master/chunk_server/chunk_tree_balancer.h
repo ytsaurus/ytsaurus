@@ -45,7 +45,7 @@ public:
     };
 
     [[nodiscard]]
-    TRebalanceStatistics Rebalance(TChunkList* root);
+    TRebalanceStatistics RebalanceStaticChunkListSubtree(TChunkList* root);
 
 private:
     const IChunkTreeBalancerCallbacksPtr Callbacks_;
@@ -63,6 +63,8 @@ private:
         TChunkTree* child);
 
     const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const;
+
+    void UpdateRootChunkListChildren(TChunkList* root, TRange<TChunkTreeRawPtr> newChildren);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

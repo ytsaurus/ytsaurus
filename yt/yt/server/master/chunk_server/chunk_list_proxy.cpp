@@ -163,8 +163,8 @@ private:
 
             case EInternedAttributeKey::ParentIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
-                        fluent.Item().Value(chunkList->GetId());
+                    .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkTree* chunkTree) {
+                        fluent.Item().Value(chunkTree->GetId());
                     });
                 return true;
 

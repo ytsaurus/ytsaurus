@@ -127,4 +127,3 @@ TFuture<NYson::TYsonString> ComputeHunkStatistics(
 #define CHUNK_VISITOR_INL_H_
 #include "chunk_visitor-inl.h"
 #undef CHUNK_VISITOR_INL_H_
-

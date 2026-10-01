@@ -164,7 +164,7 @@ TEST(TChunkTreeBalancerTest, Chain)
     EXPECT_EQ(ChainSize, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    auto rebalanceStatistics = balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.RebalanceStaticChunkListSubtree(root);
     Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
@@ -196,7 +196,7 @@ TEST(TChunkTreeBalancerTest, ManyChunkLists)
     EXPECT_EQ(ChunkListCount + 1, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    auto rebalanceStatistics = balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.RebalanceStaticChunkListSubtree(root);
     Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
@@ -222,7 +222,7 @@ TEST(TChunkTreeBalancerTest, EmptyChunkLists)
     EXPECT_EQ(2 * ChunkListCount + 1, root->Statistics().ChunkListCount);
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    auto rebalanceStatistics = balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.RebalanceStaticChunkListSubtree(root);
     Y_UNUSED(rebalanceStatistics);
     EXPECT_EQ(1, root->Statistics().ChunkListCount);
 }
@@ -293,7 +293,7 @@ TEST(TChunkTreeBalancerTest, UntouchedPrefixChunkCount)
 
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Strict));
     ASSERT_TRUE(balancer.IsRebalanceNeeded(root, EChunkTreeBalancerMode::Permissive));
-    auto rebalanceStatistics = balancer.Rebalance(root);
+    auto rebalanceStatistics = balancer.RebalanceStaticChunkListSubtree(root);
     EXPECT_EQ(2, rebalanceStatistics.UntouchedPrefixChunkCount);
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
