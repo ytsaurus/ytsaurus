@@ -137,8 +137,10 @@ public:
         const TOperationMap& operations,
         const TNodeMap& nodes,
         THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* preemptedAssignments,
-        THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo)
+        THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo,
+        TOperationMap unschedulableOperations = {})
         : Operations_(operations)
+        , UnschedulableOperations_(std::move(unschedulableOperations))
         , Nodes_(nodes)
         , PreemptedAssignments_(preemptedAssignments)
         , PreemptionInfo_(preemptionInfo)
@@ -146,9 +148,14 @@ public:
         , AssignmentHandler_(TestTreeId)
     { }
 
-    const TOperationMap& Operations() const override
+    const TOperationMap& SchedulableOperations() const override
     {
         return Operations_;
+    }
+
+    const TOperationMap& UnschedulableOperations() const override
+    {
+        return UnschedulableOperations_;
     }
 
     const TNodeMap& Nodes() const override
@@ -231,6 +238,7 @@ public:
 
 private:
     const TOperationMap& Operations_;
+    const TOperationMap UnschedulableOperations_;
     const TNodeMap& Nodes_;
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* PreemptedAssignments_;
     THashMap<TAssignmentPtr, TPreemptionInfo>* PreemptionInfo_;
@@ -2290,6 +2298,151 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
     }
 }
 
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, PriorityModuleBindingAccountsForRevivingReservationDeficit)
+{
+    auto nodes = CreateMultiModuleTestNodes({{"ALA", 4}});
+    auto existingOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 3,
+        EOperationType::Vanilla,
+        /*gang*/ true,
+        /*specifiedSchedulingModules*/ {{"ALA"}});
+
+    DoAllocationAssignmentPlanUpdate({existingOperation}, nodes);
+
+    ASSERT_EQ("ALA", existingOperation->SchedulingModule());
+    ASSERT_EQ(TestNodeResources * 3, existingOperation->AssignedResourceUsage());
+
+    auto revivingOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 3,
+        EOperationType::Vanilla,
+        /*gang*/ true,
+        /*specifiedSchedulingModules*/ {{"ALA"}});
+    revivingOperation->SchedulingModule() = "ALA";
+
+    auto priorityOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 2,
+        EOperationType::Vanilla,
+        /*gang*/ true,
+        /*specifiedSchedulingModules*/ {{"ALA"}});
+    priorityOperation->PriorityModuleBindingEnabled() = true;
+
+    auto config = GetTestConfig();
+    const auto bindingStartTime = TInstant::Seconds(10'000);
+    priorityOperation->WaitingForModuleBindingSince() = bindingStartTime;
+
+    auto operationsMap = MakeOperationMap({existingOperation, priorityOperation});
+    auto nodesMap = MakeNodeMap(nodes);
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
+    THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
+    TTestAssignmentPlanUpdateContext context(
+        operationsMap,
+        nodesMap,
+        &preemptedAssignments,
+        &preemptionInfo,
+        /*unschedulableOperations*/ MakeOperationMap({revivingOperation}));
+
+    DoAllocationAssignmentPlanUpdate(
+        &context,
+        config,
+        bindingStartTime + config->PriorityModuleBindingTimeout + TDuration::Seconds(1));
+
+    EXPECT_EQ(-2, GetOrCrash(context.GetStatistics()->ModuleStatistics, "ALA").UnreservedNodes);
+    EXPECT_FALSE(priorityOperation->SchedulingModule());
+    EXPECT_EQ("ALA", existingOperation->SchedulingModule());
+    EXPECT_EQ(TestNodeResources * 3, existingOperation->AssignedResourceUsage());
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, UninitializedRevivingOperationReservesRestoredNodeCount)
+{
+    auto nodes = CreateMultiModuleTestNodes({{"ALA", 4}});
+
+    auto createUninitializedOperation = [] {
+        auto operation = New<TOperation>(
+            TOperationId(TGuid::Create()),
+            EOperationType::Vanilla,
+            /*gang*/ true,
+            /*specifiedSchedulingModules*/ std::nullopt,
+            /*schedulingTagFilter*/ TSchedulingTagFilter());
+        operation->SchedulingModule() = "ALA";
+        return operation;
+    };
+
+    auto restoredOperation = createUninitializedOperation();
+    restoredOperation->RestoredModuleReservationNodeCount() = 2;
+
+    // State persisted without a node count, e.g. by an older scheduler version, does not reserve capacity.
+    auto operationWithoutRestoredCount = createUninitializedOperation();
+
+    auto contender = CreateFullHostTestOperation(
+        /*allocationCount*/ 3,
+        EOperationType::Vanilla,
+        /*gang*/ true,
+        /*specifiedSchedulingModules*/ {{"ALA"}});
+
+    auto operationsMap = MakeOperationMap({contender});
+    auto nodesMap = MakeNodeMap(nodes);
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
+    THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
+    TTestAssignmentPlanUpdateContext context(
+        operationsMap,
+        nodesMap,
+        &preemptedAssignments,
+        &preemptionInfo,
+        /*unschedulableOperations*/ MakeOperationMap({restoredOperation, operationWithoutRestoredCount}));
+
+    DoAllocationAssignmentPlanUpdate(&context);
+
+    const auto& moduleStatistics = GetOrCrash(context.GetStatistics()->ModuleStatistics, "ALA");
+    EXPECT_EQ(2, moduleStatistics.RevivingReservationNodeCount);
+    EXPECT_EQ(2, moduleStatistics.UnreservedNodes);
+    EXPECT_FALSE(contender->SchedulingModule());
+    EXPECT_EQ(TJobResources(), contender->AssignedResourceUsage());
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, RevivingFullHostNonGangOperationReservesAssignmentNodes)
+{
+    auto nodes = CreateMultiModuleTestNodes({{"ALA", 4}});
+    auto revivingOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 3,
+        EOperationType::Vanilla,
+        /*gang*/ false);
+
+    DoAllocationAssignmentPlanUpdate({revivingOperation}, nodes);
+
+    ASSERT_EQ(3, std::ssize(revivingOperation->Assignments()));
+
+    // An assignment on an unschedulable node does not reserve capacity.
+    auto* unschedulableNode = (*revivingOperation->Assignments().begin())->Node;
+    unschedulableNode->Descriptor()->Online = false;
+
+    auto contender = CreateFullHostTestOperation(
+        /*allocationCount*/ 2,
+        EOperationType::Vanilla,
+        /*gang*/ true,
+        /*specifiedSchedulingModules*/ {{"ALA"}});
+
+    auto operationsMap = MakeOperationMap({contender});
+    auto nodesMap = MakeNodeMap(nodes);
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
+    THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
+    TTestAssignmentPlanUpdateContext context(
+        operationsMap,
+        nodesMap,
+        &preemptedAssignments,
+        &preemptionInfo,
+        /*unschedulableOperations*/ MakeOperationMap({revivingOperation}));
+
+    DoAllocationAssignmentPlanUpdate(&context);
+
+    const auto& moduleStatistics = GetOrCrash(context.GetStatistics()->ModuleStatistics, "ALA");
+    EXPECT_EQ(3, moduleStatistics.TotalNodes);
+    EXPECT_EQ(2, moduleStatistics.RevivingReservationNodeCount);
+    EXPECT_EQ(0, moduleStatistics.FullHostNonGangAssignments);
+    EXPECT_EQ(1, moduleStatistics.UnreservedNodes);
+    EXPECT_FALSE(contender->SchedulingModule());
+    EXPECT_EQ(TJobResources(), contender->AssignedResourceUsage());
+}
+
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostMap)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
@@ -2714,11 +2867,13 @@ TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
     auto treeSnapshot = CreateEmptyTreeSnapshot();
 
     TAssignmentHandler assignmentHandler(TestTreeId);
+    TOperationMap disabledOperations;
     TAssignmentPlanUpdateContext context(
         TAllocationIdGenerator(NObjectClient::TCellTag(0)),
         Logger,
         TestTreeId,
         operationsMap,
+        disabledOperations,
         nodesMap,
         treeSnapshot,
         assignmentHandler);
@@ -2730,7 +2885,8 @@ TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
         context.UpdateOperationResources(currentOperation);
     }
 
-    EXPECT_TRUE(context.Operations().empty());
+    EXPECT_TRUE(context.SchedulableOperations().empty());
+    EXPECT_EQ(context.UnschedulableOperations(), operationsMap);
     EXPECT_TRUE(operation->ExtraGroupedNeededResources().empty());
     EXPECT_TRUE(operation->ReadyToAssignGroupedNeededResources().empty());
 
