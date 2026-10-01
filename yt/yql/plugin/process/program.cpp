@@ -11,6 +11,9 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/library/profiling/perf/event_counter_profiler.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/library/program/helpers.h>
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
@@ -44,6 +47,9 @@ protected:
     void DoRun() override
     {
         TThread::SetCurrentThreadName("YqlPluginMain");
+
+        // This subprocess has no YT metrics collector; pending registrations would retain sensors.
+        NProfiling::TSolomonRegistry::Get()->Disable();
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();
