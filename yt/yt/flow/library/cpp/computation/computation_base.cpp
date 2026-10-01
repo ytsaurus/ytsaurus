@@ -435,7 +435,10 @@ bool TComputationBase::UpdateTraverse(
             GetOrDefault(
                 traverseData->Streams,
                 streamId,
-                MakeCompletedStreamTraverseData(GetSpecGeneration(), systemWatermark)));
+                MakeCompletedStreamTraverseData(
+                    GetSpecGeneration(),
+                    /*systemWatermark*/ systemWatermark,
+                    /*eventWatermark*/ reportTime)));
 
         // Completing and Interrupting partitions do not consume input messages anymore.
         if (GetPartitionState() == EPartitionState::Executing) {

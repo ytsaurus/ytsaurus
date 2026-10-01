@@ -418,7 +418,13 @@ public:
 
         YT_TLOG_INFO("TraverseData")
             .With("TraverseData", NYson::ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
-        std::vector<TStreamTraverseDataPtr> completedStream = {MakeCompletedStreamTraverseData(flowView->State->ExecutionSpec->GetEpoch(), flowView->State->CurrentTimestamp)};
+        auto currentTimestamp = flowView->State->CurrentTimestamp;
+        std::vector<TStreamTraverseDataPtr> completedStream = {
+            MakeCompletedStreamTraverseData(
+                flowView->State->ExecutionSpec->GetEpoch(),
+                /*systemWatermark*/ currentTimestamp,
+                /*eventWatermark*/ currentTimestamp),
+        };
 
         traverseData->UnitedSourceStream = MergeStreamTraverseData(ConcatVectors(sourceStreams, completedStream), EInflightMerge::Sum, /*allowPartial*/ true);
         traverseData->UnitedTimerStream = MergeStreamTraverseData(ConcatVectors(timerStreams, completedStream), EInflightMerge::Sum, /*allowPartial*/ true);

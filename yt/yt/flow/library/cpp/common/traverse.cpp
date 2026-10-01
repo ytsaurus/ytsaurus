@@ -193,13 +193,14 @@ void TStreamTraverseData::Register(TRegistrar registrar)
 
 TStreamTraverseDataPtr MakeCompletedStreamTraverseData(
     i64 epoch,
-    TSystemTimestamp timestamp)
+    TSystemTimestamp systemWatermark,
+    TSystemTimestamp eventWatermark)
 {
     auto streamTraverseData = New<TStreamTraverseData>();
     streamTraverseData->Epoch = epoch;
     streamTraverseData->State = EStreamState::Completed;
-    streamTraverseData->SystemWatermark = timestamp;
-    streamTraverseData->EventWatermark = timestamp;
+    streamTraverseData->SystemWatermark = systemWatermark;
+    streamTraverseData->EventWatermark = eventWatermark;
     streamTraverseData->InflightMetrics->Count = 0;
     ForEachLifecycleMetric(streamTraverseData->InflightMetrics.Get(), [] (auto& metric) {
         metric = 0;
@@ -439,7 +440,10 @@ TFromPartitionTraverseDataPtr MakeCompletedPartitionTraverseData(
     traverseData->Node->ReportTime = timestamp;
 
     for (const auto& streamId : spec->AllStreamIds) {
-        traverseData->Node->Streams[streamId] = MakeCompletedStreamTraverseData(epoch, timestamp);
+        traverseData->Node->Streams[streamId] = MakeCompletedStreamTraverseData(
+            epoch,
+            /*systemWatermark*/ timestamp,
+            /*eventWatermark*/ timestamp);
     }
 
     return traverseData;
