@@ -188,7 +188,36 @@ func (*x2Mapper) OnMessage(
 
 Функция из [WordCount](examples/wordcount.md) считает вхождения каждого слова в [стейте](../../flow/concepts/glossary.md#state) ключа:
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
+```go
+type wordCountMapper struct{}
+
+var _ flow.RowFunction = (*wordCountMapper)(nil)
+
+func (*wordCountMapper) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var input wordMessage
+	if err := msg.ConvertTo(&input); err != nil {
+		return err
+	}
+
+	state, err := flow.OpenYSONState[wordCountState](rt, wordStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	fresh := state.Empty()
+	counter := state.Value()
+	if fresh {
+		counter.Word = input.Word
+	}
+	counter.Count++
+	return nil
+}
+```
 
 ### Опциональные обработчики {#optional-handlers}
 
