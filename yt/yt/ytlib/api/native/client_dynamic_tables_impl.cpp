@@ -2625,30 +2625,45 @@ void TClient::DoTrimTable(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
-    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMounted(tableInfo, tabletInfo);
+    TTabletInfoPtr tabletInfo;
+    try {
+        tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+        ValidateTabletMounted(tableInfo, tabletInfo);
 
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    NSecurityClient::TPermissionKey permissionKey{
-        .Path = FromObjectId(tableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = NYTree::EPermission::Write
-    };
-    WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError();
+        const auto& permissionCache = Connection_->GetPermissionCache();
+        NSecurityClient::TPermissionKey permissionKey{
+            .Path = FromObjectId(tableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = NYTree::EPermission::Write,
+        };
+        WaitFor(permissionCache->Get(permissionKey))
+            .ThrowOnError();
 
-    auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+        auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
-    TTabletServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultTrimTableTimeout));
+        TTabletServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultTrimTableTimeout));
 
-    auto req = proxy.Trim();
-    ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-    req->set_mount_revision(ToProto(tabletInfo->MountRevision));
-    req->set_trimmed_row_count(trimmedRowCount);
+        auto req = proxy.Trim();
+        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+        req->set_mount_revision(ToProto(tabletInfo->MountRevision));
+        req->set_trimmed_row_count(trimmedRowCount);
 
-    WaitFor(req->Invoke())
-        .ValueOrThrow();
+        WaitFor(req->Invoke())
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        if (tabletInfo) {
+            tableMountCache->InvalidateOnError(
+                error,
+                /*forceRetry*/ true,
+                /*tabletIdHint*/ tabletInfo->TabletId);
+        } else if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet)) {
+            // A reshard may have added tablets absent from the cached table info.
+            tableMountCache->InvalidateTable(tableInfo);
+        }
+        throw;
+    }
 }
 
 void TClient::DoAlterTableReplica(
