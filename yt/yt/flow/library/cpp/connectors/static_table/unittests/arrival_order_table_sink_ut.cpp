@@ -498,7 +498,10 @@ TEST_F(TArrivalOrderTableSinkTest, SourceWideWatermarkWaitsForSlowPartitionBefor
     const auto makePartition = [] (TSystemTimestamp watermark) {
         auto partition = New<TNodeTraverseData>();
         partition->ReportTime = watermark;
-        partition->Streams[StreamId] = MakeCompletedStreamTraverseData(1, watermark);
+        partition->Streams[StreamId] = MakeCompletedStreamTraverseData(
+            /*epoch*/ 1,
+            /*systemWatermark*/ watermark,
+            /*eventWatermark*/ watermark);
         return partition;
     };
     const auto mergePartitions = [&] (TSystemTimestamp first, TSystemTimestamp second) {

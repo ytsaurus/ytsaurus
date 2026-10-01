@@ -4,6 +4,19 @@
 
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
 
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/client/hedging/unittests/mock/cache.h>
+
+#include <yt/yt/client/unittests/mock/client.h>
+#include <yt/yt/client/unittests/mock/timestamp_provider.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NFlow {
 namespace {
 
@@ -309,6 +322,106 @@ TEST_F(TBlockedTimeShareTest, ChargesAreKeptApartByLimitTypeAndStream)
     EXPECT_FALSE(HasShare(OutputBufferBytesLimitType, otherStreamId));
     EXPECT_FALSE(HasShare(OutputStoreBytesLimitType, StreamId_));
     EXPECT_FALSE(HasShare(ControllerLimitType, StreamId_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TStreamId TraverseInputStreamId("input");
+const TStreamId TraverseOutputStreamId("output");
+
+class TTraverseStatusTestComputation
+    : public TComputationBase
+{
+public:
+    using TComputationBase::TComputationBase;
+    using TComputationController = TUniversalComputationController;
+
+    void Run(const IComputationRunContextPtr& /*context*/) override
+    {
+        ApplyPendingStates();
+        THashMap<TStreamId, TInflightStreamTraverseDataPtr> inflights{
+            {TraverseInputStreamId, New<TInflightStreamTraverseData>()},
+            {TraverseOutputStreamId, New<TInflightStreamTraverseData>()},
+        };
+        UpdateTraverse(
+            /*reportTime*/ TSystemTimestamp(3),
+            /*systemWatermark*/ TSystemTimestamp(1),
+            inflights,
+            /*iterationCycle*/ 0);
+    }
+
+    TComputationStatusPtr GetStatus() override
+    {
+        auto status = New<TComputationStatus>();
+        status->NodeTraverse = GetNodeTraverse();
+        return status;
+    }
+};
+
+YT_FLOW_DEFINE_COMPUTATION(TTraverseStatusTestComputation);
+
+TEST(TComputationTraverseTest, ReportTimeAdvancesOutputEventWatermark)
+{
+    auto queue = New<NConcurrency::TActionQueue>("TraverseStatusTest");
+    auto client = New<::testing::NiceMock<NApi::TMockClient>>();
+    client->SetTimestampProvider(New<::testing::NiceMock<NTransactionClient::TMockTimestampProvider>>());
+    auto clientsCache = New<::testing::NiceMock<NClient::NHedging::TMockClientsCache>>();
+    ON_CALL(*clientsCache, GetClient(::testing::_)).WillByDefault(::testing::Return(std::move(client)));
+
+    auto spec = New<TComputationSpec>();
+    spec->ComputationClassName = TypeName<TTraverseStatusTestComputation>();
+    spec->InputStreamIds.insert(TraverseInputStreamId);
+    spec->OutputStreamIds.insert(TraverseOutputStreamId);
+    spec->StreamsDependency[TraverseOutputStreamId].insert(TraverseInputStreamId);
+
+    auto context = New<TComputationContext>();
+    context->ComputationSpec = std::move(spec);
+    context->ClientsCache = std::move(clientsCache);
+    context->PipelinePath = NYPath::TRichYPath("//pipeline");
+    context->PipelinePath.SetCluster("test");
+    context->Partition = New<TPartition>();
+    context->Partition->State = EPartitionState::Executing;
+    context->Partition->PartitionId = TPartitionId(TGuid::Create());
+    context->Job = New<TJob>();
+    context->Job->JobId = TJobId(TGuid::Create());
+    context->SerializedInvoker = queue->GetInvoker();
+    context->PoolInvoker = queue->GetInvoker();
+    context->Logger = NLogging::TLogger("TraverseStatusTest");
+    context->Profiler = NProfiling::TProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
+    context->DistributedThrottlerControllerChannelProvider = [] {
+        return NRpc::IChannelPtr{};
+    };
+
+    auto dynamicContext = New<TDynamicComputationContext>();
+    dynamicContext->DynamicComputationSpec = New<TDynamicComputationSpec>();
+    dynamicContext->DynamicPartitionSpec = NYTree::ConvertTo<TDynamicPartitionSpecPtr>(
+        NYson::TYsonStringBuf("{computation_partition_spec={};}"));
+
+    auto status = NConcurrency::WaitFor(BIND([
+        context = std::move(context),
+        dynamicContext = std::move(dynamicContext)
+    ] {
+        auto computation = New<TTraverseStatusTestComputation>(context, dynamicContext);
+        computation->SetInputTraverse({
+            {TraverseInputStreamId, MakeCompletedStreamTraverseData(
+                /*epoch*/ 0,
+                /*systemWatermark*/ TSystemTimestamp(1),
+                /*eventWatermark*/ TSystemTimestamp(2))},
+        });
+        computation->Run(nullptr);
+        return computation->GetStatus();
+    })
+            .AsyncVia(queue->GetInvoker())
+            .Run())
+        .ValueOrThrow();
+
+    ASSERT_TRUE(status->NodeTraverse);
+    EXPECT_EQ(status->NodeTraverse->ReportTime, TSystemTimestamp(3));
+    ASSERT_EQ(status->NodeTraverse->Streams.size(), 2u);
+    const auto& output = GetOrCrash(status->NodeTraverse->Streams, TraverseOutputStreamId);
+    EXPECT_EQ(output->SystemWatermark, TSystemTimestamp(1));
+    EXPECT_EQ(output->EventWatermark, TSystemTimestamp(2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

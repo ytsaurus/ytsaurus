@@ -925,7 +925,8 @@ private:
                 auto streamSpec = GetOrCrash(ExecutionSpec_->PipelineSpec->GetValue()->Streams, streamId);
                 traverse->InputStreams[streamId] = MakeCompletedStreamTraverseData(
                     streamTraverse->Epoch,
-                    streamTraverse->SystemWatermark);
+                    /*systemWatermark*/ streamTraverse->SystemWatermark,
+                    /*eventWatermark*/ streamTraverse->SystemWatermark);
             } else {
                 YT_TLOG_FATAL("Unexpected partition state")
                     .With("PartitionState", state);

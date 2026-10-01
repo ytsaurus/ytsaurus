@@ -112,7 +112,8 @@ constexpr auto LineageRetentionTime = TDuration::Minutes(50);
 
 TStreamTraverseDataPtr MakeCompletedStreamTraverseData(
     i64 epoch,
-    TSystemTimestamp timestamp);
+    TSystemTimestamp systemWatermark,
+    TSystemTimestamp eventWatermark);
 
 TStreamTraverseDataPtr MergeStreamTraverseData(
     const std::vector<TStreamTraverseDataPtr>& streams,
