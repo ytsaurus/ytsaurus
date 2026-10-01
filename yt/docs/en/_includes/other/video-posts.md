@@ -2,7 +2,14 @@
 
 This page features video content and publications from {{product-name}} developers over time.
 
-## Conferences, publications
+##  Conferences, publications
+
+https://www.youtube.com/live/XPth7B-rivg?t=4853s
+### 2026: Unifying OLTP and OLAP in YTsaurus dynamic tables
+- **Event:** [Database Internals Meetup #12](https://databaseinternals.timepad.ru/event/4166793/)
+- **Materials:** [YouTube](https://www.youtube.com/live/XPth7B-rivg?t=4853s)
+- **Author:** Ruslan Savchenko
+- **Language:** Russian
 
 ### 2025: Training ML Models and Running Batch Inference on {{product-name}}
 - **Event:** Yandex Scale 2025
@@ -33,8 +40,8 @@ This page features video content and publications from {{product-name}} develope
 - **Materials:** [VK Video](https://vkvideo.ru/video-228253760_456239057?list=ln-22KtshYLYQiJZEmaPo)
 - **Author:** Alexey Lukyanchikov
 - **Language:** Russian
-
-### 2025: YTsaurus dynamic tables in action: how we build ad profiles for behavioral targeting
+  
+### 2025: YTsaurus dynamic tables in action: how we build ad profiles for behavioral targeting 
 - **Event:** [Publication on Habr](https://habr.com/ru/companies/yandex/articles/939078/)
 - **Author:** Ruslan Savchenko
 - **Language:** Russian
@@ -56,7 +63,7 @@ This page features video content and publications from {{product-name}} develope
 - **Author:** Ruslan Savchenko
 - **Language:** Russian
 
-### 2024: Improving YTsaurus dynamic tables with a variety of algorithms
+### 2024: Improving YTsaurus dynamic tables with a variety of algorithms 
 - **Event:** {% if lang == "ru" %}[Publication on Habr](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5) {% else %}[Publication on Medium](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5){% endif %}
 - **Author:** Ruslan Savchenko
 - **Language:** {% if lang == "ru" %}Russian{% else %}English{% endif %}
