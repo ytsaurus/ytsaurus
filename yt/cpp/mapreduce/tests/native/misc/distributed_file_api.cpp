@@ -200,3 +200,109 @@ TEST(DistributedWriteFile, ExceedTimeout)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TTestDistributedReadFileFixture
+    : public TTestFixture
+{
+public:
+    TTestDistributedReadFileFixture()
+        : TTestFixture()
+    {
+        GetClient()->Create(GetFilePath(), ENodeType::NT_FILE);
+    }
+
+    TYPath GetFilePath() const
+    {
+        static const TString FileName = "/distributed_read_file";
+        return GetWorkingDir() + FileName;
+    }
+
+    // Every part past the first is appended in a separate session, so several parts make the file multichunk.
+    TString WriteFile(const TVector<TString>& parts)
+    {
+        TString content;
+        for (const auto& part : parts) {
+            auto writer = GetClient()->CreateFileWriter(TRichYPath(GetFilePath()).Append(!content.empty()));
+            writer->Write(part);
+            writer->Finish();
+            content += part;
+        }
+        return content;
+    }
+
+    static TString ReadPartition(const IClientBasePtr& client, const TFilePartition& partition)
+    {
+        return client->CreateFilePartitionReader(partition.Cookie)->ReadAll();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(DistributedReadFile, PartitionAndReadRoundTrip)
+{
+    TTestDistributedReadFileFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto content = fixture.WriteFile({TString(1000, 'a'), TString(1000, 'b'), TString(1000, 'c')});
+    i64 fileLength = content.size();
+
+    TVector<TFileReadRange> ranges = {
+        TFileReadRange().Begin(0).End(300),     // Inside the first chunk.
+        TFileReadRange().Begin(300).End(1500),  // Crosses a chunk boundary.
+        TFileReadRange().Begin(1500).End(1500), // Empty.
+        TFileReadRange().Begin(1500),           // Up to the end of file.
+    };
+
+    auto partitions = client->GetFilePartitions(fixture.GetFilePath(), ranges);
+    ASSERT_EQ(std::ssize(partitions.Partitions), std::ssize(ranges));
+
+    TString readContent;
+    for (int index = 0; index < std::ssize(ranges); ++index) {
+        const auto& partition = partitions.Partitions[index];
+        auto begin = ranges[index].Begin_;
+        auto end = ranges[index].End_.GetOrElse(fileLength);
+        EXPECT_EQ(partition.Length, end - begin);
+
+        auto data = TTestDistributedReadFileFixture::ReadPartition(client, partition);
+        EXPECT_EQ(data, content.substr(begin, end - begin));
+        readContent += data;
+    }
+    EXPECT_EQ(readContent, content);
+}
+
+TEST(DistributedReadFile, PartitionInsideTransaction)
+{
+    TTestDistributedReadFileFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto content = fixture.WriteFile({TString(500, 'x'), TString(500, 'y')});
+
+    auto tx = client->StartTransaction();
+    auto partitions = tx->GetFilePartitions(
+        fixture.GetFilePath(),
+        {TFileReadRange()},
+        TGetFilePartitionsOptions().FetchCookieNodeDescriptors(false));
+    ASSERT_EQ(std::ssize(partitions.Partitions), 1);
+    EXPECT_EQ(partitions.Partitions[0].Length, std::ssize(content));
+    EXPECT_EQ(TTestDistributedReadFileFixture::ReadPartition(tx, partitions.Partitions[0]), content);
+}
+
+TEST(DistributedReadFile, InvalidRanges)
+{
+    TTestDistributedReadFileFixture fixture;
+
+    auto client = fixture.GetClient();
+    fixture.WriteFile({TString(100, 'x')});
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        client->GetFilePartitions(fixture.GetFilePath(), {TFileReadRange().Begin(50).End(10)}),
+        NYT::TErrorResponse,
+        "Invalid file read range");
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        client->GetFilePartitions(fixture.GetFilePath(), {}),
+        NYT::TErrorResponse,
+        "At least one file read range");
+}
+
+////////////////////////////////////////////////////////////////////////////////
