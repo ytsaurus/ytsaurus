@@ -86,6 +86,9 @@ func (c *client) listRPCProxies() ([]string, error) {
 }
 
 func (c *client) pickRPCProxy(ctx context.Context) (string, error) {
+	if socket := c.conf.RPCProxyUnixSocket; socket != "" {
+		return socket, nil
+	}
 	if proxy := c.conf.RPCProxy; proxy != "" {
 		return proxy, nil
 	}

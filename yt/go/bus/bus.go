@@ -333,7 +333,8 @@ func (c *Bus) receive() (busMsg, error) {
 	fixHeader.partCount = binary.LittleEndian.Uint32(rawFixHeader[24:28])
 	fixHeader.checksum = binary.LittleEndian.Uint64(rawFixHeader[28:])
 
-	if fixHeader.checksum != crc64.Checksum(rawFixHeader[:28]) {
+	// Zero is the protocol's NullChecksum: local RPC peers may omit checksums.
+	if fixHeader.checksum != 0 && fixHeader.checksum != crc64.Checksum(rawFixHeader[:28]) {
 		return busMsg{}, fmt.Errorf("bus: fixed header checksum mismatch")
 	}
 
@@ -371,7 +372,7 @@ func (c *Bus) receive() (busMsg, error) {
 	}
 	varHeader.headerChecksum = binary.LittleEndian.Uint64(rawVarHeader[p:])
 
-	if varHeader.headerChecksum != crc64.Checksum(rawVarHeader[:p]) {
+	if varHeader.headerChecksum != 0 && varHeader.headerChecksum != crc64.Checksum(rawVarHeader[:p]) {
 		return busMsg{}, fmt.Errorf("bus: variabled header checksum mismatch, expected %x got %x",
 			varHeader.headerChecksum, crc64.Checksum(rawVarHeader[:p]))
 	}
@@ -391,7 +392,7 @@ func (c *Bus) receive() (busMsg, error) {
 			parts[i] = part
 		}
 
-		if varHeader.checksums[i] != crc64.Checksum(part) {
+		if varHeader.checksums[i] != 0 && varHeader.checksums[i] != crc64.Checksum(part) {
 			return busMsg{}, fmt.Errorf("bus: part checksum mismatch")
 		}
 	}

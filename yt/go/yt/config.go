@@ -41,6 +41,13 @@ type Config struct {
 	// Only relevant for RPC client.
 	RPCProxy string
 
+	// RPCProxyUnixSocket pins an RPC proxy Unix domain socket (e.g. the value of
+	// YT_JOB_PROXY_SOCKET_PATH in a Vanilla job). Only relevant for RPC clients.
+	// Proxy and YT_PROXY are not required in this mode; HTTP discovery and TCP
+	// fallback are disabled. Mutually exclusive with RPCProxy and UseTLS.
+	// The socket must exist when connecting; no implicit environment lookup is done.
+	RPCProxyUnixSocket string
+
 	// ClockClusterTag configures the clock cluster used to generate timestamps.
 	//
 	// A zero value uses the cluster's default clock.
