@@ -34,7 +34,25 @@ class MySparkApplication {
 
 ## Reading data from {{product-name}} { #read-data }
 
-{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
+```java
+package tech.ytsaurus.spyt.example;
+
+import org.apache.spark.sql.SparkSession;
+
+import tech.ytsaurus.client.CompoundClient;
+import tech.ytsaurus.spyt.SparkAppJava;
+
+public class SmokeTest extends SparkAppJava {
+    @Override
+    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
+        spark.read().format("yt").load("//home/spark/examples/tables/test_data").show();
+    }
+
+    public static void main(String[] args) {
+        new SmokeTest().run(args);
+    }
+}
+```
 
 1. The job class is inherited from `SparkAppJava`. The auxiliary `run` method initializes `SparkSession` and calls the `doRun` abstract method. In `main`, we call this method from inside an instance.
 
@@ -77,7 +95,34 @@ spark-submit-yt \
 
 ## Using UDF { #use-udf }
 
-{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
+```java
+package tech.ytsaurus.spyt.example;
+
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
+import org.apache.spark.sql.types.DataTypes;
+
+import tech.ytsaurus.client.CompoundClient;
+import tech.ytsaurus.spyt.SparkAppJava;
+
+public class UdfExample extends SparkAppJava {
+    @Override
+    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
+        Dataset<Row> df = spark.read().format("yt").load("//home/spark/examples/tables/example_1");
+        UserDefinedFunction splitUdf = functions.udf((String s) -> s.split("-")[1], DataTypes.StringType);
+
+        df
+          .filter(df.col("id").gt(5))
+          .select(splitUdf.apply(df.col("uuid")).as("value"))
+          .write().mode(SaveMode.Overwrite).format("yt")
+          .save("//home/spark/examples/tables/example_1_map");
+    }
+
+    public static void main(String[] args) {
+        new UdfExample().run(args);
+    }
+}
+```
 
 1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
@@ -108,7 +153,39 @@ spark-submit-yt \
 
 ## Aggregations { #agg }
 
-{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
+```java
+package tech.ytsaurus.spyt.example;
+
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.*;
+
+import tech.ytsaurus.spyt.SparkAppJava;
+import tech.ytsaurus.client.CompoundClient;
+
+public class GroupingExample extends SparkAppJava {
+    @Override
+    protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
+        Dataset<Row> df = spark.read().format("yt").load("//home/spark/examples/tables/example_1");
+        Dataset<Row> dictDf = spark.read().format("yt").load("//home/spark/examples/tables/example_dict");
+
+        df
+          .join(dictDf, df.col("uuid").equalTo(dictDf.col("uuid")), "left_outer")
+          .groupBy("count")
+          .agg(functions.max("id").as("max_id"))
+          .repartition(1)
+          .write().mode(SaveMode.Overwrite).format("yt").save("//home/spark/examples/tables/example_1_agg");
+    }
+
+    public static void main(String[] args) {
+        new GroupingExample().run(args);
+    }
+
+    @Override
+    protected SparkConf getSparkConf() {
+        return super.getSparkConf().setAppName("Custom name");
+    }
+}
+```
 
 1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
