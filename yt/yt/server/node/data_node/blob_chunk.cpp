@@ -1335,22 +1335,19 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     const TClientChunkReadOptions& options,
     bool useDirectIO)
 {
-    auto readerGuard = ReaderGuard(LifetimeLock_);
+    TChunkFileReaderPtr reader;
+    {
+        auto readerGuard = ReaderGuard(LifetimeLock_);
 
-    YT_VERIFY(ReadLockCounter_.load() > 0);
+        YT_VERIFY(ReadLockCounter_.load() > 0);
 
-    if (PreparedReader_) {
-        YT_UNUSED_FUTURE(PreparedReader_->PrepareToReadChunkFragments(options, useDirectIO));
-        return {};
+        if (PreparedReader_) {
+            YT_UNUSED_FUTURE(PreparedReader_->PrepareToReadChunkFragments(options, useDirectIO));
+            return {};
+        }
+
+        reader = CachedWeakReader_.Lock();
     }
-
-    auto reader = CachedWeakReader_.Lock();
-    if (reader && !reader->PrepareToReadChunkFragments(options, useDirectIO)) {
-        PreparedReader_ = std::move(reader);
-        return {};
-    }
-
-    readerGuard.Release();
 
     if (!reader) {
         reader = Context_->BlobReaderCache->GetReader(this);
@@ -1358,22 +1355,22 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
 
     auto prepareFuture = reader->PrepareToReadChunkFragments(options, useDirectIO);
 
-    auto writerGuard = WriterGuard(LifetimeLock_);
+    {
+        auto writerGuard = WriterGuard(LifetimeLock_);
 
-    YT_VERIFY(ReadLockCounter_.load() > 0);
+        YT_VERIFY(ReadLockCounter_.load() > 0);
 
-    CachedWeakReader_ = reader;
+        if (PreparedReader_) {
+            return {};
+        }
 
-    if (!prepareFuture) {
-        PreparedReader_ = std::move(reader);
-        return {};
+        CachedWeakReader_ = reader;
+
+        if (!prepareFuture) {
+            PreparedReader_ = std::move(reader);
+            return {};
+        }
     }
-
-    if (PreparedReader_) {
-        return {};
-    }
-
-    writerGuard.Release();
 
     return prepareFuture
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
