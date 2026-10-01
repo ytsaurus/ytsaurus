@@ -186,9 +186,6 @@ DOCS_INCLUDE_SOURCES(
     yt/yt/flow/examples/python/word_count/word_count_mapper.py
 
     # Spark examples
-    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
-    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
-    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
 )
 
 END()
