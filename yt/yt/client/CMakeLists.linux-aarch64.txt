@@ -255,6 +255,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/job_tracker_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/query_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/query_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/query_client/table_hint.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_yson_token.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/check_type_compatibility.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/complex_types/common_yson_converters.cpp

@@ -230,16 +230,6 @@ TStringBuf TExpression::GetSource(TStringBuf source) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTableHint::Register(TRegistrar registrar)
-{
-    registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
-        .Default(true);
-    registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
 {
     auto begin = sourceLocation.first;
@@ -248,23 +238,11 @@ TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
     return source.substr(begin, end - begin);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
-{
-    builder->AppendString("\"{");
-    if (hint.PushDownGroupBy) {
-        builder->AppendString("push_down_group_by=%true;");
-    }
-    if (!hint.RequireSyncReplica) {
-        builder->AppendString("require_sync_replica=%false;");
-    }
-    builder->AppendString("}\"");
-}
-
 bool operator==(const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
-        std::tie(lhs.Path, lhs.Alias, *lhs.Hint) ==
-        std::tie(rhs.Path, rhs.Alias, *rhs.Hint);
+        std::tie(lhs.Path, lhs.Alias, lhs.Hint) ==
+        std::tie(rhs.Path, rhs.Alias, rhs.Hint);
 }
 
 bool operator==(const TJoin& lhs, const TJoin& rhs)
@@ -501,8 +479,6 @@ void FormatReference(TStringBuilderBase* builder, const TReference& ref, int dep
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor, const TFormatOptions& options)
 {
-    static const TTableHintPtr DefaultHint = New<TTableHint>();
-
     // Preserving existing behavior, see YT-28316.
     auto compatOptions = options;
     compatOptions.IsFinal = false;
@@ -511,8 +487,8 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
         builder->AppendString(" AS ");
         FormatId(builder, *descriptor.Alias, compatOptions);
     }
-    if (*descriptor.Hint != *DefaultHint) {
-        Format(builder, " WITH HINT %v", *descriptor.Hint);
+    if (descriptor.Hint != TTableHint()) {
+        Format(builder, " WITH HINT %v", descriptor.Hint);
     }
 }
 

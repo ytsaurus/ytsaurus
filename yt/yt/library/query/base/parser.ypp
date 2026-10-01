@@ -173,7 +173,7 @@
 
 %type <TTableDescriptor> table-descriptor
 %type <std::optional<std::string>> optional-alias
-%type <TTableHintPtr> optional-hint
+%type <TTableHint> optional-hint
 
 %type <bool> is-desc
 %type <bool> is-left
@@ -334,11 +334,11 @@ optional-alias
 optional-hint
     : KwWithHint StringLiteral[hint]
         {
-            $$ = ConvertTo<TTableHintPtr>(NYson::TYsonStringBuf($hint));
+            $$ = ConvertTo<TTableHint>(NYson::TYsonStringBuf($hint));
         }
     |
         {
-            $$ = New<TTableHint>();
+            $$ = TTableHint();
         }
 ;
 
