@@ -56,7 +56,7 @@ def test_cleanup_counters(yt_env, capfd, dry_run):  # noqa
 @pytest.mark.parametrize("limits, create_table, remaining_directories", [
     (["--max-node-count", "4"], False, 3),
     (["--max-dir-node-count", "3"], False, 3),
-    (["--max-node-count", "5"], True, 4),
+    (["--max-node-count", "5"], True, 3),
 ])
 def test_directory_cleanup_stops_at_quota(yt_env, limits, create_table, remaining_directories):  # noqa
     client = yt_env.yt_client
@@ -69,8 +69,8 @@ def test_directory_cleanup_stops_at_quota(yt_env, limits, create_table, remainin
     if create_table:
         client.create("table", table)
 
-    # The first two cases need only one directory removal. In the third,
-    # removing the table already satisfies the quota, so all directories stay.
+    # Each case needs one directory removal. The table fits its quota and
+    # stays; directory nodes are counted only during empty-directory cleanup.
     run_clear_tmp(
         yt_env.yt_instance.get_proxy_address(),
         COMMON_ARGS + ["--directory", directory, "--safe-age", "0"] + limits)
@@ -78,7 +78,7 @@ def test_directory_cleanup_stops_at_quota(yt_env, limits, create_table, remainin
     assert client.exists(directory)
     assert sum(client.exists(path) for path in subdirectories) == remaining_directories
     if create_table:
-        assert not client.exists(table)
+        assert client.exists(table)
 
 
 def create_account_with_directory(client, account, disk_space, node_count, chunk_count):
@@ -95,7 +95,7 @@ def create_account_with_directory(client, account, disk_space, node_count, chunk
     return directory
 
 
-def test_directory_nodes_count_towards_quota(yt_env):  # noqa
+def test_directory_nodes_count_only_for_empty_directory_cleanup(yt_env):  # noqa
     proxy_address = yt_env.yt_instance.get_proxy_address()
     client = yt_env.yt_client
 
@@ -120,16 +120,19 @@ def test_directory_nodes_count_towards_quota(yt_env):  # noqa
     for table in tables:
         assert client.exists(table)
 
-    # Directories alone now exceed the cleanup limit, while the total of seven
-    # nodes still fits within the account's eight-node creation limit.
-    for index in range(4):
-        client.create("map_node", yt.ypath_join(directory, f"dir_{index}"))
+    # Seven nodes exceed the four-node cleanup limit but fit the account's
+    # creation limit. Only empty directories should be removed to free nodes.
+    subdirectories = [yt.ypath_join(directory, f"dir_{index}") for index in range(4)]
+    for subdirectory in subdirectories:
+        client.create("map_node", subdirectory)
 
     run_clear_tmp(proxy_address, args)
 
     for table in tables:
-        assert not client.exists(table)
+        assert client.exists(table)
     assert client.exists(directory)
+    # Two tables, the root, and one surviving empty directory meet the limit.
+    assert sum(client.exists(path) for path in subdirectories) == 1
 
 
 def test_locked_node(yt_env):  # noqa
