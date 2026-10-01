@@ -839,7 +839,7 @@ private:
         BindReplicationCardToRtt(replicationCard);
 
         auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-        ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, timestamp);
+        ReplicationCardWatcher_->RegisterObject(replicationCardId, clientReplicationCard, timestamp);
 
         return replicationCardId;
     }
@@ -1159,7 +1159,7 @@ private:
         YT_TLOG_DEBUG("Replication card removed")
             .With("ReplicationCardId", replicationCardId);
 
-        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
+        ReplicationCardWatcher_->OnObjectRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveReplicationCard(NChaosNode::NProto::TReqRemoveReplicationCard *request)
@@ -1209,7 +1209,7 @@ private:
         YT_TLOG_DEBUG("Replication card removed")
             .With("ReplicationCardId", replicationCardId);
 
-        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
+        ReplicationCardWatcher_->OnObjectRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveMigratedReplicationCards(NChaosNode::NProto::TReqRemoveMigratedReplicationCards* request)
@@ -1543,6 +1543,7 @@ private:
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         bool suspended = request->suspended();
         std::vector<TReplicationCardId> replicationCardIds;
+        std::vector<TChaosLeaseId> chaosLeaseIds;
 
         for (const auto& shortcut : request->shortcuts()) {
             auto era = shortcut.era();
@@ -1581,6 +1582,8 @@ private:
 
             if (IsReplicationCardType(TypeFromId(chaosObjectId))) {
                 replicationCardIds.push_back(chaosObjectId);
+            } else if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                chaosLeaseIds.push_back(chaosObjectId);
             }
 
             chaosObject->Coordinators()[coordinatorCellId].State = EShortcutState::Granted;
@@ -1619,15 +1622,17 @@ private:
         YT_TLOG_DEBUG("Shortcuts granted")
             .With("CoordinatorCellId", coordinatorCellId)
             .With("Suspended", suspended)
-            .With("ReplicationCardIds", replicationCardIds);
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("ChaosLeaseIds", chaosLeaseIds);
 
-        NotifyWatchers(std::move(replicationCardIds));
+        NotifyWatchers(std::move(replicationCardIds), std::move(chaosLeaseIds));
     }
 
     void HydraRspRevokeShortcuts(NChaosNode::NProto::TRspRevokeShortcuts* request)
     {
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         std::vector<TReplicationCardId> replicationCardIds;
+        std::vector<TChaosLeaseId> chaosLeaseIds;
 
         for (const auto& shortcut : request->shortcuts()) {
             auto era = shortcut.era();
@@ -1684,6 +1689,7 @@ private:
 
             // TODO(gryzlov-ad): Add common logic for removal to TChaosObjectBase
             if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                chaosLeaseIds.push_back(chaosObjectId);
                 auto* chaosLease = static_cast<TChaosLease*>(chaosObject);
                 Slot_->GetChaosLeaseManager()->HandleChaosLeaseStateTransition(chaosLease);
             }
@@ -1691,9 +1697,10 @@ private:
 
         YT_TLOG_DEBUG("Shortcuts revoked")
             .With("CoordinatorCellId", coordinatorCellId)
-            .With("ReplicationCardIds", replicationCardIds);
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("ChaosLeaseIds", chaosLeaseIds);
 
-        NotifyWatchers(std::move(replicationCardIds));
+        NotifyWatchers(std::move(replicationCardIds), std::move(chaosLeaseIds));
     }
 
     std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
@@ -2116,7 +2123,7 @@ private:
 
             if (replicationCardCreated) {
                 auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-                ReplicationCardWatcher_->RegisterReplicationCard(
+                ReplicationCardWatcher_->RegisterObject(
                     replicationCardId,
                     clientReplicationCard,
                     NullTimestamp);
@@ -2166,7 +2173,7 @@ private:
             replicationCardIds.emplace_back(replicationCardId, replicationCard->Migration().ImmigratedToCellId);
         }
 
-        ReplicationCardWatcher_->OnReplicationCardMigrated(replicationCardIds);
+        ReplicationCardWatcher_->OnObjectsMigrated(replicationCardIds);
     }
 
     void MigrateReplicationCard(TReplicationCard* replicationCard)
@@ -3590,7 +3597,9 @@ private:
         });
     }
 
-    void NotifyWatchers(std::vector<TReplicationCardId> replicationCardIds)
+    void NotifyWatchers(
+        std::vector<TReplicationCardId> replicationCardIds,
+        std::vector<TChaosLeaseId> chaosLeaseIds)
     {
         if (!IsLeader()) {
             return;
@@ -3600,12 +3609,14 @@ private:
             .Subscribe(BIND(
                 &TChaosManager::OnNotifyWatchersTimestampGenerated,
                 MakeStrong(this),
-                std::move(replicationCardIds))
+                std::move(replicationCardIds),
+                std::move(chaosLeaseIds))
                 .Via(AutomatonInvoker_));
     }
 
     void OnNotifyWatchersTimestampGenerated(
         const std::vector<TReplicationCardId>& replicationCardIds,
+        const std::vector<TChaosLeaseId>& chaosLeaseIds,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
         if (!IsLeader()) {
@@ -3639,20 +3650,30 @@ private:
 
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-            ReplicationCardWatcher_->OnReplicationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+            ReplicationCardWatcher_->OnObjectUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+        }
+
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        for (auto chaosLeaseId : chaosLeaseIds) {
+            chaosLeaseManager->OnChaosLeaseUpdated(chaosLeaseId, timestamp);
         }
     }
 
-    static std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCardsForWatcher(
+    static std::vector<IReplicationCardsWatcher::TSnapshot> ConvertNodeCardsToClientCardsForWatcher(
         const TEntityMap<TReplicationCard>& replicationCardsMap)
     {
-        std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
+        std::vector<IReplicationCardsWatcher::TSnapshot> convertedCards;
         for (const auto& [cardId, card] : replicationCardsMap) {
             if (card->GetState() == EReplicationCardState::Migrated) {
                 continue;
             }
 
-            convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
+            auto clientCard = card->ConvertToClientCard(MinimalFetchOptions);
+            convertedCards.push_back(IReplicationCardsWatcher::TSnapshot{
+                .ObjectId = cardId,
+                .Object = clientCard,
+                .CacheTimestamp = clientCard->CurrentTimestamp,
+            });
         }
 
         return convertedCards;

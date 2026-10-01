@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/native_chaos_lease_cache.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
@@ -438,6 +439,13 @@ public:
                 Logger);
         }
 
+        if (const auto& chaosLeaseCacheConfig = StaticConfig_->ChaosLeaseCache) {
+            ChaosLeaseCache_ = CreateNativeChaosLeaseCache(
+                chaosLeaseCacheConfig,
+                this,
+                Logger);
+        }
+
         SequoiaConnection_ = CreateSequoiaConnection(
             config->SequoiaConnection,
             MakeWeak(this));
@@ -516,6 +524,14 @@ public:
             THROW_ERROR_EXCEPTION("Replication card cache is not configured");
         }
         return ReplicationCardCache_;
+    }
+
+    const IChaosLeaseCachePtr& GetChaosLeaseCache() override
+    {
+        if (!ChaosLeaseCache_) {
+            THROW_ERROR_EXCEPTION("Chaos lease cache is not configured");
+        }
+        return ChaosLeaseCache_;
     }
 
     const ITimestampProviderPtr& GetTimestampProvider() override
@@ -997,6 +1013,9 @@ public:
         if (ReplicationCardCache_) {
             ReplicationCardCache_->Clear();
         }
+        if (ChaosLeaseCache_) {
+            ChaosLeaseCache_->Clear();
+        }
     }
 
     bool IsTerminated() const override
@@ -1052,6 +1071,9 @@ public:
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
+        }
+        if (ChaosLeaseCache_ && dynamicConfig->ChaosLeaseCache) {
+            ChaosLeaseCache_->Reconfigure(StaticConfig_->ChaosLeaseCache->ApplyDynamic(dynamicConfig->ChaosLeaseCache));
         }
 
         SequoiaConnection_->Reconfigure(dynamicConfig->SequoiaConnection);
@@ -1117,6 +1139,7 @@ private:
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
     IReplicationCardCachePtr ReplicationCardCache_;
+    IChaosLeaseCachePtr ChaosLeaseCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
     IClockManagerPtr ClockManager_;

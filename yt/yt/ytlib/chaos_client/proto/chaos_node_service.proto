@@ -403,13 +403,58 @@ message TRspGetChaosLease
 {
     optional int64 timeout = 1; // TDuration
     optional uint64 last_ping_time = 2; // TInstant
- }
+    repeated NYT.NProto.TGuid coordinator_cell_ids = 3; // NObjectClient::TCellId
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqWatchChaosLease
+{
+    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
+    required uint64 chaos_lease_cache_timestamp = 2; // NTransactionClient::TTimestamp
+}
+
+message TRspWatchChaosLease
+{
+    message TChaosLeaseChanged
+    {
+        required uint64 chaos_lease_cache_timestamp = 1; // NTransactionClient::TTimestamp
+        required int64 timeout = 2; // TDuration
+        repeated NYT.NProto.TGuid coordinator_cell_ids = 3; // NObjectClient::TCellId
+    }
+
+    message TChaosLeaseNotChanged
+    { }
+
+    message TChaosLeaseMigrated
+    {
+        required NYT.NProto.TGuid migrate_to_cell_id = 1; // NObjectClient::TCellId
+    }
+
+    message TChaosLeaseDeleted
+    { }
+
+    message TUnknownChaosLease
+    { }
+
+    message TInstanceIsNotLeader
+    { }
+
+    oneof chaos_lease_state {
+        TChaosLeaseChanged chaos_lease_changed = 1;
+        TChaosLeaseNotChanged chaos_lease_not_changed = 2;
+        TChaosLeaseMigrated chaos_lease_migrated = 3;
+        TChaosLeaseDeleted chaos_lease_deleted = 4;
+        TUnknownChaosLease unknown_chaos_lease = 5;
+        TInstanceIsNotLeader instance_is_not_leader = 6;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemoveChaosLease
 {
-     required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
+    required NYT.NProto.TGuid chaos_lease_id = 1; // NChaosClient::TChaosLeaseId
 }
 
 message TRspRemoveChaosLease

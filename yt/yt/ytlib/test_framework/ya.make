@@ -3,6 +3,8 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    chaos_client.cpp
+    chaos_node_service.cpp
     test_connection.cpp
 )
 

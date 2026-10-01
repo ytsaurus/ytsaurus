@@ -23,7 +23,7 @@ public:
         : Context_(std::move(context))
     { }
 
-    void OnReplicationCardChanged(
+    void OnObjectChanged(
         const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override
     {
@@ -36,7 +36,7 @@ public:
         Context_->Reply();
     }
 
-    void OnReplicationCardMigrated(TCellId destination) override
+    void OnObjectMigrated(TCellId destination) override
     {
         auto& response = Context_->Response();
         auto* migrateToCellId = response.mutable_replication_card_migrated()->mutable_migrate_to_cell_id();
@@ -44,7 +44,7 @@ public:
         Context_->Reply();
     }
 
-    void OnReplicationCardDeleted() override
+    void OnObjectDeleted() override
     {
         auto& response = Context_->Response();
         response.mutable_replication_card_deleted();
@@ -65,7 +65,7 @@ public:
         Context_->Reply();
     }
 
-    void OnUnknownReplicationCard() override
+    void OnUnknownObject() override
     {
         auto& response = Context_->Response();
         response.mutable_unknown_replication_card();

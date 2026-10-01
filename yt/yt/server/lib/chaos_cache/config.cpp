@@ -11,10 +11,16 @@ void TChaosCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("replication_cards_watcher", &TThis::ReplicationCardsWatcher)
         .DefaultNew();
 
+    registrar.Parameter("chaos_leases_watcher", &TThis::ChaosLeasesWatcher)
+        .DefaultNew();
+
     registrar.Parameter("replication_cards_update_batcher", &TThis::ReplicationCardUpdateBatcher)
         .DefaultNew();
 
     registrar.Parameter("unwatched_cards_expiration_delay", &TThis::UnwatchedCardExpirationDelay)
+        .Default(TDuration::Minutes(15));
+
+    registrar.Parameter("unwatched_leases_expiration_delay", &TThis::UnwatchedLeaseExpirationDelay)
         .Default(TDuration::Minutes(15));
 
     registrar.Parameter("worker_thread_count", &TThis::WorkerThreadCount)

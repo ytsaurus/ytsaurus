@@ -143,6 +143,7 @@ struct TChaosNodeConfig
     TChaosManagerConfigPtr ChaosManager;
     TChaosLeaseManagerConfigPtr ChaosLeaseManager;
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
+    NChaosClient::TChaosLeasesWatcherConfigPtr ChaosLeasesWatcher;
 
     TCoordinatorManagerConfigPtr CoordinatorManager;
 

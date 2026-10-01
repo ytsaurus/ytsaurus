@@ -41,12 +41,12 @@ IChannelPtr CreateChaosCacheChannel(
 }
 
 void SetChaosCacheStickyGroupBalancingHint(
-    const TReplicationCardId& replicationCardId,
+    const TChaosObjectId& chaosObjectId,
     NRpc::NProto::TBalancingExt* balancingHeaderExt)
 {
     balancingHeaderExt->set_enable_stickiness(true);
     balancingHeaderExt->set_sticky_group_size(StickyGroupSize);
-    balancingHeaderExt->set_balancing_hint(THash<TReplicationCardId>()(replicationCardId));
+    balancingHeaderExt->set_balancing_hint(THash<TChaosObjectId>()(chaosObjectId));
 }
 
 void SetChaosCacheCachingHeader(

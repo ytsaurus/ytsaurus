@@ -148,6 +148,7 @@ struct IConnection
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
+    virtual const NChaosClient::IChaosLeaseCachePtr& GetChaosLeaseCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
     virtual const NTransactionClient::IClockManagerPtr& GetClockManager() = 0;
 

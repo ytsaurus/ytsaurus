@@ -240,6 +240,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IChaosLeaseCachePtr& GetChaosLeaseCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
     {
         YT_UNIMPLEMENTED();
