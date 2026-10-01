@@ -39,6 +39,7 @@ target_link_libraries(library-query-portable_engine PUBLIC
 )
 
 target_sources(library-query-portable_engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/builtin_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/registry.cpp
 )
