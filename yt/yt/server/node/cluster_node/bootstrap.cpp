@@ -1581,6 +1581,9 @@ private:
         }
 
         Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
+
+        ConnectionThreadPool_->SetThreadCount(newConfig->ConnectionThreadPoolSize.value_or(
+            Config_->ClusterConnection->Dynamic->ThreadPoolSize));
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)
