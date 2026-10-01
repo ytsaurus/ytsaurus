@@ -71,6 +71,10 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple{
             "Access denied for user \"robot-yt\"",
             "Access denied for user <user>",
+        },
+        std::tuple{
+            "Replication era mismatch: expected 1201, got 1300",
+            "Replication era mismatch: expected <era>, got <era>",
         }
     )
 );
