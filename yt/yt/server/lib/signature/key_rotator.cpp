@@ -40,18 +40,32 @@ TKeyRotator::TKeyRotator(
 TFuture<void> TKeyRotator::Start()
 {
     YT_LOG_DEBUG("Starting key rotation");
+
+    auto guard = Guard(ReconfigureSpinLock_);
+    if (!Config_.Acquire()->KeyRotationOptions.Period) {
+        Executor_->Start();
+        return OKFuture;
+    }
+
     return Executor_->StartAndGetFirstExecutedEvent();
 }
 
 TFuture<void> TKeyRotator::Stop()
 {
     YT_LOG_DEBUG("Stopping key rotation");
+
     return Executor_->Stop();
 }
 
 TFuture<void> TKeyRotator::Rotate()
 {
+    auto guard = Guard(ReconfigureSpinLock_);
+    if (Executor_->IsStarted() && !Config_.Acquire()->KeyRotationOptions.Period) {
+        return OKFuture;
+    }
+
     auto event = Executor_->GetExecutedEvent();
+    guard.Release();
     Executor_->ScheduleOutOfBand();
     return event;
 }
@@ -75,6 +89,11 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
 
 TError TKeyRotator::DoRotate()
 {
+    auto config = Config_.Acquire();
+    if (!config->KeyRotationOptions.Period) {
+        return {};
+    }
+
     auto currentKeyInfo = Generator_->KeyInfo();
     YT_LOG_INFO(
         "Rotating keypair (CurrentKeyPair: %v)",
@@ -82,7 +101,6 @@ TError TKeyRotator::DoRotate()
 
     auto now = Now();
     auto newKeyId = TGuid::Create();
-    auto config = Config_.Acquire();
     auto newKeyPair = New<TKeyPair>(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
         .OwnerId = KeyWriter_->GetOwner(),
         .KeyId = TKeyId(newKeyId),
@@ -103,13 +121,6 @@ TError TKeyRotator::DoRotate()
 
     YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(keyInfo->Meta()));
     return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<void> TKeyRotator::GetNextRotationFuture()
-{
-    return Executor_->GetExecutedEvent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

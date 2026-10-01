@@ -1602,22 +1602,15 @@ class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
 
 
 @pytest.mark.enabled_multidaemon
-class TestRpcProxySignaturesBase(TestRpcProxyBase):
+class TestRpcProxySignaturesBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
-    DELTA_RPC_PROXY_CONFIG = {
-        "signature_components": {
-            "validation": {
-                "cypress_key_reader": dict(),
-            },
-            "generation": {
-                "cypress_key_writer": dict(),
-                "key_rotator": dict(),
-                "generator": dict(),
-            },
-        },
-    }
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
-    # NB(pavook): to avoid key owner collision.
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    DELTA_RPC_PROXY_CONFIG = {}
+
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
@@ -1644,9 +1637,10 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
-        wait(lambda: len(ls(self.OWNERS_PATH)) == 1)
-        owner = ls(self.OWNERS_PATH)[0]
-        assert len(ls(f"{self.OWNERS_PATH}/{owner}")) == 1
+        owner = ls("//sys/rpc_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path))
+        assert len(ls(owner_path)) == 1
 
 
 @pytest.mark.enabled_multidaemon
@@ -1667,19 +1661,22 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
-        wait(lambda: ls(self.OWNERS_PATH))
-        owner = ls(self.OWNERS_PATH)[0]
-        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+        owner = ls("//sys/rpc_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path) and len(ls(owner_path)) > 1)
 
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_dynamic_config(self):
-        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls("//sys/rpc_proxies")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path))
+
         new_path = "//tmp/dynamic_test_rpc_proxy"
         create("map_node", new_path)
         set(
             "//sys/rpc_proxies/@config",
-            deep_update(self.DELTA_RPC_PROXY_CONFIG, {
+            {
                 "signature_components": {
                     "generation": {
                         "cypress_key_writer": {
@@ -1692,6 +1689,10 @@ class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
                         },
                     },
                 },
-            }))
+            })
 
-        wait(lambda: ls(new_path))
+        wait(lambda: exists(f"{new_path}/{owner}"))
+
+        static_keys = frozenset(ls(owner_path))
+        set("//sys/rpc_proxies/@config", {})
+        wait(lambda: frozenset(ls(owner_path)) != static_keys)

@@ -911,20 +911,4 @@ class TestPartitionTablesRlsNative(PartitionTablesRlsBase):
 class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     DRIVER_BACKEND = "rpc"
 
-    DELTA_RPC_PROXY_CONFIG = {
-        "signature_components": {
-            "validation": {
-                "cypress_key_reader": dict(),
-            },
-            "generation": {
-                "cypress_key_writer": dict(),
-                "key_rotator": dict(),
-                "generator": dict(),
-            },
-        },
-    }
-
-    # NB(pavook): to avoid key owner collision.
     NUM_RPC_PROXIES = 1
-
-    OWNERS_PATH = "//sys/public_keys/by_owner"

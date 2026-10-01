@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     list_jobs, ls, get, map, select_rows, set, print_debug, authors, sync_create_cells, wait, wait_no_assert, raises_yt_error,
     wait_breakpoint, with_breakpoint, release_breakpoint,
-    run_test_vanilla, create_user, create, remove, read_table, write_table,
+    run_test_vanilla, create_user, create, remove, exists, read_table, write_table,
     get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id, sorted_dicts,
 )
 
@@ -604,16 +604,14 @@ class TestJobProxyProfiling(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestJobProxySignatures(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
     OWNERS_PATH = "//sys/public_keys/by_owner"
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "signature_components": {
-                "validation": {
-                    "cypress_key_reader": dict(),
-                },
                 "generation": {
-                    "cypress_key_writer": dict(),
-                    "generator": dict(),
                     "key_rotator": {
                         "key_rotation_options": {
                             "period": "1s",
@@ -634,20 +632,44 @@ class TestJobProxySignatures(YTEnvSetup):
 
     @authors("pavook")
     def test_key_rotates(self):
-        wait(lambda: ls(self.OWNERS_PATH))
-        owner = ls(self.OWNERS_PATH)[0]
-        wait(lambda: len(ls(f"{self.OWNERS_PATH}/{owner}")) > 1)
+        owner = ls("//sys/cluster_nodes")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path) and len(ls(owner_path)) > 1)
 
     @authors("pavook")
     def test_dynamic_config(self):
-        wait(lambda: ls(self.OWNERS_PATH))
+        owner = ls("//sys/cluster_nodes")[0]
+        owner_path = f"{self.OWNERS_PATH}/{owner}"
+        wait(lambda: exists(owner_path))
+
         new_path = "//tmp/dynamic_test_public_keys"
         create("map_node", new_path)
-        new_config = self.DELTA_NODE_CONFIG["exec_node"]["signature_components"]
-        new_config["generation"]["cypress_key_writer"]["path"] = new_path
-        new_config["validation"]["cypress_key_reader"]["path"] = new_path
-        update_nodes_dynamic_config(path="exec_node/signature_components", value=new_config)
-        wait(lambda: ls(new_path))
+        new_config = {
+            "validation": {
+                "cypress_key_reader": {
+                    "path": new_path,
+                },
+            },
+            "generation": {
+                "cypress_key_writer": {
+                    "path": new_path,
+                },
+                "key_rotator": {
+                    "key_rotation_options": {
+                        "period": "5s",
+                    },
+                },
+            },
+        }
+        update_nodes_dynamic_config(
+            path="exec_node/signature_components",
+            value=new_config,
+            replace=True)
+        wait(lambda: exists(f"{new_path}/{owner}"))
+
+        static_keys = frozenset(ls(owner_path))
+        update_nodes_dynamic_config({}, replace=True)
+        wait(lambda: frozenset(ls(owner_path)) != static_keys)
 
 
 @authors("khlebnikov")

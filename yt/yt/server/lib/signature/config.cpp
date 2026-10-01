@@ -42,7 +42,7 @@ void TKeyRotatorConfig::Register(TRegistrar registrar)
                 .BackoffMultiplier = 5.0,
             }))
         .CheckThat([] (const auto& options) {
-            return options.Period && *options.Period > TDuration::MilliSeconds(100);
+            return !options.Period || *options.Period > TDuration::MilliSeconds(100);
         });
 
     registrar.Parameter("key_expiration_delta", &TThis::KeyExpirationDelta)
@@ -94,18 +94,28 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
 
 void TSignatureValidationConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader);
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
+
+    registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSignatureGenerationConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cypress_key_writer", &TThis::CypressKeyWriter);
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(true);
 
-    registrar.Parameter("generator", &TThis::Generator);
+    registrar.Parameter("cypress_key_writer", &TThis::CypressKeyWriter)
+        .DefaultNew();
 
-    registrar.Parameter("key_rotator", &TThis::KeyRotator);
+    registrar.Parameter("generator", &TThis::Generator)
+        .DefaultNew();
+
+    registrar.Parameter("key_rotator", &TThis::KeyRotator)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,10 +123,10 @@ void TSignatureGenerationConfig::Register(TRegistrar registrar)
 void TSignatureComponentsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("validation", &TThis::Validation)
-        .Optional();
+        .DefaultNew();
 
     registrar.Parameter("generation", &TThis::Generation)
-        .Optional();
+        .DefaultNew();
 
     registrar.Parameter("use_root_user", &TThis::UseRootUser)
         .Default(true);

@@ -42,24 +42,24 @@ TSignatureComponents::TSignatureComponents(
             ? TClientOptions::Root()
             : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
-    , AppliedKeyReaderConfigNode_(config->Validation
+    , AppliedKeyReaderConfigNode_(config->Validation && config->Validation->Enabled
         ? ConvertToNode(config->Validation->CypressKeyReader)
         : nullptr)
-    , CypressKeyReader_(config->Validation
+    , CypressKeyReader_(config->Validation && config->Validation->Enabled
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
         : nullptr)
-    , UnderlyingValidator_(config->Validation
+    , UnderlyingValidator_(config->Validation && config->Validation->Enabled
         ? New<TSignatureValidator>(CypressKeyReader_)
         : nullptr)
     , DynamicSignatureValidator_(New<TDynamicSignatureValidator>(
         UnderlyingValidator_ ? UnderlyingValidator_ : CreateAlwaysThrowingSignatureValidator()))
-    , CypressKeyWriter_(config->Generation
+    , CypressKeyWriter_(config->Generation && config->Generation->Enabled
         ? New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_)
         : nullptr)
-    , UnderlyingGenerator_(config->Generation
+    , UnderlyingGenerator_(config->Generation && config->Generation->Enabled
         ? New<TSignatureGenerator>(config->Generation->Generator)
         : nullptr)
-    , KeyRotator_(config->Generation
+    , KeyRotator_(config->Generation && config->Generation->Enabled
         ? New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_)
         : nullptr)
     , DynamicSignatureGenerator_(New<TDynamicSignatureGenerator>(
@@ -70,7 +70,9 @@ TSignatureComponents::TSignatureComponents(
 
 void TSignatureComponents::InitializeCryptographyIfRequired(const TSignatureComponentsConfigPtr& config)
 {
-    bool isInitializationRequired = (config->Validation || config->Generation) && !(InitializeCryptographyFuture_);
+    bool validationEnabled = config->Validation && config->Validation->Enabled;
+    bool generationEnabled = config->Generation && config->Generation->Enabled;
+    bool isInitializationRequired = (validationEnabled || generationEnabled) && !InitializeCryptographyFuture_;
     if (!isInitializationRequired) {
         return;
     }
@@ -87,72 +89,70 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
 {
     YT_LOG_INFO("Reconfiguring signature components");
 
-    auto guard = Guard(ReconfigureSpinLock_);
-    TForbidContextSwitchGuard contextSwitchGuard;
-
     auto returnFuture = OKFuture;
+    TKeyRotatorPtr keyRotatorToStop;
+    {
+        auto guard = Guard(ReconfigureSpinLock_);
+        TForbidContextSwitchGuard contextSwitchGuard;
 
-    InitializeCryptographyIfRequired(config);
-    if (config->Generation) {
-        if (CypressKeyWriter_) {
-            CypressKeyWriter_->Reconfigure(config->Generation->CypressKeyWriter);
-        } else {
-            CypressKeyWriter_ = New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_);
-        }
-
-        if (UnderlyingGenerator_) {
-            UnderlyingGenerator_->Reconfigure(config->Generation->Generator);
-        } else {
-            UnderlyingGenerator_ = New<TSignatureGenerator>(config->Generation->Generator);
-        }
-
-        if (KeyRotator_) {
-            // NB: Best effort attempt to get the first rotation *after* Reconfigure.
-            // Can't be put later, because Reconfigure might trigger an immediate rotation.
-            returnFuture = KeyRotator_->GetNextRotationFuture();
-            KeyRotator_->Reconfigure(config->Generation->KeyRotator);
-        } else {
-            KeyRotator_ = New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_);
-            // NB: We can't wait for anything in Reconfigure.
-            returnFuture = DoStartRotation();
-        }
-
-        DynamicSignatureGenerator_->SetUnderlying(UnderlyingGenerator_);
-    } else {
-        DynamicSignatureGenerator_->SetUnderlying(CreateAlwaysThrowingSignatureGenerator());
-        UnderlyingGenerator_.Reset();
-
-        if (KeyRotator_) {
-            // NB: We can't wait for anything in Reconfigure.
-            returnFuture = KeyRotator_->Stop();
-        }
-        KeyRotator_.Reset();
-
-        CypressKeyWriter_.Reset();
-    }
-
-    if (config->Validation) {
-        auto newKeyReaderConfigNode = ConvertToNode(config->Validation->CypressKeyReader);
-        if (CypressKeyReader_) {
-            // NB: Reconfiguring the reader drops its key cache, so it is only done
-            // when the reader config has actually changed.
-            if (!AreNodesEqual(AppliedKeyReaderConfigNode_, newKeyReaderConfigNode)) {
-                CypressKeyReader_->Reconfigure(config->Validation->CypressKeyReader);
+        InitializeCryptographyIfRequired(config);
+        if (config->Generation && config->Generation->Enabled) {
+            if (CypressKeyWriter_) {
+                CypressKeyWriter_->Reconfigure(config->Generation->CypressKeyWriter);
+            } else {
+                CypressKeyWriter_ = New<TCypressKeyWriter>(config->Generation->CypressKeyWriter, OwnerId_, Client_);
             }
-        } else {
-            CypressKeyReader_ = New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_);
-            UnderlyingValidator_ = New<TSignatureValidator>(CypressKeyReader_);
-        }
-        AppliedKeyReaderConfigNode_ = std::move(newKeyReaderConfigNode);
 
-        DynamicSignatureValidator_->SetUnderlying(UnderlyingValidator_);
-    } else {
-        DynamicSignatureValidator_->SetUnderlying(CreateAlwaysThrowingSignatureValidator());
-        UnderlyingValidator_.Reset();
-        CypressKeyReader_.Reset();
-        AppliedKeyReaderConfigNode_.Reset();
+            if (UnderlyingGenerator_) {
+                UnderlyingGenerator_->Reconfigure(config->Generation->Generator);
+            } else {
+                UnderlyingGenerator_ = New<TSignatureGenerator>(config->Generation->Generator);
+            }
+
+            if (KeyRotator_) {
+                KeyRotator_->Reconfigure(config->Generation->KeyRotator);
+            } else {
+                KeyRotator_ = New<TKeyRotator>(config->Generation->KeyRotator, RotateInvoker_, CypressKeyWriter_, UnderlyingGenerator_);
+                // NB: We can't wait for anything in Reconfigure.
+                returnFuture = DoStartRotation();
+            }
+
+            DynamicSignatureGenerator_->SetUnderlying(UnderlyingGenerator_);
+        } else {
+            DynamicSignatureGenerator_->SetUnderlying(CreateAlwaysThrowingSignatureGenerator());
+            UnderlyingGenerator_.Reset();
+
+            keyRotatorToStop = std::move(KeyRotator_);
+
+            CypressKeyWriter_.Reset();
+        }
+
+        if (config->Validation && config->Validation->Enabled) {
+            auto newKeyReaderConfigNode = ConvertToNode(config->Validation->CypressKeyReader);
+            if (CypressKeyReader_) {
+                // NB: Reconfiguring the reader drops its key cache, so it is only done
+                // when the reader config has actually changed.
+                if (!AreNodesEqual(AppliedKeyReaderConfigNode_, newKeyReaderConfigNode)) {
+                    CypressKeyReader_->Reconfigure(config->Validation->CypressKeyReader);
+                }
+            } else {
+                CypressKeyReader_ = New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_);
+                UnderlyingValidator_ = New<TSignatureValidator>(CypressKeyReader_);
+            }
+            AppliedKeyReaderConfigNode_ = std::move(newKeyReaderConfigNode);
+
+            DynamicSignatureValidator_->SetUnderlying(UnderlyingValidator_);
+        } else {
+            DynamicSignatureValidator_->SetUnderlying(CreateAlwaysThrowingSignatureValidator());
+            UnderlyingValidator_.Reset();
+            CypressKeyReader_.Reset();
+            AppliedKeyReaderConfigNode_.Reset();
+        }
     }
 
+    if (keyRotatorToStop) {
+        return keyRotatorToStop->Stop();
+    }
     return returnFuture;
 }
 
@@ -182,8 +182,12 @@ TFuture<void> TSignatureComponents::DoStartRotation() const
 
 TFuture<void> TSignatureComponents::StopRotation()
 {
-    auto guard = Guard(ReconfigureSpinLock_);
-    return KeyRotator_ ? KeyRotator_->Stop() : OKFuture;
+    TKeyRotatorPtr keyRotator;
+    {
+        auto guard = Guard(ReconfigureSpinLock_);
+        keyRotator = KeyRotator_;
+    }
+    return keyRotator ? keyRotator->Stop() : OKFuture;
 }
 
 TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
