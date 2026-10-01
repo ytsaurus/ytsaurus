@@ -147,7 +147,7 @@ public:
     bool HasPendingWatch() const
     {
         auto guard = Guard(Lock_);
-        return static_cast<bool>(WatchContext_);
+        return !WatchContexts_.empty();
     }
 
     void ReplyWatchChanged(TReplicationEra era)
@@ -166,14 +166,15 @@ public:
         context->Reply();
     }
 
-    void ReplyPendingWatchDeleted()
+    void ReplyPendingWatchesDeleted()
     {
-        TCtxWatchReplicationCardPtr context;
+        std::vector<TCtxWatchReplicationCardPtr> contexts;
         {
             auto guard = Guard(Lock_);
-            context = std::move(WatchContext_);
+            contexts.swap(WatchContexts_);
         }
-        if (context) {
+
+        for (const auto& context : contexts) {
             context->Response().mutable_replication_card_deleted();
             context->Reply();
         }
@@ -203,15 +204,14 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, WatchReplicationCard)
     {
         auto guard = Guard(Lock_);
-        YT_VERIFY(!WatchContext_);
-        WatchContext_ = context;
+        WatchContexts_.push_back(context);
     }
 
     mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     int MinimalFetchCount_ = 0;
     int ProgressFetchCount_ = 0;
     std::vector<TReplicationCardFetchOptions> FetchOptions_;
-    TCtxWatchReplicationCardPtr WatchContext_;
+    std::vector<TCtxWatchReplicationCardPtr> WatchContexts_;
 
     static TReplicationCardPtr CreateCard(TReplicationEra era)
     {
@@ -224,8 +224,10 @@ private:
     TCtxWatchReplicationCardPtr TakeWatchContext()
     {
         auto guard = Guard(Lock_);
-        YT_VERIFY(WatchContext_);
-        return std::move(WatchContext_);
+        YT_VERIFY(WatchContexts_.size() == 1);
+        auto context = std::move(WatchContexts_.back());
+        WatchContexts_.pop_back();
+        return context;
     }
 };
 
@@ -270,14 +272,13 @@ protected:
             Cache_->Clear();
             Cache_ = nullptr;
         }
-        Service_->ReplyPendingWatchDeleted();
+        ServiceQueue_->Shutdown(/*graceful*/ true);
+        Service_->ReplyPendingWatchesDeleted();
+        ConnectionQueue_->Shutdown(/*graceful*/ true);
         Connection_ = nullptr;
         Service_ = nullptr;
         MemoryTracker_->ClearTrackers();
         MemoryTracker_ = nullptr;
-        // Drain the service queue first: sending the RPC reply schedules the watcher callback on the connection queue.
-        ServiceQueue_->Shutdown(/*graceful*/ true);
-        ConnectionQueue_->Shutdown(/*graceful*/ true);
     }
 
     TReplicationCardCacheConfigPtr CreateConfig(
