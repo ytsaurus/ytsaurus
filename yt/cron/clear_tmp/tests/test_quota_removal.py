@@ -105,7 +105,7 @@ def test_quota_removal_without_non_deletable(yt_env):  # noqa
         proxy_address,
         COMMON_ARGS + [
             "--directory", "//tmp/dir",
-            "--max-node-count", "3",
+            "--max-node-count", "2",
             "--safe-age", "0",
         ])
 
