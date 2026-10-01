@@ -84,6 +84,18 @@ TGuid ToGuid(DB::UUID uuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetAscendingKeyPrefixLength(const TTableSchema& schema)
+{
+    int count = 0;
+    for (const auto& column : schema.Columns()) {
+        if (column.SortOrder() != ESortOrder::Ascending) {
+            break;
+        }
+        ++count;
+    }
+    return count;
+}
+
 void RegisterNewUser(
     DB::AccessControl& accessControl,
     const std::string& userName,

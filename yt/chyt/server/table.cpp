@@ -170,10 +170,6 @@ void RemoveIncompatibleSortOrder(TTablePtr& table)
 
     auto hasIncompatibleSortOrder = [] (const TColumnSchema& column) -> bool {
         if (column.SortOrder()) {
-            // ESortOrder::Descending is not supported in ClickHouse.
-            if (column.SortOrder() != ESortOrder::Ascending) {
-                return true;
-            }
             // We convert 'any' values to yson-strings, so sort order is broken.
             if (*column.LogicalType() == *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))) {
                 return true;

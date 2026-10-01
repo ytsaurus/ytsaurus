@@ -1698,10 +1698,11 @@ class TestReadInOrder(ClickHouseTestBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("instance_count", [1, 2])
-    def test_optimize_read_in_order_disabled(self, instance_count):
+    @pytest.mark.parametrize("second_sort_order", ["ascending", "descending"])
+    def test_optimize_read_in_order_disabled(self, instance_count, second_sort_order):
         schema = [
             {"name": "ts", "type": "int64", "sort_order": "ascending"},
-            {"name": "ts_2", "type": "int64", "sort_order": "ascending"},
+            {"name": "ts_2", "type": "int64", "sort_order": second_sort_order},
             {"name": "message", "type": "string"},
         ]
 
@@ -1754,14 +1755,17 @@ class TestReadInOrder(ClickHouseTestBase):
             # Incompatible read directions.
             register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 limit 1', read_in_order_mode="none")
             # These are fine though.
-            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 desc limit 1', read_in_order_mode="backward")
-            register_query_check('select message from "//tmp/table-0" order by ts, ts_2 limit 1', read_in_order_mode="forward")
+            register_query_check('select message from "//tmp/table-0" order by ts desc, ts_2 desc limit 1',
+                                 read_in_order_mode="backward" if second_sort_order == "ascending" else "none")
+            register_query_check('select message from "//tmp/table-0" order by ts, ts_2 limit 1',
+                                 read_in_order_mode="forward" if second_sort_order == "ascending" else "none")
             # No ORDER BY.
             register_query_check('select message from "//tmp/table-0" limit 5', read_in_order_mode="none")
             # Complex expressions in ORDER BY.
             register_query_check('select message from "//tmp/table-0" order by ts * 2 limit 1', read_in_order_mode="none")
             # It seems that CH flattens tuples in ORDER BY somewhere along the way, so this works.
-            register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1', read_in_order_mode="backward")
+            register_query_check('select message from "//tmp/table-0" order by (ts, ts_2) desc limit 1',
+                                 read_in_order_mode="backward" if second_sort_order == "ascending" else "none")
             # Positional arguments in ORDER BY are supported.
             register_query_check('select ts from "//tmp/table-0" order by 1 limit 1', read_in_order_mode="forward")
             # Aliases also work.
@@ -1784,6 +1788,62 @@ class TestInferReadRange(ClickHouseTestBase):
                 }
             }
         }
+
+    @authors("buyval01")
+    def test_key_filtering_sort_orders(self):
+        predicates = [
+            ("a IN (1, 3) AND b IN (0, 5)", lambda a, b: a in (1, 3) and b in (0, 5)),
+            ("a >= 1 AND a < 3", lambda a, b: 1 <= a < 3),
+            ("(a = 1 AND b < 3) OR (a = 1 AND b > 1)", lambda a, b: a == 1),
+            ("a > 1 OR (a = 1 AND b >= 2)", lambda a, b: a > 1 or (a == 1 and b >= 2)),
+            ("(a, b) > (2, 2)", lambda a, b: (a, b) > (2, 2)),
+            ("a = 2 AND b != 3", lambda a, b: a == 2 and b != 3),
+            ("a = 2 AND b > 5", lambda a, b: False),
+        ]
+        with Clique(1) as clique:
+            for directions in [
+                ("ascending", "ascending"),
+                ("descending", "ascending"),
+                ("ascending", "descending"),
+                ("descending", "descending"),
+            ]:
+                table = f"//tmp/sort_order_{directions[0]}_{directions[1]}"
+                schema = [
+                    {"name": "a", "type": "int64", "sort_order": directions[0]},
+                    {"name": "b", "type": "int64", "sort_order": directions[1]},
+                ]
+                create("table", table, attributes={"schema": schema})
+                aa = list(range(4))[::1 if directions[0] == "ascending" else -1]
+                bb = list(range(6))[::1 if directions[1] == "ascending" else -1]
+                for a in aa:
+                    for start in range(0, len(bb), 2):
+                        write_table(f"<append=%true>{table}",
+                                    [{"a": a, "b": b} for b in bb[start:start + 2]])
+
+                for infer_ranges in [False, True]:
+                    settings = {
+                        "chyt.execution.enable_read_range_inferring": int(infer_ranges),
+                        "chyt.enable_key_condition_filtering": int(not infer_ranges),
+                        "chyt.execution.enable_min_max_filtering": 0,
+                        "optimize_move_to_prewhere": 0,
+                    }
+                    query = (f'SELECT a, b FROM "{table}" '
+                             'WHERE a = 2 AND b >= 2 AND b < 4 ORDER BY a, b')
+                    expected_read_rows = 24 if directions[0] == "descending" else (
+                        6 if directions[1] == "descending" else 2)
+                    result = clique.make_query_and_validate_read_row_count(
+                        query, exact=expected_read_rows, settings=settings)
+                    assert result == [{"a": 2, "b": 2}, {"a": 2, "b": 3}]
+
+                    query = f'SELECT a, b FROM "{table}" WHERE a = 2 ORDER BY b'
+                    assert clique.make_query_and_validate_read_row_count(
+                        query, exact=6 if directions[0] == "ascending" else 24, settings=settings
+                    ) == [{"a": 2, "b": b} for b in range(6)]
+
+                    for predicate, matches in predicates:
+                        query = f'SELECT a, b FROM "{table}" WHERE {predicate} ORDER BY a, b'
+                        assert clique.make_query(query, settings=settings) == [
+                            {"a": a, "b": b} for a in range(4) for b in range(6) if matches(a, b)]
 
     @authors("buyval01")
     def test_simple_range(self):

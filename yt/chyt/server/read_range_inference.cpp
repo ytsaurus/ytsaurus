@@ -3,6 +3,7 @@
 #include "conversion.h"
 #include "config.h"
 #include "custom_data_types.h"
+#include "helpers.h"
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -378,9 +379,16 @@ std::vector<TReadRange> InferReadRange(
     const TTableSchemaPtr& schema,
     const DB::Settings& settings)
 {
-    if (!filterNode) {
+    int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
+    if (!filterNode || keyColumnCount == 0) {
         return {};
     }
+
+    auto keyColumns = schema->GetKeyColumns();
+    keyColumns.resize(keyColumnCount);
+    auto inferenceSchema = keyColumnCount == schema->GetKeyColumnCount()
+        ? schema
+        : schema->ToSorted(keyColumns);
 
     DB::GetSetElementParams setParams{
         .transform_null_in = settings[DB::Setting::transform_null_in],
@@ -388,7 +396,7 @@ std::vector<TReadRange> InferReadRange(
 
     auto predicateExpr = ConvertToConstExpression(
         std::move(filterNode),
-        schema,
+        inferenceSchema,
         TConversionSettings::Create(
             TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)),
         setParams);
@@ -398,8 +406,8 @@ std::vector<TReadRange> InferReadRange(
 
     auto rowRanges = NQueryClient::CreateNewRangeInferrer(
         predicateExpr,
-        schema,
-        schema->GetKeyColumns(),
+        inferenceSchema,
+        keyColumns,
         /*evaluatorCache*/ nullptr,
         NQueryClient::GetBuiltinConstraintExtractors(),
         /*options*/ {.RangeExpansionLimit = 1000},
@@ -409,8 +417,8 @@ std::vector<TReadRange> InferReadRange(
     std::vector<TReadRange> result;
     result.reserve(rowRanges.size());
     for (const auto& rowRange : rowRanges) {
-        auto lowerLimit = KeyBoundFromLegacyRow(rowRange.first, /*isUpper*/ false, schema->GetKeyColumnCount());
-        auto upperLimit = KeyBoundFromLegacyRow(rowRange.second, /*isUpper*/ true, schema->GetKeyColumnCount());
+        auto lowerLimit = KeyBoundFromLegacyRow(rowRange.first, /*isUpper*/ false, keyColumnCount);
+        auto upperLimit = KeyBoundFromLegacyRow(rowRange.second, /*isUpper*/ true, keyColumnCount);
         if (lowerLimit.IsUniversal() && upperLimit.IsUniversal()) {
             continue;
         }
