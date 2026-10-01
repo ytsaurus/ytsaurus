@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/auth"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/livy"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 	"go.ytsaurus.tech/yt/go/guid"
@@ -84,6 +86,100 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	ok, err = env.YT.NodeExists(env.Ctx, env.StrawberryRoot.Child(alias), nil)
 	require.NoError(t, err)
 	require.True(t, ok)
+}
+
+func TestHTTPAPILivyIsDeprecated(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t, "livy", strawberry.ControllerFactory{
+		Ctor:       livy.NewController,
+		Config:     yson.RawValue(`{default_speclet={driver_cores=1;spyt_version="1.0";};}`),
+		Deprecated: true,
+	})
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+	require.Contains(t, string(r.Body), "deprecated")
+
+	exists, err := env.YT.NodeExists(env.Ctx, env.StrawberryRoot.Child(alias), nil)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	r = c.MakePostRequest("start", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+	require.Contains(t, string(r.Body), "deprecated")
+
+	r = c.MakePostRequest("list", api.RequestParams{})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	controller := livy.NewController(env.L.Logger(), env.YT, env.StrawberryRoot, c.Proxy, nil)
+	_, _, _, _, err = controller.Prepare(env.Ctx, nil)
+	require.ErrorContains(t, err, "deprecated")
+
+	legacyAPI := api.NewAPI(env.YT, api.APIConfig{
+		AgentInfo: strawberry.AgentInfo{
+			StrawberryRoot: env.StrawberryRoot,
+			Stage:          "test_stage",
+		},
+	}, controller, env.L.Logger())
+	require.NoError(t, legacyAPI.Create(auth.WithRequester(env.Ctx, c.User), alias, nil, nil))
+
+	specletPath := env.StrawberryRoot.JoinChild(alias, "speclet")
+	for _, command := range []string{"set_option", "set_options", "edit_options", "set_speclet"} {
+		t.Run(command, func(t *testing.T) {
+			initialSpeclet := map[string]any{
+				"family":      "livy",
+				"stage":       "test_stage",
+				"active":      false,
+				"test_option": "old_value",
+			}
+			require.NoError(t, env.YT.SetNode(env.Ctx, specletPath, initialSpeclet, nil))
+
+			options := map[string]any{"active": true, "test_option": "new_value"}
+			params := map[string]any{"alias": alias}
+			switch command {
+			case "set_option":
+				params["key"] = "active"
+				params["value"] = true
+			case "set_options":
+				params["options"] = options
+			case "edit_options":
+				params["options_to_set"] = options
+				params["options_to_remove"] = []string{"test_option"}
+			case "set_speclet":
+				params["speclet"] = options
+			}
+
+			r := c.MakePostRequest(command, api.RequestParams{Params: params})
+			require.Equal(t, http.StatusBadRequest, r.StatusCode)
+			require.Contains(t, string(r.Body), "deprecated")
+
+			var speclet map[string]any
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath, &speclet, nil))
+			require.Equal(t, initialSpeclet, speclet)
+
+			initialSpeclet["active"] = true
+			require.NoError(t, env.YT.SetNode(env.Ctx, specletPath, initialSpeclet, nil))
+			options["active"] = false
+			if command == "set_option" {
+				params["value"] = false
+			}
+			r = c.MakePostRequest(command, api.RequestParams{Params: params})
+			require.Equal(t, http.StatusOK, r.StatusCode)
+			require.NoError(t, env.YT.GetNode(env.Ctx, specletPath, &speclet, nil))
+			require.Equal(t, false, speclet["active"])
+		})
+	}
+
+	r = c.MakePostRequest("stop", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+	r = c.MakePostRequest("remove", api.RequestParams{Params: map[string]any{"alias": alias}})
+	require.Equal(t, http.StatusOK, r.StatusCode)
 }
 
 func TestHTTPAPIExists(t *testing.T) {
