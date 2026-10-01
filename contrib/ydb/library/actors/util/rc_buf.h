@@ -447,12 +447,12 @@ class TRcBuf {
             if(!Owner) {
                 return true;
             }
-            return Visit(Owner, [](EType, auto& value) -> bool {
+            return Visit(Owner, [this](EType, auto& value) -> bool {
                 using T = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<T, NActors::TSharedData> || std::is_same_v<T, TInternalBackend>) {
                     return value.IsPrivate();
                 } else if constexpr (std::is_same_v<T, TString>) {
-                    return value.IsDetached();
+                    return !IsStringShared(Owner) && value.IsDetached();
                 } else if constexpr (std::is_same_v<T, IContiguousChunk::TPtr>) {
                     return value->IsPrivate();
                 } else {
@@ -480,6 +480,19 @@ class TRcBuf {
         TMutableContiguousSpan GetDataMut() {
             if (!Owner) {
                 return TMutableContiguousSpan();
+            }
+            if (IsStringShared(Owner)) {
+                // the holder is shared with other TRcBufs: give this one a private copy
+                TString copy = Visit(Owner, [](EType, auto& value) -> TString {
+                    using T = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_same_v<T, TString>) {
+                        return value;
+                    } else {
+                        Y_ABORT("unexpected backend type");
+                    }
+                });
+                Destroy(Owner);
+                Owner = Construct<TString>(EType::STRING, std::move(copy));
             }
             return Visit(Owner, [](EType, auto& value) -> TMutableContiguousSpan {
                 using T = std::decay_t<decltype(value)>;
@@ -667,21 +680,29 @@ class TRcBuf {
             };
             TIntrusivePtr<TWrappedObject> Object;
 
-            TObjectHolder(T&& object)
+            TObjectHolder(T object)
                 : Object(MakeIntrusive<TWrappedObject>(std::move(object)))
             {}
         };
 
+        // A TString is always kept behind a shared TObjectHolder: copies of a TRcBuf
+        // must share one buffer, and a plain TString copy shares it only with
+        // copy-on-write (with std::string semantics it would be a distinct buffer,
+        // leaving Begin/End of the other copies dangling).
+        template<typename TObject>
+        static constexpr bool IsInlineBackend = sizeof(TObject) <= sizeof(TBackendHolder) && !std::is_same_v<std::decay_t<TObject>, TString>;
+
         template<typename TObject>
         static TBackendHolder Construct(EType type, TObject&& object) {
-            if constexpr (sizeof(TObject) <= sizeof(TBackendHolder)) {
+            if constexpr (IsInlineBackend<TObject>) {
                 TBackendHolder res = TBackend::Empty;
                 new(&res) std::decay_t<TObject>(std::forward<TObject>(object));
                 Y_DEBUG_ABORT_UNLESS((res.Data[0] & ValueMask) == res.Data[0]);
                 res.Data[0] = res.Data[0] | static_cast<uintptr_t>(type);
                 return res;
             } else {
-                return Construct<TObjectHolder<TObject>>(type, TObjectHolder<TObject>(std::forward<TObject>(object)));
+                using THolder = TObjectHolder<std::decay_t<TObject>>;
+                return Construct<THolder>(type, THolder(std::forward<TObject>(object)));
             }
         }
 
@@ -705,7 +726,7 @@ class TRcBuf {
             auto caller = [&](auto& value) { return std::invoke(std::forward<TCallback>(callback), type, value); };
             auto wrapper = [&](auto& value) {
                 using T = std::decay_t<decltype(value)>;
-                if constexpr (sizeof(T) <= sizeof(TBackendHolder)) {
+                if constexpr (IsInlineBackend<T>) {
                     return caller(value);
                 } else {
                     return caller(reinterpret_cast<std::conditional_t<IsConst, const TObjectHolder<T>&, TObjectHolder<T>&>>(value));
@@ -734,6 +755,21 @@ class TRcBuf {
         template<typename TOwner>
         static TBackendHolder Clone(TOwner& value) {
             return VisitRaw(value, [](EType type, auto& value) { return Construct(type, value); });
+        }
+
+        // true when the backend is a TString holder referenced by more than one TRcBuf
+        static bool IsStringShared(const TBackendHolder& owner) {
+            if (!owner || static_cast<EType>(owner.Data[0] & TypeMask) != EType::STRING) {
+                return false;
+            }
+            return VisitRaw(owner, [](EType, auto& value) -> bool {
+                using T = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<T, TObjectHolder<TString>>) {
+                    return value.Object.RefCount() > 1;
+                } else {
+                    return false;
+                }
+            });
         }
 
         template<typename TOwner>
