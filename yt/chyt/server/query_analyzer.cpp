@@ -120,7 +120,8 @@ int GetUsedKeyPrefixSize(const DB::QueryTreeNodePtr& keyNode, const TTableSchema
 
     int usedPrefixSize = 0;
 
-    for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
+    int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
+    for (int index = 0; index < keyColumnCount; ++index) {
         const auto& column = schema->Columns()[index];
         if (!usedColumns.contains(column.Name())) {
             break;
@@ -977,6 +978,12 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
         ++matchedKeyPrefixSize;
     }
 
+    int ascendingPrefix = GetAscendingKeyPrefixLength(leftTableSchema);
+    if (TwoYTTableJoin_) {
+        ascendingPrefix = std::min(ascendingPrefix, GetAscendingKeyPrefixLength(rightTableSchema));
+    }
+    matchedKeyPrefixSize = std::min(matchedKeyPrefixSize, ascendingPrefix);
+
     if (matchedKeyPrefixSize == 0) {
         YT_TLOG_DEBUG("As a result of the inferring sorted join key columns, the key turned out to be empty")
             .With("MatchedLeftKeyNames", matchedLeftKeyNames)
@@ -1291,7 +1298,7 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
     auto commonDirection = EReadInOrderMode::None;
 
     // Columns from the ORDER BY clause must form a prefix of the table's primary key.
-    if (std::ssize(queryNode->getOrderBy().getNodes()) > schema->GetKeyColumnCount()) {
+    if (std::ssize(queryNode->getOrderBy().getNodes()) > GetAscendingKeyPrefixLength(*schema)) {
         return;
     }
 
@@ -1382,7 +1389,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         result.Tables.emplace_back(storage->GetTables());
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
-        if (schema->IsSorted()) {
+        int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
+        if (keyColumnCount > 0) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
                 ToNamesAndTypesList(*schema, settings->Conversion)));
 
@@ -1435,7 +1443,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             DB::ActionsDAGWithInversionPushDown invertedDAG(filterActionsDAG ? filterActionsDAG->getOutputs().front() : nullptr, getContext());
-            keyCondition.emplace(invertedDAG, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
+            auto keyColumns = schema->GetKeyColumns();
+            keyColumns.resize(keyColumnCount);
+            keyCondition.emplace(invertedDAG, getContext(), keyColumns, primaryKeyExpression);
 
             bool suitableForReadRangeInferring = settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere();
             for (int tableIndex = 0; suitableForReadRangeInferring && tableIndex < std::ssize(result.Tables.back()); ++tableIndex) {
@@ -1458,7 +1468,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     if (ReadInOrderMode_ != EReadInOrderMode::None) {
         result.PoolKind = EPoolKind::Sorted;
-        result.KeyColumnCount = Storages_[0]->GetSchema()->GetKeyColumnCount();
+        result.KeyColumnCount = GetAscendingKeyPrefixLength(*Storages_[0]->GetSchema());
     } else {
         result.PoolKind = (KeyColumnCount_ > 0 ? EPoolKind::Sorted : EPoolKind::Unordered);
         result.KeyColumnCount = KeyColumnCount_;

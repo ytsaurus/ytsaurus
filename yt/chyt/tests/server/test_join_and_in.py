@@ -78,13 +78,22 @@ class TestJoinAndIn(ClickHouseTestBase):
                                           'from "//tmp/t1" limit 1')[0].values()) == [0]
 
     @authors("max42")
-    def test_sorted_join_simple(self):
+    @pytest.mark.parametrize("key_sort_order, subkey_sort_order", [
+        ("ascending", None),
+        ("ascending", "ascending"),
+        ("ascending", "descending"),
+        ("descending", None),
+    ])
+    def test_sorted_join_simple(self, key_sort_order, subkey_sort_order):
+        subkey_schema = ([{"name": "subkey", "type": "int64", "sort_order": subkey_sort_order}]
+                         if subkey_sort_order else [])
         create(
             "table",
             "//tmp/t1",
             attributes={
                 "schema": [
-                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "required": True, "sort_order": key_sort_order},
+                    *subkey_schema,
                     {"name": "lhs", "type": "string", "required": True},
                 ]
             },
@@ -94,7 +103,8 @@ class TestJoinAndIn(ClickHouseTestBase):
             "//tmp/t2",
             attributes={
                 "schema": [
-                    {"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "required": True, "sort_order": key_sort_order},
+                    *subkey_schema,
                     {"name": "rhs", "type": "string", "required": True},
                 ]
             },
@@ -109,6 +119,15 @@ class TestJoinAndIn(ClickHouseTestBase):
             [{"key": 3, "rhs": "bar3"}, {"key": 4, "rhs": "bar4"}],
         ]
 
+        if key_sort_order == "descending":
+            lhs_rows = [rows[::-1] for rows in lhs_rows[::-1]]
+            rhs_rows = [rows[::-1] for rows in rhs_rows[::-1]]
+
+        if subkey_sort_order:
+            for rows in lhs_rows + rhs_rows:
+                for row in rows:
+                    row["subkey"] = 0
+
         for rows in lhs_rows:
             write_table("<append=%true>//tmp/t1", rows)
         for rows in rhs_rows:
@@ -121,8 +140,9 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"key": 3, "lhs": "foo3", "rhs": "bar3"},
                 {"key": 4, "lhs": "foo4", "rhs": "bar4"},
             ]
+            join_keys = "key, subkey" if subkey_sort_order else "key"
             assert clique.make_query('select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 '
-                                     'using key order by key') == expected
+                                     f'using ({join_keys}) order by key') == expected
             assert clique.make_query(
                 'select key, lhs, rhs from "//tmp/t1" t1 join "//tmp/t2" t2 on t1.key = t2.key order by key'
             ) == expected
