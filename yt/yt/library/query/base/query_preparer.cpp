@@ -725,7 +725,7 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignObjectId = foreignDataSplit.ObjectId;
     joinClause->IsLeft = tableJoin.IsLeft;
 
-    if (!tableJoin.Table.Hint->RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
+    if (!tableJoin.Table.Hint.RequireSyncReplica && options.AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse) {
         joinClause->RequireSyncReplica = false;
     }
 
