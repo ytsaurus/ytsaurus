@@ -1067,6 +1067,10 @@ private:
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                mergedRef = TrackMemory(
+                    Bootstrap_->GetNodeMemoryUsageTracker(),
+                    EMemoryCategory::ReadDynamicStore,
+                    std::move(mergedRef));
                 dataWeight += mergedRef.size();
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
@@ -1149,6 +1153,10 @@ private:
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                mergedRef = TrackMemory(
+                    Bootstrap_->GetNodeMemoryUsageTracker(),
+                    EMemoryCategory::ReadDynamicStore,
+                    std::move(mergedRef));
                 dataWeight += mergedRef.size();
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
