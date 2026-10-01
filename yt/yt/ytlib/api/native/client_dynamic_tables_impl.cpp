@@ -434,6 +434,13 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
             resultTabletInfo.TotalRowCount = std::min(
                 resultTabletInfo.TotalRowCount,
                 patchTabletInfo.TotalRowCount);
+            if (resultTabletInfo.FlushedRowCount && patchTabletInfo.FlushedRowCount) {
+                resultTabletInfo.FlushedRowCount = std::min(
+                    *resultTabletInfo.FlushedRowCount,
+                    *patchTabletInfo.FlushedRowCount);
+            } else {
+                resultTabletInfo.FlushedRowCount.reset();
+            }
         }
     }
 
@@ -697,6 +704,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
 
                 result.TotalRowCount = tabletInfo.total_row_count();
                 result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+                result.FlushedRowCount = YT_OPTIONAL_FROM_PROTO(tabletInfo, flushed_row_count);
                 result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
                 result.BarrierTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.barrier_timestamp());
                 result.LastWriteTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.last_write_timestamp());
