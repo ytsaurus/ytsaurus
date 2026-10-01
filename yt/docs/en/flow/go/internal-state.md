@@ -86,11 +86,45 @@ The changes to the value are serialized automatically after all the batch handle
 
 The type the pipeline stores for one word:
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_state]-[END word_count_state]' %}
+```go
+type wordCountState struct {
+	Word  string `yson:"word"`
+	Count int64  `yson:"count"`
+}
+```
 
 The message handler:
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
+```go
+type wordCountMapper struct{}
+
+var _ flow.RowFunction = (*wordCountMapper)(nil)
+
+func (*wordCountMapper) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var input wordMessage
+	if err := msg.ConvertTo(&input); err != nil {
+		return err
+	}
+
+	state, err := flow.OpenYSONState[wordCountState](rt, wordStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	fresh := state.Empty()
+	counter := state.Value()
+	if fresh {
+		counter.Word = input.Word
+	}
+	counter.Count++
+	return nil
+}
+```
 
 [Full source code]({{source-root}}/yt/yt/flow/examples/go/word_count/word_count_mapper.go)
 
@@ -203,7 +237,67 @@ Internal State doesn’t require creating external tables. The states are stored
 
 The names of internal states must be declared in the `internal_states` section of the [computation](../../flow/concepts/glossary.md#stream-and-computation) parameters in the static spec:
 
-{% code '/yt/yt/flow/examples/go/word_count/test/pipeline.yson' lang='yson' %}
+```yson
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["words"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "mapper" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["words"];
+                "output_stream_ids" = [];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["word-state"];
+                };
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+            "mapper" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}
+```
 
 The state name in the code (the second argument of `flow.OpenYSONState`, `flow.OpenRawState`, or `flow.OpenProtoState`) must match the name declared in `internal_states`.
 
