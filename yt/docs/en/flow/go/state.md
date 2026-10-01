@@ -35,9 +35,43 @@ return nil
 
 `flow.YSONState[T]` provides `Empty()`, `Get() (*T, bool)`, `Value() *T`, `Clear()`, and `ReadOnly()`. `Value()` returns a mutable value and creates a zero value for a missing state. A separate `Set` isn’t needed: after the batch is processed successfully, the SDK serializes the changes automatically; if the handler fails, they are discarded.
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_state]-[END word_count_state]' %}
+```go
+type wordCountState struct {
+	Word  string `yson:"word"`
+	Count int64  `yson:"count"`
+}
+```
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
+```go
+type wordCountMapper struct{}
+
+var _ flow.RowFunction = (*wordCountMapper)(nil)
+
+func (*wordCountMapper) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var input wordMessage
+	if err := msg.ConvertTo(&input); err != nil {
+		return err
+	}
+
+	state, err := flow.OpenYSONState[wordCountState](rt, wordStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	fresh := state.Empty()
+	counter := state.Value()
+	if fresh {
+		counter.Word = input.Word
+	}
+	counter.Count++
+	return nil
+}
+```
 
 The state is bound to the message key, which is defined through `group_by_schema` in the computation spec. An independent value is stored for every unique key.
 
@@ -111,7 +145,34 @@ The low-level `Get`, `Or`, `Builder`, `Set`, and `Schema` are needed only for dy
 
 An example from [Shuffle](examples/shuffle.md):
 
-{% code '/yt/yt/flow/examples/go/shuffle/event_reducer.go' lang='go' lines='[BEGIN event_reducer]-[END event_reducer]' %}
+```go
+type shuffleState struct {
+	Count int64 `yson:"count"`
+}
+
+type eventReducer struct{}
+
+var _ flow.RowFunction = (*eventReducer)(nil)
+
+func (*eventReducer) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	state, err := flow.OpenExternalState(rt, shuffleStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	var counter shuffleState
+	if _, err := state.ConvertTo(&counter); err != nil {
+		return err
+	}
+	counter.Count++
+	return state.ConvertFrom(&counter)
+}
+```
 
 The pattern for working with external state:
 
@@ -133,7 +194,59 @@ Returns `flow.JoinedExternalStateAccessor`. The row is read into a structure thr
 
 The namespaces don’t intersect: a state the computation owns isn’t available through `flow.OpenJoinedExternalState`, and vice versa.
 
-{% code '/yt/yt/flow/examples/go/external_state_join/lookup_join.go' lang='go' lines='[BEGIN lookup_join]-[END lookup_join]' %}
+```go
+type referenceState struct {
+	Name *string `yson:"name"`
+}
+
+type lookupJoin struct{}
+
+var _ flow.RowFunction = (*lookupJoin)(nil)
+
+func (*lookupJoin) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var event eventMessage
+	if err := msg.ConvertTo(&event); err != nil {
+		return err
+	}
+
+	name, ok, err := referenceName(rt, msg)
+	if err != nil || !ok {
+		return err
+	}
+
+	enriched := flow.NewYSONMessage[enrichedMessage](enrichedStreamID)
+	enriched.Key = event.Key
+	enriched.Name = name
+	encoded, err := flow.ConvertFrom(rt, enriched)
+	if err != nil {
+		return err
+	}
+	out.AddMessage(encoded)
+	return nil
+}
+
+func referenceName(rt flow.Runtime, msg flow.ExtendedMessage) (string, bool, error) {
+	reference, err := flow.OpenJoinedExternalState(rt, referenceStateName, msg)
+	if errors.Is(err, flow.ErrStateNotRead) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+
+	var state referenceState
+	exists, err := reference.ConvertTo(&state)
+	if err != nil || !exists || state.Name == nil {
+		return "", false, err
+	}
+	return *state.Name, true, nil
+}
+```
 
 [Source code of the example]({{source-root}}/yt/yt/flow/examples/go/external_state_join)
 
@@ -153,7 +266,41 @@ state, err := flow.OpenExternalState(rt, "/join-state", timer)
 
 Here is an example from [WaitClickJoin](examples/wait_click_join.md) — the window is closed by a timer, and the state is cleared right after the result is published:
 
-{% code '/yt/yt/flow/examples/go/wait_click_join/join_function.go' lang='go' lines='[BEGIN on_timer]-[END on_timer]' %}
+```go
+func (*joinFunction) OnTimer(
+	ctx context.Context,
+	rt flow.Runtime,
+	timer flow.Timer,
+	out flow.OutputCollector,
+) error {
+	if timer.StreamID != timerStream {
+		return fmt.Errorf("unhandled timer stream %q", timer.StreamID)
+	}
+
+	state, err := flow.OpenExternalState(rt, joinStateName, timer)
+	if err != nil {
+		return err
+	}
+	var window joinState
+	if _, err := state.ConvertTo(&window); err != nil {
+		return err
+	}
+
+	if window.ShowTime != nil && *window.ShowTime != 0 && window.HitPayload != nil {
+		var key joinKey
+		if err := timer.Key.ConvertTo(&key); err != nil {
+			return err
+		}
+		joined, err := joinedAction(rt, key, window)
+		if err != nil {
+			return err
+		}
+		out.AddMessage(joined)
+	}
+
+	return state.Clear()
+}
+```
 
 A state cleared in this request is read as missing from then on: the computation sees the state as it will be after the response to the worker.
 

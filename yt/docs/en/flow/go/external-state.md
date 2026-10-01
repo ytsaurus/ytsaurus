@@ -115,7 +115,119 @@ An empty state corresponds to the absence of a row in the table: `ConvertTo` for
 
 To use External State, declare an external state manager in the `external_state_managers` section of the [computation](../../flow/concepts/glossary.md#stream-and-computation) in the static spec. Here is an example from [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join), where the `reference_loader` computation owns the reference dataset:
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
+```yson
+{
+    "spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reference"];
+                "source_streams" = {
+                    "reference_table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["reference"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/reference_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference_state" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "parameters" = {};
+                "source_streams" = {"reference_table" = {"parameters" = {}}};
+            };
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "parameters" = {};
+            };
+            "enricher" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
+```
 
 The key fields:
 
@@ -142,7 +254,34 @@ You create the table with standard commands, for example `yt create table ... --
 
 ## Complete example — eventReducer from Shuffle {#example}
 
-{% code '/yt/yt/flow/examples/go/shuffle/event_reducer.go' lang='go' lines='[BEGIN event_reducer]-[END event_reducer]' %}
+```go
+type shuffleState struct {
+	Count int64 `yson:"count"`
+}
+
+type eventReducer struct{}
+
+var _ flow.RowFunction = (*eventReducer)(nil)
+
+func (*eventReducer) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	state, err := flow.OpenExternalState(rt, shuffleStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	var counter shuffleState
+	if _, err := state.ConvertTo(&counter); err != nil {
+		return err
+	}
+	counter.Count++
+	return state.ConvertFrom(&counter)
+}
+```
 
 [Full source code]({{source-root}}/yt/yt/flow/examples/go/shuffle/event_reducer.go)
 
@@ -180,13 +319,173 @@ The worker joins only those keys for which it found rows. Therefore a batch that
 
 The `enricher` computation from the [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join) example reads the very reference dataset owned by `reference_loader` from the [section above](#static-spec):
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
+```yson
+{
+    "spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reference"];
+                "source_streams" = {
+                    "reference_table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["reference"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/reference_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference_state" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "parameters" = {};
+                "source_streams" = {"reference_table" = {"parameters" = {}}};
+            };
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "parameters" = {};
+            };
+            "enricher" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
+```
 
 The fields of `external_state_joiners` repeat the fields of `external_state_managers` up to the class name: `external_state_joiner_class_name` instead of `external_state_manager_class_name`. The `parameters.path` path is resolved on every access, so if you point it at a symlink, switching the symlink replaces the whole reference dataset under a running pipeline, without a restart.
 
 ### Example {#joined-example}
 
-{% code '/yt/yt/flow/examples/go/static_table_join/enricher.go' lang='go' lines='[BEGIN enricher]-[END enricher]' %}
+```go
+type enricher struct{}
+
+var _ flow.RowFunction = (*enricher)(nil)
+
+func (*enricher) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var event eventMessage
+	if err := msg.ConvertTo(&event); err != nil {
+		return err
+	}
+
+	name, joined, err := joinedName(rt, msg)
+	if err != nil || !joined {
+		return err
+	}
+
+	enriched := flow.NewYSONMessage[enrichedMessage](enrichedStreamID)
+	enriched.Key = event.Key
+	enriched.Name = name
+	encoded, err := flow.ConvertFrom(rt, enriched)
+	if err != nil {
+		return err
+	}
+	out.AddMessage(encoded)
+	return nil
+}
+
+func joinedName(rt flow.Runtime, msg flow.ExtendedMessage) (string, bool, error) {
+	state, err := flow.OpenJoinedExternalState(rt, referenceStateName, msg)
+	if errors.Is(err, flow.ErrStateNotRead) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+
+	var reference referenceState
+	exists, err := state.ConvertTo(&reference)
+	if err != nil || !exists || reference.NormalizedName == nil {
+		return "", false, err
+	}
+	return *reference.NormalizedName, true, nil
+}
+```
 
 [Full source code]({{source-root}}/yt/yt/flow/examples/go/static_table_join/enricher.go)
 

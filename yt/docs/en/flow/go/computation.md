@@ -188,7 +188,36 @@ The low-level `flow.Payload`, `flow.PayloadBuilder`, and `rt.MessageBuilder` rem
 
 The function from [WordCount](examples/wordcount.md) counts the occurrences of every word in the key’s [state](../../flow/concepts/glossary.md#state):
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_mapper]-[END word_count_mapper]' %}
+```go
+type wordCountMapper struct{}
+
+var _ flow.RowFunction = (*wordCountMapper)(nil)
+
+func (*wordCountMapper) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var input wordMessage
+	if err := msg.ConvertTo(&input); err != nil {
+		return err
+	}
+
+	state, err := flow.OpenYSONState[wordCountState](rt, wordStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	fresh := state.Empty()
+	counter := state.Value()
+	if fresh {
+		counter.Word = input.Word
+	}
+	counter.Count++
+	return nil
+}
+```
 
 ### Optional handlers {#optional-handlers}
 
