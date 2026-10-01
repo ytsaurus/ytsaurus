@@ -1,7 +1,7 @@
-#ifndef PARSER_INL_H_
-#error "Direct inclusion of this file is not allowed, include parser.h"
+#ifndef MULTI_TABLE_PARSER_INL_H_
+#error "Direct inclusion of this file is not allowed, include multi_table_parser.h"
 // For the sake of sane code completion.
-#include "parser.h"
+#include "multi_table_parser.h"
 #endif
 
 #include <yt/yt/core/concurrency/coroutine.h>
@@ -10,7 +10,7 @@
 
 #include <library/cpp/skiff/skiff.h>
 
-namespace NYT::NSkiffExt {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,13 +21,13 @@ public:
     TImpl(
         TConsumer* consumer,
         NSkiff::TSkiffSchemaList skiffSchemaList,
-        const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
+        const std::vector<NSkiffExt::TSkiffTableColumnIds>& tablesColumnIds,
         const std::string& rangeIndexColumnName,
         const std::string& rowIndexColumnName)
         : Consumer_(consumer)
         , SkiffSchemaList_(std::move(skiffSchemaList))
     {
-        auto genericTableDescriptions = CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
+        auto genericTableDescriptions = NSkiffExt::CreateTableDescriptionList(SkiffSchemaList_, rangeIndexColumnName, rowIndexColumnName);
         YT_VERIFY(tablesColumnIds.size() == genericTableDescriptions.size());
 
         for (size_t tableIndex = 0; tableIndex < genericTableDescriptions.size(); ++tableIndex) {
@@ -182,7 +182,7 @@ template <class TConsumer>
 TSkiffMultiTableParser<TConsumer>::TSkiffMultiTableParser(
     TConsumer* consumer,
     NSkiff::TSkiffSchemaList schemaList,
-    const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
+    const std::vector<NSkiffExt::TSkiffTableColumnIds>& tablesColumnIds,
     const std::string& rangeIndexColumnName,
     const std::string& rowIndexColumnName)
     : ParserImpl_(new TImpl(consumer,
@@ -219,4 +219,4 @@ ui64 TSkiffMultiTableParser<TConsumer>::GetReadBytesCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiffExt
+} // namespace NYT::NPython
