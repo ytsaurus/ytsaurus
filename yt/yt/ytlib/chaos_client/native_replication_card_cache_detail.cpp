@@ -367,8 +367,9 @@ protected:
     }
 
 private:
-    IReplicationCardsWatcherClientPtr WatcherClient_;
     const NLogging::TLogger Logger;
+
+    IReplicationCardsWatcherClientPtr WatcherClient_;
 };
 
 using TWatchedReplicationCardCachePtr = TIntrusivePtr<TWatchedReplicationCardCache>;

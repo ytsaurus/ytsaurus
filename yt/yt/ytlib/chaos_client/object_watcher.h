@@ -170,6 +170,9 @@ private:
     };
 
     const NConcurrency::TPeriodicExecutorPtr ExpirationExecutor_;
+    const TDuration ExpirationTime_;
+    const TDuration GoneObjectsExpirationTime_;
+    const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EntriesLock_);
     THashMap<TChaosObjectId, std::unique_ptr<TWatchersList>> WatchersByObjectId_;
@@ -180,11 +183,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DeletedObjectsLock_);
     THashMap<TChaosObjectId, TInstant> DeletedObjects_;
 
-    const TDuration ExpirationTime_;
-    const TDuration GoneObjectsExpirationTime_;
     std::atomic<bool> IsRunning_ = false;
-
-    const NLogging::TLogger Logger;
 
     void OnExpirationSweep();
 };
