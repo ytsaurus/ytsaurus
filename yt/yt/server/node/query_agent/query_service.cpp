@@ -172,6 +172,29 @@ void ValidateColumnFilterContainsAllKeyColumns(
     }
 }
 
+//! Returns the number of rows of an ordered tablet that reside in chunk stores
+//! (including trimmed ones); returns null for sorted tablets.
+//! NB: Store flushes are coordinated by master, so this never exceeds master's @flushed_row_count.
+std::optional<i64> GetFlushedRowCount(const NTabletNode::TTabletSnapshotPtr& tabletSnapshot)
+{
+    if (tabletSnapshot->PhysicalSchema->IsSorted()) {
+        return std::nullopt;
+    }
+
+    const auto& stores = tabletSnapshot->OrderedStores;
+    for (auto it = stores.rbegin(); it != stores.rend(); ++it) {
+        const auto& store = *it;
+        if (!store->IsDynamic()) {
+            return store->GetStartingRowIndex() + store->GetRowCount();
+        }
+    }
+
+    // No chunk stores: either all of them have been trimmed or nothing has been flushed yet.
+    return stores.empty()
+        ? tabletSnapshot->TotalRowCount
+        : stores.front()->GetStartingRowIndex();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
@@ -903,6 +926,7 @@ private:
             protoTabletInfo->set_barrier_timestamp(ToProto(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load()));
             protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
+            YT_OPTIONAL_SET_PROTO(protoTabletInfo, flushed_row_count, GetFlushedRowCount(tabletSnapshot));
             protoTabletInfo->set_delayed_lockless_row_count(tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load());
             protoTabletInfo->set_last_write_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load()));
 
