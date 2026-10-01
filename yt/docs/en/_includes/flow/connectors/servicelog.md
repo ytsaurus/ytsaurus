@@ -1,18 +1,24 @@
 # Service Log in {{product-name}} Flow
 
+{% note warning "Deprecated" %}
+
+Service Log is deprecated. For new code that periodically scans keys in a computation's internal or external state, use [Key Visitor](../../../flow/concepts/key_visitor.md) feature.
+
+{% endnote %}
+
 The connector code is available [here]({{source-root}}/yt/yt/flow/library/cpp/connectors/servicelog).
 
 Use the service log to regularly scan sorted tables. Unlike other connectors, it’s inherently infinite: after a table is fully read, it starts reading it again.
 
 You can also scan multiple tables in parallel, joining them by key columns.
 
-{% note warning "Important" %}
+{% note info "Important" %}
 
 Currently, the first column in the key must be a `ui64` value, evenly distributed between `0` and `(1 << 64) - 1`. Typically, you can use a hash of the row ID for this value.
 
 {% endnote %}
 
-{% note warning "Important" %}
+{% note info "Important" %}
 
 You can run the source in finite mode by setting the `finite` parameter to `true`. In this mode, the table is read exactly once, or (if reading has already started) each [partition](../../../flow/concepts/glossary.md#partition) reads its part of the table once.
 
@@ -28,7 +34,7 @@ To access them directly, you need to specify all replica clusters in the table�
 
 To access them via the meta-cluster RPC, it’s enough to specify the meta-cluster in the `cluster` attribute.
 
-{% note warning "Important" %}
+{% note info "Important" %}
 
 Access via the meta-cluster RPC is only possible with `FetchType = EFetchType::SelectRows`.
 
@@ -51,7 +57,7 @@ A common mistake is writing tests for the service log in finite mode (`finite = 
 2. Run two executions: in the first, load data from other sources; in the second, run only the service log source.
 3. Make the test non-finite (`finite = false`).
 
-{% note warning "Important" %}
+{% note info "Important" %}
 
 When using `FetchType = EFetchType::TableReader`, you must set `enable_dynamic_store_read = true` on the table. Otherwise, the service log might not immediately see the most recent data version. This is usually not critical for production, but it breaks tests.
 
