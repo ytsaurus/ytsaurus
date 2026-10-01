@@ -11,7 +11,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TConsumer>
-std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTableParser(
+std::unique_ptr<TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTableParser(
     TConsumer* consumer,
     const std::vector<Py::PythonClassObject<TSkiffSchemaPython>>& pythonSkiffSchemaList,
     const std::string& rangeIndexColumnName,
@@ -32,7 +32,7 @@ std::unique_ptr<NSkiffExt::TSkiffMultiTableParser<TConsumer>> CreateSkiffMultiTa
         tablesColumnIds.push_back(tableColumnIds);
     }
 
-    return std::make_unique<NSkiffExt::TSkiffMultiTableParser<TConsumer>>(
+    return std::make_unique<TSkiffMultiTableParser<TConsumer>>(
         consumer,
         skiffSchemaList,
         tablesColumnIds,

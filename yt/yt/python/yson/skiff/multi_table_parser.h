@@ -1,6 +1,6 @@
 #pragma once
 
-#include "schema_match.h"
+#include <yt/yt/library/skiff_ext/schema_match.h>
 
 #include <library/cpp/skiff/skiff_schema.h>
 
@@ -10,7 +10,7 @@
 
 #include <util/generic/buffer.h>
 
-namespace NYT::NSkiffExt {
+namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ public:
     TSkiffMultiTableParser(
         TConsumer* consumer,
         NSkiff::TSkiffSchemaList schemaList,
-        const std::vector<TSkiffTableColumnIds>& tablesColumnIds,
+        const std::vector<NSkiffExt::TSkiffTableColumnIds>& tablesColumnIds,
         const std::string& rangeIndexColumnName,
         const std::string& rowIndexColumnName);
 
@@ -41,8 +41,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSkiffExt
+} // namespace NYT::NPython
 
-#define PARSER_INL_H_
-#include "parser-inl.h"
-#undef PARSER_INL_H_
+#define MULTI_TABLE_PARSER_INL_H_
+#include "multi_table_parser-inl.h"
+#undef MULTI_TABLE_PARSER_INL_H_
