@@ -31,6 +31,11 @@ public:
         return it->second;
     }
 
+    void InvalidateTable(const TTableMountInfoPtr& /*tableInfo*/) override
+    {
+        YT_ABORT();
+    }
+
     void InvalidateTablet(TTabletId /*tablet*/) override
     {
         YT_ABORT();
