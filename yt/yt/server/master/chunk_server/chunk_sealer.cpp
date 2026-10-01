@@ -513,7 +513,7 @@ private:
     static bool IsFirstUnsealedInChunkList(const TChunk* chunk)
     {
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
-            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto* chunkList = chunkTree->AsChunkList();
             int index = GetChildIndex(chunkList, chunk);
             if (index > 0 && !chunkList->Children()[index - 1]->IsSealed()) {
                 return false;

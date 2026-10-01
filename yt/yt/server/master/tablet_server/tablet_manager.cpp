@@ -1668,7 +1668,7 @@ public:
                 if (updateMode == EUpdateMode::Append) {
                     // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
                     if (appendChunkList->IsNewAppendTabletChunkList()) {
-                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().DeltaChunkList;
+                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().AppendDeltaChunkList;
                     }
 
                     if (!appendChunkList->Children().empty()) {

@@ -84,17 +84,24 @@ void TChunkList::ValidateLastChunkSealed()
 
 void TChunkList::ValidateUniqueAncestors()
 {
-    const auto* current = this;
+    const TChunkTree* current = this;
     while (true) {
-        const auto& parents = current->Parents();
-        if (parents.Size() > 1) {
-            THROW_ERROR_EXCEPTION("Chunk list %v has more than one parent",
-                current->GetId());
+        if (current->IsChunkList()) {
+            auto parents = current->AsChunkList()->Parents();
+            if (parents.Size() > 1) {
+                THROW_ERROR_EXCEPTION("Chunk list %v has more than one parent",
+                    current->GetId());
+            }
+            if (parents.Empty()) {
+                break;
+            }
+            current = parents[0];
+        } else {
+            YT_TLOG_ALERT_AND_THROW("Chunk list has ancestor of invalid type")
+                .With("ChunkListId", GetId())
+                .With("AncestorId", current->GetId())
+                .With("AncestorType", current->GetType());
         }
-        if (parents.Empty()) {
-            break;
-        }
-        current = parents[0];
     }
 }
 
@@ -128,27 +135,31 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
     }
     if (kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::OrderedDynamicTablet) {
         for (auto parent : Parents_) {
+            YT_VERIFY(parent->IsChunkList());
+            auto parentKind = parent->AsChunkList()->GetKind();
             if (kind == EChunkListKind::SortedDynamicTablet) {
-                auto parentKind = parent->GetKind();
                 YT_VERIFY(parentKind == EChunkListKind::SortedDynamicRoot || parentKind == EChunkListKind::SortedDynamicTablet);
             } else {
-                YT_VERIFY(parent->GetKind() == EChunkListKind::OrderedDynamicRoot);
+                YT_VERIFY(parentKind == EChunkListKind::OrderedDynamicRoot);
             }
         }
     }
     if (kind == EChunkListKind::Static) {
         for (auto parent : Parents_) {
-            YT_VERIFY(parent->GetKind() == EChunkListKind::Static);
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::Static);
         }
     }
     if (kind == EChunkListKind::Hunk) {
         for (auto parent : Parents_) {
-            YT_VERIFY(parent->GetKind() == EChunkListKind::HunkRoot);
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::HunkRoot);
         }
     }
     if (kind == EChunkListKind::HunkTablet) {
         for (auto parent : Parents_) {
-            YT_VERIFY(parent->GetKind() == EChunkListKind::HunkStorageRoot);
+            YT_VERIFY(parent->IsChunkList());
+            YT_VERIFY(parent->AsChunkList()->GetKind() == EChunkListKind::HunkStorageRoot);
         }
     }
 }
@@ -174,7 +185,17 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Children_);
-    Load(context, Parents_);
+    // COMPAT(grphil)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ChunkListRefactoring) {
+        std::vector<TChunkListRawPtr> parentChunkLists;
+        Load(context, parentChunkLists);
+        Parents_.Reserve(parentChunkLists.size());
+        for (auto chunkList : parentChunkLists) {
+            Parents_.PushBack(chunkList);
+        }
+    } else {
+        Load(context, Parents_);
+    }
     Load(context, TrunkOwningNodes_);
     Load(context, BranchedOwningNodes_);
 
@@ -235,17 +256,18 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-TRange<TChunkListRawPtr> TChunkList::Parents() const
+TRange<TChunkTreeRawPtr> TChunkList::Parents() const
 {
     return TRange(Parents_.begin(), Parents_.end());
 }
 
-void TChunkList::AddParent(TChunkList* parent)
+void TChunkList::AddParent(TChunkTree* parent)
 {
+    YT_VERIFY(parent->IsChunkList());
     Parents_.PushBack(parent);
 }
 
-void TChunkList::RemoveParent(TChunkList* parent)
+void TChunkList::RemoveParent(TChunkTree* parent)
 {
     Parents_.Remove(parent);
 }
@@ -339,11 +361,11 @@ TChunkList::TAppendTabletChunkLists TChunkList::GetAppendTabletChunkLists() cons
 
     TAppendTabletChunkLists appendTabletChunkLists{
         .OriginatingChunkList = Children_[0]->AsChunkList(),
-        .DeltaChunkList = Children_[1]->AsChunkList(),
+        .AppendDeltaChunkList = Children_[1]->AsChunkList(),
     };
 
     YT_VERIFY(appendTabletChunkLists.OriginatingChunkList->Kind_ == EChunkListKind::SortedDynamicTablet);
-    YT_VERIFY(appendTabletChunkLists.DeltaChunkList->Kind_ == EChunkListKind::SortedDynamicSubtablet);
+    YT_VERIFY(appendTabletChunkLists.AppendDeltaChunkList->Kind_ == EChunkListKind::SortedDynamicSubtablet);
 
     return appendTabletChunkLists;
 }

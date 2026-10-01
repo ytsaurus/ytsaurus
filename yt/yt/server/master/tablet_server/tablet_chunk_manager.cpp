@@ -1812,8 +1812,7 @@ private:
         } else {
             if (GetParentCount(child) == 1) {
                 auto* parent = GetUniqueParent(child);
-                YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
-                return parent;
+                return parent->AsChunkList();
             }
             return tablet->GetChunkList();
         }
@@ -1822,7 +1821,7 @@ private:
     void PruneEmptySubtabletChunkList(TChunkList* chunkList)
     {
         while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
-            auto* parent = GetUniqueParent(chunkList);
+            auto* parent = GetUniqueParent(chunkList)->AsChunkList();
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             chunkManager->DetachFromChunkList(parent, {chunkList}, EChunkDetachPolicy::SortedTablet);
             chunkList = parent;

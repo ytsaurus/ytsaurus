@@ -1967,13 +1967,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                         chunkManager->AttachToChunkList(newChunkList, {snapshotChunkList});
 
-                        auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                        chunkManager->AttachToChunkList(newChunkList, {deltaChunkList});
+                        auto* appendDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                        chunkManager->AttachToChunkList(newChunkList, {appendDeltaChunkList});
 
                         context->AnnotateResponse()
                             .With("NewChunkListId", newChunkList->GetId())
                             .With("SnapshotChunkListId", snapshotChunkList->GetId())
-                            .With("DeltaChunkListId", deltaChunkList->GetId());
+                            .With("AppendDeltaChunkListId", appendDeltaChunkList->GetId());
                         break;
                     }
 
@@ -1985,11 +1985,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                         for (int tabletIndex = 0; tabletIndex < ssize(snapshotChunkList->Children()); ++tabletIndex) {
                             auto* newTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
-                            auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
+                            auto* appendDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
 
                             chunkManager->AttachToChunkList(
                                 newTabletChunkList,
-                                {snapshotChunkList->Children()[tabletIndex], deltaChunkList});
+                                {snapshotChunkList->Children()[tabletIndex], appendDeltaChunkList});
 
                             chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
 
@@ -2137,10 +2137,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         case EChunkListKind::Static:
         case EChunkListKind::JournalRoot: {
             auto* snapshotChunkList = node->GetSnapshotChunkList();
-            auto* deltaChunkList = node->GetDeltaChunkList();
+            auto* appendDeltaChunkList = node->GetAppendDeltaChunkList();
 
             // NB: No hunk chunk list here as we only support appending into main chunk list.
-            const auto& uploadChunkListId = deltaChunkList->GetId();
+            const auto& uploadChunkListId = appendDeltaChunkList->GetId();
             ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
 
             if (fetchLastKey) {
@@ -2189,7 +2189,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
                     ToProto(response->add_tablet_chunk_list_ids(), tabletChunkList->GetId());
                 } else {
                     auto appendTabletChunkLists = tabletChunkList->GetAppendTabletChunkLists();
-                    ToProto(response->add_tablet_chunk_list_ids(), appendTabletChunkLists.DeltaChunkList->GetId());
+                    ToProto(response->add_tablet_chunk_list_ids(), appendTabletChunkLists.AppendDeltaChunkList->GetId());
                 }
 
                 ToProto(response->add_pivot_keys(), tabletChunkList->GetPivotKey());
