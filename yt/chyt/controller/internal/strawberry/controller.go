@@ -81,8 +81,9 @@ type MetricsProvider interface {
 }
 
 type ControllerFactory struct {
-	Ctor   func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
-	Config yson.RawValue
+	Ctor       func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+	Config     yson.RawValue
+	Deprecated bool
 	// TODO(max): extra commands is actually of type []api.CmdDescriptor, but we can't import it here
 	// without creating a circular dependency. Come up with a better solution.
 	ExtraCommands any

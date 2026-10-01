@@ -37,6 +37,23 @@ func (a *API) Controller() strawberry.Controller {
 	return a.ctl
 }
 
+func (a *API) checkOpletActionAllowed(action string) error {
+	if !a.cfg.Deprecated {
+		return nil
+	}
+	return yterrors.Err(fmt.Sprintf(
+		"%s is not supported for deprecated strawberry family %q",
+		action,
+		a.ctl.Family()))
+}
+
+func (a *API) checkOpletActivationAllowed(value any) error {
+	if active, _ := value.(bool); active {
+		return a.checkOpletActionAllowed("starting oplets")
+	}
+	return nil
+}
+
 func getUser(ctx context.Context) (string, error) {
 	user, ok := auth.ContextRequester(ctx)
 	if !ok {
@@ -383,6 +400,10 @@ func (a *API) Create(
 	specletOptions map[string]any,
 	secrets map[string]any,
 ) error {
+	if err := a.checkOpletActionAllowed("creating oplets"); err != nil {
+		return err
+	}
+
 	// It's not necessary to check an operation existence, but we do it to provide better error messages.
 	if err := a.CheckExistence(ctx, alias, false /*shouldExist*/); err != nil {
 		return err
@@ -607,6 +628,12 @@ func (a *API) setOption(
 	value any,
 	options *yt.SetNodeOptions,
 ) error {
+	if key == "active" {
+		if err := a.checkOpletActivationAllowed(value); err != nil {
+			return err
+		}
+	}
+
 	// NB: pool and pool_trees options require validation.
 	if key == "pool" || key == "pool_trees" {
 		return a.EditOptions(ctx, alias, map[string]any{key: value}, nil)
@@ -751,6 +778,9 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
+	if err := a.checkOpletActivationAllowed(speclet["active"]); err != nil {
+		return err
+	}
 
 	if pool, ok := speclet["pool"]; ok {
 		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
@@ -817,6 +847,9 @@ func (a *API) EditOptions(
 		return err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+	if err := a.checkOpletActivationAllowed(optionsToSet["active"]); err != nil {
 		return err
 	}
 
@@ -895,6 +928,10 @@ func (a *API) getAgentInfoForUntrackedStage() strawberry.AgentInfo {
 }
 
 func (a *API) Start(ctx context.Context, alias string, untracked bool, userClient yt.Client) error {
+	if err := a.checkOpletActionAllowed("starting oplets"); err != nil {
+		return err
+	}
+
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
