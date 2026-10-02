@@ -91,6 +91,7 @@ schema_columns = [
     ("uncompressed_data_size",                  "int64",        False,      True),
     ("user_attribute_keys",                     "any",          False,      True),
     ("versioned_resource_usage",                "any",          False,      True),
+    ("_nirvana_meta",                           "any",          False,      True),
 ]
 
 
