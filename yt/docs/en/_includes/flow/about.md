@@ -47,4 +47,5 @@ For any issues with {{product-name}} Flow, open a [GitHub Issue](https://github.
 - [Quick start](../../flow/quickstart.md)
 - [Basic concepts](../../flow/concepts/glossary.md)
 - [Task examples](../../flow/tasks.md)
+{% if audience == "public" %}- [Flow releases](https://github.com/ytsaurus/ytsaurus/releases?q=tag%3Aflow%2F0&expanded=true){% endif %}
 {% if audience == "internal" %}- [Who uses {{product-name}} Flow](../../yandex-specific/flow/other/framework_users.md){% endif %}
