@@ -55,8 +55,13 @@ private:
             : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
-        context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("Async", request->async())
+            .With("BuildRowsets", request->build_rowsets())
+            .With("RowCountLimit", request->row_count_limit());
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
 
         if (ComponentStateChecker_->IsComponentBanned()) {
             YT_TLOG_INFO("YQL agent is banned; failing query")
@@ -103,8 +108,10 @@ private:
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
 
         WaitFor(YqlAgent_->AbortQuery(queryId))
             .ThrowOnError();
@@ -117,8 +124,8 @@ private:
         // TODO(babenko): switch to std::string
         auto user = TString(context->GetAuthenticationIdentity().User);
 
-        context->SetRequestInfo();
-        context->SetResponseInfo();
+        context->AnnotateRequest();
+        context->AnnotateResponse();
 
         static const auto EmptyMap = TYsonString(TString("{}"));
         auto responseFuture = YqlAgent_->GetDeclaredParametersInfo(user, request->query(), request->has_settings() ? TYsonString(request->settings()) : EmptyMap);
@@ -137,8 +144,10 @@ private:
             ? FromProto<TQueryId>(request->query_id())
             : TQueryId::Create();
 
-        context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
 
         response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
         context->Reply();
@@ -148,8 +157,8 @@ private:
     {
         response->MergeFrom(YqlAgent_->GetYqlAgentInfo());
 
-        context->SetRequestInfo();
-        context->SetResponseInfo();
+        context->AnnotateRequest();
+        context->AnnotateResponse();
 
         context->Reply();
     }

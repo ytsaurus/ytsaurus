@@ -44,7 +44,10 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RunQuery)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
-        context->SetRequestInfo("QueryId: %v, User: %v, ExecuteMode: %v", queryId, request->user(), request->mode());
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("User", request->user())
+            .With("ExecuteMode", request->mode());
 
         auto files = ExtractFiles(request->files());
 
@@ -61,14 +64,16 @@ public:
         auto yqlResponse = ToYqlResponse(queryResult);
 
         response->mutable_response()->Swap(&yqlResponse);
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetUsedClusters)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         auto files = ExtractFiles(request->files());
         auto clusters = YqlPlugin_->GetUsedClusters(
@@ -87,10 +92,10 @@ public:
             response->set_error(*clusters.YsonError);
         }
 
-        context->SetResponseInfo("QueryId: %v, Clusters: %v, Error: %v",
-            queryId,
-            clusters.Clusters,
-            clusters.YsonError);
+        context->AnnotateResponse()
+            .With("QueryId", queryId)
+            .With("Clusters", clusters.Clusters)
+            .With("Error", clusters.YsonError);
         context->Reply();
     }
 
@@ -98,14 +103,17 @@ public:
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
         auto abortResult = YqlPlugin_->Abort(queryId);
 
         if (abortResult.YsonError) {
             *response->mutable_error() = *abortResult.YsonError;
         }
 
-        context->SetResponseInfo("QueryId: %v, Error: %v", queryId, abortResult.YsonError);
+        context->AnnotateResponse()
+            .With("QueryId", queryId)
+            .With("Error", abortResult.YsonError);
         context->Reply();
     }
 
@@ -113,21 +121,24 @@ public:
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
 
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
         auto queryProgress = YqlPlugin_->GetProgress(queryId);
 
         auto yqlResponse = ToYqlResponse(queryProgress);
 
         response->mutable_response()->Swap(&yqlResponse);
 
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetDeclaredParametersInfo)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         auto result = YqlPlugin_->GetDeclaredParametersInfo(
             queryId,
@@ -140,29 +151,35 @@ public:
             response->set_yson_parameters(*result.YsonParameters);
         }
 
-        context->SetResponseInfo("QueryId: %v, Parameters: %v", queryId, result.YsonParameters);
+        context->AnnotateResponse()
+            .With("QueryId", queryId)
+            .With("Parameters", result.YsonParameters);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RegisterQuery)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         YqlPlugin_->RegisterQuery(queryId);
 
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, UnregisterQuery)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
-        context->SetRequestInfo("QueryId: %v", queryId);
+        context->AnnotateRequest()
+            .With("QueryId", queryId);
 
         YqlPlugin_->UnregisterQuery(queryId);
 
-        context->SetResponseInfo("QueryId: %v", queryId);
+        context->AnnotateResponse()
+            .With("QueryId", queryId);
         context->Reply();
     }
 
