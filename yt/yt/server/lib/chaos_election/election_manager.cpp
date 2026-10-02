@@ -46,11 +46,11 @@ TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
     return New<TTableSchema>(
         std::vector<TColumnSchema>{
-            TColumnSchema(std::string(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema(std::string(LeaderLeaseIdColumn), EValueType::String),
-            TColumnSchema(std::string(LeaderNameColumn), EValueType::String),
-            TColumnSchema(std::string(LeaseTimeoutColumn), EValueType::Uint64),
-            TColumnSchema(std::string(LastPingTimeColumn), EValueType::Uint64),
+            TColumnSchema(LockKeyColumn, EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(LeaderLeaseIdColumn, EValueType::String),
+            TColumnSchema(LeaderNameColumn, EValueType::String),
+            TColumnSchema(LeaseTimeoutColumn, EValueType::Uint64),
+            TColumnSchema(LastPingTimeColumn, EValueType::Uint64),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true);
@@ -59,7 +59,7 @@ TTableSchemaPtr GetChaosElectionLockTableSchema()
 std::optional<std::string> FindChaosElectionLeader(
     const IClientPtr& client,
     const NYPath::TYPath& lockTablePath,
-    const std::string& groupName)
+    TStringBuf groupName)
 {
     auto nameTable = New<TNameTable>();
     auto lockKeyColumnId = nameTable->RegisterName(LockKeyColumn);
@@ -90,7 +90,7 @@ std::optional<std::string> FindChaosElectionLeader(
     }
 
     std::optional<std::string> leaderName;
-    std::optional<TChaosLeaseId> leaseId;
+    TChaosLeaseId leaseId;
     std::optional<TDuration> leaseTimeout;
     std::optional<TInstant> lastPingTime;
     FromUnversionedRow(rows[0], &leaderName, &leaseId, &leaseTimeout, &lastPingTime);

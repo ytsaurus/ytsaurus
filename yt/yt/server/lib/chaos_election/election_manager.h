@@ -74,7 +74,7 @@ NTableClient::TTableSchemaPtr GetChaosElectionLockTableSchema();
 std::optional<std::string> FindChaosElectionLeader(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& lockTablePath,
-    const std::string& groupName);
+    TStringBuf groupName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
