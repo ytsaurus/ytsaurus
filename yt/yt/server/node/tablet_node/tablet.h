@@ -1085,7 +1085,7 @@ private:
     void ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot);
     void ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot);
     void ReconfigureStructuredLogger();
-    void ReconfigureProfiling();
+    void ReconfigureProfiling(EProfilingTagExportMode profilingTagExportMode);
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();

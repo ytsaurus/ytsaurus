@@ -2181,7 +2181,7 @@ void TTablet::Reconfigure(const ITabletSlotPtr& slot)
     ReconfigureLocalThrottlers();
     ReconfigureDistributedThrottlers(slot);
     ReconfigureChunkFragmentReader(slot);
-    ReconfigureProfiling();
+    ReconfigureProfiling(Context_->GetDynamicConfig()->ProfilingTagExportMode);
     ReconfigureStructuredLogger();
     ReconfigureRowCache(slot);
     InvalidateChunkReaders();
@@ -2551,11 +2551,11 @@ void TTablet::ReconfigureCompressionDictionaries()
     }
 }
 
-void TTablet::ReconfigureProfiling()
+void TTablet::ReconfigureProfiling(EProfilingTagExportMode profilingTagExportMode)
 {
     TableProfiler_ = TTabletProfilerManager::Get()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
-        Context_->GetDynamicConfig()->ProfilingTagExportMode,
+        profilingTagExportMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,
         Settings_.MountConfig->ProfilingTag,
@@ -3791,7 +3791,7 @@ void TTablet::OnDynamicConfigChanged(
     if (Settings_.MountConfig->ProfilingMode == EDynamicTableProfilingMode::Tag &&
         oldConfig->ProfilingTagExportMode != newConfig->ProfilingTagExportMode)
     {
-        ReconfigureProfiling();
+        ReconfigureProfiling(newConfig->ProfilingTagExportMode);
         ReconfigureHedgingManagerRegistry();
     }
 
