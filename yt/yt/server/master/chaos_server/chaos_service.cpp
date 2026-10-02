@@ -105,9 +105,9 @@ private:
         const auto& chaosConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChaosManager;
         response->set_enable_metadata_cells(chaosConfig->EnableMetadataCells);
 
-        context->SetResponseInfo("CellCount: %v EnableMetadataCells: %v",
-            response->cell_descriptors_size(),
-            response->enable_metadata_cells());
+        context->AnnotateResponse()
+            .With("CellCount", response->cell_descriptors_size())
+            .With("EnableMetadataCells", response->enable_metadata_cells());
 
         context->Reply();
     }

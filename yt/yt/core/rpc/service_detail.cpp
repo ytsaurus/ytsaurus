@@ -2745,9 +2745,9 @@ void TServiceBase::ReplyDiscoverRequest(const TCtxDiscoverPtr& context, bool isU
     response.set_up(isUp);
     ToProto(response.mutable_suggested_addresses(), SuggestAddresses());
 
-    context->SetResponseInfo("Up: %v, SuggestedAddresses: %v",
-        response.up(),
-        response.suggested_addresses());
+    context->AnnotateResponse()
+        .With("Up", response.up())
+        .With("SuggestedAddresses", response.suggested_addresses());
 
     context->Reply();
 }
@@ -3053,8 +3053,8 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
     auto replyDelay = FromProto<TDuration>(request->reply_delay());
 
-    context->SetRequestInfo("ReplyDelay: %v",
-        replyDelay);
+    context->AnnotateRequest()
+        .With("ReplyDelay", replyDelay);
 
     auto isUp = IsUp(context);
     EnrichDiscoverResponse(response);

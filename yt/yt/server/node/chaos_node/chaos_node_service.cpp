@@ -543,9 +543,9 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto cacheTimestamp = FromProto<TTimestamp>(request->replication_card_cache_timestamp());
 
-        context->SetRequestInfo("ReplicationCardId %v, Timestamp: %v",
-            replicationCardId,
-            cacheTimestamp);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("Timestamp", cacheTimestamp);
 
         const auto& replicationCardWatcher = Slot_->GetReplicationCardsWatcher();
         replicationCardWatcher->WatchObject(

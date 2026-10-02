@@ -891,12 +891,11 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v, OperationCount: %v, Memory: %v/%v",
-            agentId,
-            incarnationId,
-            request->operations_size(),
-            request->controller_memory_usage(),
-            request->controller_memory_limit());
+        context->AnnotateRequest()
+            .With("AgentId", agentId)
+            .With("IncarnationId", incarnationId)
+            .With("OperationCount", request->operations_size())
+            .WithFormat("Memory", "%v/%v", request->controller_memory_usage(), request->controller_memory_limit());
 
         auto agent = GetMirroredAgentOrThrow(agentId);
 

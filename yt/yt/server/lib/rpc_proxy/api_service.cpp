@@ -1829,9 +1829,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
             auto* response = &context->Response();
             response->set_timestamp(ToProto(timestamp));
 
-            context->SetResponseInfo("Timestamp: %v@%v",
-                timestamp,
-                clockClusterTag);
+            context->AnnotateResponse()
+                .WithFormat("Timestamp", "%v@%v", timestamp, clockClusterTag);
         });
 }
 

@@ -1119,16 +1119,13 @@ private:
                 : FinalTransactionSignature;
             auto targetCommitApprovalCount = request->target_commit_approval_count();
 
-            context->SetRequestInfo(
-                "TransactionId: %v, PrepareTimestamp: %v@%v, CellIdsToSyncWith: %v, "
-                "StrongOrderingTags: %v, ExpectedPrepareSignature: %v, TargetCommitApprovalCount: %v",
-                transactionId,
-                prepareTimestamp,
-                prepareTimestampClusterTag,
-                cellIdsToSyncWith,
-                MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100),
-                expectedPrepareSignature,
-                targetCommitApprovalCount);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .WithFormat("PrepareTimestamp", "%v@%v", prepareTimestamp, prepareTimestampClusterTag)
+                .With("CellIdsToSyncWith", cellIdsToSyncWith)
+                .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100))
+                .With("ExpectedPrepareSignature", expectedPrepareSignature)
+                .With("TargetCommitApprovalCount", targetCommitApprovalCount);
 
             auto owner = GetOwnerOrThrow();
             if (owner->HydraManager_->IsEnteringReadOnlyMode() && !strongOrderingTags.empty()) {
@@ -1191,10 +1188,9 @@ private:
             auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v@%v",
-                transactionId,
-                commitTimestamp,
-                commitTimestampClusterTag);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .WithFormat("CommitTimestamp", "%v@%v", commitTimestamp, commitTimestampClusterTag);
 
             NTransactionSupervisor::NProto::TReqParticipantRecordCommitTimestamp hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
@@ -1217,11 +1213,10 @@ private:
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
             auto stronglyOrdered = request->strongly_ordered();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v@%v, StronglyOrdered: %v",
-                transactionId,
-                commitTimestamp,
-                commitTimestampClusterTag,
-                stronglyOrdered);
+            context->AnnotateRequest()
+                .With("TransactionId", transactionId)
+                .WithFormat("CommitTimestamp", "%v@%v", commitTimestamp, commitTimestampClusterTag)
+                .With("StronglyOrdered", stronglyOrdered);
 
             NTransactionSupervisor::NProto::TReqParticipantCommitTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
