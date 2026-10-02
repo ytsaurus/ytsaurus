@@ -62,7 +62,7 @@
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
-#include <yt/yt/client/api/rpc_proxy/request_info.h>
+#include <yt/yt/client/api/rpc_proxy/request_tags.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
@@ -3642,6 +3642,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListOperationEvents)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_events(), result);
+
+            context->AnnotateResponse()
+                .With("EventCount", result.size());
         });
 }
 
@@ -4051,6 +4054,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobTraces)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_traces(), result);
+
+            context->AnnotateResponse()
+                .With("TraceCount", result.size());
         });
 }
 
@@ -4078,6 +4084,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckOperationPermission)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
+
+            context->AnnotateResponse()
+                .With("Action", result.Action);
         });
 }
 
@@ -5079,6 +5088,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletErrors)
             if (tabletErrors.Incomplete) {
                 response->set_incomplete(tabletErrors.Incomplete);
             }
+
+            context->AnnotateResponse()
+                .With("TabletErrorCount", tabletErrors.TabletErrors.size())
+                .With("ReplicationErrorCount", tabletErrors.ReplicationErrors.size())
+                .With("Incomplete", tabletErrors.Incomplete);
         });
 }
 
@@ -6029,6 +6043,10 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMaintenance)
         },
         [=] (const auto& context, const TMaintenanceIdPerTarget& result) {
             auto* response = &context->Response();
+
+            context->AnnotateResponse()
+                .With("MaintenanceIdPerTarget", result);
+
             // COMPAT(kvk1920): Compatibility with pre-24.2 RPC clients.
             if (!supportsPerTargetResponse) {
                 ToProto(
@@ -6178,6 +6196,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DisableChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6209,6 +6230,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DestroyChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6237,6 +6261,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResurrectChunkLocations)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_location_uuids(), result.LocationUuids);
+
+            context->AnnotateResponse()
+                .With("LocationUuids", result.LocationUuids);
         });
 }
 
@@ -6271,7 +6298,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    context->SuppressMissingRequestInfoCheck();
+    context->AnnotateRequest();
 
     ExecuteCall(
         context,
@@ -6281,6 +6308,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             response->set_user(result.User);
+
+            context->AnnotateResponse()
+                .With("User", result.User);
         });
 }
 
@@ -6380,6 +6410,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermission)
             if (checkResponse.Columns) {
                 ToProto(response->mutable_columns()->mutable_items(), *checkResponse.Columns);
             }
+
+            context->AnnotateResponse()
+                .With("Action", checkResponse.Action);
         });
 }
 
@@ -6417,6 +6450,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
         [] (const auto& context, const auto& result) {
             auto* response = &context->Response();
             ToProto(response->mutable_result(), result);
+
+            context->AnnotateResponse()
+                .With("Action", result.Action);
         });
 }
 
@@ -6471,7 +6507,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFile)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    SetReadFileRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakeReadFileRequestTags(*request));
 
     PutMethodInfoInTraceContext("read_file");
 
@@ -6510,7 +6546,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFile)
         FromProto(&options, request->prerequisite_options());
     }
 
-    SetWriteFileRequestInfo(context, path, *request);
+    context->AnnotateRequest().With(MakeWriteFileRequestTags(path, *request));
 
     PutMethodInfoInTraceContext("write_file");
 
@@ -6789,7 +6825,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    SetReadTableRequestInfo(context, path, *request);
+    context->AnnotateRequest().With(MakeReadTableRequestTags(path, *request));
 
     PutMethodInfoInTraceContext("read_table");
 
@@ -6931,7 +6967,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
     PutMethodInfoInTraceContext("write_table");
 
     auto path = FromProto<TRichYPath>(request->path());
-    SetWriteTableRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeWriteTableRequestTags(path));
 
     NApi::TTableWriterOptions options;
     std::string tableWriterConfig("{}");
@@ -7058,7 +7094,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    SetPartitionTablesRequestInfo(context, paths, *request);
+    context->AnnotateRequest().With(MakePartitionTablesRequestTags(paths, *request));
 
     ExecuteCall(
         context,
@@ -7101,7 +7137,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    SetReadTablePartitionRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakeReadTablePartitionRequestTags(*request));
 
     PutMethodInfoInTraceContext("read_table_partition");
 
@@ -7182,7 +7218,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteSession)
     TDistributedWriteSessionStartOptions options;
     ParseRequest(&path, &options, *request);
 
-    SetStartDistributedWriteSessionRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeStartDistributedWriteSessionRequestTags(path));
 
     ExecuteCall(
         context,
@@ -7206,7 +7242,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    SetPingDistributedWriteSessionRequestInfo(context, concreteSession.PatchInfo.ObjectId);
+    context->AnnotateRequest().With(MakePingDistributedWriteSessionRequestTags(concreteSession.PatchInfo.ObjectId));
 
     ExecuteCall(
         context,
@@ -7226,7 +7262,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteSession)
 
     auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    SetFinishDistributedWriteSessionRequestInfo(context, session.PatchInfo.ObjectId);
+    context->AnnotateRequest().With(MakeFinishDistributedWriteSessionRequestTags(session.PatchInfo.ObjectId));
 
     ExecuteCall(
         context,
@@ -7274,7 +7310,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTableFragment)
 
     auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
 
-    SetWriteTableFragmentRequestInfo(context, concreteCookie.PatchInfo.ObjectId, concreteCookie.MainTransactionId);
+    context->AnnotateRequest().With(MakeWriteTableFragmentRequestTags(concreteCookie.PatchInfo.ObjectId, concreteCookie.MainTransactionId));
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
@@ -7310,7 +7346,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteFileSession)
     TRichYPath path;
     TDistributedWriteFileSessionStartOptions options;
     ParseRequest(&path, &options, *request);
-    SetStartDistributedWriteFileSessionRequestInfo(context, path);
+    context->AnnotateRequest().With(MakeStartDistributedWriteFileSessionRequestTags(path));
 
     ExecuteCall(
         context,
@@ -7334,7 +7370,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteFileSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    SetPingDistributedWriteFileSessionRequestInfo(context, concreteSession.HostData.FileId);
+    context->AnnotateRequest().With(MakePingDistributedWriteFileSessionRequestTags(concreteSession.HostData.FileId));
 
     ExecuteCall(
         context,
@@ -7354,7 +7390,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteFileSession)
 
     auto session = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    SetFinishDistributedWriteFileSessionRequestInfo(context, session.HostData.FileId);
+    context->AnnotateRequest().With(MakeFinishDistributedWriteFileSessionRequestTags(session.HostData.FileId));
 
     ExecuteCall(
         context,
@@ -7401,7 +7437,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFileFragment)
     auto concreteCookie = ConvertTo<TWriteFileFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
     const auto& cookieData = concreteCookie.CookieData;
 
-    SetWriteFileFragmentRequestInfo(context, cookieData.FileId, cookieData.MainTransactionId);
+    context->AnnotateRequest().With(MakeWriteFileFragmentRequestTags(cookieData.FileId, cookieData.MainTransactionId));
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
