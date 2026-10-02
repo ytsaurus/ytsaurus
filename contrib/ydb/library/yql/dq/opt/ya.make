@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/yql/dq/common
@@ -27,8 +27,6 @@ CHECK_DEPENDENT_DIRS(DENY PEERDIRS
     contrib/ydb/core/kqp/opt/cbo
     contrib/ydb/core/kqp/opt/cbo/solver
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

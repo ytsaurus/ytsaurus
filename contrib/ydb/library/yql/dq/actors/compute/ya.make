@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     dq_async_compute_actor.cpp
@@ -34,8 +34,6 @@ PEERDIR(
     contrib/ydb/core/quoter/public
     library/cpp/html/escape
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

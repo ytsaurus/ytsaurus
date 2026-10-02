@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     dq_worker.cpp
@@ -28,8 +28,6 @@ PEERDIR(
     yt/yql/tools/dq/job_config
     yt/yt/core
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

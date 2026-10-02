@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     retry_queue.cpp
@@ -9,8 +9,6 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/protos
     yql/essentials/public/issue
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

@@ -27,10 +27,10 @@ PEERDIR(
     contrib/ydb/library/formats/arrow/hash
     contrib/ydb/library/actors/core
     contrib/ydb/library/arrow_kernels
+    yql/essentials/public/types
     yql/essentials/types/binary_json
     yql/essentials/types/dynumber
     contrib/ydb/library/services
-    yql/essentials/core/arrow_kernels/request
 )
 
 IF (OS_WINDOWS)
@@ -50,8 +50,6 @@ ENDIF()
 CFLAGS(
     -Wno-unused-parameter
 )
-
-YQL_LAST_ABI_VERSION()
 
 SRCS(
     arrow_helpers.cpp

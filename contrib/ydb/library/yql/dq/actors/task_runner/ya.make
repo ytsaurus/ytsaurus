@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     events.cpp
@@ -14,7 +14,5 @@ PEERDIR(
     contrib/ydb/library/yql/utils/actors
     contrib/ydb/library/services
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

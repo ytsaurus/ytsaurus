@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     fmr_download.cpp
@@ -15,8 +15,6 @@ PEERDIR(
 
     yt/cpp/mapreduce/interface
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

@@ -2,7 +2,7 @@ PROGRAM()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
-YQL_LAST_ABI_VERSION()
+YQL_CURRENT_ABI_VERSION()
 
 PEERDIR(
     library/cpp/yson/node

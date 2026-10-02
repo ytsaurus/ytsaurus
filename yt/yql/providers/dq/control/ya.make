@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     yql_dq_control.cpp
@@ -18,7 +18,5 @@ PEERDIR(
     yql/essentials/utils/log
     yt/yql/providers/dq/config
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

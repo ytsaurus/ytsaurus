@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     library/cpp/string_utils/parse_size
@@ -18,7 +18,5 @@ SRCS(
     yql_dq_common.cpp
     yql_dq_settings.cpp
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

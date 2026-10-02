@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     dqrun_light_lib.cpp
@@ -40,8 +40,6 @@ PEERDIR(
     yt/yql/providers/yt/provider
     yt/yql/tools/ytrun/lib
 )
-
-YQL_LAST_ABI_VERSION()
 
 SUPPRESSIONS(
     lsan.supp

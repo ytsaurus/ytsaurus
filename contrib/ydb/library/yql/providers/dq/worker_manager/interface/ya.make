@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/actors/core
@@ -9,8 +9,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
 )
-
-YQL_LAST_ABI_VERSION()
 
 SET(
     SOURCE

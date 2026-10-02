@@ -443,7 +443,7 @@ YQL_UDF_CONTRIB(clickhouse_client_udf)
 
     END()
 ELSE()
-    LIBRARY()
+    YQL_LIBRARY()
     END()
 ENDIF()
 
