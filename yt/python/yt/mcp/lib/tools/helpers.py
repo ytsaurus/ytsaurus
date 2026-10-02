@@ -62,6 +62,10 @@ class YTToolBase:
     def set_runner(self, runner: YTToolRunnerMCP):
         self.runner: YTToolRunnerMCP = weakref.proxy(runner)
 
+    @classmethod
+    def _is_mutable(cls):
+        return cls._MUTABLE
+
     def _get_tool_description(self):
         if not self._tool_description:
             self._tool_description = self.get_tool_description()
