@@ -822,17 +822,27 @@ def get_operation_url(operation, client=None):
 
 
 class Operation(object):
-    """Holds information about started operation."""
+    """Holds information about started operation, or about prepared one with ``id`` equal to ``None``."""
     def __init__(self, id,
                  type=None, finalization_actions=None,
-                 abort_exceptions=(KeyboardInterrupt, TimeoutError), client=None):
+                 abort_exceptions=(KeyboardInterrupt, TimeoutError), provided_spec=None, client=None):
         self.id = id
         self.type = type
         self.abort_exceptions = abort_exceptions
         self.finalization_actions = finalization_actions
         self.client = client
-        self.printer = PrintOperationInfo(id, client=client)
-        self.url = get_operation_url(id, client=client)
+        self._provided_spec = provided_spec
+        self.printer = PrintOperationInfo(id, client=client) if id is not None else None
+        self.url = get_operation_url(id, client=client) if id is not None else None
+
+    def provided_spec(self):
+        """Returns spec the operation is started with.
+
+        .. seealso:: :func:`prepare_only_operations <yt.wrapper.run_operation_commands.prepare_only_operations>`
+        """
+        if self._provided_spec is not None:
+            return self._provided_spec
+        return get_operation_attributes(self.id, fields=["provided_spec"], client=self.client)["provided_spec"]
 
     def suspend(self):
         """Suspends operation."""

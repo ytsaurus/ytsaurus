@@ -35,7 +35,7 @@ Operation run under self-pinged transaction, if ``yt.wrapper.config["detached"]`
 """
 
 from .table_helpers import _are_default_empty_table, _remove_tables
-from .common import is_prefix, forbidden_inside_job
+from .common import is_prefix, forbidden_inside_job, simplify_structure
 from .retries import Retrier
 from .config import get_config, get_command_param
 from .cypress_commands import get, remove
@@ -58,8 +58,12 @@ from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_for
 
 from typing import Union, Dict, Optional
 
+import contextlib
+import contextvars
 import sys
 import time
+
+_prepared_operations = contextvars.ContextVar("_prepared_operations", default=None)
 
 
 @forbidden_inside_job
@@ -589,6 +593,26 @@ def _run_reduce_optimizer(spec, client=None):
     return operations_list
 
 
+@contextlib.contextmanager
+def prepare_only_operations():
+    """Makes operations run inside the context prepared instead of started.
+
+    Each ``run_*`` call builds the spec, uploads files and creates output tables, then returns
+    :class:`Operation <yt.wrapper.operation_commands.Operation>` with ``id`` equal to ``None``, its spec is
+    returned by ``provided_spec()``. The context yields the list of these operations in the order of the calls.
+    Code after ``run_*`` runs before the operation is started, so the output tables are empty there.
+
+    The context applies to the current thread only: operations started from other threads, including
+    :class:`OperationsTrackerPool <yt.wrapper.operations_tracker.OperationsTrackerPool>`, are started as usual.
+    """
+    operations = []
+    token = _prepared_operations.set(operations)
+    try:
+        yield operations
+    finally:
+        _prepared_operations.reset(token)
+
+
 @forbidden_inside_job
 def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enable_optimizations=False, client=None) -> Optional[Operation]:
     """Runs operation.
@@ -615,6 +639,15 @@ def run_operation(spec_builder, sync=True, run_operation_mutation_id=None, enabl
     operations_list = [(spec_builder.operation_type, spec, [])]
     if enable_optimizations and spec_builder.operation_type in OPERATION_OPTIMIZERS:
         operations_list = OPERATION_OPTIMIZERS[spec_builder.operation_type](spec, client)
+
+    prepared_operations = _prepared_operations.get()
+    if prepared_operations is not None:
+        if len(operations_list) > 1:
+            raise YtError("Operation has been organized as a chain of several operations, it cannot be prepared")
+        operation_type, spec, _ = operations_list[0]
+        prepared_operations.append(
+            Operation(None, type=operation_type, provided_spec=simplify_structure(spec), client=client))
+        return prepared_operations[-1]
 
     _, _, finalization_actions = operations_list[-1]
 

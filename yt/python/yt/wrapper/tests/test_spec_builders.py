@@ -2,7 +2,7 @@ from .conftest import authors
 from .helpers import TEST_DIR, check_rows_equality, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update, get_started_by
-from yt.wrapper.driver import get_api_version
+from yt.wrapper.driver import get_api_version, make_formatted_request
 from yt.wrapper.local_mode import enable_local_files_usage_in_job
 from yt.wrapper.py_wrapper import calc_md5_from_file
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
@@ -218,6 +218,32 @@ class TestSpecBuilders(object):
         records = yt.read_table(other_table, raw=False)
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
+
+    @authors("tinarsky")
+    def test_prepare_only_operations(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+        client = yt.YtClient(config=deepcopy(yt.config.config))
+
+        def mapper(row):
+            yield row
+
+        with yt.run_operation_commands.prepare_only_operations() as operations:
+            operation = yt.run_map(mapper, table, output_table)
+            client_operation = client.run_map(mapper, table, output_table)
+
+        assert operations == [operation, client_operation]
+        assert (client_operation.id, client_operation.type) == (None, "map")
+        assert yt.row_count(output_table) == 0
+
+        is_v4 = get_api_version() == "v4"
+        result = make_formatted_request(
+            "start_operation" if is_v4 else "start_op",
+            {"operation_type": "map", "spec": client_operation.provided_spec()},
+            format=None)
+        yt.Operation(result["operation_id"] if is_v4 else result).wait()
+        check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(output_table), ordered=False)
 
     @authors("ignat")
     def test_reduce_combiner(self):
