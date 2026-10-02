@@ -619,16 +619,35 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !IsHiveMutation()) {
-        if (sourceNode->GetIndexTo()) {
-            THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
-                "\"allow_secondary_index_abandonment\" option",
-                sourceNode->GetId(),
-                sourceNode->GetIndexTo()->GetTableId());
-        } else if (!sourceNode->SecondaryIndices().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
-                "\"allow_secondary_index_abandonment\" option",
-                sourceNode->GetId());
+    auto* trunkSourceNode = sourceNode->GetTrunkNode();
+
+    if (!IsHiveMutation()) {
+        if (mode == ENodeCloneMode::Move) {
+            if (auto sourceSecondaryIndex = trunkSourceNode->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION_IF(factory->GetTransaction(),
+                    "Cannot move table %v with index %v within a transaction",
+                    trunkSourceNode->GetId(),
+                    sourceSecondaryIndex->GetId());
+                factory->RegisterMovedIndex(sourceSecondaryIndex, clonedTrunkNode, /*isIndexTable*/ true);
+            }
+            for (auto sourceSecondaryIndex : GetValuesSortedByKey(trunkSourceNode->SecondaryIndices())) {
+                THROW_ERROR_EXCEPTION_IF(factory->GetTransaction(),
+                    "Cannot move table %v with index %v within a transaction",
+                    trunkSourceNode->GetId(),
+                    sourceSecondaryIndex->GetId());
+                factory->RegisterMovedIndex(sourceSecondaryIndex, clonedTrunkNode, /*isIndexTable*/ false);
+            }
+        } else if (!factory->ShouldAllowSecondaryIndexAbandonment()) {
+            if (trunkSourceNode->GetIndexTo()) {
+                THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
+                    "\"allow_secondary_index_abandonment\" option",
+                    trunkSourceNode->GetId(),
+                    trunkSourceNode->GetIndexTo()->GetTableId());
+            } else if (!trunkSourceNode->SecondaryIndices().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
+                    "\"allow_secondary_index_abandonment\" option",
+                    trunkSourceNode->GetId());
+            }
         }
     }
 
@@ -644,7 +663,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     }
     clonedTrunkNode->SetHunkErasureCodec(sourceNode->GetHunkErasureCodec());
 
-    auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
         clonedTrunkNode->InitializeCustomDynamicTableAttributes();
         clonedTrunkNode->GetCustomDynamicTableAttributes()->CopyFrom(

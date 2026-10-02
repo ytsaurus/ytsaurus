@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 
@@ -55,6 +57,12 @@ struct ICypressNodeFactory
     virtual TCypressNode* MaterializeNode(
         NYTree::IAttributeDictionary* inheritedAttributes,
         TMaterializeNodeContext* context) = 0;
+
+    virtual void RegisterMovedIndex(
+        NTableServer::TSecondaryIndex* secondaryIndex,
+        NTableServer::TTableNode* clonedTrunkTable,
+        bool isIndexTable) = 0;
+    virtual void ValidateCloneIndices() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
