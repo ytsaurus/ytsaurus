@@ -320,6 +320,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_alter_to_static_with_hunks", &TThis::EnableAlterToStaticWithHunks)
         .Default(false);
 
+    registrar.Parameter("enable_legacy_dynamicity_alter", &TThis::EnableLegacyDynamicityAlter)
+        .Default(true);
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 

@@ -20,7 +20,10 @@ void ExecuteTwoPhaseTableOperationViaMaster(
     TRequest* request)
 {
     ToProto(request->mutable_table_id(), target.TableId);
-    if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqMount>) {
+    if constexpr (
+        std::same_as<TRequest, NTabletClient::NProto::TReqMount> ||
+        std::same_as<TRequest, NTabletClient::NProto::TReqTwoPhaseAlter>)
+    {
         request->set_path(target.FullPath);
     }
 

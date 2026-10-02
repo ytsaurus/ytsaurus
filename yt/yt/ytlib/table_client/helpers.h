@@ -216,14 +216,16 @@ NYTree::IAttributeDictionaryPtr ResolveExternalTable(
     const NYPath::TYPath& path,
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
-    const std::vector<std::string>& extraAttributeKeys = {});
+    const std::vector<std::string>& extraAttributeKeys = {},
+    std::optional<NObjectClient::EMasterFeature> requiredServerFeature = {});
 
 NYTree::IAttributeDictionaryPtr ResolveExternalTable(
     NObjectClient::TObjectServiceProxy* proxy,
     const NYPath::TYPath& path,
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
-    const std::vector<std::string>& extraAttributeKeys = {});
+    const std::vector<std::string>& extraAttributeKeys = {},
+    std::optional<NObjectClient::EMasterFeature> requiredServerFeature = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
