@@ -183,44 +183,6 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
     return bin_paths
 
 
-class _YtrecipeToolsBinaryMount:
-    def __init__(self, bin_path):
-        # The job shell rbinds this directory as /yt_runtime.
-        self.path = os.path.join(bin_path, "ytserver-tools")
-        self.symlink_target = os.readlink(self.path)
-        self.connection = None
-        self.volume = None
-
-    def mount(self):
-        from porto import Connection
-
-        binary_path = os.path.realpath(self.path)
-        if not os.path.isfile(binary_path):
-            raise RuntimeError("ytserver-tools does not resolve to a regular file: " + self.path)
-
-        self.connection = Connection()
-        try:
-            self.volume = self.connection.CreateVolume(backend="bind", storage=binary_path, read_only="true")
-            # Porto file volumes need a regular file at the link target.
-            os.unlink(self.path)
-            with open(self.path, "wb"):
-                pass
-            self.connection.LinkVolume(self.volume.path, "self", self.path, read_only=True)
-        except Exception:
-            self.close()
-            raise
-
-    def close(self):
-        if self.volume is not None:
-            self.volume.Destroy()
-            self.volume = None
-            self.connection = None
-        if not os.path.islink(self.path):
-            if os.path.lexists(self.path):
-                os.unlink(self.path)
-            os.symlink(self.symlink_target, self.path)
-
-
 def search_binary_path(binary_name):
     return arcadia_interop.search_binary_path(binary_name, binary_root=get_build_root())
 
@@ -1033,7 +995,6 @@ class YTEnvSetup(object):
         cls.test_name = test_name
 
         cls.liveness_checkers = []
-        cls._ytrecipe_tools_binary_mount = None
 
         log_rotator = Checker(reopen_logs)
         log_rotator.daemon = True
@@ -1083,13 +1044,6 @@ class YTEnvSetup(object):
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
         try:
-            if os.environ.get("YT_OUTPUT") is not None and cls._get_effective_job_environment_type() == "porto":
-                tools_path = os.path.join(cls.bin_path, "ytserver-tools")
-                # COPY_YTSERVER=True puts a regular hardlink here; the directory rbind exposes it.
-                # Otherwise ytrecipe uses a symlink to ytserver-all outside bin, so bind the file.
-                if os.path.islink(tools_path):
-                    cls._ytrecipe_tools_binary_mount = _YtrecipeToolsBinaryMount(cls.bin_path)
-                    cls._ytrecipe_tools_binary_mount.mount()
             cls.start_envs()
             for cluster_index, env in enumerate(cls.combined_envs):
                 if env is None or not cls._should_setup_mr_porto_layers(cluster_index):
@@ -1655,23 +1609,18 @@ class YTEnvSetup(object):
 
     @classmethod
     def teardown_class(cls):
-        try:
-            if cls.liveness_checkers:
-                for checker in cls.liveness_checkers:
-                    checker.stop()
+        if cls.liveness_checkers:
+            for checker in cls.liveness_checkers:
+                checker.stop()
 
-            for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
-                if env is None:
-                    continue
-                env.stop()
-                env.remove_runtime_data()
+        for env in cls.ground_envs + [cls.Env] + cls.remote_envs:
+            if env is None:
+                continue
+            env.stop()
+            env.remove_runtime_data()
 
-            yt_commands.terminate_drivers()
-            gc.collect()
-        finally:
-            if cls._ytrecipe_tools_binary_mount is not None:
-                cls._ytrecipe_tools_binary_mount.close()
-                cls._ytrecipe_tools_binary_mount = None
+        yt_commands.terminate_drivers()
+        gc.collect()
 
         class_duration = time() - cls._start_time
         class_limit = (2 if is_sanitizer_build() else 1) * cls.CLASS_TEST_LIMIT
