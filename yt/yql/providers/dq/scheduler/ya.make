@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/actors/protos
@@ -14,8 +14,6 @@ PEERDIR(
 SRCS(
     dq_scheduler.cpp
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

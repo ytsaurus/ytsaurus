@@ -1,6 +1,4 @@
-LIBRARY()
-
-YQL_LAST_ABI_VERSION()
+YQL_LIBRARY()
 
 GENERATE_ENUM_SERIALIZATION(yql_ytflow_computation_pattern.h)
 

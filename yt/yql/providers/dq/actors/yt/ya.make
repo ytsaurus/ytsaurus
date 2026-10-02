@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/actors/core
@@ -54,8 +54,6 @@ ENDIF()
 SRCS(
     ${SOURCE}
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

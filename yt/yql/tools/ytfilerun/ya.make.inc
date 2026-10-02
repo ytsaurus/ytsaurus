@@ -8,4 +8,4 @@ PEERDIR(
 
 INCLUDE(${ARCADIA_ROOT}/yql/tools/yqlrun/ya.make.inc)
 
-YQL_LAST_ABI_VERSION()
+YQL_CURRENT_ABI_VERSION()

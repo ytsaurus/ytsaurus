@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     provider_load.cpp
@@ -11,7 +11,5 @@ PEERDIR(
     yt/yql/providers/ytflow/gateway
     yt/yql/providers/ytflow/provider
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     dq_warmup_common.cpp
@@ -45,8 +45,6 @@ ELSE()
         dq_gateway_with_uploader_win.cpp
     )
 ENDIF()
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

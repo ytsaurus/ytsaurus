@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     fmrrun_lib.cpp
@@ -11,7 +11,5 @@ PEERDIR(
     yt/yql/providers/yt/fmr/fmr_tool_lib
     yql/tools/yqlrun/lib
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

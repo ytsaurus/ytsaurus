@@ -35,7 +35,7 @@ IF (NOT OS_WINDOWS)
         yt/yql/tools/dqrun_light/lib
     )
 
-    YQL_LAST_ABI_VERSION()
+    YQL_CURRENT_ABI_VERSION()
 
     END()
 ELSE()
