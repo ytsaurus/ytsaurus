@@ -943,6 +943,47 @@ class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     }
 
 
+class TestVanillaRestartOptionsValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("fail_on_job_restart_in_task", [False, True])
+    def test_incompatible_fail_on_job_restart_and_restart_exit_code(self, fail_on_job_restart_in_task):
+        task = {
+            "job_count": 1,
+            "command": "echo done",
+            "restart_exit_code": 17,
+        }
+        if fail_on_job_restart_in_task:
+            task["fail_on_job_restart"] = True
+
+        with raises_yt_error("\"restart_exit_code\" cannot be set together with \"fail_on_job_restart\""):
+            vanilla(spec={
+                "tasks": {"task": task},
+                "fail_on_job_restart": not fail_on_job_restart_in_task,
+            })
+
+    @authors("pogorelov")
+    def test_restart_exit_code_in_another_task(self):
+        vanilla(spec={
+            "tasks": {
+                "task_with_restart_exit_code": {
+                    "job_count": 1,
+                    "command": "echo done",
+                    "restart_exit_code": 17,
+                },
+                "task_with_fail_on_job_restart": {
+                    "job_count": 1,
+                    "command": "echo done",
+                    "fail_on_job_restart": True,
+                },
+            },
+        })
+
+
 ##################################################################
 
 
