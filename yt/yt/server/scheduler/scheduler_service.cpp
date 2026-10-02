@@ -291,8 +291,6 @@ private:
 
         ToProto(response->mutable_allocation_brief_info(), briefOperationInfo);
 
-        context->AnnotateResponse()
-            .With("AllocationId", allocationId);
         context->Reply();
     }
 };
