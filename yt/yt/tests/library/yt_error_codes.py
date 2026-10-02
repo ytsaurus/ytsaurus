@@ -76,6 +76,7 @@ InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
+ReplicationCollocationIsMigrating = 3204
 ChaosCellIsNotEnabled = 3209
 SpecVersionMismatch = 3300
 NoOnlineNodeToScheduleJob = 4410

@@ -7207,6 +7207,62 @@ class TestChaosSingleCluster(ChaosTestBase):
         wait(lambda: len(get("//tmp/q0/@chunk_ids")) == 1)
         trim_rows("//tmp/q0", 0, 1)
 
+    @authors("osidorkin")
+    def test_alter_replication_card_collocation_abort(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        custom_bundle_id = get("//sys/chaos_cell_bundles/c/@id")
+        b_area_id = create_area("beta", cell_bundle_id=custom_bundle_id)
+
+        dst_cell_id = self._sync_create_chaos_cell()
+        dummy_cell_id = self._sync_create_chaos_cell(area="beta")
+
+        def _create_supertable(prefix, clusters, sync_cluster):
+            return self._create_chaos_supertable(prefix, clusters, sync_cluster, "c")
+
+        clusters = self.get_cluster_names()
+        crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
+        crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[0])
+
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [crt1],
+        })
+
+        self._sync_migrate_replication_cards(cell_id, [card1], dst_cell_id)
+
+        def _get_shortcuts(cell_id):
+            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts")
+
+        def _get_replication_card(cell, card_id):
+            return self._get_chaos_cell_orchid(cell, f"/chaos_manager/replication_cards/{card_id}")
+
+        def _get_collocation(cell, collocation_id):
+            return self._get_chaos_cell_orchid(cell, f"/chaos_manager/replication_card_collocations/{collocation_id}")
+
+        def _has_collocation(cell, collocation_id):
+            return self._has_chaos_cell_orchid(cell, f"/chaos_manager/replication_card_collocations/{collocation_id}")
+
+        wait(lambda: card1 in _get_shortcuts(dummy_cell_id))
+        wait(lambda: card2 in _get_shortcuts(dummy_cell_id))
+
+        with self.CellsDisabled(clusters=["primary"], area_ids=[b_area_id]):
+            migrate_replication_cards(dst_cell_id, [card1], destination_cell_id=dummy_cell_id)
+            wait(lambda: len(_get_replication_card(dst_cell_id, card1)["coordinators"]) == 1)
+            wait(lambda: _get_replication_card(dst_cell_id, card1)["coordinators"][dummy_cell_id] == "revoking")
+            wait(lambda: _get_collocation(dst_cell_id, collocation_id)["state"] == "emigrating")
+
+            with raises_yt_error(code=yt_error_codes.ReplicationCollocationIsMigrating):
+                alter_replication_card(card2, replication_card_collocation_id=collocation_id)
+
+        wait(lambda: _has_collocation(dummy_cell_id, collocation_id))
+        wait(lambda: _get_collocation(dummy_cell_id, collocation_id)["state"] == "normal")
+
+        collocation = _get_collocation(dummy_cell_id, collocation_id)
+        assert collocation["size"] == 1
+        assert card1 in collocation["replication_card_ids"]
+
 
 ##################################################################
 
