@@ -501,6 +501,10 @@ public:
 
             auto* staticGatewayYtConfig = StaticGatewaysConfig_.MutableYt();
             staticGatewayYtConfig->SetMrJobBinMd5(CalculateMD5Checksum(staticGatewayYtConfig->GetMrJobBin()));
+            for (auto& entry : *staticGatewayYtConfig->MutableMrJobBinaries()) {
+                auto& binary = *entry.MutableBinary();
+                binary.SetMd5(CalculateMD5Checksum(binary.GetFile()));
+            }
             YQL_LOG(DEBUG) <<  "SetMrJobBinMd5 ready";
 
             TVector<TString> udfPaths;
