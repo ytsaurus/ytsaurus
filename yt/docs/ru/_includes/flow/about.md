@@ -47,4 +47,5 @@
 - [Быстрый старт](../../flow/quickstart.md)
 - [Основные понятия](../../flow/concepts/glossary.md)
 - [Примеры задач](../../flow/tasks.md)
+{% if audience == "public" %}- [Релизы Flow](https://github.com/ytsaurus/ytsaurus/releases?q=tag%3Aflow%2F0&expanded=true){% endif %}
 {% if audience == "internal" %}- [Кто использует {{product-name}} Flow](../../flow/other/framework_users.md){% endif %}
