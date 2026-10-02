@@ -7692,7 +7692,7 @@ void TOperationControllerBase::LockUserFiles()
     auto batchReq = proxy.ExecuteBatch();
 
     THashMap<std::pair<TYPath, TTransactionId>, std::vector<TUserFile*>> pathToUserFiles;
-    auto registerFile = [&pathToUserFiles] (TUserFile* file) {
+    auto registerFile = [&] (TUserFile* file) {
         pathToUserFiles[std::pair{file->Path.GetPath(), *file->TransactionId}].push_back(file);
     };
 
