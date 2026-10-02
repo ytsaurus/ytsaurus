@@ -35,7 +35,7 @@ public:
 
     void Invoke(const IYPathServiceContextPtr& context) override
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         // Throw options-provided error, if it is non-trivial.
         Options_.Error.ThrowOnError();
