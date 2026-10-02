@@ -44,7 +44,7 @@
 
 Поправка вычисляется как среднее отличие между `EventTimestamp` и `AlignmentTimestamp` среди сообщений, находящихся в данный момент во всех выходных буферах по данному стриму:
 
-$$ordering_priority = AlignmentTimestamp + avg(EventTimestamp − AlignmentTimestamp)$$
+$$ordering\_priority = AlignmentTimestamp + avg(EventTimestamp − AlignmentTimestamp)$$
 
 Такой подход позволяет учитывать специфику каждого стрима (например, систематическую задержку между временем записи в очередь и временем события) и обеспечивает более справедливое межстримовое упорядочивание.
 

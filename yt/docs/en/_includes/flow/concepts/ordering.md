@@ -44,7 +44,7 @@ Across different streams, prioritization is based on `EventTimestamp`, but indir
 
 The adjustment is calculated as the average difference between `EventTimestamp` and `AlignmentTimestamp` among the messages currently in all output buffers for that stream:
 
-$$ordering_priority = AlignmentTimestamp + avg(EventTimestamp − AlignmentTimestamp)$$
+$$ordering\_priority = AlignmentTimestamp + avg(EventTimestamp − AlignmentTimestamp)$$
 
 This approach accounts for each stream’s specifics (for example, the systematic delay between the time a message is written to the queue and the event time) and ensures a fairer cross-stream ordering.
 
