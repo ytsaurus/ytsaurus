@@ -178,6 +178,7 @@ func newClient(conf *yt.Config, getLocalHostName func() (string, error)) (*clien
 	c.Encoder.InvokeInTx = c.invokeInTx
 	c.Encoder.InvokeReadRow = c.doReadRow
 	c.Encoder.InvokeMultiLookup = c.doMultiLookup
+	c.Encoder.InvokeStream = c.invokeStream
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
 	requestLogger := &LoggingInterceptor{Structured: c.log}
@@ -196,6 +197,9 @@ func newClient(conf *yt.Config, getLocalHostName func() (string, error)) (*clien
 
 	c.Encoder.InvokeInTx = c.Encoder.InvokeInTx.
 		Wrap(readRetrier.InterceptInTx)
+
+	c.Encoder.InvokeStream = wrapStreamInvoker(c.Encoder.InvokeStream,
+		proxyBouncer, requestLogger, requestTracer, errorWrapper)
 
 	if conf.RPCProxyPriorityStrategy == yt.RPCProxyPriorityStrategyPreferLocal {
 		c.log.Info("RPC proxy priority configured",
