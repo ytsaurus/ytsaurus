@@ -2045,7 +2045,7 @@ TFuture<TFilePartitions> TClient::PartitionFile(
 
     SetControlMultiplexingBandIfEnabled(*req, GetRpcProxyConnection()->GetConfig());
 
-    AnnotatePartitionFileRequestInfo(req, *req);
+    req->Annotate().With(MakePartitionFileRequestTags(*req));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPartitionFilePtr& rsp) {
         return FromProto<TFilePartitions>(*rsp);
@@ -2069,7 +2069,7 @@ TFuture<IFileReaderPtr> TClient::CreateFilePartitionReader(
         req->set_config(ToProto(ConvertToYsonString(*options.Config)));
     }
 
-    AnnotateReadFilePartitionRequestInfo(req, *req);
+    req->Annotate().With(MakeReadFilePartitionRequestTags(*req));
 
     return NRpcProxy::CreateFilePartitionReader(std::move(req));
 }

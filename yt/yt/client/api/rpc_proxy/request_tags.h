@@ -39,6 +39,12 @@ NLogging::TLoggingTagList MakeWriteFileRequestTags(
     const NYPath::TRichYPath& path,
     const NProto::TReqWriteFile& req);
 
+NLogging::TLoggingTagList MakePartitionFileRequestTags(
+    const NProto::TReqPartitionFile& req);
+
+NLogging::TLoggingTagList MakeReadFilePartitionRequestTags(
+    const NProto::TReqReadFilePartition& req);
+
 NLogging::TLoggingTagList MakePartitionTablesRequestTags(
     const std::vector<NYPath::TRichYPath>& paths,
     const NProto::TReqPartitionTables& req);

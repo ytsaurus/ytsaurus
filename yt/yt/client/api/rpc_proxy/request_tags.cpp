@@ -76,6 +76,32 @@ TLoggingTagList MakeWriteFileRequestTags(
         .With("ComputeMD5", req.compute_md5());
 }
 
+TLoggingTagList MakePartitionFileRequestTags(
+    const NProto::TReqPartitionFile& req)
+{
+    static constexpr int MaxLoggedRanges = 3;
+
+    return TLoggingTagList()
+        .With("Path", req.path())
+        .With("Ranges", MakeShrunkFormattableView(
+            req.ranges(),
+            [] (TStringBuilderBase* builder, const NProto::TReqPartitionFile::TFileReadRange& range) {
+                builder->AppendFormat("[%v, %v)",
+                    range.begin(),
+                    YT_OPTIONAL_FROM_PROTO(range, end));
+            },
+            MaxLoggedRanges))
+        .With("RangeCount", req.ranges_size())
+        .With("FetchCookieNodeDescriptors", req.fetch_cookie_node_descriptors());
+}
+
+TLoggingTagList MakeReadFilePartitionRequestTags(
+    const NProto::TReqReadFilePartition& req)
+{
+    return TLoggingTagList()
+        .With("CookieSize", req.cookie().size());
+}
+
 TLoggingTagList MakePartitionTablesRequestTags(
     const std::vector<NYPath::TRichYPath>& paths,
     const NProto::TReqPartitionTables& req)

@@ -6601,7 +6601,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionFile)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    SetPartitionFileRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakePartitionFileRequestTags(*request));
 
     PutMethodInfoInTraceContext("partition_file");
 
@@ -6635,7 +6635,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFilePartition)
         options.Config = ConvertTo<TFileReaderConfigPtr>(TYsonString(request->config()));
     }
 
-    SetReadFilePartitionRequestInfo(context, *request);
+    context->AnnotateRequest().With(MakeReadFilePartitionRequestTags(*request));
 
     PutMethodInfoInTraceContext("read_file_partition");
 
