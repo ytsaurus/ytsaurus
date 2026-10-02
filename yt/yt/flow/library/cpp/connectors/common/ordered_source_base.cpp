@@ -831,11 +831,8 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
             ReadEventWatermark_ = std::max(ReadEventWatermark_, record.Meta->EventWatermark);
         }
 
-        const auto& offsetMemoryKey = record.OffsetMemoryKey
-            ? *record.OffsetMemoryKey
-            : record.Offset;
-        State_->OffsetMemory->Register(offsetMemoryKey, seqNoProviderResult.UniqueSeqNo);
-        auto extractedUniqueSeqNo = State_->OffsetMemory->Extract(offsetMemoryKey);
+        State_->OffsetMemory->Register(record.Offset, seqNoProviderResult.UniqueSeqNo);
+        auto extractedUniqueSeqNo = State_->OffsetMemory->Extract(record.Offset);
         YT_TLOG_FATAL_UNLESS(seqNoProviderResult.UniqueSeqNo >= extractedUniqueSeqNo,
             "Expected that new generated unique seq no is greater than persisted")
             .With("NewGeneratedUniqueSeqNo", seqNoProviderResult.UniqueSeqNo)
