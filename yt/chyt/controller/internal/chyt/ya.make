@@ -14,6 +14,7 @@ SRCS(
 )
 
 GO_TEST_SRCS(
+    options_test.go
     controller_test.go
     resources_test.go
 )

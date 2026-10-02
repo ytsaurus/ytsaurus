@@ -481,6 +481,21 @@ func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request, p
 	a.ReplyOK(w, options)
 }
 
+var DescribeCreationOptionsCmdDescriptor = CmdDescriptor{
+	Name:        "describe_creation_options",
+	Description: "get available speclet options and defaults for a new operation",
+	Handler:     HTTPAPI.HandleDescribeCreationOptions,
+}
+
+func (a HTTPAPI) HandleDescribeCreationOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	options, err := a.API.DescribeCreationOptions()
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	a.ReplyOK(w, options)
+}
+
 var GetSecretsCmdDescriptor = CmdDescriptor{
 	Name:        "get_secrets",
 	Parameters:  []CmdParameter{AliasParameter},
@@ -557,6 +572,7 @@ var AllCommands = []CmdDescriptor{
 	RestartCmdDescriptor,
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
+	DescribeCreationOptionsCmdDescriptor,
 	GetSecretsCmdDescriptor,
 	SetSecretsCmdDescriptor,
 	ResumeCmdDescriptor,

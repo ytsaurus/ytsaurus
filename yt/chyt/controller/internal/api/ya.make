@@ -8,4 +8,8 @@ SRCS(
     http.go
 )
 
+GO_TEST_SRCS(
+    creation_options_test.go
+)
+
 END()

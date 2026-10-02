@@ -1082,6 +1082,21 @@ func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.O
 		return nil, err
 	}
 
+	return a.describeOptions(specletYson)
+}
+
+// DescribeCreationOptions describes a new operation without reading or creating an oplet.
+// The HTTP command accepts {"params":{}} without an alias and uses regular controller
+// authentication. It returns the same option groups as DescribeOptions, with defaults,
+// types and bounds, but without an existing operation's current values.
+// CHYT resource defaults follow ResourcesConfig, falling back to built-in values;
+// resource fields in DefaultSpeclet do not override runtime resource defaults.
+// DescribeOptions retains the existing operation's existence and read-permission checks.
+func (a *API) DescribeCreationOptions() ([]strawberry.OptionGroupDescriptor, error) {
+	return a.describeOptions(yson.RawValue("{}"))
+}
+
+func (a *API) describeOptions(specletYson yson.RawValue) ([]strawberry.OptionGroupDescriptor, error) {
 	strawberrySpeclet, err := strawberry.ParseSpeclet(specletYson)
 	if err != nil {
 		return nil, err
