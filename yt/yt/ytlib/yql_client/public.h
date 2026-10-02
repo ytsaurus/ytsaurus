@@ -26,6 +26,15 @@ YT_DEFINE_ERROR_ENUM(
     ((YqlAgentNotReady)     (40102))
 );
 
+DEFINE_STRING_SERIALIZABLE_ENUM(EProgressPart,
+    ((YqlPlan)       (0))
+    ((YqlStatistics) (1))
+    ((YqlProgress)   (2))
+    ((YqlTaskInfo)   (3))
+    ((YqlAst)        (4))
+    ((YqlRevision)   (5))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

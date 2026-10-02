@@ -46,10 +46,17 @@ class TTaskEventCallback
     : public NYql::NWorkerApi::ITaskResultCallback
 {
 public:
+    struct TSnapshot
+    {
+        TString Progress;
+        NYql::NProto::TTaskResult TaskResult;
+        THashMap<EProgressPart, ui32> LatestPartRevisions;
+    };
+
     ::NThreading::TFuture<void> Notify(const NYql::NProto::TTaskResult& result, ui64 /*sentTime*/) override
     {
         TGuard guard(Lock_);
-        UpdateTaskResultData(TaskResult_, result);
+        UpdateTaskResultData(TaskResult_, result, &LatestPartRevisions_);
         if (result.HasProgress()) {
             ProgressMerger_.MergeWith(result.GetProgress());
         }
@@ -67,21 +74,20 @@ public:
         return DonePromise_.ToFuture();
     }
 
-    NYql::NProto::TTaskResult GetTaskResult() const
+    TSnapshot GetSnapshot()
     {
         TGuard guard(Lock_);
-        return TaskResult_;
-    }
-
-    TString GetProgress()
-    {
-        TGuard guard(Lock_);
-        return ProgressMerger_.ToYsonString();
+        return {
+            .Progress = ProgressMerger_.ToYsonString(),
+            .TaskResult = TaskResult_,
+            .LatestPartRevisions = LatestPartRevisions_,
+        };
     }
 
 private:
     mutable TMutex Lock_;
     NYql::NProto::TTaskResult TaskResult_;
+    THashMap<EProgressPart, ui32> LatestPartRevisions_;
     NYT::NYqlPlugin::TProgressMerger ProgressMerger_;
     NYT::TPromise<void> DonePromise_ = NewPromise<void>();
     bool IsFinished_ = false;
@@ -260,9 +266,8 @@ public:
             auto data = BuildTaskData(queryId, user, queryIdentityToken, queryText, settings, credentials, files, queryType);
             auto callback = RunTaskToCompletion(queryId, action, std::move(data), /*persist*/ true);
 
-            const auto snapshot = callback->GetTaskResult();
-            auto progressYson = callback->GetProgress();
-            return TaskResultToYqlResult(snapshot, std::move(progressYson));
+            auto snapshot = callback->GetSnapshot();
+            return TaskResultToYqlResult(snapshot.TaskResult, std::move(snapshot.Progress));
         } catch (const NYql::NWorkerApi::TRunTaskError& ex) {
             if (ex.GetReason() == NYql::NWorkerApi::TRunTaskError::EReason::REJECTED) {
                 THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentNotReady, "%v", ex.GetMessage());
@@ -277,10 +282,9 @@ public:
         }
     }
 
-    TQueryResult GetProgress(TQueryId queryId) override
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) override
     {
-        NYql::NProto::TTaskResult taskResult;
-        TString progress;
+        TTaskEventCallback::TSnapshot snapshot;
 
         {
             TGuard guard(ActiveQueriesLock_);
@@ -290,11 +294,14 @@ public:
                     .YsonError = MessageToYtErrorYson(Format("No progress for query: %v", queryId)),
                 };
             }
-            taskResult = it->second.Callback->GetTaskResult();
-            progress = it->second.Callback->GetProgress();
+            snapshot = it->second.Callback->GetSnapshot();
         }
 
-        return TaskResultToYqlResult(taskResult, progress);
+        return TaskResultToYqlResult(
+            snapshot.TaskResult,
+            std::move(snapshot.Progress),
+            snapshot.LatestPartRevisions,
+            revision);
     }
 
     TAbortResult Abort(TQueryId queryId) override
@@ -414,19 +421,19 @@ public:
             std::move(data),
             /*persist*/ false);
 
-        const auto snapshot = callback->GetTaskResult();
-        if (snapshot.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
-            if (snapshot.IssuesSize() > 0) {
+        auto taskResult = std::move(callback->GetSnapshot().TaskResult);
+        if (taskResult.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
+            if (taskResult.IssuesSize() > 0) {
                 NYql::TIssues issues;
-                IssuesFromMessage(snapshot.GetIssues(), issues);
+                IssuesFromMessage(taskResult.GetIssues(), issues);
                 ythrow yexception() << IssuesToYtErrorYson(issues);
             }
             ythrow yexception() << "Failed to extract query parameters metadata on worker";
         }
 
         return TGetDeclaredParametersInfoResult{
-            .YsonParameters = snapshot.ResultsSize() > 0
-                ? std::make_optional(snapshot.GetResults(0))
+            .YsonParameters = taskResult.ResultsSize() > 0
+                ? std::make_optional(taskResult.GetResults(0))
                 : std::nullopt,
         };
     }

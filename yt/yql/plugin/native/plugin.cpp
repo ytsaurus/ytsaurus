@@ -989,7 +989,7 @@ public:
         return result;
     }
 
-    TQueryResult GetProgress(TQueryId queryId) noexcept override
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) noexcept override
     {
         auto guard = ReaderGuard(ProgressSpinLock_);
         if (auto* activeQuery = GetActiveQueryPtr(queryId)) {

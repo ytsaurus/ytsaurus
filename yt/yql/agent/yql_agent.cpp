@@ -472,26 +472,31 @@ public:
             .Run();
     }
 
-    TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override
+    TRspGetQueryProgress GetQueryProgress(TQueryId queryId, std::optional<ui32> revision) override
     {
         YT_TLOG_DEBUG("Getting query progress from YQL plugin")
-            .With("QueryId", queryId);
+            .With("QueryId", queryId)
+            .With("Revision", revision);
 
         TRspGetQueryProgress response;
 
         try {
-            auto result = YqlPlugin_->GetProgress(queryId);
+            auto result = YqlPlugin_->GetProgress(queryId, revision);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;
             }
             YT_TLOG_DEBUG("Successfully got query progress from YQL plugin");
 
-            if (result.Plan || result.Progress) {
+            if (result.Plan || result.Statistics || result.Progress || result.Ast || result.Revision) {
                 TYqlResponse yqlResponse;
                 ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
+                ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
+                if (result.Revision) {
+                    yqlResponse.set_revision(*result.Revision);
+                }
                 response.mutable_yql_response()->Swap(&yqlResponse);
             }
             return response;
@@ -795,6 +800,9 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             ValidateAndFillYqlResponseField(yqlResponse, result.YsonError, &TYqlResponse::mutable_error);
+            if (result.Revision) {
+                yqlResponse.set_revision(*result.Revision);
+            }
             if (request.build_rowsets() && result.YsonResult && !result.YsonError) {
                 std::vector<TWireYqlRowset> rowsets;
                 switch (queryType) {

@@ -720,6 +720,7 @@ class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
         self._test_simple_query("select * from `//tmp/t1`", [{"a": 45}], settings={"random_attribute": 0})
 
 
+@pytest.mark.timeout(180)
 class TestExecutionModesYql(TestQueriesYqlSimpleBase):
     @authors("aleksandr.gaev")
     def test_validate(self, query_tracker, yql_agent):

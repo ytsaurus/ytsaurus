@@ -388,6 +388,24 @@ class TestQueriesMock(QueriesTestBase):
         assert "tokens" not in q.get()["settings"]
         assert "tokens" not in self._get_stored_finished_query_settings(q.id)
 
+    @authors("mpereskokova")
+    def test_get_query_progress_parts(self, query_tracker):
+        q = start_query("mock", "run_forever")
+        wait(lambda: q.get_state() == "running")
+        assert get_query(q.id)["progress"] == {}
+
+        with raises_yt_error() as err:
+            get_query(q.id, progress_parts=["yql_plan"])
+        assert err[0].contains_text("stores progress in compact form")
+
+        with raises_yt_error() as err:
+            get_query(q.id, min_progress_revision=5)
+        assert err[0].contains_text("stores progress in compact form")
+
+        with raises_yt_error() as err:
+            get_query(q.id, progress_parts=["yql_plan"], min_progress_revision=5)
+        assert err[0].contains_text("stores progress in compact form")
+
 
 class TestQueryTrackerBan(QueriesTestBase):
     NUM_QUERY_TRACKER = 1
