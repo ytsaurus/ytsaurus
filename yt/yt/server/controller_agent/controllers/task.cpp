@@ -1701,7 +1701,7 @@ void TTask::AddSequentialInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            &seenHunkChunks,
+            GetPtr(seenHunkChunks),
             comparator,
             jobSpecExt);
     }
@@ -1733,7 +1733,7 @@ void TTask::AddParallelInputSpec(
             IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            &seenHunkChunks,
+            GetPtr(seenHunkChunks),
             comparator,
             jobSpecExt);
     }
@@ -1744,7 +1744,7 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    THashSet<TChunkId>* seenHunkChunks,
+    TNonNullPtr<THashSet<TChunkId>> seenHunkChunks,
     TComparator comparator,
     TJobSpecExt* jobSpecExt)
 {
@@ -1802,7 +1802,7 @@ void TTask::AddChunksToInputSpec(
                 const auto& inputManager = TaskHost_->GetInputManager();
                 for (const auto& hunkChunkRef : hunkChunkRefsExt->refs()) {
                     auto hunkChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
-                    if (!seenHunkChunks->insert(hunkChunkId).second) {
+                    if (auto [_, inserted] = seenHunkChunks->insert(hunkChunkId); !inserted) {
                         continue;
                     }
 

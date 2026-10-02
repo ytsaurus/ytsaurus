@@ -7,7 +7,7 @@ from yt_commands import (
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
     lookup_rows, raises_yt_error, select_rows, generate_uuid, set_node_banned,
     with_breakpoint, wait_breakpoint, release_breakpoint, get_job, create_domestic_medium,
-    get_account_disk_space_limit, set_account_disk_space_limit)
+    get_account_disk_space_limit, set_account_disk_space_limit, ls)
 
 from yt_helpers import profiler_factory
 
@@ -137,6 +137,41 @@ class TestMapOnDynamicTables(YTEnvSetup):
         else:
             expected_rows = rows
         assert_items_equal(read_table("//tmp/t_out"), expected_rows)
+
+    @authors("atalmenev")
+    @pytest.mark.parametrize("op_type", ["merge", "sort"])
+    def test_hunk_chunk_replica_prefetch_specs(self, op_type):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_in", max_inline_hunk_size=1)
+        sync_mount_table("//tmp/t_in")
+        rows = [{"key": i, "value": "x" * 100} for i in range(20)]
+        insert_rows("//tmp/t_in", rows)
+        sync_unmount_table("//tmp/t_in")
+
+        create("table", "//tmp/t_out")
+        run_op = {
+            "merge": partial(merge, force_transform=True),
+            "sort": partial(sort, sort_by=["key"]),
+        }[op_type]
+
+        master_profilers = [
+            profiler_factory().at_primary_master(address)
+            for address in ls("//sys/primary_masters")
+        ] + [
+            profiler_factory().at_secondary_master(cell_tag, address)
+            for cell_tag in ls("//sys/secondary_masters")
+            for address in ls(f"//sys/secondary_masters/{cell_tag}")
+        ]
+        locate_counters = [
+            profiler.counter(
+                "rpc/server/request_count",
+                tags={"yt_service": "ChunkService", "method": "LocateChunks"})
+            for profiler in master_profilers
+        ]
+        run_op(in_="//tmp/t_in", out="//tmp/t_out")
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+        assert sum(counter.get_delta() for counter in locate_counters) == 0
 
     @authors("savrus", "apollo1321")
     @parametrize_external
