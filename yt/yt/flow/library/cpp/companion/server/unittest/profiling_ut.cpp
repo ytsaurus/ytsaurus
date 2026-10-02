@@ -501,9 +501,8 @@ TEST_F(TProfilingTest, CompanionCountersFollowTheBatches)
     auto requestCount = FindSensor(
         sensors,
         "yt.flow.companion.request.count",
-        {{"computation_id", std::string(ComputationId)}});
+        {{"computation_id", std::string(ComputationId)}, {"request_type", "process_batch"}});
     ASSERT_TRUE(requestCount) << "sensors: " << DumpSensorNames(sensors);
-    EXPECT_EQ(FindLabel(requestCount, "request_type"), std::optional<std::string>("process_batch"));
     EXPECT_EQ(requestCount->AsMap()->GetChildValueOrThrow<i64>("value"), 2);
 }
 
