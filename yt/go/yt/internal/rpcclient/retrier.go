@@ -11,7 +11,6 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -25,7 +24,7 @@ type ReadRetryRequest interface {
 	ReadRetryOptions()
 }
 
-func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
 	var cancel func()
 	if timeout := r.RequestTimeout; timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -33,7 +32,7 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker,
 	}
 
 	for {
-		err = invoke(ctx, call, rsp, opts...)
+		err = invoke(ctx, call, rsp)
 		if err == nil || call.DisableRetries {
 			return
 		}
@@ -63,7 +62,7 @@ func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker,
 	}
 }
 
-func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
 	var cancel func()
 	if timeout := r.RequestTimeout; timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -71,7 +70,7 @@ func (r *Retrier) InterceptInTx(ctx context.Context, call *Call, invoke CallInvo
 	}
 
 	for {
-		err = invoke(ctx, call, rsp, opts...)
+		err = invoke(ctx, call, rsp)
 		if err == nil || call.DisableRetries {
 			return
 		}
