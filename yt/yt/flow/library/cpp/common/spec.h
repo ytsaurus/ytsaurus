@@ -1160,6 +1160,8 @@ struct TDynamicJobBalancerSpec
     bool GracefulMove{};
     TDuration ZeroQueueLatency;
     TDuration PlanningHorizon;
+    //! The resource_queue balancer does not release a preload that is still loading for this long after the request.
+    TDuration PreloadingTimeout;
 
     REGISTER_YSON_STRUCT(TDynamicJobBalancerSpec);
 

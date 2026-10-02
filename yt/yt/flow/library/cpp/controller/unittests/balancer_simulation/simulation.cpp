@@ -148,6 +148,9 @@ void TSimulation::Build()
 {
     BalancerSpec_ = MakeBalancerSpec(Scenario_.PlanningHorizonSeconds, Scenario_.ZeroQueueLatencySeconds);
     BalancerSpec_->RebalanceTargetDeviation = Scenario_.RebalanceTargetDeviation;
+    if (Scenario_.PreloadingTimeout) {
+        BalancerSpec_->PreloadingTimeout = *Scenario_.PreloadingTimeout;
+    }
 
     auto pipelineSpec = FlowView_->CurrentSpec->GetValue();
     for (int c = 0; c < Scenario_.ComputationCount; ++c) {
@@ -311,6 +314,9 @@ void TSimulation::Publish()
         for (const auto& resourceId : worker.Preloaded) {
             status->PreloadedResourceStates[resourceId] = EPreloadedResourceState::Preloaded;
         }
+        for (const auto& [resourceId, _] : worker.PreloadCompletesAtStep) {
+            status->PreloadedResourceStates[resourceId] = EPreloadedResourceState::Preloading;
+        }
         for (int c = 0; c < Scenario_.ComputationCount; ++c) {
             auto& q = worker.Queues[c];
             auto resourceStatus = CollectResourceStatus(q, now);
@@ -453,7 +459,7 @@ void TSimulation::Apply(const TRebalanceResult& result)
         auto& worker = Workers_[GetOrCrash(WorkerIndex_, action.WorkerAddress)];
         PreloadEvents_.push_back(TPreloadEvent{Step_, action.WorkerAddress, Format("%v", action.ResourceId), action.Type == ERebalanceActionType::Add});
         if (action.Type == ERebalanceActionType::Add) {
-            SetPreloadIssued(FlowView_, action.WorkerAddress, action.ResourceId);
+            SetPreloadIssued(FlowView_, action.WorkerAddress, action.ResourceId, Now());
             if (!worker.Preloaded.contains(action.ResourceId) && !worker.PreloadCompletesAtStep.contains(action.ResourceId)) {
                 worker.PreloadCompletesAtStep[action.ResourceId] = Step_ + Scenario_.PreloadDelaySteps;
             }

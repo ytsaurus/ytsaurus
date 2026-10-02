@@ -34,6 +34,8 @@ struct TWorkerInfo
 {
     THashSet<TResourceId> PreloadResourceIssued;
     THashSet<TResourceId> PreloadResourceCompleted;
+    THashMap<TResourceId, TInstant> PreloadRequestTimes;
+    THashSet<TResourceId> PreloadResourceHeld;
     THashMap<std::string, ssize_t> Capabilities;
     THashMap<std::string, ssize_t> RemainingCapabilities;
     THashSet<TResourceId> DeployedResources;
@@ -48,6 +50,7 @@ struct TComputationInfo
 {
     THashMap<TResourceId, double> ResourceConsumptionMultiplier;
     THashSet<TWorkerId> Workers;
+    THashSet<TWorkerId> HeldWorkers;
     std::vector<TWorkerId> TechnicallyPossibleWorkers;
     std::vector<TPartitionId> StrayPartitions;
     double TotalConsumptionMultiplier{};
@@ -255,6 +258,7 @@ TResourceBalanceContext CollectResourceContext(
             const auto& workerSpec = workerSpecIt->second;
             if (!workerSpec->WorkerIncarnationId || *workerSpec->WorkerIncarnationId == worker->IncarnationId) {
                 workerInfo.PreloadResourceIssued = workerSpec->PreloadResources;
+                workerInfo.PreloadRequestTimes = workerSpec->PreloadRequestTimes;
             }
         }
 
@@ -311,7 +315,7 @@ TResourceBalanceContext CollectResourceContext(
                 .With("QueueSize", stat.QueueSize)
                 .With("QueueGrowthRate", stat.QueueGrowthRate);
         }
-        // Fill PreloadResourceIssued from worker feedback.
+        // Fill PreloadResourceCompleted from worker feedback.
         for (const auto& [resourceId, preloadState] : workerStatus->PreloadedResourceStates) {
             if (preloadState == EPreloadedResourceState::Preloaded) {
                 workerInfo.PreloadResourceCompleted.insert(resourceId);
@@ -802,6 +806,64 @@ TResourceBalanceContext CollectResourceContext(
             continue;
         }
         GetOrCrash(context.Computations, partitionInfo.ComputationId).Workers.insert(*partitionInfo.WorkerId);
+    }
+
+    // A requested preload is held while it loads, up to |preloading_timeout| after the request.
+    // A request time ahead of |now| comes from a clock skew between controllers and is not trusted.
+    for (auto& [workerAddress, workerInfo] : context.Workers) {
+        for (const auto& resourceId : workerInfo.PreloadResourceIssued) {
+            auto resourceIt = context.Resources.find(resourceId);
+            if (resourceIt == context.Resources.end() || !resourceIt->second.IsPreloadable ||
+                workerInfo.PreloadResourceCompleted.contains(resourceId))
+            {
+                continue;
+            }
+            auto requestIt = workerInfo.PreloadRequestTimes.find(resourceId);
+            if (requestIt != workerInfo.PreloadRequestTimes.end() &&
+                requestIt->second <= now &&
+                now - requestIt->second < balancerSpec->PreloadingTimeout)
+            {
+                workerInfo.PreloadResourceHeld.insert(resourceId);
+            }
+        }
+    }
+
+    // A held preload keeps the worker in the plan of the computations it serves.
+    for (auto& [workerAddress, workerInfo] : context.Workers) {
+        if (workerInfo.PreloadResourceHeld.empty()) {
+            continue;
+        }
+        for (auto& [computationId, computationInfo] : context.Computations) {
+            bool allIssued = true;
+            bool anyHeld = false;
+            for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+                auto resourceIt = context.Resources.find(resourceId);
+                if (resourceIt == context.Resources.end() || !resourceIt->second.IsPreloadable) {
+                    continue;
+                }
+                allIssued = allIssued && workerInfo.PreloadResourceIssued.contains(resourceId);
+                anyHeld = anyHeld || workerInfo.PreloadResourceHeld.contains(resourceId);
+            }
+            if (!allIssued || !anyHeld || computationInfo.Workers.contains(workerAddress)) {
+                continue;
+            }
+            if (std::find(computationInfo.TechnicallyPossibleWorkers.begin(), computationInfo.TechnicallyPossibleWorkers.end(), workerAddress) == computationInfo.TechnicallyPossibleWorkers.end()) {
+                continue;
+            }
+            YT_TLOG_DEBUG("ResourceQueue: Worker held in the plan by a requested preload")
+                .With("Computation", computationId)
+                .With("Worker", workerAddress);
+            computationInfo.Workers.insert(workerAddress);
+            computationInfo.HeldWorkers.insert(workerAddress);
+            for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+                if (!workerInfo.DeployedResources.insert(resourceId).second) {
+                    continue;
+                }
+                for (const auto& [capName, capValue] : GetOrCrash(context.Resources, resourceId).RequiredCapabilities) {
+                    workerInfo.RemainingCapabilities[capName] -= capValue;
+                }
+            }
+        }
     }
 
     // Fill StrayPartitions for each computation: partitions with no WorkerId assigned.
@@ -1342,7 +1404,9 @@ TRebalanceResult DoBalanceResourceQueue(
                     if (cSurplus == cStarving) {
                         continue;
                     }
-                    if (!surplusComputationInfo.Workers.contains(workerAddress)) {
+                    if (!surplusComputationInfo.Workers.contains(workerAddress) ||
+                        surplusComputationInfo.HeldWorkers.contains(workerAddress))
+                    {
                         continue;
                     }
                     // cSurplus must currently be non-starving.
@@ -1457,7 +1521,9 @@ TRebalanceResult DoBalanceResourceQueue(
                     if (cSurplus == cStarving) {
                         continue;
                     }
-                    if (!surplusComputationInfo.Workers.contains(workerAddress)) {
+                    if (!surplusComputationInfo.Workers.contains(workerAddress) ||
+                        surplusComputationInfo.HeldWorkers.contains(workerAddress))
+                    {
                         continue;
                     }
 
@@ -1623,7 +1689,7 @@ TRebalanceResult DoBalanceResourceQueue(
     //     in PreloadResourceIssued[w] and NOT in PreloadResourceCompleted[w]:
     //     emit TWorkerPreloadResultAction{Add, r, w}.
     //   - For each preloadable resource r in PreloadResourceIssued[w] that is NOT
-    //     in desiredWorkerResources[w]:
+    //     in desiredWorkerResources[w] and NOT in PreloadResourceHeld[w]:
     //     emit TWorkerPreloadResultAction{Del, r, w}.
     //
     // Also build workerPreloadReady[w]: set of preloadable resources that are
@@ -1693,6 +1759,12 @@ TRebalanceResult DoBalanceResourceQueue(
             }
             if (desired.contains(resourceId)) {
                 continue; // Still desired.
+            }
+            if (resourceIt != context.Resources.end() && workerInfo.PreloadResourceHeld.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Step 5 keeping held preload")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
             }
             YT_TLOG_DEBUG("ResourceQueue: Step 5 emitting preload Del")
                 .With("Worker", workerAddress)

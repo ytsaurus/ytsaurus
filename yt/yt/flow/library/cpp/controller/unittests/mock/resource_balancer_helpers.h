@@ -91,7 +91,8 @@ void SetPreloadCompleted(
 void SetPreloadIssued(
     const TFlowViewPtr& flowView,
     const TWorkerId& address,
-    const TResourceId& resourceId);
+    const TResourceId& resourceId,
+    std::optional<TInstant> requestTime = {});
 
 //! Reverts SetPreloadIssued for one resource.
 void ClearPreloadIssued(

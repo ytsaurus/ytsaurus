@@ -156,17 +156,18 @@ void SetPreloadCompleted(
 void SetPreloadIssued(
     const TFlowViewPtr& flowView,
     const TWorkerId& address,
-    const TResourceId& resourceId)
+    const TResourceId& resourceId,
+    std::optional<TInstant> requestTime)
 {
     flowView->State->StartMutation();
-    auto workerSpec = New<TWorkerSpec>();
-    workerSpec->PreloadResources.insert(resourceId);
     // Merge with existing if any.
     auto existingIt = flowView->State->ExecutionSpec->Layout->WorkerSpecs.find(address);
-    if (existingIt != flowView->State->ExecutionSpec->Layout->WorkerSpecs.end()) {
-        for (const auto& r : existingIt->second->PreloadResources) {
-            workerSpec->PreloadResources.insert(r);
-        }
+    auto workerSpec = existingIt != flowView->State->ExecutionSpec->Layout->WorkerSpecs.end()
+        ? CloneYsonStruct(existingIt->second)
+        : New<TWorkerSpec>();
+    workerSpec->PreloadResources.insert(resourceId);
+    if (requestTime) {
+        workerSpec->PreloadRequestTimes[resourceId] = *requestTime;
     }
     flowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign(address, workerSpec);
     flowView->State->CommitMutation();
@@ -181,12 +182,9 @@ void ClearPreloadIssued(
     auto& workerSpecs = flowView->State->ExecutionSpec->Layout->WorkerSpecs;
     auto it = workerSpecs.find(address);
     if (it != workerSpecs.end()) {
-        auto workerSpec = New<TWorkerSpec>();
-        for (const auto& r : it->second->PreloadResources) {
-            if (r != resourceId) {
-                workerSpec->PreloadResources.insert(r);
-            }
-        }
+        auto workerSpec = CloneYsonStruct(it->second);
+        workerSpec->PreloadResources.erase(resourceId);
+        workerSpec->PreloadRequestTimes.erase(resourceId);
         workerSpecs.insert_or_assign(address, workerSpec);
     }
     flowView->State->CommitMutation();

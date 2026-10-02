@@ -79,6 +79,9 @@ Safety limit: worker coefficients are clamped to `[1 / max_ratio, max_ratio]`. |
 || `planning_horizon` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
  ||
+|| `preloading_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `30m`
+How long the `resource_queue` balancer keeps a model preload that is still loading, counted from the request. Until then the preload is not released and the worker counts as a worker of the computations that need the model; after it the usual rules apply. ||
 || `minimum_worker_count` | **Type**: `unsigned long`
 **Default value**: `1`
 Minimum number of workers to distribute the load across.

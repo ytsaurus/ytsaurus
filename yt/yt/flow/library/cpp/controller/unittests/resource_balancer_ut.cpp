@@ -21,6 +21,7 @@ class TResourceBalancerTest : public ::testing::Test
 protected:
     TFlowViewPtr FlowView;
     TWorkerGroupId Group = MakeWorkerGroup("default");
+    TDuration PreloadingTimeout;
 
     void SetUp() override
     {
@@ -48,6 +49,7 @@ protected:
     TRebalanceResult RunBalancer(double planningHorizonSeconds = 60.0)
     {
         auto balancerSpec = MakeBalancerSpec(planningHorizonSeconds);
+        balancerSpec->PreloadingTimeout = PreloadingTimeout;
         return DoBalanceResourceQueue(FlowView, balancerSpec, Group);
     }
 
@@ -2135,6 +2137,179 @@ TEST_F(TResourceBalancerTest, SharedOverloadedWorkerIsSpreadByQueue)
         }
     }
     EXPECT_TRUE(movedToIdle);
+}
+
+//! Worker1 runs the computation and has its model; worker2 is idle. With a standing queue on
+//! worker1 the balancer orders the model on worker2; the next round sees an empty queue.
+class TPreloadHoldTest
+    : public TResourceBalancerTest
+{
+protected:
+    TComputationId CompId = MakeComputationId("comp1");
+    TResourceId ResId = MakeResourceId("res_preload");
+
+    void SetUp() override
+    {
+        TResourceBalancerTest::SetUp();
+        SetResourceSpec(ResId, MakeResourceSpec({}, /*preloadRequired=*/true));
+        SetComputationSpec(CompId, MakeComputationSpec(Group, {ResId}));
+
+        AddWorker(FlowView, "worker1", Group);
+        AddWorker(FlowView, "worker2", Group);
+        SetPreloadIssued(FlowView, "worker1", ResId);
+        SetPreloadCompleted(FlowView, "worker1", ResId);
+        for (int i = 1; i <= 5; ++i) {
+            AddPartition(FlowView, MakePartitionId(i), CompId, /*rps=*/10.0, "worker1");
+        }
+        SetWorkerResourceStatus(FlowView, "worker2", ResId,
+            /*putRate=*/0.0,
+            /*fetchRate=*/0.0,
+            /*queueSize=*/0.0,
+            /*queueGrowthRate=*/0.0);
+    }
+
+    void SetWorker1Queue(double queueSize, double queueGrowthRate = 0.0)
+    {
+        SetWorkerResourceStatus(FlowView, "worker1", ResId,
+            /*putRate=*/50.0,
+            /*fetchRate=*/50.0,
+            queueSize,
+            queueGrowthRate);
+    }
+
+    //! Orders the model on worker2 at |requestTime|, then runs the round with an empty queue.
+    std::vector<TWorkerPreloadResultAction> OrderThenRunQuietRound(TInstant requestTime)
+    {
+        SetWorker1Queue(10.0);
+        auto adds = GetPreloadAddActions(RunBalancer());
+        EXPECT_EQ(adds.size(), 1u);
+        EXPECT_EQ(adds.at(0).WorkerAddress, "worker2");
+
+        SetPreloadIssued(FlowView, "worker2", ResId, requestTime);
+        SetWorker1Queue(0.0);
+        return GetPreloadDelActions(RunBalancer());
+    }
+
+    void ExpectReleasedOnWorker2(const std::vector<TWorkerPreloadResultAction>& dels)
+    {
+        ASSERT_EQ(dels.size(), 1u);
+        EXPECT_EQ(dels[0].WorkerAddress, "worker2");
+        EXPECT_EQ(dels[0].ResourceId, ResId);
+    }
+};
+
+TEST_F(TPreloadHoldTest, WithoutPreloadingTimeoutPreloadIsReleased)
+{
+    ExpectReleasedOnWorker2(OrderThenRunQuietRound(TInstant::Now()));
+}
+
+TEST_F(TPreloadHoldTest, LoadingPreloadHeldWithinTimeout)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    EXPECT_TRUE(OrderThenRunQuietRound(TInstant::Now()).empty());
+}
+
+TEST_F(TPreloadHoldTest, LoadingPreloadReleasedAfterTimeout)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    ExpectReleasedOnWorker2(OrderThenRunQuietRound(TInstant::Now() - TDuration::Minutes(31)));
+}
+
+TEST_F(TPreloadHoldTest, PreloadRequestedInFutureIsNotHeld)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    ExpectReleasedOnWorker2(OrderThenRunQuietRound(TInstant::Now() + TDuration::Hours(1)));
+}
+
+//! A preload requested before the request time was recorded is not held.
+TEST_F(TPreloadHoldTest, PreloadWithoutRequestTimeIsNotHeld)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    SetWorker1Queue(0.0);
+    SetPreloadIssued(FlowView, "worker2", ResId);
+
+    ExpectReleasedOnWorker2(GetPreloadDelActions(RunBalancer()));
+}
+
+//! Worker2 is in the plan while it loads, but partitions wait for the model.
+TEST_F(TPreloadHoldTest, LoadingHeldWorkerDoesNotTakeStrayPartitions)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    // Worker1 has room for the stray, so the plan alone would not add worker2.
+    SetWorker1Queue(0.0, /*queueGrowthRate=*/-20.0);
+    SetPreloadIssued(FlowView, "worker2", ResId, TInstant::Now());
+    AddPartition(FlowView, MakePartitionId(6), CompId, /*rps=*/10.0, /*workerAddress=*/std::nullopt);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetPreloadDelActions(result).empty());
+    EXPECT_EQ(GetOrCrash(GetAddActions(result), MakePartitionId(6)), "worker1");
+}
+
+//! Once the model has loaded the usual rules apply, whatever time is left.
+TEST_F(TPreloadHoldTest, LoadedPreloadIsNotHeld)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    SetWorker1Queue(0.0);
+    SetPreloadIssued(FlowView, "worker2", ResId, TInstant::Now());
+    SetPreloadCompleted(FlowView, "worker2", ResId);
+
+    ExpectReleasedOnWorker2(GetPreloadDelActions(RunBalancer()));
+}
+
+//! A held worker is charged for every resource of the computation, not only for the held model:
+//! comp2 does not fit next to comp1 on worker2.
+TEST_F(TResourceBalancerTest, HeldWorkerIsChargedForAllResourcesOfComputation)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto model1 = MakeResourceId("model1");
+    auto helper1 = MakeResourceId("helper1");
+    auto model2 = MakeResourceId("model2");
+
+    SetResourceSpec(model1, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired=*/true));
+    SetResourceSpec(helper1, MakeResourceSpec({{"gpu_memory", 30}}));
+    SetResourceSpec(model2, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired=*/true));
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {model1, helper1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {model2}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddWorker(FlowView, "worker2", Group, {{"gpu_memory", 48}});
+    AddWorker(FlowView, "worker3", Group, {{"gpu_memory", 48}});
+
+    SetPreloadIssued(FlowView, "worker1", model1);
+    SetPreloadCompleted(FlowView, "worker1", model1);
+    AddPartition(FlowView, MakePartitionId(1), comp1, /*rps=*/1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker2", model1, TInstant::Now());
+
+    // comp2 is starving on worker3.
+    SetPreloadIssued(FlowView, "worker3", model2);
+    SetPreloadCompleted(FlowView, "worker3", model2);
+    AddPartition(FlowView, MakePartitionId(2), comp2, /*rps=*/1.0, "worker3");
+    SetWorkerResourceStatus(FlowView, "worker3", model2,
+        /*putRate=*/1.0,
+        /*fetchRate=*/0.5,
+        /*queueSize=*/100.0,
+        /*queueGrowthRate=*/0.5);
+
+    for (const auto& action : GetPreloadAddActions(RunBalancer())) {
+        EXPECT_FALSE(action.WorkerAddress == "worker2" && action.ResourceId == model2);
+    }
+}
+
+TEST_F(TResourceBalancerTest, ResourceRemovedFromSpecIsReleasedWhileHeld)
+{
+    PreloadingTimeout = TDuration::Minutes(30);
+    auto goneResId = MakeResourceId("gone");
+
+    AddWorker(FlowView, "worker1", Group);
+    SetPreloadIssued(FlowView, "worker1", goneResId, TInstant::Now());
+
+    auto dels = GetPreloadDelActions(RunBalancer());
+    ASSERT_EQ(dels.size(), 1u);
+    EXPECT_EQ(dels[0].ResourceId, goneResId);
+    EXPECT_EQ(dels[0].WorkerAddress, "worker1");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
