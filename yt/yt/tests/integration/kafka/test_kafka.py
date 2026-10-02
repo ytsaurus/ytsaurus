@@ -28,6 +28,7 @@ import builtins
 import functools
 import logging
 import pytest
+import threading
 import time
 
 
@@ -875,10 +876,11 @@ class TestKafkaProxy(KafkaProxyBase):
 
         received_messages = []
         errors = []
+        assigned = threading.Event()
 
         def consumer_func():
             c = Consumer(get_consumer_config(address, token, consumer_path))
-            c.subscribe([queue_path])
+            c.subscribe([queue_path], on_assign=lambda *_: assigned.set())
 
             # Wait for messages with a timeout
             i = 0
@@ -907,6 +909,9 @@ class TestKafkaProxy(KafkaProxyBase):
             c.close()
 
         consumer_thread = self.spawn_additional_thread(target=consumer_func, name="consumer_thread")
+
+        # Start writing only once the consumer is ready to read, so that reads and writes overlap.
+        wait(assigned.is_set)
 
         written_messages = []
         if is_kafka_queue:
