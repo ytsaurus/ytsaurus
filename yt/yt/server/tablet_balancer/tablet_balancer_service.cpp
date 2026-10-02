@@ -44,7 +44,7 @@ private:
 
         tabletBalancer->RequestBalancing(balancingRequest);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         context->Reply();
     }
 };

@@ -1518,9 +1518,9 @@ private:
         response->set_registration_revision(request->registration_revision());
 
         if (context) {
-            context->SetResponseInfo("NodeId: %v, RegistrationRevision: %v",
-                node->GetId(),
-                node->GetRegistrationRevision());
+            context->AnnotateResponse()
+                .With("NodeId", node->GetId())
+                .With("RegistrationRevision", node->GetRegistrationRevision());
         }
     }
 

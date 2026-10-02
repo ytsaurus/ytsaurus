@@ -173,7 +173,8 @@ private:
     {
         auto inMemoryMode = FromProto<EInMemoryMode>(request->in_memory_mode());
 
-        context->SetRequestInfo("InMemoryMode: %v", inMemoryMode);
+        context->AnnotateRequest()
+            .With("InMemoryMode", inMemoryMode);
 
         auto sessionId = TInMemorySessionId::Create();
 
@@ -198,7 +199,8 @@ private:
 
         ToProto(response->mutable_session_id(), sessionId);
 
-        context->SetResponseInfo("SessionId: %v", sessionId);
+        context->AnnotateResponse()
+            .With("SessionId", sessionId);
 
         context->Reply();
     }
@@ -206,14 +208,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, FinishSession)
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
-        context->SetRequestInfo("SessionId: %v, TabletIds: %v, ChunkIds: %v",
-            sessionId,
-            MakeFormattableView(request->tablet_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& tabletId) {
-                FormatValue(builder, FromProto<TTabletId>(tabletId), TStringBuf());
-            }),
-            MakeFormattableView(request->chunk_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& chunkId) {
-                FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf());
-            }));
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("TabletIds", MakeFormattableView(request->tablet_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& tabletId) { FormatValue(builder, FromProto<TTabletId>(tabletId), TStringBuf()); }))
+            .With("ChunkIds", MakeFormattableView(request->chunk_id(), [] (TStringBuilderBase* builder, const NYT::NProto::TGuid& chunkId) { FormatValue(builder, FromProto<TChunkId>(chunkId), TStringBuf()); }));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
@@ -311,9 +309,9 @@ private:
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
-            sessionId,
-            request->block_ids_size());
+        context->AnnotateRequest()
+            .With("SessionId", sessionId)
+            .With("BlockCount", request->block_ids_size());
 
         if (auto session = FindSession(sessionId)) {
             RenewSessionLease(session);
@@ -351,7 +349,8 @@ private:
         }
 
 
-        context->SetResponseInfo("Dropped: %v", response->dropped());
+        context->AnnotateResponse()
+            .With("Dropped", response->dropped());
         context->Reply();
     }
 
@@ -359,7 +358,8 @@ private:
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->AnnotateRequest()
+            .With("SessionId", sessionId);
 
         auto session = GetSessionOrThrow(sessionId);
         RenewSessionLease(session);

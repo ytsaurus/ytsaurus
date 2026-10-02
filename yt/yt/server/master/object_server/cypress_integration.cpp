@@ -60,7 +60,7 @@ private:
 
         void Invoke(const IYPathServiceContextPtr& context) override
         {
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             auto requestMessage = context->GetRequestMessage();
             auto requestHeader = context->RequestHeader();

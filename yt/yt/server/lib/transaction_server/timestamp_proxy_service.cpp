@@ -56,9 +56,9 @@ private:
             ? FromProto<TCellTag>(request->clock_cluster_tag())
             : InvalidCellTag;
 
-        context->SetRequestInfo("Count: %v, ClockClusterTag: %v",
-            count,
-            clockClusterTag);
+        context->AnnotateRequest()
+            .With("Count", count)
+            .With("ClockClusterTag", clockClusterTag);
 
         auto provider = Provider_;
 
@@ -77,7 +77,8 @@ private:
         provider->GenerateTimestamps(count, clockClusterTag).Subscribe(BIND([=] (const TErrorOr<TTimestamp>& result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
-                context->SetResponseInfo("Timestamp: %v", timestamp);
+                context->AnnotateResponse()
+                    .With("Timestamp", timestamp);
                 response->set_timestamp(ToProto(timestamp));
                 if (clockClusterTag != InvalidCellTag) {
                     response->set_clock_cluster_tag(ToProto(clockClusterTag));

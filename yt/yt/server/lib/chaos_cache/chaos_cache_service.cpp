@@ -380,10 +380,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 
         const auto& user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
-            replicationCardId,
-            fetchOptions,
-            refreshEra);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("FetchOptions", fetchOptions)
+            .With("RefreshEra", refreshEra);
 
         auto key = TChaosCacheKey{
             .CardId = replicationCardId,
@@ -431,9 +431,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 }));
         }
     } else {
-        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
-            replicationCardId,
-            fetchOptions);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("FetchOptions", fetchOptions);
 
         YT_TLOG_DEBUG("Serving request directly")
             .With("RequestId", requestId);
@@ -457,9 +457,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
     auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
     auto cacheTimestamp = FromProto<TTimestamp>(request->replication_card_cache_timestamp());
 
-    context->SetRequestInfo("ReplicationCardId: %v, CacheTimestamp: %v",
-        replicationCardId,
-        cacheTimestamp);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationCardId)
+        .With("CacheTimestamp", cacheTimestamp);
 
     auto state = ReplicationCardsWatcher_->WatchObject(
         replicationCardId,
@@ -508,9 +508,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchChaosLease)
     auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
     auto cacheTimestamp = FromProto<TTimestamp>(request->chaos_lease_cache_timestamp());
 
-    context->SetRequestInfo("ChaosLeaseId: %v, CacheTimestamp: %v",
-        chaosLeaseId,
-        cacheTimestamp);
+    context->AnnotateRequest()
+        .With("ChaosLeaseId", chaosLeaseId)
+        .With("CacheTimestamp", cacheTimestamp);
 
     auto state = ChaosLeasesWatcher_->WatchObject(
         chaosLeaseId,
@@ -588,10 +588,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
                 request->force_refresh_chaos_object_cell_tag()))
             : std::optional<TCellTag>();
 
-    context->SetRequestInfo("ChaosObjectId: %v, ChaosObjectType: %v, CellTagToForceRefresh: %v",
-        chaosObjectId,
-        TypeFromId(chaosObjectId),
-        cellTagToForceRefresh);
+    context->AnnotateRequest()
+        .With("ChaosObjectId", chaosObjectId)
+        .With("ChaosObjectType", TypeFromId(chaosObjectId))
+        .With("CellTagToForceRefresh", cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
         response->set_chaos_object_cell_tag(ToProto(cellTag));
@@ -613,9 +613,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
                 request->force_refresh_replication_card_cell_tag()))
             : std::optional<NObjectClient::TCellTag>();
 
-    context->SetRequestInfo("ReplicationCardId: %v, CellTagToForceRefresh: %v",
-        replicationCardId,
-        cellTagToForceRefresh);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationCardId)
+        .With("CellTagToForceRefresh", cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
         response->set_replication_card_cell_tag(ToProto(cellTag));
@@ -632,9 +632,9 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
     auto replicationProgressUpdate = NYT::FromProto<TReplicationCardProgressUpdate>(
         request->replication_card_progress_update());
 
-    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
-        replicationProgressUpdate.ReplicationCardId,
-        replicationProgressUpdate.FetchOptions);
+    context->AnnotateRequest()
+        .With("ReplicationCardId", replicationProgressUpdate.ReplicationCardId)
+        .With("FetchOptions", replicationProgressUpdate.FetchOptions);
 
     auto futureCard = ReplicationCardUpdatesBatcher_->AddReplicationCardProgressesUpdate(std::move(
         replicationProgressUpdate));
@@ -651,8 +651,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
 DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
 {
     auto replicationProgressUpdatesBatch = NYT::FromProto<TReplicationCardProgressUpdatesBatch>(*request);
-    context->SetRequestInfo("ReplicationCardIdsCount: %v",
-        replicationProgressUpdatesBatch.ReplicationCardProgressUpdates.size());
+    context->AnnotateRequest()
+        .With("ReplicationCardIdsCount", replicationProgressUpdatesBatch.ReplicationCardProgressUpdates.size());
 
     auto futureCardsByIds = ReplicationCardUpdatesBatcher_->AddBulkReplicationCardProgressesUpdate(std::move(
         replicationProgressUpdatesBatch));

@@ -637,9 +637,9 @@ private:
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v",
-            srcCellId,
-            SelfCellId_);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_);
 
         HydraManager_->ValidatePeer(EPeerKind::Leader);
 
@@ -652,8 +652,8 @@ private:
             response->set_last_outcoming_message_id(*lastOutcomingMessageId);
         }
 
-        context->SetResponseInfo("LastOutcomingMessageId: %v",
-            lastOutcomingMessageId);
+        context->AnnotateResponse()
+            .With("LastOutcomingMessageId", lastOutcomingMessageId);
 
         context->Reply();
     }
@@ -662,7 +662,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         ValidatePeer(EPeerKind::LeaderOrFollower);
         SyncWithUpstream();
@@ -791,9 +791,9 @@ private:
 
         auto nextPersistentIncomingMessageId = cellRuntimeData->PersistentState->GetNextPersistentIncomingMessageId();
         auto nextTransientIncomingMessageId = cellRuntimeData->NextTransientIncomingMessageId;
-        context->SetResponseInfo("NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v",
-            nextPersistentIncomingMessageId,
-            nextTransientIncomingMessageId);
+        context->AnnotateResponse()
+            .With("NextPersistentIncomingMessageId", nextPersistentIncomingMessageId)
+            .With("NextTransientIncomingMessageId", nextTransientIncomingMessageId);
         context->Reply();
     }
 
@@ -804,10 +804,10 @@ private:
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         int messageCount = request->messages_size();
 
-        context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageCount: %v",
-            srcCellId,
-            SelfCellId_,
-            messageCount);
+        context->AnnotateRequest()
+            .With("SrcCellId", srcCellId)
+            .With("DstCellId", SelfCellId_)
+            .With("MessageCount", messageCount);
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -827,8 +827,8 @@ private:
 
         auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
 
-        context->SetRequestInfo("SrcCellIds: %v",
-            srcCellIds);
+        context->AnnotateRequest()
+            .With("SrcCellIds", srcCellIds);
 
         ValidatePeer(EPeerKind::Leader);
 
@@ -848,18 +848,18 @@ private:
             ? std::optional<TLogicalTime>(request->logical_time())
             : std::nullopt;
 
-        context->SetRequestInfo("LogicalTime: %v",
-            requestTime);
+        context->AnnotateRequest()
+            .With("LogicalTime", requestTime);
 
         auto [logicalTime, state] = LogicalTimeRegistry_->GetConsistentState(requestTime);
         response->set_logical_time(logicalTime.Underlying());
         response->set_sequence_number(state.SequenceNumber);
         response->set_segment_id(state.SegmentId);
 
-        context->SetResponseInfo("StateLogicalTime: %v, StateSequenceNumber: %v, StateSegmentId: %v",
-            logicalTime,
-            state.SequenceNumber,
-            state.SegmentId);
+        context->AnnotateResponse()
+            .With("StateLogicalTime", logicalTime)
+            .With("StateSequenceNumber", state.SequenceNumber)
+            .With("StateSegmentId", state.SegmentId);
         context->Reply();
     }
 

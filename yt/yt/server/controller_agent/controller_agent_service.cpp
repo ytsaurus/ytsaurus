@@ -79,9 +79,8 @@ private:
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationId);
+        context->AnnotateRequest()
+            .With("OperationId", operationId);
 
         auto result = WaitFor(controllerAgent->BuildOperationInfo(operationId))
             .ValueOrThrow();
@@ -100,10 +99,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_descriptor().operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -121,11 +119,10 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto clean = request->clean();
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, Clean: %v",
-            incarnationId,
-            operationId,
-            clean);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("Clean", clean);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -147,7 +144,8 @@ private:
             auto maybeResult = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds, std::move(cumulativeSpecPatch)))
                 .ValueOrThrow();
 
-            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            context->AnnotateResponse()
+                .With("ImmediateResult", maybeResult.has_value());
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
             }
@@ -160,10 +158,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -174,7 +171,8 @@ private:
             auto maybeResult = WaitFor(controllerAgent->PrepareOperation(operation))
                 .ValueOrThrow();
 
-            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            context->AnnotateResponse()
+                .With("ImmediateResult", maybeResult.has_value());
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
             }
@@ -187,10 +185,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -201,14 +198,14 @@ private:
             auto maybeResult = WaitFor(controllerAgent->MaterializeOperation(operation))
                 .ValueOrThrow();
 
-            context->SetIncrementalResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            context->AnnotateResponse()
+                .With("ImmediateResult", maybeResult.has_value());
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
 
-                context->SetIncrementalResponseInfo(
-                    "Suspend: %v, InitialNeededResources: %v",
-                    maybeResult->Suspend,
-                    FormatResources(maybeResult->InitialNeededResources));
+                context->AnnotateResponse()
+                    .With("Suspend", maybeResult->Suspend)
+                    .With("InitialNeededResources", FormatResources(maybeResult->InitialNeededResources));
             }
 
             context->Reply();
@@ -220,11 +217,10 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto suspended = request->suspended();
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, Suspended: %v",
-            incarnationId,
-            operationId,
-            suspended);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("Suspended", suspended);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -235,16 +231,16 @@ private:
             auto maybeResult = WaitFor(controllerAgent->ReviveOperation(operation, suspended))
                 .ValueOrThrow();
 
-            context->SetIncrementalResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            context->AnnotateResponse()
+                .With("ImmediateResult", maybeResult.has_value());
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
 
-                context->SetIncrementalResponseInfo(
-                    "RevivedFromSnapshot: %v, RevivedAllocationCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
-                    maybeResult->RevivedFromSnapshot,
-                    maybeResult->RevivedAllocations.size(),
-                    maybeResult->RevivedBannedTreeIds,
-                    FormatResources(maybeResult->NeededResources));
+                context->AnnotateResponse()
+                    .With("RevivedFromSnapshot", maybeResult->RevivedFromSnapshot)
+                    .With("RevivedAllocationCount", maybeResult->RevivedAllocations.size())
+                    .With("RevivedBannedTreeIds", maybeResult->RevivedBannedTreeIds)
+                    .With("NeededResources", FormatResources(maybeResult->NeededResources));
             }
 
             context->Reply();
@@ -255,10 +251,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -269,7 +264,8 @@ private:
             auto maybeResult = WaitFor(controllerAgent->CommitOperation(operation))
                 .ValueOrThrow();
 
-            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            context->AnnotateResponse()
+                .With("ImmediateResult", maybeResult.has_value());
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
             }
@@ -282,10 +278,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -305,11 +300,10 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, ControllerFinalState: %v",
-            incarnationId,
-            operationId,
-            controllerFinalState);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("ControllerFinalState", controllerFinalState);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -334,9 +328,8 @@ private:
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo(
-            "OperationId: %v",
-            operationId);
+        context->AnnotateRequest()
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -353,10 +346,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -367,11 +359,8 @@ private:
                 .ValueOrThrow();
             ToProto(response->mutable_residual_job_metrics(), result.ResidualJobMetrics);
 
-            context->SetResponseInfo(
-                "TreesWithResidualJobMetrics: %v",
-                MakeFormattableView(result.ResidualJobMetrics, [] (auto* builder, const auto& treeTaggedJobMetrics) {
-                    builder->AppendString(treeTaggedJobMetrics.TreeId);
-                }));
+            context->AnnotateResponse()
+                .With("TreesWithResidualJobMetrics", MakeFormattableView(result.ResidualJobMetrics, [] (auto* builder, const auto& treeTaggedJobMetrics) { builder->AppendString(treeTaggedJobMetrics.TreeId); }));
             context->Reply();
         });
     }
@@ -380,10 +369,9 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v",
-            incarnationId,
-            operationId);
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId);
 
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(TYsonString(request->parameters()));
 
@@ -403,11 +391,10 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo(
-            "IncarnationId: %v, OperationId: %v, DryRun: %v",
-            incarnationId,
-            operationId,
-            request->dry_run());
+        context->AnnotateRequest()
+            .With("IncarnationId", incarnationId)
+            .With("OperationId", operationId)
+            .With("DryRun", request->dry_run());
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();

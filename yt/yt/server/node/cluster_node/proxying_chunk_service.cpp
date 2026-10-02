@@ -137,7 +137,7 @@ private:
                 return;
             }
 
-            context->SetRequestInfo();
+            context->AnnotateRequest();
 
             if (context->IsRetry()) {
                 THROW_ERROR_EXCEPTION("Retries are not supported by proxy");

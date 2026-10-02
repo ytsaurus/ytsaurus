@@ -251,12 +251,12 @@ private:
             ? std::optional(request->enable_replicated_table_tracker())
             : std::nullopt;
 
-        context->SetRequestInfo("Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v",
-            enabled,
-            mode,
-            atomicity,
-            preserveTimestamps,
-            enableReplicatedTableTracker);
+        context->AnnotateRequest()
+            .With("Enabled", enabled)
+            .With("Mode", mode)
+            .With("Atomicity", atomicity)
+            .With("PreserveTimestamps", preserveTimestamps)
+            .With("EnableReplicatedTableTracker", enableReplicatedTableTracker);
 
         auto* replica = GetThisImpl();
 

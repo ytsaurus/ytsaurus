@@ -93,9 +93,9 @@ private:
         const auto& name = request->name();
         auto ignoreExisting = request->ignore_existing();
 
-        context->SetRequestInfo("Name: %v, IgnoreExisting: %v",
-            name,
-            ignoreExisting);
+        context->AnnotateRequest()
+            .With("Name", name)
+            .With("IgnoreExisting", ignoreExisting);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
@@ -125,9 +125,9 @@ private:
         const auto& name = request->name();
         bool ignoreMissing = request->ignore_missing();
 
-        context->SetRequestInfo("Name: %v, IgnoreMissing: %v",
-            name,
-            ignoreMissing);
+        context->AnnotateRequest()
+            .With("Name", name)
+            .With("IgnoreMissing", ignoreMissing);
 
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();

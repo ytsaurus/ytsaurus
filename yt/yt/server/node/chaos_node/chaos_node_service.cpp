@@ -108,7 +108,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GenerateReplicationCardId)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->GenerateReplicationCardId(std::move(context));
@@ -116,7 +116,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateReplicationCard)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateReplicationCard(std::move(context));
@@ -126,8 +126,8 @@ private:
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
 
-        context->SetRequestInfo("ReplicationCardId: %v",
-            replicationCardId);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveReplicationCard(std::move(context));
@@ -137,8 +137,8 @@ private:
     {
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
 
-        context->SetRequestInfo("CoordinatorCellId: %v",
-            coordinatorCellId);
+        context->AnnotateRequest()
+            .With("CoordinatorCellId", coordinatorCellId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->ForsakeCoordinator(std::move(context));
@@ -148,8 +148,8 @@ private:
     {
         auto destinationCellId = FromProto<TCellId>(request->destination_cell_id());
 
-        context->SetRequestInfo("DestinationCellId: %v",
-            destinationCellId);
+        context->AnnotateRequest()
+            .With("DestinationCellId", destinationCellId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveCellMailbox(std::move(context));
@@ -162,9 +162,9 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto fetchOptions = FromProto<TReplicationCardFetchOptions>(request->fetch_options());
 
-        context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
-            replicationCardId,
-            fetchOptions);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("FetchOptions", fetchOptions);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
@@ -172,8 +172,8 @@ private:
             // Replication card is small without replication progress,
             // so do not try to copy or validate the progress if progress was not requested.
             ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
-            context->SetResponseInfo("ReplicationCardId: %v",
-                replicationCardId);
+            context->AnnotateResponse()
+                .With("ReplicationCardId", replicationCardId);
             context->Reply();
             return;
         }
@@ -321,9 +321,9 @@ private:
 
         auto objectId = FromProto<TObjectId>(request->replication_card_id());
 
-        context->SetRequestInfo("ObjectId: %v, Type: %v",
-            objectId,
-            TypeFromId(objectId));
+        context->AnnotateRequest()
+            .With("ObjectId", objectId)
+            .With("Type", TypeFromId(objectId));
 
         DoFindChaosObject(objectId);
 
@@ -336,9 +336,9 @@ private:
 
         auto objectId = FromProto<TChaosObjectId>(request->chaos_object_id());
 
-        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
-            objectId,
-            TypeFromId(objectId));
+        context->AnnotateRequest()
+            .With("ChaosObjectId", objectId)
+            .With("Type", TypeFromId(objectId));
 
         DoFindChaosObject(objectId);
 
@@ -352,9 +352,9 @@ private:
         auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
         auto typeFromId = TypeFromId(chaosObjectId);
 
-        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
-            chaosObjectId,
-            typeFromId);
+        context->AnnotateRequest()
+            .With("ChaosObjectId", chaosObjectId)
+            .With("Type", typeFromId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto existenceResult = chaosManager->IsChaosObjectExistent(chaosObjectId);
@@ -372,9 +372,9 @@ private:
                 break;
         }
 
-        context->SetResponseInfo("ChaosObjectId: %v, ExistenceResult: %v",
-            chaosObjectId,
-            existenceResult);
+        context->AnnotateResponse()
+            .With("ChaosObjectId", chaosObjectId)
+            .With("ExistenceResult", existenceResult);
         context->Reply();
     }
 
@@ -384,10 +384,10 @@ private:
         const auto& clusterName = request->cluster_name();
         const auto& replicaPath = request->replica_path();
 
-        context->SetRequestInfo("ReplicationCardId: %v, ClusterName: %v, ReplicaPath: %v",
-            replicationCardId,
-            clusterName,
-            replicaPath);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("ClusterName", clusterName)
+            .With("ReplicaPath", replicaPath);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateTableReplica(std::move(context));
@@ -398,9 +398,9 @@ private:
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         auto replicaId = FromProto<TReplicaId>(request->replica_id());
 
-        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v",
-            replicationCardId,
-            replicaId);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("ReplicaId", replicaId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveTableReplica(std::move(context));
@@ -428,14 +428,13 @@ private:
 
         bool force = request->force();
 
-        context->SetRequestInfo(
-            "ReplicationCardId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ReplicaPath: %v, Force: %v",
-            replicationCardId,
-            replicaId,
-            mode,
-            enabled,
-            replicaPath,
-            force);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("ReplicaId", replicaId)
+            .With("Mode", mode)
+            .With("Enabled", enabled)
+            .With("ReplicaPath", replicaPath)
+            .With("Force", force);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->AlterTableReplica(std::move(context));
@@ -447,10 +446,10 @@ private:
         auto replicaId = FromProto<TTableId>(request->replica_id());
         auto progress = FromProto<TReplicationProgress>(request->replication_progress());
 
-        context->SetRequestInfo("ReplicationCardId: %v, ReplicaId: %v, ReplicationProgress: %v",
-            replicationCardId,
-            replicaId,
-            progress);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId)
+            .With("ReplicaId", replicaId)
+            .With("ReplicationProgress", progress);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->UpdateTableReplicaProgress(std::move(context));
@@ -465,8 +464,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateMultipleTableProgresses)
     {
         int replicationCardUpdatesSize = request->replication_card_progress_updates().size();
-        context->SetRequestInfo("ReplicationCardCount: %v",
-            replicationCardUpdatesSize);
+        context->AnnotateRequest()
+            .With("ReplicationCardCount", replicationCardUpdatesSize);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->UpdateMultipleTableProgresses(std::move(context));
@@ -476,8 +475,8 @@ private:
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
 
-        context->SetRequestInfo("ReplicationCardId: %v",
-            replicationCardId);
+        context->AnnotateRequest()
+            .With("ReplicationCardId", replicationCardId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->AlterReplicationCard(std::move(context));
@@ -489,10 +488,10 @@ private:
         bool migrateAllReplicationCards = request->migrate_all_replication_cards();
         bool suspendChaosCell = request->suspend_chaos_cell();
 
-        context->SetRequestInfo("ReplicationCardIds: %v, MigrateAllReplicationCards: %v, SuspendChaosCell: %v",
-            replicationCardIds,
-            migrateAllReplicationCards,
-            suspendChaosCell);
+        context->AnnotateRequest()
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("MigrateAllReplicationCards", migrateAllReplicationCards)
+            .With("SuspendChaosCell", suspendChaosCell);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->MigrateReplicationCards(std::move(context));
@@ -500,7 +499,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ResumeChaosCell)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->ResumeChaosCell(std::move(context));
@@ -510,9 +509,9 @@ private:
     {
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
 
-        context->SetRequestInfo("ReplicationCardIds: %v, Options: %v",
-            replicationCardIds,
-            request->options());
+        context->AnnotateRequest()
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("Options", request->options());
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->CreateReplicationCardCollocation(std::move(context));
@@ -524,15 +523,16 @@ private:
 
         auto replicationCardCollocationId = FromProto<TReplicationCardCollocationId>(
             request->replication_card_collocation_id());
-        context->SetRequestInfo("ReplicationCardCollocationId: %v", replicationCardCollocationId);
+        context->AnnotateRequest()
+            .With("ReplicationCardCollocationId", replicationCardCollocationId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* collocation = chaosManager->GetReplicationCardCollocationOrThrow(replicationCardCollocationId);
         auto replicationCardIds = collocation->GetReplicationCardIds();
 
-        context->SetResponseInfo("ReplicationCardCollocationId: %v, ReplicationCardIds: %v",
-            replicationCardCollocationId,
-            replicationCardIds);
+        context->AnnotateResponse()
+            .With("ReplicationCardCollocationId", replicationCardCollocationId)
+            .With("ReplicationCardIds", replicationCardIds);
         ToProto(response->mutable_replication_card_ids(), replicationCardIds);
         response->set_options(ToProto(ConvertToYsonString(collocation->Options())));
         context->Reply();
@@ -556,7 +556,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, CreateChaosLease)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
         chaosLeaseManager->CreateChaosLease(std::move(context));
@@ -566,8 +566,8 @@ private:
     {
         auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
 
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
+        context->AnnotateRequest()
+            .With("ChaosLeaseId", chaosLeaseId);
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
         chaosLeaseManager->ValidateEnabledState();
@@ -589,9 +589,9 @@ private:
         auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
         auto cacheTimestamp = FromProto<TTimestamp>(request->chaos_lease_cache_timestamp());
 
-        context->SetRequestInfo("ChaosLeaseId: %v, Timestamp: %v",
-            chaosLeaseId,
-            cacheTimestamp);
+        context->AnnotateRequest()
+            .With("ChaosLeaseId", chaosLeaseId)
+            .With("Timestamp", cacheTimestamp);
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
         chaosLeaseManager->ValidateEnabledState();
@@ -606,8 +606,8 @@ private:
     {
         auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
 
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
+        context->AnnotateRequest()
+            .With("ChaosLeaseId", chaosLeaseId);
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
         chaosLeaseManager->RemoveChaosLease(std::move(context));
@@ -618,9 +618,9 @@ private:
         auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
         bool pingAncestors = context->Request().ping_ancestors();
 
-        context->SetRequestInfo("ChaosLeaseId: %v, PingAncestors: %v",
-            chaosLeaseId,
-            pingAncestors);
+        context->AnnotateRequest()
+            .With("ChaosLeaseId", chaosLeaseId)
+            .With("PingAncestors", pingAncestors);
 
 
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();

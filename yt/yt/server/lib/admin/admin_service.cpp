@@ -67,7 +67,7 @@ private:
             THROW_ERROR_EXCEPTION("Core dumper is not set up");
         }
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         auto path = CoreDumper_->WriteCoreDump({
             "Reason: RPC",
@@ -80,7 +80,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteLogBarrier)
     {
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         // We need to ensure that the barrier isn't reordered with writes that happened before
         // WriteLogBarrier. Logging subsystem doesn't give any guarantees about happens-before

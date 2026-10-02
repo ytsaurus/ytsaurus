@@ -65,8 +65,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 {
     auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
-    context->SetRequestInfo("Permission: %v",
-        permission);
+    context->AnnotateRequest()
+        .With("Permission", permission);
 
     if (permission) {
         ValidatePermission(EPermissionCheckScope::This, *permission);
@@ -82,7 +82,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
 
@@ -136,7 +136,8 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
         }
     }
 
-    context->SetResponseInfo("ChunkCount: %v", response->chunks_size());
+    context->AnnotateResponse()
+        .With("ChunkCount", response->chunks_size());
     context->Reply();
 }
 

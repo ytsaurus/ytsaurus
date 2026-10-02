@@ -204,7 +204,7 @@ private:
 
         ValidateNoTransaction();
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->CancelTabletTransition(GetThisImpl<TTablet>());

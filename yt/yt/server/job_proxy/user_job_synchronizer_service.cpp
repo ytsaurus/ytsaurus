@@ -48,8 +48,8 @@ private:
         Y_UNUSED(response);
 
         auto pid = static_cast<pid_t>(request->pid());
-        context->SetRequestInfo("Pid: %v",
-            pid);
+        context->AnnotateRequest()
+            .With("Pid", pid);
 
         // YT-10547: This is a workaround for Porto container resurrection on core command.
         if (!ExecutorPreparedPromise_.TrySet(TExecutorInfo{.ProcessPid = pid})) {

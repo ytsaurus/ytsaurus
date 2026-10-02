@@ -156,7 +156,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     TGetBasicAttributesContext getBasicAttributesContext;
     if (request->has_permission()) {
@@ -196,9 +196,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         response->set_chunk_count(*getBasicAttributesContext.ChunkCount);
     }
 
-    context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
-        getBasicAttributesContext.ExternalCellTag,
-        getBasicAttributesContext.ExternalTransactionId);
+    context->AnnotateResponse()
+        .With("ExternalCellTag", getBasicAttributesContext.ExternalCellTag)
+        .With("ExternalTransactionId", getBasicAttributesContext.ExternalTransactionId);
     context->Reply();
 }
 
@@ -1278,7 +1278,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
     const TCtxGetPtr& context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     auto attributeFilter = request->has_attributes()
         ? FromProto<TAttributeFilter>(request->attributes())
@@ -1317,7 +1317,7 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
     ValidateRemoval();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     objectManager->RemoveObject(Object_);

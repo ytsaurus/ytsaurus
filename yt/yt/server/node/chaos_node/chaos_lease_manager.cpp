@@ -878,8 +878,8 @@ private:
         ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 
         if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
+            context->AnnotateResponse()
+                .With("ChaosLeaseId", chaosLeaseId);
         }
 
         ChaosLeasesWatcher_->RegisterObject(

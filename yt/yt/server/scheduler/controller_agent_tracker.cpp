@@ -802,8 +802,8 @@ public:
         auto* response = &context->Response();
 
         const auto& agentId = request->agent_id();
-        context->SetRequestInfo("AgentId: %v",
-            agentId);
+        context->AnnotateRequest()
+            .With("AgentId", agentId);
 
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
@@ -874,7 +874,8 @@ public:
         response->set_config(ToProto(ConvertToYsonString(SchedulerConfig_)));
         response->set_scheduler_version(GetVersion());
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
     // TODO(arkady-e1ppa): This method is overly bloated. Split into several methods.
@@ -1029,7 +1030,8 @@ public:
 
         response->set_operations_archive_version(Bootstrap_->GetScheduler()->GetOperationsArchiveVersion());
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
     void DoProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
@@ -1040,9 +1042,9 @@ public:
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
 
-        context->SetRequestInfo("AgentId: %v, IncarnationId: %v",
-            agentId,
-            incarnationId);
+        context->AnnotateRequest()
+            .With("AgentId", agentId)
+            .With("IncarnationId", incarnationId);
 
         auto agent = GetMirroredAgentOrThrow(agentId);
 
@@ -1070,7 +1072,8 @@ public:
             })
             .ThrowOnError();
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
+        context->AnnotateResponse()
+            .With("IncarnationId", incarnationId);
     }
 
 private:

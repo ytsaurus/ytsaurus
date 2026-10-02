@@ -116,11 +116,10 @@ private:
             response->Attachments().end(),
             [] (const auto& block) -> bool { return static_cast<bool>(block); });
 
-        context->SetResponseInfo(
-            "HasCompleteChunk: %v, BlocksWithData: %v, BlocksSize: %v",
-            hasCompleteChunk,
-            blocksWithData,
-            blocksSize);
+        context->AnnotateResponse()
+            .With("HasCompleteChunk", hasCompleteChunk)
+            .With("BlocksWithData", blocksWithData)
+            .With("BlocksSize", blocksSize);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
@@ -129,11 +128,10 @@ private:
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
-        context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, Workload: %v",
-            chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
-            workloadDescriptor);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("Blocks", MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3))
+            .With("Workload", workloadDescriptor);
 
         bool hasCompleteChunk = true;
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -142,9 +140,8 @@ private:
             response->set_net_throttling(true);
         }
 
-        context->SetResponseInfo(
-            "HasCompleteChunk: %v",
-            hasCompleteChunk);
+        context->AnnotateResponse()
+            .With("HasCompleteChunk", hasCompleteChunk);
 
         context->Reply();
     }
@@ -158,19 +155,17 @@ private:
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
 
-        context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, Workload: %v",
-            chunkId,
-            MakeCompactIntervalView(blockIndexes),
-            workloadDescriptor);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("Blocks", MakeCompactIntervalView(blockIndexes))
+            .With("Workload", workloadDescriptor);
 
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
             response->set_has_complete_chunk(true);
             response->set_net_throttling(true);
-            context->SetResponseInfo(
-                "HasCompleteChunk: %v, NetThrottling: %v",
-                true,
-                true);
+            context->AnnotateResponse()
+                .With("HasCompleteChunk", true)
+                .With("NetThrottling", true);
             context->Reply();
             return;
         }
@@ -208,19 +203,17 @@ private:
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
 
-        context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, Workload: %v",
-            chunkId,
-            FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1),
-            workloadDescriptor);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
+            .With("Workload", workloadDescriptor);
 
         if (JobInputCache_->IsBlockCacheMemoryLimitExceeded()) {
             response->set_has_complete_chunk(true);
             response->set_net_throttling(true);
-            context->SetResponseInfo(
-                "HasCompleteChunk: %v, NetThrottling: %v",
-                true,
-                true);
+            context->AnnotateResponse()
+                .With("HasCompleteChunk", true)
+                .With("NetThrottling", true);
             context->Reply();
             return;
         }
@@ -262,12 +255,11 @@ private:
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
-        context->SetRequestInfo(
-            "ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v",
-            chunkId,
-            extensionTags,
-            partitionTags,
-            workloadDescriptor);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("ExtensionTags", extensionTags)
+            .With("PartitionTags", partitionTags)
+            .With("Workload", workloadDescriptor);
 
         TClientChunkReadOptions jobInputCacheOptions;
         jobInputCacheOptions.WorkloadDescriptor = workloadDescriptor;

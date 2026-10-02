@@ -254,7 +254,7 @@ DEFINE_YPATH_SERVICE_METHOD(THunkStorageNodeProxy, GetMountInfo)
     DeclareNonMutating();
     SuppressAccessTracking();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     ValidateNotExternal();
     ValidateNoTransaction();
@@ -281,11 +281,11 @@ DEFINE_YPATH_SERVICE_METHOD(THunkStorageNodeProxy, GetMountInfo)
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
     }
 
-    context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
-        response->tablets_size(),
-        response->tablet_cells_size(),
-        response->replicas_size(),
-        response->indices_size());
+    context->AnnotateResponse()
+        .With("TabletCount", response->tablets_size())
+        .With("TabletCellCount", response->tablet_cells_size())
+        .With("ReplicaCount", response->replicas_size())
+        .With("IndexCount", response->indices_size());
 
     context->Reply();
 }

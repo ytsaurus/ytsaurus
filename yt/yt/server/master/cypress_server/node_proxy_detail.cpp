@@ -1274,11 +1274,9 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        MakeShrunkFormattableView(
-            attributeFilter,
-            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
-        limit);
+    context->AnnotateRequest()
+        .With("AttributeFilter", MakeShrunkFormattableView( attributeFilter, GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog))
+        .With("Limit", limit);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -1354,10 +1352,8 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
         ? FromProto<TAttributeFilter>(request->attributes())
         : TAttributeFilter();
 
-    context->SetIncrementalRequestInfo("AttributeFilter: %v",
-        MakeShrunkFormattableView(
-            attributeFilter,
-            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
+    context->AnnotateRequest(/*flush*/ false)
+        .With("AttributeFilter", MakeShrunkFormattableView( attributeFilter, GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog));
 
     SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
@@ -1837,10 +1833,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
     auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
 
-    context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
-        mode,
-        lockRequest.Key,
-        waitable);
+    context->AnnotateRequest()
+        .With("Mode", mode)
+        .With("Key", lockRequest.Key)
+        .With("Waitable", waitable);
 
     auto [lockResult, externalTransactionId] = DoLock(lockRequest, waitable, /*hintLockId*/ {});
 
@@ -1857,11 +1853,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     response->set_external_cell_tag(ToProto(externalCellTag));
     response->set_revision(ToProto(revision));
 
-    context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",
-        lockId,
-        externalCellTag,
-        externalTransactionId,
-        revision);
+    context->AnnotateResponse()
+        .With("LockId", lockId)
+        .With("ExternalCellTag", externalCellTag)
+        .With("ExternalTransactionId", externalTransactionId)
+        .WithFormat("Revision", "%x", revision);
 
     context->Reply();
 }
@@ -1879,11 +1875,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 {
     DeclareMutating();
 
-    context->SetRequestInfo();
+    context->AnnotateRequest();
 
     Unlock();
 
-    context->SetResponseInfo();
+    context->AnnotateResponse();
 
     context->Reply();
 }
@@ -1904,27 +1900,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    context->SetRequestInfo(
-        "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, ExplicitAttributeCount: %v, ExplicitInternedAttributeKeys: %v",
-        type,
-        ignoreExisting,
-        lockExisting,
-        recursive,
-        force,
-        ignoreTypeMismatch,
-        hintId,
-        request->node_attributes().attributes_size(),
-        [&] {
-            std::vector<std::string> explicitInternedAttributeKeys;
-            if (explicitAttributes) {
-                explicitInternedAttributeKeys = explicitAttributes->ListKeys();
-                std::erase_if(explicitInternedAttributeKeys, [] (const std::string& key) {
-                    return TInternedAttributeKey::Lookup(key) == InvalidInternedAttribute;
-                });
-            }
-            return explicitInternedAttributeKeys;
-        }());
+    context->AnnotateRequest()
+        .With("Type", type)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("LockExisting", lockExisting)
+        .With("Recursive", recursive)
+        .With("Force", force)
+        .With("IgnoreTypeMismatch", ignoreTypeMismatch)
+        .With("HintId", hintId)
+        .With("ExplicitAttributeCount", request->node_attributes().attributes_size())
+        .With("ExplicitInternedAttributeKeys", [&] { std::vector<std::string> explicitInternedAttributeKeys; if (explicitAttributes) { explicitInternedAttributeKeys = explicitAttributes->ListKeys(); std::erase_if(explicitInternedAttributeKeys, [] (const std::string& key) { return TInternedAttributeKey::Lookup(key) == InvalidInternedAttribute; }); } return explicitInternedAttributeKeys; }());
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1982,8 +1967,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         response->set_cell_tag(ToProto(impl->GetExternalCellTag() == NotReplicatedCellTagSentinel
             ? Bootstrap_->GetMulticellManager()->GetCellTag()
             : impl->GetExternalCellTag()));
-        context->SetResponseInfo("ExistingNodeId: %v",
-            impl->GetId());
+        context->AnnotateResponse()
+            .With("ExistingNodeId", impl->GetId());
         context->Reply();
 
         YT_LOG_ACCESS_IF(
@@ -2083,10 +2068,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     ToProto(response->mutable_node_id(), newNode->GetId());
     response->set_cell_tag(ToProto(newNodeCellTag));
 
-    context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
-        newNodeId,
-        newNodeCellTag,
-        newNode->Account()->GetName());
+    context->AnnotateResponse()
+        .With("NodeId", newNodeId)
+        .With("CellTag", newNodeCellTag)
+        .With("Account", newNode->Account()->GetName());
 
     context->Reply();
 }
@@ -2113,9 +2098,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    context->SetIncrementalRequestInfo("SourcePath: %v, Mode: %v",
-        sourcePath,
-        mode);
+    context->AnnotateRequest(/*flush*/ false)
+        .With("SourcePath", sourcePath)
+        .With("Mode", mode);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto sourceProxy = cypressManager->TryResolvePathToNodeProxy(sourcePath, context->GetMethod(), context->GetService(), Transaction_);
@@ -2197,17 +2182,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     const auto& targetPath = GetRequestTargetYPath(context->RequestHeader());
     bool replace = targetPath.empty();
 
-    context->SetRequestInfo(
-        "Force: %v, IgnoreExisting: %v, LockExisting: %v, Replace: %v, "
-        "Inplace: %v, PreserveAcl: %v, Recursive: %v, TransactionId: %v",
-        force,
-        ignoreExisting,
-        lockExisting,
-        replace,
-        inplace,
-        preserveAcl,
-        recursive,
-        Transaction_->GetId());
+    context->AnnotateRequest()
+        .With("Force", force)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("LockExisting", lockExisting)
+        .With("Replace", replace)
+        .With("Inplace", inplace)
+        .With("PreserveAcl", preserveAcl)
+        .With("Recursive", recursive)
+        .With("TransactionId", Transaction_->GetId());
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -2223,8 +2206,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
         }
 
         ToProto(response->mutable_existing_node_id(), TrunkNode_->GetId());
-        context->SetResponseInfo("ExistingNodeId: %v",
-            TrunkNode_->GetId());
+        context->AnnotateResponse()
+            .With("ExistingNodeId", TrunkNode_->GetId());
         context->Reply();
         return;
     }
@@ -2308,10 +2291,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
     // Unfortunately inplace makes this code less generic than desired.
 
     auto nativeCellTag = node->GetNativeCellTag().Underlying();
-    context->SetResponseInfo("NativeCellTag: %v, AccountId: %v, EffectiveInheritedAttributes: %v",
-        nativeCellTag,
-        account->GetId(),
-        effectiveInheritableAttributes->ListPairs());
+    context->AnnotateResponse()
+        .With("NativeCellTag", nativeCellTag)
+        .With("AccountId", account->GetId())
+        .With("EffectiveInheritedAttributes", effectiveInheritableAttributes->ListPairs());
 
     response->set_native_cell_tag(nativeCellTag);
     ToProto(response->mutable_account_id(), account->GetId());
@@ -2328,9 +2311,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
 
     auto mode = FromProto<ENodeCloneMode>(request->mode());
 
-    context->SetRequestInfo("Mode: %v, Transaction: %v",
-        mode,
-        Transaction_->GetId());
+    context->AnnotateRequest()
+        .With("Mode", mode)
+        .With("Transaction", Transaction_->GetId());
 
     auto* node = GetThisImpl();
 
@@ -2388,8 +2371,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
     response->set_version(GetCurrentReign());
     ToProto(response->mutable_root_node_id(), node->GetId());
 
-    context->SetResponseInfo("NodeCount: %v",
-        response->node_id_to_children_size());
+    context->AnnotateResponse()
+        .With("NodeCount", response->node_id_to_children_size());
 
     context->Reply();
 }
@@ -2400,9 +2383,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, SerializeNode)
     ValidateTransaction();
 
     auto mode = FromProto<ENodeCloneMode>(request->mode());
-    context->SetRequestInfo("NodeId: %v, Mode: %v",
-        GetVersionedId(),
-        mode);
+    context->AnnotateRequest()
+        .With("NodeId", GetVersionedId())
+        .With("Mode", mode);
 
     auto* node = GetThisImpl();
     ValidatePermission(node, EPermissionCheckScope::This, EPermission::FullRead);
@@ -2428,8 +2411,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, SerializeNode)
     }
 
     ToProto(resultingEntry->mutable_node_id(), node->GetId());
-    context->SetResponseInfo("SerializedNodeDataSize: %v",
-        mergedData.size());
+    context->AnnotateResponse()
+        .With("SerializedNodeDataSize", mergedData.size());
     context->Reply();
 }
 
@@ -2440,8 +2423,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
 
     auto dstInheritedAttributes = FromProto(request->dst_attributes());
 
-    context->SetRequestInfo("DestinationInheritedAttributes: %v",
-        dstInheritedAttributes->ListPairs());
+    context->AnnotateRequest()
+        .With("DestinationInheritedAttributes", dstInheritedAttributes->ListPairs());
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2527,8 +2510,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
         }
     }
 
-    context->SetResponseInfo("NodeToAttributeDeltasSize: %v",
-        response->node_to_attribute_deltas_size());
+    context->AnnotateResponse()
+        .With("NodeToAttributeDeltasSize", response->node_to_attribute_deltas_size());
 
     context->Reply();
 }
@@ -2547,7 +2530,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
 
     bool inplace = request->inplace();
     // Other fields are logged in CopyCore.
-    context->SetIncrementalRequestInfo("Inplace: %v", inplace);
+    context->AnnotateRequest(/*flush*/ false)
+        .With("Inplace", inplace);
 
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveAcl = request->preserve_acl();
@@ -2633,8 +2617,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 {
-    context->SetRequestInfo("Mode: %v",
-        FromProto<ENodeCloneMode>(request->mode()));
+    context->AnnotateRequest()
+        .With("Mode", FromProto<ENodeCloneMode>(request->mode()));
 
     THROW_ERROR_EXCEPTION(
         NObjectClient::EErrorCode::BeginCopyDeprecated,
@@ -2656,11 +2640,10 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
     bool preserveAcl = request->preserve_acl();
 
-    context->SetIncrementalRequestInfo(
-        "PreserveModificationTime: %v, PreserveAcl: %v, PessimisticQuotaCheck: %v",
-        preserveModificationTime,
-        preserveAcl,
-        pessimisticQuotaCheck);
+    context->AnnotateRequest(/*flush*/ false)
+        .With("PreserveModificationTime", preserveModificationTime)
+        .With("PreserveAcl", preserveAcl)
+        .With("PessimisticQuotaCheck", pessimisticQuotaCheck);
 
     return TNodeFactoryOptions{
         .PreserveAccount = /*preserveAccount*/ false,
@@ -2688,19 +2671,16 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
     auto preserveAcl = request->preserve_acl();
     auto allowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
 
-    context->SetIncrementalRequestInfo(
-        "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "PreserveExpirationTimeout: %v, PreserveOwner: %v, PreserveAcl: %v, PessimisticQuotaCheck: %v, "
-        "AllowSecondaryIndexAbandonment: %v",
-        preserveAccount,
-        preserveCreationTime,
-        preserveModificationTime,
-        preserveExpirationTime,
-        preserveExpirationTimeout,
-        preserveOwner,
-        preserveAcl,
-        pessimisticQuotaCheck,
-        allowSecondaryIndexAbandonment);
+    context->AnnotateRequest(/*flush*/ false)
+        .With("PreserveAccount", preserveAccount)
+        .With("PreserveCreationTime", preserveCreationTime)
+        .With("PreserveModificationTime", preserveModificationTime)
+        .With("PreserveExpirationTime", preserveExpirationTime)
+        .With("PreserveExpirationTimeout", preserveExpirationTimeout)
+        .With("PreserveOwner", preserveOwner)
+        .With("PreserveAcl", preserveAcl)
+        .With("PessimisticQuotaCheck", pessimisticQuotaCheck)
+        .With("AllowSecondaryIndexAbandonment", allowSecondaryIndexAbandonment);
 
     return TNodeFactoryOptions{
         .PreserveAccount = preserveAccount,
@@ -2733,13 +2713,12 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     auto nodeFactoryOptions = GetFactoryOptionsAndLog(context);
 
-    context->SetRequestInfo(
-        "TransactionId: %v, Recursive: %v, IgnoreExisting: %v, LockExisting: %v, Force: %v",
-        NObjectServer::GetObjectId(Transaction_),
-        recursive,
-        ignoreExisting,
-        lockExisting,
-        force);
+    context->AnnotateRequest()
+        .With("TransactionId", NObjectServer::GetObjectId(Transaction_))
+        .With("Recursive", recursive)
+        .With("IgnoreExisting", ignoreExisting)
+        .With("LockExisting", lockExisting)
+        .With("Force", force);
 
     if (inplace && TrunkNode_->GetType() != EObjectType::PortalExit) {
         THROW_ERROR_EXCEPTION("Cannot load inplace any node except portal exit")
@@ -2767,8 +2746,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         }
 
         ToProto(response->mutable_node_id(), TrunkNode_->GetId());
-        context->SetResponseInfo("ExistingNodeId: %v",
-            TrunkNode_->GetId());
+        context->AnnotateResponse()
+            .With("ExistingNodeId", TrunkNode_->GetId());
         return;
     }
 
@@ -2839,7 +2818,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     ToProto(response->mutable_node_id(), clonedTrunkNode->GetId());
 
-    context->SetResponseInfo("NodeId: %v", clonedTrunkNode->GetId());
+    context->AnnotateResponse()
+        .With("NodeId", clonedTrunkNode->GetId());
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
@@ -3393,7 +3373,7 @@ void TCypressMapNodeProxy::SetRecursive(
     TRspSet* response,
     const TCtxSetPtr& context)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
     TMapNodeMixin::SetRecursive(path, request, response, context);
 }
 
@@ -3684,11 +3664,9 @@ void TCypressMapNodeProxy::ListSelf(
         ? std::make_optional(request->limit())
         : std::nullopt;
 
-    context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
-        MakeShrunkFormattableView(
-            attributeFilter,
-            GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog),
-        limit);
+    context->AnnotateRequest()
+        .With("AttributeFilter", MakeShrunkFormattableView( attributeFilter, GetDynamicCypressManagerConfig()->MaxAttributeFilterSizeToLog))
+        .With("Limit", limit);
 
     TLimitedAsyncYsonWriter writer(context->GetReadRequestComplexityLimiter());
 
@@ -3800,7 +3778,7 @@ void TSequoiaMapNodeProxy::GetSelf(
     TRspGet* /*response*/,
     const TCtxGetPtr& context)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
     context->Reply();
 }
 
@@ -3809,7 +3787,7 @@ void TSequoiaMapNodeProxy::ListSelf(
     TRspList* /*response*/,
     const TCtxListPtr& context)
 {
-    context->SetRequestInfo();
+    context->AnnotateRequest();
     context->Reply();
 }
 

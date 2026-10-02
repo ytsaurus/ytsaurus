@@ -42,7 +42,7 @@ private:
         auto progressSaveTime = TInstant::Now();
         GetJobProxyOrThrow()->OnProgressSaved(progressSaveTime);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
         context->Reply();
     }
 

@@ -578,14 +578,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     auto resourceLimits = ToJobResources(request->resource_limits());
     auto resourceUsage = ToJobResources(request->resource_usage());
 
-    context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, AllocationCount: %v",
-        nodeId,
-        descriptor.GetDefaultAddress(),
-        ManagerHost_->FormatHeartbeatResourceUsage(
-            resourceUsage,
-            resourceLimits,
-            request->disk_resources()),
-        request->allocations_size());
+    context->AnnotateRequest()
+        .With("NodeId", nodeId)
+        .With("NodeAddress", descriptor.GetDefaultAddress())
+        .With("ResourceUsage", ManagerHost_->FormatHeartbeatResourceUsage( resourceUsage, resourceLimits, request->disk_resources()))
+        .With("AllocationCount", request->allocations_size());
 
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
@@ -764,17 +761,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->SetLastRegisteredControllerAgentsSentTime(now);
     }
 
-    context->SetResponseInfo(
-        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, "
-        "IsThrottling: %v, SendRegisteredControllerAgents: %v, NodeFreeResources: %v",
-        Id_,
-        nodeId,
-        descriptor.GetDefaultAddress(),
-        node->GetSchedulingHeartbeatComplexity(),
-        ConcurrentHeartbeatComplexity_.load(),
-        isThrottlingActive,
-        shouldSendRegisteredControllerAgents,
-        schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
+    context->AnnotateResponse()
+        .With("NodeShardId", Id_)
+        .With("NodeId", nodeId)
+        .With("NodeAddress", descriptor.GetDefaultAddress())
+        .With("HeartbeatComplexity", node->GetSchedulingHeartbeatComplexity())
+        .With("TotalComplexity", ConcurrentHeartbeatComplexity_.load())
+        .With("IsThrottling", isThrottlingActive)
+        .With("SendRegisteredControllerAgents", shouldSendRegisteredControllerAgents)
+        .With("NodeFreeResources", schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount());
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
@@ -799,12 +794,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // NB: Some allocations maybe considered aborted after processing scheduled allocations.
         SubmitAllocationsToStrategy();
 
-        context->SetIncrementalResponseInfo(
-            "StartedAllocations: %v, PreemptedAllocations: %v",
-            schedulingHeartbeatContext->StartedAllocations().size(),
-            schedulingHeartbeatContext->PreemptedAllocations().size());
+        context->AnnotateResponse()
+            .With("StartedAllocations", schedulingHeartbeatContext->StartedAllocations().size())
+            .With("PreemptedAllocations", schedulingHeartbeatContext->PreemptedAllocations().size());
     } else {
-        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingHeartbeatContext->PreemptedAllocations().size());
+        context->AnnotateResponse()
+            .With("PreemptedAllocations", schedulingHeartbeatContext->PreemptedAllocations().size());
     }
 
     context->Reply();

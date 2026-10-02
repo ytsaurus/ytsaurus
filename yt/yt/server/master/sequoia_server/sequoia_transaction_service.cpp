@@ -51,11 +51,11 @@ private:
         auto attributes = NYTree::FromProto(request->attributes());
         auto title = attributes->Find<std::string>("title");
 
-        context->SetRequestInfo("TransactionId: %v, Timeout: %v, SequoiaReign: %v, Title: %v",
-            FromProto<TTransactionId>(request->id()),
-            FromProto<TDuration>(request->timeout()),
-            sequoiaReign,
-            title);
+        context->AnnotateRequest()
+            .With("TransactionId", FromProto<TTransactionId>(request->id()))
+            .With("Timeout", FromProto<TDuration>(request->timeout()))
+            .With("SequoiaReign", sequoiaReign)
+            .With("Title", title);
 
         ValidateSequoiaReign(sequoiaReign);
 
@@ -71,7 +71,7 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo();
+        context->AnnotateRequest();
 
         const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
         context->ReplyFrom(
