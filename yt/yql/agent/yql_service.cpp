@@ -147,10 +147,16 @@ private:
             ? FromProto<TQueryId>(request->query_id())
             : TQueryId::Create();
 
-        context->AnnotateRequest()
-            .With("QueryId", queryId);
+        std::optional<ui32> revision = request->has_revision()
+            ? std::make_optional<ui32>(request->revision())
+            : std::nullopt;
 
-        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
+        context->AnnotateRequest()
+            .With("QueryId", queryId)
+            .With("Revision", revision);
+
+        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId, revision));
+
         context->Reply();
     }
 

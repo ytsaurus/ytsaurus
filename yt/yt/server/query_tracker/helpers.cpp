@@ -185,12 +185,12 @@ std::string DoCompress(const std::string& data, int quality = 9)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string DefaultCompressedValue = DoCompress("{}");
+const std::string CompressedEmptyMap = DoCompress("{}");
 
 std::string Compress(const std::string& data, std::optional<ui64> maxCompressedStringSize, int quality)
 {
     auto compressedValue = DoCompress(data, quality);
-    return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? DefaultCompressedValue : compressedValue;
+    return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? CompressedEmptyMap : compressedValue;
 }
 
 std::string Decompress(const std::string& data)

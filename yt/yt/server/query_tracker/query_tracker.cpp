@@ -24,6 +24,10 @@
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/client/api/client.h>
@@ -419,6 +423,7 @@ private:
             .Incarnation = newIncarnation,
             .LeaseTransactionId = leaseTransactionId,
             .AssignedTracker = SelfAddress_,
+            .Progress = CompressedEmptyMap,
         };
 
         if (acquisitionError) {
@@ -433,6 +438,9 @@ private:
             StateRoot_ + "/active_queries",
             TActiveQueryDescriptor::Get()->GetNameTable(),
             MakeSharedRange(std::move(newRows), rowBuffer));
+        if (hasPreviousNonFinishingRun && queryRecord.Engine == EQueryEngine::Yql) {
+            DeleteProgressParts(queryId, transaction, rowBuffer);
+        }
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
             YT_TLOG_DEBUG("Failed to acquire query")
@@ -662,6 +670,11 @@ private:
 
             auto rowBuffer = New<TRowBuffer>();
 
+            std::optional<TDuration> notIndexedQueryTtl;
+            if (!activeQueryRecord->IsIndexed) {
+                notIndexedQueryTtl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl;
+            }
+
             {
                 std::vector keysToDelete = {
                     TActiveQueryKey{.QueryId = queryId}.ToKey(rowBuffer),
@@ -701,11 +714,11 @@ private:
                     .IsIndexed = activeQueryRecord->IsIndexed,
                     .IsTutorial = activeQueryRecord->IsTutorial,
                 };
-                if (!activeQueryRecord->IsIndexed) {
-                    if (auto ttl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl) {
-                        newRecord.Ttl = ttl->MilliSeconds();
-                    }
+
+                if (notIndexedQueryTtl) {
+                    newRecord.Ttl = notIndexedQueryTtl->MilliSeconds();
                 }
+
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
                 };
@@ -717,6 +730,10 @@ private:
                 if (activeQueryRecord->IsIndexed) {
                     TimeBasedIndex_->AddQuery(PartialRecordToQuery(newRecord), transaction);
                 }
+            }
+
+            if (notIndexedQueryTtl && activeQueryRecord->Engine == EQueryEngine::Yql) {
+                SetQueryProgressTtl(queryId, *notIndexedQueryTtl, transaction, rowBuffer);
             }
 
             auto commitResultOrError = WaitFor(transaction->Commit());
@@ -743,6 +760,71 @@ private:
                 .With(ex);
             return true;
         }
+    }
+
+    void SetQueryProgressTtl(
+        TQueryId queryId,
+        TDuration ttl,
+        const ITransactionPtr& transaction,
+        const TRowBufferPtr& rowBuffer)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        NQueryClient::TQueryBuilder builder;
+        builder.SetSource(StateRoot_ + "/query_progresses");
+        builder.AddSelectExpression("[part_name]");
+        builder.AddWhereConjunct("[query_id] = {QueryId}");
+
+        TSelectRowsOptions options;
+        options.Timestamp = transaction->GetStartTimestamp();
+        options.PlaceholderValues = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("QueryId").Value(queryId)
+            .EndMap();
+
+        auto selectResult = WaitFor(StateClient_->SelectRows(builder.Build(), options))
+            .ValueOrThrow();
+        auto parts = ToRecords<TQueryProgressPartial>(selectResult.Rowset);
+        if (parts.empty()) {
+            return;
+        }
+
+        std::vector<TUnversionedRow> newRows;
+        newRows.reserve(parts.size());
+        for (const auto& part : parts) {
+            TQueryProgressPartial newRecord{
+                .Key = {.QueryId = queryId, .PartName = part.Key.PartName},
+                .Ttl = ttl.MilliSeconds(),
+            };
+            newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, TQueryProgressDescriptor::Get()->GetPartialIdMapping()));
+        }
+
+        transaction->WriteRows(
+            StateRoot_ + "/query_progresses",
+            TQueryProgressDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(newRows), rowBuffer));
+    }
+
+    void DeleteProgressParts(
+        TQueryId queryId,
+        const ITransactionPtr& transaction,
+        const TRowBufferPtr& rowBuffer)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        std::vector<TUnversionedRow> keysToDelete;
+        for (auto part : TEnumTraits<NYqlClient::EProgressPart>::GetDomainValues()) {
+            TQueryProgressKey key{
+                .QueryId = queryId,
+                .PartName = FormatEnum(part),
+            };
+            keysToDelete.push_back(key.ToKey(rowBuffer));
+        }
+
+        transaction->DeleteRows(
+            StateRoot_ + "/query_progresses",
+            TQueryProgressDescriptor::Get()->GetNameTable(),
+            MakeSharedRange(std::move(keysToDelete), rowBuffer));
     }
 
     static void ValidateIncarnation(i64 expectedIncarnation, const TActiveQuery& record)

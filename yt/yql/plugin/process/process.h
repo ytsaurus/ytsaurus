@@ -57,7 +57,7 @@ public:
         NYson::TYsonString settings,
         NYson::TYsonString credentials) override;
 
-    TQueryResult GetProgress(TQueryId queryId) override;
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) override;
 
     TAbortResult Abort(TQueryId queryId) override;
 
