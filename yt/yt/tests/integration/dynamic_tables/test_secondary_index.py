@@ -4,10 +4,10 @@ from yt.common import YtError, wait
 
 from yt_commands import (
     create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
-    authors, make_ace, set, get, exists, remove, copy, get_driver, alter_table,
+    authors, make_ace, set, get, exists, remove, copy, move, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, explain_query, insert_rows, delete_rows,
-    commit_transaction, start_transaction,
+    commit_transaction, start_transaction, abort_transaction,
     alter_replication_card, migrate_replication_cards,
     sorted_dicts, raises_yt_error,
 )
@@ -563,6 +563,40 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         assert not exists("//tmp/table_copy/@secondary_indices")
         copy("//tmp/secondary", "//tmp/secondary_copy", allow_secondary_index_abandonment=True)
         assert not exists("//tmp/secondary_copy/@index_to")
+
+    @authors("sabdenovch")
+    def test_move_within_cypress_cell(self):
+        if self.NUM_REMOTE_CLUSTERS:
+            pytest.skip("Replicated tables are not movable")
+        self._create_map_node("//tmp/folder")
+        self._create_map_node("//tmp/to")
+        _, _, index_id, _ = self._create_basic_tables(
+            table_path="//tmp/folder/table",
+            index_path="//tmp/folder/index")
+
+        set(f"#{index_id}/@labubu", 67)
+
+        def check_invariants_and_get_new_index_id(old_index_id, table_path, index_path):
+            assert not exists(f"#{old_index_id}")
+            moved_secondary_indices = get(f"{table_path}/@secondary_indices")
+            assert len(moved_secondary_indices) == 1
+            index_id = next(iter(moved_secondary_indices))
+            assert index_id == get(f"{index_path}/@index_to/index_id")
+            return index_id
+
+        move("//tmp/folder", "//tmp/to/folder")
+        index_id = check_invariants_and_get_new_index_id(index_id, "//tmp/to/folder/table", "//tmp/to/folder/index")
+        move("//tmp/to/folder/table", "//tmp/table")
+        index_id = check_invariants_and_get_new_index_id(index_id, "//tmp/table", "//tmp/to/folder/index")
+        move("//tmp/to/folder/index", "//tmp/index")
+        index_id = check_invariants_and_get_new_index_id(index_id, "//tmp/table", "//tmp/index")
+
+        assert get(f"#{index_id}/@labubu") == 67
+
+        tx = start_transaction()
+        with raises_yt_error("Cannot move table"):
+            move("//tmp/table", "//tmp/fable", tx=tx)
+        abort_transaction(tx)
 
     @authors("sabdenovch")
     def test_evaluated(self):
