@@ -56,19 +56,20 @@ class TestParallelFileArtifactDownload(YTEnvSetup):
                 total += value
         return total
 
-    def _parallel_download_logged(self):
+    def _count_logged(self, message):
+        count = 0
         logs_path = join(self.path_to_run, "logs")
         node_files = [
             join(logs_path, file_name)
             for file_name in listdir(logs_path)
-            if "node" in file_name and ".log.zst" in file_name and isfile(join(logs_path, file_name))]
+            if "node" in file_name and ".log.zst" in file_name and isfile(join(logs_path, file_name))
+        ]
         for file_path in node_files:
             with open(file_path, "rb") as log_file:
                 decompressor = zstd.ZstdDecompressor()
                 text_stream = io.TextIOWrapper(decompressor.stream_reader(log_file, read_size=8192), encoding="utf-8")
-                if any("Downloading file artifact in parallel" in line for line in text_stream):
-                    return True
-        return False
+                count += sum(1 for line in text_stream if message in line)
+        return count
 
     def _run_hash_operation(self, expected_md5):
         create("table", "//tmp/t_in")
@@ -108,20 +109,25 @@ class TestParallelFileArtifactDownload(YTEnvSetup):
         assert all(h == expected_md5 for h in hashes)
 
     @authors("yuryalekseev")
-    @pytest.mark.parametrize("max_parallel_download_chunks", [1, 4])
-    def test_multichunk_file_assembled_correctly(self, max_parallel_download_chunks):
+    @pytest.mark.parametrize("max_parallel_download_chunks, writeback_batch_size", [(1, 0), (1, 1), (4, 0), (4, 1)])
+    def test_multichunk_file_assembled_correctly(self, max_parallel_download_chunks, writeback_batch_size):
         expected_md5 = self._make_multichunk_file(chunk_count=4)
 
         update_nodes_dynamic_config({
             "data_node": {
                 "artifact_cache_reader": {
                     "max_parallel_download_chunks": max_parallel_download_chunks,
+                    "writeback_batch_size": writeback_batch_size,
                 },
             },
         })
 
         node = ls("//sys/cluster_nodes")[0]
         initial_cache_size = self._artifact_cache_size(node)
+
+        # Node logs build up across tests, so the parallel path is asserted
+        # by growth of the number of relevant log lines.
+        parallel_download_log_count = self._count_logged("Downloading file artifact in parallel")
 
         self._run_hash_operation(expected_md5)
 
@@ -130,4 +136,4 @@ class TestParallelFileArtifactDownload(YTEnvSetup):
 
         # Make sure the parallel download path was taken.
         if max_parallel_download_chunks > 1:
-            wait(self._parallel_download_logged)
+            wait(lambda: self._count_logged("Downloading file artifact in parallel") > parallel_download_log_count)
