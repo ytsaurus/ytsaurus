@@ -89,4 +89,4 @@ For more information about GPU support, see [GPU support in YT](operations/gpu).
 
 ### Support for multiple data processing interfaces
 
-The {{product-name}} data processing system not only implements the MapReduce paradigm, but also supports running other data processing applications over shared computational resources. For example, you can run [YQL](../../yql) queries over {{product-name}} or create [ClickHouse cliques](chyt/about-chyt) and [Spark clusters](spyt/overview).
+The {{product-name}} data processing system not only implements the [MapReduce](operations/overview.md) paradigm, but also supports running other data processing applications over shared computational resources. For example, you can run [YQL](../../yql) queries over {{product-name}}, use [Flow](../../flow/about.md) for real-time streaming event processing, or create [ClickHouse cliques](chyt/about-chyt) and [Spark clusters](spyt/overview).

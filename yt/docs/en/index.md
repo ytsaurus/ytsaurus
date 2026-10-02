@@ -64,6 +64,7 @@ h3 {
     </div> -->
         <ul>
             <li><b><a lang="en" href="yql/index">YQL</a></b>: A declarative SQL-like query language.</li>
+            <li><b><a lang="en" href="flow/about">Flow</a></b>: A framework for real-time streaming event processing in the {{product-name}} ecosystem.</li>
             <li><b><a lang="en" href="user-guide/data-processing/chyt/about-chyt">CHYT</a></b>: A ClickHouse cluster running in {{product-name}}.</li>
             <li><b><a lang="en" href="user-guide/data-processing/spyt/overview">SPYT</a></b>: An Apache Spark cluster running in {{product-name}}.</li>
         </ul>
