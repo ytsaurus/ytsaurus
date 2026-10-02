@@ -213,7 +213,7 @@ private:
             .Run();
     }
 
-    void DoReportPersistedOffset(TOffset offsetExclusive) final
+    void DoReportPersistedOffset(TOffset offsetExclusive) override
     {
         UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = offsetExclusive});
     }
@@ -238,6 +238,44 @@ private:
 DEFINE_REFCOUNTED_TYPE(TTestSource);
 
 YT_FLOW_DEFINE_SOURCE(TTestSource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TCanonicalizingTestSource);
+
+class TCanonicalizingTestSource
+    : public TTestSource
+{
+public:
+    using TTestSource::TTestSource;
+
+    const std::optional<TOffset>& GetReportedPersistedOffset() const
+    {
+        return ReportedPersistedOffset_;
+    }
+
+private:
+    TOffset NormalizeOffset(const TOffset& offset) const override
+    {
+        if (offset.Underlying().GetCount() == 0) {
+            return offset;
+        }
+        YT_VERIFY(offset.Underlying().GetCount() == 2 || offset.Underlying().GetCount() == 4);
+        return MakeKey(
+            FromUnversionedValue<i64>(offset.Underlying()[0]),
+            FromUnversionedValue<i64>(offset.Underlying()[1]));
+    }
+
+    void DoReportPersistedOffset(TOffset offsetExclusive) override
+    {
+        ReportedPersistedOffset_ = std::move(offsetExclusive);
+    }
+
+private:
+    std::optional<TOffset> ReportedPersistedOffset_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCanonicalizingTestSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -456,6 +494,43 @@ TEST_F(TOrderedSourceTest, Simple)
         ASSERT_EQ(OffsetToInt(persistedState->PersistedOffsetExclusive), 3LL);
         ASSERT_EQ(OffsetToInt(persistedState->PublishedOffsetExclusive), 3LL);
     }
+}
+
+TEST_F(TOrderedSourceTest, LegacyBoundariesAreNormalizedDuringInit)
+{
+    RunInInvoker([&] {
+        Source->Terminate();
+    });
+    Source.Reset();
+
+    const auto legacyBoundary = MakeKey(10, 2, -1, -1);
+    auto legacyState = New<TOrderedSourcePartitionState>();
+    legacyState->CommittedOffsetExclusive = legacyBoundary;
+    legacyState->PersistedOffsetExclusive = legacyBoundary;
+    legacyState->PublishedOffsetExclusive = legacyBoundary;
+    legacyState->MaxOffsetExclusive = legacyBoundary;
+    legacyState->OffsetMemory->clear();
+    StateManager->Set("/source/v0", ConvertToYsonString(legacyState));
+
+    const auto canonicalizingSource = New<TCanonicalizingTestSource>(SourceContext, MakeDynamicSourceContext());
+    Source = canonicalizingSource;
+    const auto [state, reportedPersistedOffset] = RunInInvoker([&] {
+        canonicalizingSource->Init(StateManager->CreateContext()->WithPrefix("source"));
+        StateManager->Sync();
+        return std::pair(
+            ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0")),
+            canonicalizingSource->GetReportedPersistedOffset());
+    });
+
+    const auto canonicalBoundary = MakeKey(10, 2);
+    EXPECT_EQ(state->CommittedOffsetExclusive, canonicalBoundary);
+    EXPECT_EQ(state->PersistedOffsetExclusive, canonicalBoundary);
+    EXPECT_EQ(state->PublishedOffsetExclusive, canonicalBoundary);
+    EXPECT_EQ(state->MaxOffsetExclusive, canonicalBoundary);
+    ASSERT_TRUE(reportedPersistedOffset);
+    EXPECT_EQ(*reportedPersistedOffset, canonicalBoundary);
+
+    Reset();
 }
 
 TEST_F(TOrderedSourceTest, PayloadlessRecordAdvancesWithoutMessages)
