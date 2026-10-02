@@ -1193,6 +1193,8 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("planning_horizon", &TThis::PlanningHorizon)
         .Default(TDuration::Minutes(10));
+    registrar.Parameter("preloading_timeout", &TThis::PreloadingTimeout)
+        .Default(TDuration::Minutes(30));
 
     registrar.Postprocessor([] (TThis* spec) {
         // Handle deprecated UseCpuAwareBalancer field.

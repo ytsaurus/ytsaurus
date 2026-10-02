@@ -1070,9 +1070,12 @@ public:
                     *(*existingSpec)->WorkerIncarnationId != (*worker)->IncarnationId;
                 auto workerSpec = existingSpec && !existingSpecIsVoid ? CloneYsonStruct(*existingSpec) : New<TWorkerSpec>();
                 if (preloadAction.Type == NBalancer::ERebalanceActionType::Add) {
-                    workerSpec->PreloadResources.insert(preloadAction.ResourceId);
+                    if (workerSpec->PreloadResources.insert(preloadAction.ResourceId).second) {
+                        workerSpec->PreloadRequestTimes[preloadAction.ResourceId] = TInstant::Now();
+                    }
                 } else {
                     workerSpec->PreloadResources.erase(preloadAction.ResourceId);
+                    workerSpec->PreloadRequestTimes.erase(preloadAction.ResourceId);
                 }
                 if (worker) {
                     workerSpec->WorkerIncarnationId = (*worker)->IncarnationId;

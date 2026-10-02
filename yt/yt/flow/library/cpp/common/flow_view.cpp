@@ -620,6 +620,8 @@ void TWorkerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("preload_resources", &TThis::PreloadResources)
         .Default();
+    registrar.Parameter("preload_request_times", &TThis::PreloadRequestTimes)
+        .Default();
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
         .Default();
 }
