@@ -54,6 +54,10 @@
 
 {% include [_](./NYT_NFlow_EBalancerMetricsSource.md) %}
 
+{% include [_](./NYT_NFlow_EClickHouseCodec.md) %}
+
+{% include [_](./NYT_NFlow_EClickHouseHostSelectionPolicy.md) %}
+
 {% include [_](./NYT_NFlow_EDistributionOrdering.md) %}
 
 {% include [_](./NYT_NFlow_EFetchType.md) %}
@@ -200,6 +204,12 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TQueueSource.md) %}
@@ -207,6 +217,8 @@
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TRandomSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TServiceLogSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TShardedClickHouseBatchingSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftPassthroughComputation.md) %}
 
@@ -314,6 +326,12 @@
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TQueueSource.md) %}
@@ -321,6 +339,8 @@
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TRandomSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TServiceLogSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TShardedClickHouseBatchingSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSwiftPassthroughComputation.md) %}
 
