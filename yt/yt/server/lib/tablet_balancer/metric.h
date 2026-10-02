@@ -18,7 +18,7 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr double MinimumAcceptableMetricValue = 1e-30;
+constexpr double MinimumAcceptableMetricValue = 1e-30;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ class TGenericMetric
 public:
     Y_FORCE_INLINE TGenericMetric() = default;
 
-    Y_FORCE_INLINE TGenericMetric(const std::array<double, Size>& values);
+    Y_FORCE_INLINE explicit TGenericMetric(const std::array<double, Size>& values);
 
     Y_FORCE_INLINE static TGenericMetric Zero();
     Y_FORCE_INLINE static TGenericMetric Unit();

@@ -195,6 +195,7 @@ template <int Size>
 Y_FORCE_INLINE bool TGenericMetric<Size>::IsLessOrEqualComponentwise(const TGenericMetric& other) const
 {
     for (int index = 0; index < Size; ++index) {
+        // Negate <= rather than use > so that NaN in either operand makes the comparison false.
         if (!(Values_[index] <= other.Values_[index])) {
             return false;
         }

@@ -10,6 +10,8 @@
 
 namespace NYT::NTabletBalancer {
 
+////////////////////////////////////////////////////////////////////////////////
+
 constexpr int MaxMetricCount = YT_TABLET_BALANCER_MAX_METRIC_COUNT;
 
 constexpr int MaxVerboseLogMessagesPerIteration = 2000;
