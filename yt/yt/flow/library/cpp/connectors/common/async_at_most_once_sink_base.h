@@ -4,12 +4,28 @@
 
 #include "sink_base.h"
 
+#include <yt/yt/flow/library/cpp/common/init_context.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
+#include <yt/yt/flow/library/cpp/common/state_client.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAsyncAtMostOnceSinkState
+    : public NYTree::TYsonStruct
+{
+    TMessageId MaxPersistedMessageId;
+
+    REGISTER_YSON_STRUCT(TAsyncAtMostOnceSinkState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAsyncAtMostOnceSinkState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +85,7 @@ private:
         i64 SeqNo = 0;
     };
 
+    TMutableStateClient<TAsyncAtMostOnceSinkState> State_;
     std::string ProducerId_;
     i64 LastDistributedSeqNo_ = 0;
 
