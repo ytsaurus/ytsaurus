@@ -1,6 +1,10 @@
 #include <yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.h>
 #include <yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+#include <yt/yt/server/lib/tablet_balancer/table.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/getopt/last_getopt.h>
@@ -45,6 +49,13 @@ int main(int argc, const char** argv)
             .RequiredArgument("parameterized-config")
             .StoreResult(&parameterizedConfig);
 
+        bool disableVerboseLogging = false;
+        opts.AddLongOption(
+            "disable-verbose-logging",
+            "Disable bundle and table verbose logging for benchmarks")
+            .NoArgument()
+            .SetFlag(&disableVerboseLogging);
+
         NLastGetopt::TOptsParseResult results(&opts, argc, argv);
 
         auto mode = NYT::NYTree::ConvertTo<NYT::NTabletBalancer::NDryRun::EBalancingMode>(modeName);
@@ -53,6 +64,12 @@ int main(int argc, const char** argv)
         auto bundleHolder = NYT::NYTree::ConvertTo<NYT::NTabletBalancer::NDryRun::TBundleHolderPtr>(
             NYT::NYson::TYsonString(dataStream.ReadAll()));
         auto bundle = bundleHolder->CreateBundle();
+        if (disableVerboseLogging) {
+            bundle->Config->EnableVerboseLogging = false;
+            for (const auto& [tableId, table] : bundle->Tables) {
+                table->TableConfig->EnableVerboseLogging = false;
+            }
+        }
 
         NYT::NTabletBalancer::NDryRun::BalanceAndPrintDescriptors(
             mode,

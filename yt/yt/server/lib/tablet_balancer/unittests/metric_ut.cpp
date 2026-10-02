@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 namespace NYT::NTabletBalancer {
 namespace {
@@ -124,6 +125,10 @@ TYPED_TEST(TMetricTest, NormalizationBoundaryValues)
 TYPED_TEST(TMetricTest, Constructors)
 {
     using TMetric = typename TestFixture::TMetric;
+    using TValues = typename TestFixture::TValues;
+
+    static_assert(std::is_constructible_v<TMetric, const TValues&>);
+    static_assert(!std::is_convertible_v<const TValues&, TMetric>);
 
     auto values = TestFixture::MakeArray(1.0);
     TMetric metric(values);
