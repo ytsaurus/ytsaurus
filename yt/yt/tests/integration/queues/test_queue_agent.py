@@ -5331,13 +5331,31 @@ class TestQueueExportManager(TestQueueStaticExportBase):
 
         assert sum([len(ls(export_dir)) for export_dir in export_dirs]) == 0
 
+        orchid = QueueAgentOrchid()
+        exporter_orchids = [orchid.get_queue_orchid(f"primary:{queue_path}").get_exporter_orchid() for queue_path in queue_paths]
+        for exporter_orchid in exporter_orchids:
+            wait(lambda: exists(exporter_orchid.orchid_path()))
+
+        # NB(apachee): Every export task invocation takes a throttler token, including invocations
+        # with nothing to export (e.g. for queues that have already exported all their tables),
+        # so the rate limit applies to invocations, not to exported tables.
+        def get_total_export_task_invocation_count():
+            rsps = execute_batch([
+                make_batch_request("get", path=f"{exporter_orchid.orchid_path()}/export_task_invocation_index", return_only_value=True)
+                for exporter_orchid in exporter_orchids
+            ])
+            return sum(get_batch_output(rsp) for rsp in rsps)
+
+        invocation_count_before = get_total_export_task_invocation_count()
+
         # Start exporters by aborting this tx
         abort_transaction(tx)
 
         start = time.time()
 
         def check_exported_table_count():
-            export_table_count_by_dir = {export_dir: len(ls(export_dir)) for export_dir in export_dirs}
+            rsps = execute_batch([make_batch_request("list", path=export_dir, return_only_value=True) for export_dir in export_dirs])
+            export_table_count_by_dir = {export_dir: len(get_batch_output(rsp)) for export_dir, rsp in zip(export_dirs, rsps)}
             print_debug(f"{export_table_count_by_dir=}")
             return all(i == num_exports for i in export_table_count_by_dir.values())
 
@@ -5346,11 +5364,18 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         finish = time.time()
         elapsed = finish - start
 
+        invocation_count = get_total_export_task_invocation_count() - invocation_count_before
+
+        # With max_exported_table_count_per_task = 1, every exported table takes a separate invocation.
+        assert invocation_count >= num_exports * num_queues
+
+        # NB(apachee): There are more queues than the rate limit, so the throttler stays saturated
+        # and the elapsed time is determined by the number of invocations.
         expected_time_per_task = (1 / export_rate_limit)
-        expected_time_elapsed = num_exports * num_queues * expected_time_per_task
+        expected_time_elapsed = invocation_count * expected_time_per_task
         # TODO(apachee): Improve this test to reduce error margins
         expected_relative_error = 0.5
-        print_debug(f"rate limit timings: {elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
+        print_debug(f"rate limit timings: {elapsed=}, {invocation_count=}, {expected_time_elapsed=}, {expected_relative_error=}")
 
         assert 1 - expected_relative_error <= elapsed / expected_time_elapsed <= 1 + expected_relative_error
 
