@@ -1018,14 +1018,21 @@ private:
             req->set_mount_revision(ToProto(hunkTabletInfo->MountRevision));
 
             auto payloadCount = std::ssize(HunkPayloads_);
-            auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
+            auto payloadHolder = MakeSharedRangeHolder(transaction);
             req->Attachments().reserve(payloadCount);
             for (const auto& payload : HunkPayloads_) {
                 req->Attachments().push_back(TSharedRef(payload, payloadHolder));
             }
 
-            return req->Invoke().Apply(BIND([this, payloadCount]
+            // Another hunk write may fail and release the commit's reference to the transaction
+            // before this response arrives. The transaction owns this modification request.
+            return req->Invoke().Apply(BIND([this, payloadCount, weakTransaction = MakeWeak(transaction)]
                 (const TTabletServiceProxy::TErrorOrRspWriteHunksPtr& rspOrError) mutable {
+                    auto transaction = weakTransaction.Lock();
+                    if (!transaction) {
+                        THROW_ERROR_EXCEPTION("Received WriteHunks response corresponding to already destroyed transaction");
+                    }
+
                     if (!rspOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION("Failed to write hunks")
                             .With(rspOrError);

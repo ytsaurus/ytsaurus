@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     test_native_api.cpp
+    write_hunks_test.cpp
 )
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/test_api/common/common_tests.make.inc)
 
