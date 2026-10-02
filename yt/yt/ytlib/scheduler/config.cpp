@@ -2536,6 +2536,11 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
+            if (taskSpec->RestartExitCode && (spec->FailOnJobRestart || taskSpec->FailOnJobRestart)) {
+                THROW_ERROR_EXCEPTION("\"restart_exit_code\" cannot be set together with \"fail_on_job_restart\"")
+                    .With("task_name", taskName);
+            }
+
             if (taskSpec->CollectiveOptions) {
                 collectiveTaskName = taskName;
             }
