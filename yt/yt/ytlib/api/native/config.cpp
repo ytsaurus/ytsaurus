@@ -615,6 +615,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_uniform_prepare_signatures", &TThis::UseUniformPrepareSignatures)
         .Default(false);
 
+    // COMPAT(ifsmirnov)
+    registrar.Parameter("use_two_phase_dynamicity_alter", &TThis::UseTwoPhaseDynamicityAlter)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;

@@ -18,6 +18,7 @@ class TReqRemount;
 class TReqFreeze;
 class TReqUnfreeze;
 class TReqReshard;
+class TReqTwoPhaseAlter;
 
 class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;

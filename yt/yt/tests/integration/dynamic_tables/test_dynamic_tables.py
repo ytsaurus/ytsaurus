@@ -4639,3 +4639,98 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
 
         # Should not fail.
         sync_remove_tablet_cells([cell_id])
+
+
+##################################################################
+
+
+class TestTwoPhaseTableAlter(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_DRIVER_CONFIG = {"use_two_phase_dynamicity_alter": True}
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("is_sorted", [True, False])
+    def test_alter_dynamicity(self, is_sorted):
+        key_schema = {"name": "key", "type": "int64"}
+        if is_sorted:
+            key_schema["sort_order"] = "ascending"
+
+        schema = make_schema(
+            [
+                key_schema,
+                {"name": "value", "type": "string"},
+            ],
+            strict=True,
+            unique_keys=is_sorted,
+        )
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        if self.USE_SEQUOIA:
+            with raises_yt_error("is not supported for Sequoia table"):
+                alter_table("//tmp/t", dynamic=True)
+            return
+
+        transaction_id = start_transaction()
+        with raises_yt_error("Cannot alter table dynamicity in transaction"):
+            alter_table("//tmp/t", dynamic=True, tx=transaction_id)
+        abort_transaction(transaction_id)
+
+        with raises_yt_error("Only .*dynamic.* can be specified for two-phase table alter"):
+            alter_table("//tmp/t", dynamic=True, schema=schema)
+
+        with raises_yt_error("Only .*dynamic.* can be specified for two-phase table alter"):
+            alter_table("//tmp/t", dynamic=True, upstream_replica_id="1-2-3-4")
+
+        alter_table("//tmp/t", dynamic=True)
+        assert get("//tmp/t/@dynamic")
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t")
+        assert get("//tmp/t/@tablet_state") == "mounted"
+
+        if not is_sorted:
+            sync_unmount_table("//tmp/t")
+            alter_table("//tmp/t", dynamic=False)
+            assert not get("//tmp/t/@dynamic")
+
+
+class TestTwoPhaseTableAlterMulticell(TestTwoPhaseTableAlter):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+class TestTwoPhaseTableAlterRpcProxy(TestTwoPhaseTableAlter):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "use_two_phase_dynamicity_alter": True,
+        },
+    }
+
+
+class TestTwoPhaseTableAlterPortal(TestTwoPhaseTableAlterMulticell):
+    ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+class TestTwoPhaseTableAlterSequoia(TestTwoPhaseTableAlterMulticell):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }

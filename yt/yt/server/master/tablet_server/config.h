@@ -373,6 +373,9 @@ struct TDynamicTabletManagerConfig
     // COMPAT(akozhikhov)
     bool EnableAlterToStaticWithHunks;
 
+    // COMPAT(ifsmirnov)
+    bool EnableLegacyDynamicityAlter;
+
     i64 MaxReshardComplexity;
 
     bool UpdateTableContentRevisionOnHeartbeat;
