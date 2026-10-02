@@ -108,8 +108,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 {
     auto requestId = context->GetRequestId();
 
-    context->SetRequestInfo("RequestCount: %v",
-        request->part_counts_size());
+    context->AnnotateRequest()
+        .With("RequestCount", request->part_counts_size());
 
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();

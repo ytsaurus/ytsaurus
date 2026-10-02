@@ -248,14 +248,12 @@ public:
 
         auto blocks = GetRpcAttachedBlocks(request, /*validateChecksums*/ false);
 
-        context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
-            "FlushBlocks: %v, CumulativeBlockSize: %v",
-            chunkId,
-            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
-            populateCache,
-            flushBlocks,
-            cumulativeBlockSize);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
+            .With("PopulateCache", populateCache)
+            .With("FlushBlocks", flushBlocks)
+            .With("CumulativeBlockSize", cumulativeBlockSize);
 
         auto putBlocksCount = ++PutBlocksCounter_;
         if (AlwaysFail_ || putBlocksCount % ThrottledBlockCount_ != 0) {
@@ -290,12 +288,11 @@ public:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         auto targetDescriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request->target_descriptor());
 
-        context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
-            chunkId,
-            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
-            cumulativeBlockSize,
-            targetDescriptor);
+        context->AnnotateRequest()
+            .With("ChunkId", chunkId)
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
+            .With("CumulativeBlockSize", cumulativeBlockSize)
+            .With("Target", targetDescriptor);
 
         if (NetThrottling_) {
             if (UseErrorOnNetThrottling_) {
