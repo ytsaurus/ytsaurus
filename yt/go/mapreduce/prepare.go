@@ -236,6 +236,23 @@ func createSkiffFormat(schemas []skiff.Schema) skiff.Format {
 	}
 }
 
+func isClusterQualifiedPath(path ypath.YPath) bool {
+	switch path := path.(type) {
+	case ypath.Rich:
+		return path.Cluster != ""
+	case *ypath.Rich:
+		return path.Cluster != ""
+	case ypath.Path:
+		rich, err := ypath.Parse(path.String())
+		return err == nil && rich.Cluster != ""
+	case *ypath.Path:
+		rich, err := ypath.Parse(path.String())
+		return err == nil && rich.Cluster != ""
+	default:
+		return false
+	}
+}
+
 func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
 	var yc yt.CypressClient = p.mr.yc
 	if p.mr.tx != nil {
@@ -244,12 +261,16 @@ func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
 
 	schemas := make([]*schema.Schema, len(p.spec.InputTablePaths))
 	for i, inputTablePath := range p.spec.InputTablePaths {
+		if isClusterQualifiedPath(inputTablePath) {
+			continue
+		}
+
 		var attrs struct {
 			Schema     schema.Schema `yson:"schema"`
 			SchemaMode string        `yson:"schema_mode"`
 		}
 
-		err := yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &attrs, &yt.GetNodeOptions{
+		err := yc.GetNode(p.ctx, ypath.Attrs(inputTablePath), &attrs, &yt.GetNodeOptions{
 			Attributes: []string{"schema", "schema_mode"},
 		})
 		if err != nil {
@@ -339,12 +360,16 @@ func (p *prepare) prepare(opts []OperationOption) error {
 
 	if p.spec.Type != yt.OperationRemoteCopy {
 		for _, inputTablePath := range p.spec.InputTablePaths {
+			if isClusterQualifiedPath(inputTablePath) {
+				continue
+			}
+
 			var tableAttrs struct {
 				Typ    yt.NodeType   `yson:"type"`
 				Schema schema.Schema `yson:"schema"`
 			}
 
-			err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
+			err := cypress.GetNode(p.ctx, ypath.Attrs(inputTablePath), &tableAttrs, nil)
 			if yterrors.ContainsResolveError(err) {
 				return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
 			} else if err != nil {
