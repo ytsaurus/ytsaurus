@@ -96,5 +96,6 @@ target_sources(library-query-unittests.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/query_evaluator_ut.cpp
 )
 
