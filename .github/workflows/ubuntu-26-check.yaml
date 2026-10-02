@@ -1,0 +1,220 @@
+name: Ubuntu 26.04 runner check
+
+# Temporary workflow: runs on ubuntu-26.04 the steps most likely to depend on the runner image,
+# without publishing anything. Lives only in the members/ilyaibraev/ubuntu-26-check branch.
+
+on:
+  push:
+    branches:
+      - members/ilyaibraev/ubuntu-26-check
+
+permissions:
+  contents: read
+
+jobs:
+  # check-status-and-send-alert.yaml without sending the report
+  alert-python:
+    name: Alert script dependencies
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+          sparse-checkout-cone-mode: false
+          sparse-checkout: '.github/scripts/send_notifications.py'
+
+      - name: Tool versions
+        run: |
+          cat /etc/os-release
+          python3 --version
+          pip --version
+          docker version
+
+      - name: Prepare Python
+        run: |
+          pip install PyGithub==2.6.1
+
+      - name: Import the modules used by send_notifications.py
+        run: |
+          python3 -c "import requests; from github import Github, Workflow, WorkflowRun"
+
+  # ytsaurus-ci-runner.yaml without creating a task
+  ya-make-ytsaurus-ci:
+    name: ya make ytsaurus_ci
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+
+      - name: Prepare
+        run: |
+          ./ya make -r yt/admin/ytsaurus_ci
+
+      - name: Run the binary
+        run: |
+          ./yt/admin/ytsaurus_ci/ytsaurus_ci --help
+
+  # java.yaml without the snapshot publication
+  java:
+    name: Java SDK
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v3
+
+      - name: Execute Gradle build
+        run: ./gradlew build
+
+      - name: Run tests
+        run: ./gradlew test --info
+
+      - name: Run integration tests
+        run: ./gradlew testIntegration --info
+
+      - name: Run integration multicell tests
+        run: ./gradlew testIntegrationMulticell --info
+
+  # go.yaml, module yt/go only
+  go:
+    name: Go SDK
+    runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        module: ["yt/go"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Dockerfile
+        shell: bash
+        run: |
+          echo "FROM ubuntu:20.04 " > Dockerfile
+          echo "WORKDIR /home/ytsaurus " >> Dockerfile
+          echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+          echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
+          echo "COPY . /home/ytsaurus/ " >> Dockerfile
+          echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
+
+      - name: Setup retry function
+        shell: bash
+        run: |
+          cat << 'EOF' > docker-build-retry.sh
+          function retry {
+              local retries=30
+              local count=0
+              until "$@"; do
+                  exit_code=$?
+                  count=$(($count + 1))
+                  if [ $count -lt $retries ]; then
+                      echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                      sleep 5
+                  else
+                      echo "Attempt $count failed with exit code $exit_code. No more retries."
+                      return $exit_code
+                  fi
+              done
+              return 0
+          }
+          EOF
+
+      - name: Build Docker image
+        shell: bash
+        run: |
+          source docker-build-retry.sh
+          retry docker build -t test-image .
+
+      - name: Run Docker container
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
+
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go build -v -mod=readonly ./..."
+
+      - name: Run tests
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly ./..."
+
+      - name: Run tests with race detector
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly -race ./..."
+
+  # yql-language-server-release.yaml: version and release notes scripts, linux-x86_64 build
+  lsp:
+    name: YQL Language Server (linux-x86_64)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    env:
+      PLATFORM: linux-x86_64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build Version
+        id: version
+        working-directory: yql/essentials/tools/yql_language_server
+        run: |
+          set -euo pipefail
+
+          version=$(python3 ci/version.py < CHANGELOG.md)
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build Release Notes
+        working-directory: yql/essentials/tools/yql_language_server
+        run: |
+          set -euo pipefail
+
+          python3 ci/release_notes.py \
+            < CHANGELOG.md \
+            > "$RUNNER_TEMP/RELEASE_NOTES.md"
+          cat "$RUNNER_TEMP/RELEASE_NOTES.md"
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          output="$RUNNER_TEMP/yql-language-server-$PLATFORM"
+          mkdir -p "$output"
+
+          ./ya make \
+            --build=release \
+            --target-platform="default-$PLATFORM" \
+            -DUSE_IDN=static \
+            -DUSE_ICONV=static \
+            -DYQL_LANGUAGE_SERVER_VERSION="$VERSION" \
+            --output="$output" \
+            --stat \
+            --bazel-remote-store \
+            --bazel-remote-base-uri="http://build-cache.dev.ytsaurus.tech" \
+            --ignore-recurses \
+            yql/essentials/tools/yql_language_server
+
+      - name: Required glibc version
+        run: |
+          set -euo pipefail
+
+          binary="$RUNNER_TEMP/yql-language-server-$PLATFORM/yql/essentials/tools/yql_language_server/yql_language_server"
+          ldd --version | head -n 1
+          ldd "$binary" || true
+          echo "Highest GLIBC symbol version required by the binary:"
+          objdump -T "$binary" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -n 1 || true
