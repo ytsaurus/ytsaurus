@@ -307,8 +307,6 @@ private:
         // No memory probing needed for S3 — the upload window is managed internally.
         response->set_use_probe_put_blocks(false);
 
-        context->AnnotateResponse()
-            .With("SessionId", sessionId);
         context->Reply();
     }
 
@@ -337,9 +335,6 @@ private:
 
         response->set_close_demanded(false);
 
-        context->AnnotateResponse()
-            .With("SessionId", sessionId)
-            .With("FirstBlockIndex", firstBlockIndex);
         context->Reply();
     }
 
@@ -391,7 +386,6 @@ private:
         *response->mutable_chunk_info() = writer->GetChunkInfo();
 
         context->AnnotateResponse()
-            .With("SessionId", sessionId)
             .With("DiskSpace", response->chunk_info().disk_space());
         context->Reply();
     }

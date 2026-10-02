@@ -763,8 +763,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     context->AnnotateResponse()
         .With("NodeShardId", Id_)
-        .With("NodeId", nodeId)
-        .With("NodeAddress", descriptor.GetDefaultAddress())
         .With("HeartbeatComplexity", node->GetSchedulingHeartbeatComplexity())
         .With("TotalComplexity", ConcurrentHeartbeatComplexity_.load())
         .With("IsThrottling", isThrottlingActive)

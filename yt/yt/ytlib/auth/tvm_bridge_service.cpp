@@ -73,10 +73,6 @@ private:
             }
         }
 
-        context->AnnotateResponse()
-            .With("Source", request->source())
-            .With("Destinations", MakeShrunkFormattableView(destinations, TDefaultFormatter(), /*limit*/ 10));
-
         context->Reply();
     }
 };

@@ -356,7 +356,6 @@ private:
 
         if (rowsetsOrError.IsOK()) {
             context->AnnotateResponse()
-                .With("QueryId", queryId)
                 .With("ResultCount", rowsetsOrError.Value().size());
             std::vector<TSharedRef> attachments;
             for (auto& rowset : rowsetsOrError.Value()) {
@@ -365,7 +364,6 @@ private:
             response->Attachments() = std::move(attachments);
         } else {
             context->AnnotateResponse()
-                .With("QueryId", queryId)
                 .With("Error", rowsetsOrError);
             ToProto(response->mutable_error(), rowsetsOrError);
         }
@@ -395,7 +393,6 @@ private:
         }
         if (response->multi_progress().progresses().size() > 0) {
             context->AnnotateResponse()
-                .With("QueryId", queryId)
                 .With("ProgressCount", response->multi_progress().progresses().size())
                 .With("FinishedCount", finishedCount);
         } else {

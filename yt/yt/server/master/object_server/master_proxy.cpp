@@ -643,7 +643,6 @@ private:
         context->AnnotateResponse()
             .With("OldId", oldId)
             .With("NewId", node->GetId())
-            .With("TransactionId", transactionId)
             .With("Account", node->Account()->GetName());
 
         context->Reply();

@@ -64,8 +64,6 @@ public:
         auto yqlResponse = ToYqlResponse(queryResult);
 
         response->mutable_response()->Swap(&yqlResponse);
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
         context->Reply();
     }
 
@@ -112,7 +110,6 @@ public:
         }
 
         context->AnnotateResponse()
-            .With("QueryId", queryId)
             .With("Error", abortResult.YsonError);
         context->Reply();
     }
@@ -129,8 +126,6 @@ public:
 
         response->mutable_response()->Swap(&yqlResponse);
 
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
         context->Reply();
     }
 
@@ -152,7 +147,6 @@ public:
         }
 
         context->AnnotateResponse()
-            .With("QueryId", queryId)
             .With("Parameters", result.YsonParameters);
         context->Reply();
     }
@@ -165,8 +159,6 @@ public:
 
         YqlPlugin_->RegisterQuery(queryId);
 
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
         context->Reply();
     }
 
@@ -178,8 +170,6 @@ public:
 
         YqlPlugin_->UnregisterQuery(queryId);
 
-        context->AnnotateResponse()
-            .With("QueryId", queryId);
         context->Reply();
     }
 
