@@ -69,4 +69,8 @@ ENV(YT_LOCAL=1)
 # An empty value reads as falsy in yt_env_setup, unlike "false".
 ENV(YT_DISABLE_MULTIDAEMON=)
 
+TAG(
+    ya:huge_logs
+)
+
 END()
