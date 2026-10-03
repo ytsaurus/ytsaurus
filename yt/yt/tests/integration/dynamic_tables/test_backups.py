@@ -802,7 +802,7 @@ class TestBackups(DynamicTablesBase):
     @authors("alexelexa")
     def test_alter_clip_timestamp_many_inserts(self):
         sync_create_cells(1)
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(2)])
