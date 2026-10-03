@@ -829,7 +829,10 @@ void TBootstrap::DoInitialize()
             .With("PeerId", localPeerId);
     }
 
-    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
+    NNative::TConnectionOptions connectionOptions;
+    connectionOptions.CreateChaosCellDirectorySynchronizer = false;
+
+    ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 

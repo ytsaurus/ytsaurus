@@ -526,11 +526,13 @@ public:
         }
         auto it = CellIdToEntry_.find(descriptor.CellId);
         if (it == CellIdToEntry_.end()) {
-            it = CellIdToEntry_.emplace(descriptor.CellId, TEntry(descriptor)).first;
-            auto* entry = &it->second;
+            TEntry newEntry(descriptor);
             if (descriptor.ConfigVersion >= 0) {
-                InitChannel(entry);
+                InitChannel(&newEntry);
             }
+
+            it = CellIdToEntry_.emplace(descriptor.CellId, std::move(newEntry)).first;
+            auto* entry = &it->second;
             if (IsGlobalCellId(descriptor.CellId)) {
                 auto cellTag = CellTagFromId(descriptor.CellId);
                 if (auto [jt, inserted] = CellTagToEntry_.emplace(cellTag, entry); !inserted) {
@@ -545,8 +547,10 @@ public:
                 .With("ConfigVersion", descriptor.ConfigVersion);
             return true;
         } else if (it->second.Descriptor->ConfigVersion < descriptor.ConfigVersion) {
-            it->second.Descriptor = New<TCellDescriptor>(descriptor);
-            InitChannel(&it->second);
+            TEntry newEntry(descriptor);
+            InitChannel(&newEntry);
+            it->second = std::move(newEntry);
+
             YT_TLOG_DEBUG("Cell reconfigured")
                 .With("CellId", descriptor.CellId)
                 .With("ConfigVersion", descriptor.ConfigVersion);
