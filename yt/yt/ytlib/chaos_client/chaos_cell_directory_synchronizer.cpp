@@ -318,6 +318,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDummyChaosCellDirectorySynchronizer
+    : public IChaosCellDirectorySynchronizer
+{
+public:
+    void AddCellIds(const std::vector<TCellId>& /*cellIds*/) override
+    { }
+
+    void AddCellTag(TCellTag /*cellTag*/) override
+    { }
+
+    TFuture<void> Sync() override
+    {
+        return OKFuture;
+    }
+
+    void Start() override
+    { }
+
+    void Stop() override
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IChaosCellDirectorySynchronizerPtr CreateChaosCellDirectorySynchronizer(
     TChaosCellDirectorySynchronizerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
@@ -331,6 +355,11 @@ IChaosCellDirectorySynchronizerPtr CreateChaosCellDirectorySynchronizer(
         std::move(connection),
         std::move(sourceOfTruthCellIds),
         std::move(logger));
+}
+
+IChaosCellDirectorySynchronizerPtr CreateDummyChaosCellDirectorySynchronizer()
+{
+    return New<TDummyChaosCellDirectorySynchronizer>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

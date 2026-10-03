@@ -374,15 +374,19 @@ public:
             GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
-        ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
-            StaticConfig_->ChaosCellDirectorySynchronizer,
-            CellDirectory_,
-            this,
-            GetCellDirectorySynchronizerSourceOfTruthCellIds(),
-            Logger);
+        if (Options_.CreateChaosCellDirectorySynchronizer) {
+            ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
+                StaticConfig_->ChaosCellDirectorySynchronizer,
+                CellDirectory_,
+                this,
+                GetCellDirectorySynchronizerSourceOfTruthCellIds(),
+                Logger);
 
-        if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
-            ChaosCellDirectorySynchronizer_->Start();
+            if (StaticConfig_->ReplicationCardCache || StaticConfig_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
+                ChaosCellDirectorySynchronizer_->Start();
+            }
+        } else {
+            ChaosCellDirectorySynchronizer_ = CreateDummyChaosCellDirectorySynchronizer();
         }
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
@@ -1286,6 +1290,9 @@ private:
         // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
         // TODO(apachee): Fix this for multi proxies.
         clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
+        // Alien cluster connections should always use RPC calls to the masters of the alien cluster.
+        clusterDirectoryOptions.CreateChaosCellDirectorySynchronizer = true;
 
         ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
 
