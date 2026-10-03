@@ -1812,7 +1812,7 @@ void TEraseOperationSpec::Register(TRegistrar registrar)
 void TSortedOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("merge_by", &TThis::MergeBy)
         .Default();
     registrar.Parameter("min_maniac_data_weight", &TThis::MinManiacDataWeight)
@@ -1956,7 +1956,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .LessThanOrEqual(1)
         .Default(0.7);
     registrar.Parameter("use_new_sorted_pool", &TThis::UseNewSortedPool)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
         .Default(1000)
