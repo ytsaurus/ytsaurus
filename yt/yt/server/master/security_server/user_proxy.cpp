@@ -84,6 +84,11 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RequestLimits)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride)
+            .SetPresent(user->GetActiveTransactionCountAlertThresholdAndLimitOverride().has_value())
+            .SetRemovable(true)
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableAccounts)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UsableNetworkProjects)
@@ -153,6 +158,20 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(userLimitsSerializer);
 
+                return true;
+            }
+
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                auto limitsOverride = user->GetActiveTransactionCountAlertThresholdAndLimitOverride();
+                if (!limitsOverride) {
+                    break;
+                }
+                auto [threshold, limit] = *limitsOverride;
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("alert_threshold").Value(threshold)
+                        .Item("limit").Value(limit)
+                    .EndMap();
                 return true;
             }
 
@@ -332,6 +351,9 @@ private:
                 key.Unintern(),
                 user->GetName());
         };
+        auto validateNonNegative = [&] (auto value, TStringBuf name) {
+            THROW_ERROR_EXCEPTION_IF(value < 0, "%Qv cannot be negative", name);
+        };
 
         switch (key) {
             case EInternedAttributeKey::Banned: {
@@ -344,10 +366,7 @@ private:
                 validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"read_request_rate_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Read);
                 return true;
             }
@@ -356,10 +375,7 @@ private:
                 validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"write_request_rate_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestRateLimit(user, limit, EUserWorkloadType::Write);
                 return true;
             }
@@ -368,10 +384,7 @@ private:
                 validateRequestLimitsChangeForRoot();
 
                 auto limit = ConvertTo<int>(value);
-                if (limit < 0) {
-                    THROW_ERROR_EXCEPTION("\"request_queue_size_limit\" cannot be negative");
-                }
-
+                validateNonNegative(limit, key.Unintern());
                 securityManager->SetUserRequestQueueSizeLimit(user, limit);
                 return true;
             }
@@ -383,6 +396,32 @@ private:
 
                 auto config = ConvertTo<TSerializableUserRequestLimitsConfigPtr>(value)->ToConfigOrThrow(multicellManager);
                 securityManager->SetUserRequestLimits(user, config);
+                return true;
+            }
+
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                int threshold = 0;
+                int limit = 0;
+                try {
+                    const auto& map = ConvertToNode(value)->AsMap();
+                    threshold = map->GetChildValueOrThrow<int>("alert_threshold");
+                    limit = map->GetChildValueOrThrow<int>("limit");
+                    THROW_ERROR_EXCEPTION_UNLESS(map->GetChildCount() == 2, "Invalid format: extra keys");
+                } catch (const std::exception& exception) {
+                    THROW_ERROR_EXCEPTION("Use format {alert_threshold=<value>; limit=<value>}")
+                        .With(exception);
+                }
+                validateNonNegative(threshold, "alert_threshold");
+                validateNonNegative(limit, "limit");
+                if (threshold > limit && !force && user->IsNative()) {
+                    THROW_ERROR_EXCEPTION("Possible misconfiguration: trying to set alert_threshold > limit. Use force = true to set anyway");
+                }
+
+                user->SetActiveTransactionCountAlertThresholdAndLimitOverride(
+                    TUser::TActiveTransactionCountLimitsOverride{
+                        .AlertThreshold = threshold,
+                        .Limit = limit,
+                    });
                 return true;
             }
 
@@ -477,6 +516,11 @@ private:
 
             case EInternedAttributeKey::Tags: {
                 user->Tags() = {};
+                return true;
+            }
+
+            case EInternedAttributeKey::ActiveTransactionCountAlertThresholdAndLimitOverride: {
+                user->SetActiveTransactionCountAlertThresholdAndLimitOverride(std::nullopt);
                 return true;
             }
 

@@ -241,6 +241,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval);
 
+    struct TActiveTransactionCountLimitsOverride
+    {
+        int AlertThreshold = 0;
+        int Limit = 0;
+
+        void Persist(const TStreamPersistenceContext& context);
+    };
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TActiveTransactionCountLimitsOverride>, ActiveTransactionCountAlertThresholdAndLimitOverride);
+
     //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, HashedPassword);
