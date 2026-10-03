@@ -55,6 +55,11 @@ type clientReq struct {
 	acked                  atomic.Bool
 
 	done chan error
+
+	// sent is closed once the request is sent. Used by streaming calls only.
+	sent chan struct{}
+	// stream is set for streaming calls only.
+	stream *ClientStream
 }
 
 type msgType uint32
@@ -112,6 +117,15 @@ func WithNetwork(network string) ClientOption {
 	}
 }
 
+// WithStreamingWindowSize sets the client-to-server window size for streaming calls.
+//
+// The window is local to the client and is not sent to the server.
+func WithStreamingWindowSize(size int64) ClientOption {
+	return func(conn *ClientConn) {
+		conn.streamingWindowSize = size
+	}
+}
+
 var ErrConnClosed = xerrors.NewSentinel("connection closed")
 
 type ClientConn struct {
@@ -121,6 +135,7 @@ type ClientConn struct {
 	reqs map[guid.GUID]*clientReq
 
 	sendQueue, cancelQueue chan *clientReq
+	streamQueue            chan streamMsg
 
 	// mu guards the following maps.
 	mu sync.Mutex
@@ -142,6 +157,8 @@ type ClientConn struct {
 
 	encryptionMode EncryptionMode
 	tlsConfig      *tls.Config
+
+	streamingWindowSize int64
 }
 
 func NewClient(ctx context.Context, address string, opts ...ClientOption) *ClientConn {
@@ -151,9 +168,11 @@ func NewClient(ctx context.Context, address string, opts ...ClientOption) *Clien
 		reqs:        make(map[guid.GUID]*clientReq, maxInFlightRequests),
 		sendQueue:   make(chan *clientReq, maxInFlightRequests),
 		cancelQueue: make(chan *clientReq, maxInFlightRequests),
+		streamQueue: make(chan streamMsg, maxInFlightRequests),
 		stop:        make(chan struct{}),
 
-		featureIDFormatter: defaultFeatureIDFormatter,
+		featureIDFormatter:  defaultFeatureIDFormatter,
+		streamingWindowSize: DefaultStreamingWindowSize,
 
 		unackedReqs:    make(map[guid.GUID]guid.GUID),
 		unackedPackets: make(map[guid.GUID]guid.GUID),
@@ -290,6 +309,25 @@ func (c *ClientConn) runSender() {
 				return
 			}
 
+			if req.sent != nil {
+				close(req.sent)
+			}
+
+		case m := <-c.streamQueue:
+			msg := m.msg
+			if msg == nil {
+				var err error
+				if msg, err = m.stream.buildFeedback(); err != nil {
+					m.stream.Abort(err)
+					continue
+				}
+			}
+
+			if err := c.bus.Send(guid.New(), msg, &busSendOptions{}); err != nil {
+				c.fail(err)
+				return
+			}
+
 		case <-c.stop:
 			return
 		}
@@ -388,7 +426,13 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 		return fmt.Errorf("bus: message type is missing")
 	}
 
-	if typ := msgType(binary.LittleEndian.Uint32(msg[0][:4])); typ != msgResponse {
+	switch typ := msgType(binary.LittleEndian.Uint32(msg[0][:4])); typ {
+	case msgResponse:
+	case msgStreamPayload:
+		return c.handleStreamPayload(msg)
+	case msgStreamFeedback:
+		return c.handleStreamFeedback(msg)
+	default:
 		c.log.Warnf("ignoring message of unexpected type: got %x, want %x", typ, msgResponse)
 		return nil
 	}
@@ -406,7 +450,11 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 
 	c.l.Lock()
 	req, ok := c.reqs[reqID]
-	delete(c.reqs, reqID)
+	// NB: Streaming requests are unregistered by the stream once both the response
+	// and the end of the server-to-client stream are received.
+	if ok && req.stream == nil {
+		delete(c.reqs, reqID)
+	}
 	c.l.Unlock()
 
 	if !ok {
@@ -455,6 +503,51 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 	return nil
 }
 
+func (c *ClientConn) findStream(reqID guid.GUID) *ClientStream {
+	c.l.Lock()
+	req, ok := c.reqs[reqID]
+	c.l.Unlock()
+
+	if !ok || req.stream == nil {
+		c.log.Debug("streaming request not found; ignoring", log.String("request_id", reqID.String()))
+		return nil
+	}
+	return req.stream
+}
+
+func (c *ClientConn) handleStreamPayload(msg [][]byte) error {
+	header, attachments, err := parseStreamingPayloadMsg(msg)
+	if err != nil {
+		return err
+	}
+
+	if s := c.findStream(misc.NewGUIDFromProto(header.RequestId)); s != nil {
+		s.handlePayload(header, attachments)
+	}
+	return nil
+}
+
+func (c *ClientConn) handleStreamFeedback(msg [][]byte) error {
+	header, err := parseStreamingFeedbackMsg(msg)
+	if err != nil {
+		return err
+	}
+
+	if s := c.findStream(misc.NewGUIDFromProto(header.RequestId)); s != nil {
+		s.handleFeedback(header)
+	}
+	return nil
+}
+
+func (c *ClientConn) enqueueStreamMsg(m streamMsg) error {
+	select {
+	case c.streamQueue <- m:
+		return nil
+	case <-c.stop:
+		return c.Err()
+	}
+}
+
 func (c *ClientConn) runReceiver() {
 	select {
 	case <-c.dialed:
@@ -488,27 +581,7 @@ func (c *ClientConn) Send(
 	request, reply proto.Message,
 	opts ...SendOption,
 ) error {
-	reqID := guid.New()
-	req := &clientReq{
-		id:      reqID,
-		request: request,
-		reply:   reply,
-
-		reqHeader: &rpc.TRequestHeader{
-			RequestId:            misc.NewProtoFromGUID(reqID),
-			Service:              &service,
-			Method:               &method,
-			ProtocolVersionMajor: &c.defaultProtocolVersionMajor,
-			UserAgent:            &ytGoClient,
-
-			RequestCodec:  &codecNone,
-			ResponseCodec: &codecNone,
-		},
-
-		acknowledgementTimeout: ptr.Duration(defaultAcknowledgementTimeout),
-
-		done: make(chan error, 1),
-	}
+	req := c.newClientReq(service, method, request, reply)
 
 	for _, opt := range opts {
 		opt.before(req)
@@ -597,6 +670,30 @@ loop:
 	}
 
 	return nil
+}
+
+func (c *ClientConn) newClientReq(service, method string, request, reply proto.Message) *clientReq {
+	reqID := guid.New()
+	return &clientReq{
+		id:      reqID,
+		request: request,
+		reply:   reply,
+
+		reqHeader: &rpc.TRequestHeader{
+			RequestId:            misc.NewProtoFromGUID(reqID),
+			Service:              &service,
+			Method:               &method,
+			ProtocolVersionMajor: &c.defaultProtocolVersionMajor,
+			UserAgent:            &ytGoClient,
+
+			RequestCodec:  &codecNone,
+			ResponseCodec: &codecNone,
+		},
+
+		acknowledgementTimeout: ptr.Duration(defaultAcknowledgementTimeout),
+
+		done: make(chan error, 1),
+	}
 }
 
 func (c *ClientConn) finishReq(req *clientReq) {
