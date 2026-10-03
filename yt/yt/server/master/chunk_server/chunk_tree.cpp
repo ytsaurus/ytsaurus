@@ -19,49 +19,49 @@ using namespace NChunkClient;
 
 TChunk* TChunkTree::AsChunk()
 {
-    YT_ASSERT(IsPhysicalChunkType(GetType()));
+    YT_VERIFY(IsPhysicalChunkType(GetType()));
     return As<TChunk>();
 }
 
 const TChunk* TChunkTree::AsChunk() const
 {
-    YT_ASSERT(IsPhysicalChunkType(GetType()));
+    YT_VERIFY(IsPhysicalChunkType(GetType()));
     return As<TChunk>();
 }
 
 TChunkView* TChunkTree::AsChunkView()
 {
-    YT_ASSERT(GetType() == EObjectType::ChunkView);
+    YT_VERIFY(IsChunkView());
     return As<TChunkView>();
 }
 
 const TChunkView* TChunkTree::AsChunkView() const
 {
-    YT_ASSERT(GetType() == EObjectType::ChunkView);
+    YT_VERIFY(IsChunkView());
     return As<TChunkView>();
 }
 
 TDynamicStore* TChunkTree::AsDynamicStore()
 {
-    YT_ASSERT(IsDynamicTabletStoreType(GetType()));
+    YT_VERIFY(IsDynamicTabletStoreType(GetType()));
     return As<TDynamicStore>();
 }
 
 const TDynamicStore* TChunkTree::AsDynamicStore() const
 {
-    YT_ASSERT(IsDynamicTabletStoreType(GetType()));
+    YT_VERIFY(IsDynamicTabletStoreType(GetType()));
     return As<TDynamicStore>();
 }
 
 TChunkList* TChunkTree::AsChunkList()
 {
-    YT_ASSERT(GetType() == EObjectType::ChunkList);
+    YT_VERIFY(IsChunkList());
     return As<TChunkList>();
 }
 
 const TChunkList* TChunkTree::AsChunkList() const
 {
-    YT_ASSERT(GetType() == EObjectType::ChunkList);
+    YT_VERIFY(IsChunkList());
     return As<TChunkList>();
 }
 
@@ -85,6 +85,16 @@ bool TChunkTree::GetOverlayed() const
     } else {
         return false;
     }
+}
+
+bool TChunkTree::IsChunkList() const
+{
+    return GetType() == EObjectType::ChunkList;
+}
+
+bool TChunkTree::IsChunkView() const
+{
+    return GetType() == EObjectType::ChunkView;
 }
 
 void TChunkTree::CheckInvariants(TBootstrap* bootstrap) const

@@ -62,7 +62,7 @@ public:
     const TChunkList* GetSnapshotHunkChunkList() const;
     const TChunkList* GetSnapshotChunkList(EChunkListContentType type) const;
 
-    const TChunkList* GetDeltaChunkList() const;
+    const TChunkList* GetAppendDeltaChunkList() const;
 
     const TChunkOwnerDataStatistics& DeltaStatistics() const;
     TChunkOwnerDataStatistics* MutableDeltaStatistics();

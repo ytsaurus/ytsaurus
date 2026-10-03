@@ -23,48 +23,21 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class F>
-void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child)
+void VisitUniqueAncestors(TChunkTree* chunkTree, F&& functor, TChunkTree* child)
 {
-    while (chunkList != nullptr) {
-        functor(chunkList, child);
-        const auto& parents = chunkList->Parents();
+    while (chunkTree) {
+        YT_VERIFY(chunkTree->IsChunkList());
+
+        functor(chunkTree, child);
+
+        TRange<TChunkTreeRawPtr> parents;
+        parents = chunkTree->AsChunkList()->Parents();
+
         if (parents.Empty())
             break;
         YT_VERIFY(parents.Size() == 1);
-        child = chunkList;
-        chunkList = *parents.begin();
-    }
-}
-
-template <class F>
-void VisitAncestors(TChunkList* chunkList, F functor)
-{
-    // BFS queue.
-    TCompactQueue<TChunkList*, 64> queue;
-
-    // Put seed into the queue.
-    queue.Push(chunkList);
-
-    // The main loop.
-    while (!queue.Empty()) {
-        auto* chunkList = queue.Pop();
-
-        // Fast lane: handle unique parents.
-        while (chunkList) {
-            functor(chunkList);
-            const auto& parents = chunkList->Parents();
-            if (parents.Size() != 1) {
-                break;
-            }
-            chunkList = *parents.begin();
-        }
-
-        if (chunkList) {
-            // Proceed to parents.
-            for (auto parent : chunkList->Parents()) {
-                queue.Push(parent);
-            }
-        }
+        child = chunkTree;
+        chunkTree = *parents.begin();
     }
 }
 
@@ -85,7 +58,7 @@ void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
     THashSet<TChunkListId> tabletChunkListIds;
 
     for (const auto& [chunkParent, _] : hunkChunk->Parents()) {
-        const auto& chunkList = chunkParent->AsChunkList();
+        auto* chunkList = chunkParent->AsChunkList();
 
         if (chunkList->GetKind() == EChunkListKind::Scratch) {
             // Scratch chunk list holds chunks without maintaining statistics; just skip it.
@@ -112,7 +85,7 @@ void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
         functor(chunkList, /*firstOccurrence*/ true);
 
         for (const auto& chunkListParent : chunkList->Parents()) {
-            const auto& rootChunkList = chunkListParent->AsChunkList();
+            auto* rootChunkList = chunkListParent->AsChunkList();
 
             if (!rootChunkList->IsHunkRoot()) {
                 YT_TLOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting hunk tree ancestors")

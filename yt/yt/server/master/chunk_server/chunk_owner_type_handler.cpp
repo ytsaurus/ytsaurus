@@ -362,7 +362,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     if (branchedMode == EUpdateMode::Overwrite) {
         if (!isExternal) {
             auto oldOriginatingChunkLists = originatingNode->GetChunkLists();
-            if (branchedChunkList->GetKind() == EChunkListKind::Static || !originatingNode->IsTrunk()) {
+            if (branchedChunkList->GetKind() == EChunkListKind::Static ||
+                !originatingNode->IsTrunk())
+            {
                 for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                     auto* originatingChunkList = originatingNode->GetChunkList(contentType);
                     auto* branchedChunkList = branchedNode->GetChunkList(contentType);
@@ -457,23 +459,23 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                                 chunkManager->AttachToChunkList(newOriginatingChunkList, {newOriginatingTabletChunkList});
 
                                 if (originatingMode == EUpdateMode::Append) {
-                                    auto newOriginatingDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
+                                    auto* newOriginatingAppendDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
 
                                     auto originatingAppendTabletChunkLists = originatingTabletChunkList->GetAppendTabletChunkLists();
 
                                     chunkManager->AttachToChunkList(
-                                        newOriginatingDeltaChunkList,
-                                        {originatingAppendTabletChunkLists.DeltaChunkList, appendTabletChunkLists.DeltaChunkList});
+                                        newOriginatingAppendDeltaChunkList,
+                                        {originatingAppendTabletChunkLists.AppendDeltaChunkList, appendTabletChunkLists.AppendDeltaChunkList});
 
                                     chunkManager->AttachToChunkList(
                                         newOriginatingTabletChunkList,
-                                        {originatingAppendTabletChunkLists.OriginatingChunkList, newOriginatingDeltaChunkList});
+                                        {originatingAppendTabletChunkLists.OriginatingChunkList, newOriginatingAppendDeltaChunkList});
                                 } else {
                                     YT_VERIFY(originatingMode == EUpdateMode::None);
 
                                     chunkManager->AttachToChunkList(
                                         newOriginatingTabletChunkList,
-                                        {originatingTabletChunkList, appendTabletChunkLists.DeltaChunkList});
+                                        {originatingTabletChunkList, appendTabletChunkLists.AppendDeltaChunkList});
                                 }
                             } else {
                                 // NB(dave11ar): We allow only one transaction to write in table.
@@ -499,7 +501,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     }
 
                     YT_VERIFY(branchedChunkList->Children().size() == 2);
-                    auto deltaChunkList = branchedChunkList->Children()[1];
+                    auto* appendDeltaChunkList = branchedChunkList->Children()[1]->AsChunkList();
 
                     auto* newOriginatingChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
 
@@ -511,16 +513,15 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         YT_VERIFY(!topmostCommit);
 
                         chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList->Children()[0]});
-                        auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
-                        chunkManager->AttachToChunkList(newOriginatingChunkList, {newDeltaChunkList});
-                        chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaChunkList});
+                        auto* newAppendDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
+                        chunkManager->AttachToChunkList(newOriginatingChunkList, {newAppendDeltaChunkList});
+                        chunkManager->AttachToChunkList(newAppendDeltaChunkList, {originatingChunkList->Children()[1], appendDeltaChunkList});
                     } else {
                         YT_VERIFY(originatingChunkList->GetKind() == EChunkListKind::Static);
-
-                        chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaChunkList});
+                        chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, appendDeltaChunkList});
 
                         if (requisitionUpdateNeeded) {
-                            chunkManager->ScheduleChunkRequisitionUpdate(deltaChunkList);
+                            chunkManager->ScheduleChunkRequisitionUpdate(appendDeltaChunkList);
                         }
                     }
                 }
@@ -545,7 +546,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
     }
 
-    if (topmostCommit && !isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
+    if (topmostCommit &&
+        !isExternal &&
+        branchedChunkList->GetKind() == EChunkListKind::Static)
+    {
         // Rebalance when the topmost transaction commits.
         // If chunk merger is disabled on table we should use strict mode for more frequent rebalancing.
         auto rebalanceMode = originatingNode->GetChunkMergerMode() == EChunkMergerMode::None

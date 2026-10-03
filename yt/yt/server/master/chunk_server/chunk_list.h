@@ -57,7 +57,7 @@ public:
     struct TAppendTabletChunkLists
     {
         TChunkList* OriginatingChunkList;
-        TChunkList* DeltaChunkList;
+        TChunkList* AppendDeltaChunkList;
     };
 
 public:
@@ -74,9 +74,9 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TRange<TChunkListRawPtr> Parents() const;
-    void AddParent(TChunkList* parent);
-    void RemoveParent(TChunkList* parent);
+    TRange<TChunkTreeRawPtr> Parents() const;
+    void AddParent(TChunkTree* parent);
+    void RemoveParent(TChunkTree* parent);
 
     TRange<TChunkOwnerBaseRawPtr> TrunkOwningNodes() const;
     TRange<TChunkOwnerBaseRawPtr> BranchedOwningNodes() const;
@@ -160,7 +160,7 @@ private:
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
-    TIndexedVector<TChunkListRawPtr> Parents_;
+    TIndexedVector<TChunkTreeRawPtr> Parents_;
     TIndexedVector<TChunkOwnerBaseRawPtr> TrunkOwningNodes_;
     TIndexedVector<TChunkOwnerBaseRawPtr> BranchedOwningNodes_;
 

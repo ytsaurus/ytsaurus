@@ -1201,7 +1201,7 @@ public:
         }
 
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
-            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto* chunkList = chunkTree->AsChunkList();
             if (chunkList->GetKind() != EChunkListKind::JournalRoot) {
                 continue;
             }
@@ -1225,7 +1225,7 @@ public:
         ScheduleChunkRefresh(chunk);
 
         for (auto [chunkTree, cardinality] : chunk->Parents()) {
-            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto* chunkList = chunkTree->AsChunkList();
             if (chunkList->GetKind() != EChunkListKind::JournalRoot) {
                 continue;
             }
@@ -1883,7 +1883,7 @@ public:
                 .With("RootId", chunklistId)
                 .With("Mode", settingsMode);
 
-            auto rebalanceStatistics = ChunkTreeBalancer_.Rebalance(chunkList);
+            auto rebalanceStatistics = ChunkTreeBalancer_.RebalanceStaticChunkListSubtree(chunkList);
             ChunkMerger_->TweakTraversalInfoAfterRebalance(chunkList, rebalanceStatistics);
 
             YT_TLOG_DEBUG("Chunk tree rebalancing completed")
@@ -6501,7 +6501,7 @@ private:
                     parent->Statistics().Accumulate(statisticsDelta);
 
                     for (auto grandparent : parent->Parents()) {
-                        chunkListQueue.push(grandparent);
+                        chunkListQueue.push(grandparent->AsChunkList());
                     }
                 }
             }
@@ -6590,7 +6590,7 @@ private:
                     parent->Statistics().Accumulate(statisticsDelta);
 
                     for (auto grandparent : parent->Parents()) {
-                        chunkListQueue.push(grandparent);
+                        chunkListQueue.push(grandparent->AsChunkList());
                     }
                 }
             }
@@ -7663,7 +7663,7 @@ private:
             return;
         }
 
-        auto* chunkList = GetUniqueParent(chunk)->As<TChunkList>();
+        auto* chunkList = GetUniqueParent(chunk)->AsChunkList();
         // A scratch chunk list keeps no statistics, so a sealed child requires no propagation (and
         // calling GetStatistics on a hunk-format chunk would even alert).
         if (!chunkList->HasStatistics()) {

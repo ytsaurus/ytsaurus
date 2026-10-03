@@ -289,9 +289,21 @@ public:
             auto* chunkTree = TraversalStack_.back();
             TraversalStack_.pop_back();
 
+            auto visitChunkTreeParents = [&] (const auto& parents) {
+                for (auto parent : parents) {
+                    auto result = VisitChunkAncestorOnPrepare(
+                        parent,
+                        &traversalState);
+                    if (result != EReincarnationResult::OK) {
+                        return result;
+                    }
+                }
+                return EReincarnationResult::OK;
+            };
+
             switch (chunkTree->GetType()) {
                 case EObjectType::Chunk: [[fallthrough]];
-                case EObjectType::ErasureChunk:
+                case EObjectType::ErasureChunk: {
                     for (auto [parent, refCounter] : chunk->Parents()) {
                         auto result = VisitChunkAncestorOnPrepare(
                             parent,
@@ -301,23 +313,24 @@ public:
                         }
                     }
                     break;
+                }
 
-                case EObjectType::ChunkList:
-                case EObjectType::ChunkView: {
-                    auto parents = chunkTree->GetType() == EObjectType::ChunkList
-                        ? chunkTree->AsChunkList()->Parents()
-                        : TRange(chunkTree->AsChunkView()->Parents());
-
-                    for (auto parent : parents) {
-                        auto result = VisitChunkAncestorOnPrepare(
-                            parent,
-                            &traversalState);
-                        if (result != EReincarnationResult::OK) {
-                            return result;
-                        }
+                case EObjectType::ChunkList: {
+                    auto result = visitChunkTreeParents(chunkTree->AsChunkList()->Parents());
+                    if (result != EReincarnationResult::OK) {
+                        return result;
                     }
                     break;
                 }
+
+                case EObjectType::ChunkView: {
+                    auto result = visitChunkTreeParents(chunkTree->AsChunkView()->Parents());
+                    if (result != EReincarnationResult::OK) {
+                        return result;
+                    }
+                    break;
+                }
+
                 default:
                     // Other chunk tree types are handled in |VisitChunkAncestorOnPrepare|.
                     YT_TLOG_FATAL("Unexpected chunk tree type")
@@ -358,10 +371,6 @@ public:
         chunkParents.reserve(oldChunk->Parents().size());
 
         for (auto [parent, cardinality] : oldChunk->Parents()) {
-            YT_VERIFY(
-                parent->GetType() == EObjectType::ChunkList ||
-                parent->GetType() == EObjectType::ChunkView);
-
             chunkParents.push_back({parent->AsChunkList(), cardinality});
         }
 
@@ -386,26 +395,37 @@ public:
             auto* chunkTree = TraversalStack_.back();
             TraversalStack_.pop_back();
 
-            TRange<TChunkListRawPtr> parents;
+            auto visitChunkTreeParents = [&] (const auto& parents) {
+                for (auto parent : parents) {
+                    VisitChunkAncestorOnCommit(parent);
+                }
+            };
 
-            if (chunkTree->GetType() == EObjectType::ChunkList) {
-                auto* chunkList = chunkTree->AsChunkList();
-                RecomputeChunkListStatistics(chunkList);
-                parents = chunkList->Parents();
+            switch (chunkTree->GetType()) {
+                case EObjectType::ChunkList: {
+                    auto* chunkList = chunkTree->AsChunkList();
+                    RecomputeChunkListStatistics(chunkList);
 
-                for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()}) {
-                    for (auto owner : owners) {
-                        if (owner->GetType() == EObjectType::Table) {
-                            RecomputeTabletStatistics(owner->As<TTableNode>());
+                    for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()}) {
+                        for (auto owner : owners) {
+                            if (owner->GetType() == EObjectType::Table) {
+                                RecomputeTabletStatistics(owner->As<TTableNode>());
+                            }
                         }
                     }
-                }
-            } else {
-                parents = chunkTree->AsChunkView()->Parents();
-            }
 
-            for (auto parent : parents) {
-                VisitChunkAncestorOnCommit(parent);
+                    visitChunkTreeParents(chunkList->Parents());
+                    break;
+                }
+
+                case EObjectType::ChunkView: {
+                    visitChunkTreeParents(chunkTree->AsChunkView()->Parents());
+                    break;
+                }
+
+                default:
+                    YT_TLOG_FATAL("Unexpected chunk tree type")
+                        .With("Type", chunkTree->GetType());
             }
         }
     }
@@ -466,7 +486,7 @@ private:
                     }
                 }
             }
-        } else if (parent->GetType() != EObjectType::ChunkView) {
+        } else if (!parent->IsChunkView()) {
             YT_TLOG_FATAL("Unexpected chunk ancestor type")
                 .With("Type", parent->GetType())
                 .With("ChunkId", ChunkId_);
@@ -479,13 +499,13 @@ private:
         return EReincarnationResult::OK;
     }
 
-    void VisitChunkAncestorOnCommit(TChunkList* chunkList)
+    void VisitChunkAncestorOnCommit(TChunkTree* chunkTree)
     {
-        auto it = NotVisitedChildrenCounts_.find(chunkList);
+        auto it = NotVisitedChildrenCounts_.find(chunkTree);
         YT_VERIFY(it != NotVisitedChildrenCounts_.end());
 
         if (--it->second == 0) {
-            TraversalStack_.push_back(chunkList);
+            TraversalStack_.push_back(chunkTree);
             NotVisitedChildrenCounts_.erase(it);
         }
     }

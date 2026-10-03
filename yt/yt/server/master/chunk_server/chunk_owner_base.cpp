@@ -245,7 +245,7 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType ty
     }
 }
 
-const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
+const TChunkList* TChunkOwnerBase::GetAppendDeltaChunkList() const
 {
     const auto* chunkList = GetChunkList();
     if (!chunkList) {
@@ -428,7 +428,7 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
     TChunkOwnerDataStatistics updateStatistics;
     switch (UpdateMode_) {
         case EUpdateMode::Append:
-            if (auto* chunkList = GetDeltaChunkList()) {
+            if (auto* chunkList = GetAppendDeltaChunkList()) {
                 updateStatistics = chunkList->Statistics().ToDataStatistics();
             }
             break;
