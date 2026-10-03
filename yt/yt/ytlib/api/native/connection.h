@@ -269,6 +269,9 @@ struct TConnectionOptions
 
     EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 
+    //! If false, a dummy chaos cell directory synchronizer doing nothing is created instead.
+    bool CreateChaosCellDirectorySynchronizer = true;
+
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;
 };

@@ -8,6 +8,7 @@
 #include "chaos_cell_type_handler.h"
 #include "chaos_cell_bundle.h"
 #include "chaos_cell_bundle_type_handler.h"
+#include "chaos_manager_cell_directory_synchronizer.h"
 #include "chaos_replicated_table_node.h"
 #include "chaos_replicated_table_node_type_handler.h"
 #include "private.h"
@@ -29,6 +30,8 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
@@ -42,6 +45,7 @@ using namespace NCellServer;
 using namespace NTransactionServer;
 using namespace NCypressServer;
 using namespace NCellarClient;
+using namespace NHiveClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -55,6 +59,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto static& Logger = ChaosServerLogger;
+constexpr auto DefaultCellDirectorySynchronizerErrorDelay = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +72,10 @@ public:
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ChaosManager)
         , AlienClusterRegistry_(New<TAlienClusterRegistry>())
         , AlienCellSynchronizer_(CreateAlienCellSynchronizer(bootstrap))
+        , ChaosManagerCellDirectorySynchronizer_(CreateChaosManagerCellDirectorySynchronizer(
+            Bootstrap_->GetClusterConnection()->GetCellDirectory(),
+            Logger(),
+            DefaultCellDirectorySynchronizerErrorDelay))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
@@ -105,7 +114,9 @@ public:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeCellCreated(BIND_NO_PROPAGATE(&TChaosManager::OnCellCreated, MakeWeak(this)));
+        cellManager->SubscribeCellReconfigured(BIND_NO_PROPAGATE(&TChaosManager::OnCellReconfigured, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TChaosManager::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqCreateReplicationCard>({
@@ -258,6 +269,8 @@ private:
 
     const TAlienClusterRegistryPtr AlienClusterRegistry_;
     const IAlienCellSynchronizerPtr AlienCellSynchronizer_;
+    const IChaosManagerCellDirectorySynchronizerPtr ChaosManagerCellDirectorySynchronizer_;
+
     THashSet<std::string> EnabledMetadataClusters_;
 
     //! Contains native trunk nodes for which IsQueue() is true.
@@ -394,8 +407,18 @@ private:
                 alienClusterIndexes.insert(alienClusterIndex);
             }
         }
+
         for (auto alienClusterIndex : alienClusterIndexes) {
             cell->SetAlienConfigVersion(alienClusterIndex, 0);
+        }
+
+        ScheduleCellDirectoryUpdate(cell->GetDescriptor());
+    }
+
+    void OnCellReconfigured(TCellBase* cellBase)
+    {
+        if (cellBase->GetType() == EObjectType::ChaosCell && IsObjectAlive(cellBase)) {
+            ScheduleCellDirectoryUpdate(cellBase->GetDescriptor());
         }
     }
 
@@ -410,6 +433,34 @@ private:
         cellBase->GossipStatus().Local().Decommissioned = true;
     }
 
+    void OnAfterCellManagerSnapshotLoaded()
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& chaosCells = cellManager->Cells(ECellarType::Chaos);
+
+        std::vector<TCellDescriptor> knownCellDescriptors;
+        knownCellDescriptors.reserve(chaosCells.size());
+        for (const auto* cell : chaosCells) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+
+            knownCellDescriptors.push_back(cell->GetDescriptor());
+        }
+
+        ScheduleCellDirectoryUpdate(std::move(knownCellDescriptors));
+    }
+
+    void ScheduleCellDirectoryUpdate(TCellDescriptor cellDescriptor) const
+    {
+        ChaosManagerCellDirectorySynchronizer_->AddCellDescriptor(std::move(cellDescriptor));
+    }
+
+    void ScheduleCellDirectoryUpdate(std::vector<TCellDescriptor> cellDescriptors) const
+    {
+        ChaosManagerCellDirectorySynchronizer_->AddCellDescriptors(std::move(cellDescriptors));
+    }
+
     void HydraUpdateAlienCellPeers(NProto::TReqUpdateAlienCellPeers* request)
     {
         auto constellations = FromProto<std::vector<TAlienCellConstellation>>(request->constellations());
@@ -418,6 +469,8 @@ private:
         if (fullSync) {
             EnabledMetadataClusters_.clear();
         }
+
+        std::vector<TCellDescriptor> updatedCellDescriptors;
 
         for (const auto& [alienClusterIndex, alienCells, lostAlienCellIds, enableMetadataCells] : constellations) {
             const auto& clusterName = AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex);
@@ -463,6 +516,7 @@ private:
                 }
 
                 cell->SetAlienConfigVersion(alienClusterIndex, alienCell.ConfigVersion);
+                updatedCellDescriptors.push_back(cell->GetDescriptor());
             }
 
             if (fullSync) {
@@ -485,6 +539,7 @@ private:
                         .With("AlienCluster", clusterName);
 
                     cell->SetAlienConfigVersion(alienClusterIndex, 0);
+                    updatedCellDescriptors.push_back(cell->GetDescriptor());
                 }
             }
         }
@@ -493,6 +548,8 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(*request);
         }
+
+        ScheduleCellDirectoryUpdate(std::move(updatedCellDescriptors));
     }
 
     void HydraReplicateAlienClusterRegistry(NProto::TReqReplicateAlienClusterRegistry* request)
@@ -591,6 +648,7 @@ private:
 
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
+        ChaosManagerCellDirectorySynchronizer_->Reconfigure(config->CellDirectorySynchronizerErrorDelay);
     }
 
     void Clear() override
@@ -641,6 +699,7 @@ private:
     {
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
+        ChaosManagerCellDirectorySynchronizer_->Reconfigure(config->CellDirectorySynchronizerErrorDelay);
     }
 };
 

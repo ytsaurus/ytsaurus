@@ -153,6 +153,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TArea* area), AreaDestroyed);
     DEFINE_SIGNAL_OVERRIDE(void(TArea* area), AreaNodeTagFilterChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TCellBase* cell), CellCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellBase* cell), CellReconfigured);
     DEFINE_SIGNAL_OVERRIDE(void(TCellBase* cell), CellDecommissionStarted);
     DEFINE_SIGNAL_OVERRIDE(void(), CellPeersAssigned);
     DEFINE_SIGNAL_OVERRIDE(void(), AfterSnapshotLoaded);
@@ -1974,8 +1975,9 @@ private:
             revokedPeers.push_back(peerId);
         }
 
+        auto revokeReason = FromProto<TError>(request->reason());
         for (auto peerId : revokedPeers) {
-            DoRevokePeer(cell, peerId, FromProto<TError>(request->reason()));
+            DoRevokePeer(cell, peerId, revokeReason);
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -2116,6 +2118,8 @@ private:
         YT_TLOG_DEBUG("Cell reconfigured")
             .With("CellId", cell->GetId())
             .With("Version", cell->GetConfigVersion());
+
+        CellReconfigured_.Fire(cell);
     }
 
     void ReconfigureCellBundle(TCellBundle* cellBundle)

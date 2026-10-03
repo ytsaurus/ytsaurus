@@ -147,6 +147,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_cell.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_manager_cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node_type_handler.cpp

@@ -74,6 +74,7 @@ SRCS(
     chaos_server/chaos_cell_proxy.cpp
     chaos_server/chaos_cell_type_handler.cpp
     chaos_server/chaos_cell.cpp
+    chaos_server/chaos_manager_cell_directory_synchronizer.cpp
     chaos_server/chaos_manager.cpp
     chaos_server/chaos_replicated_table_node_proxy.cpp
     chaos_server/chaos_replicated_table_node_type_handler.cpp
