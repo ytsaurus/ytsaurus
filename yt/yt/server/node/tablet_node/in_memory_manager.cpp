@@ -7,7 +7,6 @@
 #include "private.h"
 #include "slot_manager.h"
 #include "smooth_movement_tracker.h"
-#include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet.h"
@@ -42,8 +41,6 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
-
-#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -475,33 +472,6 @@ IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<i64> GetEstimatedBlockRangeSize(
-    bool enablePreliminaryNetworkThrottling,
-    const TCachedVersionedChunkMetaPtr& meta,
-    int startBlockIndex,
-    int blocksCount)
-{
-    if (!enablePreliminaryNetworkThrottling) {
-        return {};
-    }
-
-    const auto& metaMisc = meta->Misc();
-    if (metaMisc.compressed_data_size() == 0 || metaMisc.uncompressed_data_size() == 0) {
-        return {};
-    }
-
-    i64 uncompressedSize = 0;
-    const auto& dataBlockMeta = meta->DataBlockMeta();
-    for (int index = startBlockIndex; index < startBlockIndex + blocksCount; ++index) {
-        uncompressedSize += dataBlockMeta->data_blocks(index).uncompressed_size();
-    }
-
-    auto compressionRatio = static_cast<double>(metaMisc.compressed_data_size()) / metaMisc.uncompressed_data_size();
-    return uncompressedSize * compressionRatio;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
@@ -569,52 +539,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     auto dataBlockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
 
-    int commonKeyPrefix = GetCommonKeyPrefix(
-        versionedChunkMeta->ChunkSchema()->GetKeyColumns(),
-        tabletSnapshot->PhysicalSchema->GetKeyColumns());
-
-    // Expected to be equal for dynamic tables.
-    YT_VERIFY(commonKeyPrefix == versionedChunkMeta->ChunkSchema()->GetKeyColumnCount());
-
-    auto sortOrders = GetSortOrders(tabletSnapshot->PhysicalSchema->GetSortColumns());
-
-    int startBlockIndex;
-    int endBlockIndex;
-
-    // TODO(ifsmirnov): support columnar chunks (YT-11707).
-    bool canDeduceBlockRange =
-        format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
-        format == EChunkFormat::TableVersionedSimple;
-
-    if (store->IsSorted() && canDeduceBlockRange) {
-        auto sortedStore = store->AsSortedChunk();
-        auto lowerBound = std::max(tabletSnapshot->PivotKey, sortedStore->GetMinKey());
-        auto upperBound = std::min(tabletSnapshot->NextPivotKey, sortedStore->GetUpperBoundKey());
-
-        const auto& blockLastKeys = versionedChunkMeta->BlockLastKeys();
-
-        YT_VERIFY(dataBlockCount == std::ssize(blockLastKeys));
-
-        startBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
-            return !TestKeyWithWidening(
-                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                ToKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
-                sortOrders);
-        });
-
-        endBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
-            return TestKeyWithWidening(
-                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                ToKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
-                sortOrders);
-        });
-        if (endBlockIndex < dataBlockCount) {
-            ++endBlockIndex;
-        }
-    } else {
-        startBlockIndex = 0;
-        endBlockIndex = dataBlockCount;
-    }
+    int startBlockIndex = 0;
+    int endBlockIndex = dataBlockCount;
 
     i64 preallocatedMemory = 0;
     i64 compressedDataSize = 0;
@@ -658,11 +584,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     std::vector<NChunkClient::TBlock> blocks;
     blocks.reserve(endBlockIndex - startBlockIndex);
 
-    auto preThrottledBytes = GetEstimatedBlockRangeSize(
-        enablePreliminaryNetworkThrottling,
-        versionedChunkMeta,
-        startBlockIndex,
-        endBlockIndex - startBlockIndex);
+    std::optional<i64> preThrottledBytes;
+    if (enablePreliminaryNetworkThrottling && miscExt.compressed_data_size() > 0) {
+        preThrottledBytes = miscExt.compressed_data_size();
+    }
 
     if (preThrottledBytes) {
         YT_TLOG_DEBUG("Preliminary throttling of network bandwidth for preload")
