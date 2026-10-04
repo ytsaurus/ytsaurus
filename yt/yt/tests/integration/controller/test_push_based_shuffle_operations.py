@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE
 
 from yt_commands import (
-    abandon_job, abort_job, authors, create, create_account, create_domestic_medium, create_tmpdir, get, ls,
+    abandon_job, abort_job, authors, create, create_account, create_tmpdir, get, ls,
     map_reduce, raises_yt_error, read_table, release_breakpoint, set_account_disk_space_limit, set_nodes_banned,
     sort, wait, wait_breakpoint, with_breakpoint, write_table)
 
@@ -699,24 +699,20 @@ class TestPushBasedShuffleIntermediateAccountAndMedium(TestPushBasedShuffleBase)
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 2
 
     ACCOUNT = "push_based_shuffle"
     MEDIUM = "push_based_shuffle"
+
+    MEDIUM_CONFIG = {
+        "default": {},
+        MEDIUM: {},
+    }
 
     SCHEMA = make_schema(
         [{"name": "key", "type": "string", "sort_order": "ascending"}],
         strict=True,
         unique_keys=False,
     )
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.MEDIUM
-
-    @classmethod
-    def on_masters_started(cls):
-        create_domestic_medium(cls.MEDIUM)
 
     @staticmethod
     def _get_journal_chunk_requisitions():
