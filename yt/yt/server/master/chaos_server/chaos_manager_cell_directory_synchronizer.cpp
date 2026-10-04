@@ -142,7 +142,7 @@ private:
     {
         YT_TLOG_DEBUG("Start chaos manager cell directory synchronizer iteration");
 
-        int previousIterationCellCount = cellDescriptorsMap->size();
+        int previousIterationCellCount = std::ssize(*cellDescriptorsMap);
         int incomingCellCount = -1;
 
         {
