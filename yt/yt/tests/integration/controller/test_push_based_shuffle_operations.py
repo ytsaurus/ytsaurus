@@ -439,7 +439,7 @@ class TestPushBasedShuffleStreaming(TestPushBasedShuffleKeyValueBase):
 
     @staticmethod
     def _get_intermediate_sort_job_counter(op):
-        for task in get(op.get_path() + "/@progress/tasks"):
+        for task in get(op.get_path() + "/@progress/tasks", default=[]):
             if task["task_name"] == "intermediate_sort":
                 return task["job_counter"]
         return None
