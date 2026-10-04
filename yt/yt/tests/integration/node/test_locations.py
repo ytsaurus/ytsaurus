@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 from yt_commands import (
     authors, read_table, wait, wait_no_assert, ls, set, get, map, update_nodes_dynamic_config, create,
-    write_file, write_table, merge, create_domestic_medium, exists,
+    write_file, write_table, merge, exists,
     set_account_disk_space_limit, get_account_disk_space_limit, remove,
     run_test_vanilla)
 
@@ -24,12 +24,10 @@ class TestLocationMisconfigured(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 2
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-        config["data_node"]["store_locations"][1]["medium_name"] = "test"
+    MEDIUM_CONFIG = {
+        "default": {},
+        "test": {"create_at_master": False},
+    }
 
     @authors("don-dron")
     def test_location_medium_misconfigured(self):
@@ -52,7 +50,6 @@ class TestDisableCacheLocation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 1
 
     def teardown_method(self, method):
         chunk_cache = self.Env.configs["node"][0]["data_node"]["cache_locations"][0]["path"]
@@ -239,34 +236,20 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
     ENABLE_MULTIDAEMON = False
     NUM_MASTERS = 1
     NUM_NODES = 1
-    STORE_LOCATION_COUNT = 10
+    MEDIUM_CONFIG = {f"hdd{i}": {} for i in range(10)}
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
 
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
-        for i in range(cls.STORE_LOCATION_COUNT):
-            set_account_disk_space_limit("tmp", disk_space_limit, medium=f"hdd{i}")
+        for medium_name in cls.MEDIUM_CONFIG:
+            set_account_disk_space_limit("tmp", disk_space_limit, medium=medium_name)
 
     @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == cls.STORE_LOCATION_COUNT
-
-        for i in range(cls.STORE_LOCATION_COUNT):
-            config["data_node"]["store_locations"][i]["medium_name"] = f"hdd{i}"
-
-    @classmethod
-    def on_masters_started(cls):
-        for i in range(cls.STORE_LOCATION_COUNT):
-            create_domestic_medium(f"hdd{i}")
-
-    @classmethod
-    def create_chunk_on_every_medium(self):
-        # Create chunk on every medium.
-        for i in range(self.STORE_LOCATION_COUNT):
+    def create_chunk_on_every_medium(cls):
+        for i, medium_name in enumerate(cls.MEDIUM_CONFIG):
             table_path = f"//tmp/t{i}"
-            medium_name = f"hdd{i}"
             create("table", table_path, recursive=True, attributes={
                 "replication_factor": 1,
                 "primary_medium": medium_name,
@@ -275,13 +258,13 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
             write_table(table_path, [{"key": "value"}])
 
     @classmethod
-    def check_chunk_on_every_medium(self):
-        for i in range(self.STORE_LOCATION_COUNT):
-            assert get(f"//tmp/t{i}/@primary_medium") == f"hdd{i}"
+    def check_chunk_on_every_medium(cls):
+        for i, medium_name in enumerate(cls.MEDIUM_CONFIG):
+            assert get(f"//tmp/t{i}/@primary_medium") == medium_name
 
     @classmethod
-    def remove_chunks_on_every_medium(self):
-        for i in range(self.STORE_LOCATION_COUNT):
+    def remove_chunks_on_every_medium(cls):
+        for i, _ in enumerate(cls.MEDIUM_CONFIG):
             remove(f"//tmp/t{i}")
 
     @authors("grphil")
@@ -454,9 +437,12 @@ class TestAsyncTrashLoad(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 1
 
     MEDIUM_NAME = "test_async_trash_load"
+
+    MEDIUM_CONFIG = {
+        MEDIUM_NAME: {},
+    }
 
     PATCHED_NODE_CONFIGS = []
 
@@ -468,18 +454,11 @@ class TestAsyncTrashLoad(YTEnvSetup):
         set_account_disk_space_limit("tmp", disk_space_limit, medium=cls.MEDIUM_NAME)
 
     @classmethod
-    def on_masters_started(cls):
-        create_domestic_medium(cls.MEDIUM_NAME)
-
-    @classmethod
     def modify_node_config(cls, config, cluster_index):
         cls.PATCHED_NODE_CONFIGS.append(config)
 
-        assert len(config["data_node"]["store_locations"]) == cls.STORE_LOCATION_COUNT
-
-        for i in range(cls.STORE_LOCATION_COUNT):
-            config["data_node"]["store_locations"][i]["trash_check_period"] = 10000
-            config["data_node"]["store_locations"][i]["medium_name"] = cls.MEDIUM_NAME
+        for store_location in config["data_node"]["store_locations"]:
+            store_location["trash_check_period"] = 10000
 
     @authors("vvshlyaga")
     def test_async_trash_load(self):
@@ -519,8 +498,7 @@ class TestAsyncTrashLoad(YTEnvSetup):
 
         with Restarter(self.Env, NODES_SERVICE):
             for node_config in self.PATCHED_NODE_CONFIGS:
-                for i in range(self.STORE_LOCATION_COUNT):
-                    node_config["data_node"]["enable_trash_scanning_barrier"] = True
+                node_config["data_node"]["enable_trash_scanning_barrier"] = True
             self.Env.rewrite_node_configs()
 
         time.sleep(10)
@@ -559,7 +537,6 @@ class CacheLocationOverflowBase(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
-    STORE_LOCATION_COUNT = 1
 
     _VOLUME_SIZE = 10 * 1024 * 1024
 

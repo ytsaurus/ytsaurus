@@ -6,7 +6,7 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
     lookup_rows, raises_yt_error, select_rows, generate_uuid, set_node_banned,
-    with_breakpoint, wait_breakpoint, release_breakpoint, get_job, create_domestic_medium,
+    with_breakpoint, wait_breakpoint, release_breakpoint, get_job,
     get_account_disk_space_limit, set_account_disk_space_limit, ls)
 
 from yt_helpers import profiler_factory
@@ -1930,20 +1930,15 @@ class TestHunkChunkReplicaPrefetchOnSeparateMedium(DynamicTablesBase):
 
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 1
 
     HUNK_MEDIUM = "hunk_medium"
     HUNK_NODE_INDEX = 0
 
-    @classmethod
-    def on_masters_started(cls):
-        super(TestHunkChunkReplicaPrefetchOnSeparateMedium, cls).on_masters_started()
-        create_domestic_medium(cls.HUNK_MEDIUM)
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        if config["cypress_annotations"]["yt_env_index"] == cls.HUNK_NODE_INDEX:
-            config["data_node"]["store_locations"][0]["medium_name"] = cls.HUNK_MEDIUM
+    # NB: node #HUNK_NODE_INDEX comes first; a comprehension would not see the names of the class body.
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": dict.fromkeys(range(HUNK_NODE_INDEX + 1, NUM_NODES), 1)},
+        HUNK_MEDIUM: {"locations_per_node": {HUNK_NODE_INDEX: 1}},
+    }
 
     @classmethod
     def setup_class(cls):

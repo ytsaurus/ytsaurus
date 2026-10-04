@@ -3,7 +3,6 @@ from yt.wrapper.testlib.helpers import wait
 
 from yt_commands import (
     create_account,
-    create_domestic_medium,
     create_network_project,
     create_pool,
     create_user,
@@ -48,21 +47,19 @@ class TestResourceUsage(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
 
-    STORE_LOCATION_COUNT = 2
     DEFAULT_MEDIUM = "default"
     TEST_MEDIUM = "test_medium"
+
+    MEDIUM_CONFIG = {
+        DEFAULT_MEDIUM: {},
+        TEST_MEDIUM: {},
+    }
 
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
     NUM_TEST_PARTITIONS = 2
     CLASS_TEST_LIMIT = 24 * 60
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-        config["data_node"]["store_locations"][0]["medium_name"] = cls.DEFAULT_MEDIUM
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.TEST_MEDIUM
 
     def setup_method(self, method: str):
         super(TestResourceUsage, self).setup_method(method)
@@ -87,8 +84,6 @@ class TestResourceUsage(YTEnvSetup):
         )
         if not exists("//sys/users/test_user"):
             create_user("test_user")
-        if not exists(f"//sys/media/{self.TEST_MEDIUM}"):
-            create_domestic_medium(self.TEST_MEDIUM)
         if not exists("//sys/accounts/test_account"):
             create_account("test_account")
         set(

@@ -6,7 +6,7 @@ from yt_commands import (
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue, sort,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
+    write_journal, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state,
     freeze_table, unmount_table)
 
@@ -3504,7 +3504,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 class TestDynamicTablesHunkMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 10
-    STORE_LOCATION_COUNT = 3
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "tablet_node": {
@@ -3519,6 +3518,12 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
     NON_DEFAULT_MEDIUM_1 = "hdd1"
     NON_DEFAULT_MEDIUM_2 = "hdd2"
 
+    MEDIUM_CONFIG = {
+        "default": {},
+        NON_DEFAULT_MEDIUM_1: {},
+        NON_DEFAULT_MEDIUM_2: {},
+    }
+
     SORTED_SCHEMA = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "string", "max_inline_hunk_size": 10},
@@ -3528,20 +3533,6 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         {"name": "key", "type": "int64"},
         {"name": "value", "type": "string", "max_inline_hunk_size": 10},
     ]
-
-    @classmethod
-    def on_masters_started(cls):
-        super(TestDynamicTablesHunkMedia, cls).on_masters_started()
-        create_domestic_medium(cls.NON_DEFAULT_MEDIUM_1)
-        create_domestic_medium(cls.NON_DEFAULT_MEDIUM_2)
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 3
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM_1
-        config["data_node"]["store_locations"][2]["medium_name"] = cls.NON_DEFAULT_MEDIUM_2
 
     @classmethod
     def setup_class(cls):

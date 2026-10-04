@@ -4,7 +4,7 @@ import stat
 from typing import List, Dict, Generator
 
 from .conftest import authors, yt_env_multicluster_v4  # noqa
-from .helpers import (TEST_DIR, wait, get_default_resource_limits,
+from .helpers import (TEST_DIR, CUSTOM_MEDIUM, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
@@ -2230,13 +2230,10 @@ class TestFileConfig:
 
 
 @authors("ignat")
-@pytest.mark.usefixtures("yt_env_additional_media")
+@pytest.mark.usefixtures("yt_env_custom_medium")
 class TestMedia:
     def test_simple(self):
-        yt.create("domestic_medium", attributes={"name": "custom_medium"})
-        yt.create("file", "//tmp/test_file", attributes={"primary_medium": "custom_medium"})
-
-        yt.set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/custom_medium", 10 * 1024**3)
+        yt.create("file", "//tmp/test_file", attributes={"primary_medium": CUSTOM_MEDIUM})
 
         FILE_PAYLOAD = b"PAYLOAD"
         yt.write_file("//tmp/test_file", FILE_PAYLOAD)
