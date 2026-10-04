@@ -95,6 +95,8 @@ class LocalYtConfig(object):
     node_network_names = attr.ib(factory=lambda: ["default"])
     job_proxy_log_location_count = attr.ib(1)
     store_location_count = attr.ib(1)
+    # Media of the store locations, position-wise; implies the location count.
+    store_location_media = attr.ib(None)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
     # COMPAT(pogorelov)

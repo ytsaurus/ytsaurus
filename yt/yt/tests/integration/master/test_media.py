@@ -21,10 +21,15 @@ class TestMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 10
-    STORE_LOCATION_COUNT = 3
 
     NON_DEFAULT_MEDIUM = "hdd1"
     NON_DEFAULT_TRANSIENT_MEDIUM = "hdd2"
+
+    MEDIUM_CONFIG = {
+        "default": {},
+        NON_DEFAULT_MEDIUM: {},
+        NON_DEFAULT_TRANSIENT_MEDIUM: {"master_attributes": {"transient": True}},
+    }
 
     S3_MEDIUM_CONFIG = {
         "url": "http://yt.s3.amazonaws.com",
@@ -44,17 +49,7 @@ class TestMedia(YTEnvSetup):
         set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM)
 
     @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 3
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM
-        config["data_node"]["store_locations"][2]["medium_name"] = cls.NON_DEFAULT_TRANSIENT_MEDIUM
-
-    @classmethod
     def on_masters_started(cls):
-        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
-        create_domestic_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
         while medium_count < 119:
             create_domestic_medium("hdd" + str(medium_count))
@@ -720,7 +715,9 @@ class TestDynamicMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
-    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {
+        "default": {"locations_per_node": 2},
+    }
 
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
@@ -761,13 +758,6 @@ class TestDynamicMedia(YTEnvSetup):
     def _set_medium_override_and_wait(self, location, medium):
         set(f"//sys/chunk_locations/{location}/@medium_override", medium)
         wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = "default"
 
     def _get_locations(self, node):
         return {

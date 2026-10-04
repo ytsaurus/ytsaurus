@@ -75,6 +75,18 @@ _MR_PORTO_LAYER_FILES = {
 }
 ROOTFS_LAYER_PATH = _MR_PORTO_LAYER_DIR + "/" + _MR_PORTO_LAYER_FILES["default_layer_path"]
 
+_DEFAULT_MEDIUM_NAME = "default"
+_DEFAULT_MEDIUM_CONFIG = {
+    _DEFAULT_MEDIUM_NAME: {},
+}
+# Settings of a MEDIUM_CONFIG entry; "locations_per_node" is either a count for every node or a
+# {node index: count} mapping, the nodes it omits holding none of that medium.
+_MEDIUM_SETTING_DEFAULTS = {
+    "locations_per_node": 1,
+    "create_at_master": True,
+    "master_attributes": {},
+}
+
 ##################################################################
 
 
@@ -360,7 +372,12 @@ class YTEnvSetup(object):
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
-    STORE_LOCATION_COUNT = 1
+    # Store location media of the primary cluster, laid out over the locations in declaration order;
+    # the settings are optional, see _MEDIUM_SETTING_DEFAULTS. An asymmetric layout spells out the
+    # per-node counts of every medium involved, including the default one; each node must end up with
+    # the same number of locations. A remote or ground cluster keeps the default medium unless it
+    # declares a MEDIUM_CONFIG_REMOTE_<i> / MEDIUM_CONFIG_GROUND of its own.
+    MEDIUM_CONFIG = _DEFAULT_MEDIUM_CONFIG
     JOB_PROXY_LOG_LOCATION_COUNT = 1
     ARTIFACT_COMPONENTS = {}
     EXTRA_ARTIFACT_COMPONENTS = None
@@ -633,6 +650,126 @@ class YTEnvSetup(object):
         return getattr(cls, actual_name)
 
     @classmethod
+    def get_declared_medium_config(cls, cluster_index):
+        param_name = cls._get_param_real_name("MEDIUM_CONFIG", cluster_index)
+        # Only the primary cluster inherits the bare MEDIUM_CONFIG: a remote or ground cluster that
+        # declares none of its own keeps the default medium, so no media are created there.
+        if cluster_index != 0 and param_name == "MEDIUM_CONFIG":
+            return _DEFAULT_MEDIUM_CONFIG
+        return getattr(cls, param_name)
+
+    @classmethod
+    def validate_medium_config(cls, cluster_index):
+        medium_config = cls.get_declared_medium_config(cluster_index)
+        assert medium_config, "MEDIUM_CONFIG must declare at least one medium"
+
+        for medium_name, settings in medium_config.items():
+            assert isinstance(settings, dict), \
+                f"Medium {medium_name!r} settings must be a dict"
+            unknown_settings = settings.keys() - _MEDIUM_SETTING_DEFAULTS.keys()
+            assert not unknown_settings, \
+                f"Medium {medium_name!r} carries unknown settings {sorted(unknown_settings)}"
+
+        media_without_locations = sorted(
+            medium_name
+            for medium_name, settings in medium_config.items()
+            if "locations_per_node" not in settings)
+        assert not media_without_locations or len(media_without_locations) == len(medium_config), \
+            f'Media {media_without_locations} must state "locations_per_node" too, since another medium states its own'
+
+        for medium_name, settings in cls.get_medium_config(cluster_index).items():
+            locations_per_node = settings["locations_per_node"]
+            if isinstance(locations_per_node, dict):
+                node_count = cls.get_param("NUM_NODES", cluster_index)
+                assert all(type(node) is int for node in locations_per_node), \
+                    f'Medium {medium_name!r} must key "locations_per_node" by integer node indexes'
+                assert all(0 <= node < node_count for node in locations_per_node), \
+                    f"Medium {medium_name!r} is assigned to nodes outside [0, {node_count})"
+                assert locations_per_node, \
+                    f"Medium {medium_name!r} is held by no node"
+                counts = locations_per_node.values()
+            else:
+                counts = [locations_per_node]
+            # bool is a subclass of int; reject it.
+            assert all(type(count) is int for count in counts), \
+                f'Medium {medium_name!r} has a non-integer "locations_per_node"'
+            assert all(count >= 1 for count in counts), \
+                f"Medium {medium_name!r} must take at least one store location where it is held"
+
+            create_at_master = settings["create_at_master"]
+            assert isinstance(create_at_master, bool), \
+                f'Medium {medium_name!r} has a non-boolean "create_at_master"'
+            assert create_at_master or medium_name != _DEFAULT_MEDIUM_NAME, \
+                f'Medium {medium_name!r} is builtin, "create_at_master" cannot be false'
+
+            master_attributes = settings["master_attributes"]
+            assert isinstance(master_attributes, dict), \
+                f'Medium {medium_name!r} has a non-dict "master_attributes"'
+            assert "name" not in master_attributes, \
+                f"Medium {medium_name!r} cannot override its own name"
+            assert create_at_master or not master_attributes, \
+                f"Medium {medium_name!r} is not created at master, its creation attributes cannot be applied"
+            assert not master_attributes or medium_name != _DEFAULT_MEDIUM_NAME, \
+                f"Medium {medium_name!r} is builtin, its creation attributes cannot be applied"
+
+    @classmethod
+    def get_medium_config(cls, cluster_index):
+        return {
+            medium_name: {**_MEDIUM_SETTING_DEFAULTS, **settings}
+            for medium_name, settings in cls.get_declared_medium_config(cluster_index).items()
+        }
+
+    @classmethod
+    def get_store_location_media(cls, cluster_index, node_index):
+        media = []
+        for medium_name, settings in cls.get_medium_config(cluster_index).items():
+            locations_per_node = settings["locations_per_node"]
+            count = locations_per_node.get(node_index, 0) \
+                if isinstance(locations_per_node, dict) else locations_per_node
+            media += [medium_name] * count
+        return media
+
+    @classmethod
+    def get_store_location_count(cls, cluster_index):
+        # One count is generated for every node; a node whose media differ in number trips the
+        # assertion in assign_store_location_media.
+        return len(cls.get_store_location_media(cluster_index, 0))
+
+    @classmethod
+    def assign_store_location_media(cls, config, cluster_index, node_index):
+        media = cls.get_store_location_media(cluster_index, node_index)
+        store_locations = config["data_node"]["store_locations"]
+        assert len(store_locations) == len(media), \
+            f"Store location count {len(store_locations)} does not match media {media}"
+        for store_location, medium_name in zip(store_locations, media):
+            store_location["medium_name"] = medium_name
+
+    @classmethod
+    def create_store_location_media(cls, cluster_index):
+        medium_config = cls.get_medium_config(cluster_index)
+        if medium_config.keys() == {_DEFAULT_MEDIUM_NAME}:
+            return
+
+        cluster_name = cls.get_cluster_name(cluster_index)
+        driver = yt_commands.get_driver(cluster=cluster_name)
+        assert driver is not None, f"No driver for cluster {cluster_name}"
+        for medium_name, settings in medium_config.items():
+            medium_exists = yt_commands.exists(f"//sys/media/{medium_name}", driver=driver)
+            if not settings["create_at_master"]:
+                assert not medium_exists, \
+                    f"Medium {medium_name!r} must not exist at master"
+                continue
+            if medium_exists:
+                assert not settings["master_attributes"], \
+                    f"Medium {medium_name!r} already exists, its creation attributes cannot be applied"
+                continue
+            yt_commands.create_domestic_medium(
+                medium_name,
+                # create_domestic_medium inserts "name" into the dict it is given.
+                attributes=dict(settings["master_attributes"]),
+                driver=driver)
+
+    @classmethod
     def partition_items(cls, items):
         if cls.NUM_TEST_PARTITIONS == 1:
             return [items]
@@ -669,6 +806,8 @@ class YTEnvSetup(object):
 
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
+        cls.validate_medium_config(index)
+
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index)
         modify_rpc_proxy_dynamic_configs_func = functools.partial(cls.apply_rpc_proxy_dynamic_config_patches, cluster_index=index)
@@ -824,7 +963,7 @@ class YTEnvSetup(object):
             enable_log_compression=cls.ENABLE_LOG_COMPRESSION,
             log_compression_method="zstd" if cls.ENABLE_LOG_COMPRESSION else None,
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
-            store_location_count=cls.get_param("STORE_LOCATION_COUNT", index),
+            store_location_count=cls.get_store_location_count(index),
             job_proxy_log_location_count=cls.get_param("JOB_PROXY_LOG_LOCATION_COUNT", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
@@ -1165,6 +1304,7 @@ class YTEnvSetup(object):
                 cls._setup_cluster_configuration(cluster_index, clusters, client)
             if cls.has_ground(cluster_index):
                 cls._setup_sequoia_tables(cluster_index)
+            cls.create_store_location_media(cluster_index)
             if cluster_index == 0:
                 cls.on_masters_started()
 
@@ -1477,6 +1617,7 @@ class YTEnvSetup(object):
 
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
+            cls.assign_store_location_media(config, cluster_index, index)
             cls.modify_node_config(config, cluster_index)
 
             yt_output = os.environ.get("YT_OUTPUT")

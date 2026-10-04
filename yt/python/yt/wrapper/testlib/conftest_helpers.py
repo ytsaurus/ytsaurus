@@ -1,5 +1,5 @@
 from .helpers import (get_tests_location, get_tests_sandbox,
-                      wait, sync_create_cell, create_job_events, TEST_DIR)
+                      wait, sync_create_cell, create_job_events, TEST_DIR, CUSTOM_MEDIUM)
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
@@ -325,19 +325,19 @@ def test_environment_hydra(request):
 
 
 @pytest.fixture(scope="class")
-def test_environment_additional_media(request):
-    def apply_config_patches(configs):
-        for index, config in enumerate(configs["node"]):
-            assert len(config["data_node"]["store_locations"]) == 2
-
-            config["data_node"]["store_locations"][0]["medium_name"] = "default"
-            config["data_node"]["store_locations"][1]["medium_name"] = "custom_medium"
+def test_environment_custom_medium(request):
+    def create_custom_medium(client):
+        # The nodes come up with a location on this medium, so create it before they start.
+        client.create("domestic_medium", attributes={"name": CUSTOM_MEDIUM})
+        client.set(
+            f"//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{CUSTOM_MEDIUM}",
+            10 * 1024**3)
 
     environment = init_environment_for_test_session(
         request,
         "v4",
-        env_options=dict(store_location_count=2),
-        modify_configs_func=apply_config_patches,
+        env_options=dict(store_location_media=["default", CUSTOM_MEDIUM]),
+        on_masters_started_func=create_custom_medium,
     )
     return environment
 
@@ -521,8 +521,8 @@ def yt_env_hydra(request, test_environment_hydra):
 
 
 @pytest.fixture(scope="function")
-def yt_env_additional_media(request, test_environment_additional_media):
-    return _yt_env(request, test_environment_additional_media)
+def yt_env_custom_medium(request, test_environment_custom_medium):
+    return _yt_env(request, test_environment_custom_medium)
 
 
 @pytest.fixture(scope="function")

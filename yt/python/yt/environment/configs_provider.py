@@ -1153,6 +1153,10 @@ def _build_node_configs(multidaemon_config_output,
     configs = []
     addresses = []
 
+    store_location_media = yt_config.store_location_media
+    store_location_count = (
+        len(store_location_media) if store_location_media is not None else yt_config.store_location_count)
+
     for index in range(yt_config.node_count):
         config = default_config.get_node_config()
 
@@ -1262,7 +1266,7 @@ def _build_node_configs(multidaemon_config_output,
 
         store_location_configs = []
 
-        for location_index in range(yt_config.store_location_count):
+        for location_index in range(store_location_count):
             store_location_config = {
                 "low_watermark": 0,
                 "high_watermark": 0,
@@ -1286,6 +1290,9 @@ def _build_node_configs(multidaemon_config_output,
                 store_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "chunk_store/{0}".format(location_index))
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store/{0}".format(location_index))
+
+            if store_location_media is not None:
+                store_location_config["medium_name"] = store_location_media[location_index]
 
             store_location_configs.append(store_location_config)
 

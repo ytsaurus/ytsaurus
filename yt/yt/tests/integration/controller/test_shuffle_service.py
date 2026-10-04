@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, has_tvm_service_support
 from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
     abort_transaction, commit_transaction, wait, raises_yt_error, ls, create_user,
-    create_account, create_domestic_medium, get_account_disk_space_limit,
+    create_account, get_account_disk_space_limit,
     set_account_disk_space_limit, get_account_disk_space, get_chunks, get,
     run_test_vanilla, with_breakpoint, wait_breakpoint, release_breakpoint, set
 )
@@ -101,25 +101,16 @@ class TestShuffleService(YTEnvSetup):
         },
     }
 
-    STORE_LOCATION_COUNT = 2
-
     NON_DEFAULT_MEDIUM = "hdd1"
+
+    MEDIUM_CONFIG = {
+        "default": {},
+        NON_DEFAULT_MEDIUM: {},
+    }
 
     @staticmethod
     def _make_random_string(size) -> str:
         return ''.join(choice(string.ascii_letters) for _ in range(size))
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-
-        config["data_node"]["store_locations"][0]["medium_name"] = "default"
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM
-
-    @classmethod
-    def setup_class(cls):
-        super(TestShuffleService, cls).setup_class()
-        create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
 
     @authors("apollo1321")
     @pytest.mark.parametrize("abort", [False, True])

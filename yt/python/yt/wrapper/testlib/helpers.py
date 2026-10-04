@@ -35,6 +35,7 @@ except ImportError:
     import collections as collections_abc
 
 TEST_DIR = "//home/wrapper_tests"
+CUSTOM_MEDIUM = "custom_medium"
 
 
 def get_tests_location():
