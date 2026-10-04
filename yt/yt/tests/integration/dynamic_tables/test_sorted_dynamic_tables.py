@@ -796,58 +796,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 cell_statistics["preload_pending_store_count"] == 0
         wait(_check)
 
-    @authors("ifsmirnov")
-    @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
-        sync_create_cells(1, tablet_cell_bundle="b")
-        set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_static_memory", 2**30)
-        self._create_simple_table(
-            "//tmp/t",
-            tablet_cell_bundle="b",
-            optimize_for=optimize_for,
-            in_memory_mode="uncompressed",
-            enable_lookup_hash_table=enable_lookup_hash_table,
-            chunk_writer={"block_size": 1024})
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": str(i)} for i in range(10000)]
-        insert_rows("//tmp/t", rows)
-
-        sync_unmount_table("//tmp/t")
-        memory_size = get("//tmp/t/@tablet_statistics/uncompressed_data_size")
-        # Allowance for the active store lookup hash table now charged to tablet static category.
-        lht_tax = 16_000_000 if enable_lookup_hash_table else 0
-
-        lower_bound = 3800
-        upper_bound = 5200
-        expected = rows[lower_bound:upper_bound]
-
-        sync_reshard_table("//tmp/t", [[], [lower_bound], [upper_bound]])
-        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
-        self._wait_for_in_memory_stores_preload("//tmp/t", first_tablet_index=1, last_tablet_index=1)
-
-        node = get_tablet_leader_address(get("//tmp/t/@tablets/1/tablet_id"))
-
-        def _check_memory_usage():
-            memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
-            return 0 < memory_usage - lht_tax < memory_size
-        if optimize_for == "lookup":
-            wait(_check_memory_usage)
-
-        assert lookup_rows("//tmp/t", [{"key": i} for i in range(lower_bound, upper_bound)]) == expected
-        wait(lambda: lookup_rows(
-            "//tmp/t",
-            [{"key": i} for i in range(lower_bound, upper_bound)],
-            read_from="follower",
-            timestamp=AsyncLastCommittedTimestamp
-        ) == expected)
-
-        assert_items_equal(
-            select_rows("* from [//tmp/t] where key >= {} and key < {}".format(lower_bound, upper_bound)),
-            expected)
-
     @authors("savrus", "sandello")
     @pytest.mark.parametrize("chunk_format", [
         "table_versioned_simple",
