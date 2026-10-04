@@ -145,7 +145,8 @@ private:
                 account->GetName());
         }
 
-        if (account->ClusterStatistics() != TAccountStatistics::Empty) {
+        // Master memory usage is eventually consistent and may be stale, so do not check it here.
+        if (!account->ClusterStatistics().IsPersistentlyEmpty()) {
             THROW_ERROR_EXCEPTION("Cannot remove account %Qv because its usage is not zero",
                 account->GetName())
                 .With("current_usage", ToString(account->ClusterStatistics()));
