@@ -76,7 +76,6 @@ struct TTabletBalancerDynamicConfig
     bool FetchTabletCellsFromSecondaryMasters;
     bool EnableParameterizedReshardByDefault;
     bool PickReshardPivotKeys;
-    bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
     bool IgnoreTabletToCellRatio;
     std::optional<double> ReshardSlicingAccuracy;

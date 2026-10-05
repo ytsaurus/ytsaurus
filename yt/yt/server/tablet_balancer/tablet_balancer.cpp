@@ -2014,21 +2014,18 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
 
             PickPivotFailures_.Increment(1);
 
-            if (reshardIteration->GetDynamicConfig()->CancelActionIfPickPivotKeysFails) {
-                YT_TLOG_DEBUG("Cancelled tablet action creation because pick pivot keys failed")
-                    .With("TabletIds", descriptorIt->Tablets)
-                    .With("TabletCount", descriptorIt->TabletCount)
-                    .With("DataSize", descriptorIt->DataSize)
-                    .With("TableId", table->Id)
-                    .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
-                    .With("CorrelationId", descriptorIt->CorrelationId)
-                    .With(rspOrError);
-                continue;
-            }
-        } else {
-            descriptorIt->PivotKeys = std::move(rspOrError.ValueOrThrow());
+            YT_TLOG_DEBUG("Cancelled tablet action creation because pick pivot keys failed")
+                .With("TabletIds", descriptorIt->Tablets)
+                .With("TabletCount", descriptorIt->TabletCount)
+                .With("DataSize", descriptorIt->DataSize)
+                .With("TableId", table->Id)
+                .WithFormat("TabletIndexes", "%v-%v", firstTabletIndex, lastTabletIndex)
+                .With("CorrelationId", descriptorIt->CorrelationId)
+                .With(rspOrError);
+            continue;
         }
 
+        descriptorIt->PivotKeys = std::move(rspOrError.ValueOrThrow());
         descriptors.emplace_back(std::move(*descriptorIt));
     }
     return descriptors;
