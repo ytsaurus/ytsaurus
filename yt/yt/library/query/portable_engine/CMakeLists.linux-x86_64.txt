@@ -72,6 +72,9 @@ target_link_libraries(library-query-portable_engine.global PUBLIC
 )
 
 target_sources(library-query-portable_engine.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/builtin_function_profiler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/column_evaluator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/column_evaluator_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/query_evaluator.cpp
 )
 

@@ -4,6 +4,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     builtin_registry_ut.cpp
+    column_evaluator_cache_ut.cpp
+    column_evaluator_ut.cpp
     program_ut.cpp
     query_evaluator_ut.cpp
     registry_ut.cpp
