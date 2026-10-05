@@ -15,10 +15,10 @@ using namespace NYTree;
 void TSignatureComponentsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("validation", &TThis::Validation)
-        .Optional();
+        .DefaultNew();
 
     registrar.Parameter("generation", &TThis::Generation)
-        .Optional();
+        .DefaultNew();
 
     registrar.Parameter("use_root_user", &TThis::UseRootUser)
         .Default(true);

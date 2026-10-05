@@ -626,8 +626,11 @@ private:
         JobReporter_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobReporter,
             newConfig->ExecNode->JobReporter);
-        if (newConfig->ExecNode->SignatureComponents) {
-            YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->ExecNode->SignatureComponents));
+        if (newConfig->ExecNode->SignatureComponents || oldConfig->ExecNode->SignatureComponents) {
+            YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(
+                newConfig->ExecNode->SignatureComponents
+                    ? newConfig->ExecNode->SignatureComponents
+                    : GetConfig()->ExecNode->SignatureComponents));
         }
 
         DynamicConfig_.Store(newConfig);
