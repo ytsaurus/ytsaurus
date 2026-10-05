@@ -363,6 +363,14 @@ void TMultiplexedChangelogConfig::Register(TRegistrar registrar)
 
 void TArtifactCacheReaderConfig::Register(TRegistrar registrar)
 {
+    // NB: Parallel file chunk fetching itself is not specific to the artifact cache.
+    // TODO: consider generalizing it (e.g. a windowed TFileMultiChunkReader)
+    // so that other users of file readers (native client file_reader / read_file,
+    // operation snapshots, etc.) can benefit from it as well.
+    registrar.Parameter("max_parallel_download_chunks", &TThis::MaxParallelDownloadChunks)
+        .GreaterThan(0)
+        .Default(1);
+
     registrar.Preprocessor([] (TThis* config) {
         config->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
     });
