@@ -33,6 +33,8 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <library/cpp/testing/common/env.h>
@@ -334,7 +336,7 @@ protected:
         for (int index = 0; index < ConcurrentPrepareCount; ++index) {
             calls.push_back(BIND([&, index] {
                 barrier.arrive_and_wait();
-                preparations[index] = chunk->PrepareToReadChunkFragments({}, false);
+                preparations[index] = chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false);
             }).AsyncVia(ThreadPool_->GetInvoker()).Run());
         }
         auto results = WaitFor(AllSet(calls)).ValueOrThrow();
@@ -367,7 +369,7 @@ protected:
             location->GetIOEngine(),
             descriptor.Id,
             location->GetChunkPath(descriptor.Id));
-        WaitFor(reader->PrepareToReadChunkFragments({}, false)).ThrowOnError();
+        WaitFor(reader->PrepareToReadChunkFragments({}, /*useDirectIO*/ false)).ThrowOnError();
         return reader;
     }
 };
@@ -377,7 +379,7 @@ TEST_F(TChunkFragmentPreparationTest, ConcurrentPrepareToReadChunkFragments)
     auto location = ChunkStore_->Locations().front();
     NNode::TChunkDescriptor descriptor;
     descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
-    auto changelog = WaitFor(location->GetJournalManager()->CreateChangelog(descriptor.Id, false, {}))
+    auto changelog = WaitFor(location->GetJournalManager()->CreateChangelog(descriptor.Id, /*enableMultiplexing*/ false, {}))
         .ValueOrThrow();
     WaitFor(changelog->Append({TSharedRef::FromString(std::string("fragment"))})).ThrowOnError();
     WaitFor(changelog->Flush()).ThrowOnError();
@@ -402,12 +404,103 @@ TEST_F(TChunkFragmentPreparationTest, ConcurrentPrepareToReadChunkFragments)
         }
         openPromise.Set(changelog);
         WaitFor(AllSucceeded(preparations)).ThrowOnError();
-        EXPECT_TRUE(chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
-        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
+        EXPECT_TRUE(chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
+        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
         EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
     }
 
     WaitFor(changelog->Close()).ThrowOnError();
+}
+
+TEST_F(TChunkFragmentPreparationTest, PrepareRetriesAfterOpenFailure)
+{
+    auto location = ChunkStore_->Locations().front();
+    NNode::TChunkDescriptor descriptor;
+    descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
+    auto changelog = WaitFor(location->GetJournalManager()->CreateChangelog(descriptor.Id, /*enableMultiplexing*/ false, {}))
+        .ValueOrThrow();
+    WaitFor(changelog->Append({TSharedRef::FromString(std::string("fragment"))})).ThrowOnError();
+    WaitFor(changelog->Flush()).ThrowOnError();
+
+    auto dispatcher = New<TMockJournalDispatcher>();
+    auto context = New<TChunkContext>(*ChunkContext_);
+    context->JournalDispatcher = dispatcher;
+    auto chunk = CreateChunk<TJournalChunk>(context, descriptor);
+    auto guard = TChunkReadGuard::Acquire(chunk);
+
+    auto openPromise = NewPromise<NHydra::IFileChangelogPtr>();
+    EXPECT_CALL(*dispatcher, OpenJournal(location, descriptor.Id))
+        .WillOnce(Return(openPromise.ToFuture()));
+    auto preparations = PrepareConcurrently(chunk);
+    for (const auto& preparation : preparations) {
+        EXPECT_EQ(preparations.front(), preparation);
+        EXPECT_FALSE(preparation.IsSet());
+    }
+
+    auto openError = TError(NHydra::EErrorCode::ChangelogIOError, "Journal open failed");
+    openPromise.Set(openError);
+    auto results = WaitFor(AllSet(preparations)).ValueOrThrow();
+    for (const auto& result : results) {
+        EXPECT_EQ(openError.GetCode(), result.GetCode());
+        EXPECT_EQ(openError.GetMessage(), result.GetMessage());
+    }
+    EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
+
+    openPromise = NewPromise<NHydra::IFileChangelogPtr>();
+    EXPECT_CALL(*dispatcher, OpenJournal(location, descriptor.Id))
+        .WillOnce(Return(openPromise.ToFuture()));
+    auto retries = PrepareConcurrently(chunk);
+    for (const auto& retry : retries) {
+        EXPECT_NE(preparations.front(), retry);
+        EXPECT_EQ(retries.front(), retry);
+        EXPECT_FALSE(retry.IsSet());
+    }
+
+    openPromise.Set(changelog);
+    auto retryResult = WaitFor(AllSucceeded(retries));
+    ASSERT_TRUE(retryResult.IsOK()) << ToString(retryResult);
+    EXPECT_TRUE(chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
+    EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
+    EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
+    WaitFor(changelog->Close()).ThrowOnError();
+}
+
+TEST_F(TChunkFragmentPreparationTest, PrepareKeepsOpenFailureOnDisabledLocation)
+{
+    auto location = ChunkStore_->Locations().front();
+    NNode::TChunkDescriptor descriptor;
+    descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
+    auto chunk = CreateChunk<TJournalChunk>(ChunkContext_, descriptor);
+    auto guard = TChunkReadGuard::Acquire(chunk);
+
+    // Keep the location in Disabling until the first round of retries completes.
+    auto pendingAction = NewPromise<void>();
+    auto finally = Finally([&] { pendingAction.TrySet(); });
+    auto registeredAction = location->RegisterAction(BIND([pendingAction] {
+        return pendingAction.ToFuture();
+    }));
+    ASSERT_FALSE(registeredAction.IsSet());
+
+    // The journal does not exist, so opening it disables the location.
+    auto preparation = chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false);
+    auto error = WaitFor(preparation);
+    EXPECT_TRUE(error.FindMatching(NHydra::EErrorCode::ChangelogIOError)) << ToString(error);
+
+    for (auto state : {NNode::ELocationState::Disabling, NNode::ELocationState::Disabled}) {
+        SCOPED_TRACE(ToString(state));
+        if (state == NNode::ELocationState::Disabled) {
+            pendingAction.Set();
+            WaitFor(registeredAction).ThrowOnError();
+            WaitForPredicate([&] { return location->GetState() == state; });
+        }
+
+        EXPECT_EQ(state, location->GetState());
+        auto retries = PrepareConcurrently(chunk);
+        for (const auto& retry : retries) {
+            EXPECT_EQ(preparation, retry);
+            EXPECT_EQ(error.GetCode(), WaitFor(retry).GetCode());
+        }
+    }
 }
 
 TEST_F(TChunkFragmentPreparationTest, PrepareReusesWeakChangelog)
@@ -415,7 +508,7 @@ TEST_F(TChunkFragmentPreparationTest, PrepareReusesWeakChangelog)
     auto location = ChunkStore_->Locations().front();
     NNode::TChunkDescriptor descriptor;
     descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
-    auto changelog = WaitFor(location->GetJournalManager()->CreateChangelog(descriptor.Id, false, {}))
+    auto changelog = WaitFor(location->GetJournalManager()->CreateChangelog(descriptor.Id, /*enableMultiplexing*/ false, {}))
         .ValueOrThrow();
     WaitFor(changelog->Append({TSharedRef::FromString(std::string("fragment"))})).ThrowOnError();
     WaitFor(changelog->Flush()).ThrowOnError();
@@ -428,7 +521,7 @@ TEST_F(TChunkFragmentPreparationTest, PrepareReusesWeakChangelog)
         .WillOnce(Return(MakeFuture(changelog)));
     {
         auto guard = TChunkReadGuard::Acquire(chunk);
-        WaitFor(chunk->PrepareToReadChunkFragments({}, false)).ThrowOnError();
+        WaitFor(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false)).ThrowOnError();
     }
     EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
     WaitForPredicate([&] { return changelog->GetRefCount() == 1; });
@@ -437,12 +530,12 @@ TEST_F(TChunkFragmentPreparationTest, PrepareReusesWeakChangelog)
     EXPECT_CALL(*dispatcher, OpenJournal(_, _)).Times(0);
     {
         auto guard = TChunkReadGuard::Acquire(chunk);
-        auto preparation = chunk->PrepareToReadChunkFragments({}, false);
+        auto preparation = chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false);
         EXPECT_FALSE(preparation);
         if (preparation) {
             WaitFor(preparation).ThrowOnError();
         }
-        EXPECT_TRUE(chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+        EXPECT_TRUE(chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
     }
     EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
     WaitFor(changelog->Close()).ThrowOnError();
@@ -493,7 +586,7 @@ TEST_F(TChunkFragmentPreparationTest, ReadBlockRangeAndPreparePreservePublishedC
         // Enter GetChangelog's slow path before starting fragment preparation.
         auto readFuture = chunk->ReadBlockRange(0, 1, {});
         WaitFor(readOpenStarted.ToFuture().WithTimeout(TDuration::Seconds(30))).ThrowOnError();
-        auto prepareFuture = chunk->PrepareToReadChunkFragments({}, false);
+        auto prepareFuture = chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false);
         ASSERT_TRUE(prepareFuture);
         EXPECT_FALSE(readFuture.IsSet());
         EXPECT_FALSE(prepareFuture.IsSet());
@@ -507,8 +600,8 @@ TEST_F(TChunkFragmentPreparationTest, ReadBlockRangeAndPreparePreservePublishedC
         }
 
         auto expectedHandle = readFirst ? readHandle : prepareHandle;
-        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
-        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
+        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
 
         if (readFirst) {
             prepareOpenPromise.Set(prepareChangelog);
@@ -517,8 +610,8 @@ TEST_F(TChunkFragmentPreparationTest, ReadBlockRangeAndPreparePreservePublishedC
         }
         WaitFor(prepareFuture).ThrowOnError();
         auto blocks = WaitFor(readFuture).ValueOrThrow();
-        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
-        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
+        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
         ASSERT_EQ(1u, blocks.size());
         EXPECT_EQ(TStringBuf(readFirst ? "block reader" : "fragment reader"), blocks[0].Data.ToStringBuf());
         EXPECT_TRUE(Mock::VerifyAndClear(dispatcher.Get()));
@@ -533,8 +626,8 @@ TEST_F(TChunkFragmentPreparationTest, SlowPrepareDoesNotReplacePublishedReader)
     auto descriptor = WriteBlobChunk();
     auto readerA = CreatePreparedReader(descriptor);
     auto readerB = CreatePreparedReader(descriptor);
-    auto handleA = readerA->MakeChunkFragmentReadRequest(Fragment_, false).Handle;
-    auto handleB = readerB->MakeChunkFragmentReadRequest(Fragment_, false).Handle;
+    auto handleA = readerA->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle;
+    auto handleB = readerB->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle;
     ASSERT_NE(handleA, handleB);
 
     auto cache = New<TMockBlobReaderCache>();
@@ -553,14 +646,14 @@ TEST_F(TChunkFragmentPreparationTest, SlowPrepareDoesNotReplacePublishedReader)
         .WillOnce(Return(readerB));
 
     auto slowCall = BIND([&] {
-        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
+        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
     }).AsyncVia(ThreadPool_->GetInvoker()).Run();
     WaitFor(cacheEntered.ToFuture().WithTimeout(TDuration::Seconds(30))).ThrowOnError();
-    EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
-    EXPECT_EQ(handleB, chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+    EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
+    EXPECT_EQ(handleB, chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
     resumeCache.Set();
     WaitFor(slowCall).ThrowOnError();
-    EXPECT_EQ(handleB, chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+    EXPECT_EQ(handleB, chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
     EXPECT_TRUE(Mock::VerifyAndClear(cache.Get()));
 }
 
@@ -569,7 +662,7 @@ TEST_F(TChunkFragmentPreparationTest, ConcurrentPrepareFromCachedWeakReader)
     auto descriptor = WriteBlobChunk();
     auto reader = CreatePreparedReader(descriptor);
     auto weakReader = MakeWeak(reader);
-    auto expectedHandle = reader->MakeChunkFragmentReadRequest(Fragment_, false).Handle;
+    auto expectedHandle = reader->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle;
     auto cache = New<TMockBlobReaderCache>();
     auto context = New<TChunkContext>(*ChunkContext_);
     context->BlobReaderCache = cache;
@@ -582,7 +675,7 @@ TEST_F(TChunkFragmentPreparationTest, ConcurrentPrepareFromCachedWeakReader)
     for (int iteration = 0; iteration < iterationCount; ++iteration) {
         auto chunk = CreateChunk<TStoredBlobChunk>(context, descriptor);
         auto guard = TChunkReadGuard::Acquire(chunk);
-        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, false));
+        EXPECT_FALSE(chunk->PrepareToReadChunkFragments({}, /*useDirectIO*/ false));
         chunks.push_back(std::move(chunk));
     }
     EXPECT_TRUE(Mock::VerifyAndClear(cache.Get()));
@@ -598,7 +691,7 @@ TEST_F(TChunkFragmentPreparationTest, ConcurrentPrepareFromCachedWeakReader)
         for (const auto& preparation : preparations) {
             EXPECT_FALSE(preparation);
         }
-        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, false).Handle);
+        EXPECT_EQ(expectedHandle, chunk->MakeChunkFragmentReadRequest(Fragment_, /*useDirectIO*/ false).Handle);
     }
     EXPECT_TRUE(Mock::VerifyAndClear(cache.Get()));
     chunks.clear();
