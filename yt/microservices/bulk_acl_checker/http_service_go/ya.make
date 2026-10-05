@@ -22,6 +22,7 @@ ELSE()
 ENDIF()
 
 GO_TEST_SRCS(
+    acl_check_test.go
     run_test.go
 )
 

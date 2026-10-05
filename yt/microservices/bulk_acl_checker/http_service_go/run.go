@@ -21,6 +21,10 @@ func RunServer(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(fmt.Errorf("normal terminate"))
 	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")), ytmsvc.Must(cmd.Flags().GetString("token-env-variable")))
+	Cache = InitCache(
+		ytmsvc.Must(cmd.Flags().GetDuration("acl-cache-ttl")),
+		ytmsvc.Must(cmd.Flags().GetDuration("banned-cache-ttl")),
+	)
 	go perClusterRunner(ctx, ytClient, cmd)
 	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
 	debugLogin := ytmsvc.Must(cmd.Flags().GetString("debug-login"))

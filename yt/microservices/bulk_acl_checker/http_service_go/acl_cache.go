@@ -46,12 +46,18 @@ type LRUCacheKey struct {
 	ACLHash    string
 }
 
+type BannedCacheKey struct {
+	Cluster string
+	Subject string
+}
+
 type ACLCache struct {
 	IsInitialized atomic.Bool
 	KnownClusters map[string]struct{}
 	Clusters      map[string]*ClusterACLDump
 	Mutex         sync.Mutex
-	LRU           *lru.LRU[LRUCacheKey, yt.SecurityAction]
+	ACLLRU        *lru.LRU[LRUCacheKey, yt.SecurityAction]
+	BannedLRU     *lru.LRU[BannedCacheKey, bool]
 }
 
 func (cache *ACLCache) Set(cluster string, cacheItem *ClusterACLDump) {
@@ -73,17 +79,25 @@ func (cache *ACLCache) Get(cluster string) *ClusterACLDump {
 	return result
 }
 
-func InitCache() *ACLCache {
-	lru := lru.NewLRU[LRUCacheKey, yt.SecurityAction](100*1024, nil, time.Duration(10*time.Minute))
+const (
+	lruCacheSize          = 100 * 1024
+	defaultACLCacheTTL    = 10 * time.Minute
+	defaultBannedCacheTTL = 10 * time.Minute
+)
+
+func InitCache(aclCacheTTL, bannedCacheTTL time.Duration) *ACLCache {
+	aclLRU := lru.NewLRU[LRUCacheKey, yt.SecurityAction](lruCacheSize, nil, aclCacheTTL)
+	bannedLRU := lru.NewLRU[BannedCacheKey, bool](lruCacheSize, nil, bannedCacheTTL)
 	result := ACLCache{
-		Clusters: make(map[string]*ClusterACLDump),
-		LRU:      lru,
+		Clusters:  make(map[string]*ClusterACLDump),
+		ACLLRU:    aclLRU,
+		BannedLRU: bannedLRU,
 	}
 	result.IsInitialized.Store(false)
 	return &result
 }
 
-var Cache *ACLCache = InitCache()
+var Cache *ACLCache
 
 func readACLDumpTable(ctx context.Context, ytClient yt.Client, path ypath.YPath) (result []byte, err error) {
 	reader, err := ytClient.ReadTable(ctx, path, nil)
