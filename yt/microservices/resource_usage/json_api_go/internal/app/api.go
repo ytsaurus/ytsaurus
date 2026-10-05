@@ -14,6 +14,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/httputil/swaggerui"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/docs"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/access"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
@@ -151,7 +152,7 @@ func (a *API) Routes() chi.Router {
 // @Failure 401 {object} WhoamiResponse
 // @Router /whoami [post]
 func (a *API) whoamiHandler(w http.ResponseWriter, r *http.Request) {
-	user, ok := r.Context().Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := r.Context().Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(WhoamiResponse{Error: "failed to get user"})
@@ -266,7 +267,7 @@ func (a *API) versionedResourceUsageHandler(w http.ResponseWriter, r *http.Reque
 // @Router /get-children-and-resource-usage [post]
 func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := ctx.Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(GetResourceUsageResponse{Error: "failed to get user"})
@@ -348,7 +349,7 @@ func (a *API) resourceUsageHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /get-children-and-resource-usage-diff [post]
 func (a *API) resourceUsageDiffHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user, ok := ctx.Value(access.AuthInfoKey).(access.AuthInfo)
+	user, ok := ctx.Value(access.AuthInfoKey).(ytmsvc.AuthInfo)
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(GetResourceUsageDiffResponse{Error: "failed to get user"})

@@ -9,6 +9,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 func checkViewAsLogin(r *http.Request) (string, error) {
@@ -36,7 +37,7 @@ func onAuthSuccess(
 	r *http.Request,
 	next http.Handler,
 	l log.Structured,
-	authInfo AuthInfo,
+	authInfo ytmsvc.AuthInfo,
 ) {
 	ctxlog.Info(r.Context(), l.Logger(), "Authentication success", log.String("user", authInfo.UserLogin), log.String("service", authInfo.ServiceLogin))
 	ctx := context.WithValue(r.Context(), AuthInfoKey, authInfo)
