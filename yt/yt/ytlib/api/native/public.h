@@ -21,7 +21,8 @@ concept CTwoPhaseTableRequest =
     std::same_as<TRequest, NTabletClient::NProto::TReqRemount> ||
     std::same_as<TRequest, NTabletClient::NProto::TReqFreeze> ||
     std::same_as<TRequest, NTabletClient::NProto::TReqUnfreeze> ||
-    std::same_as<TRequest, NTabletClient::NProto::TReqReshard>;
+    std::same_as<TRequest, NTabletClient::NProto::TReqReshard> ||
+    std::same_as<TRequest, NTabletClient::NProto::TReqTwoPhaseAlter>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

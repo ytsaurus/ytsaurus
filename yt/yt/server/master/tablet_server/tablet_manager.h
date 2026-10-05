@@ -82,6 +82,9 @@ struct ITabletManager
         const std::vector<i64>& trimmedRowCounts,
         const std::vector<i64>& cumulativeDataWeights,
         bool create = false) = 0;
+    virtual void PrepareAlter(
+        NTableServer::TTableNode* table,
+        bool dynamic) = 0;
 
     virtual void CancelTabletTransition(TTablet* tablet) = 0;
 
@@ -130,6 +133,9 @@ struct ITabletManager
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
         const std::vector<i64>& cumulativeDataWeights) = 0;
+    virtual void Alter(
+        NTableServer::TTableNode* table,
+        bool dynamic) = 0;
 
     virtual void SetCustomRuntimeData(
         NTableServer::TTableNode* table,

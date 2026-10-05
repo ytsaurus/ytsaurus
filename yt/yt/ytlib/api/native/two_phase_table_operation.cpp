@@ -102,7 +102,9 @@ void DoExecuteTwoPhaseTableOperationViaMaster(
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
     const IClientPtr& client,
-    const TYPath& path)
+    const TYPath& path,
+    bool allowSequoia,
+    std::optional<EMasterFeature> requiredServerFeature)
 {
     TTableId tableId;
     TCellTag externalCellTag;
@@ -111,9 +113,14 @@ TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
         path,
         &tableId,
         &externalCellTag,
-        {"tablet_cell_bundle", "path"});
+        {"tablet_cell_bundle", "path"},
+        requiredServerFeature);
 
     if (IsSequoiaId(tableId)) {
+        if (!allowSequoia) {
+            THROW_ERROR_EXCEPTION("Operation is not supported for Sequoia table %v", path);
+        }
+
         // COMPAT(h0pless): This is a quick and dirty fix for dynamic tables in Sequoia in 25.4.
         auto bundle = tableAttributes->Get<std::string>("tablet_cell_bundle");
         ValidatePermission(
@@ -134,7 +141,9 @@ TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
     TObjectServiceProxy* proxy,
-    const TYPath& path)
+    const TYPath& path,
+    bool allowSequoia,
+    std::optional<EMasterFeature> requiredServerFeature)
 {
     TTableId tableId;
     TCellTag externalCellTag;
@@ -143,7 +152,12 @@ TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
         path,
         &tableId,
         &externalCellTag,
-        {"path"});
+        {"path"},
+        requiredServerFeature);
+
+    if (IsSequoiaId(tableId) && !allowSequoia) {
+        THROW_ERROR_EXCEPTION("Operation is not supported for Sequoia table %v", path);
+    }
 
     return TTwoPhaseTableOperationTarget{
         .TableId = tableId,

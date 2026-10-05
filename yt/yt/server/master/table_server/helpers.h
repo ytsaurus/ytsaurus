@@ -37,6 +37,14 @@ TFuture<NYson::TYsonString> GetReplicationLagTimesAsync(
 NTableClient::TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(
     NCellMaster::TDynamicClusterConfigPtr config);
 
+void ValidateTableSchemaAlter(
+    const ITableManagerPtr& tableManager,
+    const NCellMaster::TDynamicClusterConfigPtr& config,
+    TTableNode* table,
+    const NTableClient::TTableSchema& oldSchema,
+    const NTableClient::TTableSchema& newSchema,
+    bool dynamic);
+
 void RecomputeTabletStatistics(TTableNode* table);
 
 ////////////////////////////////////////////////////////////////////////////////

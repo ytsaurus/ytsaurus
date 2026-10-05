@@ -237,6 +237,7 @@ public:
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
+        DeclareServerFeature(EMasterFeature::AlterTable2PC);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserCharged(BIND_NO_PROPAGATE(&TObjectService::OnUserCharged, MakeStrong(this)));

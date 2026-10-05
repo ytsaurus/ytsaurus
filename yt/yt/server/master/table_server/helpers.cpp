@@ -1,4 +1,6 @@
 #include "helpers.h"
+#include "secondary_index.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -12,10 +14,13 @@
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/ytlib/queue_client/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <library/cpp/yt/misc/range_helpers.h>
 
@@ -250,6 +255,65 @@ TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures(TDynamicClusterConfi
         .EnableDynamicTableStructFieldRemoval = config->EnableStructFieldRemoval &&
             config->EnableDynamicTableStructFieldRemoval,
     };
+}
+
+void ValidateTableSchemaAlter(
+    const ITableManagerPtr& tableManager,
+    const TDynamicClusterConfigPtr& config,
+    TTableNode* table,
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    bool dynamic)
+{
+    ValidateTableSchemaUpdateInternal(
+        oldSchema,
+        newSchema,
+        GetSchemaUpdateEnabledFeatures(config),
+        dynamic,
+        table->IsEmpty() && !table->IsDynamic(),
+        config->AllowAlterKeyColumnToAny);
+
+    if (table->IsDynamic()) {
+        if (auto index = table->GetIndexTo()) {
+            auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+            auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
+            NQueryClient::ValidateIndexSchema(
+                index->GetKind(),
+                *indexTableSchema,
+                newSchema,
+                index->Predicate(),
+                index->EvaluatedColumnsSchema(),
+                index->UnfoldedColumns());
+        }
+
+        for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
+            auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+            auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
+            NQueryClient::ValidateIndexSchema(
+                index->GetKind(),
+                newSchema,
+                *indexTableSchema,
+                index->Predicate(),
+                index->EvaluatedColumnsSchema(),
+                index->UnfoldedColumns());
+        }
+    }
+
+    if (!config->EnableDescendingSortOrder ||
+        dynamic && !config->EnableDescendingSortOrderDynamic)
+    {
+        ValidateNoDescendingSortOrder(newSchema);
+    }
+
+    if (!config->EnableTableColumnRenaming ||
+        dynamic && !config->EnableDynamicTableColumnRenaming)
+    {
+        ValidateNoRenamedColumns(newSchema);
+    }
+
+    if (!config->EnableAggregateStateType) {
+        ValidateNoAggregateStateType(newSchema);
+    }
 }
 
 void RecomputeTabletStatistics(TTableNode* table)

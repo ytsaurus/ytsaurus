@@ -229,6 +229,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddPerUserActiveTransactionCountLimit)                        (3354))  // ivpiskarev
     ((ChunkListRefactoring)                                         (3355))  // grphil
     ((SecondaryIndexMoveWithinCell)                                 (3356))  // sabdenovch
+    ((TwoPhaseAlterTable)                                           (3357))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -43,11 +43,15 @@ void DoExecuteTwoPhaseTableOperationViaMaster(
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
     const IClientPtr& client,
-    const NYPath::TYPath& path);
+    const NYPath::TYPath& path,
+    bool allowSequoia = true,
+    std::optional<NObjectClient::EMasterFeature> requiredServerFeature = {});
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
     NObjectClient::TObjectServiceProxy* proxy,
-    const NYPath::TYPath& path);
+    const NYPath::TYPath& path,
+    bool allowSequoia = true,
+    std::optional<NObjectClient::EMasterFeature> requiredServerFeature = {});
 
 template <CTwoPhaseTableRequest TRequest>
 void ExecuteTwoPhaseTableOperationViaMaster(

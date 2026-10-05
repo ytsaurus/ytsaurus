@@ -91,6 +91,12 @@ struct TMountAndReplicasInfo
     TTableReplicaInfoPtrList Replicas;
 };
 
+struct TExecuteTabletServiceRequestOptions
+{
+    bool AllowSequoia = true;
+    std::optional<NObjectClient::EMasterFeature> RequiredServerFeature;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TClient)
@@ -1327,7 +1333,8 @@ private:
         const NYPath::TYPath& path,
         TStringBuf action,
         TRequest request,
-        const TMutatingOptions& options);
+        const TMutatingOptions& options,
+        const TExecuteTabletServiceRequestOptions& executeOptions = {});
 
     NTabletClient::NProto::TReqReshard MakeReshardRequest(
         const TReshardTableOptions& options);

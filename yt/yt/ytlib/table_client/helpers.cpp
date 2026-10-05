@@ -931,7 +931,8 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const std::vector<std::string>& extraAttributeKeys)
+    const std::vector<std::string>& extraAttributeKeys,
+    std::optional<EMasterFeature> requiredServerFeature)
 {
     TMasterReadOptions options;
     auto proxy = CreateObjectServiceReadProxy(
@@ -945,7 +946,8 @@ IAttributeDictionaryPtr ResolveExternalTable(
         path,
         tableId,
         externalCellTag,
-        extraAttributeKeys);
+        extraAttributeKeys,
+        requiredServerFeature);
 }
 
 IAttributeDictionaryPtr ResolveExternalTable(
@@ -953,10 +955,14 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const std::vector<std::string>& extraAttributeKeys)
+    const std::vector<std::string>& extraAttributeKeys,
+    std::optional<EMasterFeature> requiredServerFeature)
 {
     {
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
+        if (requiredServerFeature) {
+            req->RequireServerFeature(*requiredServerFeature);
+        }
         auto rspOrError = WaitFor(proxy->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
         const auto& rsp = rspOrError.Value();

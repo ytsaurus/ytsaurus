@@ -2341,10 +2341,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp = FromProto<TTimestamp>(request->clip_timestamp());
     }
 
-    auto dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
-    auto maxSchemaMemoryUsageToLog = dynamicConfig->MaxSchemaMemoryUsageToLog;
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+    const auto& tableManagerConfig = config->TableManager;
+    auto maxSchemaMemoryUsageToLog = tableManagerConfig->MaxSchemaMemoryUsageToLog;
 
-    if (options.ColumnToConstraint && !dynamicConfig->EnableColumnConstraintsForTables) {
+    if (options.ColumnToConstraint && !tableManagerConfig->EnableColumnConstraintsForTables) {
         THROW_ERROR_EXCEPTION("Table schema alter of tables with column constraints is prohibited by system administrator");
     }
 
@@ -2358,10 +2359,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         .With("SchemaId", options.SchemaId)
         .With("SchemaMemoryUsage", options.Schema ? options.Schema->GetMemoryUsage() : 0)
         .With("Schema", MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog))
-        .With("ColumnToConstraint", MakeShrunkFormattableView( options.ColumnToConstraint ? *options.ColumnToConstraint : TColumnNameToConstraintMap(), TDefaultFormatter(), dynamicConfig->ColumnToConstraintLogLimit));
+        .With("ColumnToConstraint", MakeShrunkFormattableView(options.ColumnToConstraint ? *options.ColumnToConstraint : TColumnNameToConstraintMap(), TDefaultFormatter(), tableManagerConfig->ColumnToConstraintLogLimit));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
+
+    if (options.Dynamic && !config->TabletManager->EnableLegacyDynamicityAlter) {
+        if (table->IsNative()) {
+            THROW_ERROR_EXCEPTION("Table dynamicity must be altered via the two-phase alter protocol");
+        } else {
+            YT_TLOG_ALERT("Legacy table alter request received on external cell")
+                .With("TableId", table->GetId())
+                .With("Dynamic", *options.Dynamic);
+        }
+    }
+
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
     auto schemaReceived = options.SchemaId || options.Schema;
 
@@ -2395,7 +2407,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         schema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     if (table->IsNative()) {
@@ -2542,60 +2553,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->ValidateAllTabletsUnmounted("Cannot set clip timestamp");
         }
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        const auto& tableManager = Bootstrap_->GetTableManager();
         auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
         auto oldTableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
-        ValidateTableSchemaUpdateInternal(
+        ValidateTableSchemaAlter(
+            tableManager,
+            config,
+            table,
             *oldTableSchema,
             *newTableSchema,
-            GetSchemaUpdateEnabledFeatures(config),
-            dynamic,
-            table->IsEmpty() && !table->IsDynamic(),
-            config->AllowAlterKeyColumnToAny);
-
-        if (table->IsDynamic()) {
-            if (auto index = table->GetIndexTo()) {
-                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
-                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
-                ValidateIndexSchema(
-                    index->GetKind(),
-                    *indexTableSchema,
-                    *newTableSchema,
-                    index->Predicate(),
-                    index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumns());
-            }
-
-            for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
-                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
-                ValidateIndexSchema(
-                    index->GetKind(),
-                    *newTableSchema,
-                    *indexTableSchema,
-                    index->Predicate(),
-                    index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumns());
-            }
-        }
-
-        if (!config->EnableDescendingSortOrder ||
-            dynamic && !config->EnableDescendingSortOrderDynamic)
-        {
-            ValidateNoDescendingSortOrder(schema->GetSortOrders(), schema->GetKeyColumns());
-        }
-
-        if (!config->EnableTableColumnRenaming ||
-            dynamic && !config->EnableDynamicTableColumnRenaming)
-        {
-            ValidateNoRenamedColumns(*newTableSchema);
-        }
-
-        if (!config->EnableAggregateStateType) {
-            ValidateNoAggregateStateType(*newTableSchema);
-        }
+            dynamic);
 
         if (options.Dynamic) {
             if (*options.Dynamic) {

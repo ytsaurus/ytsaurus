@@ -118,9 +118,12 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Reshard)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TwoPhaseAlter)
+            .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
+        DeclareServerFeature(EMasterFeature::AlterTable2PC);
 
         const auto& userDirectorySynchronizer = bootstrap->GetUserDirectorySynchronizer();
         userDirectorySynchronizer->SubscribeUserDescriptorUpdated(
@@ -155,6 +158,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Freeze);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Unfreeze);
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Reshard);
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, TwoPhaseAlter);
 
     template <NNative::CTwoPhaseTableRequest TRequest>
     void ExecuteTwoPhaseTableOperation(
@@ -171,7 +175,17 @@ private:
 
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-        auto target = NNative::ResolveTwoPhaseTableOperationTarget(&proxy, path);
+        auto target = [&] {
+            if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqTwoPhaseAlter>) {
+                return NNative::ResolveTwoPhaseTableOperationTarget(
+                    &proxy,
+                    path,
+                    /*allowSequoia*/ false,
+                    EMasterFeature::AlterTable2PC);
+            } else {
+                return NNative::ResolveTwoPhaseTableOperationTarget(&proxy, path);
+            }
+        }();
         // TODO(danilalexeev): Add Sequoia bundle |use| and table |mount| permission checks
         // for Sequoia nodes.
         NNative::ExecuteTwoPhaseTableOperationViaMaster<TRequest>(client, target, action, request);
@@ -1365,6 +1379,13 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Unfreeze)
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Reshard)
 {
     ExecuteTwoPhaseTableOperation(context, request, "Resharding");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, TwoPhaseAlter)
+{
+    ExecuteTwoPhaseTableOperation(context, request, "Altering");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
