@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cachetools
-Version: 7.1.8
+Version: 7.2.0
 Summary: Extensible memoizing collections and decorators
 Author-email: Thomas Kemmer <tkemmer@computer.org>
 Maintainer-email: Thomas Kemmer <tkemmer@computer.org>
@@ -21,6 +21,7 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: 3.15
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Requires-Python: >=3.10
 Description-Content-Type: text/x-rst
