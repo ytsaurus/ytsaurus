@@ -14,6 +14,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/shutdown.h>
 
@@ -989,10 +990,13 @@ public:
                 auto future = BIND([=, this, this_ = MakeStrong(this), category = category, sessionId = sessionId] (
                     const TReadRequest& request,
                     TSharedMutableRef buffer,
-                    TWallTimer timer,
+                    TWallTimer totalTimer,
                     TRequestCounterGuard requestCounterGuard) {
-                    const auto readWaitTime = timer.GetElapsedTime();
-                    AddReadWaitTimeSample(readWaitTime);
+                    const auto readWaitTime = totalTimer.GetElapsedTime();
+                    auto totalTimeGuard = Finally([&] {
+                        Sensors_->ReadSensors[category].TotalTimer.Record(totalTimer.GetElapsedTime());
+                    });
+                    AddReadWaitTimeSample(readWaitTime, category);
 
                     YT_TLOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive, "Started reading from disk")
                         .With("Handle", static_cast<FHANDLE>(*request.Handle))
@@ -1058,9 +1062,14 @@ public:
         for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
             auto future = BIND([=, this, this_ = MakeStrong(this)] (
                 const TWriteRequest &request,
-                TWallTimer timer,
+                TWallTimer totalTimer,
                 TRequestCounterGuard requestCounterGuard) {
-                AddWriteWaitTimeSample(timer.GetElapsedTime());
+                const auto writeWaitTime = totalTimer.GetElapsedTime();
+                auto totalTimeGuard = Finally([&] {
+                    Sensors_->WriteSensors[category].TotalTimer.Record(totalTimer.GetElapsedTime());
+                });
+                AddWriteWaitTimeSample(writeWaitTime, category);
+
                 auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
                 TSharedMutableRef writeBlob;
                 if (request.Handle->IsOpenForDirectIO()) {
@@ -1289,12 +1298,15 @@ public:
                 auto callback = BIND([=, this, this_ = MakeStrong(this),
                     request = std::move(slice.Request),
                     buffer = std::move(slice.OutputBuffer),
-                    timer = TWallTimer(),
+                    totalTimer = TWallTimer(),
                     category = category,
                     sessionId = sessionId,
                     requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read, category)] () mutable {
-                    const auto readWaitTime = timer.GetElapsedTime();
-                    AddReadWaitTimeSample(readWaitTime);
+                    const auto readWaitTime = totalTimer.GetElapsedTime();
+                    auto totalTimeGuard = Finally([&] {
+                        Sensors_->ReadSensors[category].TotalTimer.Record(totalTimer.GetElapsedTime());
+                    });
+                    AddReadWaitTimeSample(readWaitTime, category);
 
                     YT_TLOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive, "Started reading from disk")
                         .With("Handle", static_cast<FHANDLE>(*request.Handle))
@@ -1387,9 +1399,14 @@ public:
                 this,
                 this_ = MakeStrong(this),
                 request = std::move(slice),
-                timer = TWallTimer(),
+                totalTimer = TWallTimer(),
                 requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write, category)] () mutable {
-                AddWriteWaitTimeSample(timer.GetElapsedTime());
+                const auto writeWaitTime = totalTimer.GetElapsedTime();
+                auto totalTimeGuard = Finally([&] {
+                    Sensors_->WriteSensors[category].TotalTimer.Record(totalTimer.GetElapsedTime());
+                });
+                AddWriteWaitTimeSample(writeWaitTime, category);
+
                 TSharedMutableRef writeBlob;
                 if (request.Handle->IsOpenForDirectIO()) {
                     writeBlob = AllocateWriteBlob(toWriteRemaining, config->DirectIOBlockSize);
