@@ -12,6 +12,7 @@
 
 #include <Storages/SelectQueryInfo.h>
 #include <Storages/MergeTree/BoolMask.h>
+#include <Storages/MergeTree/KeyOrder.h>
 #include <Storages/MergeTree/RPNBuilder.h>
 
 
@@ -26,6 +27,7 @@ class ExpressionActions;
 using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
 struct ActionDAGNodes;
 class MergeTreeSetIndex;
+struct KeyDescription;
 
 
 /// Canonize the predicate
@@ -51,12 +53,19 @@ struct ActionsDAGWithInversionPushDown
 class KeyCondition
 {
 public:
-    /// Construct key condition from ActionsDAG nodes
+    /// Construct key condition from ActionsDAG nodes, assuming all key columns are ascending.
     KeyCondition(
         const ActionsDAGWithInversionPushDown & filter_dag,
         ContextPtr context,
         const Names & key_column_names,
         const ExpressionActionsPtr & key_expr,
+        bool single_point_ = false);
+
+    /// Construct key condition honoring the key's per-column sort directions.
+    KeyCondition(
+        const ActionsDAGWithInversionPushDown & filter_dag,
+        ContextPtr context,
+        const KeyDescription & key_description,
         bool single_point_ = false);
 
     struct BloomFilterData
@@ -91,6 +100,8 @@ public:
         const FieldRef * right_keys,
         const DataTypes & data_types,
         BoolMask initial_mask = BoolMask(false, false)) const;
+
+    const KeyOrder & getKeyOrder() const { return key_order; }
 
     /// Same as checkInRange, but calculate only may_be_true component of a result.
     /// This is more efficient than checkInRange(...).can_be_true.
@@ -482,6 +493,8 @@ private:
     /// example, the `match` function can produce a FUNCTION_IN_RANGE atom based
     /// on a given regular expression, which is relaxed for simplicity.
     bool relaxed = false;
+
+    KeyOrder key_order;
 };
 
 std::tuple<String, bool> extractFixedPrefixFromLikePattern(std::string_view like_pattern, bool requires_perfect_prefix);
