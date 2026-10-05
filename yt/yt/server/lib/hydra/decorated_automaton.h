@@ -32,7 +32,7 @@
 
 #include <library/cpp/yt/containers/ring_queue.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
@@ -112,7 +112,7 @@ struct TEpochContext
 
     int LeaderId = InvalidPeerId;
     TEpochId EpochId;
-    NThreading::TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
+    TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
 
     TCancelableContextPtr CancelableContext;
 };
@@ -301,7 +301,7 @@ private:
     std::atomic<EPeerState> State_ = EPeerState::Stopped;
 
     // Last applied mutation.
-    NThreading::TAtomicObject<TAutomatonVersion> AutomatonVersion_;
+    TAtomicObject<TAutomatonVersion> AutomatonVersion_;
     std::atomic<ui64> RandomSeed_;
     std::atomic<i64> SequenceNumber_;
     std::atomic<ui64> StateHash_;
@@ -352,9 +352,9 @@ private:
 
     NServer::TForkCountersPtr ForkCounters_;
 
-    TSharedRef SanitizedLocalHostName_;
+    TStringBuf SanitizedLocalHostName_;
 
-    TSharedRef SanitizeLocalHostName() const;
+    TStringBuf SanitizeLocalHostName() const;
 
     TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);

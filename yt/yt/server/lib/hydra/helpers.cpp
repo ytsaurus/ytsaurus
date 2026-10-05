@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <library/cpp/yt/system/local_host.h>
+
 #include <algorithm>
 
 namespace NYT::NHydra {
@@ -28,7 +30,7 @@ bool IsPersistenceEnabled(
     return voting || options.EnableObserverPersistence;
 }
 
-std::optional<TSharedRef> SanitizeLocalHostName(
+std::optional<TStringBuf> SanitizeLocalHostName(
     const THashSet<std::string>& clusterPeersAddresses,
     const std::string& host)
 {
@@ -37,7 +39,7 @@ std::optional<TSharedRef> SanitizeLocalHostName(
     }
 
     if (std::ssize(clusterPeersAddresses) == 1) {
-        return TSharedRef::FromString(TString(host));
+        return InternHostName(host);
     }
 
     auto getChar = [] (TStringBuf str, i64 position, bool reverse) -> std::optional<char> {
@@ -78,7 +80,7 @@ std::optional<TSharedRef> SanitizeLocalHostName(
         "%v*%v",
         host.substr(0, commonPrefixSize),
         host.substr(std::ssize(host) - commonSuffixSize));
-    return TSharedRef::FromString(unifiedHost);
+    return InternHostName(unifiedHost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
