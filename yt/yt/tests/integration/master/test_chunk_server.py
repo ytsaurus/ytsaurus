@@ -1185,8 +1185,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
 
-        # Observe the intermediate state before waiting for node readiness.
-        self.Env.start_nodes(sync=False)
+        self.Env.start_nodes()
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         assert node not in get(f"#{chunk_id}/@stored_replicas")
@@ -1233,8 +1232,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         self.Env.kill_service("node", indexes=[node_index])
 
-        # Observe the intermediate state before waiting for node readiness.
-        self.Env.start_nodes(sync=False)
+        self.Env.start_nodes()
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         remove("//tmp/t")
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted"
@@ -1723,6 +1721,9 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {
         "data_node": {
+            "master_connector": {
+                "delay_before_full_heartbeat_report": 4000,
+            },
             "lease_transaction_timeout": 2000,
             "lease_transaction_ping_period": 1000,
         },
@@ -1730,13 +1731,6 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
     @authors("danilalexeev")
     def test_no_missing_replicas_erasure(self):
-        update_nodes_dynamic_config({
-            "data_node": {
-                "testing_options": {
-                    "full_heartbeat_session_sleep_duration": 4000,
-                },
-            },
-        })
         set("//sys/@config/chunk_manager/disposed_pending_restart_node_chunk_refresh_delay", 10000)
 
         create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
@@ -1763,7 +1757,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         assert not status["parity_missing"]
 
         self.Env.kill_service("node", indexes=node_indexes)
-        self.Env.start_nodes(sync=False)
+        self.Env.start_nodes()
 
         # explicit statistics
         def check1():
