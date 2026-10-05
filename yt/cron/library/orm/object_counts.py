@@ -70,6 +70,7 @@ def main(
     monium_project,
     monium_cluster_mapper,
     orm_token,
+    prefer_https=False,
 ):
     configure_logger(orm_logger)
     arguments = _parse_arguments(human_readable_orm_name)
@@ -78,7 +79,7 @@ def main(
     logging.info(f'Monitoring {human_readable_orm_name} object counts on cluster "{orm_cluster}"')
 
     orchid_client = OrmOrchidClient(
-        yt_client=create_yt_client(arguments.cluster, retry_count=3),
+        yt_client=create_yt_client(arguments.cluster, retry_count=3, prefer_https=prefer_https),
         orm_path=orm_path,
         service_name="master",
         human_readable_service_name=f"{human_readable_orm_name} master",

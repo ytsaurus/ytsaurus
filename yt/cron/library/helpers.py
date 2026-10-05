@@ -9,13 +9,15 @@ except ImportError:
     pass
 
 
-def create_yt_client(cluster_name, retry_count=None):
+def create_yt_client(cluster_name, retry_count=None, prefer_https=False):
     config = dict()
 
     if "YT_TOKEN_PATH" in os.environ:
         config["token_path"] = os.environ["YT_TOKEN_PATH"]
+    if prefer_https:
+        config["proxy"] = dict(prefer_https=True)
     if retry_count is not None:
-        config["proxy"] = dict(retries=dict(count=retry_count))
+        config.setdefault("proxy", {})["retries"] = dict(count=retry_count)
 
     return YtClient(proxy=cluster_name, config=config)
 
