@@ -144,6 +144,8 @@ public:
         , Client_(std::move(client))
     { }
 
+    using TCompanionResource::GetCompanionClient;
+
 protected:
     ICompanionClientPtr CreateCompanionClient(
         const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) const override
@@ -402,6 +404,7 @@ TEST_F(TCompanionResourceTest, LoadSendsInitWithFullSpecs)
     EXPECT_EQ(0u, argument->GetChildValueOrThrow<ui64>("incarnation_generation"));
     EXPECT_EQ(0u, argument->GetChildValueOrThrow<ui64>("configuration_generation"));
     EXPECT_TRUE(argument->GetChildOrThrow("dependencies")->AsList()->GetChildren().empty());
+    EXPECT_EQ(ICompanionClientPtr(client), resource->GetCompanionClient());
 }
 
 TEST_F(TCompanionResourceTest, LoadRetriesOnErrorThenSucceeds)

@@ -176,7 +176,7 @@ public:
         return result;
     }
 
-    TQueryResult GetProgress(TQueryId queryId) override
+    TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> /*revision*/) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -186,7 +186,7 @@ public:
         }
 
         auto pluginProcess = pluginProcessOrError.Value();
-        return pluginProcess->GetProgress(queryId);
+        return pluginProcess->GetProgress(queryId, /*revision*/ std::nullopt);
     }
 
     TAbortResult Abort(TQueryId queryId) override
@@ -682,12 +682,15 @@ private:
 
     void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig)
     {
+        const bool startDqManager = Config_->EnableDQ
+            && !Config_->DQManagerConfig->YTBackends.empty();
         auto options = ConvertToNativePluginOptions(
             Config_,
             DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            true,
+            /*startDqManager*/ startDqManager,
+            /*enableClique*/ false,
             ConfigTemplate_->UseTokenResolver,
             ConfigTemplate_->TokenServiceSocketPath);
         DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));

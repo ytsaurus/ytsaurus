@@ -2814,6 +2814,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
             .With("NodeId", clonedTrunkNode->GetVersionedId());
     }
 
+    factory->ValidateCloneIndices();
+
     factory->Commit();
 
     ToProto(response->mutable_node_id(), clonedTrunkNode->GetId());

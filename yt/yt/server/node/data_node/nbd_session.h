@@ -121,6 +121,7 @@ private:
     IBootstrap* Bootstrap_;
     const TSessionId Id_;
     const TSessionOptions Options_;
+    const IInvokerPtr StorageHeavyInvoker_;
     const TStoreLocationPtr StoreLocation_;
     const NConcurrency::TLease Lease_;
     NNode::TLockedChunkGuard LockedChunkGuard_;

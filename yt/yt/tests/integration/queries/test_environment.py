@@ -168,6 +168,7 @@ class TestMigration(QueriesTestBase):
             "finished_queries",
             "finished_query_results",
             "active_queries",
+            "query_progresses",
         ]
 
         for table in tables:

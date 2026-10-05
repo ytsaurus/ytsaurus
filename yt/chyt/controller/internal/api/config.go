@@ -17,6 +17,7 @@ type APIConfig struct {
 	RobotUsername             string
 	ValidatePoolAccess        *bool
 	AssignAdministerToCreator bool
+	Deprecated                bool
 }
 
 const (

@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     dq_warmup.cpp
@@ -34,7 +34,5 @@ ELSE()
         yql_dq_clique_routing_gateway_stub.cpp
     )
 ENDIF()
-
-YQL_LAST_ABI_VERSION()
 
 END()

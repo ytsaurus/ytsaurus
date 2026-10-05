@@ -45,6 +45,7 @@ struct TYqlNativePluginOptions
     THolder<TLogBackend> LogBackend;
 
     bool StartDqManager;
+    bool EnableClique = false;
 };
 
 //! Applicable only for qtworker plugin.
@@ -65,6 +66,8 @@ struct TQueryResult
     std::optional<TString> Progress;
     std::optional<TString> TaskInfo;
     std::optional<TString> Ast;
+
+    std::optional<ui32> Revision;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
@@ -132,7 +135,7 @@ struct IYqlPlugin
         int executeMode,
         NYqlClient::EQueryType queryType) = 0;
 
-    virtual TQueryResult GetProgress(TQueryId queryId) = 0;
+    virtual TQueryResult GetProgress(TQueryId queryId, std::optional<ui32> revision) = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 
@@ -168,6 +171,7 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     bool startDqManager = false,
+    bool enableClique = false,
     bool useTokenResolver = false,
     const std::string& tokenServiceSocketPath = {});
 

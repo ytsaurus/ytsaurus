@@ -3,3 +3,5 @@ items:
     href: about.md
   - name: HTTP
     href: http.md
+  - name: ClickHouse
+    href: clickhouse.md

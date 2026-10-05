@@ -945,7 +945,7 @@ private:
             return Owner_->Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
         }
 
-        IInvokerPtr GetStorageHeavyInvoker() const override
+        IPrioritizedInvokerPtr GetStorageHeavyInvoker() const final
         {
             return Owner_->Bootstrap_->GetStorageHeavyInvoker();
         }

@@ -14,6 +14,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
 
+#include <yt/yt/server/master/table_server/table_node.h>
+
 #include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -100,6 +102,12 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitReshard, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortReshard, Unretained(this)),
         });
+
+        transactionManager->RegisterTransactionActionHandlers<TReqTwoPhaseAlter>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareAlter, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitAlter, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortAlter, Unretained(this)),
+        });
     }
 
 private:
@@ -122,6 +130,17 @@ private:
             THROW_ERROR_EXCEPTION("%v is not a tablet owner", node->GetId());
         }
         return node->As<TTabletOwnerBase>();
+    }
+
+    static TTableNode* AsTableSafe(TCypressNode* node)
+    {
+        if (!node) {
+            return nullptr;
+        }
+        if (!IsTableType(node->GetType())) {
+            THROW_ERROR_EXCEPTION("%v is not a table", node->GetId());
+        }
+        return node->As<TTableNode>();
     }
 
 
@@ -867,6 +886,134 @@ private:
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortReshard");
+    }
+
+    void HydraPrepareAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        const auto& path = request->path();
+        bool dynamic = request->dynamic();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_TLOG_DEBUG("Preparing table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        ValidateNoParentTransaction(transaction);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+
+        if (table->IsSequoia()) {
+            THROW_ERROR_EXCEPTION("Two-phase table alter is not supported for Sequoia tables");
+        }
+
+        table->ValidateNoCurrentMountTransaction(
+            Format("Cannot alter dynamicity of %v", table->GetLowercaseObjectName()));
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        if (table->IsNative()) {
+            auto currentPath = cypressManager->GetNodePath(table, nullptr);
+            if (path != currentPath) {
+                THROW_ERROR_EXCEPTION("%v path mismatch", table->GetCapitalizedObjectName())
+                    .With("requested_path", path)
+                    .With("resolved_path", currentPath);
+            }
+
+            securityManager->ValidatePermission(table, EPermission::Write);
+
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            switch (config->SecurityManager->AllowAlterWithoutFullRead) {
+                case EAllowAlterWithoutFullRead::Allow: {
+                    break;
+                }
+                case EAllowAlterWithoutFullRead::Deny: {
+                    securityManager->ValidatePermission(table, EPermission::FullRead);
+                    break;
+                }
+                case EAllowAlterWithoutFullRead::AllowAndAlert: {
+                    try {
+                        securityManager->ValidatePermission(table, EPermission::FullRead);
+                    } catch (const std::exception& ex) {
+                        YT_TLOG_ALERT("User requested to alter table but lacks \"full_read\" permission")
+                            .With("TableId", tableId)
+                            .With("User", securityManager->GetAuthenticatedUser())
+                            .With(ex);
+                    }
+                    break;
+                }
+            }
+
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
+
+        tabletManager->PrepareAlter(table, dynamic);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
+
+        YT_LOG_ACCESS(tableId, path, transaction, "PrepareAlter");
+    }
+
+    void HydraCommitAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionCommitOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        bool dynamic = request->dynamic();
+
+        YT_TLOG_DEBUG("Committing table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        table->UnlockCurrentMountTransaction(transaction->GetId());
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        tabletManager->Alter(table, dynamic);
+
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "CommitAlter");
+    }
+
+    void HydraAbortAlter(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqTwoPhaseAlter* request,
+        const TTransactionAbortOptions& /*options*/)
+    {
+        auto tableId = FromProto<TTableId>(request->table_id());
+        bool dynamic = request->dynamic();
+
+        YT_TLOG_DEBUG("Aborting table alter")
+            .With("TableId", tableId)
+            .With("TransactionId", transaction->GetId())
+            .With("Dynamic", dynamic)
+            .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* table = AsTableSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+
+        if (!IsObjectAlive(table)) {
+            return;
+        }
+
+        table->UnlockCurrentMountTransaction(transaction->GetId());
+
+        YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortAlter");
     }
 };
 

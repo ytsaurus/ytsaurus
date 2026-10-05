@@ -482,7 +482,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 },
             }
         }
-        with Clique(1, config_patch=patch, export_query_log=True) as clique:
+        with Clique(1, config_patch=patch, export_query_log=True, disable_chunk_spec_cache=True) as clique:
             assert clique.make_query("select min(a) from '//tmp/t/empty'") == [{"min(a)": None}]
             assert clique.make_query_and_validate_prewhered_row_count("select min(a) from '//tmp/t/1'", exact=2) == [{"min(a)": 0}]
             assert clique.make_query_and_validate_prewhered_row_count("select max(a) from '//tmp/t/1'", exact=2) == [{"max(a)": 4}]
@@ -2648,7 +2648,7 @@ class TestDataTypeConversion(ClickHouseTestBase):
         data.append(get_row(None))
         write_table("//tmp/t", data)
 
-        with Clique(1, config_patch=self.low_cardinality_config()) as clique:
+        with Clique(1, config_patch=self.low_cardinality_config(), disable_chunk_spec_cache=True) as clique:
             settings = {
                 "chyt.conversion.low_cardinality.mode": "all",
             }

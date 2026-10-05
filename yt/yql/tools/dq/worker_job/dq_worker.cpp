@@ -164,7 +164,7 @@ namespace NYql::NDq::NWorker {
 
         ApplyTokenFromVault(coordinatorConfig, backendConfig);
 
-        TRangeWalker<int> portWalker(startPort, startPort+100);
+        TRangeWalker<int> portWalker(startPort, startPort + 100);
         auto ports = BindInRange(portWalker);
 
         auto forceIPv4 = IsTrue(GetEnv(TString("YT_SECURE_VAULT_") + NCommonJobVars::YT_FORCE_IPV4, GetEnv(NCommonJobVars::YT_FORCE_IPV4, "")));
@@ -186,7 +186,8 @@ namespace NYql::NDq::NWorker {
             forceIPv4 ? AF_INET : AF_INET6
         );
 
-        auto coordinator = CreateCoordiantionHelper(coordinatorConfig, NProto::TDqConfig::TScheduler(), "worker_node", ports[forceIPv4 ? 0 : 1].Addr.GetPort(), host, ip);
+        auto& listeningPort = ports[forceIPv4 ? 0 : 1];
+        auto coordinator = CreateCoordiantionHelper(coordinatorConfig, NProto::TDqConfig::TScheduler(), "worker_node", listeningPort.Addr.GetPort(), host, ip);
         i64 cacheSize = backendConfig.HasCacheSize()
             ? backendConfig.GetCacheSize()
             : 16000000000L;
@@ -300,11 +301,11 @@ namespace NYql::NDq::NWorker {
 
         Cerr << "My nodeId: " << nodeId << Endl;
 
-        Cerr << "Configure porto" << Endl;
-        if (backendConfig.GetEnablePorto() == "isolate") {
+        if (enablePorto) {
+            Cerr << "Configure porto" << Endl;
             ConfigurePorto(backendConfig, pfOptions.PortoCtlPath);
+            Cerr << "Configure porto done" << Endl;
         }
-        Cerr << "Configure porto done" << Endl;
 
         auto dqSensors = GetSensorsGroupFor(NSensorComponent::kDq);
         pfOptions.Counters = dqSensors->GetSubgroup("component", "task_runner_pipe");
@@ -313,8 +314,8 @@ namespace NYql::NDq::NWorker {
         std::tie(setup, logSettings) = BuildActorSetup(
             nodeId,
             ip,
-            ports[forceIPv4 ? 0 : 1].Addr.GetPort(),
-            ports[forceIPv4 ? 0 : 1].Socket->Release(),
+            listeningPort.Addr.GetPort(),
+            listeningPort.Socket->Release(),
             {},
             dqSensors,
             [](const TIntrusivePtr<NActors::TTableNameserverSetup>& setup) {
@@ -323,7 +324,7 @@ namespace NYql::NDq::NWorker {
             Nothing(),
             backendConfig.GetICSettings());
 
-        auto statsCollector = CreateStatsCollector(5, *setup.Get(), dqSensors);
+        auto statsCollector = CreateStatsCollector(5, *setup, dqSensors);
 
         auto actorSystem = MakeHolder<NActors::TActorSystem>(setup, nullptr, logSettings);
 

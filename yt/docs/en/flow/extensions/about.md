@@ -14,4 +14,6 @@ Built-in connectors for {{product-name}} objects such as queues and tables are d
 || **Extension** | **Has source** | **Has sink** | **Description** ||
 || [HTTP](http.md) | &#65794; | &#10003; |
 Asynchronous delivery of messages as HTTP POST requests to an external endpoint ||
+|| [ClickHouse](clickhouse.md) | &#65794; | &#10003; |
+Direct writes to [ClickHouse](https://clickhouse.com/docs) over the native protocol; deterministic batching for exactly-once ||
 |#

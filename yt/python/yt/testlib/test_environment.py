@@ -54,6 +54,7 @@ class YtTestEnvironment(object):
                  delta_proxy_config=None,
                  default_abort_on_alert=None,
                  modify_configs_func=None,
+                 on_masters_started_func=None,
                  cluster_name="primary",
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
@@ -76,7 +77,8 @@ class YtTestEnvironment(object):
                 native_client_supported = False
 
         if "store_location_count" not in env_options:
-            env_options["store_location_count"] = 1
+            store_location_media = env_options.get("store_location_media")
+            env_options["store_location_count"] = len(store_location_media) if store_location_media else 1
 
         has_http_proxy = config["backend"] not in ("native",)
 
@@ -216,7 +218,7 @@ class YtTestEnvironment(object):
                               kill_child_processes=True)
 
         try:
-            self.env.start()
+            self.env.start(on_masters_started_func=on_masters_started_func)
         except Exception:
             self.save_sandbox()
             raise

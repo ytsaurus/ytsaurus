@@ -47,6 +47,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/yt/compact_containers/compact_queue.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NYTree;
@@ -194,7 +196,7 @@ std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk)
     return chunkList->CumulativeStatistics().GetPreviousSum(chunkIndex).RowCount;
 }
 
-TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
+TChunkTree* GetUniqueParent(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
@@ -209,7 +211,7 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
             auto [parent, cardinality] = *parents.begin();
             YT_VERIFY(cardinality == 1);
             YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
-            return parent->AsChunkList();
+            return parent;
         }
 
         case EObjectType::ChunkView: {
@@ -229,7 +231,7 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
             }
             YT_VERIFY(parents.size() == 1);
             YT_VERIFY(parents[0]->GetType() == EObjectType::ChunkList);
-            return parents[0]->AsChunkList();
+            return parents[0];
         }
 
         case EObjectType::ChunkList: {
@@ -451,9 +453,10 @@ void DetachFromChunkList(
         // NB: We do not call this method to detach chunk lists from hunk roots.
         YT_VERIFY(!chunkList->IsHunkRoot());
 
-        auto rootChunkList = GetUniqueParent(chunkList);
-        YT_VERIFY(rootChunkList &&
-            rootChunkList->Parents().empty() &&
+        auto* rootChunkTree = GetUniqueParent(chunkList);
+        YT_VERIFY(rootChunkTree);
+        auto* rootChunkList = rootChunkTree->AsChunkList();
+        YT_VERIFY(rootChunkList->Parents().empty() &&
             rootChunkList->IsHunkRoot());
 
         for (auto child : children) {
@@ -615,7 +618,8 @@ void DetachFromChunkList(
     // Go upwards and recompute statistics.
     VisitUniqueAncestors(
         chunkList,
-        [&] (TChunkList* current, TChunkTree* child) {
+        [&] (TChunkTree* currentChunkTree, TChunkTree* child) {
+            auto* current = currentChunkTree->AsChunkList();
             TCumulativeStatisticsEntry cumulativeStatisticsDelta;
             if (hunkCumulativeStatisticsDelta) {
                 cumulativeStatisticsDelta -= *hunkCumulativeStatisticsDelta;
@@ -701,7 +705,7 @@ void ResetChunkTreeParent(TChunkTree* parent, TChunkTree* child)
             break;
 
         case EObjectType::ChunkList:
-            child->AsChunkList()->RemoveParent(parent->AsChunkList());
+            child->AsChunkList()->RemoveParent(parent);
             break;
 
         default:
@@ -843,15 +847,17 @@ void AccumulateUniqueAncestorsStatistics(
     // TODO(aleksandra-zh): remove copypaste.
     VisitUniqueAncestors(
         parent,
-        [&] (TChunkList* parent, TChunkTree* child) {
+        [&] (TChunkTree* parent, TChunkTree* child) {
+            YT_VERIFY(parent->IsChunkList());
+            auto* chunkList = parent->AsChunkList();
             ++mutableStatisticsDelta.Rank;
-            parent->Statistics().Accumulate(mutableStatisticsDelta);
+            chunkList->Statistics().Accumulate(mutableStatisticsDelta);
 
-            if (parent->HasCumulativeStatistics()) {
-                auto& cumulativeStatistics = parent->CumulativeStatistics();
+            if (chunkList->HasCumulativeStatistics()) {
+                auto& cumulativeStatistics = chunkList->CumulativeStatistics();
                 TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
 
-                int index = GetChildIndex(parent, child);
+                int index = GetChildIndex(chunkList, child);
                 cumulativeStatistics.Update(index, entry);
             }
         },
@@ -883,10 +889,11 @@ void AccumulateHunkStatisticsInUniqueAncestors(
                 parent->AccumulateHunkStatistics(child->AsChunk());
             }
 
-            auto* grandparent = GetUniqueParent(parent);
-            if (!grandparent) {
+            auto* grandparentChunkTree = GetUniqueParent(parent);
+            if (!grandparentChunkTree) {
                 return;
             }
+            auto* grandparent = grandparentChunkTree->AsChunkList();
 
             YT_VERIFY(grandparent->IsHunkRoot());
             YT_VERIFY(grandparent->Parents().empty());
@@ -972,12 +979,12 @@ bool IsHunkChunkUniquelyPresentInChunkList(
             .With("ChunkListKind", chunkList->GetKind())
             .With("ChunkId", chunk->GetId());
 
-        for (auto grandparent : parent->AsChunkList()->Parents()) {
-            YT_VERIFY(grandparent->GetType() == EObjectType::ChunkList);
+        for (auto grandparentChunkTree : parent->AsChunkList()->Parents()) {
+            const auto* grandparent = grandparentChunkTree->AsChunkList();
             YT_VERIFY(grandparent->IsHunkRoot());
             YT_VERIFY(grandparent->Parents().empty());
 
-            if (grandparent->AsChunkList() == chunkList) {
+            if (grandparent == chunkList) {
                 if (++occurrenceCount > 1) {
                     return false;
                 }
@@ -1064,22 +1071,25 @@ void RecomputeChildToIndexMapping(TChunkList* chunkList)
     }
 }
 
-std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
+namespace {
+
+void VisitChunkTreeAndAncestors(TChunkTree* chunkTree, auto functor)
 {
-    THashSet<TChunkOwnerBase*> owningNodes;
     THashSet<TChunkTree*> visitedTrees;
-    std::vector<TChunkTree*> queue{chunkTree};
+    TCompactQueue<TChunkTree*, 64> queue;
 
     auto visit = [&] (TChunkTree* chunkTree) {
         if (visitedTrees.insert(chunkTree).second) {
-            queue.push_back(chunkTree);
+            functor(chunkTree);
+            queue.Push(chunkTree);
         }
     };
 
     visit(chunkTree);
 
-    for (int index = 0; index < std::ssize(queue); ++index) {
-        chunkTree = queue[index];
+    while (!queue.Empty()) {
+        chunkTree = queue.Pop();
+        functor(chunkTree);
 
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
@@ -1106,8 +1116,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             }
             case EObjectType::ChunkList: {
                 auto* chunkList = chunkTree->AsChunkList();
-                owningNodes.insert(chunkList->TrunkOwningNodes().begin(), chunkList->TrunkOwningNodes().end());
-                owningNodes.insert(chunkList->BranchedOwningNodes().begin(), chunkList->BranchedOwningNodes().end());
+
                 for (auto parent : chunkList->Parents()) {
                     visit(parent);
                 }
@@ -1117,11 +1126,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
                 YT_ABORT();
         }
     }
-
-    return std::vector<TChunkOwnerBase*>(owningNodes.begin(), owningNodes.end());
 }
-
-namespace {
 
 TYsonString DoGetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
@@ -1220,6 +1225,21 @@ TYsonString DoGetMulticellOwningNodes(
 }
 
 } // namespace
+
+std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
+{
+    THashSet<TChunkOwnerBase*> owningNodes;
+
+    VisitChunkTreeAndAncestors(chunkTree, [&] (const TChunkTree* currentChunkTree) {
+        if (currentChunkTree->IsChunkList()) {
+            const auto* chunkList = currentChunkTree->AsChunkList();
+            owningNodes.insert(chunkList->TrunkOwningNodes().begin(), chunkList->TrunkOwningNodes().end());
+            owningNodes.insert(chunkList->BranchedOwningNodes().begin(), chunkList->BranchedOwningNodes().end());
+        }
+    });
+
+    return std::vector<TChunkOwnerBase*>(owningNodes.begin(), owningNodes.end());
+}
 
 TFuture<TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,

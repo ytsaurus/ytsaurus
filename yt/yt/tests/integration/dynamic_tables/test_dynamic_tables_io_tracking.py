@@ -286,10 +286,6 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
     @authors("tea-mur", "akozhikhov")
     def test_dictionary_builder(self):
-        def _wait_dictionaries_built(path, previous_hunk_chunk_count):
-            # One dictionary hunk chunk for each of two policies.
-            wait(lambda: len(self._get_hunk_chunk_ids(path)) == previous_hunk_chunk_count + 2)
-
         # Prepare cluster.
         sync_create_cells(1)
         schema = yson.YsonList([
@@ -313,7 +309,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
             "backoff_period": 1000,
         })
         remount_table("//tmp/table")
-        _wait_dictionaries_built("//tmp/table", 1)
+        self._wait_value_dictionaries_built("//tmp/table", 1)
 
         # Check io log.
         read_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier, check_event_count=False,

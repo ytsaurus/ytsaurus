@@ -64,6 +64,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Freeze);
     DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Unfreeze);
     DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, Reshard);
+    DEFINE_RPC_PROXY_METHOD(NTabletClient::NProto, TwoPhaseAlter);
 
     //! Executes a single typed request.
     template <class TTypedRequest>

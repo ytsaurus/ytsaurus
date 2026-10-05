@@ -79,6 +79,9 @@
 || `planning_horizon` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10m`
  ||
+|| `preloading_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `30m`
+Сколько балансер `resource_queue` держит предзагрузку модели, которая ещё грузится, считая от запроса. До этого предзагрузка не снимается, а воркер считается воркером вычислений, которым нужна модель; после — обычные правила. ||
 || `minimum_worker_count` | **Тип**: `unsigned long`
 **Значение по умолчанию**: `1`
 Минимальное число воркеров, на которые стоит распределять нагрузку.
@@ -96,7 +99,7 @@
 || `worker_group_override` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Значение по умолчанию**: `{}`
  ||
-|| `partition_history_limit` | **Тип**: `i64`
+|| `partition_history_limit` | **Тип**: `long`
 **Значение по умолчанию**: `4096`
 Сколько историй партиций балансер хранит между перезапусками джоб, см. `balancer_metrics_source`. Истории лежат в одном персистентном документе с ограничением на размер, поэтому при достижении предела самая лёгкая история уступает место более тяжёлой, а более лёгкие не сохраняются. При остановке пайплайна истории не сохраняются вовсе. ||
 |#

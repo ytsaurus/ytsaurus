@@ -107,6 +107,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::LeaseCellIds);
         descriptors->push_back(EInternedAttributeKey::SuccessorTransactionLeaseCount);
         descriptors->push_back(EInternedAttributeKey::LeasesState);
+        descriptors->push_back(EInternedAttributeKey::InitiatorId);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -219,6 +220,11 @@ private:
             case EInternedAttributeKey::LocalExportedObjectCount:
                 BuildYsonFluently(consumer)
                     .Value(transaction->ExportedObjects().size());
+                return true;
+
+            case EInternedAttributeKey::InitiatorId:
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetInitiatorId());
                 return true;
 
             default:

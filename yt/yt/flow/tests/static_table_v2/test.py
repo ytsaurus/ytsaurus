@@ -239,6 +239,7 @@ class Test(FlowTestBase):
         source_class_name: str | None = None,
         use_migration_timestamps: bool = False,
         use_planned_timestamps: bool = False,
+        allow_v1_migration: bool | None = None,
     ):
         config_path, sink_computation = {
             "swift": (PIPELINE_SWIFT_CONFIG_PATH, "reader"),
@@ -276,10 +277,13 @@ class Test(FlowTestBase):
             }
         )
 
+        dynamic_parameters = {
+            "desired_table_process_time": desired_table_process_time.total_seconds() * 1000,
+        }
+        if allow_v1_migration is not None:
+            dynamic_parameters["allow_v1_migration"] = allow_v1_migration
         pipeline_config["dynamic_spec"]["computations"]["reader"]["source_streams"]["table"]["parameters"].update(
-            {
-                "desired_table_process_time": desired_table_process_time.total_seconds() * 1000,
-            }
+            dynamic_parameters
         )
 
         reader_empty_spec = pipeline_config["spec"]["computations"].get("reader_empty")
@@ -336,7 +340,7 @@ class Test(FlowTestBase):
             "t3": t3,
         }
 
-    def prepare_migration_pipeline_config(self):
+    def prepare_migration_pipeline_config(self, allow_v1_migration=False):
         return self.prepare_pipeline_config(
             pipeline_type="swift",
             process_directory=True,
@@ -344,6 +348,7 @@ class Test(FlowTestBase):
             desired_table_process_time=datetime.timedelta(minutes=5),
             source_class_name=V1_SOURCE_CLASS,
             use_migration_timestamps=True,
+            allow_v1_migration=allow_v1_migration,
         )
 
     def get_ordered_output(self):
@@ -453,6 +458,14 @@ class Test(FlowTestBase):
         assert reloaded["cutover_era"] == draining["cutover_era"]
         assert reloaded["cutover_event_timestamp"] == draining["cutover_event_timestamp"]
         return full_expected, draining
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_v1_migration_enabled_by_default(self):
+        run_yt_sync("primary", self.work_yt_path)
+        pipeline_config_path = self.prepare_migration_pipeline_config(allow_v1_migration=None)
+
+        with self.start_flow_process_federation(pipeline_binary_args={"--config": pipeline_config_path}):
+            self.wait_source_mode("v2")
 
     @pytest.mark.authors(["pechatnov"])
     def test_v1_to_v2_migration(self):

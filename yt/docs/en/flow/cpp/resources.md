@@ -386,3 +386,32 @@ revisions of its providers. Snapshot and individual-revision state distributions
 through the `/resource_controller/file_snapshot_instance_count` and
 `/resource_controller/file_provider_revision_instance_count` metrics. Cache state and insufficient-
 space errors are reported under `/file_storage`.
+
+## File revision monitoring
+
+The controller dashboard has four panels for each resource and named file provider:
+
+- **Resource/File/Active**: the controller's active target revision, with its source version in
+  `display_version` and cache identity in `revision_id`.
+- **Resource/File/Preparing**: the candidate revision awaiting validation.
+- **Resource/File/Instances**: revisions actually reported by workers, grouped by state.
+  An active controller target does not mean that all workers have switched to it.
+- **Resource/File/Age**: `Now - Timestamp` in seconds for Active and Preparing targets.
+  A missing timestamp produces no age series, not a zero age.
+
+A file provider can supply an optional `TFileProviderRevision::Timestamp` from source metadata.
+It must not substitute discovery or download time. The timestamp survives controller state
+restoration and rollback, does not affect disk cache identity, and changing only this metadata does
+not create a new snapshot: an existing snapshot retains the timestamp recorded when it was created.
+
+YT File and YT Directory Last use the snapshot-locked node's `modification_time`. This includes
+metadata modifications, not only content changes. It is not the training-data time of a model.
+Local File has no authoritative source publication timestamp and leaves it unset.
+
+{% if audience == "internal" %}
+Sandbox uses the resource's `time.created`. Model Service defaults to the selected artifact
+version's `created_at`, including when `pinned_version_id` is set; it does not use torrent-share
+creation time. These values do not describe the time of the data used to train a model.
+Model Service can select another metadata field with `timestamp_path` and use `timestamp_timezone`
+for timestamps without an explicit time zone.
+{% endif %}

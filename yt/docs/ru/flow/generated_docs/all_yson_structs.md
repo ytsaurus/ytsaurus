@@ -1,6 +1,6 @@
 # Справочник конфигураций
 
-Данный файл содержит описание всех спек и конфигов, используемых для конфигурации {{product-name}} Flow. Алгоритм генерации этого файла рекурсивно ищет все подконфиги. Он несовершенен.{% if audience == "internal" %} Если чего-то нет, вы можете обратиться в чат [YT Flow Public](https://nda.ya.ru/t/hcJkQdBD7LNa9V), и мы постараемся это добавить.{% endif %}
+Данный файл содержит описание всех спек и конфигов, используемых для конфигурации {{product-name}} Flow. Алгоритм генерации этого файла рекурсивно ищет все подконфиги. Он несовершенен.
 
 {% include [_](./NYT_NApi_EConnectionType.md) %}
 
@@ -9,8 +9,6 @@
 {% include [_](./NYT_NApi_NRpcProxy_TConnectionConfig.md) %}
 
 {% include [_](./NYT_NApi_TTableMountCacheConfig.md) %}
-
-{% if audience == "internal" %}{% include [_](./NYT_NAuth_TTvmServiceConfig.md) %}{% endif %}
 
 {% include [_](./NYT_NBus_EEncryptionMode.md) %}
 
@@ -25,6 +23,8 @@
 {% include [_](./NYT_NBus_NTcp_TDispatcherDynamicConfig.md) %}
 
 {% include [_](./NYT_NBus_NTcp_TMultiplexingBandConfig.md) %}
+
+{% include [_](./NYT_NChaosClient_TChaosLeaseCacheConfig.md) %}
 
 {% include [_](./NYT_NChaosClient_TReplicationCardCacheConfig.md) %}
 
@@ -53,6 +53,10 @@
 {% include [_](./NYT_NFlow_EBalanceResource.md) %}
 
 {% include [_](./NYT_NFlow_EBalancerMetricsSource.md) %}
+
+{% include [_](./NYT_NFlow_EClickHouseCodec.md) %}
+
+{% include [_](./NYT_NFlow_EClickHouseHostSelectionPolicy.md) %}
 
 {% include [_](./NYT_NFlow_EDistributionOrdering.md) %}
 
@@ -109,6 +113,8 @@
 {% include [_](./NYT_NFlow_TDeleteStatesArg.md) %}
 
 {% include [_](./NYT_NFlow_TDeleteStatesResponse.md) %}
+
+{% include [_](./NYT_NFlow_TDirectControllerCommandsConfig.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicBufferStateManagerSpec.md) %}
 
@@ -198,6 +204,12 @@
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TQueueSource.md) %}
@@ -205,6 +217,8 @@
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TRandomSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TServiceLogSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TShardedClickHouseBatchingSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftPassthroughComputation.md) %}
 
@@ -312,6 +326,12 @@
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtLeastOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAtMostOnceClickHouseSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TClickHouseBatchingSink.md) %}
+
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TPassthroughComputation.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TQueueSource.md) %}
@@ -319,6 +339,8 @@
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TRandomSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TServiceLogSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TShardedClickHouseBatchingSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TSwiftPassthroughComputation.md) %}
 
@@ -421,6 +443,8 @@
 {% include [_](./NYT_NTCMalloc_TDynamicTCMallocConfig.md) %}
 
 {% include [_](./NYT_NTCMalloc_THeapSizeLimitConfig.md) %}
+
+{% include [_](./NYT_NTCMalloc_TMemoryProfileRetentionConfig.md) %}
 
 {% include [_](./NYT_NTCMalloc_TTCMallocConfig.md) %}
 

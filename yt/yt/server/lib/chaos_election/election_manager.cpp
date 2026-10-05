@@ -46,14 +46,59 @@ TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
     return New<TTableSchema>(
         std::vector<TColumnSchema>{
-            TColumnSchema(std::string(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema(std::string(LeaderLeaseIdColumn), EValueType::String),
-            TColumnSchema(std::string(LeaderNameColumn), EValueType::String),
-            TColumnSchema(std::string(LeaseTimeoutColumn), EValueType::Uint64),
-            TColumnSchema(std::string(LastPingTimeColumn), EValueType::Uint64),
+            TColumnSchema(LockKeyColumn, EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(LeaderLeaseIdColumn, EValueType::String),
+            TColumnSchema(LeaderNameColumn, EValueType::String),
+            TColumnSchema(LeaseTimeoutColumn, EValueType::Uint64),
+            TColumnSchema(LastPingTimeColumn, EValueType::Uint64),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true);
+}
+
+std::optional<std::string> FindChaosElectionLeader(
+    const IClientPtr& client,
+    const NYPath::TYPath& lockTablePath,
+    TStringBuf groupName)
+{
+    auto nameTable = New<TNameTable>();
+    auto lockKeyColumnId = nameTable->RegisterName(LockKeyColumn);
+
+    TLookupRowsOptions options;
+    options.ColumnFilter = TColumnFilter({
+        nameTable->RegisterName(LeaderNameColumn),
+        nameTable->RegisterName(LeaderLeaseIdColumn),
+        nameTable->RegisterName(LeaseTimeoutColumn),
+        nameTable->RegisterName(LastPingTimeColumn),
+    });
+
+    auto rowBuffer = New<TRowBuffer>();
+    TUnversionedRowBuilder keyBuilder;
+    keyBuilder.AddValue(MakeUnversionedStringValue(groupName, lockKeyColumnId));
+    auto key = rowBuffer->CaptureRow(keyBuilder.GetRow());
+
+    auto lookupResult = WaitFor(client->LookupRows(
+        lockTablePath,
+        nameTable,
+        MakeSharedRange(std::vector<TUnversionedRow>{key}, rowBuffer),
+        options))
+        .ValueOrThrow();
+
+    auto rows = lookupResult.Rowset->GetRows();
+    if (rows.Empty()) {
+        return std::nullopt;
+    }
+
+    std::optional<std::string> leaderName;
+    TChaosLeaseId leaseId;
+    std::optional<TDuration> leaseTimeout;
+    std::optional<TInstant> lastPingTime;
+    FromUnversionedRow(rows[0], &leaderName, &leaseId, &leaseTimeout, &lastPingTime);
+    if (!leaseId || !leaseTimeout || !lastPingTime || TInstant::Now() >= *lastPingTime + *leaseTimeout) {
+        return std::nullopt;
+    }
+
+    return leaderName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

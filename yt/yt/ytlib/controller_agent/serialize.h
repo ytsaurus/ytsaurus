@@ -133,6 +133,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropInvalidatedJoblets)                (302402))
     ((JobPhaseSpacing)                       (302403))
     ((RlsAuthenticatedUser)                  (302404))
+    ((PushBasedShuffle)                      (302405))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -173,6 +173,8 @@ private:
         TReplicationEra Era;
         EShortcutState State;
         THashSet<TTransactionId> AliveTransactions;
+        TTimestamp EraStartTimestamp = NullTimestamp;
+        TTimestamp LastTransactionCommitTimestamp = NullTimestamp;
 
         void Persist(const TPersistenceContext& context)
         {
@@ -181,6 +183,19 @@ private:
             Persist(context, Era);
             Persist(context, State);
             Persist(context, AliveTransactions);
+            if (context.IsSave()) {
+                Persist(context, EraStartTimestamp);
+                Persist(context, LastTransactionCommitTimestamp);
+            } else if (context.IsLoad()) {
+                // COMPAT(osidorkin)
+                if (auto reign = static_cast<EChaosReign>(context.LoadContext().GetVersion());
+                    reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+                    (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+                {
+                    Persist(context, EraStartTimestamp);
+                    Persist(context, LastTransactionCommitTimestamp);
+                }
+            }
         }
     };
 
@@ -306,20 +321,27 @@ private:
     void HydraReqGrantShortcuts(NChaosNode::NProto::TReqGrantShortcuts* request)
     {
         auto chaosCellId = FromProto<TCellId>(request->chaos_cell_id());
-        std::vector<std::pair<TChaosObjectId, TReplicationEra>> grantedShortcuts;
 
         NChaosNode::NProto::TRspGrantShortcuts rsp;
         ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
         rsp.set_suspended(Suspended_);
 
+        std::vector<std::pair<TChaosObjectId, TReplicationEra>> grantedShortcuts;
+        grantedShortcuts.reserve(request->shortcuts().size());
+
         for (const auto& protoShortcut : request->shortcuts()) {
             auto chaosObjectId = FromProto<NChaosClient::TChaosObjectId>(protoShortcut.chaos_object_id());
             auto era = protoShortcut.era();
+            auto eraStartTimestamp = protoShortcut.has_era_start_timestamp()
+                ? FromProto<TTimestamp>(protoShortcut.era_start_timestamp())
+                : NullTimestamp;
 
             if (auto it = Shortcuts_.find(chaosObjectId); it != Shortcuts_.end()) {
                 YT_TLOG_ALERT("Granting shortcut while shortcut already present")
                     .With("ChaosCellId", chaosCellId)
                     .With("ChaosObjectId", chaosObjectId)
+                    .With("Era", era)
+                    .With("EraStartTimestamp", eraStartTimestamp)
                     .With("Type", TypeFromId(chaosObjectId))
                     .With("OldEra", it->second.Era)
                     .With("OldState", it->second.State);
@@ -327,7 +349,7 @@ private:
                 YT_VERIFY(it->second.AliveTransactions.empty());
             }
 
-            InsertShortcut(chaosObjectId, chaosCellId, era, EShortcutState::Granted);
+            InsertShortcut(chaosObjectId, chaosCellId, era, EShortcutState::Granted, eraStartTimestamp);
             grantedShortcuts.emplace_back(chaosObjectId, era);
 
             auto* rspShortcut = rsp.add_shortcuts();
@@ -349,7 +371,7 @@ private:
     {
         auto chaosCellId = FromProto<TCellId>(request->chaos_cell_id());
         std::vector<std::pair<TChaosObjectId, TReplicationEra>> revokedShortcuts;
-        std::vector<std::pair<TChaosObjectId, TReplicationEra>> inactiveShortcuts;
+        std::vector<std::tuple<TChaosObjectId, TReplicationEra, TTimestamp>> inactiveShortcuts;
 
         for (auto protoShortcut : request->shortcuts()) {
             auto chaosObjectId = FromProto<NChaosClient::TChaosObjectId>(protoShortcut.chaos_object_id());
@@ -384,7 +406,7 @@ private:
             if (!shortcut.AliveTransactions.empty()) {
                 shortcut.State = EShortcutState::Revoking;
             } else {
-                inactiveShortcuts.emplace_back(chaosObjectId, shortcut.Era);
+                inactiveShortcuts.emplace_back(chaosObjectId, shortcut.Era, shortcut.LastTransactionCommitTimestamp);
                 EraseShortcut(chaosObjectId);
             }
         }
@@ -398,7 +420,7 @@ private:
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
             }))
             .With("Inactive", MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
-                builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
+                builder->AppendFormat("<%v, %v>", std::get<0>(shortcut), std::get<1>(shortcut));
             }));
     }
 
@@ -524,13 +546,13 @@ private:
     void HydraCommitReplicatedCommit(
         TTransaction* transaction,
         NChaosClient::NProto::TReqReplicatedCommit* request,
-        const TTransactionCommitOptions& /*options*/)
+        const TTransactionCommitOptions& options)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), false);
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), options.CommitTimestamp, false);
         for (const auto& protoPrerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(protoPrerequisiteId);
-            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), false);
+            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), options.CommitTimestamp, false);
         }
 
         YT_TLOG_DEBUG("Replication batch committed")
@@ -544,10 +566,10 @@ private:
         const TTransactionAbortOptions& /*options*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        DiscardAliveTransaction(replicationCardId, transaction->GetId(), true);
+        DiscardAliveTransaction(replicationCardId, transaction->GetId(), NullTimestamp, true);
         for (const auto& prerequisiteId : request->prerequisite_ids()) {
             auto chaosLeaseId = FromProto<TChaosLeaseId>(prerequisiteId);
-            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), true);
+            DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), NullTimestamp, true);
         }
 
         YT_TLOG_DEBUG("Replication batch aborted")
@@ -555,7 +577,11 @@ private:
             .With("TransactionId", transaction->GetId());
     }
 
-    void DiscardAliveTransaction(TChaosObjectId chaosObjectId, TTransactionId transactionId, bool isAbort)
+    void DiscardAliveTransaction(
+        TChaosObjectId chaosObjectId,
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp,
+        bool isAbort)
     {
         auto it = Shortcuts_.find(chaosObjectId);
         if (it == Shortcuts_.end()) {
@@ -580,11 +606,33 @@ private:
 
         aliveTransactions.erase(transactionIt);
 
+        if (!isAbort) {
+            if (commitTimestamp < it->second.EraStartTimestamp) [[unlikely]] {
+                YT_TLOG_ALERT("Shortcut commit timestamp is less than era start timestamp")
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("TransactionId", transactionId)
+                    .With("CommitTimestamp", commitTimestamp)
+                    .With("EraStartTimestamp", it->second.EraStartTimestamp);
+            }
+
+            // COMPAT(osidorkin)
+            if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+                reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+                (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+            {
+                if (commitTimestamp > it->second.LastTransactionCommitTimestamp) {
+                    it->second.LastTransactionCommitTimestamp = commitTimestamp;
+                }
+            }
+        }
+
         if (aliveTransactions.empty() && it->second.State == EShortcutState::Revoking) {
             auto chaosCellId = it->second.CellId;
             auto era = it->second.Era;
+            auto lastTransactionCommitTimestamp = it->second.LastTransactionCommitTimestamp;
 
-            SendRevokeShortcutsResponse(chaosCellId, {{chaosObjectId, era}});
+            SendRevokeShortcutsResponse(chaosCellId, {{chaosObjectId, era, lastTransactionCommitTimestamp}});
             EraseShortcut(chaosObjectId);
 
             YT_TLOG_DEBUG("Shortcut revoked")
@@ -596,15 +644,27 @@ private:
 
     void SendRevokeShortcutsResponse(
         TCellId chaosCellId,
-        const std::vector<std::pair<TChaosObjectId, TReplicationEra>>& shortcuts)
+        const std::vector<std::tuple<TChaosObjectId, TReplicationEra, TTimestamp>>& shortcuts)
     {
         NChaosNode::NProto::TRspRevokeShortcuts rsp;
         ToProto(rsp.mutable_coordinator_cell_id(), Slot_->GetCellId());
 
-        for (const auto& [chaosObjectId, era] : shortcuts) {
+        auto maxCommitTimestamp = NullTimestamp;
+
+        rsp.mutable_shortcuts()->Reserve(shortcuts.size());
+        for (const auto& [chaosObjectId, era, lastTransactionCommitTimestamp] : shortcuts) {
             auto* shortcut = rsp.add_shortcuts();
             ToProto(shortcut->mutable_chaos_object_id(), chaosObjectId);
             shortcut->set_era(era);
+            maxCommitTimestamp = std::max(maxCommitTimestamp, lastTransactionCommitTimestamp);
+        }
+
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+            (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+        {
+            rsp.set_max_commit_timestamp(ToProto(maxCommitTimestamp));
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
@@ -612,13 +672,30 @@ private:
         hiveManager->PostMessage(mailbox, rsp);
     }
 
-    void InsertShortcut(TChaosObjectId chaosObjectId, TCellId chaosCellId, TReplicationEra era, EShortcutState state)
+    void InsertShortcut(
+        TChaosObjectId chaosObjectId,
+        TCellId chaosCellId,
+        TReplicationEra era,
+        EShortcutState state,
+        TTimestamp eraStartTimestamp)
     {
+        auto localEraStartTimestamp = NullTimestamp;
+
+        // COMPAT(osidorkin)
+        if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+            reign >= EChaosReign::CheckLastTransactionCommitTimestamp ||
+            (reign >= EChaosReign::CheckLastTransactionCommitTimestamp_26_1 && reign < EChaosReign::Start_26_2))
+        {
+            localEraStartTimestamp = eraStartTimestamp;
+        }
+
         Shortcuts_[chaosObjectId] = TShortcut{
             .CellId = chaosCellId,
             .Era = era,
             .State = state,
             .AliveTransactions = {},
+            .EraStartTimestamp = localEraStartTimestamp,
+            .LastTransactionCommitTimestamp = localEraStartTimestamp,
         };
 
         SnapshotStore_->UpdateShortcut(chaosObjectId, {era});

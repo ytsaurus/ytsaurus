@@ -4,6 +4,16 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAsyncAtMostOnceSinkState::Register(TRegistrar registrar)
+{
+    // Retain ordered sink metadata when switching delivery strategies.
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::Keep);
+    registrar.Parameter("max_persisted_message_id", &TThis::MaxPersistedMessageId)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAtMostOnceStrategyParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
@@ -35,8 +45,9 @@ TAsyncAtMostOnceSinkBase::TAsyncAtMostOnceSinkBase(
     }
 }
 
-void TAsyncAtMostOnceSinkBase::Init(IInitContextPtr /*initContext*/)
+void TAsyncAtMostOnceSinkBase::Init(IInitContextPtr initContext)
 {
+    initContext->InitClient<TAsyncAtMostOnceSinkState>(State_, "v0");
     ProducerId_ = ToString(TGuid::Create());
     DoInit(ProducerId_);
 }
@@ -49,13 +60,19 @@ void TAsyncAtMostOnceSinkBase::Distribute(const TOutputMessageConstPtr& message,
         .With("SystemTimestamp", message->SystemTimestamp)
         .With("EventTimestamp", message->EventTimestamp);
     ObserveEventLag(message->StreamId, message->EventTimestamp);
+    {
+        auto guard = Guard(Lock_);
+        auto& maxPersistedMessageId = State_->MaxPersistedMessageId;
+        if (message->MessageId > maxPersistedMessageId) {
+            maxPersistedMessageId = message->MessageId;
+            LastDistributedSeqNo_ += 1;
+            auto seqNo = LastDistributedSeqNo_;
+            RegisteredRequests_.push_back(TRequest{message, seqNo});
+        }
+    }
     // The at-most-once sink is fire-and-forget: it does not hold the output buffer.
     // Signal distribution immediately.
     onDistributed();
-    auto guard = Guard(Lock_);
-    LastDistributedSeqNo_ += 1;
-    auto seqNo = LastDistributedSeqNo_;
-    RegisteredRequests_.push_back(TRequest{message, seqNo});
 }
 
 void TAsyncAtMostOnceSinkBase::Sync(NApi::IDynamicTableTransactionPtr /*transaction*/)

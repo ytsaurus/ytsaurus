@@ -19,7 +19,7 @@ DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
     yt/yql/tests/agent/throwing_udf
-    yt/yql/tools/mrjob
+    yt/yql/tools/mrjob/impl
     yt/yql/tools/ytflow_worker
 
     yql/essentials/udfs/common/datetime2
@@ -68,5 +68,9 @@ ENV(YT_LOCAL=1)
 # cluster as a single multidaemon process (TestQueriesYqlBase sets ENABLE_MULTIDAEMON = True).
 # An empty value reads as falsy in yt_env_setup, unlike "false".
 ENV(YT_DISABLE_MULTIDAEMON=)
+
+TAG(
+    ya:huge_logs
+)
 
 END()

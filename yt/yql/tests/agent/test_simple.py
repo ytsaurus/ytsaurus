@@ -720,6 +720,7 @@ class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
         self._test_simple_query("select * from `//tmp/t1`", [{"a": 45}], settings={"random_attribute": 0})
 
 
+@pytest.mark.timeout(180)
 class TestExecutionModesYql(TestQueriesYqlSimpleBase):
     @authors("aleksandr.gaev")
     def test_validate(self, query_tracker, yql_agent):
@@ -2245,19 +2246,19 @@ class TestsDDL(TestQueriesYqlSimpleBase):
 
     def test_error_already_exists(self, query_tracker, yql_agent):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
-        self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
+        self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "Table tmp/t2 already exists.")
 
     def test_error_double_create(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
             create table `//tmp/t0` (xyz Text);
             create table `//tmp/t0` (xyz Text);
-        """, "already exists.")
+        """, "Cannot create table tmp/t0 after another modification of the same path in this epoch.")
 
     def test_error_write_and_create(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
             insert into `//tmp/t0` (xyz) values ("one"u),("two"u);
             create table `//tmp/t0` (xyz Text);
-        """, "already exists.")
+        """, "Cannot create table tmp/t0 after another modification of the same path in this epoch.")
 
     def test_error_create_and_drop(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
@@ -2357,7 +2358,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t` (xyz Text not null);", None, settings=settings)
         self._test_simple_query("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", None, settings=settings)
         self._test_simple_query("$p = process `//tmp/v`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'num':Float?>"}], settings=settings)
-        self._test_simple_query_error("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", "already exists.", settings=settings)
+        self._test_simple_query_error("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", "View tmp/v already exists.", settings=settings)
 
     def test_drop_view(self, query_tracker, yql_agent):
         settings = {"yql_version": "2025.05"}

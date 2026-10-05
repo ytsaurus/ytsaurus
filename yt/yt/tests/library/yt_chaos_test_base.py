@@ -113,6 +113,10 @@ class ChaosTestBase(DynamicTablesBase):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
         return get("{0}{1}".format(orchid_path, path), driver=driver)
 
+    def _has_chaos_cell_orchid(self, cell_id, path, driver=None):
+        orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
+        return exists("{0}{1}".format(orchid_path, path), driver=driver)
+
     def _wait_for_card_era(self, replica, card_id, era=1, driver=None):
         import logging
         logger = logging.getLogger()

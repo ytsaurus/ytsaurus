@@ -301,7 +301,7 @@ private:
 
     TLegacyOwningKey GetNextPivotKey(TChunkList* tabletChunkList)
     {
-        auto* parent = GetUniqueParent(tabletChunkList);
+        auto* parent = GetUniqueParent(tabletChunkList)->AsChunkList();
         int index = parent->ChildToIndex()[tabletChunkList];
         return index + 1 == std::ssize(parent->Children())
             ? MaxKey()

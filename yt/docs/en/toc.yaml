@@ -558,6 +558,11 @@ items:
          href: api/query-parameters.md
        - name: Error codes
          href: api/error-codes.md
+   - name: Flow
+     when: audience == "public"
+     include:
+       mode: link
+       path: flow/toc-flow.yaml
    - name: Admin guide
      when: audience == "public"
      items:

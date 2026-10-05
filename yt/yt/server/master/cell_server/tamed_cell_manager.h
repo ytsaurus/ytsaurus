@@ -80,6 +80,7 @@ struct ITamedCellManager
     DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaDestroyed);
     DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaNodeTagFilterChanged);
     DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellCreated);
+    DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellReconfigured);
     DECLARE_INTERFACE_SIGNAL(void(TCellBase* cell), CellDecommissionStarted);
     DECLARE_INTERFACE_SIGNAL(void(), CellPeersAssigned);
     DECLARE_INTERFACE_SIGNAL(void(), AfterSnapshotLoaded);

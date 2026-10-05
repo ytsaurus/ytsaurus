@@ -3,11 +3,13 @@
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <string_view>
 #include <utility>
 
 namespace NYT::NQueryClient::NPortable {
@@ -19,6 +21,23 @@ using namespace NTableClient;
 namespace {
 
 using TOperationOverloads = std::vector<TOperationDescriptor>;
+
+constexpr std::array<std::string_view, 2> LazyFunctionNames{
+    "if",
+    "coalesce",
+};
+
+void ValidateFunctionName(const std::string& functionName)
+{
+    if (functionName.empty()) {
+        THROW_ERROR_EXCEPTION("Portable function name cannot be empty");
+    }
+
+    if (Contains(LazyFunctionNames, functionName)) {
+        THROW_ERROR_EXCEPTION("Portable function %Qv requires lazy argument evaluation and cannot be registered",
+            functionName);
+    }
+}
 
 bool IsValidTypeSet(const TTypeSet& types)
 {
@@ -252,12 +271,10 @@ void TExpressionRegistryBuilder::RegisterFunction(
     std::string functionName,
     TOperationDescriptor descriptor)
 {
-    if (functionName.empty()) {
-        THROW_ERROR_EXCEPTION("Portable function name cannot be empty");
-    }
+    ValidateFunctionName(functionName);
 
     auto operation = Format("function %Qv", functionName);
-    ValidateDescriptor(descriptor, operation, std::nullopt);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ std::nullopt);
 
     if (VariadicFunctions_.find(functionName) != VariadicFunctions_.end()) {
         THROW_ERROR_EXCEPTION("Portable %v cannot mix exact and variadic overloads", operation);
@@ -270,9 +287,7 @@ void TExpressionRegistryBuilder::RegisterVariadicFunction(
     std::string functionName,
     TVariadicOperationDescriptor descriptor)
 {
-    if (functionName.empty()) {
-        THROW_ERROR_EXCEPTION("Portable function name cannot be empty");
-    }
+    ValidateFunctionName(functionName);
 
     auto operation = Format("function %Qv", functionName);
     ValidateVariadicDescriptor(descriptor, operation);
@@ -298,7 +313,7 @@ void TExpressionRegistryBuilder::RegisterUnary(
     }
 
     auto operation = Format("unary operator %Qlv", opcode);
-    ValidateDescriptor(descriptor, operation, 1);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ 1);
     ValidateAndAppendDescriptor(&UnaryOperators_[opcode], std::move(descriptor), operation);
 }
 
@@ -312,7 +327,7 @@ void TExpressionRegistryBuilder::RegisterBinary(
     }
 
     auto operation = Format("binary operator %Qlv", opcode);
-    ValidateDescriptor(descriptor, operation, 2);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ 2);
     ValidateAndAppendDescriptor(&BinaryOperators_[opcode], std::move(descriptor), operation);
 }
 

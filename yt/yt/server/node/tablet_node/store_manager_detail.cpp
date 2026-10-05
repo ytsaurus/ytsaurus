@@ -371,14 +371,8 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
-    if (chunkData->StartBlockIndex != 0 ||
-        std::ssize(chunkData->Blocks) != chunkData->ChunkMeta->DataBlockMeta()->data_blocks_size())
-    {
-        YT_TLOG_DEBUG("Intercepted chunk data does not contain all chunk blocks")
-            .With("StoreId", store->GetId())
-            .With("ChunkId", store->GetChunkId());
-        return false;
-    }
+    YT_VERIFY(chunkData->StartBlockIndex == 0);
+    YT_VERIFY(ssize(chunkData->Blocks) >= chunkData->ChunkMeta->DataBlockMeta()->data_blocks_size());
 
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);

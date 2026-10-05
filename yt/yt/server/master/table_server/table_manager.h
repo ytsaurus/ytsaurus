@@ -163,14 +163,23 @@ struct ITableManager
         std::optional<NTableClient::TColumnNameToConstraintMap> constraints) = 0;
 
     // Secondary index management.
+    virtual std::pair<TTableNode*, TTableNode*> ValidateSecondaryIndexCreationAndGetTables(
+        ESecondaryIndexKind kind,
+        TTableId tableId,
+        TTableId indexTableId,
+        const std::optional<std::string>& predicate,
+        const std::optional<NTabletClient::TUnfoldedColumns>& unfoldedColumns,
+        const NTableClient::TTableSchemaPtr& evaluatedColumnsSchema,
+        bool skipIsAlreadyIndexCheck = false) = 0;
     virtual TSecondaryIndex* CreateSecondaryIndex(
         NObjectClient::TObjectId hintId,
         ESecondaryIndexKind type,
-        TTableId table,
-        TTableId secondaryIndex,
+        TTableNode* table,
+        TTableNode* indexTable,
+        TTableId indexTableId,
         std::optional<std::string> predicate,
         std::optional<NTabletClient::TUnfoldedColumns> unfoldedColumns,
-        NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
+        NTableClient::TTableSchemaPtr evaluatedColumns) noexcept = 0;
 
     // Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(

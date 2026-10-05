@@ -459,6 +459,8 @@ struct TWorkerSpec
     : public NYTree::TYsonStruct
 {
     THashSet<TResourceId> PreloadResources;
+    //! When each of |PreloadResources| was requested.
+    THashMap<TResourceId, TInstant> PreloadRequestTimes;
     //! Incarnation of the worker that received these preloads. A new incarnation of the same
     //! address has no preloaded resources, so the spec does not apply to it.
     std::optional<TIncarnationId> WorkerIncarnationId;

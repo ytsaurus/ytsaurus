@@ -43,6 +43,6 @@ RESOURCE(
     yt/yql/providers/yt/fmr/cfg/local/fs.conf fs.conf
 )
 
-YQL_LAST_ABI_VERSION()
+YQL_CURRENT_ABI_VERSION()
 
 END()

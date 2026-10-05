@@ -3,7 +3,16 @@ GTEST(unittester-library-query-portable-engine)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    builtin_registry_ut.cpp
+    program_ut.cpp
+    query_evaluator_ut.cpp
     registry_ut.cpp
+    semantics_cases.cpp
+    semantics_ut.cpp
+)
+
+RESOURCE(
+    ../capabilities.yson portable_expression_capabilities
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
@@ -18,3 +27,7 @@ PEERDIR(
 SIZE(SMALL)
 
 END()
+
+RECURSE(
+    allocation
+)

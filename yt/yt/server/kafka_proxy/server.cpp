@@ -290,7 +290,7 @@ IServerPtr CreateServer(
     ISslCertificateUpdaterPtr certificateUpdater;
     if (IsTlsEnabled(config)) {
         sslContext = CreateSslContext(config);
-        YT_LOG_INFO("Kafka proxy server will serve TLS-encrypted connections");
+        YT_TLOG_INFO("Kafka proxy server will serve TLS-encrypted connections");
 
         certificateUpdater = CreateSslCertificateUpdater(
             controlInvoker,

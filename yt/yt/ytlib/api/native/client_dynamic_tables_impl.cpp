@@ -193,6 +193,8 @@ auto CreateTwoPhaseTableOperationRequest(
             return proxy.Unfreeze();
         } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqReshard>) {
             return proxy.Reshard();
+        } else if constexpr (std::same_as<TRequest, NTabletClient::NProto::TReqTwoPhaseAlter>) {
+            return proxy.TwoPhaseAlter();
         } else {
             static_assert(false, "Unsupported two-phase table operation request");
         }
@@ -434,6 +436,13 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
             resultTabletInfo.TotalRowCount = std::min(
                 resultTabletInfo.TotalRowCount,
                 patchTabletInfo.TotalRowCount);
+            if (resultTabletInfo.FlushedRowCount && patchTabletInfo.FlushedRowCount) {
+                resultTabletInfo.FlushedRowCount = std::min(
+                    *resultTabletInfo.FlushedRowCount,
+                    *patchTabletInfo.FlushedRowCount);
+            } else {
+                resultTabletInfo.FlushedRowCount.reset();
+            }
         }
     }
 
@@ -697,6 +706,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
 
                 result.TotalRowCount = tabletInfo.total_row_count();
                 result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+                result.FlushedRowCount = YT_OPTIONAL_FROM_PROTO(tabletInfo, flushed_row_count);
                 result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
                 result.BarrierTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.barrier_timestamp());
                 result.LastWriteTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.last_write_timestamp());
@@ -2263,7 +2273,8 @@ void TClient::ExecuteTabletServiceRequest(
     const TYPath& path,
     TStringBuf action,
     TRequest request,
-    const TMutatingOptions& options)
+    const TMutatingOptions& options,
+    const TExecuteTabletServiceRequestOptions& executeOptions)
 {
     const auto& connection = GetNativeConnection();
     if (connection->GetConfig()->UseCypressProxyForTwoPhaseTableOperations &&
@@ -2276,7 +2287,11 @@ void TClient::ExecuteTabletServiceRequest(
             .ThrowOnError();
     } else {
         auto client = MakeStrong(this);
-        auto target = ResolveTwoPhaseTableOperationTarget(client, path);
+        auto target = ResolveTwoPhaseTableOperationTarget(
+            client,
+            path,
+            executeOptions.AllowSequoia,
+            executeOptions.RequiredServerFeature);
         ExecuteTwoPhaseTableOperationViaMaster(client, target, action, &request);
     }
 }
@@ -2552,6 +2567,45 @@ void TClient::DoAlterTable(
     const TYPath& path,
     const TAlterTableOptions& options)
 {
+    auto config = GetNativeConnection()->GetConfig();
+    if (options.Dynamic && config->UseTwoPhaseDynamicityAlter) {
+        if (options.TransactionId) {
+            THROW_ERROR_EXCEPTION("Cannot alter table dynamicity in transaction");
+        }
+
+        options.ValidateForTwoPhaseAlter();
+
+        NTabletClient::NProto::TReqTwoPhaseAlter req;
+        req.set_dynamic(*options.Dynamic);
+
+        try {
+            ExecuteTabletServiceRequest(
+                path,
+                "Altering",
+                std::move(req),
+                options,
+                {
+                    .AllowSequoia = false,
+                    .RequiredServerFeature = EMasterFeature::AlterTable2PC,
+                });
+            return;
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            if (!error.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)) {
+                throw;
+            }
+
+            YT_TLOG_DEBUG("Required master feature is unsupported")
+                .With("Feature", EMasterFeature::AlterTable2PC)
+                .With("Action", "Altering")
+                .With("Path", path)
+                .With(error);
+        }
+
+        YT_TLOG_DEBUG("Falling back to legacy table alter")
+            .With("Path", path);
+    }
+
     auto req = TTableYPathProxy::Alter(path);
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
@@ -2617,30 +2671,45 @@ void TClient::DoTrimTable(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
-    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
-    ValidateTabletMounted(tableInfo, tabletInfo);
+    TTabletInfoPtr tabletInfo;
+    try {
+        tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
+        ValidateTabletMounted(tableInfo, tabletInfo);
 
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    NSecurityClient::TPermissionKey permissionKey{
-        .Path = FromObjectId(tableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = NYTree::EPermission::Write
-    };
-    WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError();
+        const auto& permissionCache = Connection_->GetPermissionCache();
+        NSecurityClient::TPermissionKey permissionKey{
+            .Path = FromObjectId(tableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = NYTree::EPermission::Write,
+        };
+        WaitFor(permissionCache->Get(permissionKey))
+            .ThrowOnError();
 
-    auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
+        auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
-    TTabletServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultTrimTableTimeout));
+        TTabletServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultTrimTableTimeout));
 
-    auto req = proxy.Trim();
-    ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-    req->set_mount_revision(ToProto(tabletInfo->MountRevision));
-    req->set_trimmed_row_count(trimmedRowCount);
+        auto req = proxy.Trim();
+        ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+        req->set_mount_revision(ToProto(tabletInfo->MountRevision));
+        req->set_trimmed_row_count(trimmedRowCount);
 
-    WaitFor(req->Invoke())
-        .ValueOrThrow();
+        WaitFor(req->Invoke())
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        if (tabletInfo) {
+            tableMountCache->InvalidateOnError(
+                error,
+                /*forceRetry*/ true,
+                /*tabletIdHint*/ tabletInfo->TabletId);
+        } else if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet)) {
+            // A reshard may have added tablets absent from the cached table info.
+            tableMountCache->InvalidateTable(tableInfo);
+        }
+        throw;
+    }
 }
 
 void TClient::DoAlterTableReplica(

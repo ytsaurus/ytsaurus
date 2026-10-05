@@ -194,6 +194,12 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         rpcRequest->set_timestamp(ToProto(options.Timestamp));
     }
 
+    ToProto(rpcRequest->mutable_progress_parts(), options.ProgressParts);
+
+    if (options.MinProgressRevision) {
+        rpcRequest->set_min_progress_revision(*options.MinProgressRevision);
+    }
+
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
     return FromProto<TQuery>(rpcResponse.query());

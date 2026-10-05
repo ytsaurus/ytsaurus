@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     yql_yt_fmr_worker_server.cpp
@@ -11,8 +11,6 @@ PEERDIR(
     yql/essentials/utils/log
     yt/yql/providers/yt/fmr/worker/impl
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
 

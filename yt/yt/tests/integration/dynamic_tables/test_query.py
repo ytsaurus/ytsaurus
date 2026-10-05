@@ -3093,6 +3093,235 @@ class TestQuery(DynamicTablesBase):
         )
         assert expected == actual
 
+    @authors("dgolear")
+    def test_hierarchical_join_orm_satellite_tables(self):
+        sync_create_cells(1)
+
+        object_key_schema = [
+            {
+                "name": "hash",
+                "type": "uint64",
+                "expression": "farm_hash([meta.publisher_id])",
+                "sort_order": "ascending",
+            },
+            {"name": "meta.publisher_id", "type": "int64", "sort_order": "ascending"},
+            {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+            {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
+        ]
+        satellite_schema = object_key_schema + [
+            {"name": "attribute_id", "type": "int64", "sort_order": "ascending"},
+            {"name": "map_key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "uint64"},
+        ]
+
+        book_keys = [(1, 10, 100), (1, 11, 100), (2, 10, 100), (2, 10, 101)]
+        self._create_table(
+            "//tmp/books",
+            object_key_schema + [{"name": "spec.year", "type": "int64"}],
+            [
+                {"meta.publisher_id": p, "meta.id": i, "meta.id2": i2, "spec.year": 2000 + n}
+                for n, (p, i, i2) in enumerate(book_keys)
+            ],
+        )
+
+        warehouse_attribute_id = 0
+        other_attribute_id = 1
+        orphan_key = (2, 10, 102)
+        warehouse = {
+            (1, 10, 100): {"north": 10, "south": 20, "east": 30},
+            (2, 10, 100): {"west": 5},
+            orphan_key: {"north": 1},
+        }
+        other = {
+            (1, 10, 100): {"north": 999},
+            (2, 10, 101): {"lost": 7},
+        }
+        capacity = {
+            (1, 11, 100): {"a": 1, "b": 2},
+            (2, 10, 100): {"c": 3},
+        }
+
+        def satellite_rows(maps_by_attribute_id):
+            return [
+                {
+                    "meta.publisher_id": p,
+                    "meta.id": i,
+                    "meta.id2": i2,
+                    "attribute_id": attribute_id,
+                    "map_key": map_key,
+                    "value": yson.YsonUint64(value),
+                }
+                for attribute_id, maps in maps_by_attribute_id.items()
+                for (p, i, i2), entries in maps.items()
+                for map_key, value in entries.items()
+            ]
+
+        self._create_table(
+            "//tmp/books_warehouse",
+            satellite_schema,
+            satellite_rows({warehouse_attribute_id: warehouse, other_attribute_id: other}),
+        )
+        self._create_table(
+            "//tmp/books_capacity",
+            satellite_schema,
+            satellite_rows({0: capacity}),
+        )
+
+        def expected_map(maps, key):
+            return [{"s.map_key": k, "s.value": v} for k, v in sorted(maps.get(key, {}).items())]
+
+        expected = [
+            {
+                "publisher_id": p,
+                "id": i,
+                "id2": i2,
+                "warehouse": expected_map(warehouse, (p, i, i2)),
+                "other": expected_map(other, (p, i, i2)),
+                "capacity": expected_map(capacity, (p, i, i2)),
+            }
+            for p, i, i2 in sorted(book_keys)
+        ]
+
+        def satellite_subquery(name, table, attribute_id):
+            return f"""
+                (select s.map_key, s.value
+                    from (cast(make_list(b.`meta.id`) as `List<Int64>`) as {name}_id)
+                    join `{table}` as s
+                        on (b.`meta.publisher_id`, {name}_id, b.`meta.id2`, {attribute_id}) =
+                            (s.`meta.publisher_id`, s.`meta.id`, s.`meta.id2`, s.attribute_id)
+                ) as {name}
+            """
+
+        actual = select_rows(
+            f"""
+            b.`meta.publisher_id` as publisher_id,
+            b.`meta.id` as id,
+            b.`meta.id2` as id2,
+            {satellite_subquery("warehouse", "//tmp/books_warehouse", warehouse_attribute_id)},
+            {satellite_subquery("other", "//tmp/books_warehouse", other_attribute_id)},
+            {satellite_subquery("capacity", "//tmp/books_capacity", 0)}
+            from `//tmp/books` as b
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+
+        for row in actual:
+            for column in ("warehouse", "other", "capacity"):
+                row[column] = sorted(row[column], key=lambda entry: entry["s.map_key"])
+        actual.sort(key=lambda row: (row["publisher_id"], row["id"], row["id2"]))
+        assert expected == actual
+
+    @authors("dgolear")
+    def test_hierarchical_join_orm_repeated_view(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/authors",
+            [
+                {"name": "meta.id", "type": "utf8", "sort_order": "ascending"},
+                {"name": "spec.name", "type": "utf8"},
+            ],
+            [
+                {"meta.id": "a", "spec.name": "Alice"},
+                {"meta.id": "b", "spec.name": "Bob"},
+                {"meta.id": "c", "spec.name": "Carol"},
+            ],
+        )
+        self._create_table(
+            "//tmp/editions",
+            [
+                {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                {"name": "meta.id2", "type": "int64", "sort_order": "ascending"},
+                {"name": "spec.name", "type": "utf8"},
+            ],
+            [
+                {"meta.id": 1, "meta.id2": 10, "spec.name": "E1"},
+                {"meta.id": 1, "meta.id2": 11, "spec.name": "E1b"},
+                {"meta.id": 2, "meta.id2": 20, "spec.name": "E2"},
+            ],
+        )
+        self._create_table(
+            "//tmp/books",
+            [
+                {"name": "meta.id", "type": "int64", "sort_order": "ascending"},
+                {"name": "spec.author_ids", "type": "any"},
+                {"name": "status.related_books_ids", "type": "any"},
+                {"name": "status.related_books_id2s", "type": "any"},
+            ],
+            [
+                {
+                    "meta.id": 1,
+                    "spec.author_ids": ["c", "a", "c", "missing"],
+                    "status.related_books_ids": [2, 1, 1],
+                    "status.related_books_id2s": [20, 10, 12],
+                },
+                {
+                    "meta.id": 2,
+                    "spec.author_ids": [],
+                    "status.related_books_ids": [],
+                    "status.related_books_id2s": [],
+                },
+                {
+                    "meta.id": 3,
+                    "spec.author_ids": ["b"],
+                    "status.related_books_ids": [1],
+                    "status.related_books_id2s": [11],
+                },
+            ],
+        )
+
+        actual = select_rows(
+            """
+            b.`meta.id` as id,
+            (select a.`spec.name` as author_name
+                from (cast(b.`spec.author_ids` as `List<String>`) as author_id)
+                join `//tmp/authors` as a on author_id = a.`meta.id`
+            ) as authors,
+            (select left_author_id, la.`spec.name` as left_author_name
+                from (cast(b.`spec.author_ids` as `List<String>`) as left_author_id)
+                left join `//tmp/authors` as la on left_author_id = la.`meta.id`
+            ) as authors_with_missing,
+            (select e.`spec.name` as edition_name
+                from (
+                    cast(b.`status.related_books_ids` as `List<Int64>`) as related_id,
+                    cast(b.`status.related_books_id2s` as `List<Int64>`) as related_id2)
+                join `//tmp/editions` as e on (related_id, related_id2) = (e.`meta.id`, e.`meta.id2`)
+            ) as related_books
+            from `//tmp/books` as b
+            order by id
+            limit 100
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+
+        assert actual == [
+            {
+                "id": 1,
+                "authors": [{"author_name": "Carol"}, {"author_name": "Alice"}, {"author_name": "Carol"}],
+                "authors_with_missing": [
+                    {"left_author_id": "c", "left_author_name": "Carol"},
+                    {"left_author_id": "a", "left_author_name": "Alice"},
+                    {"left_author_id": "c", "left_author_name": "Carol"},
+                    {"left_author_id": "missing", "left_author_name": None},
+                ],
+                "related_books": [{"edition_name": "E2"}, {"edition_name": "E1"}],
+            },
+            {
+                "id": 2,
+                "authors": [],
+                "authors_with_missing": [],
+                "related_books": [],
+            },
+            {
+                "id": 3,
+                "authors": [{"author_name": "Bob"}],
+                "authors_with_missing": [{"left_author_id": "b", "left_author_name": "Bob"}],
+                "related_books": [{"edition_name": "E1b"}],
+            },
+        ]
+
     @authors("deep")
     def test_scan_order_in_statistics(self):
         sync_create_cells(1)

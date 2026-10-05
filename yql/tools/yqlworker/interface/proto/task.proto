@@ -207,6 +207,7 @@ message TTaskData {
     optional string DefaultTranslationCluster = 31;
     optional string Runner = 32;
     optional string Host = 33;
+    optional bool StrictConfigValidation = 34 [default = false];
 }
 
 message TTaskError {

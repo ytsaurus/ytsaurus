@@ -12,6 +12,8 @@ import operator
 def get_leader_fqdn(yt_client, service_cypress_path, service_name, throw_if_no_leader=True):
     leader_locks = yt_client.get(ypath_join(service_cypress_path, "leader", "@locks"))
 
+    leader_locks = [lock for lock in leader_locks if lock["state"] == "acquired"]
+
     assert 1 >= len(leader_locks), "Expected at most 1 leader lock, got {}".format(
         len(leader_locks),
     )

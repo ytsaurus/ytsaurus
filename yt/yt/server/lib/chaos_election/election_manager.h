@@ -70,6 +70,12 @@ NLockElection::ILockElectionManagerPtr CreateChaosElectionManager(
 //! Returns the schema required for the lock table used by the chaos election manager.
 NTableClient::TTableSchemaPtr GetChaosElectionLockTableSchema();
 
+//! Returns the name of the leader of #groupName, or null if the leader has not pinged within its lease timeout.
+std::optional<std::string> FindChaosElectionLeader(
+    const NApi::IClientPtr& client,
+    const NYPath::TYPath& lockTablePath,
+    TStringBuf groupName);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosElection

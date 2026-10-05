@@ -589,7 +589,7 @@ ECompressionCodec ParseCompressionCodec(TStringBuf name)
 
 ECompressionCodec DetectCompressionCodec(TStringBuf fileName)
 {
-    if (fileName.EndsWith(".zst")) {
+    if (fileName.EndsWith(".zst") || fileName.EndsWith(".zstd")) {
         return ECompressionCodec::Zstd;
     }
     if (fileName.EndsWith(".gz")) {

@@ -257,7 +257,7 @@ TEST(TPortableExpressionRegistryTest, ResolvedOperationOutlivesRegistry)
     ASSERT_TRUE(operation);
     auto rowBuffer = New<TRowBuffer>();
     std::array arguments{MakeUnversionedInt64Value(41)};
-    TValue result = MakeUnversionedNullValue();
+    auto result = MakeUnversionedNullValue();
     InvokeOperation(*operation, &result, arguments, rowBuffer);
 
     EXPECT_EQ(EValueType::Int64, result.Type);
@@ -341,6 +341,39 @@ TEST(TPortableExpressionRegistryTest, RejectsInvalidNamesOpcodesAndArity)
             EBinaryOp::Plus,
             MakeDescriptor({EValueType::Int64})),
         "arity 2");
+}
+
+TEST(TPortableExpressionRegistryTest, RejectsLazyFunctions)
+{
+    TExpressionRegistryBuilder builder;
+
+    for (const auto& functionName : {"if", "coalesce"}) {
+        SCOPED_TRACE(functionName);
+        EXPECT_THROW_WITH_SUBSTRING(
+            builder.RegisterFunction(functionName, MakeDescriptor({EValueType::Int64})),
+            "requires lazy argument evaluation");
+        EXPECT_THROW_WITH_SUBSTRING(
+            builder.RegisterVariadicFunction(functionName, MakeVariadicDescriptor({EValueType::Int64})),
+            "requires lazy argument evaluation");
+        EXPECT_FALSE(builder.Build().FindFunction(functionName, {EValueType::Int64}, EValueType::Int64));
+    }
+}
+
+TEST(TPortableExpressionRegistryTest, AllowsEagerIfNullFunction)
+{
+    TExpressionRegistryBuilder exactBuilder;
+    exactBuilder.RegisterFunction("if_null", MakeDescriptor({EValueType::Int64, EValueType::Int64}));
+    EXPECT_TRUE(exactBuilder.Build().FindFunction(
+        "if_null",
+        {EValueType::Int64, EValueType::Int64},
+        EValueType::Int64));
+
+    TExpressionRegistryBuilder variadicBuilder;
+    variadicBuilder.RegisterVariadicFunction("if_null", MakeVariadicDescriptor({EValueType::Int64}));
+    EXPECT_TRUE(variadicBuilder.Build().FindFunction(
+        "if_null",
+        {EValueType::Int64, EValueType::Int64},
+        EValueType::Int64));
 }
 
 TEST(TPortableExpressionRegistryTest, RejectsMixingExactAndVariadicFunctions)
@@ -433,7 +466,7 @@ TEST(TPortableExpressionRegistryTest, PropagatesNullWithoutCallingCallback)
     ASSERT_TRUE(operation);
 
     auto rowBuffer = New<TRowBuffer>();
-    TValue result = MakeUnversionedInt64Value(42);
+    auto result = MakeUnversionedInt64Value(42);
     std::array arguments{MakeUnversionedNullValue()};
     InvokeOperation(*operation, &result, arguments, rowBuffer);
 
@@ -471,7 +504,7 @@ TEST(TPortableExpressionRegistryTest, PassesNullToCallback)
     ASSERT_TRUE(operation);
 
     auto rowBuffer = New<TRowBuffer>();
-    TValue result = MakeUnversionedNullValue();
+    auto result = MakeUnversionedNullValue();
     std::array arguments{MakeUnversionedNullValue()};
     InvokeOperation(*operation, &result, arguments, rowBuffer);
 
@@ -507,7 +540,7 @@ TEST(TPortableExpressionRegistryTest, CallbackCanCaptureStringResultInRowBuffer)
     ASSERT_TRUE(operation);
 
     auto rowBuffer = New<TRowBuffer>();
-    TValue result = MakeUnversionedNullValue();
+    auto result = MakeUnversionedNullValue();
     std::string lhs = "left-";
     std::string rhs = "right";
     std::array arguments{
@@ -560,7 +593,7 @@ TEST(TPortableExpressionRegistryTest, ImmutableRegistrySupportsConcurrentLookupA
 
                     const i64 argument = threadIndex * IterationCount + iteration;
                     std::array arguments{MakeUnversionedInt64Value(argument)};
-                    TValue result = MakeUnversionedNullValue();
+                    auto result = MakeUnversionedNullValue();
                     InvokeOperation(
                         *operation,
                         &result,
@@ -598,7 +631,7 @@ TEST(TPortableExpressionRegistryDeathTest, RejectsMismatchedArgumentCount)
     ASSERT_TRUE(operation);
 
     auto rowBuffer = New<TRowBuffer>();
-    TValue result = MakeUnversionedNullValue();
+    auto result = MakeUnversionedNullValue();
     EXPECT_DEATH(
         InvokeOperation(*operation, &result, {}, rowBuffer),
         "ArgumentCount");
@@ -623,7 +656,7 @@ TEST(TPortableExpressionRegistryTest, CallbackExceptionPropagates)
     ASSERT_TRUE(operation);
 
     auto rowBuffer = New<TRowBuffer>();
-    TValue result = MakeUnversionedNullValue();
+    auto result = MakeUnversionedNullValue();
     EXPECT_THROW_WITH_SUBSTRING(
         InvokeOperation(*operation, &result, {}, rowBuffer),
         "portable callback failed");

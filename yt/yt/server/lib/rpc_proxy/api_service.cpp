@@ -4422,12 +4422,21 @@ void TApiService::ProcessPullQueueDetailedProfilingInfo(
 template <class TResponse, class TRow>
 static std::vector<TSharedRef> PrepareRowsetForAttachment(
     TResponse* response,
-    const TIntrusivePtr<IRowset<TRow>>& rowset)
+    const TIntrusivePtr<IRowset<TRow>>& rowset,
+    const IMemoryUsageTrackerPtr& memoryTracker = nullptr)
 {
-    return NApi::NRpcProxy::SerializeRowset(
+    auto attachments = NApi::NRpcProxy::SerializeRowset(
         *rowset->GetSchema(),
         rowset->GetRows(),
         response->mutable_rowset_descriptor());
+
+    if (memoryTracker) {
+        for (auto& attachment : attachments) {
+            attachment = memoryTracker->Track(attachment);
+        }
+    }
+
+    return attachments;
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, LookupRows)
@@ -4482,7 +4491,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LookupRows)
 
             auto* response = &context->Response();
             ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
-            response->Attachments() = PrepareRowsetForAttachment(response, rowset);
+            response->Attachments() = PrepareRowsetForAttachment(response, rowset, HeavyRequestMemoryUsageTracker_);
 
             ProcessLookupRowsDetailedProfilingInfo(
                 timer,
@@ -4552,7 +4561,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, VersionedLookupRows)
 
             auto* response = &context->Response();
             ToProto(response->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
-            response->Attachments() = PrepareRowsetForAttachment(response, rowset);
+            response->Attachments() = PrepareRowsetForAttachment(response, rowset, HeavyRequestMemoryUsageTracker_);
 
             ProcessLookupRowsDetailedProfilingInfo(
                 timer,
@@ -4658,7 +4667,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
             for (const auto& result : results) {
                 const auto& rowset = result.Rowset;
                 auto* subresponse = response->add_subresponses();
-                auto attachments = PrepareRowsetForAttachment(subresponse, rowset);
+                auto attachments = PrepareRowsetForAttachment(subresponse, rowset, HeavyRequestMemoryUsageTracker_);
                 subresponse->set_attachment_count(attachments.size());
                 ToProto(subresponse->mutable_unavailable_key_indexes(), result.UnavailableKeyIndexes);
                 response->Attachments().insert(
@@ -4829,7 +4838,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
         (const auto& context, const auto& result) {
             auto* response = &context->Response();
-            response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
+            response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset, HeavyRequestMemoryUsageTracker_);
             ToProto(response->mutable_statistics(), result.Statistics);
 
             ProcessSelectRowsDetailedProfilingInfo(
@@ -5024,6 +5033,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletInfos)
                 auto* protoTabletInfo = response->add_tablets();
                 protoTabletInfo->set_total_row_count(tabletInfo.TotalRowCount);
                 protoTabletInfo->set_trimmed_row_count(tabletInfo.TrimmedRowCount);
+                YT_OPTIONAL_SET_PROTO(protoTabletInfo, flushed_row_count, tabletInfo.FlushedRowCount);
                 protoTabletInfo->set_delayed_lockless_row_count(tabletInfo.DelayedLocklessRowCount);
                 protoTabletInfo->set_barrier_timestamp(ToProto(tabletInfo.BarrierTimestamp));
                 protoTabletInfo->set_last_write_timestamp(ToProto(tabletInfo.LastWriteTimestamp));

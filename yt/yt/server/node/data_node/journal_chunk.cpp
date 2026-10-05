@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -156,7 +157,9 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
             MakeStrong(this),
             blockIndexes,
             options)
-            .AsyncVia(Context_->StorageHeavyInvoker)
+            .AsyncVia(CreateFixedPriorityInvoker(
+                Context_->StorageHeavyInvoker,
+                options.WorkloadDescriptor.GetPriority()))
             .Run();
     }
 
@@ -335,6 +338,9 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
     int indexInRequest = 0;
     int cachedBlockCount = 0;
     std::vector<TFuture<std::vector<TBlock>>> futures;
+    auto invoker = CreateFixedPriorityInvoker(
+        Context_->StorageHeavyInvoker,
+        options.WorkloadDescriptor.GetPriority());
 
     while (indexInRequest < std::ssize(blockIndexes)) {
         if (!blockCookies.empty() && !blockCookies[indexInRequest]->IsActive()) {
@@ -385,7 +391,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
                 blockIndexes[firstIndexInRequest],
                 blockCount,
                 /*alreadyReadBlocks*/ std::vector<TBlock>{})
-            .AsyncVia(Context_->StorageHeavyInvoker));
+            .AsyncVia(invoker));
 
         if (!blockCookies.empty()) {
             uncachedBlocksFuture = uncachedBlocksFuture
@@ -404,7 +410,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
             &TJournalChunk::OnBlockReadFromDiskForPrecache,
             MakeStrong(this),
             Passed(std::move(precachedBlockInfo)))
-            .Via(Context_->StorageHeavyInvoker));
+            .Via(invoker));
     }
 
     YT_TLOG_DEBUG("Started reading block set of journal chunk")
@@ -620,35 +626,47 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
     const TClientChunkReadOptions& /*options*/,
     bool /*useDirectIO*/)
 {
-    auto guard = ReaderGuard(LifetimeLock_);
+    IFileChangelogPtr changelog;
+    {
+        auto guard = ReaderGuard(LifetimeLock_);
 
-    YT_VERIFY(ReadLockCounter_.load() > 0);
+        YT_VERIFY(ReadLockCounter_.load() > 0);
 
-    if (Changelog_) {
-        return {};
+        if (Changelog_) {
+            return {};
+        }
+
+        changelog = WeakChangelog_.Lock();
     }
 
-    if (auto changelog = WeakChangelog_.Lock()) {
-        Changelog_ = std::move(changelog);
-        return {};
+    TPromise<void> openChangelogPromise;
+    {
+        auto guard = WriterGuard(LifetimeLock_);
+
+        if (Changelog_) {
+            return {};
+        }
+
+        if (changelog) {
+            Changelog_ = std::move(changelog);
+            return {};
+        }
+
+        if (OpenChangelogPromise_) {
+            return OpenChangelogPromise_.ToFuture();
+        }
+
+        openChangelogPromise = OpenChangelogPromise_ = NewPromise<void>();
     }
 
-    if (OpenChangelogPromise_) {
-        return OpenChangelogPromise_.ToFuture();
-    }
-
-    auto promise = OpenChangelogPromise_ = NewPromise<void>();
-
-    guard.Release();
-
-    promise.SetFrom(
+    openChangelogPromise.SetFrom(
         Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
                 auto writerGuard = WriterGuard(LifetimeLock_);
 
                 OpenChangelogPromise_.Reset();
 
-                if (ReadLockCounter_.load() == 0) {
+                if (ReadLockCounter_.load() == 0 || Changelog_) {
                     return;
                 }
 
@@ -664,7 +682,7 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
                     .With("LocationIndex", Location_->GetIndex());
             }).AsyncVia(Context_->StorageLightInvoker)));
 
-    return promise.ToFuture();
+    return openChangelogPromise.ToFuture();
 }
 
 TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
@@ -792,9 +810,19 @@ IFileChangelogPtr TJournalChunk::GetChangelog()
     {
         auto guard = WriterGuard(LifetimeLock_);
 
+        if (Changelog_) {
+            return Changelog_;
+        }
+
         Changelog_ = changelog;
         WeakChangelog_ = changelog;
     }
+
+    YT_TLOG_DEBUG("Changelog prepared to read")
+        .With("ChunkId", Id_)
+        .With("LocationId", Location_->GetId())
+        .With("LocationUuid", Location_->GetUuid())
+        .With("LocationIndex", Location_->GetIndex());
 
     return changelog;
 }

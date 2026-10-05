@@ -464,6 +464,9 @@ struct TConnectionDynamicConfig
     // COMPAT(atalmenev)
     bool UseUniformPrepareSignatures;
 
+    // COMPAT(ifsmirnov)
+    bool UseTwoPhaseDynamicityAlter;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);

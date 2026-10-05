@@ -115,8 +115,6 @@ i64 TClusterResources::GetTotalMasterMemory() const
     return DetailedMasterMemory_.GetTotal();
 }
 
-
-
 TClusterResources::TMediaDiskSpace TClusterResources::GetPatchedDiskSpace(
     const IChunkManagerPtr& chunkManager,
     const TCompactVector<int, 4>& additionalMediumIndexes) const
@@ -214,6 +212,20 @@ void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
     Load(context, TabletStaticMemory_);
     Load(context, ChunkHostCellMasterMemory_);
     Load(context, DetailedMasterMemory_.DetailedMasterMemory());
+}
+
+bool TClusterResources::IsPersistentlyEmpty() const
+{
+    for (const auto& [_, mediumDiskSpace] : DiskSpace_) {
+        if (mediumDiskSpace > 0) {
+            return false;
+        }
+    }
+    return
+        NodeCount_ == 0 &&
+        ChunkCount_ == 0 &&
+        TabletCount_ == 0 &&
+        TabletStaticMemory_ == 0;
 }
 
 TClusterResources& TClusterResources::operator+=(const TClusterResources& other)

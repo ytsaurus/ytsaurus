@@ -49,15 +49,22 @@ public:
     //! Never blocks and never throws: it is called from a destructor.
     virtual void Shutdown();
 
+    //! Returns the session of the most recently spawned incarnation; empty before the first spawn.
+    std::string GetSessionId();
+
+    //! Fired on the manager's invoker with the session of an incarnation once its process exits.
+    //! Subscribers must not throw; not fired after the manager is destroyed.
+    DEFINE_SIGNAL(void(const std::string& sessionId), SessionFinished);
+
 protected:
     //! Validates the process manager configuration before spawning.
     //! Each subclass must verify that its required fields (e.g. binary paths) are valid.
     virtual void ValidateParameters() const = 0;
 
-    //! Create a new process incarnation.
+    //! Create a new process incarnation that receives |config|, the execution config of this incarnation.
     //! Implementation would be specific for each language and runtime: Java, Python, etc.
     //! This method should not call process::Spawn() method inside.
-    virtual TIntrusivePtr<TProcessBase> CreateProcessIncarnation() = 0;
+    virtual TIntrusivePtr<TProcessBase> CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config) = 0;
 
     //! Checks if the companion process is available.
     //! Default implementation uses CompanionInfo endpoint.
@@ -117,6 +124,7 @@ private:
     TIntrusivePtr<TProcessBase> CurrentProcess_;
     TFuture<void> CurrentSpawnFuture_;
     TInstant IncarnationSpawnTime_;
+    std::string SessionId_;
 
 protected:
     const TCompanionExecutionConfigPtr CompanionConfig_;

@@ -115,7 +115,119 @@ return state.Clear()
 
 Для использования External State необходимо объявить external state manager в секции `external_state_managers` [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation) в статической спеке. Пример из [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join), где компьютейшен `reference_loader` владеет справочником:
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
+```yson
+{
+    "spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reference"];
+                "source_streams" = {
+                    "reference_table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["reference"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/reference_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference_state" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "parameters" = {};
+                "source_streams" = {"reference_table" = {"parameters" = {}}};
+            };
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "parameters" = {};
+            };
+            "enricher" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
+```
 
 Ключевые поля:
 
@@ -142,7 +254,34 @@ return state.Clear()
 
 ## Полный пример — eventReducer из Shuffle {#example}
 
-{% code '/yt/yt/flow/examples/go/shuffle/event_reducer.go' lang='go' lines='[BEGIN event_reducer]-[END event_reducer]' %}
+```go
+type shuffleState struct {
+	Count int64 `yson:"count"`
+}
+
+type eventReducer struct{}
+
+var _ flow.RowFunction = (*eventReducer)(nil)
+
+func (*eventReducer) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	state, err := flow.OpenExternalState(rt, shuffleStateName, msg)
+	if err != nil {
+		return err
+	}
+
+	var counter shuffleState
+	if _, err := state.ConvertTo(&counter); err != nil {
+		return err
+	}
+	counter.Count++
+	return state.ConvertFrom(&counter)
+}
+```
 
 [Полный исходный код]({{source-root}}/yt/yt/flow/examples/go/shuffle/event_reducer.go)
 
@@ -180,13 +319,173 @@ reference, err := flow.OpenJoinedExternalState(rt, "/reference_state", msg)
 
 Компьютейшен `enricher` из примера [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join) читает тот самый справочник, которым владеет `reference_loader` из [секции выше](#static-spec):
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
+```yson
+{
+    "spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reference"];
+                "source_streams" = {
+                    "reference_table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["reference"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/reference_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference_state" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "parameters" = {};
+                "source_streams" = {"reference_table" = {"parameters" = {}}};
+            };
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "parameters" = {};
+            };
+            "enricher" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
+```
 
 Поля `external_state_joiners` повторяют поля `external_state_managers` с точностью до имени класса: `external_state_joiner_class_name` вместо `external_state_manager_class_name`. Путь `parameters.path` резолвится при каждом обращении, поэтому если направить его на симлинк, то переключение симлинка подменяет весь справочник под работающим пайплайном, без рестарта.
 
 ### Пример {#joined-example}
 
-{% code '/yt/yt/flow/examples/go/static_table_join/enricher.go' lang='go' lines='[BEGIN enricher]-[END enricher]' %}
+```go
+type enricher struct{}
+
+var _ flow.RowFunction = (*enricher)(nil)
+
+func (*enricher) OnMessage(
+	ctx context.Context,
+	rt flow.Runtime,
+	msg flow.ExtendedMessage,
+	out flow.OutputCollector,
+) error {
+	var event eventMessage
+	if err := msg.ConvertTo(&event); err != nil {
+		return err
+	}
+
+	name, joined, err := joinedName(rt, msg)
+	if err != nil || !joined {
+		return err
+	}
+
+	enriched := flow.NewYSONMessage[enrichedMessage](enrichedStreamID)
+	enriched.Key = event.Key
+	enriched.Name = name
+	encoded, err := flow.ConvertFrom(rt, enriched)
+	if err != nil {
+		return err
+	}
+	out.AddMessage(encoded)
+	return nil
+}
+
+func joinedName(rt flow.Runtime, msg flow.ExtendedMessage) (string, bool, error) {
+	state, err := flow.OpenJoinedExternalState(rt, referenceStateName, msg)
+	if errors.Is(err, flow.ErrStateNotRead) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+
+	var reference referenceState
+	exists, err := state.ConvertTo(&reference)
+	if err != nil || !exists || reference.NormalizedName == nil {
+		return "", false, err
+	}
+	return *reference.NormalizedName, true, nil
+}
+```
 
 [Полный исходный код]({{source-root}}/yt/yt/flow/examples/go/static_table_join/enricher.go)
 

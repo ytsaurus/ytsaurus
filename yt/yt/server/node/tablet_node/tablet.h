@@ -382,7 +382,7 @@ struct ITabletContext
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
     virtual IInvokerPtr GetAutomatonInvoker() const = 0;
-    virtual IInvokerPtr GetStorageHeavyInvoker() const = 0;
+    virtual IPrioritizedInvokerPtr GetStorageHeavyInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
@@ -990,7 +990,7 @@ public:
 
     NHydra::EPeerState GetAutomatonState() const;
 
-    IInvokerPtr GetStorageHeavyInvoker() const;
+    IPrioritizedInvokerPtr GetStorageHeavyInvoker() const;
 
     NApi::NNative::IClientPtr GetClient() const;
 
@@ -1085,7 +1085,7 @@ private:
     void ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot);
     void ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot);
     void ReconfigureStructuredLogger();
-    void ReconfigureProfiling();
+    void ReconfigureProfiling(EProfilingTagExportMode profilingTagExportMode);
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();

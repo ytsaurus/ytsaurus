@@ -48,6 +48,19 @@ type Config struct {
 	// Only relevant for RPC client.
 	ClockClusterTag CellTag
 
+	// RPCProxyPriorityStrategy configures how RPC proxies are prioritized.
+	//
+	// Only relevant for RPC client. By default, all proxies have the same priority.
+	RPCProxyPriorityStrategy RPCProxyPriorityStrategy
+
+	// RPCProxyMinPeerCountForPriorityAwareness, if positive, is the number of active local RPC proxies
+	// required for requests to go to local proxies only. If it is not satisfied, a local proxy is chosen
+	// with probability L/N, where L is the number of active local proxies and N is this value capped
+	// by the number of active proxies.
+	//
+	// Only relevant for RPC client with RPCProxyPriorityStrategyPreferLocal.
+	RPCProxyMinPeerCountForPriorityAwareness int
+
 	// ProxyRole configures desired proxy role used by the client.
 	//
 	// If not set, default role is used.
@@ -524,6 +537,14 @@ func (v IPVersion) Network() string {
 		return "tcp"
 	}
 }
+
+// RPCProxyPriorityStrategy configures RPC proxy selection priority.
+type RPCProxyPriorityStrategy int
+
+const (
+	RPCProxyPriorityStrategyNone RPCProxyPriorityStrategy = iota
+	RPCProxyPriorityStrategyPreferLocal
+)
 
 type TVMFn func(ctx context.Context) (string, error)
 

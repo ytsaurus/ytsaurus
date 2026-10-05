@@ -4,10 +4,15 @@
 #include "handler_base.h"
 #include "helpers.h"
 
+#include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
 #include <yt/yt/ytlib/yql_client/public.h>
@@ -149,7 +154,7 @@ public:
         if (QueryState_ == EYqlQueryState::Running) {
             // Nothing smarter than that for now.
             YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-            StopProgressWriter();
+            YT_UNUSED_FUTURE(StopProgressWriter());
             AsyncQueryResult_.Cancel(TError("Query aborted"));
         }
 
@@ -163,7 +168,7 @@ public:
         if (QueryState_ == EYqlQueryState::Running) {
             // Nothing smarter than that for now.
             YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
-            StopProgressWriter();
+            YT_UNUSED_FUTURE(StopProgressWriter());
             AsyncQueryResult_.Cancel(TError("Query detached"));
         }
 
@@ -193,6 +198,150 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryStateSpinLock_);
     EYqlQueryState QueryState_ = EYqlQueryState::Pending;
+
+    std::optional<ui32> LastInMemoryProgressRevision_;
+    std::optional<ui32> LastSavedProgressRevision_;
+    TYsonString LastSavedYqlProgress_;
+    THashMap<EProgressPart, std::pair<ui32, TYsonString>> ProgressPartsToSave_;
+
+    void OnProgress(const TYqlResponse& rsp)
+    {
+        auto optionalRevision = rsp.has_revision() ? std::optional(rsp.revision()) : std::nullopt;
+        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp, plan);
+        auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp, statistics);
+        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp, progress);
+        auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp, task_info);
+        auto optionalAst = rsp.has_ast() ? std::optional(rsp.ast()) : std::nullopt;
+
+        if (!optionalRevision) {
+            const bool hasContent = optionalPlan || optionalStatistics || optionalTaskInfo || optionalAst ||
+                (optionalProgress && optionalProgress->AsStringBuf() != "{}");
+            if (hasContent) {
+                auto progress = BuildYsonStringFluently()
+                    .BeginMap()
+                        .OptionalItem(FormatEnum(EProgressPart::YqlPlan), optionalPlan)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlStatistics), optionalStatistics)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlProgress), optionalProgress)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlTaskInfo), optionalTaskInfo)
+                        .OptionalItem(FormatEnum(EProgressPart::YqlAst), optionalAst)
+                    .EndMap();
+                TQueryHandlerBase::OnProgress(std::move(progress));
+            }
+            return;
+        }
+        auto revision = *optionalRevision;
+
+        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToSave;
+        auto convertIfPresent = [&] (EProgressPart part, const auto& value) {
+            if (value) {
+                if (part == EProgressPart::YqlProgress) {
+                    // yql_progress carries no revision of its own; Max makes it pass any min-revision filter.
+                    partsToSave[part] = {Max<ui32>(), ConvertToYsonString(*value)};
+                } else {
+                    partsToSave[part] = {revision, ConvertToYsonString(*value)};
+                }
+            }
+        };
+
+        convertIfPresent(EProgressPart::YqlProgress, optionalProgress);
+        convertIfPresent(EProgressPart::YqlPlan, optionalPlan);
+        convertIfPresent(EProgressPart::YqlStatistics, optionalStatistics);
+        convertIfPresent(EProgressPart::YqlTaskInfo, optionalTaskInfo);
+        convertIfPresent(EProgressPart::YqlAst, optionalAst);
+        convertIfPresent(EProgressPart::YqlRevision, optionalRevision);
+
+        {
+            auto moveIfPresent = [&] (EProgressPart part) {
+                if (auto it = partsToSave.find(part); it != partsToSave.end()) {
+                    ProgressPartsToSave_[part] = std::move(it->second);
+                }
+            };
+
+            auto guard = Guard(ProgressSpinLock_);
+            moveIfPresent(EProgressPart::YqlProgress);
+
+            if (LastInMemoryProgressRevision_ && revision <= *LastInMemoryProgressRevision_) {
+                return;
+            }
+            LastInMemoryProgressRevision_ = revision;
+
+            moveIfPresent(EProgressPart::YqlPlan);
+            moveIfPresent(EProgressPart::YqlStatistics);
+            moveIfPresent(EProgressPart::YqlTaskInfo);
+            moveIfPresent(EProgressPart::YqlAst);
+            moveIfPresent(EProgressPart::YqlRevision);
+        }
+    }
+
+    bool TryWriteProgress() override
+    {
+        bool inPartsMode;
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            inPartsMode = LastInMemoryProgressRevision_.has_value();
+        }
+        if (!inPartsMode) {
+            return TQueryHandlerBase::TryWriteProgress();
+        }
+
+        ui32 lastInMemoryProgressRevision = 0;
+        TYsonString lastSavedYqlProgress;
+
+        THashMap<EProgressPart, std::pair<ui32, TYsonString>> partsToCompressAndSave;
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            lastInMemoryProgressRevision = *LastInMemoryProgressRevision_;
+            lastSavedYqlProgress = LastSavedYqlProgress_;
+
+            for (const auto& [part, revisionWithValue] : ProgressPartsToSave_) {
+                if (part == EProgressPart::YqlProgress) {
+                    // yql_progress carries no revision, so track it by value.
+                    if (LastSavedYqlProgress_ == revisionWithValue.second) {
+                        continue;
+                    }
+                    lastSavedYqlProgress = revisionWithValue.second;
+                } else if (LastSavedProgressRevision_ && *LastSavedProgressRevision_ >= revisionWithValue.first) {
+                    continue;
+                }
+                partsToCompressAndSave[part] = revisionWithValue;
+            }
+        }
+
+        std::vector<NTableClient::TUnversionedRow> newRows;
+        auto rowBuffer = New<NTableClient::TRowBuffer>();
+        for (const auto& [part, revisionWithValue] : partsToCompressAndSave) {
+            auto compressedValue = Compress(revisionWithValue.second.ToString(), MaxDyntableStringSize);
+
+            NRecords::TQueryProgressPartial newRecord{
+                .Key = {.QueryId = QueryId_, .PartName = FormatEnum(part)},
+                .Revision = revisionWithValue.first,
+                .PartValue = compressedValue,
+            };
+            newRows.push_back(newRecord.ToUnversionedRow(rowBuffer, NRecords::TQueryProgressDescriptor::Get()->GetPartialIdMapping()));
+        }
+
+        if (!newRows.empty()) {
+            try {
+                auto transaction = StartIncarnationTransaction().first;
+                transaction->WriteRows(
+                    StateRoot_ + "/query_progresses",
+                    NRecords::TQueryProgressDescriptor::Get()->GetNameTable(),
+                    MakeSharedRange(std::move(newRows), rowBuffer));
+
+                WaitFor(transaction->Commit())
+                    .ThrowOnError();
+
+                {
+                    auto guard = Guard(ProgressSpinLock_);
+                    LastSavedProgressRevision_ = lastInMemoryProgressRevision;
+                    LastSavedYqlProgress_ = lastSavedYqlProgress;
+                }
+            } catch (const std::exception& ex) {
+                return OnProgressWriteFailed(ex);
+            }
+        }
+        return true;
+    }
 
     void TryStart()
     {
@@ -263,6 +412,12 @@ private:
         proxy.SetDefaultTimeout(YqlAgentChannelProviderConfig_->DefaultProgressRequestTimeout);
         auto req = proxy.GetQueryProgress();
         ToProto(req->mutable_query_id(), QueryId_);
+        {
+            auto guard = Guard(ProgressSpinLock_);
+            if (LastInMemoryProgressRevision_) {
+                req->set_revision(*LastInMemoryProgressRevision_);
+            }
+        }
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
@@ -278,17 +433,7 @@ private:
             return;
         }
 
-        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
-        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
-        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
-
-        auto progress = BuildYsonStringFluently()
-            .BeginMap()
-                .OptionalItem("yql_plan", optionalPlan)
-                .OptionalItem("yql_progress", optionalProgress)
-                .OptionalItem("yql_ast", optionalAst)
-            .EndMap();
-        OnProgress(std::move(progress));
+        OnProgress(rsp->yql_response());
     }
 
     void OnYqlResponse(const TErrorOr<TTypedClientResponse<TRspStartQuery>::TResult>& rspOrError)
@@ -296,7 +441,8 @@ private:
         // Waiting to exclude the possibility of overwriting the final progress.
         WaitFor(ProgressGetterExecutor_->Stop())
             .ThrowOnError();
-        StopProgressWriter();
+        WaitFor(StopProgressWriter())
+            .ThrowOnError();
         if (rspOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
@@ -324,28 +470,17 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
+            WriteProgress();
             OnQueryFailed(rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
-
-        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
-        auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), statistics);
-        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
-        auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), task_info);
-        auto optionalAst = ((rsp->yql_response().has_ast()) ? std::optional(rsp->yql_response().ast()) : std::nullopt);
-        auto progress = BuildYsonStringFluently()
-            .BeginMap()
-                .OptionalItem("yql_plan", optionalPlan)
-                .OptionalItem("yql_statistics", optionalStatistics)
-                .OptionalItem("yql_progress", optionalProgress)
-                .OptionalItem("yql_task_info", optionalTaskInfo)
-                .OptionalItem("yql_ast", optionalAst)
-            .EndMap();
-        OnProgress(std::move(progress));
+        OnProgress(rsp->yql_response());
 
         if (rsp->yql_response().has_error()) {
+            WriteProgress();
+
             auto error = ConvertTo<TError>(TYsonString(rsp->yql_response().error()));
             OnQueryFailed(TError("Failed to run query")
                 .With("query_id", QueryId_)
@@ -372,6 +507,7 @@ private:
                 wireRowsetOrErrors.push_back(error);
             }
         }
+        WriteProgress();
         OnQueryCompletedWire(wireRowsetOrErrors);
     }
 };

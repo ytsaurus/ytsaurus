@@ -10,6 +10,7 @@
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
+#include "verbose_logging_policy.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -149,11 +150,12 @@ DEFINE_ENUM(EMetricsCalculatorType,
     (Replica)
 );
 
-template <int MetricSize>
+template <int MetricSize, bool EnableVerboseLogging>
 class TParameterizedReassignSolver
     : public IParameterizedReassignSolver
 {
     using TMetric = TGenericMetric<MetricSize>;
+    using TLoggingPolicy = TVerboseLoggingPolicy<EnableVerboseLogging>;
 
 public:
     TParameterizedReassignSolver(
@@ -168,6 +170,9 @@ public:
         : Bundle_(std::move(bundle))
         , Logger(logger
             .WithTag("BundleName", Bundle_->Name)
+            .WithTag("BalancingMode", type == EMetricsCalculatorType::Replica
+                ? EBalancingMode::ReplicaMove
+                : EBalancingMode::ParameterizedMove)
             .WithTag("Group", groupName))
         , Config_(std::move(config))
         , GroupName_(std::move(groupName))
@@ -194,7 +199,7 @@ public:
                     Bundle_->PerformanceCountersTableSchema,
                     Bundle_->PerClusterPerformanceCountersTableSchemas,
                     Logger,
-                    Bundle_->Config->EnableVerboseLogging);
+                    TLoggingPolicy::EnableVerboseLogging);
                 break;
         }
     }
@@ -215,7 +220,7 @@ public:
 
         int availableActionCount = Config_.MaxMoveActionCount;
         while (availableActionCount > 0) {
-            LogMessageCount_ = 0;
+            LoggingPolicy_.ResetLogMessageCount();
             if (TryFindBestAction()) {
                 if ((CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_)).GetTotalValue() >=
                     BestActionInfo_.MetricDiff.GetTotalValue())
@@ -272,7 +277,7 @@ public:
             MetricTracker_->AfterMetric.Update(CurrentMetric_.GetTotalValue());
         }
 
-        YT_TLOG_INFO("Metric after iteration")
+        YT_TLOG_INFO("Metric after parameterized move iteration")
             .WithFormat("Metric", "%e", CurrentMetric_);
 
         return descriptors;
@@ -324,22 +329,26 @@ private:
         TMetric MetricDiff;
     };
 
-    struct TTabletMoveBaseline
+    struct TTabletMoveInvariantTerms
     {
-        TMetric TabletNodeMetric;
-        TMetric TabletTableNodeMetric;
-        TMetric TabletCellMetric;
-        TMetric TabletTableCellMetric;
-        TMetric DoubledTabletMetric;
+        struct
+        {
+            TMetric TabletNode;
+            TMetric TabletTableNode;
+            TMetric TabletCell;
+            TMetric TabletTableCell;
+            TMetric DoubledTablet;
+        } Metrics;
+
         TMetric TableCellFactor;
         TMetric TableNodeFactor;
     };
 
-    // Reused only while evaluating destinations for one tablet against unchanged loads.
-    struct TMoveTabletContext
+    // Reused only while evaluating destinations for one tablet within a single move iteration.
+    struct TTabletMoveContext
     {
         TNodeInfo* DestinationNode = nullptr;
-        TMetric MetricDiffBeforeDestinationCell;
+        TMetric MetricDiffWithoutDestinationCell;
         double MetricImprovementUpperBound = 0.0;
     };
 
@@ -348,6 +357,7 @@ private:
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
     const IThreadPoolPtr WorkerPool_;
+    const TLoggingPolicy LoggingPolicy_;
     TTableParameterizedMetricTrackerPtr MetricTracker_;
     std::unique_ptr<TParameterizedMetricsCalculator<MetricSize>> Calculator_;
 
@@ -375,8 +385,6 @@ private:
     TMetric CurrentMetric_;
     TMetric CellFactor_ = TMetric::Unit();
     TMetric NodeFactor_ = TMetric::Unit();
-
-    std::atomic<int> LogMessageCount_ = 0;
 
     int FullRecomputeAttempts_ = 0;
     int PartialRecomputeAttempts_ = 0;
@@ -468,9 +476,7 @@ private:
                 auto tabletMetric = GetOrCrash(tabletMetrics, tabletId);
 
                 if (tabletMetric.GetTotalValue() <= MinimumAcceptableMetricValue) {
-                    YT_TLOG_DEBUG_IF(
-                        Bundle_->Config->EnableVerboseLogging,
-                        "Skipping tablet since its metric is below the minimum acceptable value")
+                    YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Skipping tablet since its metric is below the minimum acceptable value")
                         .WithFormat("MinimumAcceptableMetricValue", "%e", MinimumAcceptableMetricValue)
                         .With("TabletId", tabletId)
                         .With("TableId", tablet->Table->Id);
@@ -505,7 +511,7 @@ private:
 
         int tableCount = std::ssize(tableInfoIndex);
         if (tableCount == 0) {
-            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging, "There are no tables to balance");
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "There are no tables to balance");
             return;
         }
 
@@ -537,12 +543,10 @@ private:
             SortedCellIndexes_.emplace_back(index);
         }
 
-        if (Bundle_->Config->EnableVerboseLogging) {
-            for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
-                YT_TLOG_DEBUG("Calculated node metric")
-                    .With("NodeAddress", nodeAddress)
-                    .WithFormat("NodeMetric", "%e", nodeInfo.Metric);
-            }
+        for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Calculated node metric")
+                .With("NodeAddress", nodeAddress)
+                .WithFormat("NodeMetric", "%e", nodeInfo.Metric);
         }
 
         CurrentMetric_ = CalculateTotalBundleMetric();
@@ -553,7 +557,7 @@ private:
             MetricTracker_->BeforeMetric.Update(currentTotalMetric);
         }
 
-        YT_TLOG_INFO("Metric before iteration")
+        YT_TLOG_INFO("Metric before parameterized move iteration")
             .WithFormat("Metric", "%e", CurrentMetric_);
 
         YT_VERIFY(currentTotalMetric >= 0);
@@ -665,9 +669,7 @@ private:
             bool byCellTrigger = maxCellMetric > 0 &&
                 maxCellMetric >= minCellMetric * (1 + Config_.CellDeviationThreshold);
 
-            YT_TLOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging,
-                "Arguments for checking whether parameterized balancing should trigger have been calculated")
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Arguments for checking whether parameterized balancing should trigger have been calculated")
                 .With("MetricIndex", metricIndex)
                 .WithFormat("MinNodeMetric", "%e", minNodeMetric)
                 .WithFormat("MaxNodeMetric", "%e", maxNodeMetric)
@@ -741,7 +743,7 @@ private:
             TableCellFactors_[tableIndex] *= Config_.Factors->TableCell.value();
             TableNodeFactors_[tableIndex] *= Config_.Factors->TableNode.value();
 
-            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging, "Calculated per-table factors for cells and nodes")
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Calculated per-table factors for cells and nodes")
                 .With("TableId", TableIds_[tableIndex])
                 .With("TableCellFactor", TableCellFactors_[tableIndex])
                 .With("TableNodeFactor", TableNodeFactors_[tableIndex]);
@@ -805,21 +807,21 @@ private:
              destinationCell->Node->SafeFreeMemoryAmount <= destinationCell->Node->FreeNodeMemory - size);
     }
 
-    Y_FORCE_INLINE TTabletMoveBaseline ComputeTabletBaseline(const TTabletInfo& tablet) const
+    Y_FORCE_INLINE TTabletMoveInvariantTerms ComputeTabletInvariantTerms(const TTabletInfo& tablet) const
     {
-        TTabletMoveBaseline baseline;
+        TTabletMoveInvariantTerms invariantTerms;
 
-        baseline.TabletNodeMetric = tablet.Metric * NodeFactor_;
-        baseline.TabletCellMetric = tablet.Metric * CellFactor_;
-        baseline.DoubledTabletMetric = tablet.Metric * 2;
+        invariantTerms.Metrics.TabletNode = tablet.Metric * NodeFactor_;
+        invariantTerms.Metrics.TabletCell = tablet.Metric * CellFactor_;
+        invariantTerms.Metrics.DoubledTablet = tablet.Metric * 2;
 
-        baseline.TableCellFactor = TableCellFactors_[tablet.TableIndex];
-        baseline.TableNodeFactor = TableNodeFactors_[tablet.TableIndex];
+        invariantTerms.TableCellFactor = TableCellFactors_[tablet.TableIndex];
+        invariantTerms.TableNodeFactor = TableNodeFactors_[tablet.TableIndex];
 
-        baseline.TabletTableCellMetric = tablet.Metric * baseline.TableCellFactor;
-        baseline.TabletTableNodeMetric = tablet.Metric * baseline.TableNodeFactor;
+        invariantTerms.Metrics.TabletTableCell = tablet.Metric * invariantTerms.TableCellFactor;
+        invariantTerms.Metrics.TabletTableNode = tablet.Metric * invariantTerms.TableNodeFactor;
 
-        return baseline;
+        return invariantTerms;
     }
 
     //! Generates an action moving |tablet| to |cell|. Returns |false| when the pruning
@@ -827,8 +829,8 @@ private:
     Y_FORCE_INLINE bool TryMoveTablet(
         TTabletInfo* tablet,
         TTabletCellInfo* cell,
-        const TTabletMoveBaseline& baseline,
-        TMoveTabletContext* context,
+        const TTabletMoveInvariantTerms& invariantTerms,
+        TTabletMoveContext* context,
         TBoundedPriorityQueue<TMoveActionInfo>* moveActions)
     {
         double bestDiscardedCost = moveActions->GetBestDiscardedCost();
@@ -844,10 +846,7 @@ private:
         auto* destinationNode = cell->Node;
 
         if (!CheckMoveFollowsMemoryLimits(tablet, sourceCell, cell)) {
-            // Cannot move due to memory limits.
-            YT_TLOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Cannot move tablet")
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Enabled, "Cannot move tablet because it will violate memory limits")
                 .With("TabletId", tablet->Id)
                 .With("CellId", cell->Id)
                 .With("SourceNode", sourceNode->Address)
@@ -873,24 +872,24 @@ private:
 
             if (sourceNode != destinationNode) {
                 newMetricDiff +=
-                    (sourceNode->Metric - destinationNode->Metric - baseline.TabletNodeMetric) * NodeFactor_;
+                    (sourceNode->Metric - destinationNode->Metric - invariantTerms.Metrics.TabletNode) * NodeFactor_;
 
                 newMetricDiff +=
                     (TableByNodeMetric_(tableIndex, sourceNode->Index) -
                         TableByNodeMetric_(tableIndex, destinationNode->Index) -
-                        baseline.TabletTableNodeMetric) *
-                    baseline.TableNodeFactor * TableNormalizingCoefficient_;
+                        invariantTerms.Metrics.TabletTableNode) *
+                    invariantTerms.TableNodeFactor * TableNormalizingCoefficient_;
             }
 
-            newMetricDiff += (sourceCell->Metric - baseline.TabletCellMetric) * CellFactor_;
+            newMetricDiff += (sourceCell->Metric - invariantTerms.Metrics.TabletCell) * CellFactor_;
 
             newMetricDiff +=
-                (TableByCellMetric_(tableIndex, sourceCell->Index) - baseline.TabletTableCellMetric) *
-                baseline.TableCellFactor * TableNormalizingCoefficient_;
+                (TableByCellMetric_(tableIndex, sourceCell->Index) - invariantTerms.Metrics.TabletTableCell) *
+                invariantTerms.TableCellFactor * TableNormalizingCoefficient_;
 
             context->DestinationNode = destinationNode;
-            context->MetricDiffBeforeDestinationCell = newMetricDiff;
-            context->MetricImprovementUpperBound = (newMetricDiff * baseline.DoubledTabletMetric).GetTotalValue();
+            context->MetricDiffWithoutDestinationCell = newMetricDiff;
+            context->MetricImprovementUpperBound = (newMetricDiff * invariantTerms.Metrics.DoubledTablet).GetTotalValue();
         }
 
         // NB(dave11ar, ifsmirnov): Sorting nodes by their total metric does not guarantee
@@ -909,17 +908,15 @@ private:
             return false;
         }
 
-        auto newMetricDiff = context->MetricDiffBeforeDestinationCell;
+        auto newMetricDiff = context->MetricDiffWithoutDestinationCell;
         newMetricDiff -= cell->Metric * CellFactor_;
 
         newMetricDiff -=
-            TableByCellMetric_(tableIndex, cell->Index) * baseline.TableCellFactor * TableNormalizingCoefficient_;
+            TableByCellMetric_(tableIndex, cell->Index) * invariantTerms.TableCellFactor * TableNormalizingCoefficient_;
 
-        newMetricDiff *= baseline.DoubledTabletMetric;
+        newMetricDiff *= invariantTerms.Metrics.DoubledTablet;
 
-        YT_TLOG_DEBUG_IF(
-            Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Trying to move tablet to another cell")
+        YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Enabled, "Trying to move tablet to another cell")
             .With("TabletId", tablet->Id)
             .With("CellId", cell->Id)
             .WithFormat("CurrentMetric", "%e", CurrentMetric_)
@@ -1078,21 +1075,21 @@ private:
 
         ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
-                auto baseline = ComputeTabletBaseline(tablet);
+                auto invariantTerms = ComputeTabletInvariantTerms(tablet);
                 auto* sourceCell = &Cells_[tablet.CellIndex];
 
                 if (std::find(bannedNodes.begin(), bannedNodes.end(), sourceCell->Node) != bannedNodes.end()) {
-                    TMoveTabletContext context;
+                    TTabletMoveContext context;
                     for (auto cellIndex : SortedCellIndexes_) {
-                        if (!TryMoveTablet(&tablet, &Cells_[cellIndex], baseline, &context, moveActions)) {
+                        if (!TryMoveTablet(&tablet, &Cells_[cellIndex], invariantTerms, &context, moveActions)) {
                             break;
                         }
                     }
                 } else {
-                    std::array<TMoveTabletContext, 2> contexts;
+                    std::array<TTabletMoveContext, 2> contexts;
                     for (auto* cell : invalidatedCells) {
                         auto* context = &contexts[cell->Node == bannedNodes[0] ? 0 : 1];
-                        TryMoveTablet(&tablet, cell, baseline, context, moveActions);
+                        TryMoveTablet(&tablet, cell, invariantTerms, context, moveActions);
                     }
                 }
             }
@@ -1105,10 +1102,10 @@ private:
 
         ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
-                auto baseline = ComputeTabletBaseline(tablet);
-                TMoveTabletContext context;
+                auto invariantTerms = ComputeTabletInvariantTerms(tablet);
+                TTabletMoveContext context;
                 for (auto cellIndex : SortedCellIndexes_) {
-                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex], baseline, &context, moveActions)) {
+                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex], invariantTerms, &context, moveActions)) {
                         break;
                     }
                 }
@@ -1142,13 +1139,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <int> class TEntity, class TEntityInterface, class... TArgs>
-TIntrusivePtr<TEntityInterface> MakeParametrizedEntity(
+template <template <int, bool> class TEntity, class TEntityInterface, class... TArgs>
+TIntrusivePtr<TEntityInterface> MakeParameterizedEntity(
     int metricSize,
+    bool enableVerboseLogging,
     TArgs&&... args)
 {
     auto createEntity = [&] <int MetricSize>() -> TIntrusivePtr<TEntityInterface> {
-        return New<TEntity<MetricSize>>(std::forward<TArgs>(args)...);
+        if (enableVerboseLogging) {
+            return New<TEntity<MetricSize, true>>(std::forward<TArgs>(args)...);
+        } else {
+            return New<TEntity<MetricSize, false>>(std::forward<TArgs>(args)...);
+        }
     };
 
     switch (metricSize) {
@@ -1176,8 +1178,9 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger)
 {
-    return MakeParametrizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
+    return MakeParameterizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
         ssize(config.Metrics),
+        bundle->Config->EnableVerboseLogging,
         std::move(bundle),
         std::move(performanceCountersKeys),
         std::move(config),
@@ -1197,8 +1200,9 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger)
 {
-    return MakeParametrizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
+    return MakeParameterizedEntity<TParameterizedReassignSolver, IParameterizedReassignSolver>(
         ssize(config.Metrics),
+        bundle->Config->EnableVerboseLogging,
         std::move(bundle),
         std::move(performanceCountersKeys),
         std::move(config),

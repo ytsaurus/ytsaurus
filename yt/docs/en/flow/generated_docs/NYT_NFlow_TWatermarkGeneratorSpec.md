@@ -13,9 +13,6 @@ Use `SourceWatermark` for `EventWatermark` generation. This option completely di
 The upper bound on possible event reordering, used for estimating `EventWatermark`. Event reordering is not accounted for by default. ||
 || `idle_partitions` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TIdlePartitionsSpec](./all_yson_structs#NYT_NFlow_TIdlePartitionsSpec)`>`
 Heuristic settings for ignoring partitions with zero write throughput. ||
-{% if audience == "internal" %}|| `unavailable_partition_groups` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TUnavailablePartitionGroupsSpec](./all_yson_structs#NYT_NFlow_TUnavailablePartitionGroupsSpec)`>`
-**Default value**: `{}`
-Heuristic settings for ignoring unavailable partition groups (for example, partitions in a disabled data center of the primary `Logbroker` installation). ||{% endif %}
 || `late_data_partitions` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TLateDataPartitionsSpec](./all_yson_structs#NYT_NFlow_TLateDataPartitionsSpec)`>`
  ||
 |#

@@ -455,7 +455,10 @@ TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request, EWorkloadCat
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (request.Size) {
-            request.Handle->Resize(*request.Size);
+            YT_TLOG_ERROR_IF(!request.Handle->Resize(*request.Size), "Failed to resize file on close")
+                .With("handle", *request.Handle)
+                .With("size", request.Size)
+                .With(TError::FromSystem());
         }
         if (request.Flush && StaticConfig_->EnableSync) {
             TRequestStatsGuard statsGuard(Sensors_->SyncSensors[category]);

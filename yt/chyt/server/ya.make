@@ -48,6 +48,7 @@ ADDINCL(
 SRCS(
     bootstrap.cpp
     ch_to_yt_converter.cpp
+    chunk_spec_cache.cpp
     clickhouse_config.cpp
     clickhouse_invoker.cpp
     clickhouse_server.cpp

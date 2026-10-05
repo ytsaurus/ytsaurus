@@ -12,7 +12,7 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_old, skip_if_component_old
+from yt_helpers import skip_if_old, skip_if_component_old, with_push_based_shuffle
 
 
 import yt_error_codes
@@ -499,6 +499,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_reduce_with_sort(self, sort_order):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -893,6 +894,7 @@ print("x={0}\ty={1}".format(x, y))
     @authors("babenko", "dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_rename_columns_simple(self, optimize_for, sort_order):
         create(
             "table",
@@ -1083,6 +1085,7 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("max42")
     @pytest.mark.parametrize("ordered", [False, True])
+    @with_push_based_shuffle()
     def test_progress_counter(self, ordered):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1256,6 +1259,7 @@ print("x={0}\ty={1}".format(x, y))
             )
 
     @authors("savrus")
+    @with_push_based_shuffle()
     def test_computed_columns(self):
         create("table", "//tmp/t1")
         create(
@@ -1451,6 +1455,7 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_ordered_map_reduce(self, sort_order):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1473,6 +1478,7 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("babenko")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @with_push_based_shuffle()
     def test_commandless_user_job_spec(self, sort_order):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -1641,6 +1647,7 @@ print("x={0}\ty={1}".format(x, y))
         assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1676,6 +1683,7 @@ print("x={0}\ty={1}".format(x, y))
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_empty_pivot_key(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1761,6 +1769,7 @@ print("x={0}\ty={1}".format(x, y))
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 21, 21]
 
     @authors("gritukan")
+    @with_push_based_shuffle()
     def test_pivot_keys_descending(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1965,6 +1974,7 @@ for l in sys.stdin:
         assert sorted_dicts([{"key": "1", "value1": "one_1"}]) == sorted_dicts(reducer_actual_rows)
 
     @authors("levysotsky")
+    @with_push_based_shuffle()
     def test_single_intermediate_schema_trivial_mapper(self):
         input_schema = output_schema = [
             {"name": "a", "type_v3": "int64"},
@@ -3215,6 +3225,10 @@ for l in sys.stdin:
                 reducer_command="cat")
 
     @authors("gritukan")
+    @with_push_based_shuffle(mapper_output_schema=[
+        {"name": "a", "type": "string", "sort_order": "ascending"},
+        {"name": "b", "type": "string", "sort_order": "ascending"},
+    ])
     def test_longer_sort_columns_sorted_reduce(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -3294,6 +3308,7 @@ for l in sys.stdin:
             )
 
     @authors("galtsev")
+    @with_push_based_shuffle()
     def test_no_segfault_after_abandon_job(self):
         if self.Env.get_component_version("ytserver-controller-agent").abi < (23, 1):
             pytest.skip("In versions less than 23.1 the controller agent segfaults after an abandon job request")
@@ -4055,6 +4070,7 @@ for line in sys.stdin:
             assert job_count_per_task["partition_reduce"] == 3
 
     @authors("apollo1321")
+    @with_push_based_shuffle()
     def test_explicit_map_job_count(self):
         create("table", "//tmp/t_in")
 
@@ -4077,6 +4093,7 @@ for line in sys.stdin:
         assert {"partition", "partition_reduce"} == {task["job_type"] for task in tasks}
 
     @authors("pavook")
+    @with_push_based_shuffle()
     def test_max_map_job_count(self):
         skip_if_component_old(self.Env, (26, 1), "controller-agent")
         create("table", "//tmp/t_in")
@@ -4141,7 +4158,7 @@ class TestSchedulerMapReduceCommandsSysOperationsRootstock(TestSchedulerMapReduc
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 4
-    NUM_TEST_PARTITIONS = 15
+    NUM_TEST_PARTITIONS = 25
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -5458,6 +5475,7 @@ class TestSchedulerMapReduceCodegenComparator(TestSchedulerMapReduceBase):
     @authors("pavook")
     @pytest.mark.parametrize("comparator", ["generic", "codegen"])
     @pytest.mark.parametrize("reduce_key_count,sort_key_count", [(1, 1), (1, 2), (2, 2)])
+    @with_push_based_shuffle()
     def test_map_reduce_with_codegen_comparator(self, comparator, reduce_key_count, sort_key_count):
         create(
             "table",
@@ -5505,6 +5523,7 @@ class TestSchedulerMapReduceCodegenComparator(TestSchedulerMapReduceBase):
     @authors("pavook")
     @pytest.mark.parametrize("comparator", ["generic", "codegen"])
     @pytest.mark.parametrize("key_type", ["int64", "uint64", "string", "double"])
+    @with_push_based_shuffle()
     def test_map_reduce_codegen_comparator_various_types(self, comparator, key_type):
         create(
             "table",

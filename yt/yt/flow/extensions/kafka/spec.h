@@ -128,6 +128,20 @@ struct TKafkaSinkParameters
     : public TOrderedAsyncSinkBase::TParameters
     , public virtual TCommonKafkaSinkParameters
 {
+    EKafkaDeliveryGuarantee DeliveryGuarantee = EKafkaDeliveryGuarantee::AtLeastOnce;
+
+    //! With #EKafkaDeliveryGuarantee::ExactlyOnce, the sink's transactional id is this prefix followed
+    //! by its producer id. A consumer group of the same name keeps the sink's progress as its offset on
+    //! partition 0 of the topic, so the principal needs access to both, plus Read on the topic.
+    std::string TransactionalIdPrefix;
+
+    //! librdkafka `transaction.timeout.ms`: the broker aborts a transaction open for longer.
+    TDuration TransactionTimeout;
+
+    //! Limits on the records one Kafka transaction writes; a transaction takes at least one record.
+    i64 MaxTransactionRecordCount = 0;
+    i64 MaxTransactionByteSize = 0;
+
     REGISTER_YSON_STRUCT(TKafkaSinkParameters);
 
     static void Register(TRegistrar registrar);
@@ -138,6 +152,13 @@ DEFINE_REFCOUNTED_TYPE(TKafkaSinkParameters);
 struct TDynamicKafkaSinkParameters
     : public TOrderedAsyncSinkBase::TDynamicParameters
 {
+    //! With #EKafkaDeliveryGuarantee::ExactlyOnce, lets the sink start when its progress marker is
+    //! missing although earlier sessions may have committed messages the persisted state does not
+    //! acknowledge; those messages are written again and may be duplicated. The marker is lost when the
+    //! consumer group offset expires (the broker's `offsets.retention.minutes`) or is deleted. Read when the
+    //! sink starts.
+    bool AllowMissingProgressMarker = false;
+
     REGISTER_YSON_STRUCT(TDynamicKafkaSinkParameters);
 
     static void Register(TRegistrar registrar);

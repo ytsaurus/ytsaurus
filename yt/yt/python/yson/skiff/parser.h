@@ -2,12 +2,11 @@
 
 #include "public.h"
 #include "consumer.h"
+#include "multi_table_parser.h"
 #include "../rows_iterator_base.h"
 
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
-
-#include <yt/yt/library/skiff_ext/parser.h>
 
 #include <CXX/Extensions.hxx> // pycxx
 #include <CXX/Objects.hxx> // pycxx
@@ -20,7 +19,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffIterator
-    : public TRowsIteratorBase<TSkiffIterator, TPythonSkiffRecordBuilder, NSkiffExt::TSkiffMultiTableParser<TPythonSkiffRecordBuilder>>
+    : public TRowsIteratorBase<TSkiffIterator, TPythonSkiffRecordBuilder, TSkiffMultiTableParser<TPythonSkiffRecordBuilder>>
 {
 public:
     TSkiffIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
@@ -35,7 +34,7 @@ public:
 
     static void InitType();
 
-    using TBase = TRowsIteratorBase<TSkiffIterator, TPythonSkiffRecordBuilder, NSkiffExt::TSkiffMultiTableParser<TPythonSkiffRecordBuilder>>;
+    using TBase = TRowsIteratorBase<TSkiffIterator, TPythonSkiffRecordBuilder, TSkiffMultiTableParser<TPythonSkiffRecordBuilder>>;
 
 private:
     static constexpr const char FormatName[] = "Skiff";

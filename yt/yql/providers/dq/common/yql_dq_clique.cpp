@@ -2,6 +2,8 @@
 
 #include <yt/yql/providers/dq/config/config.pb.h>
 
+#include <yql/essentials/utils/log/log.h>
+
 #include <util/folder/path.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/yexception.h>
@@ -123,6 +125,39 @@ TDqYtClusterBinding ResolveYtClusterBindingOrThrow(
             << "YT backend \"" << ytClusterShortcut << "\" has empty token";
     }
     return *ytBinding;
+}
+
+TString GetDqCliqueUploadPrefix(const NProto::TDqConfig_TYtBackend& backend)
+{
+    return backend.GetUploadPrefix().empty()
+        ? backend.GetPrefix() + "/tmp"
+        : backend.GetUploadPrefix();
+}
+
+void ConfigureDqCliqueUploadOptions(
+    const TVector<NProto::TDqConfig_TYtBackend>& backends,
+    const TString& cliqueValue,
+    TResourceManagerOptions* options)
+{
+    auto resolveYtCluster = MakeYtBackendResolver(backends);
+    const auto cliqueRef = ParseDqCliqueRef(cliqueValue);
+    const auto& binding = ResolveYtClusterBindingOrThrow(
+        resolveYtCluster,
+        cliqueRef.YtCluster);
+    for (const auto& backend : backends) {
+        if (backend.GetClusterName() == cliqueRef.YtCluster) {
+            options->YtBackend = backend;
+            options->UploadPrefix = GetDqCliqueUploadPrefix(backend);
+            break;
+        }
+    }
+    if (options->UploadPrefix.empty()) {
+        ythrow yexception() << "YT backend " << cliqueRef.YtCluster
+            << " has no upload prefix";
+    }
+    YQL_CLOG(INFO, ProviderDq) << "Upload files to YT cluster "
+        << cliqueRef.YtCluster << " (" << binding.ProxyAddress << ")"
+        << " for DQ clique " << cliqueRef.CliqueName;
 }
 
 void ValidateDqCliqueYtBackend(

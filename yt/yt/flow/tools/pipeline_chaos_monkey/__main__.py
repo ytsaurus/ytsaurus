@@ -67,22 +67,22 @@ def kill_leases(yt_client, leases):
             logging.error("Failed to kill lease %s: %s", lease_id, result)
 
 
-def kill_hosts(args, hosts):
-    def kill(host):
+def kill_hosts(addresses):
+    def kill(address):
         try:
-            response = requests.get(f"http://{host}:{args.monitoring_port}/admin/die")
+            response = requests.get(f"http://{address}/admin/die")
             if response.status_code != 200:
-                return f"Failed to kill host (Host: {host}, StatusCode: {response.status_code})"
+                return f"Failed to kill host (Address: {address}, StatusCode: {response.status_code})"
             return None
         except Exception:
             return traceback.format_exc()
 
     with ThreadPoolExecutor(max_workers=500) as executor:
-        results = executor.map(kill, hosts)
+        results = executor.map(kill, addresses)
 
-    for host, result in zip(hosts, results):
+    for address, result in zip(addresses, results):
         if result is not None:
-            logger.error("Failed to kill host %s: %s", host, result)
+            logger.error("Failed to kill host %s: %s", address, result)
 
 
 def kill_worker_leases(args, flow_view, yt_client):
@@ -112,8 +112,8 @@ def kill_workers(args, flow_view):
         if random.random() < args.worker_kill_probability:
             host = worker.split(":")[0]
             logger.info("Killing host %s", host)
-            hosts_to_kill.append(host)
-    kill_hosts(args, hosts_to_kill)
+            hosts_to_kill.append(f"{host}:{args.monitoring_port}")
+    kill_hosts(hosts_to_kill)
     if len(hosts_to_kill) > 0:
         logger.info("Finished killing hosts (successfully or not)")
 
@@ -126,19 +126,45 @@ def kill_controller_or_lease(args, yt_client):
         return
     try:
         logger.info("Killing controller")
-        controller_locks = yt_client.get(f"{args.path}/leader_controller_lock/@locks")
-        if len(controller_locks) == 0:
-            logger.warning("Can't kill controller - no controller found")
-            return
-        transaction_id = controller_locks[0]["transaction_id"]
-        controller_host = yt_client.get(f"//sys/transactions/{transaction_id}/@hostname")
-        if need_kill_lease:
-            logger.info("Killing controller lease %s of controller %s", transaction_id, controller_host)
+        controller_host = None
+        if need_kill_host:
+            try:
+                announcements = list(yt_client.lookup_rows(f"{args.path}/flow_control", [{"key": "leader_controller"}]))
+                if announcements:
+                    monitoring_address = announcements[0]["value"]["monitoring_address"]
+                    if monitoring_address.startswith("["):
+                        host, separator, port = monitoring_address[1:].partition("]:")
+                        if separator and ":" not in host:
+                            monitoring_address = f"{host}:{port}"
+                    controller_host = monitoring_address
+            except Exception:
+                logger.exception("Failed to read controller announcement; trying legacy host lookup")
+
+        transaction_id = None
+        if need_kill_lease or (need_kill_host and not controller_host):
+            try:
+                controller_locks = yt_client.get(f"{args.path}/leader_controller_lock/@locks")
+                if controller_locks:
+                    transaction_id = controller_locks[0]["transaction_id"]
+                else:
+                    logger.warning("Can't find controller lease - no controller lock found")
+            except Exception:
+                logger.exception("Failed to find controller lease")
+
+        if need_kill_host and not controller_host and transaction_id:
+            try:
+                host = yt_client.get(f"//sys/transactions/{transaction_id}/@hostname")
+                controller_host = f"{host}:{args.monitoring_port}"
+            except Exception:
+                logger.exception("Failed to find controller host")
+
+        if need_kill_lease and transaction_id:
+            logger.info("Killing controller lease %s", transaction_id)
             yt_client.abort_transaction(transaction_id)
             logger.info("Lease %s was successfully killed", transaction_id)
-        if need_kill_host:
+        if need_kill_host and controller_host:
             logger.info("Killing controller host %s", controller_host)
-            kill_hosts(args, [controller_host])
+            kill_hosts([controller_host])
             logger.info("Finished killing controller host (successfully or not)")
     except Exception:
         logger.exception("Failed to kill controller")

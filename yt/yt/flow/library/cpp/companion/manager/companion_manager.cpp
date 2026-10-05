@@ -113,6 +113,24 @@ TFuture<void> TCompanionManager::Load(const THashMap<TResourceId, IResourcePtr>&
         .Run();
 }
 
+std::string TCompanionManager::GetSessionId() const
+{
+    YT_VERIFY(ProcessManager_);
+    return ProcessManager_->GetSessionId();
+}
+
+void TCompanionManager::SubscribeSessionFinished(const TCallback<void(const std::string& sessionId)>& callback)
+{
+    YT_VERIFY(ProcessManager_);
+    ProcessManager_->SubscribeSessionFinished(callback);
+}
+
+void TCompanionManager::UnsubscribeSessionFinished(const TCallback<void(const std::string& sessionId)>& callback)
+{
+    YT_VERIFY(ProcessManager_);
+    ProcessManager_->UnsubscribeSessionFinished(callback);
+}
+
 void TCompanionManager::RegisterLiveJob(const TJobId& jobId, ICompanionClientPtr client)
 {
     auto guard = Guard(LiveJobsLock_);

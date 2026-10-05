@@ -2,6 +2,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from yt.common import WaitFailed
+
 from yt.yt.flow.library.python.integration_test_base import flow_process, yt_flow_base
 
 
@@ -67,3 +69,66 @@ def test_final_diagnostics(monkeypatch, tmp_path, use_vanilla_jobs, early_dump, 
     assert events == expected_dumps + (["abort"] if early_dump else []) + ["stop"] * (1 if use_vanilla_jobs else 3)
     for name in ("final_flow_view.yson", "final_description.yson"):
         assert (tmp_path / name).exists() is not diagnostics_fail
+
+
+@pytest.mark.authors(["pechatnov"])
+def test_wait_pipeline_state_adds_status_messages(monkeypatch):
+    base = yt_flow_base.FlowTestBase()
+    base.pipeline_path = "//pipeline"
+    base.client = Mock()
+    base.client.flow_execute.return_value = {
+        "messages": [
+            {"level": "info", "text": "ignore info"},
+            {"level": "warning", "text": "keep warning"},
+        ]
+    }
+    failure = WaitFailed("Original wait failure")
+    monkeypatch.setattr(yt_flow_base, "wait", Mock(side_effect=failure))
+
+    with pytest.raises(WaitFailed) as error:
+        base.wait_pipeline_state("completed", timeout=17)
+
+    assert error.value is failure
+    assert str(error.value) == "Original wait failure"
+    assert len(error.value.__notes__) == 1
+    assert "keep warning" in error.value.__notes__[0]
+    assert "ignore info" not in error.value.__notes__[0]
+    base.client.flow_execute.assert_called_once_with(
+        "//pipeline",
+        flow_command="describe-pipeline",
+        flow_argument={"status_only": True},
+    )
+
+
+@pytest.mark.authors(["pechatnov"])
+def test_wait_pipeline_state_preserves_error_when_describe_fails(monkeypatch):
+    base = yt_flow_base.FlowTestBase()
+    base.pipeline_path = "//pipeline"
+    base.client = Mock()
+    base.client.flow_execute.side_effect = RuntimeError("Describe failed")
+    failure = WaitFailed("Original wait failure")
+    monkeypatch.setattr(yt_flow_base, "wait", Mock(side_effect=failure))
+
+    with pytest.raises(WaitFailed) as error:
+        base.wait_pipeline_state("completed", timeout=17)
+
+    assert error.value is failure
+    assert str(error.value) == "Original wait failure"
+    assert not getattr(error.value, "__notes__", None)
+
+
+@pytest.mark.authors(["pechatnov"])
+def test_wait_for_pipeline_error():
+    base = yt_flow_base.FlowTestBase()
+    base.pipeline_path = "//pipeline"
+    base.client = Mock()
+    base.client.flow_execute.return_value = {
+        "computations": {"reader": {"messages": [{"level": "error", "text": "matching error"}]}}
+    }
+
+    base.wait_for_pipeline_error("matching", timeout=1)
+
+    base.client.flow_execute.assert_called_once_with(
+        "//pipeline",
+        flow_command="describe-pipeline",
+    )

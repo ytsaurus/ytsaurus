@@ -52,6 +52,8 @@ PEERDIR(
     contrib/ydb/library/yql/dq/comp_nodes
     contrib/ydb/library/yql/dq/opt
     yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/clique
+    yt/yql/providers/dq/common
     yt/yql/providers/dq/global_worker_manager
     yt/yql/providers/dq/metrics
     contrib/ydb/library/yql/providers/dq/helper

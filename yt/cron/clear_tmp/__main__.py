@@ -197,7 +197,7 @@ class Resources:
 
         self.limit_exceeded = False
 
-    def consider_object_usage(self, obj_attributes, count_node=True):
+    def consider_object_usage(self, obj_attributes, count_node=True) -> List[RemovalReason]:
         reasons = []
 
         if count_node:
@@ -449,12 +449,17 @@ def main():
         account_disk_space = yt_client.get(f"//sys/accounts/{args.account}/@resource_limits/disk_space")
         account_node_count = yt_client.get(f"//sys/accounts/{args.account}/@resource_limits/node_count")
         account_chunk_count = yt_client.get(f"//sys/accounts/{args.account}/@resource_limits/chunk_count")
+
+        logger.debug(f"Account {args.account!r} limits: disk={account_disk_space:_}, chunks={account_chunk_count:_}, nodes={account_node_count:_}")
+
         if args.max_disk_space is None:
             args.max_disk_space = int(account_disk_space * args.account_usage_ratio_save_total)
         if args.max_node_count is None:
             args.max_node_count = int(account_node_count * args.account_usage_ratio_save_total)
         if args.max_chunk_count is None:
             args.max_chunk_count = int(account_chunk_count * args.account_usage_ratio_save_total)
+
+        logger.debug(f"Args max: disk={args.max_disk_space:_}, chunks={args.max_chunk_count:_}, nodes={args.max_node_count:_}")
 
         if args.account_usage_ratio_save_per_owner is not None:
             if args.max_disk_space_per_owner is None:
@@ -464,9 +469,20 @@ def main():
             if args.max_chunk_count_per_owner is None:
                 args.max_chunk_count_per_owner = int(account_chunk_count * args.account_usage_ratio_save_per_owner)
 
+            logger.debug(f"Args user max: disk={args.max_disk_space_per_owner:_}, chunks={args.max_chunk_count_per_owner:_}, nodes={args.max_node_count_per_owner:_}")
+
     if not yt_client.exists(args.directory):
         report_counters(counters, args, yt_client.config["proxy"]["url"])
         return
+
+    resources_per_user: Dict[str, Resources] = {}
+    total_resources = Resources(
+        max_disk_space=args.max_disk_space,
+        max_node_count=args.max_node_count,
+        max_chunk_count=args.max_chunk_count,
+    )
+
+    logger.info(f"Total limits: disk={total_resources.max_disk_space:_}, chunks={total_resources.max_chunk_count:_}, nodes={total_resources.max_node_count:_}")
 
     # collect aux objects
     logger.info("Start collecting links and dirs")
@@ -505,16 +521,6 @@ def main():
 
     object_to_attributes = {}
 
-    resources_per_user = {}
-    total_resources = Resources(
-        max_disk_space=args.max_disk_space,
-        max_node_count=args.max_node_count,
-        max_chunk_count=args.max_chunk_count,
-    )
-
-    # Collect objects considering nodes occupied by all dirs
-    total_resources.node_count += len(dirs)
-
     logger.info("Start collecting objects to remove")
     to_remove = collect_objects_to_remove(
         yt_client,
@@ -528,6 +534,7 @@ def main():
         args,
         counters)
     logger.info("Finished collecting objects to remove")
+    logger.info(f"Calculated usage: disk={total_resources.disk_space:_}, chunks={total_resources.chunk_count:_}, nodes={total_resources.node_count:_}")
 
     max_batch_size = get_value(args.remove_batch_size, yt_client.config["max_batch_size"])
     batch_client = yt_client.create_batch_client()
@@ -649,6 +656,11 @@ def main():
         logger.info("Start emulate removing empty dirs")
     else:
         logger.info("Start removing empty dirs")
+
+    # Directory nodes affect only empty-directory cleanup, not table selection.
+    # Add them once, before any directory removal passes.
+    total_resources.node_count += len(dirs)
+    logger.debug(f"Nodes occupied by dirs: {len(dirs):_}")
 
     while True:
         removed_dirs = []

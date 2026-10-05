@@ -33,9 +33,41 @@ target_link_libraries(library-query-portable_engine PUBLIC
   yt-yt-core
   yt-yt-client
   library-query-base
+  library-query-engine_api
 )
 
 target_sources(library-query-portable_engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/builtin_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/evaluation_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/registry.cpp
+)
+
+
+add_global_library_for(library-query-portable_engine.global
+  library-query-portable_engine)
+
+
+target_compile_options(library-query-portable_engine.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(library-query-portable_engine.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  yt-yt-client
+  library-query-base
+  library-query-engine_api
+)
+
+target_sources(library-query-portable_engine.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/query_evaluator.cpp
 )
 

@@ -100,6 +100,20 @@ message TRspReshard
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqTwoPhaseAlter
+{
+    // Filled after resolving the target, before executing the transaction action.
+    optional NYT.NProto.TGuid table_id = 1;
+    optional string path = 2;
+
+    optional bool dynamic = 3;
+}
+
+message TRspTwoPhaseAlter
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetTableBalancingAttributes
 {
     repeated NYT.NProto.TGuid table_ids = 1;

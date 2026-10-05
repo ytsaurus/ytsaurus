@@ -445,6 +445,67 @@ class TestTabletActions(TabletActionsBase):
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
 
     @authors("atalmenev")
+    @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
+    def test_data_retention_in_memory_shared_chunk_merge(self, mode):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_compaction_and_partitioning": False,
+                "testing": {
+                    "simulated_store_preload_delay": 10**9,
+                },
+            },
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            chunk_writer={
+                "block_size": 1,
+                "key_filter": {"enable": True},
+            },
+            optimize_for="lookup",
+            in_memory_mode=mode)
+
+        def get_preload_pending_store_count():
+            return sum(
+                tablet["statistics"]["preload_pending_store_count"]
+                for tablet in get("//tmp/t/@tablets"))
+
+        rows = [{"key": i, "value": "FF"} for i in range(30)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert get_preload_pending_store_count() == 0
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        set("//tmp/t/@mount_config/testing/simulated_store_preload_delay", 0)
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [15]])
+        sync_mount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+        assert len(builtins.set(chunk_ids)) == 1
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        set("//tmp/t/@mount_config/testing/simulated_store_preload_delay", 10**9)
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[]],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
+        assert get_preload_pending_store_count() == 0
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
+
+    @authors("atalmenev")
     def test_provisional_flush(self):
         sync_create_cells(1)
 

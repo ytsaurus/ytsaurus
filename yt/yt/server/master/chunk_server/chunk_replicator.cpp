@@ -2876,37 +2876,55 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
     auto mark = TChunkList::GenerateVisitMark();
 
     // BFS queue.
-    TCompactQueue<TChunkList*, 64> queue;
+    TCompactQueue<TChunkTree*, 64> queue;
 
-    auto enqueue = [&] (TChunkList* chunkList) {
-        if (chunkList->GetVisitMark() != mark) {
+    auto enqueue = [&] (TChunkTree* chunkTree) {
+        if (chunkTree->IsChunkList()) {
+            auto* chunkList = chunkTree->AsChunkList();
+            if (chunkList->GetVisitMark() == mark) {
+                return;
+            }
             chunkList->SetVisitMark(mark);
-            queue.Push(chunkList);
+        }
+        queue.Push(chunkTree);
+    };
+
+    auto enqueueAdjusted = [&] (TChunkTree* chunkTree) {
+        // Skip chunk lists that have a single parent and no trunk owning nodes.
+        while (true) {
+            if (!chunkTree->IsChunkList()) {
+                enqueue(chunkTree);
+                return;
+            }
+            auto* chunkList = chunkTree->AsChunkList();
+
+            if (!chunkList->TrunkOwningNodes().empty()) {
+                enqueue(chunkTree);
+                return;
+            }
+
+            auto parents = chunkList->Parents();
+            auto parentCount = parents.Size();
+            if (parentCount == 0) {
+                return;
+            }
+            if (parentCount > 1) {
+                enqueue(chunkTree);
+                return;
+            }
+            chunkTree = *parents.begin();
         }
     };
 
-    auto enqueueAdjustedParent = [&] (TChunkList* parent) {
-        if (auto* adjustedParent = FollowParentLinks(parent)) {
-            enqueue(adjustedParent);
+    auto enqueueParents = [&] (const auto& parents) {
+        for (auto parent : parents) {
+            enqueueAdjusted(parent);
         }
     };
 
     // Put seeds into the queue.
     for (auto [parent, cardinality] : chunk->Parents()) {
-        switch (parent->GetType()) {
-            case EObjectType::ChunkList:
-                enqueueAdjustedParent(parent->AsChunkList());
-                break;
-
-            case EObjectType::ChunkView:
-                for (auto chunkViewParent : parent->AsChunkView()->Parents()) {
-                    enqueueAdjustedParent(chunkViewParent);
-                }
-                break;
-
-            default:
-                YT_ABORT();
-        }
+        enqueueAdjusted(parent);
     }
 
     const auto isHunkChunk = chunk->GetChunkType() == EChunkType::Hunk;
@@ -2914,31 +2932,43 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 
     // The main BFS loop.
     while (!queue.Empty()) {
-        auto* chunkList = queue.Pop();
-        // Examine owners, if any.
-        for (auto owningNode : chunkList->TrunkOwningNodes()) {
-            found = true;
-            auto isHunkChunkList = owningNode->GetHunkChunkList() == chunkList;
-
-            YT_TLOG_ALERT_IF(isHunkChunk && !isHunkChunkList, "Encountered a hunk chunk in non-hunk chunk list tree")
-                .With("NodeId", owningNode->GetId())
-                .With("ChunkId", chunk->GetId());
-            YT_TLOG_ALERT_IF(isHunkChunkList && !(isHunkChunk || isJournalChunk), "Encountered chunk of a wrong type in hunk chunk list tree")
-                .With("NodeId", owningNode->GetId())
-                .With("ChunkId", chunk->GetId())
-                .With("ChunkType", chunk->GetChunkType());
-
-            if (auto* account = owningNode->Account().Get()) {
-                const auto& replication = isHunkChunkList &&
-                    GetDynamicConfig()->UseHunkSpecificMediaForRequisitionUpdates
-                    ? owningNode->EffectiveHunkReplication()
-                    : owningNode->Replication();
-                requisition.AggregateWith(replication, account, true);
+        auto* chunkTree = queue.Pop();
+        switch (chunkTree->GetType()) {
+            case EObjectType::ChunkView: {
+                enqueueParents(chunkTree->AsChunkView()->Parents());
+                break;
             }
-        }
-        // Proceed to parents.
-        for (auto parent : chunkList->Parents()) {
-            enqueueAdjustedParent(parent);
+
+            case EObjectType::ChunkList: {
+                auto* chunkList = chunkTree->AsChunkList();
+                // Examine owners, if any.
+                for (auto owningNode : chunkList->TrunkOwningNodes()) {
+                    found = true;
+                    auto isHunkChunkList = owningNode->GetHunkChunkList() == chunkList;
+
+                    YT_TLOG_ALERT_IF(isHunkChunk && !isHunkChunkList, "Encountered a hunk chunk in non-hunk chunk list tree")
+                        .With("NodeId", owningNode->GetId())
+                        .With("ChunkId", chunk->GetId());
+                    YT_TLOG_ALERT_IF(isHunkChunkList && !(isHunkChunk || isJournalChunk), "Encountered chunk of a wrong type in hunk chunk list tree")
+                        .With("NodeId", owningNode->GetId())
+                        .With("ChunkId", chunk->GetId())
+                        .With("ChunkType", chunk->GetChunkType());
+
+                    if (auto* account = owningNode->Account().Get()) {
+                        const auto& replication = isHunkChunkList &&
+                            GetDynamicConfig()->UseHunkSpecificMediaForRequisitionUpdates
+                            ? owningNode->EffectiveHunkReplication()
+                            : owningNode->Replication();
+                        requisition.AggregateWith(replication, account, /*committed*/ true);
+                    }
+                }
+                // Proceed to parents.
+                enqueueParents(chunkList->Parents());
+                break;
+            }
+
+            default:
+                YT_ABORT();
         }
     }
 
@@ -3046,22 +3076,6 @@ void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
             .With(rspOrError);
         return;
     }
-}
-
-TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
-{
-    while (chunkList->TrunkOwningNodes().Empty()) {
-        const auto& parents = chunkList->Parents();
-        auto parentCount = parents.Size();
-        if (parentCount == 0) {
-            return nullptr;
-        }
-        if (parentCount > 1) {
-            break;
-        }
-        chunkList = *parents.begin();
-    }
-    return chunkList;
 }
 
 void TChunkReplicator::AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndex, int priority)

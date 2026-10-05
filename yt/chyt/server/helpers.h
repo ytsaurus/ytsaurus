@@ -49,6 +49,8 @@ namespace NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
+int GetAscendingKeyPrefixLength(const NTableClient::TTableSchema& schema);
+
 //! Register a new user in CH AccessControl and grant them all the necessary permissions.
 //! This is suitable for internal CHYT users. For real users, it is preferable to use THost::PrepareClickHouseUser.
 void RegisterNewUser(

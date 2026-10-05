@@ -92,6 +92,21 @@ TScenario OneWorkerHeavilyOverloaded()
     return scenario;
 }
 
+//! Partitions run on the two preloaded workers, demand halves on minutes 1..30, a model loads
+//! in 15 minutes. Expected: no preload is cancelled while the model is loading.
+TScenario DemandDipKeepsLoadingPreloads()
+{
+    auto scenario = SpecApplyTwoPreloaded();
+    scenario.Name = "DemandDipKeepsLoadingPreloads";
+    scenario.InitialShares = {0.5, 0.5};
+    scenario.DemandDipStartMinute = 1;
+    scenario.DemandDipEndMinute = 30;
+    scenario.DemandDipMultiplier = 0.5;
+    scenario.PreloadingTimeout = TDuration::Minutes(20);
+    scenario.ExpectNoPreloadCancellationWhileLoading = true;
+    return scenario;
+}
+
 std::vector<TScenario> Scenarios()
 {
     return {
@@ -100,6 +115,7 @@ std::vector<TScenario> Scenarios()
         DemandDipAfterPlacement(),
         OneWorkerOverloaded(),
         OneWorkerHeavilyOverloaded(),
+        DemandDipKeepsLoadingPreloads(),
     };
 }
 

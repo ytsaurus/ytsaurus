@@ -268,7 +268,7 @@ int GetPushDownJoinCount(const NAst::TQuery& ast)
 
     for (int index = 0; index < std::ssize(ast.Joins); ++index) {
         if (auto* tableJoin = std::get_if<NAst::TJoin>(&ast.Joins[index]);
-            tableJoin && tableJoin->Table.Hint->PushDownGroupBy)
+            tableJoin && tableJoin->Table.Hint.PushDownGroupBy)
         {
             count++;
         }

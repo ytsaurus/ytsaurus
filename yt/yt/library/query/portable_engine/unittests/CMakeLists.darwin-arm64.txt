@@ -12,6 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+
 add_executable(unittester-library-query-portable-engine)
 
 
@@ -31,6 +38,7 @@ target_link_libraries(unittester-library-query-portable-engine PUBLIC
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-cpp-resource
   yt-yt-client
   yt-yt-core
   yt-core-test_framework
@@ -50,7 +58,13 @@ target_link_options(unittester-library-query-portable-engine PRIVATE
 )
 
 target_sources(unittester-library-query-portable-engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/builtin_registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/program_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/query_evaluator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/semantics_cases.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/semantics_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/portable_engine/unittests/8f8f8da3f662c78d6aff2d2a2af50502.cpp
 )
 
 
@@ -74,6 +88,15 @@ set_property(
   unittester-library-query-portable-engine
   PROPERTY
   ENVIRONMENT
+)
+
+resources(unittester-library-query-portable-engine
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/portable_engine/unittests/8f8f8da3f662c78d6aff2d2a2af50502.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/capabilities.yson
+  KEYS
+  portable_expression_capabilities
+  OPTS
 )
 
 vcs_info(unittester-library-query-portable-engine)

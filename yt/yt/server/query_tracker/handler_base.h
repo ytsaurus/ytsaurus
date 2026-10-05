@@ -77,7 +77,7 @@ protected:
     std::optional<std::string> AssignedEngine_;
 
     void StartProgressWriter();
-    void StopProgressWriter();
+    TFuture<void> StopProgressWriter();
 
     void OnProgress(NYson::TYsonString progress);
 
@@ -88,7 +88,9 @@ protected:
     void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
     void OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
-    void TryWriteProgress();
+    void WriteProgress();
+    virtual bool TryWriteProgress();
+    bool OnProgressWriteFailed(const std::exception& ex);
     bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
     NYson::TYsonString SetYsonAttribute(const NYson::TYsonString& to, const std::string& key, const NYson::TYsonString& value);

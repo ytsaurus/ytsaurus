@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     grpc_service.cpp
@@ -28,7 +28,5 @@ PEERDIR(
     yql/essentials/sql
     yt/yql/providers/dq/config
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

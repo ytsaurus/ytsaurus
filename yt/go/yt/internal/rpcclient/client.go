@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -82,9 +83,37 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
+	return newClient(conf, os.Hostname)
+}
+
+func newClient(conf *yt.Config, getLocalHostName func() (string, error)) (*client, error) {
 	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
+	}
+
+	var priorityProvider internal.ProxyPriorityProvider
+	var localHostName, localCluster string
+	switch conf.RPCProxyPriorityStrategy {
+	case yt.RPCProxyPriorityStrategyNone:
+	case yt.RPCProxyPriorityStrategyPreferLocal:
+		localHostName, err = getLocalHostName()
+		if err != nil {
+			return nil, xerrors.Errorf("failed to get local host name: %w", err)
+		}
+		priorityProvider, localCluster = internal.NewYPClusterProxyPriorityProvider(localHostName)
+	default:
+		return nil, xerrors.Errorf("unsupported RPC proxy priority strategy: %d", conf.RPCProxyPriorityStrategy)
+	}
+	if conf.RPCProxyMinPeerCountForPriorityAwareness < 0 {
+		return nil, xerrors.Errorf("RPC proxy minimum peer count for priority awareness must be non-negative")
+	}
+	if conf.RPCProxyMinPeerCountForPriorityAwareness > internal.DefaultActiveSetSize {
+		return nil, xerrors.Errorf(
+			"RPC proxy minimum peer count for priority awareness cannot exceed active set size: %d > %d",
+			conf.RPCProxyMinPeerCountForPriorityAwareness,
+			internal.DefaultActiveSetSize,
+		)
 	}
 
 	c := &client{
@@ -111,7 +140,11 @@ func NewClient(conf *yt.Config) (*client, error) {
 		c.credentials = &yt.TokenCredentials{Token: token}
 	}
 
-	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
+	c.proxySet = &internal.ProxySet{
+		UpdateFn:                         c.listRPCProxies,
+		PriorityProvider:                 priorityProvider,
+		MinPeerCountForPriorityAwareness: conf.RPCProxyMinPeerCountForPriorityAwareness,
+	}
 
 	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
 		clientOpts := []bus.ClientOption{
@@ -163,6 +196,12 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	c.Encoder.InvokeInTx = c.Encoder.InvokeInTx.
 		Wrap(readRetrier.InterceptInTx)
+
+	if conf.RPCProxyPriorityStrategy == yt.RPCProxyPriorityStrategyPreferLocal {
+		c.log.Info("RPC proxy priority configured",
+			log.String("hostname", localHostName),
+			log.String("yp_cluster", localCluster))
+	}
 
 	return c, nil
 }

@@ -1,6 +1,10 @@
 #include "dq_warmup.h"
 
+#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_common.h>
+
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
+
+#include <yql/essentials/utils/log/log.h>
 
 #include <library/cpp/svnversion/svnversion.h>
 #include <library/cpp/threading/future/future.h>
@@ -12,23 +16,34 @@ void UploadWarmupArtifactsToYt(
     const TIntrusivePtr<ICoordinationHelper>& coordinator,
     const TVector<TResourceManagerOptions>& ytBackends,
     const TString& vanillaJobLite,
-    const TMap<TString, TString>& udfsWithMd5)
+    const TString& vanillaJobLiteMd5,
+    const TMap<TString, TString>& udfsWithMd5,
+    bool enableStrip,
+    const TFileStoragePtr& fileStorage)
 {
-    const TString objectId = GetProgramCommitId();
+    const TString suffix = enableStrip ? DqStrippedSuffied() : TString{};
+    const TString objectId = GetProgramCommitId() + suffix;
     TVector<NThreading::TFuture<void>> uploadFutures;
 
     TVector<TResourceFile> udfFiles;
     for (const auto& [path, md5] : udfsWithMd5) {
-        TResourceFile file(path);
-        file.ObjectId = md5;
-        file.RemoteFileName = md5;
-        file.Attributes["file_name"] = md5;
+        const auto fileLink = enableStrip ? fileStorage->PutFileStripped(path, md5) : TFileLinkPtr{};
+        const auto& uploadPath = fileLink ? fileLink->GetPath().GetPath() : path;
+        const TString udfObjectId = md5 + suffix;
+        TResourceFile file(uploadPath);
+        file.ObjectId = udfObjectId;
+        file.RemoteFileName = udfObjectId;
+        file.Attributes["file_name"] = udfObjectId;
         udfFiles.push_back(std::move(file));
     }
 
     TVector<TResourceFile> exeFiles;
     if (!vanillaJobLite.empty()) {
-        TResourceFile exeFile(vanillaJobLite);
+        const auto fileLink = enableStrip
+            ? fileStorage->PutFileStripped(vanillaJobLite, vanillaJobLiteMd5)
+            : TFileLinkPtr{};
+        const auto& uploadPath = fileLink ? fileLink->GetPath().GetPath() : vanillaJobLite;
+        TResourceFile exeFile(uploadPath);
         exeFile.ObjectId = objectId;
         exeFile.RemoteFileName = "dq_vanilla_job.lite";
         exeFile.Attributes["file_name"] = exeFile.GetRemoteFileName();
@@ -65,7 +80,15 @@ void UploadWarmupArtifactsToYt(
     }
 
     if (!uploadFutures.empty()) {
-        NThreading::WaitAll(uploadFutures).GetValueSync();
+        const auto uploadTimeout = TDuration::Minutes(30);
+        auto allUploads = NThreading::WaitAll(uploadFutures);
+        if (!allUploads.Wait(uploadTimeout)) {
+            YQL_CLOG(ERROR, ProviderDq)
+                << "Timed out waiting for " << uploadFutures.size()
+                << " DQ warmup artifact uploads after " << uploadTimeout;
+            return;
+        }
+        allUploads.GetValueSync();
     }
 }
 

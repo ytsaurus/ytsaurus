@@ -269,6 +269,8 @@ message TRspResourceExecute
     required NYT.NProto.TGuid request_id = 1;
     required EResourceExecuteStatus status = 2;
     optional NYT.NProto.TError error = 3;
+    // Per-command result. YSON.
+    optional bytes result = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -286,10 +286,6 @@ private:
         const NObjectServer::TEphemeralObjectPtr<TChunkList>& chunkList);
     void OnFinishedRequisitionTraverseFlush();
 
-    //! Follows upward parent links.
-    //! Stops when some owning nodes are discovered or parents become ambiguous.
-    TChunkList* FollowParentLinks(TChunkList* chunkList);
-
     void AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndexes, int priority);
     void TouchChunkInRepairQueues(TChunk* chunk);
     void RemoveFromChunkRepairQueues(TChunk* chunkWithIndexes);

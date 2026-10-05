@@ -28,6 +28,7 @@ import builtins
 import functools
 import logging
 import pytest
+import threading
 import time
 
 
@@ -849,6 +850,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
     @authors("panesher")
     @with_additional_threads
+    @pytest.mark.timeout(120)
     @pytest.mark.parametrize("partitions_count", [1, 5])
     @pytest.mark.parametrize("is_kafka_queue", [True, False])
     def test_producer_consumer_parallel(self, partitions_count, is_kafka_queue):
@@ -870,13 +872,15 @@ class TestKafkaProxy(KafkaProxyBase):
 
         address = self.Env.get_kafka_proxy_address()
         rows_count = 100
+        batch_size = 10
 
         received_messages = []
         errors = []
+        assigned = threading.Event()
 
         def consumer_func():
             c = Consumer(get_consumer_config(address, token, consumer_path))
-            c.subscribe([queue_path])
+            c.subscribe([queue_path], on_assign=lambda *_: assigned.set())
 
             # Wait for messages with a timeout
             i = 0
@@ -906,6 +910,9 @@ class TestKafkaProxy(KafkaProxyBase):
 
         consumer_thread = self.spawn_additional_thread(target=consumer_func, name="consumer_thread")
 
+        # Start writing only once the consumer is ready to read, so that reads and writes overlap.
+        wait(assigned.is_set)
+
         written_messages = []
         if is_kafka_queue:
             p = Producer(get_producer_config(address, token))
@@ -920,17 +927,18 @@ class TestKafkaProxy(KafkaProxyBase):
                     value=serializer(f"value_{i}"),
                     on_delivery=_fail_on_error)
                 p.poll(0)
-                p.flush()
-                if i % 30 == 0:
+                if (i + 1) % batch_size == 0:
+                    p.flush()
                     time.sleep(0.1)
         else:
-            for i in range(rows_count):
-                written_messages.append((None, {"surname": f"foo-{i}", "number": i}))
-                insert_rows(queue_path, [
-                    {"surname": f"foo-{i}", "number": i},
-                ])
-                if i % 30 == 0:
-                    time.sleep(0.1)
+            for start in range(0, rows_count, batch_size):
+                rows = [
+                    {"surname": f"foo-{i}", "number": i}
+                    for i in range(start, start + batch_size)
+                ]
+                written_messages += [(None, row) for row in rows]
+                insert_rows(queue_path, rows)
+                time.sleep(0.1)
 
         consumer_thread.join()
 

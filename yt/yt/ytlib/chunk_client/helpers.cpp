@@ -655,10 +655,10 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
 
     auto replicas = FromProto<TChunkReplicaWithMediumList>(rsp.replicas());
     if (replicas.empty()) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+        throwOnError(TError(
+            NChunkClient::EErrorCode::NotEnoughAvailableNodes,
             "Not enough data nodes available to write chunk %v",
-            sessionId);
+            sessionId));
     }
 
     YT_TLOG_DEBUG("Write targets allocated")

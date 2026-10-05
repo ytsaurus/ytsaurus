@@ -307,6 +307,9 @@ struct TArtifactCacheReaderConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
 {
+    int MaxParallelDownloadChunks;
+    i64 WritebackBatchSize;
+
     REGISTER_YSON_STRUCT(TArtifactCacheReaderConfig);
 
     static void Register(TRegistrar registrar);

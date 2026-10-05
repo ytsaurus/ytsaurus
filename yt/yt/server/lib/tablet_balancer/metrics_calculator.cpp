@@ -5,6 +5,7 @@
 #include "replica_balancing_helpers.h"
 #include "table.h"
 #include "tablet.h"
+#include "verbose_logging_policy.h"
 
 #include <yt/yt/orm/library/query/heavy/expression_evaluator.h>
 
@@ -191,12 +192,13 @@ TGenericMetric<MetricSize> TParameterizedMetricsCalculator<MetricSize>::Calculat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <int MetricSize>
+template <int MetricSize, bool EnableVerboseLogging>
 class TReplicaMetricsCalculator
     : public TParameterizedMetricsCalculator<MetricSize>
 {
     using TBase = TParameterizedMetricsCalculator<MetricSize>;
     using TMetric = typename TBase::TMetric;
+    using TLoggingPolicy = TVerboseLoggingPolicy<EnableVerboseLogging>;
 
 public:
     TReplicaMetricsCalculator(
@@ -204,8 +206,7 @@ public:
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
-        const TLogger& logger,
-        bool enableVerboseLogging)
+        const TLogger& logger)
         : TBase(
             std::move(metrics),
             std::move(performanceCountersKeys),
@@ -213,13 +214,12 @@ public:
             logger)
         , ClusterPerformanceCountersTableSchemas_(std::move(perClusterPerformanceCountersTableSchemas))
         , Logger(logger)
-        , EnableVerboseLogging_(enableVerboseLogging)
     { }
 
     THashMap<TTabletId, TMetric> GetTableMetrics(const TTable* table) const override
     {
         if (table->AlienTables.empty()) {
-            YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics as only major table metrics")
+            YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Calculating replica table metrics as only major table metrics")
                 .With("TableId", table->Id);
             return TBase::GetTableMetrics(table);
         }
@@ -228,7 +228,7 @@ public:
             return TBase::GetTableMetrics(table);
         }
 
-        YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics by approximate metrics of minor tables")
+        YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Calculating replica table metrics by approximate metrics of minor tables")
             .With("TableId", table->Id);
 
         auto getTabletSizes = [] (const auto& table) {
@@ -254,7 +254,7 @@ public:
                     table->PivotKeys,
                     minorTable->PivotKeys,
                     Logger.WithTag("TableId", minorTable->Id),
-                    EnableVerboseLogging_);
+                    TLoggingPolicy::EnableVerboseLogging);
 
                 YT_VERIFY(std::ssize(minorMetrics) == std::ssize(majorMetrics));
                 for (int index = 0; index < std::ssize(minorMetrics); ++index) {
@@ -274,8 +274,7 @@ public:
 private:
     THashMap<TClusterName, TTableSchemaPtr> ClusterPerformanceCountersTableSchemas_;
     const NLogging::TLogger Logger;
-    const bool EnableVerboseLogging_;
-    mutable int LogMessageCount_ = 0;
+    const TLoggingPolicy LoggingPolicy_;
 
     TMetric GetTabletMetric(const TTabletPtr& tablet) const override
     {
@@ -296,9 +295,7 @@ private:
             }
         }
 
-        YT_TLOG_DEBUG_IF(
-            EnableVerboseLogging_ && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Calculated tablet metric as sum of minor table tablet metrics and major table tablet metric")
+        YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Enabled, "Calculated tablet metric as sum of minor table tablet metrics and major table tablet metric")
             .With("TableId", tablet->Table->Id)
             .With("TabletId", tablet->Id)
             .With("Metric", metric);
@@ -322,7 +319,7 @@ private:
         for (const auto& [cluster, minorTables] : table->AlienTables) {
             for (const auto& minorTable : minorTables) {
                 if (minorTable->PivotKeys != table->PivotKeys) {
-                    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Pivots of minor and major tables are different")
+                    YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Pivots of minor and major tables are different")
                         .With("MinorTableId", minorTable->Id)
                         .With("MajorTableId", table->Id)
                         .With("MinorPivotKeys", minorTable->PivotKeys)
@@ -332,7 +329,7 @@ private:
             }
         }
 
-        YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Pivot keys of minor tables and major table are the same")
+        YT_TLOG_DEBUG_VERBOSE(EVerboseLogThrottling::Disabled, "Pivot keys of minor tables and major table are the same")
             .With("MajorTableId", table->Id);
         return true;
     }
@@ -350,13 +347,21 @@ std::unique_ptr<TParameterizedMetricsCalculator<MetricSize>> CreateReplicaMetric
     const NLogging::TLogger& logger,
     bool enableVerboseLogging)
 {
-    return std::make_unique<TReplicaMetricsCalculator<MetricSize>>(
-        std::move(metrics),
-        std::move(performanceCountersKeys),
-        std::move(performanceCountersTableSchema),
-        std::move(perClusterPerformanceCountersTableSchemas),
-        logger,
-        enableVerboseLogging);
+    if (enableVerboseLogging) {
+        return std::make_unique<TReplicaMetricsCalculator<MetricSize, true>>(
+            std::move(metrics),
+            std::move(performanceCountersKeys),
+            std::move(performanceCountersTableSchema),
+            std::move(perClusterPerformanceCountersTableSchemas),
+            logger);
+    } else {
+        return std::make_unique<TReplicaMetricsCalculator<MetricSize, false>>(
+            std::move(metrics),
+            std::move(performanceCountersKeys),
+            std::move(performanceCountersTableSchema),
+            std::move(perClusterPerformanceCountersTableSchemas),
+            logger);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

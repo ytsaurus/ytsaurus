@@ -59,6 +59,8 @@
 #include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
+
 #include <yt/yt/server/master/orchid_server/cypress_integration.h>
 
 #include <yt/yt/server/master/scheduler_pool_server/cypress_integration.h>
@@ -229,6 +231,8 @@ public:
                 *rootstock.ExplicitAttributes);
         }
 
+        CloneIndices();
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (const auto& clone : ClonedExternalNodes_) {
             NProto::TReqCloneForeignNode protoRequest;
@@ -262,6 +266,14 @@ public:
             ToProto(protoRequest.mutable_account_id(), externalNode.AccountId);
             protoRequest.set_native_content_revision(ToProto(externalNode.NativeContentRevision));
             multicellManager->PostToMaster(protoRequest, externalNode.ExternalCellTag);
+        }
+
+        for (const auto& externalObject : CreatedExternalObjects_) {
+            NObjectServer::NProto::TReqCreateForeignObject replicationRequest;
+            ToProto(replicationRequest.mutable_object_id(), externalObject.ObjectId);
+            replicationRequest.set_type(ToProto(externalObject.ObjectType));
+            ToProto(replicationRequest.mutable_object_attributes(), *externalObject.Attributes);
+            multicellManager->PostToMasters(replicationRequest, externalObject.ExternalCellTags);
         }
 
         // It's OK to unref nodes here, because nodes also have ref from the parent node or
@@ -709,6 +721,58 @@ public:
         return clonedNode;
     }
 
+    void RegisterMovedIndex(TSecondaryIndex* source, TTableNode* clonedTrunkNode, bool isIndexTable) override
+    {
+        auto [it, inserted] = ClonedSecondaryIndices_.insert({source, {}});
+
+        if (isIndexTable) {
+            it->second.ClonedIndexTable = clonedTrunkNode;
+        } else {
+            it->second.ClonedIndexedTable = clonedTrunkNode;
+        }
+
+        if (inserted) {
+            it->second.SourceIndexedTable = Bootstrap_->GetTableManager()->GetTableNodeOrThrow(source->GetTableId());
+            it->second.SourceIndexTable = Bootstrap_->GetTableManager()->GetTableNodeOrThrow(source->GetIndexTableId());
+        }
+    }
+
+    void ValidateCloneIndices() override
+    {
+        if (ClonedSecondaryIndices_.empty()) {
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+
+        auto* user = securityManager->GetAuthenticatedUser();
+        if (auto* schema = objectManager->FindSchema(EObjectType::SecondaryIndex)) {
+            securityManager->ValidatePermission(schema, user, EPermission::Create);
+        }
+
+        for (auto it : GetIteratorsSortedByKey(ClonedSecondaryIndices_)) {
+            const auto& [sourceSecondaryIndex, state] = *it;
+            YT_LOG_ALERT_AND_THROW_UNLESS(state.SourceIndexedTable,
+                "Source indexed table missing during index move validation (SecondaryIndexId: %v)",
+                sourceSecondaryIndex->GetId());
+
+            YT_LOG_ALERT_AND_THROW_UNLESS(state.SourceIndexTable,
+                "Source index table missing during index move validation (SecondaryIndexId: %v)",
+                sourceSecondaryIndex->GetId());
+
+            tableManager->ValidateSecondaryIndexCreationAndGetTables(
+                sourceSecondaryIndex->GetKind(),
+                state.ClonedIndexedTable ? state.ClonedIndexedTable->GetId() : state.SourceIndexedTable->GetId(),
+                state.ClonedIndexTable ? state.ClonedIndexTable->GetId() : state.SourceIndexTable->GetId(),
+                sourceSecondaryIndex->Predicate(),
+                sourceSecondaryIndex->UnfoldedColumns(),
+                sourceSecondaryIndex->EvaluatedColumnsSchema(),
+                /*skipIsAlreadyIndexCheck*/ true);
+        }
+    }
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     TCypressShard* const Shard_;
@@ -761,6 +825,24 @@ private:
         NHydra::TRevision NativeContentRevision;
     };
     std::vector<TCreatedExternalNode> CreatedExternalNodes_;
+
+    struct TClonedSecondaryIndexState
+    {
+        TTableNode* ClonedIndexedTable = {};
+        TTableNode* ClonedIndexTable = {};
+        TTableNode* SourceIndexedTable = {};
+        TTableNode* SourceIndexTable = {};
+    };
+    THashMap<TSecondaryIndex*, TClonedSecondaryIndexState> ClonedSecondaryIndices_;
+
+    struct TCreatedExternalObject
+    {
+        TObjectId ObjectId;
+        EObjectType ObjectType;
+        IAttributeDictionaryPtr Attributes;
+        TCellTagSet ExternalCellTags;
+    };
+    std::vector<TCreatedExternalObject> CreatedExternalObjects_;
 
 
     void RegisterCreatedNode(TCypressNode* trunkNode)
@@ -820,6 +902,100 @@ private:
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->CypressManager;
+    }
+
+    void CloneIndices() noexcept
+    {
+        if (ClonedSecondaryIndices_.empty()) {
+            return;
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        const auto& handler = objectManager->GetHandler(EObjectType::SecondaryIndex);
+        auto* user = securityManager->GetAuthenticatedUser();
+
+        for (auto it : GetIteratorsSortedByKey(ClonedSecondaryIndices_)) {
+            const auto& [sourceSecondaryIndex, state] = *it;
+            YT_VERIFY(state.SourceIndexedTable);
+            YT_VERIFY(state.SourceIndexTable);
+
+            auto* newTable = state.ClonedIndexedTable
+                ? state.ClonedIndexedTable
+                : state.SourceIndexedTable;
+            auto* newIndexTable = state.ClonedIndexTable
+                ? state.ClonedIndexTable
+                : state.SourceIndexTable;
+
+            // Cleanup old links to tables that did not move.
+            if (!state.ClonedIndexTable) {
+                state.SourceIndexTable->SetIndexTo(nullptr);
+                sourceSecondaryIndex->SetIndexTableId(NullObjectId);
+            }
+            if (!state.ClonedIndexedTable) {
+                state.SourceIndexedTable->MutableSecondaryIndices().erase(
+                    sourceSecondaryIndex);
+                sourceSecondaryIndex->SetTableId(NullObjectId);
+            }
+
+            auto* newSecondaryIndex = tableManager->CreateSecondaryIndex(
+                /*hintId*/ NullObjectId,
+                sourceSecondaryIndex->GetKind(),
+                newTable,
+                newIndexTable,
+                newIndexTable->GetId(),
+                sourceSecondaryIndex->Predicate(),
+                sourceSecondaryIndex->UnfoldedColumns(),
+                sourceSecondaryIndex->EvaluatedColumnsSchema());
+            newSecondaryIndex->SetTableToIndexCorrespondence(
+                sourceSecondaryIndex->GetTableToIndexCorrespondence());
+
+            if (auto acd = handler->FindAcd(newSecondaryIndex)) {
+                acd.AsMutable()->SetOwner(user);
+            }
+
+            auto replicatedAttributes = CreateEphemeralAttributes();
+            replicatedAttributes->Set(
+                EInternedAttributeKey::Kind.Unintern(),
+                sourceSecondaryIndex->GetKind());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::TableId.Unintern(),
+                newTable->GetId());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::IndexTableId.Unintern(),
+                newIndexTable->GetId());
+            replicatedAttributes->Set(
+                EInternedAttributeKey::TableToIndexCorrespondence.Unintern(),
+                sourceSecondaryIndex->GetTableToIndexCorrespondence());
+            if (const auto& unfoldedColumns = sourceSecondaryIndex->UnfoldedColumns()) {
+                replicatedAttributes->Set("unfolded_table_column", unfoldedColumns->TableColumn);
+                replicatedAttributes->Set("unfolded_index_column", unfoldedColumns->IndexColumn);
+            }
+            if (const auto& evaluatedSchema = sourceSecondaryIndex->EvaluatedColumnsSchema()) {
+                replicatedAttributes->Set(
+                    EInternedAttributeKey::EvaluatedColumnsSchema.Unintern(),
+                    evaluatedSchema);
+            }
+
+            if (const auto* userAttributes = sourceSecondaryIndex->GetAttributes()) {
+                auto* mutableAttributes = newSecondaryIndex->GetMutableAttributes();
+                for (const auto& [key, value] : userAttributes->Attributes()) {
+                    mutableAttributes->Set(key, value);
+                    replicatedAttributes->Set(key, value);
+                }
+            }
+
+            objectManager->UnrefObject(sourceSecondaryIndex);
+
+            CreatedExternalObjects_.push_back(TCreatedExternalObject{
+                .ObjectId = newSecondaryIndex->GetId(),
+                .ObjectType = EObjectType::SecondaryIndex,
+                .Attributes = std::move(replicatedAttributes),
+                .ExternalCellTags = handler->GetReplicationCellTags(newSecondaryIndex),
+            });
+        }
     }
 };
 

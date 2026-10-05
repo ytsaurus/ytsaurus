@@ -1272,6 +1272,7 @@ class TestListJobs(TestListJobsCommon):
 
         interrupt_job(job_id_to_interrupt)
 
+        wait(lambda: get_job(op.id, job_id_to_interrupt)["state"] == "completed")
         wait(lambda: get_job(op.id, job_id_to_interrupt).get("interruption_info") is not None)
 
         for job_id in first_job_ids:

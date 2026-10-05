@@ -212,15 +212,13 @@ For more details, see [Logbroker](../../../yandex-specific/flow/extensions/logbr
 
 {% endif %}
 
-{% if audience == "internal" %}
-
 ### ClickHouse {#clickhouse-guarantees}
 
-The ClickHouse extension provides three implementations; your choice directly affects message processing guarantees:
+The ClickHouse extension provides three guarantee levels across four sink classes; your choice directly affects message processing guarantees:
 
-- **Exactly-once sink** (`TClickHouseBatchingSink`, recommended by default): messages are stored in `output_messages`, deterministically grouped into batches by the same `MessageId` boundaries, and each batch is delivered with an `insert_deduplication_token` equal to the batch’s maximum `MessageId`. The deduplication token is derived from the batch content, so a byte-identical replay carries the **same** deduplication token even after `group_by` repartitioning, and exactly-once survives repartitioning. ClickHouse deduplicates the repeat by the deduplication token.
-- **At-least-once sink** (`TAtLeastOnceClickHouseSink`): the epoch batch is written synchronously during processing without intermediate storage and without a deduplication token. Lower latency and load on {{product-name}}. Losses are excluded: batch writing is retried until success, and the epoch isn’t committed until writing succeeds. On failure after a successful write but before epoch commit, the same batch is written again, so duplicates are possible.
-- **At-most-once sink** (`TAtMostOnceClickHouseSink`): per-message fire-and-forget via the sink’s limited in-memory queue; if it’s full (limit `total_queue_bytes_limit`), messages are silently dropped. Each message generates a separate `INSERT`, so to avoid creating many small parts in ClickHouse, you should aggregate the stream with batching upstream in the pipeline.
+- **Exactly-once sinks** (`TClickHouseBatchingSink`, recommended by default, and `TShardedClickHouseBatchingSink`): messages are stored in `output_messages` and deterministically grouped into batches by the same `MessageId` boundaries. In an unsharded sink, `insert_deduplication_token` equals the batch’s maximum `MessageId`. With `shard_hosts`, each shard receives that batch token with a `:<shard name>` suffix. A byte-identical replay carries the **same** deduplication token even after `group_by` repartitioning, so exactly-once survives repartitioning. ClickHouse deduplicates the repeat by the token.
+- **At-least-once sink** (`TAtLeastOnceClickHouseSink`): the epoch batch is written synchronously during processing without intermediate storage and without a deduplication token. Lower latency and load on {{product-name}}. A failed write prevents the epoch from committing, so messages are not lost. Known transient errors are retried without a limit; unclassified errors are attempted at most `max_insert_attempts` times in total (10 by default), and permanent errors fail immediately. On failure after a successful write but before epoch commit, the same batch is written again, so duplicates are possible.
+- **At-most-once sink** (`TAtMostOnceClickHouseSink`): the guarantee applies in both strategy modes. With the default static setting `at_most_once_strategy.enabled = false`, pending messages stay in `output_messages` and use ordered delivery, so a connection or session failure before `INSERT` starts may be retried. Set the option to `true` to send each message independently through a bounded in-memory queue without waiting for delivery. Its dynamic limit is `at_most_once_strategy.total_queue_bytes_limit`; the sink logs a warning when it drops messages on overflow. In either mode, once `INSERT` has started, a failed insert is acknowledged instead of retried. Each message generates a separate `INSERT`, so to avoid creating many small parts in ClickHouse, aggregate the stream with batching upstream in the pipeline.
 
 Exactly-once requires one of the ClickHouse table engines that deduplicate inserted blocks (see [Data Replication](https://clickhouse.com/docs/engines/table-engines/mergetree-family/replication) and [SharedMergeTree](https://clickhouse.com/docs/cloud/reference/shared-merge-tree) in the ClickHouse documentation):
 
@@ -230,22 +228,20 @@ Exactly-once requires one of the ClickHouse table engines that deduplicate inser
 - `ReplicatedAggregatingMergeTree`
 - `SharedMergeTree`
 
-A regular `MergeTree` is suitable only with an explicitly set `non_replicated_deduplication_window`. On a non-deduplicating table, the sink fails at `Init`. The deduplication window is finite and gets evicted: if a replay reaches ClickHouse later than the deduplication token’s eviction, exactly-once degrades to at-least-once. At `Init`, the sink compares the server window with the `replay_horizon` parameter, and if the window is shorter, it writes a `WARN`-level warning to the worker log, for example: `Server-default block dedup window 1d for db.tbl is shorter than the replay horizon 3d; a replay outliving the dedup token degrades exactly-once to at-least-once`.
+Each sink instance creates its writer session lazily on the first write and keeps it until the instance stops. Complete target metadata validation runs when that session starts. Dynamic reconfiguration recreates clients when the write timeout changes and updates the relevant deduplication-window checks, but it does not repeat engine, schema, or replication-identity validation. After changing the target table, pause and start the pipeline so new sink instances validate it. `Distributed` tables, engines outside the `MergeTree` family, and multi-host or failover targets within a shard that cannot be proven to identify the same logical table are rejected. A single-host, non-replicated `MergeTree` without block deduplication is accepted with a warning, but exactly-once degrades to at-least-once. The deduplication window is finite and gets evicted: if a replay reaches ClickHouse later than the deduplication token’s eviction, exactly-once also degrades to at-least-once. If a known deduplication window is shorter than `replay_horizon`, the sink writes a structured warning with the attributes `Database`, `Table`, `DedupWindowSetting`, `ReplayHorizon`, and `DedupWindow`.
 
 Summary table of guarantees by sink class:
 
 #|
 || | **Exactly-once sink** | **At-least-once sink** | **At-most-once sink** ||
-|| Intermediate storage in {{product-name}} | Yes (`output_messages`) | No | No ||
-|| Deduplication in ClickHouse | `insert_deduplication_token` (max `MessageId`) | No | No ||
+|| Intermediate storage in {{product-name}} | Yes (`output_messages`) | No | Yes with `at_most_once_strategy.enabled = false`; no with `true` ||
+|| Deduplication in ClickHouse | `insert_deduplication_token` (max `MessageId`; with `shard_hosts`, plus `:<shard name>`) | No | No ||
 || Latency | Higher (extra write) | Lower | Lower ||
-|| Loss on failure | No | No | Possible ||
+|| Loss on failure | No | No | Possible after `INSERT` starts; with `enabled = true`, also on queue overflow ||
 || Duplicates on failure | No | Possible | No ||
 |#
 
-For more details, see [ClickHouse extension](../../../yandex-specific/flow/extensions/clickhouse.md).
-
-{% endif %}
+For more details, see [ClickHouse extension](../../../flow/extensions/clickhouse.md).
 
 ### Service log {#servicelog-guarantees}
 

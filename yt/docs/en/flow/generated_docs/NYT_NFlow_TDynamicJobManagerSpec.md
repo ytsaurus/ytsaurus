@@ -79,6 +79,9 @@ Safety limit: worker coefficients are clamped to `[1 / max_ratio, max_ratio]`. |
 || `planning_horizon` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
  ||
+|| `preloading_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `30m`
+How long the `resource_queue` balancer keeps a model preload that is still loading, counted from the request. Until then the preload is not released and the worker counts as a worker of the computations that need the model; after it the usual rules apply. ||
 || `minimum_worker_count` | **Type**: `unsigned long`
 **Default value**: `1`
 Minimum number of workers to distribute the load across.
@@ -96,7 +99,7 @@ See the description of the `faulty_address_window` parameter. ||
 || `worker_group_override` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerGroupSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerGroupSpec)`>>`
 **Default value**: `{}`
  ||
-|| `partition_history_limit` | **Type**: `i64`
+|| `partition_history_limit` | **Type**: `long`
 **Default value**: `4096`
 Most partition histories the balancer keeps across job restarts, see `balancer_metrics_source`. The histories live in one persisted document with a size limit, so when the limit is reached the lightest history gives way to a heavier one and lighter ones are not saved. A pipeline stop saves no histories at all. ||
 |#

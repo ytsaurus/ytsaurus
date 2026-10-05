@@ -4,6 +4,13 @@
 
 ##  Конференции, публикации
 
+https://www.youtube.com/live/XPth7B-rivg?t=4853s
+### 2026: Объединяем OLTP и OLAP в динтаблицах YTsaurus
+- **Мероприятие:** [Database Internals Meetup #12](https://databaseinternals.timepad.ru/event/4166793/)
+- **Материалы:** [YouTube](https://www.youtube.com/live/XPth7B-rivg?t=4853s)
+- **Автор:** Руслан Савченко
+- **Язык:** русский
+
 ### 2025: Обучаем ML-модели и запускаем batch-инференс на {{product-name}}
 - **Мероприятие:** Yandex Scale 2025
 - **Материалы:** [YouTube](https://youtu.be/d1l8rH36gHM) [Habr](https://habr.com/ru/companies/yandex/articles/979336/)

@@ -7,7 +7,7 @@ from yt_commands import (
     start_transaction, abort_transaction, remount_table,
     lock, insert_rows, select_rows, delete_rows, trim_rows, alter_table, read_table, write_table,
     mount_table, reshard_table, generate_timestamp, wait_for_cells,
-    get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
+    get_tablet_infos, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     get_singular_chunk_id, create_dynamic_table, build_snapshot, generate_uuid,
     raises_yt_error, remove)
@@ -481,6 +481,42 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert select_rows("a from [//tmp/t] where [$tablet_index] = 0 and [$row_index] between 110 and 120") == [
             {"a": j} for j in range(110, 121)
         ]
+
+    @authors("apachee")
+    def test_get_tablet_infos_flushed_row_count(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", tablet_count=2, dynamic_store_auto_flush_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        def get_tablets():
+            return get_tablet_infos("//tmp/t", [0, 1])["tablets"]
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": i} for i in range(10)])
+        assert [tablet["flushed_row_count"] for tablet in get_tablets()] == [0, 0]
+
+        sync_flush_table("//tmp/t")
+        wait(lambda: get_tablets()[0]["flushed_row_count"] == 10)
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 10
+
+        insert_rows("//tmp/t", [{"$tablet_index": 0, "a": i} for i in range(10, 15)])
+        tablet = get_tablets()[0]
+        assert tablet["total_row_count"] == 15
+        assert tablet["flushed_row_count"] == 10
+
+        # Trimming drops the only chunk store, flushed row count must stay intact.
+        trim_rows("//tmp/t", 0, 12)
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+        assert get_tablets()[0]["flushed_row_count"] == 10
+
+        sync_freeze_table("//tmp/t")
+        wait(lambda: get_tablets()[0]["flushed_row_count"] == 15)
+        assert get("//tmp/t/@tablets/0/flushed_row_count") == 15
+        assert get_tablets()[1]["flushed_row_count"] == 0
+
+        # Stores are restored from master on mount, check that starting row indexes are preserved.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert [tablet["flushed_row_count"] for tablet in get_tablets()] == [15, 0]
 
     @authors("babenko")
     def test_trim_optimizes_chunk_list(self):

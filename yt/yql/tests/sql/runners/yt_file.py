@@ -76,7 +76,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
             pytest.skip('SKIP')
     skip_if_non_trivial_gateway(what)
 
-    ytfilerun_binary = yql_binary_path('yt/yql/tools/ytfilerun/ytfilerun')
+    ytfilerun_binary = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
     config = get_config(suite, case, cfg, data_path=DATA_PATH)
     cfg_postprocess = add_table_clusters(suite, config)
     patch_cfg_file_path = patch_cfg_file(DATA_PATH, suite, config)

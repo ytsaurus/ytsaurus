@@ -869,7 +869,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.create_file(src_path)
         account = get(f"{src_path}/@account")
-        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") > 0)
+        wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/node_count") > 0)
         with raises_yt_error(f"Cannot remove account \"{account}\" because its usage is not zero"):
             remove(f"//sys/accounts/{account}")
         assert get(f"//sys/accounts/{account}/@life_stage") == "creation_committed"

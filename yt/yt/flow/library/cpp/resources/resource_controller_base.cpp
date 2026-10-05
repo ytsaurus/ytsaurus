@@ -382,6 +382,7 @@ public:
         }
 
         auto guard = Guard(Lock_);
+        UpdateTargetMetrics();
         if (!Providers_.empty() && !ActiveFileSnapshot_ && !PreparingFileSnapshot_) {
             return std::nullopt;
         }
@@ -495,6 +496,7 @@ public:
         UpdateRolloutStatus(authoritativeWorkerStatuses, publishedRevisionId);
 
         auto guard = Guard(Lock_);
+        UpdateTargetMetrics();
         for (auto it = FileSnapshotStateGauges_.begin(); it != FileSnapshotStateGauges_.end();) {
             if (!fileSnapshotStateCounts.contains(it->first)) {
                 it->second.Update(0);
@@ -616,6 +618,52 @@ private:
         TPeriodicExecutorPtr DiscoveryExecutor;
         ui64 Generation = 0;
     };
+
+    void UpdateTargetMetrics()
+    {
+        THashSet<std::tuple<TFileProviderId, NFileStorage::TFileStorageObjectId, std::string, std::string>> present;
+        const auto now = TInstant::Now();
+        auto update = [&] (const TFileSnapshotPtr& snapshot, const std::string& state) {
+            if (!snapshot) {
+                return;
+            }
+            for (const auto& [id, revision] : snapshot->FileProviders) {
+                auto key = std::tuple(id, revision->ObjectId, state, revision->DisplayVersion);
+                present.insert(key);
+                auto profiler = Context_->Profiler
+                    .WithTag("file_provider_id", id.Underlying())
+                    .WithTag("revision_id", revision->ObjectId.Underlying())
+                    .WithTag("state", state)
+                    .WithTag("display_version", revision->DisplayVersion);
+                auto [it, inserted] = TargetRevisionGauges_.emplace(key, TGauge{});
+                if (inserted) {
+                    it->second = profiler.Gauge("/file_provider_target_revision");
+                }
+                it->second.Update(1);
+                if (revision->Timestamp) {
+                    auto [ageIt, ageInserted] = TargetRevisionAgeGauges_.emplace(key, TGauge{});
+                    if (ageInserted) {
+                        ageIt->second = profiler.Gauge("/file_provider_target_revision_age");
+                    }
+                    ageIt->second.Update(now.SecondsFloat() - revision->Timestamp->SecondsFloat());
+                } else {
+                    TargetRevisionAgeGauges_.erase(key);
+                }
+            }
+        };
+        update(ActiveFileSnapshot_, "active");
+        update(PreparingFileSnapshot_, "preparing");
+        for (auto it = TargetRevisionGauges_.begin(); it != TargetRevisionGauges_.end();) {
+            if (!present.contains(it->first)) {
+                it->second.Update(0);
+                TargetRevisionAgeGauges_.erase(it->first);
+                auto toErase = it++;
+                TargetRevisionGauges_.erase(toErase);
+            } else {
+                ++it;
+            }
+        }
+    }
 
     void UpdateRolloutStatus(
         const THashMap<std::string, TWorkerResourceStatusPtr>& workerStatuses,
@@ -776,6 +824,17 @@ private:
     }
 
     static bool AreFileProviderRevisionsEqual(
+        const TFileProviderRevisionPtr& lhs,
+        const TFileProviderRevisionPtr& rhs)
+    {
+        auto lhsNode = ConvertToNode(lhs)->AsMap();
+        auto rhsNode = ConvertToNode(rhs)->AsMap();
+        lhsNode->RemoveChild("timestamp");
+        rhsNode->RemoveChild("timestamp");
+        return AreNodesEqual(lhsNode, rhsNode);
+    }
+
+    static bool AreFileProviderRevisionsEqual(
         const THashMap<TFileProviderId, TFileProviderRevisionPtr>& lhs,
         const THashMap<TFileProviderId, TFileProviderRevisionPtr>& rhs)
     {
@@ -785,7 +844,7 @@ private:
         for (const auto& [id, revision] : lhs) {
             auto it = rhs.find(id);
             if (it == rhs.end() ||
-                !AreNodesEqual(ConvertToNode(revision), ConvertToNode(it->second)))
+                !AreFileProviderRevisionsEqual(revision, it->second))
             {
                 return false;
             }
@@ -915,7 +974,7 @@ private:
                     }
                     auto previousIt = PendingRevisions_.find(id);
                     changed = previousIt == PendingRevisions_.end() ||
-                        !AreNodesEqual(ConvertToNode(previousIt->second), ConvertToNode(revision));
+                        !AreFileProviderRevisionsEqual(previousIt->second, revision);
                     PendingRevisions_[id] = revision;
                     if (PendingRevisions_.size() == Providers_.size()) {
                         PublishedRevisions_ = PendingRevisions_;
@@ -989,6 +1048,8 @@ private:
     THashMap<std::tuple<TFileProviderId, NFileStorage::TFileStorageObjectId, EFileSnapshotState>, i64> FileProviderRevisionStateCounts_;
     THashMap<std::pair<TFileSnapshotId, EFileSnapshotState>, TGauge> FileSnapshotStateGauges_;
     THashMap<std::tuple<TFileProviderId, NFileStorage::TFileStorageObjectId, EFileSnapshotState>, TGauge> FileProviderRevisionStateGauges_;
+    THashMap<std::tuple<TFileProviderId, NFileStorage::TFileStorageObjectId, std::string, std::string>, TGauge> TargetRevisionGauges_;
+    THashMap<std::tuple<TFileProviderId, NFileStorage::TFileStorageObjectId, std::string, std::string>, TGauge> TargetRevisionAgeGauges_;
     THashMap<TFileSnapshotId, i64> LiveAccessorCounts_;
     THashMap<TFileSnapshotId, TGauge> LiveAccessorCountGauges_;
     std::optional<TDuration> FileSnapshotRolloutAge_;

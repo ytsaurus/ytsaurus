@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <util/folder/path.h>
 #include <util/folder/tempdir.h>
 #include <util/stream/file.h>
@@ -235,12 +237,14 @@ public:
 
     static void PushDiscoveryRevision(
         const std::string& contentId,
-        const std::string& prefix = "payload")
+        const std::string& prefix = "payload",
+        std::optional<TInstant> timestamp = std::nullopt)
     {
         auto revision = New<TFileProviderRevision>();
         revision->FileProviderClassName = TypeName<TFakeFileProvider>();
         revision->ObjectId = NFileStorage::TFileStorageObjectId(contentId);
         revision->DisplayVersion = contentId;
+        revision->Timestamp = timestamp;
 
         auto guard = Guard(Lock_);
         DiscoverResults_[prefix].push_back(std::move(revision));
@@ -1888,6 +1892,131 @@ TEST_F(TFileResourceTest, NamedControllerAggregatesAndDropsWorkerSnapshotState)
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
     view = controller->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_instance_count"), 1);
+}
+
+TEST_F(TFileResourceTest, NamedControllerProfilesTargetRevisions)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(1);
+    auto queue = New<TActionQueue>();
+    auto stateManager = New<TStateManagerMock>();
+    auto controller = MakeNamedController(
+        queue->GetInvoker(),
+        CreateSyncStatusProfiler(),
+        {{"file", "file"}},
+        TDuration::MilliSeconds(1),
+        NProfiling::TProfiler(registry, "/test"));
+    controller->Init(stateManager->CreateContext());
+
+    auto read = [&] (TStringBuf metric, const std::string& state, const std::string& revision) -> std::optional<double> {
+        registry->ProcessRegistrations();
+        registry->Collect();
+        const auto dump = registry->DumpSensors();
+        for (const auto& cube : dump.cubes()) {
+            if (cube.name() != metric) {
+                continue;
+            }
+            for (const auto& projection : cube.projections()) {
+                THashMap<std::string, std::string> tags;
+                for (auto id : projection.tag_ids()) {
+                    const auto& tag = dump.tags(id);
+                    tags[tag.key()] = tag.value();
+                }
+                if (tags["state"] == state && tags["revision_id"] == revision &&
+                    tags["file_provider_id"] == "file" && tags["display_version"] == revision &&
+                    projection.has_gauge() && projection.has_value())
+                {
+                    return projection.gauge();
+                }
+            }
+        }
+        return std::nullopt;
+    };
+    auto targetValue = [&] (const std::string& state, const std::string& revision) {
+        return read("yt/test/file_provider_target_revision", state, revision).value_or(0);
+    };
+    auto discover = [&] (const std::string& id, std::optional<TInstant> timestamp) {
+        TFakeFileProvider::PushDiscoveryRevision(id, "file", timestamp);
+        WaitForPredicate([&] {
+            auto target = controller->BuildTargetRevision();
+            return target && target->PreparingFileSnapshot &&
+                GetOrCrash(target->PreparingFileSnapshot->FileProviders, TFileProviderId("file"))->ObjectId.Underlying() == id;
+        });
+        controller->CollectStatuses({}, nullptr, 17);
+    };
+
+    const auto timestamp = TInstant::Now() - TDuration::Hours(1);
+    discover("v1", timestamp);
+    EXPECT_EQ(targetValue("preparing", "v1"), 1);
+    EXPECT_EQ(targetValue("active", "v1"), 0);
+    auto age = read("yt/test/file_provider_target_revision_age", "preparing", "v1");
+    ASSERT_TRUE(age);
+    EXPECT_NEAR(*age, 3600, 30);
+    auto status = New<TWorkerResourceStatus>();
+    status->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    status->ResourceIncarnationGeneration = 1;
+    status->TargetRevisionId = 17;
+    status->PreparingFileSnapshot = New<TFileSnapshotStatus>();
+    auto promote = [&] {
+        status->PreparingFileSnapshot->SnapshotId = controller->BuildTargetRevision()->PreparingFileSnapshot->Id;
+        status->PreparingFileSnapshot->State = EFileSnapshotState::Validated;
+        controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
+    };
+    promote();
+    EXPECT_EQ(targetValue("active", "v1"), 1);
+    EXPECT_EQ(targetValue("preparing", "v1"), 0);
+    EXPECT_FALSE(read("yt/test/file_provider_target_revision_age", "preparing", "v1"));
+
+    discover("v2", std::nullopt);
+    EXPECT_EQ(targetValue("active", "v1"), 1);
+    EXPECT_EQ(targetValue("preparing", "v2"), 1);
+    EXPECT_FALSE(read("yt/test/file_provider_target_revision_age", "preparing", "v2"));
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file", timestamp + TDuration::Minutes(1));
+    WaitForPredicate([&] {
+        return !controller->BuildTargetRevision()->PreparingFileSnapshot;
+    });
+    controller->CollectStatuses({}, nullptr, 17);
+    EXPECT_EQ(targetValue("active", "v1"), 1);
+    EXPECT_EQ(targetValue("preparing", "v2"), 0);
+    EXPECT_EQ(GetOrCrash(controller->BuildTargetRevision()->ActiveFileSnapshot->FileProviders,
+        TFileProviderId("file"))
+            ->Timestamp,
+        timestamp);
+
+    discover("v2", std::nullopt);
+    promote();
+    EXPECT_EQ(targetValue("active", "v2"), 1);
+    EXPECT_EQ(targetValue("active", "v1"), 0);
+    EXPECT_FALSE(read("yt/test/file_provider_target_revision_age", "active", "v1"));
+    EXPECT_FALSE(read("yt/test/file_provider_target_revision_age", "active", "v2"));
+    discover("v1", timestamp);
+    promote();
+    EXPECT_EQ(targetValue("active", "v1"), 1);
+    EXPECT_EQ(targetValue("active", "v2"), 0);
+    age = read("yt/test/file_provider_target_revision_age", "active", "v1");
+    ASSERT_TRUE(age);
+    EXPECT_NEAR(*age, 3600, 30);
+
+    stateManager->Sync();
+    controller.Reset();
+    TFakeFileProvider::SetDiscoveryError("file");
+    auto restoredState = New<TStateManagerMock>();
+    restoredState->SetStorage(stateManager->GetStorage());
+    controller = MakeNamedController(
+        queue->GetInvoker(),
+        CreateSyncStatusProfiler(),
+        {{"file", "file"}},
+        TDuration::Hours(1),
+        NProfiling::TProfiler(registry, "/restored"));
+    controller->Init(restoredState->CreateContext());
+    ASSERT_TRUE(controller->BuildTargetRevision()->ActiveFileSnapshot);
+    EXPECT_EQ(GetOrCrash(controller->BuildTargetRevision()->ActiveFileSnapshot->FileProviders,
+        TFileProviderId("file"))
+            ->Timestamp,
+        timestamp);
+    age = read("yt/restored/file_provider_target_revision_age", "active", "v1");
+    ASSERT_TRUE(age);
+    EXPECT_NEAR(*age, 3600, 30);
 }
 
 TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevisions)

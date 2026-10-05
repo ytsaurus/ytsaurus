@@ -72,6 +72,8 @@ struct TFileProviderRevision
     std::string DisplayVersion;
     // Expected downloaded payload size, when the provider can determine it during discovery.
     std::optional<i64> Size;
+    // Source version time, not discovery or download time.
+    std::optional<TInstant> Timestamp;
     // Provider-specific download coordinates.
     NYTree::IMapNodePtr Locator;
 

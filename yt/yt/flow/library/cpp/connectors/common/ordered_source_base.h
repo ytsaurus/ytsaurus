@@ -159,7 +159,6 @@ protected:
 
         std::vector<TPayload> Payloads;
         NTableClient::TTableSchemaPtr PayloadSchema;
-        std::optional<TOffset> OffsetMemoryKey;
     };
 
     struct TPartitionInfoUpdate

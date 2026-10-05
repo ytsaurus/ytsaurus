@@ -26,7 +26,7 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TServerProgram<TCellMasterProgramConfig>
+    : public TServerProgram<TCellMasterProgramConfig, TDynamicClusterConfig>
 {
 public:
     TCellMasterProgram()

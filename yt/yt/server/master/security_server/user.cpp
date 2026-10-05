@@ -406,6 +406,12 @@ TYPath TUser::GetObjectPath() const
     return Format("//sys/users/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
+void TUser::TActiveTransactionCountLimitsOverride::Persist(const TStreamPersistenceContext& context)
+{
+    NYT::Persist(context, AlertThreshold);
+    NYT::Persist(context, Limit);
+}
+
 void TUser::Save(TSaveContext& context) const
 {
     TSubject::Save(context);
@@ -416,6 +422,7 @@ void TUser::Save(TSaveContext& context) const
     Save(context, PasswordSalt_);
     Save(context, PasswordRevision_);
     Save(context, *ObjectServiceRequestLimits_);
+    Save(context, ActiveTransactionCountAlertThresholdAndLimitOverride_);
     Save(context, Tags_);
     Save(context, LastSeenTime_);
     Save(context, PendingRemoval_);
@@ -433,6 +440,10 @@ void TUser::Load(TLoadContext& context)
     Load(context, PasswordSalt_);
     Load(context, PasswordRevision_);
     Load(context, *ObjectServiceRequestLimits_);
+    // COMPAT(ivpiskarev)
+    if (context.GetVersion() >= EMasterReign::AddPerUserActiveTransactionCountLimit) {
+        Load(context, ActiveTransactionCountAlertThresholdAndLimitOverride_);
+    }
     Load(context, Tags_);
     Load(context, LastSeenTime_);
     Load(context, PendingRemoval_);

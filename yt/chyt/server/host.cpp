@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "chunk_spec_cache.h"
 #include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
 #include "config.h"
@@ -25,6 +26,9 @@
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -55,6 +59,9 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <Access/AccessControl.h>
 #include <Access/User.h>
@@ -124,12 +131,16 @@ public:
         IInvokerPtr controlInvoker,
         TYtConfigPtr config,
         TConnectionCompoundConfigPtr connectionConfig,
+        EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+        NYTree::INodePtr clusterConnectionNode,
         TPorts ports)
         : Owner_(owner)
         , ControlInvoker_(std::move(controlInvoker))
         , Config_(std::move(config))
         , Ports_(ports)
         , ConnectionConfig_(std::move(connectionConfig))
+        , ConnectionDynamicConfigPolicy_(connectionDynamicConfigPolicy)
+        , ClusterConnectionNode_(std::move(clusterConnectionNode))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -237,6 +248,16 @@ public:
             AttributeFetchTimeCounter_ = ClickHouseYtProfiler().Timer("/object_attribute_fetch/execution");
         }
         AttributeFetchBatchSizeCounter_ = ClickHouseYtProfiler().Summary("/object_attribute_fetch/batch_size");
+
+        if (timeHistogramConfig && timeHistogramConfig->ExponentialBounds) {
+            const auto& exponentialBounds = *timeHistogramConfig->ExponentialBounds;
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/chunk_specs_fetch/execution", exponentialBounds->Min, exponentialBounds->Max);
+        } else if (timeHistogramConfig && timeHistogramConfig->CustomBounds) {
+            const auto& customBounds = *timeHistogramConfig->CustomBounds;
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().TimeHistogram("/chunk_specs_fetch/execution", customBounds);
+        } else {
+            ChunkSpecsFetchTimeCounter_ = ClickHouseYtProfiler().Timer("/chunk_specs_fetch/execution");
+        }
     }
 
     void SetContext(DB::ContextMutablePtr context_)
@@ -735,6 +756,11 @@ public:
         return ClientCache_->Get(identity, options);
     }
 
+    NApi::NNative::IConnectionPtr GetConnection() const
+    {
+        return Connection_;
+    }
+
     void HandleSigint()
     {
         ++SigintCounter_;
@@ -777,6 +803,16 @@ public:
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const
     {
         return TableColumnarStatisticsCache_;
+    }
+
+    TChunkSpecCachePtr GetChunkSpecCache() const
+    {
+        return ChunkSpecCache_;
+    }
+
+    NProfiling::TEventTimer& GetChunkSpecsFetchTimeCounter()
+    {
+        return ChunkSpecsFetchTimeCounter_;
     }
 
     bool HasUserDefinedSqlObjectStorage() const
@@ -978,6 +1014,8 @@ private:
     const TYtConfigPtr Config_;
     TPorts Ports_;
     const TConnectionCompoundConfigPtr ConnectionConfig_;
+    const EClusterConnectionDynamicConfigPolicy ConnectionDynamicConfigPolicy_;
+    const NYTree::INodePtr ClusterConnectionNode_;
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
@@ -1005,6 +1043,7 @@ private:
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
+    TChunkSpecCachePtr ChunkSpecCache_;
 
     std::vector<std::string> TableAttributesToFetch_;
 
@@ -1026,6 +1065,7 @@ private:
 
     NProfiling::TEventTimer AttributeFetchTimeCounter_;
     NProfiling::TSummary AttributeFetchBatchSizeCounter_;
+    NProfiling::TEventTimer ChunkSpecsFetchTimeCounter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -1040,6 +1080,25 @@ private:
             ConnectionConfig_,
             connectionOptions);
         ChannelFactory_ = Connection_->GetChannelFactory();
+
+        if (ConnectionDynamicConfigPolicy_ != EClusterConnectionDynamicConfigPolicy::FromStaticConfig) {
+            // Cache sizes belong to the clique's memory budget, including overrides
+            // applied by the bootstrap config postprocessor.
+            auto cachePatch = BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("block_cache").Value(ConnectionConfig_->Dynamic->BlockCache)
+                    .Item("chunk_meta_cache").Value(ConnectionConfig_->Dynamic->ChunkMetaCache)
+                .EndMap();
+            auto staticPatch = ConnectionDynamicConfigPolicy_ == EClusterConnectionDynamicConfigPolicy::FromClusterDirectory
+                ? cachePatch
+                : PatchNode(ClusterConnectionNode_, cachePatch);
+            NApi::NNative::SetupClusterConnectionDynamicConfigUpdate(
+                Connection_,
+                EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch,
+                staticPatch,
+                Logger());
+            Connection_->GetClusterDirectorySynchronizer()->Start();
+        }
 
         // Kick-start node directory synchronizing; otherwise it will start only with first query.
         Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -1083,6 +1142,16 @@ private:
             TableSchemaCache_ = New<TTableSchemaCache>(
                 Config_->TableSchemaCache,
                 ClickHouseYtProfiler().WithPrefix("/table_schema_cache"));
+        }
+
+        if (Config_->Subquery->ChunkSpecCache) {
+            ChunkSpecCache_ = New<TChunkSpecCache>(
+                Config_->Subquery->ChunkSpecCache,
+                Config_->Subquery->MaxChunksPerFetch,
+                Config_->Subquery->MaxChunksPerLocateRequest,
+                FetcherInvoker_,
+                Logger(),
+                ClickHouseYtProfiler().WithPrefix("/chunk_specs_cache"));
         }
     }
 
@@ -1294,12 +1363,16 @@ THost::THost(
     IInvokerPtr controlInvoker,
     TPorts ports,
     TYtConfigPtr config,
-    TConnectionCompoundConfigPtr connectionConfig)
+    TConnectionCompoundConfigPtr connectionConfig,
+    EClusterConnectionDynamicConfigPolicy connectionDynamicConfigPolicy,
+    NYTree::INodePtr clusterConnectionNode)
     : Impl_(New<TImpl>(
         this,
         std::move(controlInvoker),
         std::move(config),
         std::move(connectionConfig),
+        connectionDynamicConfigPolicy,
+        std::move(clusterConnectionNode),
         ports))
 { }
 
@@ -1467,6 +1540,11 @@ NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
     return Impl_->CreateClient(user);
 }
 
+NApi::NNative::IConnectionPtr THost::GetConnection() const
+{
+    return Impl_->GetConnection();
+}
+
 TFuture<void> THost::GetIdleFuture() const
 {
     return Impl_->GetIdleFuture();
@@ -1520,6 +1598,16 @@ void THost::InitSingletones()
 NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatisticsCache() const
 {
     return Impl_->GetTableColumnarStatisticsCache();
+}
+
+TChunkSpecCachePtr THost::GetChunkSpecCache() const
+{
+    return Impl_->GetChunkSpecCache();
+}
+
+NProfiling::TEventTimer& THost::GetChunkSpecsFetchTimeCounter() const
+{
+    return Impl_->GetChunkSpecsFetchTimeCounter();
 }
 
 THost::~THost() = default;

@@ -41,7 +41,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
         rows = [{"a": i} for i in range(10)]
         write_table("//tmp/t_in", rows, verbose=False)
-        with Clique(1) as clique:
+        with Clique(1, disable_chunk_spec_cache=True) as clique:
             def remove_table():
                 wait_breakpoint("static")
                 remove("//tmp/t_in")

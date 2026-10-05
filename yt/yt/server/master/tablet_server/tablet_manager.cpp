@@ -70,6 +70,7 @@
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
 
+#include <yt/yt/server/master/table_server/helpers.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_collocation.h>
@@ -1426,6 +1427,33 @@ public:
         }
     }
 
+    void PrepareAlter(TTableNode* table, bool dynamic) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
+
+        if (table->IsNative()) {
+            if (table->GetSchema()->AsCompactTableSchema()->HasNontrivialSchemaModification()) {
+                THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
+            }
+
+            if (table->IsPhysicallyLog()) {
+                THROW_ERROR_EXCEPTION("Cannot alter table of type %Qlv", table->GetType());
+            }
+
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            auto schema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
+            ValidateTableSchemaAlter(tableManager, config, table, *schema, *schema, dynamic);
+        }
+
+        if (dynamic) {
+            ValidateMakeTableDynamic(table);
+        } else {
+            ValidateMakeTableStatic(table);
+        }
+    }
+
     void Reshard(
         TTabletOwnerBase* table,
         int firstTabletIndex,
@@ -1450,6 +1478,33 @@ public:
             cumulativeDataWeights);
 
         UpdateTabletState(table);
+    }
+
+    void Alter(TTableNode* table, bool dynamic) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
+
+        bool wasTrackedQueueObject = table->IsTrackedQueueObject();
+
+        if (dynamic) {
+            MakeTableDynamic(
+                table,
+                /*trimmedRowCount*/ 0,
+                /*cumulativeDataWeight*/ 0);
+        } else {
+            MakeTableStatic(table);
+        }
+
+        bool isTrackedQueueObject = table->IsTrackedQueueObject();
+        if (isTrackedQueueObject != wasTrackedQueueObject) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            if (isTrackedQueueObject) {
+                tableManager->RegisterQueue(table);
+            } else {
+                tableManager->UnregisterQueue(table);
+            }
+        }
     }
 
     void CancelTabletTransition(TTablet* tablet) override
@@ -1668,7 +1723,7 @@ public:
                 if (updateMode == EUpdateMode::Append) {
                     // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
                     if (appendChunkList->IsNewAppendTabletChunkList()) {
-                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().DeltaChunkList;
+                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().AppendDeltaChunkList;
                     }
 
                     if (!appendChunkList->Children().empty()) {

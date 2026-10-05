@@ -75,7 +75,6 @@ void RunPipeline(
     bool setFlowCoreTarget = true,
     std::optional<bool> graceful = {},
     TDuration waitTimeout = DefaultWaitPipelineTimeout,
-    bool enablePipelineCreation = true,
     bool enablePipelineStopOrPause = true);
 
 void RunPipeline(
@@ -86,7 +85,6 @@ void RunPipeline(
     bool setFlowCoreTarget = true,
     std::optional<bool> graceful = {},
     TDuration waitTimeout = DefaultWaitPipelineTimeout,
-    bool enablePipelineCreation = true,
     bool enablePipelineStopOrPause = true,
     const std::optional<TVanillaOperationHandle>& vanillaOperation = {});
 

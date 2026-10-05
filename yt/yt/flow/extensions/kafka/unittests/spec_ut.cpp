@@ -45,6 +45,47 @@ TEST(TKafkaInfoSpecTest, RejectsNonPositivePeriods)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TKafkaSinkSpecTest, IsAtLeastOnceByDefault)
+{
+    auto parameters = Parse<TKafkaSinkParameters>("{topic=t}");
+
+    EXPECT_EQ(parameters->DeliveryGuarantee, EKafkaDeliveryGuarantee::AtLeastOnce);
+    EXPECT_EQ(parameters->TransactionalIdPrefix, "flow-");
+    EXPECT_EQ(parameters->TransactionTimeout, TDuration::Minutes(1));
+    EXPECT_EQ(parameters->MaxTransactionRecordCount, 10'000);
+    EXPECT_EQ(parameters->MaxTransactionByteSize, 16 * 1024 * 1024);
+}
+
+TEST(TKafkaSinkSpecTest, RejectsTransactionSettingsKafkaRejects)
+{
+    // librdkafka requires at least one second.
+    EXPECT_THROW(Parse<TKafkaSinkParameters>("{topic=t;transaction_timeout=999}"), std::exception);
+    EXPECT_NO_THROW(Parse<TKafkaSinkParameters>("{topic=t;transaction_timeout=1000}"));
+    EXPECT_THROW(Parse<TKafkaSinkParameters>("{topic=t;max_transaction_record_count=0}"), std::exception);
+    EXPECT_THROW(Parse<TKafkaSinkParameters>("{topic=t;max_transaction_byte_size=0}"), std::exception);
+}
+
+TEST(TKafkaSinkSpecTest, RequiresTheProgressMarkerByDefault)
+{
+    auto parameters = NYTree::ConvertTo<TDynamicKafkaSinkParametersPtr>(NYson::TYsonStringBuf("{}"));
+    EXPECT_FALSE(parameters->AllowMissingProgressMarker);
+
+    parameters = NYTree::ConvertTo<TDynamicKafkaSinkParametersPtr>(
+        NYson::TYsonStringBuf("{allow_missing_progress_marker=%true}"));
+    EXPECT_TRUE(parameters->AllowMissingProgressMarker);
+}
+
+TEST(TKafkaSinkSpecTest, ParsesTheExactlyOnceSettings)
+{
+    auto parameters = Parse<TKafkaSinkParameters>(
+        "{topic=t;delivery_guarantee=exactly_once;transactional_id_prefix=\"team-\";transaction_timeout=30000}");
+
+    EXPECT_EQ(parameters->DeliveryGuarantee, EKafkaDeliveryGuarantee::ExactlyOnce);
+    EXPECT_EQ(parameters->TransactionalIdPrefix, "team-");
+    EXPECT_EQ(parameters->TransactionTimeout, TDuration::Seconds(30));
+    EXPECT_THROW(Parse<TKafkaSinkParameters>("{topic=t;delivery_guarantee=twice}"), std::exception);
+}
+
 TEST(TKafkaSourceSpecTest, RequiresAGroupId)
 {
     EXPECT_THROW(Parse<TKafkaSourceParameters>("{topic=t}"), std::exception);

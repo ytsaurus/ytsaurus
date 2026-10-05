@@ -63,7 +63,7 @@ void TJavaProcessManager::ValidateParameters() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation()
+TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation(const TCompanionExecutionConfigPtr& config)
 {
     auto effectiveJvmOptions = ResolveJvmOptions();
 
@@ -85,8 +85,7 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation()
     process->AddArguments(args);
 
     // Not logged: the config may carry HTTPS client credentials.
-    auto configTxt =
-        NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
+    auto configTxt = NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text);
     process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
     return process;
 }

@@ -76,7 +76,7 @@ set_property(
   unittester-tablet-balancer-lib
   PROPERTY
   LABELS
-  SMALL
+  MEDIUM
 )
 
 set_property(

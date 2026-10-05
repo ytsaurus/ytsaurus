@@ -4175,9 +4175,11 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
     }
 
     // Run DistributeJobs — ResourceQueue balancer should emit a PreloadAdd for the worker.
+    auto requestedAfter = TInstant::Now();
     FlowView->State->StartMutation();
     JobManager->DistributeJobs(FlowView);
     FlowView->State->CommitMutation();
+    auto requestedBefore = TInstant::Now();
 
     // Verify: WorkerSpecs[workerAddress].PreloadResources contains resId, stamped with the incarnation.
     const auto& layout = FlowView->State->ExecutionSpec->Layout;
@@ -4188,6 +4190,9 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
         << "PreloadResources must contain the preloadable resource after DistributeJobs applies PreloadAdd action";
     ASSERT_TRUE((*workerSpec)->WorkerIncarnationId);
     EXPECT_EQ(*(*workerSpec)->WorkerIncarnationId, worker->IncarnationId);
+    auto requestTime = GetOrCrash((*workerSpec)->PreloadRequestTimes, resId);
+    EXPECT_GE(requestTime, requestedAfter);
+    EXPECT_LE(requestTime, requestedBefore);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4313,6 +4318,7 @@ TEST_F(TJobBalancerTest, PreloadDelActionAppliedToWorkerSpecs)
         FlowView->State->StartMutation();
         auto workerSpec = New<TWorkerSpec>();
         workerSpec->PreloadResources.insert(resId);
+        workerSpec->PreloadRequestTimes[resId] = TInstant::Now() - TDuration::Hours(1);
         FlowView->State->ExecutionSpec->Layout->WorkerSpecs.insert_or_assign(workerAddress, workerSpec);
         FlowView->State->CommitMutation();
     }
@@ -4330,6 +4336,7 @@ TEST_F(TJobBalancerTest, PreloadDelActionAppliedToWorkerSpecs)
     if (workerSpec && *workerSpec) {
         EXPECT_FALSE((*workerSpec)->PreloadResources.contains(resId))
             << "PreloadResources must not contain the resource after DistributeJobs applies PreloadDel action";
+        EXPECT_FALSE((*workerSpec)->PreloadRequestTimes.contains(resId));
     }
 }
 

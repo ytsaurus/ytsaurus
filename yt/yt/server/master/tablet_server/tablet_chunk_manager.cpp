@@ -1433,20 +1433,20 @@ public:
             }
         }
 
-        std::vector<TChunkTreeRawPtr> hunkChunksToAttach;
-        auto attachHunkChunks = [&] (TChunk* chunk) {
+        std::vector<TChunkTreeRawPtr> referencedHunkChunks;
+        auto collectReferencedHunkChunks = [&] (TChunk* chunk) {
             auto hunkChunks = GetReferencedHunkChunks(chunk);
-            if (!hunkChunks.empty()) {
-                YT_VERIFY(std::ssize(hunkChunks) == 1);
-                hunkChunksToAttach.push_back(hunkChunks[0]);
-            }
+            referencedHunkChunks.insert(
+                referencedHunkChunks.end(),
+                hunkChunks.begin(),
+                hunkChunks.end());
         };
 
         for (auto store : storesToAttach) {
             switch (store->GetType()) {
                 case EObjectType::Chunk:
                 case EObjectType::ErasureChunk: {
-                    attachHunkChunks(store->AsChunk());
+                    collectReferencedHunkChunks(store->AsChunk());
                     break;
                 }
 
@@ -1456,12 +1456,23 @@ public:
                     YT_VERIFY(
                         underlyingTree->GetType() == EObjectType::Chunk ||
                         underlyingTree->GetType() == EObjectType::ErasureChunk);
-                    attachHunkChunks(underlyingTree->AsChunk());
+                    collectReferencedHunkChunks(underlyingTree->AsChunk());
                     break;
                 }
 
                 default:
                     YT_ABORT();
+            }
+        }
+
+        SortUnique(referencedHunkChunks, TObjectIdComparer());
+
+        auto* hunkChunkList = tablet->GetHunkChunkList();
+        std::vector<TChunkTreeRawPtr> hunkChunksToAttach;
+        hunkChunksToAttach.reserve(referencedHunkChunks.size());
+        for (auto hunkChunk : referencedHunkChunks) {
+            if (!hunkChunkList->HasChild(hunkChunk)) {
+                hunkChunksToAttach.push_back(hunkChunk);
             }
         }
 
@@ -1474,7 +1485,6 @@ public:
         chunkManager->AttachToChunkList(chunkList, storesToAttach);
 
         if (!hunkChunksToAttach.empty()) {
-            auto* hunkChunkList = tablet->GetHunkChunkList();
             chunkManager->AttachToChunkList(hunkChunkList, hunkChunksToAttach);
         }
 
@@ -1802,8 +1812,7 @@ private:
         } else {
             if (GetParentCount(child) == 1) {
                 auto* parent = GetUniqueParent(child);
-                YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
-                return parent;
+                return parent->AsChunkList();
             }
             return tablet->GetChunkList();
         }
@@ -1812,7 +1821,7 @@ private:
     void PruneEmptySubtabletChunkList(TChunkList* chunkList)
     {
         while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
-            auto* parent = GetUniqueParent(chunkList);
+            auto* parent = GetUniqueParent(chunkList)->AsChunkList();
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             chunkManager->DetachFromChunkList(parent, {chunkList}, EChunkDetachPolicy::SortedTablet);
             chunkList = parent;

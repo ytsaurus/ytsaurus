@@ -652,7 +652,7 @@ bool TryHintPushDownGroupBy(NQueryClient::NAst::TQuery* query)
         }
     }
 
-    join->Table.Hint->PushDownGroupBy = true;
+    join->Table.Hint.PushDownGroupBy = true;
     return true;
 }
 

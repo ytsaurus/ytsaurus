@@ -1,6 +1,7 @@
 RECURSE(
     fmrrun
     mrjob
+    mrjob/impl
     ytflowrun
     ytflow_worker
     ytrun
@@ -17,6 +18,7 @@ IF (NOT OPENSOURCE)
         query_replay_admin
         udf_admin
         ytfilerun
+        ytfilerun/impl
         ytflowrun/full
         qtworker
         qtworker/full

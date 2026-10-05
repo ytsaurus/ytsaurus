@@ -136,7 +136,10 @@ def cast_from_unit_vectorized(
 
     out = np.empty(shape, dtype="i8")
     base = np.empty(shape, dtype="i8")
-    frac = np.empty(shape, dtype="f8")
+    # zero-init: for NaN inputs frac[i] is never set below, but np.round()
+    # still reads every element (harmless here, only ever surfaces as a
+    # MemorySanitizer use-of-uninitialized-value finding, see GH#57366)
+    frac = np.zeros(shape, dtype="f8")
 
     for i in range(len(values)):
         if is_nan(values[i]):

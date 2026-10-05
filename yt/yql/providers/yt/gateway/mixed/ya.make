@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 SRCS(
     yql_yt_mixed.cpp
@@ -16,7 +16,5 @@ PEERDIR(
     library/cpp/threading/future
     library/cpp/yson/node
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()

@@ -1006,6 +1006,40 @@ Y_UNIT_TEST(UnusedHintErrorWithFlag) {
         "<main>:1:80: Error: Hint merge will not be used, code: 4534\n");
 }
 
+Y_UNIT_TEST(UnknownSimpleFlagRejectedInStrictMode) {
+    NSQLTranslation::TTranslationSettings settings;
+    settings.StrictConfigValidation = true;
+    settings.Flags.emplace("UnknownSimpleFlag");
+
+    NYql::TAstParseResult res = SqlToYqlWithSettings("SELECT 1;", settings);
+
+    UNIT_ASSERT(!res.IsOk());
+    UNIT_ASSERT_STRING_CONTAINS(Err2Str(res), "Unknown SQL flag: UnknownSimpleFlag");
+}
+
+Y_UNIT_TEST(KnownSimpleFlagAcceptedInStrictMode) {
+    NSQLTranslation::TTranslationSettings settings;
+    settings.StrictConfigValidation = true;
+    settings.Flags.emplace("AutoYqlSelect");
+    settings.Flags.emplace("RotateJoinTree");
+    settings.Flags.emplace("DisableRotateJoinTree");
+    settings.Flags.emplace("AnsiOrderByLimitInUnionAll");
+    settings.Flags.emplace("EmitAggApply");
+
+    NYql::TAstParseResult res = SqlToYqlWithSettings("SELECT 1;", settings);
+
+    UNIT_ASSERT_C(res.IsOk(), Err2Str(res));
+}
+
+Y_UNIT_TEST(UnknownSimpleFlagIgnoredByDefault) {
+    NSQLTranslation::TTranslationSettings settings;
+    settings.Flags.emplace("UnknownSimpleFlag");
+
+    NYql::TAstParseResult res = SqlToYqlWithSettings("SELECT 1;", settings);
+
+    UNIT_ASSERT_C(res.IsOk(), Err2Str(res));
+}
+
 Y_UNIT_TEST(JoinConflictingStrategyHint) {
     {
         NYql::TAstParseResult res = SqlToYql("SELECT * FROM plato.Input AS a JOIN /*+ StreamLookup() */ /*+ Merge() */   plato.Input AS b USING(key);");
@@ -4935,6 +4969,30 @@ Y_UNIT_TEST(AlterTableAddIndexGlobalUnique) {
     TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
         Y_UNUSED(word);
         UNIT_ASSERT_STRING_CONTAINS(line, R"('indexType 'syncGlobalUnique)");
+    };
+
+    TWordCountHive elementStat({TString(R"('indexName '"idx")")});
+    VerifyProgram(result, elementStat, verifyLine);
+    UNIT_ASSERT_VALUES_EQUAL(1, elementStat["\'indexName \'\"idx\""]);
+}
+
+Y_UNIT_TEST(CreateTableAddHnswIndex) {
+    const auto result = SqlToYql(R"sql(USE ydb;
+                CREATE TABLE table (
+                    pk INT32 NOT NULL,
+                    embedding String,
+                    INDEX idx GLOBAL USING hnsw
+                        ON (embedding)
+                        WITH (distance=cosine, vector_type=float, vector_dimension=128,
+                              levels=1, clusters=10, min_rows=1, M=24, ef_construction=100, delta_rows=5),
+                    PRIMARY KEY (pk))
+                    )sql");
+    UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
+    UNIT_ASSERT(result.Root);
+
+    TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+        Y_UNUSED(word);
+        UNIT_ASSERT_STRING_CONTAINS(line, R"('indexType 'globalHnsw)");
     };
 
     TWordCountHive elementStat({TString(R"('indexName '"idx")")});

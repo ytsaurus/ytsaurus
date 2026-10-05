@@ -13,6 +13,16 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TCompanionConfigTest, SessionIdIsOmittedUntilSet)
+{
+    auto config = New<TCompanionExecutionConfig>();
+    EXPECT_FALSE(NYTree::ConvertToNode(config)->AsMap()->FindChild("session_id"));
+
+    config->SessionId = "session";
+    auto restored = NYTree::ConvertTo<TCompanionExecutionConfigPtr>(NYson::ConvertToYsonString(config));
+    EXPECT_EQ("session", restored->SessionId);
+}
+
 TEST(TCompanionConfigTest, CompanionProcessCountDefaultsToAuto)
 {
     auto config = New<TCompanionConfig>();

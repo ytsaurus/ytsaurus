@@ -58,7 +58,9 @@ NO_CHECK_IMPORTS(base)
 TEST_SRCS(
     conftest.py
     test_atomicity.py
+    test_chunk_spec_cache.py
     test_clickhouse_schema.py
+    test_cluster_connection.py
     test_columnar_read.py
     test_common.py
     test_composite.py

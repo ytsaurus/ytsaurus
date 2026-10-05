@@ -1,5 +1,6 @@
 #include "subquery.h"
 
+#include "chunk_spec_cache.h"
 #include "config.h"
 #include "helpers.h"
 #include "host.h"
@@ -228,6 +229,9 @@ private:
 
     TMasterChunkSpecFetcherPtr MasterChunkSpecFetcher_;
     TTabletChunkSpecFetcherPtr TabletChunkSpecFetcher_;
+    TChunkSpecCachePtr ChunkSpecCache_;
+    std::vector<int> CachedTableIndices_;
+    std::vector<TChunkSpecCache::TRequest> CacheRequests_;
 
     TLogger Logger;
 
@@ -690,10 +694,25 @@ private:
             std::move(options),
             Invoker_,
             Logger);
+
+        // GetChunkSpecCache() returns nullptr whenever TSubqueryConfig::ChunkSpecCache is unset.
+        ChunkSpecCache_ = QueryContext_->Host->GetChunkSpecCache();
     }
 
     void AddTableForFetching(const TTablePtr& table, int tableIndex)
     {
+        if (ChunkSpecCache_ && IsChunkSpecCacheEligible(table)) {
+            CachedTableIndices_.push_back(tableIndex);
+            CacheRequests_.push_back(TChunkSpecCache::TRequest{
+                .ObjectId = table->ObjectId,
+                .ExternalCellTag = table->ExternalCellTag,
+                .ChunkCount = table->ChunkCount,
+                .MinContentRevision = table->ContentRevision,
+                .MinChunkMergerRevision = table->ChunkMergerRevision,
+            });
+            return;
+        }
+
         // TODO(achulkov2): Support ordered tables in tablet chunk spec fetcher?
         if (table->IsSortedDynamic() && QueryContext_->SessionSettings->DynamicTable->FetchFromTablets &&
             QueryContext_->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::None &&
@@ -713,6 +732,13 @@ private:
                 tableIndex,
                 table->Path.GetNewRanges(table->Comparator));
         }
+    }
+
+    bool IsChunkSpecCacheEligible(const TTablePtr& table) const
+    {
+        return !table->Dynamic
+            && !table->ExternalTransactionId
+            && !table->Path.HasNontrivialRanges();
     }
 
     void FetchTableReadSpecs()
@@ -767,23 +793,45 @@ private:
                 if (OperandCount_ == 1 && !table->Path.HasNontrivialRanges() && !KeyReadRanges_.empty()) {
                     table->Path.SetRanges(KeyReadRanges_);
                 }
+
                 AddTableForFetching(table, tableIndex);
             }
         }
 
-        if (auto breakpointFilename = QueryContext_->SessionSettings->Testing->ChunkSpecFetcherBreakpoint) {
-            HandleBreakpoint(*breakpointFilename, Client_);
-            YT_TLOG_DEBUG("Chunk spec fetcher handled breakpoint")
-                .With("Breakpoint", *breakpointFilename);
+
+        std::vector<TErrorOr<std::vector<NChunkClient::NProto::TChunkSpec>>> cacheResults;
+        TDuration chunkSpecsFetchTime;
+
+        {
+            NProfiling::TWallTimer chunkSpecsFetchTimer;
+
+            auto cacheFuture = CachedTableIndices_.empty()
+                ? MakeFuture(std::vector<TErrorOr<std::vector<NChunkClient::NProto::TChunkSpec>>>())
+                : ChunkSpecCache_->GetChunkSpecs(
+                    std::move(CacheRequests_),
+                    Client_,
+                    *QueryContext_->SessionSettings->FetchChunksReadOptions);
+
+            if (auto breakpointFilename = QueryContext_->SessionSettings->Testing->ChunkSpecFetcherBreakpoint) {
+                HandleBreakpoint(*breakpointFilename, Client_);
+                YT_TLOG_DEBUG("Chunk spec fetcher handled breakpoint")
+                    .With("Breakpoint", *breakpointFilename);
+            }
+
+            std::vector<TFuture<void>> asyncResults = {
+                MasterChunkSpecFetcher_->Fetch(),
+                TabletChunkSpecFetcher_->Fetch(),
+                cacheFuture.AsVoid(),
+            };
+
+            WaitFor(AllSucceeded(asyncResults))
+                .ThrowOnError();
+
+            cacheResults = cacheFuture.GetOrCrash().ValueOrThrow();
+
+            chunkSpecsFetchTime = chunkSpecsFetchTimer.GetElapsedTime();
+            QueryContext_->Host->GetChunkSpecsFetchTimeCounter().Record(chunkSpecsFetchTime);
         }
-
-        std::vector<TFuture<void>> asyncResults = {
-            MasterChunkSpecFetcher_->Fetch(),
-            TabletChunkSpecFetcher_->Fetch()
-        };
-
-        WaitFor(AllSucceeded(asyncResults))
-            .ThrowOnError();
 
         int chunkCount = 0;
         for (auto& chunkSpec : Concatenate(
@@ -798,8 +846,26 @@ private:
             TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
         }
 
-        YT_TLOG_INFO("Chunk specs fetched")
-            .With("ChunkCount", chunkCount);
+        YT_VERIFY(cacheResults.size() == CachedTableIndices_.size());
+        for (int index = 0; index < std::ssize(CachedTableIndices_); ++index) {
+            auto tableIndex = CachedTableIndices_[index];
+            auto& chunkSpecsOrError = cacheResults[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                chunkSpecsOrError,
+                "Error fetching cached chunk specs for table %v",
+                InputTables_[tableIndex]->Path);
+            for (auto& chunkSpec : chunkSpecsOrError.Value()) {
+                chunkCount++;
+                TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
+            }
+        }
+
+        {
+            using namespace NStatisticPath;
+            QueryContext_->AddStatisticsSample("/input_fetcher/chunk_specs_fetch_time_us"_SP, chunkSpecsFetchTime.MicroSeconds());
+        }
+
+        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v, FetchTime: %v)", chunkCount, chunkSpecsFetchTime);
     }
 
     //! Wrap chunk spec from data slice descriptor into data slice,

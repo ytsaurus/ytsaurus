@@ -20,11 +20,43 @@
 
 Отдельный `PEERDIR` для харнесса не нужен: зависимости Go-модуля выводятся из импортов. Достаточно перечислить тестовые файлы в `GO_TEST_SRCS` модуля пайплайна:
 
-{% code '/yt/yt/flow/examples/go/word_count/ya.make' lang='text' %}
+```text
+GO_PROGRAM()
+
+SUBSCRIBER(
+    g:yt-flow
+)
+
+SRCS(
+    main.go
+    word_count_mapper.go
+)
+
+GO_TEST_SRCS(
+    word_count_mapper_test.go
+)
+
+END()
+
+RECURSE_FOR_TESTS(
+    gotest
+    test
+)
+```
 
 И добавить рядом директорию `gotest` с модулем `GO_TEST_FOR`, через который тесты запускаются:
 
-{% code '/yt/yt/flow/examples/go/word_count/gotest/ya.make' lang='text' %}
+```text
+GO_TEST_FOR(yt/yt/flow/examples/go/word_count)
+
+SUBSCRIBER(
+    g:yt-flow
+)
+
+SIZE(SMALL)
+
+END()
+```
 
 ## Тестирование Process Function {#testing-process}
 
@@ -84,7 +116,61 @@ msg.EventTimestamp = 1000
 
 Юнит-тесты маппера из [WordCount](examples/wordcount.md) — харнесс, батч сообщений и проверка внутреннего стейта:
 
-{% code '/yt/yt/flow/examples/go/word_count/word_count_mapper_test.go' lang='go' lines='[BEGIN unit_test]-[END unit_test]' %}
+```go
+func newHarness(t *testing.T) *flowtest.Harness {
+	return flowtest.New(t, flow.NewRowComputation("mapper", &wordCountMapper{}), flowtest.Options{
+		Streams:        map[string]flow.Schema{"words": flowtest.Schema("word:string")},
+		KeySchema:      flowtest.Schema("word:string"),
+		InternalStates: []string{wordStateName},
+	})
+}
+
+func TestRepeatedWordAccumulates(t *testing.T) {
+	h := newHarness(t)
+	key := h.Key(flowtest.Row{"word": "hello"})
+
+	var batch []flow.Input
+	for range 3 {
+		batch = append(batch, h.KeyedMessage("words", key, flowtest.Row{"word": "hello"}))
+	}
+	r := h.Process(batch...)
+
+	require.EqualValues(t, 3, counterOf(t, r, key).Count)
+}
+
+func TestCounterSurvivesTheBatch(t *testing.T) {
+	h := newHarness(t)
+	key := h.Key(flowtest.Row{"word": "hello"})
+
+	h.Process(h.KeyedMessage("words", key, flowtest.Row{"word": "hello"}))
+	r := h.Process(h.KeyedMessage("words", key, flowtest.Row{"word": "hello"}))
+
+	require.EqualValues(t, 2, counterOf(t, r, key).Count)
+}
+
+func TestWordsAreCountedApart(t *testing.T) {
+	h := newHarness(t)
+	hello := h.Key(flowtest.Row{"word": "hello"})
+	world := h.Key(flowtest.Row{"word": "world"})
+
+	r := h.Process(
+		h.KeyedMessage("words", hello, flowtest.Row{"word": "hello"}),
+		h.KeyedMessage("words", world, flowtest.Row{"word": "world"}),
+		h.KeyedMessage("words", hello, flowtest.Row{"word": "hello"}),
+	)
+
+	require.EqualValues(t, 2, counterOf(t, r, hello).Count)
+	require.EqualValues(t, 1, counterOf(t, r, world).Count)
+}
+
+func counterOf(t *testing.T, r *flowtest.Response, key flow.Payload) wordCountState {
+	t.Helper()
+
+	var counter wordCountState
+	require.True(t, r.InternalStateYSON(wordStateName, key, &counter), "no counter stored for the key")
+	return counter
+}
+```
 
 ### Ошибки обработки {#errors}
 
@@ -152,7 +238,73 @@ require.EqualValues(t, 1, counter.Count)
 
 Юнит-тесты редьюсера из [Shuffle](examples/shuffle.md), который считает события во внешнем стейте:
 
-{% code '/yt/yt/flow/examples/go/shuffle/event_reducer_test.go' lang='go' lines='[BEGIN reducer_unit_test]-[END reducer_unit_test]' %}
+```go
+var shuffleStreams = []string{"event_a", "event_b", "event_c", "event_d"}
+
+func newReducerHarness(t *testing.T) *flowtest.Harness {
+	streams := make(map[string]flow.Schema, len(shuffleStreams))
+	for _, streamID := range shuffleStreams {
+		streams[streamID] = eventSchema
+	}
+
+	return flowtest.New(t, flow.NewRowComputation("reducer", &eventReducer{}), flowtest.Options{
+		Streams:        streams,
+		KeySchema:      flowtest.Schema("value:string"),
+		ExternalStates: map[string]flow.Schema{shuffleStateName: flowtest.Schema("count:int64")},
+	})
+}
+
+func TestAValueIsCountedOncePerShuffleStream(t *testing.T) {
+	h := newReducerHarness(t)
+	key := h.Key(flowtest.Row{"value": "v"})
+
+	var batch []flow.Input
+	for _, streamID := range shuffleStreams {
+		batch = append(batch, h.KeyedMessage(streamID, key, flowtest.Row{"value": "v"}))
+	}
+	r := h.Process(batch...)
+
+	require.EqualValues(t, 4, countOf(t, r, key))
+	require.Empty(t, r.Messages())
+	require.Empty(t, r.Timers())
+}
+
+func TestValuesAreCountedApart(t *testing.T) {
+	h := newReducerHarness(t)
+	first := h.Key(flowtest.Row{"value": "v1"})
+	second := h.Key(flowtest.Row{"value": "v2"})
+
+	r := h.Process(
+		h.KeyedMessage("event_a", first, flowtest.Row{"value": "v1"}),
+		h.KeyedMessage("event_b", second, flowtest.Row{"value": "v2"}),
+		h.KeyedMessage("event_c", first, flowtest.Row{"value": "v1"}),
+	)
+
+	require.EqualValues(t, 2, countOf(t, r, first))
+	require.EqualValues(t, 1, countOf(t, r, second))
+}
+
+func TestCounterSurvivesTheBatch(t *testing.T) {
+	h := newReducerHarness(t)
+	key := h.Key(flowtest.Row{"value": "v"})
+
+	h.Process(h.KeyedMessage("event_a", key, flowtest.Row{"value": "v"}))
+	r := h.Process(h.KeyedMessage("event_b", key, flowtest.Row{"value": "v"}))
+
+	require.EqualValues(t, 2, countOf(t, r, key))
+}
+
+func countOf(t *testing.T, r *flowtest.Response, key flow.Payload) int64 {
+	t.Helper()
+
+	row, ok := r.ExternalState(shuffleStateName, key)
+	require.True(t, ok, "no counter stored for the key")
+
+	count, err := row.Int64(countColumn)
+	require.NoError(t, err)
+	return count
+}
+```
 
 ### Joined external state {#joined-external-state}
 
@@ -245,13 +397,47 @@ go test ./... -run 'TestCounterSurvivesTheBatch'
 
 Интеграционному тесту нужны рецепт кластера, `DEPENDS` на бинарь пайплайна и `flow_server`, а также `DATA` со спекой. Полный `ya.make` теста из [WordCount](examples/wordcount.md):
 
-{% code '/yt/yt/flow/examples/go/word_count/test/ya.make' lang='text' %}
+```text
+PY3TEST()
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/library/python/integration_test_base/recipe.inc)
+
+TEST_SRCS(
+    test_wordcount.py
+    yt_sync.py
+)
+
+PEERDIR(
+    yt/yt/flow/library/python/queue
+)
+
+DEPENDS(
+    ${MODDIR}/..
+    yt/yt/flow/bin/flow_server
+)
+
+DATA(arcadia/${MODDIR}/pipeline.yson)
+
+REQUIREMENTS(
+    cpu:4
+    ram:32
+)
+
+TAG(ya:huge_logs)
+
+SIZE(MEDIUM)
+
+END()
+```
 
 ### Настройка {#go-test-setup}
 
 Тест наследуется от `FlowTestGoBase` и задаёт атрибут `GO_COMPANION_BINARY`:
 
-{% code '/yt/yt/flow/examples/go/word_count/test/test_wordcount.py' lang='python' lines='[BEGIN test_setup]-[END test_setup]' %}
+```python
+class Test(FlowTestGoBase):
+    GO_COMPANION_BINARY = yatest.common.binary_path("yt/yt/flow/examples/go/word_count/word_count")
+```
 
 | Атрибут | Описание |
 |---------|----------|

@@ -1,4 +1,4 @@
-LIBRARY()
+YQL_LIBRARY()
 
 PEERDIR(
     contrib/ydb/library/yql/dq/runtime
@@ -19,8 +19,6 @@ PEERDIR(
     yql/essentials/utils/failure_injector
     yt/yt/core
 )
-
-YQL_LAST_ABI_VERSION()
 
 SRCS(
     file_cache.cpp

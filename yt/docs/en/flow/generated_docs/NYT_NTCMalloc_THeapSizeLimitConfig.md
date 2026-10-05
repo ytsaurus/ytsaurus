@@ -22,5 +22,7 @@ Source: [yt/yt/library/tcmalloc/config.h]({{source-root}}/yt/yt/library/tcmalloc
  ||
 || `memory_profile_dump_filename_suffix` | **Type**: `std::optional<std::string>`
  ||
+|| `memory_profile_retention` | **Type**: `NYT::TIntrusivePtr<`[NYT::NTCMalloc::TMemoryProfileRetentionConfig](./all_yson_structs#NYT_NTCMalloc_TMemoryProfileRetentionConfig)`>`
+ ||
 |#
 

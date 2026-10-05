@@ -36,13 +36,10 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Calls |functor(chunkList, child)| and |functor(parent(x), x)|, where |x|
-//! iterates through proper ancestors of |chunkList|.
+//! Calls |functor(chunkTree, child)| and |functor(parent(x), x)|, where |x|
+//! iterates through proper ancestors of |chunkTree|.
 template <class F>
-void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = nullptr);
-
-template <class F>
-void VisitAncestors(TChunkList* chunkList, F functor);
+void VisitUniqueAncestors(TChunkTree* chunkTree, F&& functor, TChunkTree* child = nullptr);
 
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child);
 
@@ -53,7 +50,7 @@ TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList);
 //! NB: Returns null in case of journal hunk chunk.
 std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk);
 
-TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
+TChunkTree* GetUniqueParent(const TChunkTree* chunkTree);
 int GetParentCount(const TChunkTree* chunkTree);
 bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 

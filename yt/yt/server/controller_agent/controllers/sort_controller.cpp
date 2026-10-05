@@ -6,6 +6,8 @@
 #include "job_info.h"
 #include "job_memory.h"
 #include "operation_controller_detail.h"
+#include "push_based_shuffle.h"
+#include "push_based_shuffle_job_spec.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/config.h>
@@ -104,6 +106,26 @@ using NControllerAgent::NProto::TJobSpecExt;
 
 //! Maximum number of buckets for partition progress aggregation.
 static const int MaxProgressBuckets = 100;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TSortColumns GetShuffleIdentitySortColumns()
+{
+    return {
+        TColumnSortSchema{
+            .Name = ShuffleProducerIdColumnName,
+            .SortOrder = ESortOrder::Ascending,
+        },
+        TColumnSortSchema{
+            .Name = ShuffleRowIdColumnName,
+            .SortOrder = ESortOrder::Ascending,
+        },
+    };
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -483,6 +505,12 @@ protected:
 
     int MaxPartitionFactor_ = 0;
 
+    IPushBasedShufflePtr PushBasedShuffle_;
+    TPushBasedShuffleJobSpecBuilderPtr PushBasedShuffleJobSpecBuilder_;
+    std::vector<int> CompletedTaskJobIndexes_;
+
+    bool PushBasedShuffleUsed_ = false;
+
     // Locality stuff.
 
     struct TLocalityEntry
@@ -654,6 +682,20 @@ protected:
             return Controller_->GetPartitionJobType(IsRoot());
         }
 
+        // NB(apollo1321): Unlike other tasks, completed jobs do not imply accounted output here:
+        // shuffle chunk pools may finalize it later. The task is completed only when all its jobs
+        // are completed and all shuffle chunk pools of its level are finalized.
+        bool IsCompleted() const override
+        {
+            return TTask::IsCompleted() &&
+                FinalizedShuffleChunkPoolCount_ == std::ssize(Controller_->IntermediatePartitionsByLevels_[Level_]);
+        }
+
+        void OnShuffleChunkPoolOutputsFinalized()
+        {
+            ++FinalizedShuffleChunkPoolCount_;
+        }
+
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
@@ -668,6 +710,10 @@ protected:
         {
             TTask::SetChunkPoolIndexForOutputStripes(streamDescriptors, inputStripeList, outputStripes);
 
+            if (Controller_->IsPushBasedShuffleUsed()) {
+                return;
+            }
+
             auto& shuffleStripe = outputStripes->front();
             shuffleStripe->SetInputChunkPoolIndex(GetPartitionIndex(inputStripeList));
         }
@@ -678,6 +724,8 @@ protected:
         TDataBalancerPtr DataBalancer_;
 
         int Level_ = -1;
+
+        int FinalizedShuffleChunkPoolCount_ = 0;
 
         IPersistentChunkPoolInputPtr ChunkPoolInput_;
         IPersistentChunkPoolOutputPtr ChunkPoolOutput_;
@@ -715,7 +763,7 @@ protected:
 
         bool CanLoseJobs() const override
         {
-            return Controller_->Spec_->EnableIntermediateOutputRecalculation;
+            return Controller_->IsIntermediateOutputRecalculationEnabled();
         }
 
         std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& context) override
@@ -772,6 +820,13 @@ protected:
             }
             partitionJobSpecExt->set_partition_task_level(Level_);
 
+            if (Controller_->IsPushBasedShuffleUsed()) {
+                TPushBasedShuffleJobSpecBuilder::FillWriterSpec(
+                    jobSpec,
+                    joblet->TaskJobIndex,
+                    Controller_->PushBasedShuffle_->GetReadySessions());
+            }
+
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
         }
@@ -790,6 +845,10 @@ protected:
         {
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
+            if (Controller_->IsPushBasedShuffleUsed() && !jobSummary.Abandoned) {
+                Controller_->CompletedTaskJobIndexes_.push_back(joblet->TaskJobIndex);
+            }
+
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             YT_VERIFY(!Controller_->SimpleSortTask_);
@@ -803,7 +862,7 @@ protected:
                 Controller_->UpdateTask(Controller_->UnorderedMergeTask_.Get());
                 Controller_->UpdateTask(Controller_->IntermediateSortTask_.Get());
                 Controller_->UpdateTask(Controller_->FinalSortTask_.Get());
-                Controller_->TryDispatchPhysicalPartitionsForProcessing(partition, /*isAllDataCollected*/ false);
+                Controller_->TryDispatchPhysicalPartitionsForProcessing(partition);
             }
 
             // NB: This should be done not only in OnTaskCompleted:
@@ -813,19 +872,8 @@ protected:
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
 
-            const auto& shuffleChunkPool = partition->ShuffleChunkPool();
-            if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec_->MaxShuffleDataSliceCount) {
-                result.OperationFailedError = TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
-                    .With("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
-                    .With("max_shuffle_data_slice_count", Controller_->Spec_->MaxShuffleDataSliceCount);
-                return result;
-            }
-
-            if (shuffleChunkPool->GetTotalJobCount() > Controller_->Spec_->MaxShuffleJobCount) {
-                result.OperationFailedError = TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
-                    .With("shuffle_job_count", shuffleChunkPool->GetTotalJobCount())
-                    .With("max_shuffle_job_count", Controller_->Spec_->MaxShuffleJobCount);
-                return result;
+            if (auto error = Controller_->CheckShuffleChunkPoolLimits(partition->ShuffleChunkPool()); !error.IsOK()) {
+                result.OperationFailedError = std::move(error);
             }
 
             return result;
@@ -870,10 +918,6 @@ protected:
         void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
-
-            for (const auto& partition : Controller_->IntermediatePartitionsByLevels_[Level_]) {
-                partition->ShuffleChunkPoolInput()->Finish();
-            }
 
             if (IsIntermediate()) {
                 const auto& nextPartitionTask = GetNextPartitionTask();
@@ -1084,6 +1128,9 @@ protected:
 
             if (IsFinal()) {
                 jobSpec->CopyFrom(Controller_->FinalSortJobSpecTemplate_);
+                if (Controller_->IsPushBasedShuffleUsed()) {
+                    Controller_->BuildPushBasedShuffleValidTaskJobIndexes(jobSpec);
+                }
             } else {
                 jobSpec->CopyFrom(Controller_->IntermediateSortJobSpecTemplate_);
             }
@@ -1164,7 +1211,8 @@ protected:
 
         bool CanLoseJobs() const override
         {
-            return Controller_->Spec_->EnableIntermediateOutputRecalculation;
+            return Controller_->IsPushBasedShuffleUsed() ||
+                Controller_->IsIntermediateOutputRecalculationEnabled();
         }
 
         bool IsJobOutputNeeded(const TCompletedJobPtr& completedJob) const override
@@ -1679,7 +1727,10 @@ protected:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->SortedMergeJobSpecTemplate_);
-            auto comparator = GetComparator(Controller_->Spec_->SortBy);
+            if (Controller_->IsPushBasedShuffleUsed()) {
+                Controller_->BuildPushBasedShuffleValidTaskJobIndexes(jobSpec);
+            }
+            auto comparator = GetComparator(Controller_->GetIntermediateSortColumns());
             AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
         }
@@ -1896,7 +1947,9 @@ protected:
     {
         YT_VERIFY(!SimpleSortTask_);
 
-        if (!Spec_->EnableFinalPartitionsMerging.value_or(Options_->EnableFinalPartitionsMergingByDefault)) {
+        if (IsPushBasedShuffleUsed() ||
+            !Spec_->EnableFinalPartitionsMerging.value_or(Options_->EnableFinalPartitionsMergingByDefault))
+        {
             return std::nullopt;
         }
 
@@ -1915,8 +1968,7 @@ protected:
 
     void TryDispatchPhysicalPartitionsForProcessing(
         const TIntermediatePartitionPtr& intermediatePartition,
-        TCompactVector<int, 1> physicalPartitionIndices,
-        bool isAllDataCollected)
+        TCompactVector<int, 1> physicalPartitionIndices)
     {
         YT_VERIFY(!physicalPartitionIndices.empty());
         YT_ASSERT(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
@@ -1944,26 +1996,28 @@ protected:
                     physicalPartitionIndices[0]));
         }();
 
-        bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&
+        bool isManiac = !IsPushBasedShuffleUsed() &&
+            std::ssize(physicalPartitionIndices) == 1 &&
             intermediatePartition->IsPhysicalPartitionManiac(physicalPartitionIndices[0]);
+        bool areShuffleOutputsFinalized = intermediatePartition->ShuffleChunkPool()->AreOutputsFinalized();
 
         auto dispatchDecision = [&] () -> std::optional<EPartitionDispatchDecision> {
-            if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && isAllDataCollected) {
+            if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::Skip;
             }
             if (ShouldForceSortedMerge() || (!isManiac && chunkPoolOutput->GetJobCounter()->GetTotal() > 1)) {
                 return EPartitionDispatchDecision::IntermediateSortAndMerge;
             }
-            if (isManiac && isAllDataCollected) {
+            if (isManiac && areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::NoSort;
             }
-            if (isAllDataCollected) {
+            if (areShuffleOutputsFinalized) {
                 return EPartitionDispatchDecision::SortInSingleJob;
             }
             return std::nullopt;
         }();
 
-        YT_VERIFY(!isAllDataCollected || dispatchDecision.has_value());
+        YT_VERIFY(!areShuffleOutputsFinalized || dispatchDecision.has_value());
 
         if (!dispatchDecision.has_value()) {
             YT_VERIFY(std::ssize(physicalPartitionIndices) == 1);
@@ -2027,9 +2081,7 @@ protected:
     }
 
     // Attempts to determine and apply a dispatch decision for physical partitions of intermediate partition.
-    void TryDispatchPhysicalPartitionsForProcessing(
-        const TIntermediatePartitionPtr& partition,
-        bool isAllDataCollected)
+    void TryDispatchPhysicalPartitionsForProcessing(const TIntermediatePartitionPtr& partition)
     {
         // NB(apollo1321): The greedy algorithm is optimal for sequential bin packing,
         // where partitions order must be preserved. However, for hash-based partitioning,
@@ -2044,7 +2096,7 @@ protected:
                 return;
             }
 
-            TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices, isAllDataCollected);
+            TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices);
 
             accumulatedDataWeight = 0;
             accumulatedDataSliceCount = 0;
@@ -2053,6 +2105,7 @@ protected:
         };
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
+        bool areShuffleOutputsFinalized = partition->ShuffleChunkPool()->AreOutputsFinalized();
 
         for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
@@ -2069,7 +2122,7 @@ protected:
             i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
             if (!partitionDataWeightForMerging.has_value() ||
-                !isAllDataCollected ||
+                !areShuffleOutputsFinalized ||
                 IsPartitionOversized(
                     accumulatedDataWeight + dataWeight,
                     accumulatedRowCount + rowCount,
@@ -2117,20 +2170,72 @@ protected:
                     .With("PartitionIndex", childPartition->GetIndex())
                     .With("PartitionDataWeight", childPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
             }
+        }
 
-            // NB(apollo1321): Finish may run callbacks in-place, so Finish() should not
-            // be called before marking all child partitions as completed.
-            partition->ShuffleChunkPoolInput()->Finish();
-        } else {
+        // NB(apollo1321): Finish may run callbacks in-place, so Finish() should not
+        // be called before marking all child partitions as completed.
+        partition->ShuffleChunkPoolInput()->Finish();
+    }
+
+    void OnPartitionOutputsFinalized(TWeakPtr<TIntermediatePartition> weakPartition)
+    {
+        auto partition = weakPartition.Lock();
+        if (!partition) {
+            return;
+        }
+
+        if (partition->GetLevel() + 1 == std::ssize(IntermediatePartitionsByLevels_)) {
             YT_TLOG_DEBUG("Dispatching physical partitions for final level intermediate partition")
                 .With("PartitionLevel", partition->GetLevel())
                 .With("PartitionIndex", partition->GetIndex())
                 .With("PhysicalPartitionCount", partition->GetPhysicalPartitionCount());
 
-            partition->ShuffleChunkPoolInput()->Finish();
-
-            TryDispatchPhysicalPartitionsForProcessing(partition, /*isAllDataCollected*/ true);
+            TryDispatchPhysicalPartitionsForProcessing(partition);
             YT_VERIFY(std::ssize(partition->DispatchedPhysicalPartitions()) == partition->GetPhysicalPartitionCount());
+        }
+
+        const auto& partitionTask = PartitionTasks_[partition->GetLevel()];
+        partitionTask->OnShuffleChunkPoolOutputsFinalized();
+        UpdateTask(partitionTask.Get());
+    }
+
+    TError CheckShuffleChunkPoolLimits(const IShuffleChunkPoolPtr& shuffleChunkPool) const
+    {
+        if (shuffleChunkPool->GetTotalDataSliceCount() > Spec_->MaxShuffleDataSliceCount) {
+            return TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
+                .With("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
+                .With("max_shuffle_data_slice_count", Spec_->MaxShuffleDataSliceCount);
+        }
+
+        if (shuffleChunkPool->GetTotalJobCount() > Spec_->MaxShuffleJobCount) {
+            return TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
+                .With("shuffle_job_count", shuffleChunkPool->GetTotalJobCount())
+                .With("max_shuffle_job_count", Spec_->MaxShuffleJobCount);
+        }
+
+        return TError();
+    }
+
+    void OnPushBasedShuffleChunkPoolUpdated(int physicalPartitionIndex)
+    {
+        const auto& rootPartition = IntermediatePartitionsByLevels_[0][0];
+        if (auto error = CheckShuffleChunkPoolLimits(rootPartition->ShuffleChunkPool()); !error.IsOK()) {
+            OnOperationFailed(error);
+            return;
+        }
+
+        if (rootPartition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
+            UpdateTask(IntermediateSortTask_.Get());
+        } else {
+            TryDispatchPhysicalPartitionsForProcessing(rootPartition, {physicalPartitionIndex});
+
+            if (rootPartition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
+                CheckSortStartThreshold();
+            }
+        }
+
+        if (IsCompleted()) {
+            OnOperationCompleted(/*interrupted*/ false);
         }
     }
 
@@ -2142,6 +2247,21 @@ protected:
                 &TSortControllerBase::OnPartitionProcessedByJobs,
                 MakeWeak(this),
                 MakeWeak(partition)));
+
+            if (partition->ShuffleChunkPool()->AreOutputsFinalized()) {
+                PartitionTasks_[partition->GetLevel()]->OnShuffleChunkPoolOutputsFinalized();
+            }
+
+            partition->ShuffleChunkPool()->SubscribeOutputsFinalized(BIND(
+                &TSortControllerBase::OnPartitionOutputsFinalized,
+                MakeWeak(this),
+                MakeWeak(partition)));
+        }
+
+        if (PushBasedShuffle_) {
+            IntermediatePartitionsByLevels_[0][0]->ChunkPoolOutput()->SubscribeCompleted(BIND(
+                &IPushBasedShuffle::FinalizeSessions,
+                MakeWeak(PushBasedShuffle_)));
         }
     }
 
@@ -2378,9 +2498,25 @@ protected:
             GetInputStreamDirectory());
     }
 
+    void ValidateSnapshot() const override
+    {
+        TOperationControllerBase::ValidateSnapshot();
+
+        THROW_ERROR_EXCEPTION_IF(
+            IsPushBasedShuffleUsed(),
+            NScheduler::EErrorCode::OperationFailedOnJobRestart,
+            "Cannot revive an operation that uses push-based shuffle")
+            .With("reason", EFailOnJobRestartReason::RevivalIsForbidden);
+    }
+
     void CreateShufflePools()
     {
         YT_VERIFY(!SimpleSortTask_);
+
+        if (IsPushBasedShuffleUsed()) {
+            InitializePushBasedShuffle();
+            return;
+        }
 
         ShuffleMultiChunkPoolInputs_.reserve(PartitionTreeDepth_);
         ShuffleMultiInputChunkMappings_.reserve(PartitionTreeDepth_);
@@ -2500,7 +2636,7 @@ protected:
     void CheckSortStartThreshold()
     {
         if (!SortStartThresholdReached_) {
-            if (SimpleSortTask_) {
+            if (SimpleSortTask_ || IsPushBasedShuffleUsed()) {
                 SortStartThresholdReached_ = true;
             } else if (IsSamplingEnabled() && PartitionTreeDepth_ == 1) {
                 if (PartitionTasks_.front()->IsCompleted()) {
@@ -2767,6 +2903,84 @@ protected:
         InitIntermediateSchemas();
     }
 
+    void SetPushBasedShuffleUsed(bool pushBasedShuffleUsed)
+    {
+        PushBasedShuffleUsed_ = pushBasedShuffleUsed;
+
+        if (!PushBasedShuffleUsed_) {
+            return;
+        }
+
+        ValidateStrictIntermediateStreamSchema();
+
+        if (IsFastIntermediateMediumEnabled()) {
+            THROW_ERROR_EXCEPTION("Fast intermediate medium is not supported by push-based shuffle")
+                .With("intermediate_data_account", Spec_->IntermediateDataAccount)
+                .With("fast_intermediate_medium_limit", GetFastIntermediateMediumLimit());
+        }
+    }
+
+    bool IsPushBasedShuffleUsed() const
+    {
+        return PushBasedShuffleUsed_;
+    }
+
+    bool IsIntermediateOutputRecalculationEnabled() const
+    {
+        return !IsPushBasedShuffleUsed() && Spec_->EnableIntermediateOutputRecalculation;
+    }
+
+    TSortColumns GetIntermediateSortColumns() const
+    {
+        auto sortColumns = Spec_->SortBy;
+        if (IsPushBasedShuffleUsed()) {
+            auto identitySortColumns = GetShuffleIdentitySortColumns();
+            sortColumns.insert(
+                sortColumns.end(),
+                identitySortColumns.begin(),
+                identitySortColumns.end());
+        }
+        return sortColumns;
+    }
+
+    TTableSchemaPtr GetSortedMergeInputSchema() const
+    {
+        if (!IsPushBasedShuffleUsed()) {
+            return IntermediateChunkSchema_;
+        }
+
+        auto sortedColumns = IntermediateStreamSchemas_[0]->ToSorted(Spec_->SortBy)->Columns();
+
+        std::vector<TColumnSchema> columns(
+            sortedColumns.begin(),
+            sortedColumns.begin() + Spec_->SortBy.size());
+        for (const auto& sortColumn : GetShuffleIdentitySortColumns()) {
+            columns.emplace_back(
+                sortColumn.Name,
+                SimpleLogicalType(ESimpleLogicalValueType::Int64),
+                sortColumn.SortOrder);
+        }
+        columns.insert(
+            columns.end(),
+            sortedColumns.begin() + Spec_->SortBy.size(),
+            sortedColumns.end());
+
+        return New<TTableSchema>(std::move(columns));
+    }
+
+    void ValidateStrictIntermediateStreamSchema() const
+    {
+        THROW_ERROR_EXCEPTION_IF(
+            std::ssize(IntermediateStreamSchemas_) != 1,
+            "Push-based shuffle supports exactly one intermediate stream")
+            .With("intermediate_stream_count", std::ssize(IntermediateStreamSchemas_));
+
+        THROW_ERROR_EXCEPTION_IF(
+            !IntermediateStreamSchemas_[0]->IsStrict(),
+            "Push-based shuffle requires a strict intermediate stream schema")
+            .With("intermediate_stream_schema", IntermediateStreamSchemas_[0]);
+    }
+
     virtual const std::vector<TOutputStreamDescriptorPtr>& GetFinalStreamDescriptors() const
     {
         return GetStandardStreamDescriptors();
@@ -2778,7 +2992,7 @@ protected:
 
         streamDescriptor->DestinationPool = SortedMergeTask_->GetChunkPoolInput();
         streamDescriptor->ChunkMapping = SortedMergeTask_->GetChunkMapping();
-        streamDescriptor->TableUploadOptions.TableSchema = IntermediateChunkSchema_;
+        streamDescriptor->TableUploadOptions.TableSchema = GetSortedMergeInputSchema();
         streamDescriptor->RequiresRecoveryInfo = true;
         streamDescriptor->TargetDescriptor = SortedMergeTask_->GetVertexDescriptor();
         streamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
@@ -2790,7 +3004,9 @@ protected:
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
-        jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
+        jobOptions.EnableKeyGuarantee =
+            GetSortedMergeJobType() == EJobType::SortedReduce ||
+            IsPushBasedShuffleUsed();
         jobOptions.PrimaryComparator = GetComparator(GetSortedMergeSortColumns());
         jobOptions.PrimaryPrefixLength = jobOptions.PrimaryComparator.GetLength();
         jobOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
@@ -2842,6 +3058,65 @@ protected:
                 .With("merge_data_slice_count", dataSliceCount)
                 .With("max_merge_data_slice_count", Spec_->MaxMergeDataSliceCount));
         }
+    }
+
+    void InitializePushBasedShuffle()
+    {
+        YT_VERIFY(PartitionTreeDepth_ == 1);
+        YT_VERIFY(std::ssize(IntermediatePartitionsByLevels_[0]) == 1);
+
+        const auto& rootPartition = IntermediatePartitionsByLevels_[0][0];
+        int partitionCount = rootPartition->GetPhysicalPartitionCount();
+
+        PushBasedShuffleJobSpecBuilder_ = New<TPushBasedShuffleJobSpecBuilder>(
+            Options_->PushBasedShuffle,
+            IntermediateStreamSchemas_[0],
+            Spec_->IntermediateCompressionCodec,
+            Spec_->IntermediateDataReplicationFactor,
+            partitionCount,
+            PartitionJobIOConfig_->TableWriter->MaxBufferSize);
+        PushBasedShuffleJobSpecBuilder_->ValidateWriterMemoryBudget();
+
+        PushBasedShuffle_ = CreatePushBasedShuffle(
+            TPushBasedShuffleParameters{
+                .IncarnationId = Host_->GetIncarnationId(),
+                .OperationId = OperationId_,
+                .PartitionCount = partitionCount,
+                .TransactionId = OutputTransaction_->GetId(),
+                .Spec = Spec_,
+                .PushBasedShuffleOptions = Options_->PushBasedShuffle,
+            },
+            Host_->GetPushBasedShuffleRegistry(),
+            Host_->GetPushBasedShuffleSealMonitor(),
+            OutputClient_,
+            GetCancelableInvoker(),
+            BIND_NO_PROPAGATE(&TSortControllerBase::InvokeSafely, MakeWeak(this)),
+            BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (const TError& error) {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->OnOperationFailed(error);
+                }
+            }),
+            BIND_NO_PROPAGATE(&TSortControllerBase::OnPushBasedShuffleChunkPoolUpdated, MakeWeak(this)),
+            Logger().WithTag("Name", "PushBasedShuffle"));
+
+        rootPartition->ShuffleChunkPool() = PushBasedShuffle_->GetChunkPool();
+        rootPartition->ShuffleChunkPoolInput() = rootPartition->ShuffleChunkPool()->GetInput();
+
+        ShuffleMultiChunkPoolInputs_.push_back(CreateMultiChunkPoolInput({rootPartition->ShuffleChunkPoolInput()}));
+        ShuffleMultiInputChunkMappings_.push_back(New<TInputChunkMapping>(EChunkMappingMode::Unordered, Logger));
+    }
+
+    void BuildPushBasedShuffleValidTaskJobIndexes(TJobSpec* jobSpec) const
+    {
+        YT_VERIFY(PushBasedShuffle_->GetChunkPool()->AreOutputsFinalized());
+        TPushBasedShuffleJobSpecBuilder::FillValidTaskJobIndexes(jobSpec, CompletedTaskJobIndexes_);
+    }
+
+    int SuggestMaxPartitionFactor(int expectedPartitionCount) const
+    {
+        return IsPushBasedShuffleUsed()
+            ? expectedPartitionCount
+            : PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(expectedPartitionCount);
     }
 
     void BuildPartitionTree()
@@ -3159,6 +3434,9 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(47, PartitionDispatchStatistics_,
         .SinceVersion(ESnapshotVersion::FixPartitionsDispatchStatistics));
 
+    PHOENIX_REGISTER_FIELD(48, PushBasedShuffleUsed_,
+        .SinceVersion(ESnapshotVersion::PushBasedShuffle));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (!this_->SimpleSortTask_) {
             this_->SetupPartitioningCompletedCallbacks();
@@ -3421,7 +3699,8 @@ private:
             OutputTables_[0]->TableUploadOptions.GetUploadSchema());
 
         ExpectedPartitionCount_ = partitionKeys.size() + 1;
-        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(ExpectedPartitionCount_);
+        SetPushBasedShuffleUsed(Spec_->UsePushBasedShuffle && ExpectedPartitionCount_ > 1);
+        MaxPartitionFactor_ = SuggestMaxPartitionFactor(ExpectedPartitionCount_);
 
         YT_TLOG_DEBUG("Final partitioning parameters")
             .With("ExpectedPartitionCount", ExpectedPartitionCount_)
@@ -3458,19 +3737,23 @@ private:
         YT_VERIFY(!SimpleSortTask_);
         PartitionTasks_.resize(PartitionTreeDepth_);
         for (int partitionTaskLevel = PartitionTreeDepth_ - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
-            auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
-            shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs_[partitionTaskLevel];
-            shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings_[partitionTaskLevel];
-            shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
-            shuffleStreamDescriptor->TableUploadOptions.TableSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
-            if (partitionTaskLevel != PartitionTreeDepth_ - 1) {
-                shuffleStreamDescriptor->TargetDescriptor = PartitionTasks_[partitionTaskLevel + 1]->GetVertexDescriptor();
+            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors;
+            if (!IsPushBasedShuffleUsed()) {
+                auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
+                shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs_[partitionTaskLevel];
+                shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings_[partitionTaskLevel];
+                shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
+                shuffleStreamDescriptor->TableUploadOptions.TableSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
+                if (partitionTaskLevel != PartitionTreeDepth_ - 1) {
+                    shuffleStreamDescriptor->TargetDescriptor = PartitionTasks_[partitionTaskLevel + 1]->GetVertexDescriptor();
+                }
+                outputStreamDescriptors.push_back(std::move(shuffleStreamDescriptor));
             }
 
             auto createPartitionTask = [&, this_ = this] (auto chunkPoolInput, auto chunkPoolOutput) {
                 return New<TPartitionTask>(
                     this_,
-                    /*outputStreamDescriptors*/ std::vector<TOutputStreamDescriptorPtr>{shuffleStreamDescriptor},
+                    /*outputStreamDescriptors*/ std::move(outputStreamDescriptors),
                     partitionTaskLevel,
                     std::move(chunkPoolInput),
                     std::move(chunkPoolOutput));
@@ -3668,7 +3951,11 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec_->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
-            partitionJobSpecExt->set_use_sequential_reader(Spec_->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(IsIntermediateOutputRecalculationEnabled());
+
+            if (IsPushBasedShuffleUsed()) {
+                PushBasedShuffleJobSpecBuilder_->FillWriterSpecTemplate(&RootPartitionJobSpecTemplate_);
+            }
         }
 
         {
@@ -3686,7 +3973,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec_->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
-            partitionJobSpecExt->set_use_sequential_reader(Spec_->EnableIntermediateOutputRecalculation);
+            partitionJobSpecExt->set_use_sequential_reader(IsIntermediateOutputRecalculationEnabled());
         }
 
         TJobSpec sortJobSpecTemplate;
@@ -3707,6 +3994,9 @@ private:
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(sortJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
+            if (IsPushBasedShuffleUsed()) {
+                PushBasedShuffleJobSpecBuilder_->FillSortReaderSpec(sortJobSpecExt->mutable_push_based_shuffle_sort_reader());
+            }
         }
 
         {
@@ -3739,15 +4029,15 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(
                     GetSpec()->IntermediateDataAccount,
-                    {IntermediateChunkSchema_}));
+                    {GetSortedMergeInputSchema()}));
             SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
             jobSpecExt->set_io_config(ToProto(ConvertToYsonString(SortedMergeJobIOConfig_)));
 
-            ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
-            ToProto(mergeJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
+            ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(GetIntermediateSortColumns()));
+            ToProto(mergeJobSpecExt->mutable_sort_columns(), GetIntermediateSortColumns());
         }
 
         {
@@ -3794,15 +4084,20 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 outputBufferSize = std::min(
-            PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
-            stat.DataWeight);
+        i64 outputBufferSize;
+        if (IsPushBasedShuffleUsed()) {
+            outputBufferSize = PushBasedShuffleJobSpecBuilder_->ComputeWriterJobMemorySize();
+        } else {
+            outputBufferSize = std::min(
+                PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
+                stat.DataWeight);
 
-        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
+            outputBufferSize += THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
 
-        outputBufferSize = std::min(
-            outputBufferSize,
-            PartitionJobIOConfig_->TableWriter->MaxBufferSize);
+            outputBufferSize = std::min(
+                outputBufferSize,
+                PartitionJobIOConfig_->TableWriter->MaxBufferSize);
+        }
 
         TExtendedJobResources result;
         result.SetUserSlots(1);
@@ -3886,7 +4181,7 @@ private:
 
     bool IsRowCountPreserved() const override
     {
-        return !InputManager_->HasRowLevelAcl();
+        return !InputManager_->HasRowLevelAcl() && !IsPushBasedShuffleUsed();
     }
 
     i64 GetUnavailableInputChunkCount() const override
@@ -3984,12 +4279,12 @@ private:
         SortedMergeTask_ = New<TSortedMergeTask>(
             this,
             /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
-            /*enableKeyGuarantee*/ false);
+            /*enableKeyGuarantee*/ IsPushBasedShuffleUsed());
     }
 
     TSortColumns GetSortedMergeSortColumns() const override
     {
-        return Spec_->SortBy;
+        return GetIntermediateSortColumns();
     }
 
     TYsonStructPtr GetTypedSpec() const override
@@ -4265,7 +4560,7 @@ private:
 
     void InitIntermediateSchemas() override
     {
-        if (!Spec_->HasSchemafulIntermediateStreams()) {
+        if (!Spec_->HasSchemafulIntermediateStreams() && !Spec_->UsePushBasedShuffle) {
             IntermediateChunkSchema_ = TTableSchema::FromSortColumns(Spec_->SortBy);
             return;
         }
@@ -4337,6 +4632,10 @@ private:
             }
         }
         IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /*strict*/ false);
+
+        if (Spec_->UsePushBasedShuffle && AreAllEqual(IntermediateStreamSchemas_)) {
+            IntermediateStreamSchemas_.resize(1);
+        }
     }
 
     TTableSchemaPtr BuildSampleSchema() const
@@ -4357,6 +4656,8 @@ private:
         if (EstimatedInputStatistics_->DataWeight == 0) {
             return;
         }
+
+        SetPushBasedShuffleUsed(Spec_->UsePushBasedShuffle);
 
         MapperFiles_ = UserJobFiles_[Spec_->Mapper];
         ReduceCombinerFiles_ = UserJobFiles_[Spec_->ReduceCombiner];
@@ -4384,7 +4685,7 @@ private:
             ExpectedPartitionCount_ = PartitioningParametersEvaluator_->SuggestPartitionCount();
         }
 
-        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(ExpectedPartitionCount_);
+        MaxPartitionFactor_ = SuggestMaxPartitionFactor(ExpectedPartitionCount_);
         BuildPartitionTree();
 
         if (!partitionKeys.empty()) {
@@ -4413,22 +4714,25 @@ private:
     {
         PartitionTasks_.resize(PartitionTreeDepth_);
         for (int partitionTaskLevel = PartitionTreeDepth_ - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
-            // Primary stream descriptor for shuffled output of the mapper.
-            auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
-            shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs_[partitionTaskLevel];
-            shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings_[partitionTaskLevel];
-            shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
-            shuffleStreamDescriptor->TableUploadOptions.TableSchema = IntermediateChunkSchema_;
-            shuffleStreamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
-            if (partitionTaskLevel != PartitionTreeDepth_ - 1) {
-                shuffleStreamDescriptor->TargetDescriptor = PartitionTasks_[partitionTaskLevel + 1]->GetVertexDescriptor();
-            }
-            shuffleStreamDescriptor->TableWriterOptions->ComputeDigest =
-                partitionTaskLevel == 0 &&
-                Spec_->EnableIntermediateOutputRecalculation &&
-                Spec_->HasNontrivialMapper();
+            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors;
+            if (!IsPushBasedShuffleUsed()) {
+                // Primary stream descriptor for shuffled output of the mapper.
+                auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
+                shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs_[partitionTaskLevel];
+                shuffleStreamDescriptor->ChunkMapping = ShuffleMultiInputChunkMappings_[partitionTaskLevel];
+                shuffleStreamDescriptor->TableWriterOptions->ReturnBoundaryKeys = false;
+                shuffleStreamDescriptor->TableUploadOptions.TableSchema = IntermediateChunkSchema_;
+                shuffleStreamDescriptor->StreamSchemas = IntermediateStreamSchemas_;
+                if (partitionTaskLevel != PartitionTreeDepth_ - 1) {
+                    shuffleStreamDescriptor->TargetDescriptor = PartitionTasks_[partitionTaskLevel + 1]->GetVertexDescriptor();
+                }
+                shuffleStreamDescriptor->TableWriterOptions->ComputeDigest =
+                    partitionTaskLevel == 0 &&
+                    IsIntermediateOutputRecalculationEnabled() &&
+                    Spec_->HasNontrivialMapper();
 
-            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors{std::move(shuffleStreamDescriptor)};
+                outputStreamDescriptors.push_back(std::move(shuffleStreamDescriptor));
+            }
 
             if (partitionTaskLevel == 0) {
                 outputStreamDescriptors.insert(
@@ -4488,7 +4792,7 @@ private:
         auto streamDescriptor = TSortControllerBase::GetSortedMergeStreamDescriptor();
         streamDescriptor->TableWriterOptions->ComputeDigest =
             Spec_->HasNontrivialReduceCombiner() &&
-            Spec_->EnableIntermediateOutputRecalculation;
+            IsIntermediateOutputRecalculationEnabled();
         return streamDescriptor;
     }
 
@@ -4579,7 +4883,11 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec_->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
-            partitionJobSpecExt->set_use_sequential_reader(Spec_->EnableIntermediateOutputRecalculation || Spec_->Ordered);
+            partitionJobSpecExt->set_use_sequential_reader(IsIntermediateOutputRecalculationEnabled() || Spec_->Ordered);
+
+            if (IsPushBasedShuffleUsed()) {
+                PushBasedShuffleJobSpecBuilder_->FillWriterSpecTemplate(&RootPartitionJobSpecTemplate_);
+            }
 
             if (Spec_->HasNontrivialMapper()) {
                 InitUserJobSpecTemplate(
@@ -4608,7 +4916,7 @@ private:
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec_->SortBy));
             ToProto(partitionJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
-            partitionJobSpecExt->set_use_sequential_reader(Spec_->EnableIntermediateOutputRecalculation || Spec_->Ordered);
+            partitionJobSpecExt->set_use_sequential_reader(IsIntermediateOutputRecalculationEnabled() || Spec_->Ordered);
         }
 
         auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(
@@ -4646,6 +4954,9 @@ private:
                 IntermediateSortJobSpecTemplate_.set_type(ToProto(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate_.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                 ToProto(sortJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
+                if (IsPushBasedShuffleUsed()) {
+                    PushBasedShuffleJobSpecBuilder_->FillSortReaderSpec(sortJobSpecExt->mutable_push_based_shuffle_sort_reader());
+                }
             }
         }
 
@@ -4654,6 +4965,9 @@ private:
 
             auto* jobSpecExt = FinalSortJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            if (IsPushBasedShuffleUsed()) {
+                PushBasedShuffleJobSpecBuilder_->FillSortReaderSpec(reduceJobSpecExt->mutable_push_based_shuffle_sort_reader());
+            }
 
             jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
@@ -4685,7 +4999,7 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
             auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(
                 GetSpec()->IntermediateDataAccount,
-                std::vector<TTableSchemaPtr>(IntermediateStreamSchemas_.size(), IntermediateChunkSchema_));
+                std::vector<TTableSchemaPtr>(IntermediateStreamSchemas_.size(), GetSortedMergeInputSchema()));
 
             jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
@@ -4699,7 +5013,7 @@ private:
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
-            ToProto(reduceJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
+            ToProto(reduceJobSpecExt->mutable_sort_columns(), GetIntermediateSortColumns());
             reduceJobSpecExt->set_disable_sorted_input(Spec_->DisableSortedInputInReducer);
 
             InitUserJobSpecTemplate(
@@ -4777,9 +5091,14 @@ private:
         // TODO(apollo1321): Current memory estimation is not correct for multilevel shuffle.
         // It should account for the number of output partitions for a given job.
         i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
-        i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
-            PartitionJobIOConfig_->TableWriter->MaxBufferSize);
+        i64 bufferSize;
+        if (IsPushBasedShuffleUsed()) {
+            bufferSize = PushBasedShuffleJobSpecBuilder_->ComputeWriterJobMemorySize();
+        } else {
+            bufferSize = std::min(
+                reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
+                PartitionJobIOConfig_->TableWriter->MaxBufferSize);
+        }
 
         TExtendedJobResources result;
         result.SetUserSlots(1);
@@ -4791,7 +5110,9 @@ private:
                 bufferSize);
         } else {
             result.SetCpu(1);
-            bufferSize = std::min(bufferSize, stat.DataWeight + reserveSize);
+            if (!IsPushBasedShuffleUsed()) {
+                bufferSize = std::min(bufferSize, stat.DataWeight + reserveSize);
+            }
             result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig_, stat) +
                 GetOutputWindowMemorySize(PartitionJobIOConfig_) +

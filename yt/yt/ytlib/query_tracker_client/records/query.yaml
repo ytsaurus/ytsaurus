@@ -556,3 +556,36 @@ types:
         column_name: unique_queries
         column_type: Int64
         aggregate: sum
+
+  - type_name: TQueryProgress
+    fields:
+      # Key.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: PartName
+        cpp_type: std::string
+        column_name: part_name
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Revision
+        cpp_type: ui32
+        column_name: revision
+        column_type: Uint32
+
+      - cpp_name: PartValue
+        cpp_type: std::string
+        column_name: part_value
+        column_type: String
+
+      - cpp_name: Ttl
+        cpp_type: std::optional<ui64>
+        column_name: $ttl
+        column_type: Uint64

@@ -600,6 +600,7 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 
 		apiCfg := cfg.BaseAPIConfig
 		apiCfg.AgentInfo = clusterInfo
+		apiCfg.Deprecated = cf.Deprecated
 
 		locDefaultSpeclet := cfg.LocationControllerDefaultSpeclet[proxy][family]
 		ctlCfg, err := strawberry.AddDefaultSpecletToConfig(cf.Config, locDefaultSpeclet)

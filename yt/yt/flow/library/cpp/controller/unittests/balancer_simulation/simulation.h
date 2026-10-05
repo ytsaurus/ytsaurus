@@ -74,6 +74,7 @@ struct TScenario
     double PlanningHorizonSeconds = 0.;
     double ZeroQueueLatencySeconds = 0.;
     double RebalanceTargetDeviation = 0.;
+    std::optional<TDuration> PreloadingTimeout; // the spec default when unset
 
     EUnusedResourceStatus UnusedResourceStatus = EUnusedResourceStatus::Live;
 
