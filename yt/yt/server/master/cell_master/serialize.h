@@ -230,6 +230,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkListRefactoring)                                         (3355))  // grphil
     ((SecondaryIndexMoveWithinCell)                                 (3356))  // sabdenovch
     ((TwoPhaseAlterTable)                                           (3357))  // ifsmirnov
+    ((SetEmptyRequisitionIndexOnImportByDefault)                    (3358))  // theevilbird
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
