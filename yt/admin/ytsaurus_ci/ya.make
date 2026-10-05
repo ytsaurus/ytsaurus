@@ -56,6 +56,7 @@ IF (NOT OPENSOURCE OR YT_CUSTOM_INTERNAL_BUILD)
         configs/components-internal.yaml
         configs/compat-ytsaurus-custom-internal-build.yaml
         configs/compat-query_tracker-custom-internal-build.yaml
+        configs/upgrades-custom-internal-build.yaml
         templates/spec-for-custom-internal-build.yaml
     )
 ENDIF()
