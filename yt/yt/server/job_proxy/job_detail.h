@@ -63,6 +63,11 @@ protected:
     std::unique_ptr<IJobProfiler> JobProfiler_;
 
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+
+private:
+    // NB: Replicas of input chunks reach the readers via their chunk specs,
+    // while hunk chunk replicas are only available through the replica cache.
+    void PopulateChunkReplicaCacheWithHunkChunks() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -347,6 +347,7 @@ protected:
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
+        THashSet<NChunkClient::TChunkId>* seenHunkChunks,
         NTableClient::TComparator comparator,
         NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 

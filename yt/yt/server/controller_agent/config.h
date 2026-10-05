@@ -1279,6 +1279,7 @@ struct TControllerAgentConfig
     bool EnableVersionedRemoteCopy;
     bool EnableHunksRemoteCopy;
     bool EnableCompressionDictionaryRemoteCopy;
+    bool EnableHunkChunkReplicaPrefetch;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 

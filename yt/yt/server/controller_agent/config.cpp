@@ -1363,6 +1363,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_compression_dictionary_remote_copy", &TThis::EnableCompressionDictionaryRemoteCopy)
         .Default(true);
+    registrar.Parameter("enable_hunk_chunk_replica_prefetch", &TThis::EnableHunkChunkReplicaPrefetch)
+        .Default(false);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
