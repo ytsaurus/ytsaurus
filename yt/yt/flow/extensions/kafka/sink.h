@@ -174,9 +174,8 @@ DEFINE_REFCOUNTED_TYPE(TRetryableKafkaWriter);
 struct TKafkaSinkState
     : public NYTree::TYsonStruct
 {
-    //! The seqNo of the last message any persisted epoch registered. Messages are handed to the writer
-    //! only after the epoch registering them commits, so earlier sessions may have committed messages up
-    //! to this one, but none past it.
+    //! The seqNo up to which messages may have been handed to the writer: earlier sessions may have
+    //! committed messages up to this one, but none past it.
     i64 MaxDistributedSeqNo = 0;
 
     REGISTER_YSON_STRUCT(TKafkaSinkState);
@@ -254,15 +253,25 @@ public:
 
     void Init(IInitContextPtr initContext) override;
     void Sync(NApi::IDynamicTableTransactionPtr transaction) override;
+    void Commit() override;
 
 private:
     using TCommonKafkaSink::Logger;
+
+    //! A message kept from the writer until a persisted bound covers it.
+    struct TWithheldWrite
+    {
+        TKafkaMessageToWrite Record;
+        TPromise<void> Promise;
+    };
 
     //! Set with #EKafkaDeliveryGuarantee::ExactlyOnce, in place of the writer of #TCommonKafkaSink.
     TTransactionalKafkaWriterPtr TransactionalWriter_;
     TMutableStateClient<TKafkaSinkState> TransactionalState_;
     //! What the last Sync recorded as #TKafkaSinkState::MaxDistributedSeqNo.
     i64 MaxDistributedSeqNo_ = 0;
+    //! The writes past #MaxDistributedSeqNo_, in seqNo order.
+    std::deque<TWithheldWrite> WithheldWrites_;
 
     void DoInit(const std::string& producerId) final;
     TFuture<void> DoDistribute(const TOutputMessageConstPtr& message, i64 seqNo) final;
