@@ -266,7 +266,9 @@ TEST(TPortableExpressionProgramTest, NullPoliciesAndScratchReuse)
             BIND([&] (TValue* result, TRange<TValue> arguments, const TRowBufferPtr& /*rowBuffer*/) {
                 ++propagateCallCount;
                 *result = MakeUnversionedInt64Value(arguments[0].Data.Int64 + 1);
-            })));
+            }),
+            EValueType::Int64,
+            EOperationNullPolicy::Propagate));
     builder.RegisterFunction(
         "is_null",
         MakeDescriptor(

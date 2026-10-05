@@ -274,7 +274,7 @@ void TExpressionRegistryBuilder::RegisterFunction(
     ValidateFunctionName(functionName);
 
     auto operation = Format("function %Qv", functionName);
-    ValidateDescriptor(descriptor, operation, std::nullopt);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ std::nullopt);
 
     if (VariadicFunctions_.find(functionName) != VariadicFunctions_.end()) {
         THROW_ERROR_EXCEPTION("Portable %v cannot mix exact and variadic overloads", operation);
@@ -313,7 +313,7 @@ void TExpressionRegistryBuilder::RegisterUnary(
     }
 
     auto operation = Format("unary operator %Qlv", opcode);
-    ValidateDescriptor(descriptor, operation, 1);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ 1);
     ValidateAndAppendDescriptor(&UnaryOperators_[opcode], std::move(descriptor), operation);
 }
 
@@ -327,7 +327,7 @@ void TExpressionRegistryBuilder::RegisterBinary(
     }
 
     auto operation = Format("binary operator %Qlv", opcode);
-    ValidateDescriptor(descriptor, operation, 2);
+    ValidateDescriptor(descriptor, operation, /*expectedArity*/ 2);
     ValidateAndAppendDescriptor(&BinaryOperators_[opcode], std::move(descriptor), operation);
 }
 
