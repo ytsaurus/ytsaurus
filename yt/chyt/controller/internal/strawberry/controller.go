@@ -37,6 +37,9 @@ type Controller interface {
 	// GetControllerSnapshot returns snapshot of controller state for tracking oplet coherence.
 	GetControllerSnapshot() (yson.RawValue, error)
 
+	// IsControllerSnapshotOutdated compares a stored snapshot with the current state using the oplet's restart policy.
+	IsControllerSnapshotOutdated(snapshot yson.RawValue, oplet *Oplet) (bool, error)
+
 	// DescribeOptions returns human-readable descriptors for controller-related speclet options.
 	// Some options can be missing in the result if they are not intended to be visible through user interfaces.
 	//
