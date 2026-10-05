@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Set
 
 import yaml
 
@@ -41,7 +41,9 @@ def _make_upgrade_task(args: dict) -> UpgradeTaskCI:
         scenario_config=args["config"],
         version_registry=args["registry"],
         clients=args["clients"],
-        scenario_name=f"{args['scenario_name']}/{args['config'].type}",
+        # TODO(epsilond1, ilyaibraev): Pass f"{args['scenario_name']}/{args['config'].type}"
+        # once the server is able to parse it.
+        scenario_name="upgrade/upgrade",
         tests=_make_checks(args["config"], args["check_registry"]),
         upgrade_to=args.get("upgrade_to"),
         upgrade_config_name=args.get("upgrade_config_name"),
@@ -93,6 +95,16 @@ def _build_constraints(config: models.Scenario, version_filter: Dict[str, str]) 
     return constraints
 
 
+def _resolve_components(
+    config: models.Scenario,
+    registry: component_registry.VersionComponentRegistry,
+) -> Set[str]:
+    if config.components:
+        return set(config.components) | {"operator"}
+
+    return set(registry.get_components_in_graph())
+
+
 def _make_tasks(
     config: models.Scenario,
     clients: Dict[str, object],
@@ -103,9 +115,7 @@ def _make_tasks(
     constraints = _build_constraints(config, version_filter)
 
     registry = component_registry.VersionComponentRegistry(component_registry.load_components_config())
-    relevant_components = (
-        set(config.components) | {"operator"} if config.components else set(registry.get_components_in_graph())
-    )
+    relevant_components = _resolve_components(config, registry)
     graph = compatibility_graph.CompatibilityGraph(registry, components=relevant_components)
     paths = graph.find_all_test_suites(constraints, components=relevant_components)
 
@@ -139,15 +149,15 @@ def _make_upgrade_tasks(
         raise ValueError(f"unknown upgrade config {upgrade_config!r}, available: {available}")
 
     registry = component_registry.VersionComponentRegistry(component_registry.load_components_config())
-    default_components = set(registry.get_components_in_graph())
-    graph = compatibility_graph.CompatibilityGraph(registry, components=default_components)
+    components = _resolve_components(config, registry)
+    graph = compatibility_graph.CompatibilityGraph(registry, components=components)
 
     tasks_kwargs = []
     for name, upgrade in upgrade_cfg.items():
         if upgrade_config and name != upgrade_config:
             continue
 
-        paths = graph.find_all_test_suites(upgrade.get("version_filter", {}), components=default_components)
+        paths = graph.find_all_test_suites(upgrade.get("version_filter", {}), components=components)
         tasks_kwargs.extend(
             [
                 {
