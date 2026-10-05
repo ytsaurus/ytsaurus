@@ -297,6 +297,110 @@ class TestComputation(FlowTestBase):
             missing = set(EXPECTED_DATA_ALT) - output
             assert not missing, f"{len(missing)} rows of the new queue's backlog were skipped"
 
+    @pytest.mark.authors(["spreis"])
+    @pytest.mark.xfail(
+        reason="YQLOVERYT-111: recreated source objects reuse persisted offsets",
+        strict=True,
+    )
+    def test_recreated_queue_and_consumer_at_same_paths_use_fresh_offsets(self):
+        self._check_recreated_consumer_uses_fresh_offsets(recreate_queue=True)
+
+    @pytest.mark.authors(["spreis"])
+    @pytest.mark.xfail(
+        reason="YQLOVERYT-111: recreated consumer is advanced to persisted source offsets",
+        strict=True,
+    )
+    def test_recreated_consumer_at_same_path_uses_fresh_offsets(self):
+        self._check_recreated_consumer_uses_fresh_offsets(recreate_queue=False)
+
+    def _check_recreated_consumer_uses_fresh_offsets(self, recreate_queue):
+        old_rows = generate_data(3, 1, prefix="old")
+        new_rows = generate_data(10, 1, prefix="new")
+        old_data = sorted(row["data"] for row in old_rows)
+        new_data = sorted(row["data"] for row in new_rows)
+
+        def get_output_rows():
+            query = f"data from [{self.output_queue}]"
+            return sorted(row["data"] for row in self.client.select_rows(query))
+
+        def get_consumer_offsets():
+            query = f"[partition_index], [offset] from [{self.consumer}]"
+            return {row["partition_index"]: row["offset"] for row in self.client.select_rows(query)}
+
+        run_yt_sync("primary", self.work_yt_path, 1)
+        self.client.insert_rows(self.input_queue, old_rows)
+
+        pipeline_id = self.client.get(f"{self.pipeline_path}/@id")
+        old_queue_id = self.client.get(f"{self.input_queue}/@id")
+        old_consumer_id = self.client.get(f"{self.consumer}/@id")
+        pipeline_config_path = self.prepare_pipeline_config(cpu_aware=False, finite=False)
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            wait(lambda: get_output_rows() == old_data, timeout=180)
+            wait(lambda: get_consumer_offsets() == {0: len(old_rows)}, timeout=180)
+            old_identities = self._layout_identities()
+            assert old_identities
+            wait(lambda: self._reader_state_identities() & old_identities, timeout=180)
+
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped", timeout=180)
+
+            static_spec = self.client.get_pipeline_spec(self.pipeline_path)["spec"]
+            reader = static_spec["computations"]["reader"]
+            source_params = reader["source_streams"]["queue"]["parameters"]
+            source_params["finite"] = True
+            self.client.set_pipeline_spec(self.pipeline_path, static_spec)
+
+        self.client.unregister_queue_consumer(self.input_queue, self.consumer)
+        paths_to_recreate = [self.consumer]
+        if recreate_queue:
+            paths_to_recreate.append(self.input_queue)
+        for path in paths_to_recreate:
+            self.client.unmount_table(path, sync=True)
+            self.client.remove(path)
+
+        run_yt_sync("primary", self.work_yt_path, 1)
+
+        assert self.client.get(f"{self.pipeline_path}/@id") == pipeline_id
+        new_queue_id = self.client.get(f"{self.input_queue}/@id")
+        if recreate_queue:
+            assert new_queue_id != old_queue_id
+        else:
+            assert new_queue_id == old_queue_id
+            query = f"data from [{self.input_queue}]"
+            assert sorted(row["data"] for row in self.client.select_rows(query)) == old_data
+        assert self.client.get(f"{self.consumer}/@id") != old_consumer_id
+        assert get_consumer_offsets() in ({}, {0: 0})
+
+        self.client.insert_rows(self.input_queue, new_rows)
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+            run_pipeline=False,
+        ):
+            self.client.start_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("completed", timeout=180)
+
+            output = get_output_rows()
+            expected_restart_data = new_data if recreate_queue else old_data + new_data
+            expected_output = sorted(old_data + expected_restart_data)
+            assert output == expected_output, {
+                "expected": expected_output,
+                "actual": output,
+                "expected_count": len(expected_output),
+                "actual_count": len(output),
+                "consumer_offsets": get_consumer_offsets(),
+            }
+            assert get_consumer_offsets() == {0: len(expected_restart_data)}
+
     # A source key is [stream id, source identity (an opaque hash of the identifying params),
     # partition coordinates...], so the identity is the second column.
 
