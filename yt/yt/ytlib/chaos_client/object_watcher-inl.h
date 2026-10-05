@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/actions/bind.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <algorithm>
@@ -80,11 +78,8 @@ void TObjectWatcher<TObjectPtr, TWatcherInterface>::Stop()
         }
     }
 
-    auto stopResult = NConcurrency::WaitFor(ExpirationExecutor_->Stop());
-    if (!stopResult.IsOK()) {
-        YT_TLOG_WARNING("Failed to stop object watcher expiration executor")
-            .With(stopResult);
-    }
+    // NB: Must not yield; called from automaton epoch callbacks.
+    YT_UNUSED_FUTURE(ExpirationExecutor_->Stop());
 }
 
 template <class TObjectPtr, class TWatcherInterface>
