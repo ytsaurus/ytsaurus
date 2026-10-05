@@ -1599,6 +1599,13 @@ class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
         "node_tracker": {
             "profiling_period": 100,
         },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "testing": {
+                    "suppress_registration_revision_validation": True,
+                },
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
