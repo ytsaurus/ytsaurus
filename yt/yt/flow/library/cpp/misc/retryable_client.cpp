@@ -226,6 +226,12 @@ public:
             }));                                                                                  \
     }
 
+    RETRYING_METHOD(TFuture<NYson::TYsonString>, GetNode,
+        (
+            const NYPath::TYPath& path,
+            const TGetNodeOptions& options),
+        (path, options))
+
     RETRYING_METHOD(TFuture<TUnversionedLookupRowsResult>, LookupRows,
         (
             const NYPath::TYPath& path,
