@@ -36,10 +36,15 @@ class TScalarPreparationTest
     : public ::testing::TestWithParam<int>
 {
 protected:
+    int GetBuilderVersion() const
+    {
+        return GetParam();
+    }
+
     TConstExpressionPtr Prepare(TStringBuf source, const TTableSchema& schema) const
     {
         auto parsedSource = ParseSource(source, EParseMode::Expression);
-        return PrepareExpression(*parsedSource, schema, GetParam());
+        return PrepareExpression(*parsedSource, schema, GetBuilderVersion());
     }
 };
 
@@ -68,7 +73,7 @@ TEST_P(TScalarPreparationTest, FarmHashPreservesArgumentTypes)
 TEST_P(TScalarPreparationTest, FarmHashRejectsStaticNullArgument)
 {
     TTableSchema schema({TColumnSchema("n", EValueType::Null)});
-    auto expectedError = GetParam() == 1
+    auto expectedError = GetBuilderVersion() == 1
         ? "Wrong type for repeated argument to function"
         : "No matching function";
     EXPECT_THROW_WITH_SUBSTRING(Prepare("farm_hash(n)", schema), expectedError);
@@ -76,7 +81,7 @@ TEST_P(TScalarPreparationTest, FarmHashRejectsStaticNullArgument)
 
 TEST_P(TScalarPreparationTest, FarmHashNullLiteralDependsOnBuilderVersion)
 {
-    if (GetParam() == 2) {
+    if (GetBuilderVersion() == 2) {
         EXPECT_THROW_WITH_SUBSTRING(Prepare("farm_hash(NULL)", /*schema*/ {}), "No matching function");
         return;
     }
@@ -146,7 +151,7 @@ TEST_P(TScalarPreparationTest, MixedModuloReferencesDependOnBuilderVersion)
     for (bool unsignedFirst : {false, true}) {
         auto source = unsignedFirst ? "u % i" : "i % u";
         SCOPED_TRACE(source);
-        if (GetParam() == 1) {
+        if (GetBuilderVersion() == 1) {
             EXPECT_THROW_WITH_SUBSTRING(Prepare(source, schema), "Type mismatch in expression");
             continue;
         }
@@ -203,7 +208,7 @@ TEST_P(TScalarPreparationTest, ModuloWithStaticNullArgumentDependsOnBuilderVersi
         for (bool nullFirst : {false, true}) {
             auto source = nullFirst ? "n % value" : "value % n";
             SCOPED_TRACE(source);
-            if (GetParam() == 1) {
+            if (GetBuilderVersion() == 1) {
                 EXPECT_THROW_WITH_SUBSTRING(Prepare(source, schema), "Type mismatch in expression");
                 continue;
             }
@@ -247,7 +252,7 @@ TEST_P(TScalarPreparationTest, FarmHashModuloSignedReferenceDependsOnBuilderVers
         TColumnSchema("key", EValueType::String),
         TColumnSchema("divisor", EValueType::Int64),
     });
-    if (GetParam() == 1) {
+    if (GetBuilderVersion() == 1) {
         EXPECT_THROW_WITH_SUBSTRING(
             Prepare("farm_hash(key) % divisor", schema),
             "Type mismatch in expression");
