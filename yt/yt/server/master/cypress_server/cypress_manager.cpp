@@ -54,6 +54,7 @@
 
 #include <yt/yt/server/master/object_server/cypress_integration.h>
 #include <yt/yt/server/master/object_server/garbage_collector.h>
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 #include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
@@ -2172,6 +2173,42 @@ public:
         if (request.Mode == ELockMode::Snapshot && !transaction) {
             THROW_ERROR_EXCEPTION("%Qlv lock requires a transaction",
                 request.Mode);
+        }
+
+        // COMPAT(shakurov)
+        if (GetDynamicConfig()->EnableSequoiaNodeStateValidationInCreateLock) {
+            TCypressNode* originatingNode = nullptr;
+            for (auto* t = transaction; !originatingNode; t = t->GetParent()) {
+                originatingNode = FindNode(trunkNode, t);
+                if (!t) {
+                    break;
+                }
+            }
+            if (originatingNode && IsNativeSequoiaNode(originatingNode) && originatingNode->MutableSequoiaProperties()) {
+                // TODO(shakurov): consider turning this into an alert after protecting from this via a ground table lock.
+                // (Snapshot-locking a node should probably take a shared-read lock on the (nodeId, progenitorTransactionId) row in TNodeIdToPath.)
+                if (originatingNode->MutableSequoiaProperties()->Tombstone) {
+                    YT_LOG_DEBUG("Attempted to lock a tombstoned Sequoia node (NodeId: %v, TransactionId: %v)",
+                        GetObjectId(trunkNode).ObjectId,
+                        GetObjectId(transaction));
+                    THROW_ERROR_EXCEPTION(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Attempted to lock a tombstoned Sequoia node")
+                        << TErrorAttribute("node_id", GetObjectId(trunkNode).ObjectId)
+                        << TErrorAttribute("transaction_id", GetObjectId(transaction));
+                }
+
+                if (originatingNode->MutableSequoiaProperties()->BeingCreated) {
+                    YT_LOG_DEBUG("Attempted to lock a Sequoia node that is being created (NodeId: %v, TransactionId: %v)",
+                        GetObjectId(trunkNode).ObjectId,
+                        GetObjectId(transaction));
+                    THROW_ERROR_EXCEPTION(
+                        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                        "Attempted to lock a Sequoia node that is being created")
+                        << TErrorAttribute("node_id", GetObjectId(trunkNode).ObjectId)
+                        << TErrorAttribute("transaction_id", GetObjectId(transaction));
+                }
+            }
         }
 
         // Try to lock without waiting in the queue.

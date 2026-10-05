@@ -100,6 +100,9 @@ struct TDynamicCypressManagerConfig
 
     bool IgnoreRootstockAbsenceOnScionRemoval;
 
+    // COMPAT(shakurov)
+    bool EnableSequoiaNodeStateValidationInCreateLock;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

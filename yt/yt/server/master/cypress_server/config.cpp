@@ -137,6 +137,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_sequoia_node_state_validation_in_create_lock", &TThis::EnableSequoiaNodeStateValidationInCreateLock)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
             config->DefaultJournalErasureCodec,

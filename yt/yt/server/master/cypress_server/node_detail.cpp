@@ -310,8 +310,15 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
 
     // Copy sequoia properties.
     if (IsNativeSequoiaNode(originatingNode) && originatingNode->MutableSequoiaProperties()) {
-        YT_VERIFY(!originatingNode->MutableSequoiaProperties()->Tombstone);
-        YT_VERIFY(!originatingNode->MutableSequoiaProperties()->BeingCreated);
+        YT_LOG_ALERT_IF(originatingNode->MutableSequoiaProperties()->Tombstone,
+            "A tombstoned Sequoia node has been branched (NodeId: %v, TransactionId: %v)",
+            GetObjectId(originatingNode).ObjectId,
+            GetObjectId(transaction));
+
+        YT_LOG_ALERT_IF(originatingNode->MutableSequoiaProperties()->BeingCreated,
+            "A Sequoia node that is being created has been branched (NodeId: %v, TransactionId: %v)",
+            GetObjectId(originatingNode).ObjectId,
+            GetObjectId(transaction));
 
         branchedNode->ImmutableSequoiaProperties() =
             std::make_unique<TCypressNode::TImmutableSequoiaProperties>(*originatingNode->ImmutableSequoiaProperties());
