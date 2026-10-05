@@ -18,6 +18,12 @@ func ParseArgsAndRunServer() {
 			if ytmsvc.Must(cmd.Flags().GetDuration("cache-update-period")) <= 0 {
 				return fmt.Errorf("cache-update-period must be positive")
 			}
+			// The LRU cache never expires entries when the TTL is not positive.
+			for _, flag := range []string{"acl-cache-ttl", "banned-cache-ttl"} {
+				if ytmsvc.Must(cmd.Flags().GetDuration(flag)) <= 0 {
+					return fmt.Errorf("%s must be positive", flag)
+				}
+			}
 			return nil
 		},
 	}
@@ -33,6 +39,8 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().String("token-env-variable", "YT_BULK_ACL_CHECKER_TOKEN", "Environment variable that specifies the token used when accessing YT")
 	rootCmd.Flags().String("debug-login", "", "Use a static login and listen on loopback only; intended for local integration tests")
 	rootCmd.Flags().Duration("cache-update-period", 30*time.Second, "Period between ACL cache updates")
+	rootCmd.Flags().Duration("acl-cache-ttl", defaultACLCacheTTL, "Time to live of the cached results of ACL checks performed by the master")
+	rootCmd.Flags().Duration("banned-cache-ttl", defaultBannedCacheTTL, "Time to live of the cached banned attribute of a user")
 
 	ytmsvc.Must0(rootCmd.Execute())
 }

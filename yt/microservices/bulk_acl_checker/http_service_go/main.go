@@ -113,7 +113,8 @@ func ReadClickhouseDictRequest(input io.Reader) (result []bac_lib.ClickHouseDict
 
 func GetDropCacheHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
-		Cache.LRU.Purge()
+		Cache.ACLLRU.Purge()
+		Cache.BannedLRU.Purge()
 		return ytmsvc.ResponseStatusOK, nil
 	}
 }
