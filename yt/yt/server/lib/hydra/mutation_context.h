@@ -67,7 +67,7 @@ public:
         i64 sequenceNumber,
         ui64 stateHash,
         int term,
-        TSharedRef localHostNameOverride);
+        TStringBuf localHostNameOverride);
 
     explicit TMutationContext(TTestingTag);
 
