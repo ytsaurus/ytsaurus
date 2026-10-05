@@ -1,4 +1,4 @@
-package access
+package ytmsvc
 
 import (
 	"testing"

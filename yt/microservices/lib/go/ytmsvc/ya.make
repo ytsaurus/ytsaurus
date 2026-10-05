@@ -1,13 +1,17 @@
 GO_LIBRARY()
 
 SRCS(
+    auth.go
     batchedsort.go
     common.go
     crypto.go
     http.go
 )
 
-GO_TEST_SRCS(crypto_test.go)
+GO_TEST_SRCS(
+    auth_test.go
+    crypto_test.go
+)
 
 IF (OPENSOURCE)
     SRCS(
