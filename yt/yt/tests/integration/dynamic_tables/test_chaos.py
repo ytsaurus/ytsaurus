@@ -7208,6 +7208,32 @@ class TestChaosSingleCluster(ChaosTestBase):
         trim_rows("//tmp/q0", 0, 1)
 
     @authors("osidorkin")
+    def test_detach_replication_card_from_collocation_with_collocation_options(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c"})
+        card_id = get("//tmp/crt/@replication_card_id")
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": ["//tmp/crt"],
+        })
+
+        collocation_path = f"/chaos_manager/replication_card_collocations/{collocation_id}"
+        collocation = self._get_chaos_cell_orchid(cell_id, collocation_path)
+        assert collocation["replication_card_ids"] == [card_id]
+
+        with raises_yt_error("Cannot set collocation options while detaching replication card"):
+            alter_replication_card(
+                card_id,
+                replication_card_collocation_id="0-0-0-0",
+                collocation_options={"preferred_sync_replica_clusters": ["primary"]},
+            )
+
+        assert get(f"#{card_id}/@replication_card_collocation_id") == collocation_id
+        assert self._get_chaos_cell_orchid(cell_id, collocation_path) == collocation
+
+    @authors("osidorkin")
     def test_alter_replication_card_collocation_abort(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
