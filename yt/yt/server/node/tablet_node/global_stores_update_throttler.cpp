@@ -9,8 +9,6 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/yt/core/misc/finally.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -35,33 +33,6 @@ TGlobalStoresUpdateThrottler::TGlobalStoresUpdateThrottler(
     , FailedThrottleRequestCounter_(profiler.Counter("/failed_throttle_requests"))
 { }
 
-void TGlobalStoresUpdateThrottler::AddRequest(const std::string& bundleName, int storeCount, TCellTag cellTag)
-{
-    if (!IsEnabled()) {
-        Responses_.push_back(true);
-        return;
-    }
-
-    // COMPAT(alexelexa)
-    if (LastNoSuchMethodError_ + Config_.Acquire()->NoSuchMethodBackoffTime > TInstant::Now()) {
-        Responses_.push_back(true);
-        return;
-    }
-
-    auto& cellStatus = CellStatuses_[cellTag];
-    if (cellStatus.RequestedStoreCounts.empty()) {
-        cellStatus.BundleName = bundleName;
-    } else if (cellStatus.BundleName != bundleName) {
-        // Master can throttle by bundle only if the whole request comes from one bundle; a mixed
-        // batch is unlikely and thus unsupported, so drop the bundle name.
-        cellStatus.BundleName.clear();
-    }
-
-    cellStatus.RequestedStoreCounts.push_back(storeCount);
-    cellStatus.RequestIndexes.push_back(ssize(Responses_));
-    Responses_.push_back(false);
-}
-
 void TGlobalStoresUpdateThrottler::Reconfigure(TGlobalStoresUpdateThrottlerConfigPtr newConfig)
 {
     Config_.Store(std::move(newConfig));
@@ -73,20 +44,9 @@ bool TGlobalStoresUpdateThrottler::IsEnabled() const
     return config && config->Enable;
 }
 
-std::vector<bool> TGlobalStoresUpdateThrottler::Throttle(ETabletStoresUpdateReason updateReason)
-{
-    auto doneGuard = Finally([&] {
-        Responses_.clear();
-        CellStatuses_.clear();
-    });
-
-    DoThrottle(updateReason);
-    return Responses_;
-}
-
 TFuture<void> TGlobalStoresUpdateThrottler::InvokeMasterRequest(
-    TCellTag cellTag,
     TCellStatus* cellStatus,
+    TCellTag cellTag,
     ETabletStoresUpdateReason updateReason)
 {
     if (auto channel = Connection_->FindMasterChannel(EMasterChannelKind::Leader, cellTag)) {
@@ -111,32 +71,61 @@ TFuture<void> TGlobalStoresUpdateThrottler::InvokeMasterRequest(
     return cellStatus->ScheduledRequestFuture.AsVoid();
 }
 
-void TGlobalStoresUpdateThrottler::DoThrottle(ETabletStoresUpdateReason updateReason)
+std::vector<bool> TGlobalStoresUpdateThrottler::Throttle(
+    const std::vector<TRequest>& requests,
+    ETabletStoresUpdateReason updateReason)
 {
-    if (CellStatuses_.empty()) {
-        return;
+    if (requests.empty()) {
+        return {};
+    }
+
+    if (!IsEnabled()) {
+        return std::vector<bool>(requests.size(), true);
+    }
+
+    // COMPAT(alexelexa)
+    if (LastNoSuchMethodError_.load() + Config_.Acquire()->NoSuchMethodBackoffTime > TInstant::Now()) {
+        return std::vector<bool>(requests.size(), true);
+    }
+
+    THashMap<TCellTag, TCellStatus> cellStatuses;
+    for (int index = 0; index < ssize(requests); ++index) {
+        const auto& request = requests[index];
+        auto& cellStatus = cellStatuses[request.CellTag];
+
+        if (cellStatus.RequestedStoreCounts.empty()) {
+            cellStatus.BundleName = request.BundleName;
+        } else if (cellStatus.BundleName != request.BundleName) {
+            // Master can throttle by bundle only if the whole request comes from one bundle; a mixed
+            // batch is unlikely and thus unsupported, so drop the bundle name.
+            cellStatus.BundleName.clear();
+        }
+
+        cellStatus.RequestedStoreCounts.push_back(request.StoreCount);
+        cellStatus.RequestIndexes.push_back(index);
     }
 
     std::vector<TFuture<void>> futures;
-    futures.reserve(CellStatuses_.size());
-
-    for (auto& [cellTag, cellStatus] : CellStatuses_) {
+    futures.reserve(cellStatuses.size());
+    for (auto& [cellTag, cellStatus] : cellStatuses) {
         YT_TLOG_DEBUG("Sending tablet stores update throttling request")
             .With("CellTag", cellTag)
             .With("BundleName", cellStatus.BundleName)
             .With("UpdateReason", updateReason)
             .With("StoreCounts", cellStatus.RequestedStoreCounts);
-        futures.push_back(InvokeMasterRequest(cellTag, &cellStatus, updateReason));
+        futures.push_back(InvokeMasterRequest(&cellStatus, cellTag, updateReason));
     }
+
+    std::vector<bool> responses(requests.size(), false);
 
     if (auto error = WaitFor(AllSet(std::move(futures))); !error.IsOK()) {
         YT_TLOG_ERROR("Failed to throttle tablet stores update")
             .With(error);
-        FailedThrottleRequestCounter_.Increment(ssize(CellStatuses_));
-        return;
+        FailedThrottleRequestCounter_.Increment(ssize(cellStatuses));
+        return responses;
     }
 
-    for (const auto& [cellTag, cellStatus] : CellStatuses_) {
+    for (const auto& [cellTag, cellStatus] : cellStatuses) {
         auto requestCount = ssize(cellStatus.RequestIndexes);
         const auto& acceptedRequestCountOrError = cellStatus.ScheduledRequestFuture.GetOrCrash();
 
@@ -148,7 +137,7 @@ void TGlobalStoresUpdateThrottler::DoThrottle(ETabletStoresUpdateReason updateRe
                 .With("CellTag", cellTag)
                 .With(acceptedRequestCountOrError);
 
-            LastNoSuchMethodError_ = TInstant::Now();
+            LastNoSuchMethodError_.store(TInstant::Now());
             acceptedRequestCount = requestCount;
         } else {
             YT_TLOG_WARNING("Failed to throttle tablet stores update")
@@ -168,13 +157,17 @@ void TGlobalStoresUpdateThrottler::DoThrottle(ETabletStoresUpdateReason updateRe
         }
 
         for (i64 subrequestIndex = 0; subrequestIndex < acceptedRequestCount; ++subrequestIndex) {
-            Responses_[cellStatus.RequestIndexes[subrequestIndex]] = true;
+            responses[cellStatus.RequestIndexes[subrequestIndex]] = true;
         }
     }
+
+    return responses;
 }
 
 TCounter& TGlobalStoresUpdateThrottler::GetOrCreateThrottledCounter(TCellTag cellTag)
 {
+    auto guard = Guard(CounterLock_);
+
     if (auto it = ThrottledRequestCounters_.find(cellTag); it != ThrottledRequestCounters_.end()) {
         return it->second;
     }
