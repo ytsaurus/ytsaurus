@@ -945,9 +945,16 @@ private:
                     .With("collocation_id", *collocationId);
             }
             collocation->ValidateNotMigrating();
-        } else if (collocationOptions && !replicationCard->GetCollocation()) {
-            THROW_ERROR_EXCEPTION("Replication card %v is not a member of any collocation",
-                replicationCardId);
+        } else if (collocationOptions) {
+            if (!replicationCard->GetCollocation()) {
+                THROW_ERROR_EXCEPTION("Replication card %v is not a member of any collocation",
+                    replicationCardId);
+            }
+
+            if (collocationId && !*collocationId) {
+                THROW_ERROR_EXCEPTION("Cannot set collocation options while detaching replication card %v from collocation",
+                    replicationCardId);
+            }
         }
 
         YT_TLOG_DEBUG("Alter replication card")
@@ -978,6 +985,7 @@ private:
                 replicationCard,
                 collocation);
         }
+
         if (collocationOptions) {
             auto* collocation = replicationCard->GetCollocation();
             collocation->ValidateNotMigrating();
@@ -985,6 +993,7 @@ private:
             collocation->Options() = std::move(*collocationOptions);
             FireReplicationCardCollocationUpdated(collocation);
         }
+
         if (createSecondaryIndex) {
             CreateSecondaryIndex(replicationCard, createSecondaryIndex.Get());
         }
