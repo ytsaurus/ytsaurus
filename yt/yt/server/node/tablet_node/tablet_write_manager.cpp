@@ -513,12 +513,17 @@ public:
         }
 
         // COMPAT(ifsmirnov)
-        // If transaction is transient, it is going to be removed, so we drop its write state.
-        // However, transaction may be persistent itself but have not yet had affected the tablet.
-        // In this case we still treat it as transient and drop its write state.
+        // If the transaction is transient, it is going to be removed, so we drop its lock state.
+        // However, in some cases, the transaction may itself be persistent but have no persistent
+        // log state on the tablet. Its lock state may be absent as well. Consider these cases:
+        // - the transaction never had any lock state (e.g. a replication transaction);
+        // - the transaction was already committed on this tablet but is awaiting serialization
+        //   on other tablets;
+        // - the transaction was made persistent on another tablet but not on this one.
+        // In any case, we still treat it as transient and drop its lock state.
         if (Host_->GetDynamicConfig()->TabletCellWriteManager->DetectTransientTransactionsPerTablet) {
             if (!TransactionIdToPersistentWriteState_.contains(transaction->GetId())) {
-                EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+                TransactionIdToTransientWriteState_.erase(transaction->GetId());
             }
         } else {
             if (transaction->GetTransient()) {
