@@ -2492,7 +2492,7 @@ TFuture<void> ReplicateCypressTransactionsToCell(
     }
 
     auto sequoiaTransactionCoordinatorCellId = destinationCellId;
-    if (features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator &&
+    if (features.CoordinateCypressTransactionReplicationOnCypressTransactionCoordinator.value_or(false) &&
         cypressTransactionCoordinatorCellId)
     {
         sequoiaTransactionCoordinatorCellId = cypressTransactionCoordinatorCellId;
