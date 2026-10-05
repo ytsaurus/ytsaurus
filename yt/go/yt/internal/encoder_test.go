@@ -2,37 +2,14 @@ package internal
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
-	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 )
-
-func TestTableSchemaPreservesRichPathAttributes(t *testing.T) {
-	invokeErr := errors.New("stop after recording call")
-	var requestedPath ypath.YPath
-	encoder := &Encoder{
-		StartCall: func() *Call { return &Call{} },
-		Invoke: func(_ context.Context, call *Call) (*CallResult, error) {
-			var ok bool
-			requestedPath, ok = call.Params.YPath()
-			require.True(t, ok)
-			return nil, invokeErr
-		},
-	}
-
-	_, err := encoder.tableSchema(context.Background(), ypath.NewRich("//tmp/input").SetCluster("other"))
-	require.ErrorIs(t, err, invokeErr)
-	rich, ok := requestedPath.(*ypath.Rich)
-	require.True(t, ok)
-	require.Equal(t, ypath.Path("//tmp/input/@"), rich.Path)
-	require.Equal(t, "other", rich.Cluster)
-}
 
 func TestReadTablePartitionPassesSkiffSchema(t *testing.T) {
 	tableSchema := &schema.Schema{Columns: []schema.Column{{Name: "value", Type: schema.TypeInt64}}}

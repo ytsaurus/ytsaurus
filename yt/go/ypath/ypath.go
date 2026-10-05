@@ -244,22 +244,3 @@ type YPath interface {
 
 	yson.StreamMarshaler
 }
-
-// Attrs returns path referencing all attributes of p while preserving rich path attributes.
-func Attrs(p YPath) YPath {
-	switch p := p.(type) {
-	case Path:
-		return p.Attrs()
-	case *Path:
-		return p.Attrs()
-	case Rich:
-		p.Path = p.Path.Attrs()
-		return p
-	case *Rich:
-		result := *p
-		result.Path = result.Path.Attrs()
-		return &result
-	default:
-		return p.YPath().Attrs()
-	}
-}

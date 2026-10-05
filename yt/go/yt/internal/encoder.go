@@ -853,7 +853,7 @@ func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Sc
 		Schema     schema.Schema `yson:"schema"`
 		SchemaMode string        `yson:"schema_mode"`
 	}
-	err := e.GetNode(ctx, ypath.Attrs(path), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema", "schema_mode"}})
+	err := e.GetNode(ctx, path.YPath().Attrs(), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema", "schema_mode"}})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get table schema: %w", err)
 	}

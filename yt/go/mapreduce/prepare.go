@@ -270,7 +270,7 @@ func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
 			SchemaMode string        `yson:"schema_mode"`
 		}
 
-		err := yc.GetNode(p.ctx, ypath.Attrs(inputTablePath), &attrs, &yt.GetNodeOptions{
+		err := yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &attrs, &yt.GetNodeOptions{
 			Attributes: []string{"schema", "schema_mode"},
 		})
 		if err != nil {
@@ -369,7 +369,7 @@ func (p *prepare) prepare(opts []OperationOption) error {
 				Schema schema.Schema `yson:"schema"`
 			}
 
-			err := cypress.GetNode(p.ctx, ypath.Attrs(inputTablePath), &tableAttrs, nil)
+			err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
 			if yterrors.ContainsResolveError(err) {
 				return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
 			} else if err != nil {
