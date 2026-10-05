@@ -90,10 +90,19 @@ public:
         auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(
             EInternedAttributeKey::EvaluatedColumnsSchema.Unintern());
 
+        auto [table, indexTable] = Bootstrap_->GetTableManager()->ValidateSecondaryIndexCreationAndGetTables(
+            kind,
+            tableId,
+            indexTableId,
+            predicate,
+            unfoldedColumns,
+            evaluatedColumns);
+
         return Bootstrap_->GetTableManager()->CreateSecondaryIndex(
             hintId,
             kind,
-            tableId,
+            table,
+            indexTable,
             indexTableId,
             std::move(predicate),
             std::move(unfoldedColumns),

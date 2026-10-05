@@ -912,22 +912,24 @@ public:
         YT_UNREACHABLE();
     }
 
-    TSecondaryIndex* CreateSecondaryIndex(
-        TObjectId hintId,
+    std::pair<TTableNode*, TTableNode*> ValidateSecondaryIndexCreationAndGetTables(
         ESecondaryIndexKind kind,
         TTableId tableId,
         TTableId indexTableId,
-        std::optional<std::string> predicate,
-        std::optional<TUnfoldedColumns> unfoldedColumns,
-        TTableSchemaPtr evaluatedColumnsSchema) override
+        const std::optional<std::string>& predicate,
+        const std::optional<TUnfoldedColumns>& unfoldedColumns,
+        const TTableSchemaPtr& evaluatedColumnsSchema,
+        bool skipIsAlreadyIndexCheck) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_TLOG_DEBUG("Creating secondary index")
+        YT_TLOG_DEBUG("Validating creation of secondary index")
             .With("TableId", tableId)
             .With("IndexTableId", indexTableId)
             .With("Kind", kind)
-            .With("Predicate", predicate);
+            .With("Predicate", predicate)
+            .With("UnfoldedColumns", unfoldedColumns)
+            .With("EvaluatedColumnsSchema", evaluatedColumnsSchema);
 
         if (tableId == indexTableId) {
             THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
@@ -952,7 +954,7 @@ public:
             if (!indexTable->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
             }
-            if (indexTable->GetIndexTo()) {
+            if (indexTable->GetIndexTo() && !skipIsAlreadyIndexCheck) {
                 THROW_ERROR_EXCEPTION("Index cannot have multiple primary tables");
             }
             if (table->GetIndexTo()) {
@@ -1020,6 +1022,23 @@ public:
             }
         }
 
+        return {table, indexTable};
+    }
+
+    TSecondaryIndex* CreateSecondaryIndex(
+        TObjectId hintId,
+        ESecondaryIndexKind kind,
+        TTableNode* table,
+        TTableNode* indexTable, // May be null on external cell.
+        TTableId indexTableId,
+        std::optional<std::string> predicate,
+        std::optional<TUnfoldedColumns> unfoldedColumns,
+        TTableSchemaPtr evaluatedColumnsSchema) noexcept override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(!indexTable || indexTable->GetId() == indexTableId);
+
         auto secondaryIndexId = Bootstrap_->GetObjectManager()->GenerateId(EObjectType::SecondaryIndex, hintId);
 
         auto* secondaryIndex = SecondaryIndexMap_.Insert(
@@ -1028,7 +1047,7 @@ public:
         // A single reference ensures that index object is deleted when either primary or index table is deleted.
         YT_VERIFY(secondaryIndex->RefObject() == 1);
         secondaryIndex->SetKind(kind);
-        secondaryIndex->SetTableId(tableId);
+        secondaryIndex->SetTableId(table->GetId());
         secondaryIndex->SetIndexTableId(indexTableId);
         secondaryIndex->SetExternalCellTag(table->IsNative()
             ? table->GetExternalCellTag()
