@@ -1095,8 +1095,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(1));
 
     registrar.Parameter("set_empty_requisition_index_on_import", &TThis::SetEmptyRequisitionIndexOnImport)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& dataCenter : config->BannedStorageDataCenters) {
