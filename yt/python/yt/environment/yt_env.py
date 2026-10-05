@@ -1936,6 +1936,8 @@ class YTInstance(object):
 
         self._run_builtin_yt_component("node", indexes=indexes)
 
+        client = self._create_cluster_client()
+
         def nodes_ready():
             self._validate_processes_are_running("node")
 
@@ -1961,6 +1963,17 @@ class YTInstance(object):
                     not_ready_nodes[str(node)] = description
             if not_ready_nodes:
                 return False, f"Nodes are not ready: {not_ready_nodes}"
+
+            # Nodes may become online before their RPC servers start listening.
+            for node in nodes:
+                if node.attributes["banned"]:
+                    continue
+                try:
+                    client.get(f"//sys/cluster_nodes/{node}/orchid/service")
+                except YtResponseError as err:
+                    if not err.is_rpc_unavailable() and not err.is_transport_error():
+                        raise
+                    return False, err
             return True
 
         self._wait_for_component(
