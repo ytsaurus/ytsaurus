@@ -1830,14 +1830,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
 
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
 
-    auto asyncAccoundId = SequoiaSession_->FetchSingleObjectAttributes(
+    auto asyncAccountId = SequoiaSession_->FetchSingleObjectAttributes(
         parentNodeId,
         TAttributeFilter({accountIdAttribute}))
         .Apply(BIND([&] (const IConstAttributeDictionaryPtr& attributes) {
             return attributes->Get<TAccountId>(accountIdAttribute);
         }));
 
-    auto accountId = WaitFor(asyncAccoundId)
+    auto accountId = WaitFor(asyncAccountId)
         .ValueOrThrow();
 
     // TODO(h0pless): Maybe create all nodes all the way up to PARENT node? See LockCopyDestination in master.

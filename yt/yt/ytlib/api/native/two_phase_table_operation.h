@@ -46,7 +46,7 @@ TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
     const NYPath::TYPath& path);
 
 TTwoPhaseTableOperationTarget ResolveTwoPhaseTableOperationTarget(
-    NObjectClient::TObjectServiceProxy& proxy,
+    NObjectClient::TObjectServiceProxy* proxy,
     const NYPath::TYPath& path);
 
 template <CTwoPhaseTableRequest TRequest>

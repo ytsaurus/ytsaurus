@@ -171,7 +171,7 @@ private:
 
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-        auto target = NNative::ResolveTwoPhaseTableOperationTarget(proxy, path);
+        auto target = NNative::ResolveTwoPhaseTableOperationTarget(&proxy, path);
         // TODO(danilalexeev): Add Sequoia bundle |use| and table |mount| permission checks
         // for Sequoia nodes.
         NNative::ExecuteTwoPhaseTableOperationViaMaster<TRequest>(client, target, action, request);

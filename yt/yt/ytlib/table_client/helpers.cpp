@@ -941,7 +941,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
         client->GetNativeConnection()->GetStickyGroupSizeCache());
 
     return ResolveExternalTable(
-        proxy,
+        &proxy,
         path,
         tableId,
         externalCellTag,
@@ -949,7 +949,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
 }
 
 IAttributeDictionaryPtr ResolveExternalTable(
-    TObjectServiceProxy& proxy,
+    TObjectServiceProxy* proxy,
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
@@ -957,7 +957,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
 {
     {
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
-        auto rspOrError = WaitFor(proxy.Execute(req));
+        auto rspOrError = WaitFor(proxy->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
         *tableId = FromProto<TTableId>(rsp->object_id());
@@ -972,7 +972,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
     {
         auto req = TTableYPathProxy::Get(FromObjectId(*tableId) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), extraAttributeKeys);
-        auto rspOrError = WaitFor(proxy.Execute(req));
+        auto rspOrError = WaitFor(proxy->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting extended attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
         extraAttributes = ConvertToAttributes(TYsonString(rsp->value()));

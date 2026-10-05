@@ -243,7 +243,7 @@ void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDe
 
 bool IsReplicaDecommissioned(TChunkLocation* replica);
 
-//! Returns the number of replicas requested by requisition and extra-rack-failure-tolerance policies.
+//! Returns the number of additional replicas needed to satisfy requisition and extra-rack-failure-tolerance policies.
 int ComputeReplicaDeficit(
     int targetReplicaCount,
     int availableReplicaCount,
