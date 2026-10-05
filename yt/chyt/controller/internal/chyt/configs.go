@@ -585,6 +585,10 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if nativeAuthenticatorConfig != nil {
 		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
+	// Do not override the default value.
+	if mode := speclet.ClusterConnectionDynamicConfigModeOrDefault(c.config.DefaultClusterConnectionDynamicConfigModeOrDefault()); mode != ClusterConnectionFromStaticConfig {
+		ytServerClickHouseConfig["cluster_connection_dynamic_config_mode"] = mode
+	}
 	if c.config.AddressResolver != nil {
 		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
 	}

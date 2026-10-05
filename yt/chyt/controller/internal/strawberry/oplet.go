@@ -1,7 +1,6 @@
 package strawberry
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -350,6 +349,10 @@ func (oplet *Oplet) SetSecret(secret string, value any) {
 	oplet.secrets[secret] = value
 }
 
+func (oplet *Oplet) OpletInfo() yson.RawValue {
+	return oplet.persistentState.OpletInfo
+}
+
 func (oplet *Oplet) SetOpletInfo(info any) {
 	parsedInfo, err := yson.Marshal(info)
 	if err != nil {
@@ -636,11 +639,11 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	if oplet.secretsRevision != oplet.persistentState.YTOpSecretsRevision {
 		return true, "secrets changed"
 	}
-	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() {
-		snapshot, err := oplet.c.GetControllerSnapshot()
+	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() && oplet.persistentState.YTOpControllerSnapshot != nil {
+		outdated, err := oplet.c.IsControllerSnapshotOutdated(oplet.persistentState.YTOpControllerSnapshot, oplet)
 		if err != nil {
-			oplet.l.Error("failed to get controller snapshot", log.Error(err))
-		} else if oplet.persistentState.YTOpControllerSnapshot != nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
+			oplet.l.Error("failed to compare controller snapshots", log.Error(err))
+		} else if outdated {
 			return true, "controller snapshot changed"
 		}
 	}
@@ -1163,6 +1166,14 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		return err
 	}
 
+	previousOpletInfo := oplet.persistentState.OpletInfo
+	operationStarted := false
+	defer func() {
+		if !operationStarted {
+			oplet.persistentState.OpletInfo = previousOpletInfo
+		}
+	}()
+
 	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 	if err != nil {
 		oplet.setError(err)
@@ -1281,6 +1292,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.ClearExceedingFailedJobsLimitFailure()
 	}
 
+	operationStarted = true
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpJobCount = nil
 	if jobCount, err := totalJobCountFromSpec(spec); err != nil {
