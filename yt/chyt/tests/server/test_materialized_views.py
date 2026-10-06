@@ -639,17 +639,25 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
     @authors("buyval01")
     def test_background_refresh_lock_contention(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 1000}}}
-        expected_rows = [{"key": 1, "value": "new-1"}]
+        expected_rows = [{"key": 1, "value": "new"}]
 
         with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
             clique.make_query(self.CREATE_MV_QUERY)
-            transaction_id = start_transaction(timeout=10000)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+
+            transaction_id = start_transaction(timeout=60000)
             try:
                 lock("//tmp/target", mode="exclusive", tx=transaction_id)
                 write_table("<append=%true>//tmp/source", expected_rows)
-                time.sleep(2)
+                wait(lambda: get(progress_path)["partitions"][0]["total_row_count"] == len(expected_rows), timeout=5)
+
+                progress = get(progress_path)
+                partition = progress["partitions"][0]
+                assert partition["next_row_index"] == 0
+                assert partition["last_error"] == ""
+                assert progress["last_error"] == ""
                 assert read_table("//tmp/target") == []
-                clique.make_query("SELECT 1")
             finally:
                 abort_transaction(transaction_id)
 
