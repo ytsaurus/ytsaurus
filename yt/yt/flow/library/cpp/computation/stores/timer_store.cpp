@@ -49,12 +49,77 @@ struct TCompareTimerByTriggerTimestampAndMessageId
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTimerTriggerConditions BuildTimerTriggerConditions(const TTimerStoreContextPtr& context)
+{
+    TTimerTriggerConditions conditions;
+    for (const auto& [timerId, spec] : context->TimerSpecs) {
+        auto& condition = conditions[timerId];
+        condition.TimeType = spec->TimeType;
+        if (spec->StreamsWithDelays) {
+            condition.StreamsWithDelays = *spec->StreamsWithDelays;
+        } else {
+            const auto& streams = spec->Streams
+                ? *spec->Streams
+                : GetOrCrash(context->StreamsDependency, timerId);
+            for (const auto& streamId : streams) {
+                condition.StreamsWithDelays.emplace(streamId, TDuration::Zero());
+            }
+        }
+    }
+    return conditions;
+}
+
+std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions)
+{
+    THashMap<std::pair<ETimeType, TStreamId>, TStreamId> firstTimerByCondition;
+    THashMap<TStreamId, std::vector<TStreamId>> neighbours;
+    for (const auto& [timerId, condition] : conditions) {
+        neighbours[timerId];
+        auto addCondition = [&] (const TStreamId& inputId) {
+            auto [it, inserted] = firstTimerByCondition.emplace(std::pair(condition.TimeType, inputId), timerId);
+            if (!inserted && it->second != timerId) {
+                neighbours[timerId].push_back(it->second);
+                neighbours[it->second].push_back(timerId);
+            }
+        };
+        if (condition.TimeType == ETimeType::CurrentTime) {
+            addCondition(TStreamId());
+        } else {
+            for (const auto& [inputId, delay] : condition.StreamsWithDelays) {
+                addCondition(inputId);
+            }
+        }
+    }
+
+    std::vector<std::vector<TStreamId>> groups;
+    THashSet<TStreamId> visited;
+    for (const auto& [timerId, adjacent] : neighbours) {
+        if (!visited.insert(timerId).second) {
+            continue;
+        }
+        auto& group = groups.emplace_back();
+        group.push_back(timerId);
+        for (int index = 0; index < std::ssize(group); ++index) {
+            for (const auto& neighbour : GetOrCrash(neighbours, group[index])) {
+                if (visited.insert(neighbour).second) {
+                    group.push_back(neighbour);
+                }
+            }
+        }
+    }
+    return groups;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTimerStore
     : public ITimerStore
 {
 public:
     explicit TTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext)
         : Context_(std::move(context))
+        , TriggerConditions_(BuildTimerTriggerConditions(Context_))
+        , TimerStreamGroups_(BuildTimerStreamGroups(TriggerConditions_))
         , Table_(Context_->TimersTable)
         , Logger(Context_->Logger)
         , InflightStore_(New<TMultiInflightTracker>(
@@ -82,11 +147,22 @@ public:
         using TPriority = std::pair<TSystemTimestamp, const TMessageId&>;
         std::vector<std::pair<TSortedByTriggerTimestampTimerSet*, std::function<TPriority()>>> triggeredTimers;
         triggeredTimers.reserve(TriggeredTimers_.size());
-        for (auto& [streamId, timers] : TriggeredTimers_) {
-            if (allowedStreams.contains(streamId)) {
-                triggeredTimers.emplace_back(&timers, [timersPtr = &timers] () -> TPriority {
-                    YT_ASSERT(!timersPtr->empty());
-                    const auto& t = *timersPtr->begin();
+        for (const auto& group : TimerStreamGroups_) {
+            bool groupAllowed = std::all_of(group.begin(), group.end(), [&] (const TStreamId& streamId) {
+                return allowedStreams.contains(streamId);
+            });
+            if (!groupAllowed) {
+                continue;
+            }
+            for (const auto& streamId : group) {
+                auto it = TriggeredTimers_.find(streamId);
+                if (it == TriggeredTimers_.end()) {
+                    continue;
+                }
+                auto* timers = &it->second;
+                triggeredTimers.emplace_back(timers, [timers] () -> TPriority {
+                    YT_ASSERT(!timers->empty());
+                    const auto& t = *timers->begin();
                     return {t->TriggerTimestamp, t->MessageId};
                 });
             }
@@ -300,6 +376,8 @@ private:
     using TTimerSet = absl::flat_hash_set<TInputTimerConstPtr, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId>;
 
     const TTimerStoreContextPtr Context_;
+    const TTimerTriggerConditions TriggerConditions_;
+    const std::vector<std::vector<TStreamId>> TimerStreamGroups_;
     const NTables::ITimersPtr Table_;
     const NLogging::TLogger Logger;
     // Do not increase due to possible problems with transactions.
@@ -322,22 +400,12 @@ private:
     {
         bool offered = false;
         for (auto& [timerStreamId, timers] : SortedTimers_) {
-            auto timerSpec = GetOrCrash(Context_->TimerSpecs, timerStreamId);
+            const auto& condition = GetOrCrash(TriggerConditions_, timerStreamId);
             TSystemTimestamp watermark = InfinitySystemTimestamp;
-            if (timerSpec->StreamsWithDelays) {
-                for (const auto& [streamId, delay] : *timerSpec->StreamsWithDelays) {
-                    auto streamWatermark = WatermarkState_->GetWatermark(streamId, timerSpec->TimeType);
-                    auto delayedWatermark = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
-                    watermark = std::min(watermark, delayedWatermark);
-                }
-            } else if (timerSpec->Streams) {
-                for (const auto& streamId : *timerSpec->Streams) {
-                    watermark = std::min(watermark, WatermarkState_->GetWatermark(streamId, timerSpec->TimeType));
-                }
-            } else {
-                for (const auto& streamId : Context_->StreamsDependency.at(timerStreamId)) {
-                    watermark = std::min(watermark, WatermarkState_->GetWatermark(streamId, timerSpec->TimeType));
-                }
+            for (const auto& [streamId, delay] : condition.StreamsWithDelays) {
+                auto streamWatermark = WatermarkState_->GetWatermark(streamId, condition.TimeType);
+                auto delayedWatermark = TSystemTimestamp(std::max(streamWatermark.Underlying(), delay.Seconds()) - delay.Seconds());
+                watermark = std::min(watermark, delayedWatermark);
             }
 
             auto& triggeredTimers = TriggeredTimers_[timerStreamId];

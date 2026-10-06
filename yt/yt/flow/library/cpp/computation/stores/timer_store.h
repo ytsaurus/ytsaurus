@@ -77,6 +77,17 @@ DEFINE_REFCOUNTED_TYPE(ITimerStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTimerTriggerCondition
+{
+    ETimeType TimeType = ETimeType::EventTime;
+    THashMap<TStreamId, TDuration> StreamsWithDelays;
+};
+
+using TTimerTriggerConditions = THashMap<TStreamId, TTimerTriggerCondition>;
+
+TTimerTriggerConditions BuildTimerTriggerConditions(const TTimerStoreContextPtr& context);
+std::vector<std::vector<TStreamId>> BuildTimerStreamGroups(const TTimerTriggerConditions& conditions);
+
 ITimerStorePtr CreateTimerStore(TTimerStoreContextPtr context, TDynamicTimerStoreContextPtr dynamicContext);
 
 ////////////////////////////////////////////////////////////////////////////////
