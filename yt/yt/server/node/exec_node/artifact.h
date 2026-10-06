@@ -37,7 +37,7 @@ struct TArtifactKey
     explicit TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor);
 
     i64 GetCompressedDataSize() const;
-    i64 GetUncompressedDataSize() const;
+    std::optional<i64> TryGetFileSizeEstimate() const;
 
     //! Hasher.
     operator size_t() const;
@@ -52,4 +52,3 @@ void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBu
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
-

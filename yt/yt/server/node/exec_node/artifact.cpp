@@ -65,14 +65,42 @@ i64 TArtifactKey::GetCompressedDataSize() const
     return compressedDataSize;
 }
 
-i64 TArtifactKey::GetUncompressedDataSize() const
+std::optional<i64> TArtifactKey::TryGetFileSizeEstimate() const
 {
-    i64 uncompressedDataSize = 0;
-    for (const auto& chunkSpec : chunk_specs()) {
-        uncompressedDataSize += GetChunkUncompressedDataSize(chunkSpec);
+    i64 fileSizeEstimate = 0;
+
+    if (!data_source().has_type()) {
+        return std::nullopt;
+    }
+    auto type = FromProto<EDataSourceType>(data_source().type());
+    switch (type) {
+        case EDataSourceType::File:
+            // TFileChunkWriter does not set data_weight.
+            for (const auto& chunkSpec : chunk_specs()) {
+                auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+                if (!miscExt.has_value() || !miscExt->has_uncompressed_data_size()) {
+                    return std::nullopt;
+                }
+                fileSizeEstimate += miscExt->uncompressed_data_size();
+            }
+            break;
+        case EDataSourceType::UnversionedTable:
+        case EDataSourceType::VersionedTable:
+            for (const auto& chunkSpec : chunk_specs()) {
+                if (chunkSpec.has_data_weight_override()) {
+                    fileSizeEstimate += chunkSpec.data_weight_override();
+                    continue;
+                }
+                auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+                if (!miscExt.has_value() || !miscExt->has_data_weight()) {
+                    return std::nullopt;
+                }
+                fileSizeEstimate += miscExt->data_weight();
+            }
+            break;
     }
 
-    return uncompressedDataSize;
+    return fileSizeEstimate;
 }
 
 TArtifactKey::operator size_t() const
