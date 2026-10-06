@@ -502,7 +502,7 @@ class TestTabletActions(TabletActionsBase):
             },
         )
         wait(lambda: get(f"#{action}/@state") == "completed")
-        assert get_preload_pending_store_count() == 0
+        wait(lambda: get_preload_pending_store_count() == 0)
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
 
     @authors("atalmenev")
