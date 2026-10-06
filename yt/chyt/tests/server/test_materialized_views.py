@@ -665,6 +665,9 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         create("table", "//tmp/source_directory/good", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/source_directory/bad", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/int_target", attributes={"schema": int_schema})
+        good_rows = [{"key": 1, "value": 42}]
+        write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
+        write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
         config_patch = {
             "yt": {
                 "settings": {
@@ -683,22 +686,12 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             clique.make_query(
                 'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
                 'AS SELECT key, accurateCast(value, \'Int64\') AS value '
-                'FROM concatYtTablesRange("//tmp/source_directory")')
+                'FROM concatYtTablesRange("//tmp/source_directory")',
+                settings={"chyt.materialized_view_populate": 1})
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
             good_part_id = get("//tmp/source_directory/good/@id")
             bad_part_id = get("//tmp/source_directory/bad/@id")
-
-            good_rows = [{"key": 1, "value": 42}]
-            # Use the target lock as a barrier so both source partitions are written before refresh starts.
-            transaction_id = start_transaction(timeout=60000)
-            try:
-                lock_id = lock("//tmp/int_target", mode="exclusive", tx=transaction_id, waitable=True)["lock_id"]
-                wait(lambda: get(f"#{lock_id}/@state") == "acquired")
-                write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
-                write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
-            finally:
-                abort_transaction(transaction_id)
 
             wait_breakpoint("refresh_commit")
             try:
