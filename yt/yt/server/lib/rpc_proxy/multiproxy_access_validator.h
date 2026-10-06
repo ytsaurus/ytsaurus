@@ -17,8 +17,6 @@ DEFINE_REFCOUNTED_TYPE(IMultiproxyAccessValidator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TMultiproxyMethodList = std::vector<std::pair<std::string, EMultiproxyMethodKind>>;
-
 IMultiproxyAccessValidatorPtr CreateMultiproxyAccessValidator(TMultiproxyMethodList methodList);
 
 ////////////////////////////////////////////////////////////////////////////////
