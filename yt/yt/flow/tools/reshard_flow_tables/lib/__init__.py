@@ -53,8 +53,8 @@ def get_args():
         type=int,
         required=False,
         default=10,
-        help="tablets per computation for pipeline tables; the total tablet count for an"
-        " --external-table (which has no computations)",
+        help="tablets per computation for pipeline tables (per key visitor stream for key_visitor_states); the total"
+        " tablet count for an --external-table (which has no computations)",
     )
     parser.add_argument(
         "--table",
@@ -68,6 +68,7 @@ def get_args():
             "partition_states",
             "partition_transactions",
             "leases",
+            "key_visitor_states",
         ],
         default=None,
         help="table to reshard",
@@ -991,6 +992,34 @@ def plan_compact_partition_output_table(computations, path, tablet_count):
     return plan_partition_table(computations, f"{path}/compact_partition_output_messages", tablet_count)
 
 
+def plan_key_visitor_states_table(computation_streams, path, tablet_count):
+    table = f"{path}/key_visitor_states"
+    if len(computation_streams) == 0:
+        logging.info(f"Skip {table} because there are no key visitor streams")
+        return None
+
+    # Keyed by (computation_id, stream_id, key, is_lower): every stream gets its own range, split uniformly over the
+    # key hash.
+    pivot_keys = []
+    previous_computation_id = None
+    for computation_id, stream_id in sorted(computation_streams):
+        if not pivot_keys:
+            pivot_keys.append([])
+        elif computation_id != previous_computation_id:
+            pivot_keys.append([computation_id])
+        else:
+            pivot_keys.append([computation_id, stream_id])
+        previous_computation_id = computation_id
+        for k in range(1, tablet_count):
+            hash_value = (2**64 * k) // tablet_count
+            pivot_keys.append([computation_id, stream_id, yson.YsonList([yson.YsonUint64(hash_value)])])
+    return ReshardRequest(
+        table,
+        {"pivot_keys": pivot_keys},
+        tuple(sorted({computation_id for computation_id, _ in computation_streams})),
+    )
+
+
 def plan_compact_output_table(computations, source_keys, path, tablet_count):
     return plan_computation_key_table(computations, source_keys, f"{path}/compact_output_messages", tablet_count)
 
@@ -1071,12 +1100,15 @@ def plan_pipeline_tables(client, args):
     timers = []
     sources = []
     computations = []
+    key_visitor_streams = []
 
     for computation_id, computation in spec["spec"]["computations"].items():
-        if computation["input_stream_ids"]:
+        # Controllers built before key_visitor_streams was added to the spec omit the field.
+        if computation["input_stream_ids"] or computation.get("key_visitor_streams"):
             assert computation[
                 "group_by_schema"
-            ], "Computation with input_stream_ids should have non-empty group_by_schema"
+            ], "Computation with input_stream_ids or key_visitor_streams should have non-empty group_by_schema"
+        if computation["input_stream_ids"]:
             assert (
                 computation["group_by_schema"][0]["type"] == "uint64"
             ), "First column in group_by_schema should have type equal to 'uint64' with hash value"
@@ -1087,6 +1119,8 @@ def plan_pipeline_tables(client, args):
             timers.append(computation_id)
         if computation["source_streams"]:
             sources.append(computation_id)
+        for stream_id in computation.get("key_visitor_streams", {}):
+            key_visitor_streams.append((computation_id, stream_id))
         computations.append(computation_id)
 
     source_keys = defaultdict(list)
@@ -1115,6 +1149,12 @@ def plan_pipeline_tables(client, args):
         plans.append(plan_partition_transactions_table(computations, path, tablet_count))
     if args.table is None or args.table == "leases":
         plans.append(plan_leases_table(client, computations, path, tablet_count, infer_unused=args.table is None))
+    if args.table is None or args.table == "key_visitor_states":
+        for computation_id in {computation_id for computation_id, _ in key_visitor_streams}:
+            assert (
+                spec["spec"]["computations"][computation_id]["group_by_schema"][0]["type"] == "uint64"
+            ), "First column in group_by_schema should have type equal to 'uint64' with hash value"
+        plans.append(plan_key_visitor_states_table(key_visitor_streams, path, tablet_count))
     return [plan for plan in plans if plan is not None]
 
 
