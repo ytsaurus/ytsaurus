@@ -12,6 +12,8 @@ import (
 
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
+	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc/ytmock"
 )
 
@@ -117,6 +119,68 @@ func TestCheckACLHandlerReturnsErrorActionsOnBannedReadError(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code)
 	require.JSONEq(t, `{"actions":["allow","allow"]}`, response.Body.String())
 	require.Len(t, client.GetNodeCalls(), 2)
+}
+
+func TestClickHouseDictResponses(t *testing.T) {
+	setupACLTest(t)
+	client := newACLTestClientWithMasterCacheChecks(t, newACLTestConfig())
+	Cache.Set("ytserver", &ClusterACLDump{
+		ACLDump:     &ACLDump{ReadACL: CompressedACL{1: {"alice"}}},
+		UsersExport: map[string]Groups{"alice": {"alice": {}}},
+		YtClient:    client,
+	})
+	handler := createDebugRouter("alice")
+	for _, tt := range []struct {
+		name               string
+		body               string
+		expectedStatusCode int
+		expectedRows       []bac_lib.ClickHouseDictResponse
+	}{
+		{
+			name: "multiple rows",
+			body: `{"cluster":"ytserver","subject":"alice","path":"//home/a"}` + "\n" +
+				`{"cluster":"ytserver","subject":"alice","path":"//home/b"}` + "\n",
+			expectedStatusCode: http.StatusOK,
+			expectedRows: []bac_lib.ClickHouseDictResponse{
+				{Cluster: "ytserver", Subject: "alice", Path: "//home/a", Action: "allow"},
+				{Cluster: "ytserver", Subject: "alice", Path: "//home/b", Action: "allow"},
+			},
+		},
+		{
+			name:               "empty request",
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "invalid request",
+			body:               "{",
+			expectedStatusCode: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/clickhouse-dict", strings.NewReader(tt.body)))
+
+			require.Equal(t, tt.expectedStatusCode, recorder.Code, recorder.Body.String())
+			if tt.expectedStatusCode != http.StatusOK {
+				var response yterrors.Error
+				require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+				require.Equal(t, yterrors.CodeGeneric, response.Code)
+				require.NotEmpty(t, response.Message)
+				return
+			}
+			if len(tt.expectedRows) == 0 {
+				require.Empty(t, recorder.Body.String())
+				return
+			}
+			lines := strings.Split(strings.TrimSuffix(recorder.Body.String(), "\n"), "\n")
+			rows := make([]bac_lib.ClickHouseDictResponse, len(lines))
+			for i, line := range lines {
+				require.NoError(t, json.Unmarshal([]byte(line), &rows[i]))
+			}
+			require.ElementsMatch(t, tt.expectedRows, rows)
+		})
+	}
 }
 
 func TestRemoteACLPermissionCache(t *testing.T) {
