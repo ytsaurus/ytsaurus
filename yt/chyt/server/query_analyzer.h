@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <Core/SortDescription.h>
+
 #include <Storages/MergeTree/KeyCondition.h>
 
 #include <Planner/TableExpressionData.h>
@@ -37,6 +39,7 @@ struct TQueryAnalysisResult
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
+    DB::SortDescription SortDescription;
     bool EnableMinMaxOptimization = false;
     NYTree::IAttributeDictionaryPtr AnalysisVariables = NYTree::CreateEphemeralAttributes();
 };
@@ -165,6 +168,8 @@ private:
 
     EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
 
+    DB::SortDescription SortDescription_;
+
     std::vector<DB::QueryTreeNodePtr> JoinKeyRightExpressions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
@@ -176,7 +181,7 @@ private:
 
     void OptimizeQueryProcessingStage();
 
-    void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
+    void InferReadInOrderModeAndSortDescription(bool assumeNoNullKeys, bool assumeNoNanKeys);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

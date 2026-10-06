@@ -572,6 +572,11 @@ private:
     bool HasMinMax_ = false;
 };
 
+int ConvertSortDirectionToInt(DB::SortDirection sortDirection)
+{
+    return sortDirection == DB::SortDirection::ASCENDING ? 1 : -1;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1266,13 +1271,14 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::Complete;
 }
 
-void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys)
+void TQueryAnalyzer::InferReadInOrderModeAndSortDescription(bool assumeNoNullKeys, bool assumeNoNanKeys)
 {
     auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
 
     // Read in order is forbidden in JOINs and queries with aggregation.
     // It might be useful in some of these cases, but that is a question for another day.
     if (Join_ || queryNode->hasGroupBy() || queryNode->hasHaving() || queryNode->hasWindow() || queryNode->hasLimitBy()) {
+        // TODO(ivanzhukov): support joins (at least of two sorted YT tables) and other stuff if possible.
         return;
     }
 
@@ -1285,12 +1291,38 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
     if (!queryNode->hasLimit() && !getContext()->getSettingsRef()[DB::Setting::limit]) {
+        // TODO(ivanzhukov): optimize chunk readers so that reading data in order (even with no limit) has no drawbacks.
+        return;
+    }
+
+    if (NeedOnlyDistinct_) {
+        // With this optimization (UseDistinctReadOptimization) rows come out in dictionary/RLE value order with NULL last,
+        // not key order (see `ReduceFilterToDistinct`, `UnwrapSimpleDistinctColumn`).
         return;
     }
 
     YT_VERIFY(Storages_.size() == 1);
-    const auto& schema = Storages_[0]->GetSchema();
+    const auto& storage = Storages_[0];
+    const auto& tables = storage->GetTables();
+    if (tables.size() > 1) {
+        // If we have multiple sorted tables with the same schema, e.g. `SELECT * FROM concatYtTables(t1, t2) ORDER BY ...`,
+        // then data from them could overlap.
+        // TODO(ivanzhukov): (CHYT-1470) if tables' chunks don't overlap (even if tables themselves overlap), we still could read in order.
+        return;
+    }
+    const auto& table = tables[0];
+    if (table->EnableDynamicStoreRead) {
+        // Since data is simultaneously read from two 'storages' (a persistent one and from RAM) we can't guarantee
+        // that the resulting stream would be sorted.
+        return;
+    }
+    if (table->Path.HasNontrivialRanges()) {
+        // Technically user-specified slices could overlap, e.g. `SELECT * FROM `//path/to/table[#1:10, #2:11, #3:12]`
+        // TODO(ivanzhukov): if row ranges don't actually overlap, still produce sort description and read-in-order mode.
+        return;
+    }
 
+    const auto& schema = storage->GetSchema();
     // If the underlying table is not sorted we cannot help in any way.
     if (!schema->IsSorted()) {
         return;
@@ -1303,6 +1335,7 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         return;
     }
 
+    DB::SortDescription sortDescription;
     for (const auto& [columnIndex, orderByElementNode] : Enumerate(queryNode->getOrderBy().getNodes())) {
         auto orderBySortNode = orderByElementNode->as<DB::SortNode>();
 
@@ -1318,6 +1351,12 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
 
         // Columns from the ORDER BY clause must form a prefix of the table's primary key.
         if (orderByColumnNode->getColumnName() != schemaColumn.Name()) {
+            return;
+        }
+
+        // Column is sorted by a custom alphabet, so there's a very small chance that physical data is already sorted that way.
+        // TODO(ivanzhukov): Probability is small, but not zero. Check that data could conform to a custom collator.
+        if (orderBySortNode->getCollator()) {
             return;
         }
 
@@ -1348,10 +1387,6 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
             return;
         }
 
-        if (!couldHaveNulls && !couldHaveNans) {
-            continue;
-        }
-
         // The value of nulls_direction is equal to direction for NULLS LAST and to the opposite
         // of direction for NULLS FIRST.
         auto nullsDirection = orderBySortNode->getNullsSortDirection().value_or(orderBySortNode->getSortDirection());
@@ -1367,9 +1402,22 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         if (couldHaveNans && nullsDirection != DB::SortDirection::ASCENDING) {
             return;
         }
+
+        sortDescription.emplace_back(
+            schemaColumn.Name(),
+            /*direction_*/ ConvertSortDirectionToInt(orderBySortNode->getSortDirection()),
+            /*nulls_direction_*/ ConvertSortDirectionToInt(nullsDirection));
     }
 
     ReadInOrderMode_ = commonDirection;
+    // TODO(ivanzhukov):
+    // Right now a secondary node performs full sort for data read backwards. However, it seems like in DESC case either
+    // the YT reader itself could reverse-sort all data while reading it or it could read a block, reverse-sort it in memory,
+    // and return to a client so that a client could just merge backward-sorted blocks. Then we'd be able to propagate
+    // sort description right to secondary nodes.
+    if (ReadInOrderMode_ == EReadInOrderMode::Forward) {
+        SortDescription_ = std::move(sortDescription);
+    }
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze() const
@@ -1469,6 +1517,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
 
     result.ReadInOrderMode = ReadInOrderMode_;
+    result.SortDescription = SortDescription_;
 
     if (ReadInOrderMode_ != EReadInOrderMode::None) {
         result.PoolKind = EPoolKind::Sorted;
@@ -1612,8 +1661,8 @@ void TQueryAnalyzer::Prepare()
     if (settings->Execution->OptimizeQueryProcessingStage) {
         OptimizeQueryProcessingStage();
     }
-    if (settings->Execution->EnableOptimizeReadInOrder) {
-        InferReadInOrderMode(settings->Execution->AssumeNoNullKeys, settings->Execution->AssumeNoNanKeys);
+    if (settings->Execution->EnableOptimizeReadInOrder && !settings->Execution->EnableInputSpecsPulling) {
+        InferReadInOrderModeAndSortDescription(settings->Execution->AssumeNoNullKeys, settings->Execution->AssumeNoNanKeys);
     }
 
     Prepared_ = true;

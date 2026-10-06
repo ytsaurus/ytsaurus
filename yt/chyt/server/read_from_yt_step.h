@@ -38,6 +38,8 @@ public:
 
     void describeDistributedPlan(FormatSettings& settings, const DB::ExplainPlanOptions& options) override;
 
+    const DB::SortDescription& getSortDescription() const override;
+
 private:
     const DB::SelectQueryInfo QueryInfo_;
     const std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;

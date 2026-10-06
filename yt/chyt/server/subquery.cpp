@@ -1121,6 +1121,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     IPersistentChunkPoolPtr chunkPool;
 
+    TComparator comparator;
     if (queryAnalysisResult.PoolKind == EPoolKind::Unordered) {
         chunkPool = CreateUnorderedChunkPool(
             TUnorderedChunkPoolOptions{
@@ -1131,7 +1132,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
             TInputStreamDirectory({TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/)}));
     } else if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
         YT_VERIFY(queryAnalysisResult.KeyColumnCount);
-        TComparator comparator(std::vector<ESortOrder>(*queryAnalysisResult.KeyColumnCount, ESortOrder::Ascending));
+        comparator = TComparator{std::vector<ESortOrder>(*queryAnalysisResult.KeyColumnCount, ESortOrder::Ascending)};
 
         // TODO(achulkov2): Make using this fetcher configurable? Not sure whether it could cause degradations. IMO it should make things better.
         auto chunkSliceFetcher = CreateChunkSliceFetcher(
@@ -1287,8 +1288,9 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     // TODO(dakovalkov): Should we do it for Unordered chunk pool for the sake of better caching?
     if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
-        std::sort(subqueries.begin(), subqueries.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
-            return lhs.Cookie < rhs.Cookie;
+        // Data between jobs can not overlap (because of |EnableKeyGuarantee|), therefore we could sort by bounds.
+        std::sort(subqueries.begin(), subqueries.end(), [&] (const TSubquery& lhs, const TSubquery& rhs) {
+            return comparator.CompareKeyBounds(lhs.Bounds.first, rhs.Bounds.first) < 0;
         });
         LogSubqueryDebugInfo(subqueries, "AfterSort", Logger);
     }
