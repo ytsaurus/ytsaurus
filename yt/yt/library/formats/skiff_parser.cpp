@@ -267,7 +267,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Datetime64:
         case ESimpleLogicalValueType::Timestamp64:
         case ESimpleLogicalValueType::Interval64:
-            CheckWireType(
+            ValidateWireTypeIsOneOf(
                 wireType,
                 {EWireType::Int8, EWireType::Int16, EWireType::Int32, EWireType::Int64, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
@@ -280,7 +280,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:
         case ESimpleLogicalValueType::Timestamp:
-            CheckWireType(
+            ValidateWireTypeIsOneOf(
                 wireType,
                 {EWireType::Uint8, EWireType::Uint16, EWireType::Uint32, EWireType::Uint64, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
@@ -296,20 +296,20 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::String:
         case ESimpleLogicalValueType::Json:
         case ESimpleLogicalValueType::Utf8:
-            CheckWireType(wireType, {EWireType::String32, EWireType::Yson32});
+            ValidateWireTypeIsOneOf(wireType, {EWireType::String32, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Float:
         case ESimpleLogicalValueType::Double:
-            CheckWireType(wireType, {EWireType::Double, EWireType::Yson32});
+            ValidateWireTypeIsOneOf(wireType, {EWireType::Double, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Boolean:
-            CheckWireType(wireType, {EWireType::Boolean, EWireType::Yson32});
+            ValidateWireTypeIsOneOf(wireType, {EWireType::Boolean, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
 
         case ESimpleLogicalValueType::Any:
-            CheckWireType(
+            ValidateWireTypeIsOneOf(
                 wireType,
                 {
                     EWireType::Int8,
@@ -332,10 +332,10 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
 
         case ESimpleLogicalValueType::Null:
         case ESimpleLogicalValueType::Void:
-            CheckWireType(wireType, {EWireType::Nothing, EWireType::Yson32});
+            ValidateWireTypeIsOneOf(wireType, {EWireType::Nothing, EWireType::Yson32});
             return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
         case ESimpleLogicalValueType::Uuid:
-            CheckWireType(wireType, {EWireType::Uint128, EWireType::String32, EWireType::Yson32});
+            ValidateWireTypeIsOneOf(wireType, {EWireType::Uint128, EWireType::String32, EWireType::Yson32});
             if (wireType == EWireType::Uint128) {
                 if (fieldDescription.IsNullable()) {
                     return CreatePrimitiveTypeConverter<true>(columnId, TUuidParser());
