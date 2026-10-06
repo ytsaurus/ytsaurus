@@ -379,7 +379,13 @@ public:
     void TerminateSpecific() override
     {
         if (Instance_) {
-            Instance_->Destroy();
+            try {
+                Instance_->Destroy();
+            } catch (const std::exception& ex) {
+                YT_TLOG_FATAL("Failed to destroy job shell container")
+                    .With("ContainerName", Options_->ContainerName)
+                    .With(ex);
+            }
         }
     }
 
