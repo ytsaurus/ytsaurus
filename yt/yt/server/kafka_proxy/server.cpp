@@ -7,16 +7,16 @@
 
 #include <yt/yt/server/kafka_proxy/records/kafka_message.record.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/client/kafka/protocol.h>
 #include <yt/yt/client/kafka/error.h>
+#include <yt/yt/client/kafka/protocol.h>
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
@@ -37,8 +37,13 @@
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/crypto/config.h>
+#include <yt/yt/core/crypto/helpers.h>
+#include <yt/yt/core/crypto/tls.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/connection.h>
@@ -52,6 +57,7 @@ namespace NYT::NKafkaProxy {
 using namespace NApi;
 using namespace NAuth;
 using namespace NConcurrency;
+using namespace NCrypto;
 using namespace NKafka;
 using namespace NNet;
 using namespace NObjectClient;
@@ -68,20 +74,41 @@ constinit const auto Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool IsTlsEnabled(const TKafkaServerConfigPtr& config)
+{
+    return config->Credentials && config->Credentials->CertificateChain && config->Credentials->PrivateKey;
+}
+
+TSslContextPtr CreateSslContext(const TKafkaServerConfigPtr& config)
+{
+    auto sslContext = New<TSslContext>();
+    sslContext->ApplyConfig(config->Credentials);
+    sslContext->Commit();
+    return sslContext;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TServer
     : public IServer
 {
 public:
     TServer(
-        TProxyBootstrapConfigPtr config,
+        TKafkaServerConfigPtr config,
         IPollerPtr poller,
         IPollerPtr acceptor,
         IListenerPtr listener,
+        ISslCertificateUpdaterPtr certificateUpdater,
         IRequestHandlerPtr requestHandler)
         : Config_(std::move(config))
         , Poller_(std::move(poller))
         , Acceptor_(std::move(acceptor))
         , Listener_(std::move(listener))
+        , CertificateUpdater_(std::move(certificateUpdater))
         , RequestHandler_(std::move(requestHandler))
     { }
 
@@ -91,19 +118,24 @@ public:
 
         AsyncAcceptConnection();
 
+        if (CertificateUpdater_) {
+            CertificateUpdater_->Start();
+        }
+
         Started_ = true;
 
         YT_LOG_INFO("Kafka server started");
     }
 
 private:
-    const TProxyBootstrapConfigPtr Config_;
+    const TKafkaServerConfigPtr Config_;
 
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
     const IListenerPtr Listener_;
+    const ISslCertificateUpdaterPtr CertificateUpdater_;
     const IRequestHandlerPtr RequestHandler_;
 
     std::atomic<bool> Started_ = false;
@@ -249,20 +281,38 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IServerPtr CreateServer(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     IPollerPtr poller,
     IPollerPtr acceptor,
+    IInvokerPtr controlInvoker,
     IRequestHandlerPtr requestHandler)
 {
+    TSslContextPtr sslContext;
+    ISslCertificateUpdaterPtr certificateUpdater;
+    if (IsTlsEnabled(config)) {
+        sslContext = CreateSslContext(config);
+        YT_LOG_INFO("Kafka proxy server will serve TLS-encrypted connections");
+
+        certificateUpdater = CreateSslCertificateUpdater(
+            controlInvoker,
+            sslContext,
+            config->Credentials,
+            Logger());
+    }
+
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     for (int retryIndex = 0;; ++retryIndex) {
         try {
             auto listener = CreateListener(address, poller, acceptor, config->MaxBacklogSize);
+            if (sslContext) {
+                listener = sslContext->CreateListener(listener, poller);
+            }
             return New<TServer>(
                 std::move(config),
                 std::move(poller),
                 std::move(acceptor),
                 std::move(listener),
+                std::move(certificateUpdater),
                 std::move(requestHandler));
         } catch (const std::exception& ex) {
             if (retryIndex + 1 == config->BindRetryCount) {

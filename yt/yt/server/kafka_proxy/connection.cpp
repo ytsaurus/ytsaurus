@@ -31,7 +31,7 @@ class TConnection
 {
 public:
     TConnection(
-        TProxyBootstrapConfigPtr config,
+        TKafkaServerConfigPtr config,
         NNet::IConnectionPtr connection,
         IInvokerPtr invoker,
         TRequestCallback requesCallback,
@@ -88,7 +88,7 @@ public:
 private:
     const TConnectionId ConnectionId_;
 
-    const TProxyBootstrapConfigPtr Config_;
+    const TKafkaServerConfigPtr Config_;
 
     const NNet::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
@@ -206,7 +206,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestCallback requesCallback,

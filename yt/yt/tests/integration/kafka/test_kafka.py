@@ -2,6 +2,12 @@ from yt_env_setup import YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE, with_addi
 
 from yt_queue_agent_test_base import TestQueueAgentBase
 
+from yt.environment.tls_helpers import (
+    create_certificate,
+    get_certificate_fingerprint,
+    get_server_certificate,
+)
+
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
@@ -794,3 +800,135 @@ class TestKafkaProxy(KafkaProxyBase):
         assert len(received_messages) == len(written_messages) == rows_count
         for i, (kv, expected_kv) in enumerate(zip(received_messages, written_messages)):
             assert kv == expected_kv, f"Key value is missing: index '{i}' value: '{expected_kv}'"
+
+
+##################################################################
+
+
+class TestKafkaProxyTls(KafkaProxyBase):
+    ENABLE_TLS = True
+
+    DELTA_KAFKA_PROXY_CONFIG = {
+        "server": {
+            "credentials": {
+                "update_period": 1000,
+            },
+        },
+    }
+
+    def _get_proxy_cert_path(self, index=0):
+        proxy_config = self.Env.configs["kafka_proxy"][index]
+        proxy_cert = proxy_config["server"]["credentials"]["cert_chain"]["file_name"]
+        proxy_cert_key = proxy_config["server"]["credentials"]["private_key"]["file_name"]
+        return proxy_cert, proxy_cert_key
+
+    def _get_tls_consumer_config(self, address, token, consumer_path, sasl_mechanism="PLAIN"):
+        consumer_config = get_consumer_config(address, token, consumer_path, sasl_mechanism)
+        consumer_config["security.protocol"] = "SASL_SSL"
+        consumer_config["ssl.ca.location"] = self.Env.yt_config.public_ca_cert
+        return consumer_config
+
+    def _get_tls_producer_config(self, address, token):
+        producer_config = get_producer_config(address, token)
+        producer_config["security.protocol"] = "SASL_SSL"
+        producer_config["ssl.ca.location"] = self.Env.yt_config.public_ca_cert
+        return producer_config
+
+    def _produce_and_consume(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = f"primary:{self.create_queue_path()}"
+        consumer_path = f"primary:{self.create_consumer_path()}"
+
+        TestKafkaProxyTls._create_kafka_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
+
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        address = self.Env.get_kafka_proxy_address()
+
+        p = Producer(self._get_tls_producer_config(address, token))
+        serializer = StringSerializer('utf_8')
+
+        sent_messages = [
+            (f"key_{i}", f"value_{i}") for i in range(3)
+        ]
+        for key, value in sent_messages:
+            p.poll(0.0)
+            p.produce(
+                topic=queue_path,
+                partition=0,
+                key=serializer(key),
+                value=serializer(value),
+                on_delivery=_fail_on_error)
+
+        p.flush()
+
+        c = Consumer(self._get_tls_consumer_config(address, token, consumer_path))
+        c.assign([TopicPartition(queue_path, 0)])
+
+        messages = []
+        none_message_count = 0
+        error_count = 0
+        while True:
+            msg = c.poll(1.0)
+            if msg is None:
+                none_message_count += 1
+                assert none_message_count <= 100, "Too much none messages"
+                continue
+
+            if msg.error():
+                error_count += 1
+                assert error_count <= 10, msg.error()
+                continue
+
+            messages.append(KafkaMessageHelper(msg).parse())
+            if len(messages) >= 3:
+                break
+
+            c.commit(msg)
+
+        c.close()
+        assert messages == sent_messages
+
+    @authors("panesher")
+    def test_tls_producer_consumer(self):
+        self._produce_and_consume()
+
+    @authors("panesher")
+    def test_certificate_update(self):
+        proxy_cert, proxy_cert_key = self._get_proxy_cert_path()
+
+        old_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("Old certificate fingerprint: {}", old_fingerprint)
+
+        address = self.Env.get_kafka_proxy_address()
+
+        def current_fingerprint():
+            return get_certificate_fingerprint(cert_content=get_server_certificate(address))
+
+        assert current_fingerprint() == old_fingerprint
+
+        create_certificate(
+            ca_cert=self.Env.yt_config.public_ca_cert,
+            ca_cert_key=self.Env.yt_config.public_ca_cert_key,
+            cert=proxy_cert,
+            cert_key=proxy_cert_key,
+            names=[self.Env.yt_config.fqdn, self.Env.yt_config.cluster_name],
+        )
+
+        new_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("New certificate fingerprint: {}", new_fingerprint)
+
+        assert new_fingerprint != old_fingerprint
+
+        wait(lambda: current_fingerprint() == new_fingerprint)
+
+        self._produce_and_consume()

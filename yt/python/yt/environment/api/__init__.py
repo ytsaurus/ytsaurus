@@ -87,6 +87,8 @@ class LocalYtConfig(object):
     https_cert_key = attr.ib(None)
     public_rpc_cert = attr.ib(None)
     public_rpc_cert_key = attr.ib(None)
+    kafka_cert = attr.ib(None)
+    kafka_cert_key = attr.ib(None)
     peer_alternative_host_name = attr.ib(None)
 
     """Native authentication settings"""

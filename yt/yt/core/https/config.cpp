@@ -4,11 +4,8 @@ namespace NYT::NHttps {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServerCredentialsConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("update_period", &TThis::UpdatePeriod)
-        .Optional();
-}
+void TServerCredentialsConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

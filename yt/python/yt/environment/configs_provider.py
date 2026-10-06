@@ -705,6 +705,18 @@ def _build_kafka_proxy_configs(multidaemon_config_output,
 
         config["monitoring_port"] = next(ports_generator)
 
+        if yt_config.enable_tls and yt_config.kafka_cert is not None:
+            config["server"] = {
+                "credentials": {
+                    "cert_chain": {
+                        "file_name": yt_config.kafka_cert,
+                    },
+                    "private_key": {
+                        "file_name": yt_config.kafka_cert_key,
+                    },
+                },
+            }
+
         multidaemon_config_output["daemons"][f"kafka_proxy_{index}"] = {
             "type": "kafka_proxy",
             "config": config,

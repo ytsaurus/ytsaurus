@@ -27,17 +27,17 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
-#include <yt/yt/library/orchid/orchid_service.h>
-
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
+#include <yt/yt/library/fusion/service_locator.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
-
-#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -45,6 +45,10 @@
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/https/server.h>
+
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -55,8 +59,6 @@
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
-
-#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 namespace NYT::NKafkaProxy {
 
@@ -210,7 +212,7 @@ private:
             TCypressRegistrarOptions options{
                 .RootPath = Format("%v/%v", KafkaProxiesInstancesPath, NNet::BuildServiceAddress(
                     NNet::GetLocalHostName(),
-                    Config_->Port)),
+                    Config_->Server->Port)),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };
@@ -262,9 +264,10 @@ private:
             AuthenticationManager_);
 
         Server_ = CreateServer(
-            Config_,
+            Config_->Server,
             Poller_,
             Acceptor_,
+            GetControlInvoker(),
             RequestHandler_);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
