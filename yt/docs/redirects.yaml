@@ -1036,6 +1036,14 @@ ru:
       to: /flow/extensions/monium.md
       type: redirect
 
+    - from: /flow/file-providers/sandbox.md
+      to: /flow/extensions/sandbox.md
+      type: redirect
+
+    - from: /flow/file-providers/model-service.md
+      to: /flow/extensions/model-service.md
+      type: redirect
+
     - from: /flow/release/launch-vanilla.md
       to: /flow/devops/vanilla/initial-deploy.md
       type: redirect
