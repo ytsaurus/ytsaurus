@@ -33,6 +33,7 @@ public class DirectYTsaurusClientTest {
     private static final int ATTEMPT_LIMIT = 3;
 
     private final Set<GUID> requestIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> rpcProxyAddresses = ConcurrentHashMap.newKeySet();
     private final ConcurrentLinkedQueue<Socket> connections = new ConcurrentLinkedQueue<>();
 
     private ServerSocket server;
@@ -72,6 +73,9 @@ public class DirectYTsaurusClientTest {
         listNode(DirectYTsaurusClient.builder());
 
         assertEquals(1, requestIds.size());
+        String rpcProxyAddress = new InetSocketAddress(server.getInetAddress(), server.getLocalPort()).toString();
+        assertEquals(Set.of(rpcProxyAddress),
+                rpcProxyAddresses);
     }
 
     @Test
@@ -86,7 +90,10 @@ public class DirectYTsaurusClientTest {
                 .setGlobalTimeout(Duration.ofSeconds(2))
                 .setAcknowledgementTimeout(Duration.ofMillis(100))
                 .setRetryPolicyFactory(() -> RetryPolicy.retryAll(ATTEMPT_LIMIT))
-                .setRpcClientListener((context, bytes) -> requestIds.add(context.getRequestId()));
+                .setRpcClientListener((context, bytes) -> {
+                    requestIds.add(context.getRequestId());
+                    rpcProxyAddresses.add(context.getRpcProxyAddress());
+                });
 
         DirectYTsaurusClient client = builder
                 .setSharedBusConnector(busConnector)

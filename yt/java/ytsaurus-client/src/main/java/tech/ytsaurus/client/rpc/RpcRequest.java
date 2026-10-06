@@ -22,13 +22,24 @@ public class RpcRequest<RequestType extends MessageLite> {
     List<byte[]> compressedAttachments;
     public final @Nullable
     Compression compressedAttachmentsCodec;
+    private final GUID originalRequestId;
 
     public RpcRequest(TRequestHeader header, RequestType body, @Nonnull List<byte[]> attachments) {
+        this(header, body, attachments, getRequestId(header));
+    }
+
+    private RpcRequest(
+            TRequestHeader header,
+            RequestType body,
+            @Nonnull List<byte[]> attachments,
+            GUID originalRequestId
+    ) {
         this.header = header;
         this.body = body;
         this.attachments = attachments;
         this.compressedAttachments = null;
         this.compressedAttachmentsCodec = null;
+        this.originalRequestId = originalRequestId;
     }
 
     public RpcRequest(
@@ -37,11 +48,22 @@ public class RpcRequest<RequestType extends MessageLite> {
             @Nullable Compression codec,
             @Nullable List<byte[]> attachments
     ) {
+        this(header, body, codec, attachments, getRequestId(header));
+    }
+
+    private RpcRequest(
+            TRequestHeader header,
+            RequestType body,
+            @Nullable Compression codec,
+            @Nullable List<byte[]> attachments,
+            GUID originalRequestId
+    ) {
         this.header = header;
         this.body = body;
         this.attachments = null;
         this.compressedAttachmentsCodec = codec;
         this.compressedAttachments = attachments;
+        this.originalRequestId = originalRequestId;
     }
 
     protected RpcRequest(RpcRequest<RequestType> request) {
@@ -50,14 +72,25 @@ public class RpcRequest<RequestType extends MessageLite> {
         this.attachments = request.attachments;
         this.compressedAttachmentsCodec = request.compressedAttachmentsCodec;
         this.compressedAttachments = request.compressedAttachments;
+        this.originalRequestId = request.originalRequestId;
     }
 
     public RpcRequest<RequestType> copy(TRequestHeader header) {
         if (attachments != null) {
-            return new RpcRequest<>(header, body, attachments);
+            return new RpcRequest<>(header, body, attachments, originalRequestId);
         } else {
-            return new RpcRequest<>(header, body, compressedAttachmentsCodec, compressedAttachments);
+            return new RpcRequest<>(
+                    header,
+                    body,
+                    compressedAttachmentsCodec,
+                    compressedAttachments,
+                    originalRequestId
+            );
         }
+    }
+
+    public GUID getOriginalRequestId() {
+        return originalRequestId;
     }
 
     public static Duration getTimeout(TRequestHeaderOrBuilder header) {

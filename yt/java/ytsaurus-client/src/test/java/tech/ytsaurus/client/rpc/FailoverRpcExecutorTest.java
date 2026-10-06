@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString;
 import org.junit.After;
 import org.junit.Test;
 import tech.ytsaurus.client.RetryPolicy;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
@@ -130,6 +131,27 @@ public class FailoverRpcExecutorTest {
         assertTrue(result.isDone());
         assertFalse(result.isCompletedExceptionally());
         assertEquals(result.get(), "response");
+    }
+
+    @Test
+    public void testRequestCopyPreservesOriginalRequestId() {
+        GUID originalRequestId = GUID.create();
+        GUID retryRequestId = GUID.create();
+        TRequestHeader originalHeader = TRequestHeader.newBuilder()
+                .setService("service")
+                .setMethod("method")
+                .setRequestId(RpcUtil.toProto(originalRequestId))
+                .build();
+        TRequestHeader retryHeader = originalHeader.toBuilder()
+                .setRequestId(RpcUtil.toProto(retryRequestId))
+                .setRetry(true)
+                .build();
+        TReqGetNode body = TReqGetNode.newBuilder().setPath(ByteString.copyFromUtf8("/")).build();
+
+        RpcRequest<?> retryRequest = new RpcRequest<>(originalHeader, body, List.of()).copy(retryHeader);
+
+        assertEquals(originalRequestId, retryRequest.getOriginalRequestId());
+        assertEquals(retryRequestId, RpcRequest.getRequestId(retryRequest.header));
     }
 
     @Test
