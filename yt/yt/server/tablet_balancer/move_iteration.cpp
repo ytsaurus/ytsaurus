@@ -92,7 +92,7 @@ public:
         return GroupConfig_;
     }
 
-    TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const override
+    TGuard<NYT::TSpinLock> StartApplyingActions() const override
     {
         return Guard(BundleSnapshot_->PublishedObjectLock);
     }

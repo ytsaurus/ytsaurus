@@ -67,7 +67,7 @@ public:
     void Add(NChunkPools::IChunkPoolInput::TCookie cookie, const NChunkPools::TChunkStripePtr& stripe);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     EChunkMappingMode Mode_;
     THashMap<NChunkClient::TInputChunkPtr, TCompactVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;

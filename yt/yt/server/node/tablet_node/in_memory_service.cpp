@@ -121,7 +121,7 @@ private:
     const EInMemoryMode Mode_;
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<TChunkId, TChunkDataPtr> ChunkIdToData_;
 };
 
@@ -166,7 +166,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, StartSession)

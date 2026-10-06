@@ -696,7 +696,7 @@ private:
     const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::set<int> RegisteredSnapshotIds_;
     THashMap<int, TWeakPtr<ISnapshotWriter>> SnapshotIdToWriter_;
 

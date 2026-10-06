@@ -71,7 +71,7 @@ public:
 private:
     const TSessionId SessionId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::set<TRequest> Requests_;
 
     bool Canceled_ = false;

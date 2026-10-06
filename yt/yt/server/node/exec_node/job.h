@@ -307,7 +307,7 @@ private:
 
     // NB(pogorelov): GuardedJobSpec_ is mutated only from job thread, so we can store reference to an object and
     // read it from job thread without lock.
-    NThreading::TAtomicObject<NControllerAgent::NProto::TJobSpec> GuardedJobSpec_;
+    TAtomicObject<NControllerAgent::NProto::TJobSpec> GuardedJobSpec_;
     // Thread affinity: JobThread
     const NControllerAgent::NProto::TJobSpec& JobSpec_;
     const NControllerAgent::NProto::TJobSpecExt& JobSpecExt_;
@@ -405,7 +405,7 @@ private:
 
     std::atomic<bool> UseJobInputCache_ = false;
 
-    NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
+    TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
     bool IsGpuRequested_;
 
@@ -427,7 +427,7 @@ private:
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, JobProbeLock_);
     NJobProxy::IJobProbePtr JobProbe_;
 
     NRpc::IChannelPtr JobProxyChannel_;

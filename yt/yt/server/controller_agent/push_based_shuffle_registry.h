@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NControllerAgent {
 
@@ -45,7 +45,7 @@ public:
         TOperationId operationId) const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TIncarnationId IncarnationId_;
     THashMap<TOperationId, TWeakPtr<NDistributedChunkSessionClient::IDistributedChunkSessionPool>> IdToPool_;
 

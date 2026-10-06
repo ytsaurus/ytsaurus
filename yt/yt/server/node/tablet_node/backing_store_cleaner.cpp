@@ -49,7 +49,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     struct TCounters
     {

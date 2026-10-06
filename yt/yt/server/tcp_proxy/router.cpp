@@ -80,7 +80,7 @@ private:
     const IDialerPtr Dialer_;
 
     // TODO(gritukan): Get rid of locks on critical path.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     struct TPortState
     {

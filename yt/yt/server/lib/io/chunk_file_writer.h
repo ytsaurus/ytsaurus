@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/system/file.h>
 
@@ -149,7 +149,7 @@ private:
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
-    NThreading::TAtomicObject<TError> Error_;
+    TAtomicObject<TError> Error_;
 
     TFuture<void> ReadyEvent_ = OKFuture;
 

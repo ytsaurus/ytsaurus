@@ -129,7 +129,7 @@
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 

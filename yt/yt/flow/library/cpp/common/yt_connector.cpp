@@ -20,7 +20,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NFlow {
 
@@ -231,7 +231,7 @@ private:
     const NYPath::TRichYPath PipelinePath_;
     const IClientPtr Client_;
 
-    NThreading::TAtomicObject<std::optional<TFlowTablesBundleInfo>> CachedFlowTablesBundle_;
+    TAtomicObject<std::optional<TFlowTablesBundleInfo>> CachedFlowTablesBundle_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

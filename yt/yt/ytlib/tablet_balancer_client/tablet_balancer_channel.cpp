@@ -119,7 +119,7 @@ private:
     const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     IChannelPtr CachedChannel_;
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& /*error*/)

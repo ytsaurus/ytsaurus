@@ -20,13 +20,13 @@ struct ISequoiaTransaction
     {
     public:
         TThreadSafeRowBuffer(
-            NThreading::TSpinLock* lock,
+            TSpinLock* lock,
             NTableClient::TRowBufferPtr rowBuffer);
 
         const NTableClient::TRowBufferPtr& Get() const;
 
     private:
-        const TGuard<NThreading::TSpinLock> Guard_;
+        const TGuard<TSpinLock> Guard_;
         const NTableClient::TRowBufferPtr RowBuffer_;
     };
 

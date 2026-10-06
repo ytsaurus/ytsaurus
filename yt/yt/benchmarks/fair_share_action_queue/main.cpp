@@ -14,7 +14,7 @@
 
 #include <yt/yt/library/signals/signal_registry.h>
 
-#include <library/cpp/yt/threading/count_down_latch.h>
+#include <library/cpp/yt/system/count_down_latch.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
@@ -128,7 +128,7 @@ struct TThreadHistogramToListNode
     }
 };
 
-YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistogramsLock);
+YT_DECLARE_SPIN_LOCK(NYT::TSpinLock, HistogramsLock);
 TIntrusiveLinkedList<TThreadHistogram, TThreadHistogramToListNode> Histograms;
 
 TThreadHistogram::TThreadHistogram()

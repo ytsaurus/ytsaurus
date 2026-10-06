@@ -1083,14 +1083,14 @@ public:
     void RebuildNodeCache(const IInvokerPtr& invoker);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TFlowViewPtr FlowView_ = nullptr;
     NYson::TYsonString CachedYsonString_;
     TIndexedYsonStringPtr CachedYsonIndex_;
     TSharedRef CachedCompressedFlowView_;
     NCompression::ECodec CachedCompressionCodec_{};
 
-    void EnsureInit(TGuard<NThreading::TSpinLock>& guard) const;
+    void EnsureInit(TGuard<TSpinLock>& guard) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFlowViewKeeper);

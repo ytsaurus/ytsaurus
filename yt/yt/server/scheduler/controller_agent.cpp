@@ -86,7 +86,7 @@ TIncarnationId TControllerAgent::GetIncarnationId() const
     return NControllerAgent::IncarnationIdFromTransactionId(IncarnationTransaction_->GetId());
 }
 
-TGuard<NThreading::TSpinLock> TControllerAgent::AcquireInnerStateLock()
+TGuard<TSpinLock> TControllerAgent::AcquireInnerStateLock()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

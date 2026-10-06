@@ -631,7 +631,7 @@ private:
 
     TBundleProfilingCountersPtr Counters_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     std::vector<TBundleSnapshotPtr> BundleSnapshots_;
     TFuture<TBundleTabletBalancerConfigPtr> BundleConfigFuture_;

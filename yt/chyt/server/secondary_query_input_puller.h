@@ -25,7 +25,7 @@ private:
     const IInvokerPtr Invoker_;
     const DB::ReadTaskCallback NextTaskCallback_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BufferLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, BufferLock_);
     std::vector<std::queue<TFuture<TSecondaryQueryReadDescriptors>>> Buffer_;
     int OperandCount_;
 

@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <deque>
 
@@ -52,10 +52,10 @@ private:
     };
 
     // Buckets are appended in accounting order, thus ordered by time.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     std::deque<TIoBucket> History_;
 
-    NThreading::TAtomicObject<std::optional<double>> IoFairShareWeight_;
+    TAtomicObject<std::optional<double>> IoFairShareWeight_;
 
     void Account(i64 size);
 };

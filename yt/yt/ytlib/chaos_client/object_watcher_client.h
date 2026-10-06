@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NChaosClient {
 
@@ -52,7 +52,7 @@ private:
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const NRpc::IChannelPtr ChaosCacheChannel_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TChaosObjectId, TWatchState> WatchStates_;
 
     virtual TFuture<void> WatchUpstream(

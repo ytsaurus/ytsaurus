@@ -198,7 +198,7 @@ private:
     struct TReferenceAddressMapShard
     {
         THashMap<TReferenceKey, TState> Map;
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock);
     };
 
     std::vector<TReferenceAddressMapShard> ReferenceAddressToState_;
@@ -1531,7 +1531,7 @@ private:
     const IMemoryUsageTrackerPtr Underlying_;
     const TCounter MemoryUsageCounter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     // Amount we allocated from Underlying_.
     i64 UnderlyingAllocatedSize_ = 0;

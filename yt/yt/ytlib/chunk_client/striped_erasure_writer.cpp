@@ -23,7 +23,7 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChunkClient {
 
@@ -215,7 +215,7 @@ private:
 
     // Becomes set when window size goes below the limit.
     TPromise<void> ReadyEvent_ = NewPromise<void>();
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReadyEventLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ReadyEventLock_);
 
     // Blocks in a current group. Group is a set of contiguous blocks that are reordered
     // using block reorderer and then flushed.

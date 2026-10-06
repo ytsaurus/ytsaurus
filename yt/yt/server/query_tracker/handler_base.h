@@ -66,7 +66,7 @@ protected:
 
     const NConcurrency::TPeriodicExecutorPtr ProgressWriter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProgressSpinLock_);
     NYson::TYsonString Progress_ = NYson::TYsonString(TString("{}"));
     int ProgressVersion_ = 0;
     int LastSavedProgressVersion_ = 0;

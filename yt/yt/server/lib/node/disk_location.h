@@ -8,8 +8,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NNode {
 
@@ -65,7 +65,7 @@ public:
     ~TDiskLocation();
 
 protected:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ActionsContainerLock_);
 
     const std::string Id_;
     const NLogging::TLogger Logger;
@@ -89,7 +89,7 @@ protected:
 private:
     const NServer::TDiskLocationConfigPtr StaticConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, StateChangingLock_);
     std::atomic<ELocationState> State_ = ELocationState::Enabling;
 
     TAtomicIntrusivePtr<NServer::TDiskLocationConfig> RuntimeConfig_;

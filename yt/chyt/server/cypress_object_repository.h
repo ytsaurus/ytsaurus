@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/ypath/public.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
@@ -104,7 +104,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr SnapshotExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SnapshotLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SnapshotLock_);
     TObjectSnapshotPtr Snapshot_;
 
     TObjectSnapshotPtr GetSnapshot();

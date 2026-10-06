@@ -33,7 +33,7 @@ private:
 
     const NProfiling::TProfiler VolumeProfiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TKey, NProfiling::TCounter> Counters_;
     THashMap<TKey, NProfiling::TGauge> Gauges_;
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;
@@ -84,7 +84,7 @@ private:
 
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TKey, NProfiling::TCounter> Counters_;
 };
 

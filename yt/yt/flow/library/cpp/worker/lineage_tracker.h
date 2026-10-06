@@ -6,7 +6,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/decayed_sum.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NWorker {
 
@@ -38,7 +38,7 @@ private:
         TInstant LastUpdateTime;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TStreamId, THashMap<TStreamId, TCounterState>> Counters_;
     TInstant LastObservationTime_;
 

@@ -196,7 +196,7 @@ private:
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryStateSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueryStateSpinLock_);
     EYqlQueryState QueryState_ = EYqlQueryState::Pending;
 
     std::optional<ui32> LastInMemoryProgressRevision_;

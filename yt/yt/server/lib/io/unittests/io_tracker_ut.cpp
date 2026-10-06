@@ -7,7 +7,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/string/cast.h>
 
@@ -253,8 +253,8 @@ TEST(TIOTrackerTest, Baggage)
     config->AggregationPeriod = TDuration::MilliSeconds(100);
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    NThreading::TAtomicObject<TIOTagList> rawTagList;
-    NThreading::TAtomicObject<TIOTagList> aggregateTagList;
+    TAtomicObject<TIOTagList> rawTagList;
+    TAtomicObject<TIOTagList> aggregateTagList;
 
     ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& list) {
         rawTagList.Store(std::move(list));
@@ -318,7 +318,7 @@ TEST(TIOTrackerTest, PathAggr)
     config->PathAggregateTags = {"first@", "third@"};
     auto ioTracker = CreateIOTracker(std::move(config));
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, lock);
     std::vector<TIOTagList> events;
     int totalBytes = 0;
 

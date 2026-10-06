@@ -700,7 +700,7 @@ private:
 
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StatisticsLock_);
     NYT::TStatistics CustomStatistics_;
 
     std::atomic<int> JobProfilerFailureCount_ = 0;

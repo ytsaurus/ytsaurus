@@ -187,7 +187,7 @@ private:
     NChunkClient::TJobIoMeterPtr JobIoMeter_;
 
     mutable THashMap<NScheduler::TClusterName, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InBandwidthThrottlersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InBandwidthThrottlersSpinLock_);
 
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;

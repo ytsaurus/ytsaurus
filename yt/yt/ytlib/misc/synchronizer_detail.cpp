@@ -55,7 +55,7 @@ TFuture<void> TSynchronizerBase::GetFirstSuccessfulSyncFuture()
     return FirstSuccessfulSyncPromise_.ToFuture();
 }
 
-TFuture<void> TSynchronizerBase::DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately)
+TFuture<void> TSynchronizerBase::DoStart(TGuard<TSpinLock>&& guard, bool syncImmediately)
 {
     YT_VERIFY(!Stopped_);
 

@@ -60,7 +60,7 @@
 
 #include <yt/yt/core/rpc/hedging_channel.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>
@@ -400,7 +400,7 @@ private:
 
     const IRequestBatcherPtr RequestBatcher_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
     //! Peers returning NoSuchChunk error are banned forever.
     THashSet<TPeerId> BannedForeverPeers_;
@@ -638,7 +638,7 @@ protected:
 
         TPromise<TResponse> Promise_ = NewPromise<TResponse>();
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
         std::optional<TError> CancelationError_;
         TCompactVector<TFuture<void>, 5> SessionFutures_;
 
@@ -1724,7 +1724,7 @@ private:
         const NLogging::TLogger Logger;
         const TInstant ProbingStartTime_ = TInstant::Now();
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
         int CurrentTimeoutIndex_ = 0;
         TDelayedExecutorCookie TimeoutCookie_;
         int SuccessfulResponseCount_ = 0;
@@ -1755,7 +1755,7 @@ private:
             return false;
         }
 
-        void DoFinish(TGuard<NThreading::TSpinLock> guard)
+        void DoFinish(TGuard<TSpinLock> guard)
         {
             YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -1844,7 +1844,7 @@ private:
 
     TFuture<TAllyReplicasInfo> SeedsFuture_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
     //! Sets the value upon cancelation.
     std::optional<TError> CancelationError_;
     //! Future of the previous cancellable action within session (e.g. Throttle, GetBlockSet).
@@ -2604,7 +2604,7 @@ private:
 
     bool PreliminaryThrottlingApplied_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RequestHandlerLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, RequestHandlerLock_);
     //! Blocks that are fetched so far.
     THashMap<int, TBlock> Blocks_;
 
@@ -4755,7 +4755,7 @@ private:
     const TChunkId ChunkId_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     THashMap<TPeerId, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
     THashMap<TPeerId, TNodeState<TGetBlocksResult>> GetBlocksStates_;

@@ -10,7 +10,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NSignature {
 
@@ -44,7 +44,7 @@ private:
     const IKeyStoreWriterPtr KeyWriter_;
     const TSignatureGeneratorPtr Generator_;
     const NConcurrency::TRetryingPeriodicExecutorPtr Executor_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ReconfigureSpinLock_);
 
     TError DoRotate();
 };

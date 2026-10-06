@@ -149,7 +149,7 @@ private:
     const TBusClientConfigPtr TcpBusClientConfig_;
     const TJobProbeConfigPtr ProbeConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
 

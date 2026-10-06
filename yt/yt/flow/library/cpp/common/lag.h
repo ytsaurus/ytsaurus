@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/datetime/base.h>
 
@@ -53,7 +53,7 @@ private:
         std::vector<TSystemTimestamp> EventTimestamps;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TStreamId, TStream> Streams_;
 
     void DoObserve(const TStreamId& streamId, TSystemTimestamp eventTimestamp);

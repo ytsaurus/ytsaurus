@@ -31,7 +31,7 @@ struct IMoveIteration
     virtual EBalancingMode GetBalancingMode() const = 0;
     virtual TStringBuf GetActionSubtypeName() const = 0;
 
-    virtual TGuard<NYT::NThreading::TSpinLock> StartApplyingActions() const = 0;
+    virtual TGuard<NYT::TSpinLock> StartApplyingActions() const = 0;
     virtual void ApplyMoveAction(const TTabletPtr& tablet, TTabletCellId cellId) const = 0;
 };
 

@@ -491,7 +491,7 @@ public:
 private:
     TDynamicConfigStorePtr DynamicConfigStore_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, GroupCoordinatorMapLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, GroupCoordinatorMapLock_);
     THashMap<TGroupId, IGroupCoordinatorPtr> GroupCoordinators_;
 };
 

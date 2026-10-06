@@ -2714,16 +2714,16 @@ private:
     // This map is transient and used for alert accumulation.
     THashMap<TUserId, TUserExceededActiveTransactionCountAlertThresholdReport> UserIdToActiveTransactionCountExceededAlertReport_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BarrierLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BarrierLock_);
     // This map is not saved to the snapshot and should not be updated during recovery.
     THashMap<std::string, TAsyncBarrier> TagToBarrier_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BarrierProfilingLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, BarrierProfilingLock_);
     // This map is transient and used for profiling.
     std::map<TInstant, int> BarrierTimestampStartMap_;
 
     // To ensure no data race with config, these values have to be atomic.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ConfigLock_);
     bool EnableWaitUntilPreparedTransactionsFinished_ = false;
     std::optional<TDuration> PreparedTransactionsBarrierDelay_ = std::nullopt;
 

@@ -76,9 +76,9 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <library/cpp/yt/threading/recursive_spin_lock.h>
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/traceless_guard.h>
+#include <library/cpp/yt/system/recursive_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
+#include <library/cpp/yt/system/traceless_guard.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
@@ -166,7 +166,7 @@ public:
 private:
     const TCpuDuration ExpireTime_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
     THashMap<std::string, std::pair<TError, TCpuInstant>> Map_;
 };
@@ -352,9 +352,9 @@ private:
             }
         }
 
-        NThreading::TThreadId GetThreadId() const final
+        TThreadId GetThreadId() const final
         {
-            return NThreading::InvalidThreadId;
+            return InvalidThreadId;
         }
 
         bool CheckAffinity(const IInvokerPtr& /*invoker*/) const final

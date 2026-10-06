@@ -179,7 +179,7 @@ public:
     //! Retrieve transaction context base.
     TPersistedStateTransactionContextBase& GetTransactionContextBase(TPersistedStateTransactionPtr& tx) override;
     //! Retrieve transactional lock.
-    TGuard<NThreading::TSpinLock> TransactionGuard() const override;
+    TGuard<TSpinLock> TransactionGuard() const override;
     //! Create new transaction context base.
     TPersistedStateTransactionContextPtr CreateTransactionContextBase(TPersistedStateTransactionBase& tx, bool readOnly) override;
     //! Copy this state's write set from srcTx's context into dstTx's context.
@@ -465,7 +465,7 @@ TPersistedStatePtr<TKey, TValue> TPersistedStateImpl<TKey, TValue, TSerializer, 
 }
 
 template <class TKey, class TValue, class TSerializer, class TDBKey, class TDBValue, class TDefaultSerializer>
-TGuard<NThreading::TSpinLock> TPersistedStateImpl<TKey, TValue, TSerializer, TDBKey, TDBValue, TDefaultSerializer>::TransactionGuard() const
+TGuard<TSpinLock> TPersistedStateImpl<TKey, TValue, TSerializer, TDBKey, TDBValue, TDefaultSerializer>::TransactionGuard() const
 {
     auto control = WeakControl_.Lock();
     THROW_ERROR_EXCEPTION_UNLESS(control, "Persisted state control has been destroyed");
@@ -620,7 +620,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::AbortTransact
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
 void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::ValidateTransaction(
     TTransaction& transaction,
-    TGuard<NThreading::TSpinLock>& guard)
+    TGuard<TSpinLock>& guard)
 {
     YT_ASSERT(transaction.State_ == EPersistedStateTransactionState::Active);
     auto failureGuard = Finally([&] {
@@ -1042,7 +1042,7 @@ TPersistedStateTransactionPtr TPersistedStateControl<TDBKey, TDBValue, TDefaultS
 }
 
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
-void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsReader(TTransaction& transaction, TGuard<NThreading::TSpinLock>& guard)
+void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsReader(TTransaction& transaction, TGuard<TSpinLock>& guard)
 {
     YT_ASSERT(guard);
     // The reader transaction will have the latest read view which is described by LastKnownId_.
@@ -1058,7 +1058,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsRea
 }
 
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
-void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::UnregisterAsReader(TTransaction& transaction, TGuard<NThreading::TSpinLock>& guard)
+void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::UnregisterAsReader(TTransaction& transaction, TGuard<TSpinLock>& guard)
 {
     YT_ASSERT(guard);
     transaction.Unlink();
@@ -1066,7 +1066,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::UnregisterAsR
 }
 
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
-void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsWriter(TTransaction& transaction, TGuard<NThreading::TSpinLock>& guard)
+void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsWriter(TTransaction& transaction, TGuard<TSpinLock>& guard)
 {
     YT_ASSERT(guard);
     // The writer must change the last checkpoint with LastKnownId_. But by design the transaction is registered as writer
@@ -1086,7 +1086,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::RegisterAsWri
 }
 
 template <class TDBKey, class TDBValue, class TDefaultSerializer>
-void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::CleanupCheckpoints(TGuard<NThreading::TSpinLock>& guard)
+void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::CleanupCheckpoints(TGuard<TSpinLock>& guard)
 {
     YT_ASSERT(guard);
     while (!CheckpointDeque_.empty() && CheckpointDeque_.front()->Readers.Empty()) {

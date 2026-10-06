@@ -62,7 +62,7 @@ private:
     TAtomicIntrusivePtr<TSequoiaConnectionConfig> Config_;
 
     // Protects GroundClientFuture_ and ClientCache_.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TFuture<IClientPtr> GroundClientFuture_;
     TClientCachePtr ClientCache_;
     std::atomic<TInstant> LastReconfigurationTime_ = {};

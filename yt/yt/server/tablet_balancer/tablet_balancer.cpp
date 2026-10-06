@@ -109,7 +109,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     std::atomic<TDuration> TimeoutOnStart_;
     std::atomic<TDuration> Timeout_;
@@ -160,7 +160,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TCellTag, IReconfigurableThroughputThrottlerPtr> Throttlers_;
     TThroughputThrottlerConfigPtr Config_;
 };
@@ -262,10 +262,10 @@ private:
     // Bundles with currently running balancing callback.
     THashSet<std::string> BalancingBundles_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BundleErrorsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, BundleErrorsLock_);
     mutable THashMap<std::string, TBundleErrors> BundleErrors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     THashSet<TGlobalGroupTag> GroupsToReshardOnNextIteration_;
     IActionManagerPtr ActionManager_;

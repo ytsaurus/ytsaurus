@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NNode {
 
@@ -231,8 +231,8 @@ protected:
 
     NProfiling::TProfiler Profiler_;
 
-    NThreading::TAtomicObject<TError> LocationDisabledAlert_;
-    NThreading::TAtomicObject<TError> LocationDiskFailedAlert_;
+    TAtomicObject<TError> LocationDisabledAlert_;
+    TAtomicObject<TError> LocationDiskFailedAlert_;
 
     NServer::TDiskHealthCheckerPtr HealthChecker_;
 
@@ -290,13 +290,13 @@ private:
 
     NProfiling::TDynamicTagPtr MediumTag_;
 
-    NThreading::TAtomicObject<TChunkLocationUuid> Uuid_;
+    TAtomicObject<TChunkLocationUuid> Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
     NIO::IHugePageManagerPtr HugePageManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
     void ValidateWritable();

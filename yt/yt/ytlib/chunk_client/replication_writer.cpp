@@ -50,7 +50,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 #include <deque>
@@ -260,7 +260,7 @@ private:
     TChunkLocationUuid TargetLocationUuid_;
     TChunkLocationIndex TargetLocationIndex_;
 
-    NThreading::TAtomicObject<TError> Error_;
+    TAtomicObject<TError> Error_;
     TPeriodicExecutorPtr PingExecutor_;
 
     bool Closing_ = false;
@@ -572,7 +572,7 @@ private:
 
     bool CloseDemanded_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CandidateNodesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CandidateNodesLock_);
     //! Stores the set of nodes where write sessions could have been started.
     //! Used to avoid leaving dangling sessions behind on writer cancelation.
     THashSet<IChannelPtr> CandidateNodes_;

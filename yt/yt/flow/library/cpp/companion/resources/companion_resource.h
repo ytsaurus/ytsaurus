@@ -184,12 +184,12 @@ private:
     ICompanionClientPtr CompanionClient_;
     std::vector<TCompanionDependency> CompanionDependencies_;
     NConcurrency::TPeriodicExecutorPtr KeepAliveExecutor_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PublicationLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PublicationLock_);
     TPublicationState PreparedPublicationState_;
     std::optional<TPublicationState> AppliedPublicationState_;
     ui64 PreparationEpoch_ = 0;
     TDynamicResourceContextPtr PreparingDynamicContext_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CompanionClientsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CompanionClientsLock_);
     mutable THashMap<i64, ICompanionClientPtr> CompanionClientsByProcessId_;
     //! Accessed only from the resource invoker.
     bool FirstKeepAliveTickSkipped_ = false;

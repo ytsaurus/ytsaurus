@@ -19,7 +19,7 @@
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
-#include <library/cpp/yt/threading/traceless_guard.h>
+#include <library/cpp/yt/system/traceless_guard.h>
 
 #include <util/system/mutex.h>
 
@@ -43,7 +43,7 @@ public:
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
-            auto guard = NThreading::TracelessTryGuard(Lock_);
+            auto guard = TracelessTryGuard(Lock_);
 
             if (!guard) {
                 rsp->SetStatus(EStatusCode::TooManyRequests);
@@ -86,7 +86,7 @@ protected:
     const TBuildInfo BuildInfo_;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 };
 
 class TCpuProfilerHandler

@@ -335,7 +335,7 @@ void TFileResourceBase<TData>::OnReconfigured(const TDynamicResourceContextPtr& 
 }
 
 template <class TData>
-void TFileResourceBase<TData>::SchedulePreparation(const TGuard<NThreading::TSpinLock>& guard)
+void TFileResourceBase<TData>::SchedulePreparation(const TGuard<TSpinLock>& guard)
 {
     if (!LoadStarted_ || !Target_) {
         return;
@@ -364,7 +364,7 @@ void TFileResourceBase<TData>::SchedulePreparation(const TGuard<NThreading::TSpi
 template <class TData>
 void TFileResourceBase<TData>::StartPreparation(
     ESnapshotRole role,
-    const TGuard<NThreading::TSpinLock>& /*guard*/)
+    const TGuard<TSpinLock>& /*guard*/)
 {
     auto& slot = GetSlot(role);
     YT_VERIFY(slot.Desired);
@@ -744,7 +744,7 @@ void TFileResourceBase<TData>::ReportActivationStall(
 
 template <class TData>
 bool TFileResourceBase<TData>::TryCompleteActivation(
-    const TGuard<NThreading::TSpinLock>& guard)
+    const TGuard<TSpinLock>& guard)
 {
     if (!ActivationState_ || !ActivationState_->RetiredSnapshotReleased) {
         return false;
@@ -754,7 +754,7 @@ bool TFileResourceBase<TData>::TryCompleteActivation(
 
 template <class TData>
 bool TFileResourceBase<TData>::CompleteActivation(
-    const TGuard<NThreading::TSpinLock>& guard)
+    const TGuard<TSpinLock>& guard)
 {
     YT_VERIFY(ActivationState_);
     YT_VERIFY(ActiveSlot_.Desired);
@@ -786,7 +786,7 @@ bool TFileResourceBase<TData>::CompleteActivation(
 
 template <class TData>
 void TFileResourceBase<TData>::ConfigureSlotsAfterActivation(
-    const TGuard<NThreading::TSpinLock>& /*guard*/)
+    const TGuard<TSpinLock>& /*guard*/)
 {
     YT_VERIFY(ActiveFileSnapshotId_);
 

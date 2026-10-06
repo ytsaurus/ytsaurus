@@ -1043,7 +1043,7 @@ private:
 
     int AggregatedOnlineNodeCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NodeStatisticsLock_);
     TInstant NodeStatisticsUpdateDeadline_;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;

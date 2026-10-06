@@ -7,7 +7,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/adaptor.h>
 #include <util/random/random.h>
@@ -135,7 +135,7 @@ private:
     TTraceContextPtr RootTraceContext_ = {};
     TTraceContextPtr EpochTraceContext_ = {};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     // Guarded fields.
     TInstant FlushInstant_ = TInstant::Zero();
     THashMap<std::string, TPartState> PartStates_;
@@ -218,7 +218,7 @@ private:
         part.WallTimeUpdateTime = instant;
     }
 
-    void Flush(TGuard<NThreading::TSpinLock>& guard)
+    void Flush(TGuard<TSpinLock>& guard)
     {
         YT_ASSERT(guard.WasAcquired());
         TInstant now = GetInstant();

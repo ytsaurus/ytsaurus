@@ -46,7 +46,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 
@@ -175,7 +175,7 @@ private:
         std::atomic<TDuration> BatchPeriod_;
         std::atomic<i64> BatchSize_;
 
-        NThreading::TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
+        TAtomicObject<std::vector<TBatchedPingRequest>> PingRequests_;
 
         TFuture<void> SendPingTransaction(
             TTransactionId transactionId,
@@ -257,10 +257,10 @@ private:
 
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashSet<TWeakPtr<TTransaction::TImpl>, TTransparentWeakPtrHasher, TEqualTo<>> AliveTransactions_;
 
-    NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
+    TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
     static bool ContainsTransactionSuccessorHasLeasesError(const TError& error, TTransactionId id)
     {
@@ -738,7 +738,7 @@ private:
     TCellTag ClockClusterTag_ = InvalidCellTag;
     std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     ETransactionState State_ = ETransactionState::Initializing;
 

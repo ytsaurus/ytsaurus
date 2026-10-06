@@ -147,7 +147,7 @@ private:
     const int ChangelogId_;
     const TFuture<IChangelogPtr> FutureChangelog_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     //! If non-OK then the underlying changelog could not open.
     TError UnderlyingError_;

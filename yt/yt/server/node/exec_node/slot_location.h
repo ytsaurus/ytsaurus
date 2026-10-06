@@ -20,7 +20,7 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NExecNode {
 
@@ -201,7 +201,7 @@ private:
 
     TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SlotsLock_);
 
     class TNonRootVolumeRegistry
     {
@@ -220,17 +220,17 @@ private:
     THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
     THashMap<int, TDiskStatistics> DiskStatisticsPerSlot_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
     THashMap<int, i64> ReservedDiskSpacePerSlot_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotLocationStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SlotLocationStatisticsLock_);
     NNodeTrackerClient::NProto::TSlotLocationStatistics SlotLocationStatistics_;
 
     //! If location is disabled, this error contains the reason.
-    NThreading::TAtomicObject<TError> Error_;
+    TAtomicObject<TError> Error_;
 
-    NThreading::TAtomicObject<TError> Alert_;
+    TAtomicObject<TError> Alert_;
 
     const NProfiling::TProfiler Profiler_;
 
@@ -241,7 +241,7 @@ private:
     class TGaugeGrid;
     const std::unique_ptr<TGaugeGrid> CopyRateGrid_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CopyRateAggregatorLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CopyRateAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage CopyRateAggregator_;
 
     static void ValidateNotExists(const std::string& path);

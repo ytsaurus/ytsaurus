@@ -1157,12 +1157,12 @@ private:
     const NTableClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NTableClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MasterChannelsLock_);
     TEnumIndexedArray<EMasterChannelKind, TChannels> MasterChannels_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CypressChannelsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CypressChannelsLock_);
     TEnumIndexedArray<EMasterChannelKind, TChannels> CypressChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveClientLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, OperationsArchiveClientLock_);
     IClientPtr OperationsArchiveClient_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
@@ -1173,14 +1173,14 @@ private:
 
     struct TReplicaClient final
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock);
         NApi::NNative::IClientPtr Client;
         TFuture<NApi::NNative::IClientPtr> AsyncClient;
 
         bool IsTerminated() const;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<std::string, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     TChannels GetMasterChannels(EMasterChannelKind kind);

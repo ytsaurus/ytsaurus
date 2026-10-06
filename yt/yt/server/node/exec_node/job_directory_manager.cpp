@@ -130,7 +130,7 @@ private:
     const IPortoExecutorPtr Executor_;
     const bool EnableDiskQuota_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::set<std::string> ManagedVolumes_;
 
     TFuture<void> DoCreateVolume(const std::string& path, const TJobDirectoryProperties& properties, bool isTmpfs)

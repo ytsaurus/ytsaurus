@@ -152,11 +152,11 @@ private:
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DataFileHandleLock_);
     TEnumIndexedArray<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;
     TEnumIndexedArray<EDirectIOFlag, TIOEngineHandlePtr> DataFileHandle_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ChunkFragmentReadsLock_);
     TEnumIndexedArray<EDirectIOFlag, TFuture<void>> ChunkFragmentReadsPreparedFuture_;
     TEnumIndexedArray<EDirectIOFlag, std::atomic<bool>> ChunkFragmentReadsPrepared_;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.

@@ -14,7 +14,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <util/random/shuffle.h>
 
@@ -130,7 +130,7 @@ public:
 private:
     const std::optional<TRepairingErasureReaderTestingOptions> TestingOptions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlacementExtLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PlacementExtLock_);
     TFuture<TErasurePlacementExt> PlacementExtFuture_;
 
 

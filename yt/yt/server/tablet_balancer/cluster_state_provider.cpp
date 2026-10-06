@@ -12,7 +12,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -77,7 +77,7 @@ private:
 
     TAtomicIntrusivePtr<TClusterStateProviderConfig> Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TInstant LastBundlesSuccessfulFetchTime_;
     TInstant LastNodesSuccessfulFetchTime_;
     TInstant LastUnhealthyBundlesSuccessfulFetchTime_;

@@ -192,17 +192,17 @@ private:
     TAtomicIntrusivePtr<TDynamicPipelineSpec> DynamicPipelineSpec_;
     const NConcurrency::TPeriodicExecutorPtr Executor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<std::string, TWorkerPtr> AddressToWorker_;
     THashMap<std::string, TFaultyWorker> FaultyAddresses_;
 
-    void TerminateWorker(const TWorkerPtr& worker, TGuard<NThreading::TSpinLock>& /*guard*/)
+    void TerminateWorker(const TWorkerPtr& worker, TGuard<TSpinLock>& /*guard*/)
     {
         TLeaseManager::CloseLease(worker->GetLease());
         worker->SetLease({});
     }
 
-    bool IsFaultyAddress(const std::string& address, TGuard<NThreading::TSpinLock>& /*guard*/)
+    bool IsFaultyAddress(const std::string& address, TGuard<TSpinLock>& /*guard*/)
     {
         const auto iter = FaultyAddresses_.find(address);
         if (iter == FaultyAddresses_.end()) {
@@ -228,7 +228,7 @@ private:
         }
     }
 
-    void RegisterWorkerFailure(const std::string& address, TGuard<NThreading::TSpinLock>& /*guard*/)
+    void RegisterWorkerFailure(const std::string& address, TGuard<TSpinLock>& /*guard*/)
     {
         const auto now = TInstant::Now();
         auto& faultyAddress = FaultyAddresses_[address];
@@ -237,7 +237,7 @@ private:
         faultyAddress.FailedAt = now;
     }
 
-    void UnregisterWorker(const TWorkerPtr& worker, TGuard<NThreading::TSpinLock>& guard)
+    void UnregisterWorker(const TWorkerPtr& worker, TGuard<TSpinLock>& guard)
     {
         TerminateWorker(worker, guard);
         EraseOrCrash(AddressToWorker_, worker->GetInfo().RpcAddress);

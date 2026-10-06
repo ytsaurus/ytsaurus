@@ -124,7 +124,7 @@ private:
     private:
         const int MaxPathsSize_;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
         THashMap<NYPath::TYPath, NHydra::TRevision> RevisionMap_;
         std::set<std::pair<NHydra::TRevision, NYPath::TYPath>> Paths_;

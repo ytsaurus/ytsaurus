@@ -85,7 +85,7 @@ private:
 
     TObjectServiceCachePtr ObjectServiceCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
 
     void OnDynamicConfigChanged(

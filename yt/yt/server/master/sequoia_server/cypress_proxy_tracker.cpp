@@ -27,7 +27,7 @@
 
 #include <yt/yt/core/misc/id_generator.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NSequoiaServer {
 

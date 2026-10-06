@@ -2507,7 +2507,7 @@ private:
     const IChunkWriterPtr Underlying_;
     const IChunkWriter::TWriteBlocksOptions UnderlyingOptions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     int DataPartCount_ = 1;
 

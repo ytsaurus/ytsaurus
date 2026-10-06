@@ -81,7 +81,7 @@ private:
     TDryRunConfigPtr DryRunConfig_;
     TPromise<void> AllActionsFinished_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PendingActionsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PendingActionsLock_);
     THashMap<std::string, std::deque<TActionDescriptor>> PendingActionDescriptors_;
 
     // Only to use from Invoker.

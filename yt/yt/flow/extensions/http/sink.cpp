@@ -13,7 +13,7 @@
 #include <yt/yt/core/https/config.h>
 #include <yt/yt/core/misc/error.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/random/random.h>
 #include <util/string/hex.h>
@@ -234,7 +234,7 @@ private:
         }
     }
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     ui64 NextDeliveryId_ = 0;
     std::optional<TError> TerminalError_;
     std::deque<TPendingDelivery> PendingDeliveries_;

@@ -55,7 +55,7 @@
 
 #include <library/cpp/yt/misc/property.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 
@@ -80,7 +80,7 @@ struct TRuntimeTableReplicaData
     std::atomic<i64> PreparedReplicationRowIndex = -1;
     std::atomic<bool> PreserveTimestamps = true;
     std::atomic<NTransactionClient::EAtomicity> Atomicity = NTransactionClient::EAtomicity::Full;
-    NThreading::TAtomicObject<TError> Error;
+    TAtomicObject<TError> Error;
     std::atomic<NTabletClient::ETableReplicaStatus> Status = NTabletClient::ETableReplicaStatus::Unknown;
 
     void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
@@ -107,9 +107,9 @@ struct TChaosTabletData
     : public TRefCounted
 {
     std::atomic<ui64> ReplicationRound = 0;
-    NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
-    NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
-    NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
+    TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
+    TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
+    TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
     TAtomicIntrusivePtr<IPullerReplicaCache> PullerReplicaCache{GetDisabledPullerReplicaCache()};
 };
@@ -148,8 +148,8 @@ struct TLookupHeavyHitters {
 
 struct TTabletErrors
 {
-    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, NThreading::TAtomicObject<TError>> BackgroundErrors;
-    NThreading::TAtomicObject<TError> ConfigError;
+    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
+    TAtomicObject<TError> ConfigError;
 
     template <class TCallback>
     void ForEachError(TCallback&& callback) const;
@@ -161,7 +161,7 @@ struct TRuntimeSmoothMovementData
 {
     std::atomic<ESmoothMovementRole> Role;
     std::atomic<bool> IsActiveServant = true;
-    NThreading::TAtomicObject<TCellId> SiblingServantCellId;
+    TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.

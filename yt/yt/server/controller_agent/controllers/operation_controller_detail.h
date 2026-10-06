@@ -519,7 +519,7 @@ protected:
     const NLogging::TLogger Logger;
     const std::vector<std::string> CoreNotes_;
 
-    NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
+    TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
     // Intentionally transient.
     const NScheduler::TControllerEpoch ControllerEpoch_;
@@ -567,7 +567,7 @@ protected:
     // NB: SwitchedToSlowIntermediateMedium_ and SwitchIntermediateMediumScheduled_ (sort
     // controller) are also protected by this lock since they are read from the ControlThread
     // and written from the controller invoker.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OutputTransactionLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, OutputTransactionLock_);
     NApi::ITransactionPtr OutputTransaction_;
     NApi::ITransactionPtr DebugTransaction_;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
@@ -1131,16 +1131,16 @@ private:
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputHunkChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
+    TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
     int CachedTotalJobCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, OverrunWriteBufferMemoryPerJobLock_);
     std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CachedNeededResourcesLock_);
     NScheduler::TCompositeNeededResources CachedNeededResources_;
 
-    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources_;
+    TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources_;
 
     NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
@@ -1169,7 +1169,7 @@ private:
     NYson::TYsonString DoBuildJobsYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
@@ -1196,7 +1196,7 @@ private:
     //! Records peak memory usage.
     i64 PeakMemoryUsage_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobMetricsDeltaPerTreeLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<std::string, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     std::atomic<TDuration> CachedJobMetricsReportPeriodCpuDuration_;
@@ -1255,7 +1255,7 @@ private:
 
     std::vector<TOutputStreamDescriptorPtr> StandardStreamDescriptors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1319,7 +1319,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed_ = false;

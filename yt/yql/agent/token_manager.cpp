@@ -16,7 +16,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NYqlAgent {
 
@@ -51,7 +51,7 @@ struct TActiveExecution
     const EYqlTokenPurpose Purpose;
     const std::optional<TString> AllowedCluster;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     bool Active = true;
     THashMap<TString, TClusterToken> ClusterTokens;
 
@@ -203,7 +203,7 @@ private:
     const TQueryIdentityAuthority QueryIdentityAuthority_;
     const TPeriodicExecutorPtr RefreshExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExecutionsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ExecutionsLock_);
     THashMap<TExecutionId, TActiveExecutionPtr> Executions_;
 
     TString DoIssueTokenForClusters(

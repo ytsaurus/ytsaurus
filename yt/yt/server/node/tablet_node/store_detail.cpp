@@ -355,7 +355,7 @@ private:
     const TInternedNodeDescriptor LocalNodeDescriptor_;
     const IChunkRegistryPtr ChunkRegistry_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     IChunkReaderPtr ChunkReader_;
     IOffloadingReaderPtr OffloadingReader_;

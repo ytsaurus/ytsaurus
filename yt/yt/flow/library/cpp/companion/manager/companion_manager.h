@@ -9,7 +9,7 @@
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NCompanion {
 
@@ -151,7 +151,7 @@ private:
     //! already destroyed, so the difference contains no live job.
     void RemoveOrphanJobs(const ICompanionClientPtr& client, const TCompanionJobList& jobList);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LiveJobsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LiveJobsLock_);
     THashMap<TJobId, TLiveJob> LiveJobs_;
     //! Rotates the representative queried within each per-pid client group.
     i64 ReconcilePassIndex_ = 0;

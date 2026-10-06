@@ -53,7 +53,7 @@ struct TTestDatabaseRow
 
 struct TTestDatabase
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     std::map<TSequenceId, TTestDatabaseRow> Data;
     THashSet<TSequenceId> UndefinedRecords;
     bool DebugDisconnect = false;

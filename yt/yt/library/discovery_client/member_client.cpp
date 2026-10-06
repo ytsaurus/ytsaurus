@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryClient {
 
@@ -158,7 +158,7 @@ private:
     const TServerAddressPoolPtr AddressPool_;
     const TDiscoveryConnectionConfigPtr ConnectionConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TMemberClientConfigPtr ClientConfig_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();

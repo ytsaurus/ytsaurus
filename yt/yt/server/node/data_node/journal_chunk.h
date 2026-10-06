@@ -89,7 +89,7 @@ private:
         int FirstBlockIndex = -1;
         int BlockCount = -1;
         TPromise<std::vector<NChunkClient::TBlock>> Promise;
-        NThreading::TAtomicObject<TFuture<void>> ChangelogReadFuture;
+        TAtomicObject<TFuture<void>> ChangelogReadFuture;
     };
 
     using TReadBlockRangeSessionPtr = TIntrusivePtr<TReadBlockRangeSession>;
@@ -105,7 +105,7 @@ private:
     void DoReadBlockRange(const TReadBlockRangeSessionPtr& session);
 
     NHydra::IFileChangelogPtr GetChangelog();
-    void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
+    void ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard) override;
 
     TFuture<std::vector<NChunkClient::TBlock>> ReadCompleteBlockSetAndCache(
         const std::vector<int>& blockIndexes,

@@ -255,7 +255,7 @@ private:
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(mutable NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(mutable TSpinLock, Lock_);
 
     struct TEngineEntry
     {

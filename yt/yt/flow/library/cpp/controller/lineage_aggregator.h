@@ -24,7 +24,7 @@ private:
         std::optional<TInstant> InactiveSince;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PendingWorkerRatiosLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PendingWorkerRatiosLock_);
     THashMap<TIncarnationId, TLineageRatios> PendingWorkerRatios_;
 
     THashMap<TIncarnationId, TWorkerSnapshot> WorkerSnapshots_;

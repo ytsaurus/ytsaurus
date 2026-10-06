@@ -3416,13 +3416,13 @@ class TBalanceAsyncSynchronizer
     bool IsStopping_ = false;
     TFuture<void> StoppedFuture_;
     // Mutex of the section above.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartDataLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StartDataLock_);
 
     // Section that stores actions that are already planned, but not yet consumed by JobManager.
     TRebalanceActions AppliedActions_;
     TRebalanceActions DeferredAppliedActions_;
     // Mutex of the section above.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AppliedActionsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AppliedActionsLock_);
 
 public:
     TBalanceAsyncSynchronizer(const NProfiling::TProfiler& profiler, const TWorkerGroupId& workerGroup)

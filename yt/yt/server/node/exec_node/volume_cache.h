@@ -159,7 +159,7 @@ public:
 
 private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InsertLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InsertLock_);
 
     static void ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options);
     static void ValidatePrepareRWNbdVolumeOptions(const TPrepareRWNbdVolumeOptions& options);

@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NChaosClient {
 
@@ -42,7 +42,7 @@ public:
     NObjectClient::TObjectId GetLastPingedObjectId() const;
 
 private:
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::optional<std::pair<NObjectClient::TObjectId, NObjectClient::TCellTag>> LastUpdatedResidency_;
     NObjectClient::TObjectId LastRemovedObjectId_;
     NObjectClient::TObjectId LastPingedObjectId_;
@@ -116,7 +116,7 @@ public:
     TChaosLeaseId GetLastUnchangedChaosLeaseId() const;
 
 private:
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::optional<TUpdate> LastUpdate_;
     TChaosLeaseId LastDeletedChaosLeaseId_;
     TChaosLeaseId LastUnknownChaosLeaseId_;

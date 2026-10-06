@@ -154,7 +154,7 @@ private:
     const ISchemalessMultiChunkWriterPtr Underlying_;
 
     //! Lock_ protects everything below.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     int WaiterCount_ = 0;
     TWallTimer WriteTimer_ = TWallTimer(/*start*/ false);
     TWallTimer TotalTimer_ = TWallTimer();

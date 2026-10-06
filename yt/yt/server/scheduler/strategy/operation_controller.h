@@ -134,7 +134,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ConfigLock_);
     TAtomicIntrusivePtr<TStrategyOperationControllerConfig> Config_;
 
     struct alignas(CacheLineSize) TStateShard
@@ -166,7 +166,7 @@ private:
     std::atomic<NProfiling::TCpuInstant> ScheduleAllocationBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
     std::atomic<bool> ScheduleAllocationBackoffObserved_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<std::string, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
 
     bool DetailedLogsEnabled_ = false;

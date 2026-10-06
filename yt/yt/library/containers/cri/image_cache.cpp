@@ -474,7 +474,7 @@ private:
     const ICriExecutorPtr Executor_;
     std::atomic<i64> CacheSize_ = 0;
     std::vector<TCriImageCacheEntryPtr> DeathRow_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

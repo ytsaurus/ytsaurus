@@ -8,8 +8,9 @@
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NDistributedThrottler {
 
@@ -193,7 +194,7 @@ public:
     }
 
 private:
-    using TQuotaClassIdHolderPtr = std::shared_ptr<NThreading::TAtomicObject<TQuotaClassId>>;
+    using TQuotaClassIdHolderPtr = std::shared_ptr<TAtomicObject<TQuotaClassId>>;
 
     struct TWrapperEntry
     {
@@ -212,7 +213,7 @@ private:
 
     std::atomic<TPriority> Priority_{0};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TThrottlerId, TWrapperEntry> Wrappers_;
     THashMap<TThrottlerId, TQuotaClassId> QuotaClassIds_;
 
@@ -230,11 +231,11 @@ private:
     void EnsureWrapper(
         const TThrottlerId& throttlerName,
         const TDynamicThrottlerSpecPtr& spec,
-        const TGuard<NThreading::TSpinLock>& /*guard*/)
+        const TGuard<TSpinLock>& /*guard*/)
     {
         auto& entry = Wrappers_[throttlerName];
         if (!entry.QuotaClassId) {
-            entry.QuotaClassId = std::make_shared<NThreading::TAtomicObject<TQuotaClassId>>(
+            entry.QuotaClassId = std::make_shared<TAtomicObject<TQuotaClassId>>(
                 GetQuotaClassId(throttlerName));
         }
         if (!entry.Wrapper) {

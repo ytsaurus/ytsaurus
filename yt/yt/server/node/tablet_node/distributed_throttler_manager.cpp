@@ -122,7 +122,7 @@ private:
     IBootstrap* const Bootstrap_;
     const NDiscoveryClient::TMemberId MemberId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, IDistributedThrottlerFactoryPtr> Factories_;
 
     const TDynamicConfigChangedCallback DynamicConfigCallback_;

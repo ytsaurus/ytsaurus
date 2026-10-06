@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <util/generic/hash_set.h>
 #include <util/generic/map.h>
@@ -44,7 +44,7 @@ private:
 
     std::optional<i64> FirstDivergedSequenceNumber_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStateHashChecker)

@@ -291,12 +291,12 @@ private:
     TPromise<void> LoadPromise_ = NewPromise<void>();
     bool LoadStarted_ = false;
     static std::atomic<TSlowResource*> LastResource_;
-    static NThreading::TSpinLock InstancesLock_;
+    static TSpinLock InstancesLock_;
     static THashMap<TResourceId, TSlowResource*> Instances_;
 };
 
 std::atomic<TSlowResource*> TSlowResource::LastResource_;
-NThreading::TSpinLock TSlowResource::InstancesLock_;
+TSpinLock TSlowResource::InstancesLock_;
 THashMap<TResourceId, TSlowResource*> TSlowResource::Instances_;
 
 DEFINE_REFCOUNTED_TYPE(TSlowResource);

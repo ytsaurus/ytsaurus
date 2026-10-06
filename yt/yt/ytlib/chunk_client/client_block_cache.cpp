@@ -240,7 +240,7 @@ public:
 private:
     struct TChunkShard
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ShardLock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ShardLock);
         THashMap<TChunkId, THashSet<TBlockInfo>> ChunkToBlocks;
     };
 

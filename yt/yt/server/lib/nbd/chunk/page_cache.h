@@ -123,7 +123,7 @@ private:
     const i64 MaxInflightWriteRequests_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TPageMap Pages_;
     //! LRU list of clean pages only (DataGeneration == WritebackGeneration).
     //! Only pages in this list are evictable, so EvictCleanPages walks this list

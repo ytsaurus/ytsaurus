@@ -26,8 +26,8 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <Interpreters/Context.h>
 #include <Interpreters/Session.h>
@@ -248,12 +248,12 @@ private:
     //! 2) It acts like a per-query cache to avoid many master request when per-clique cache is disabled.
     THashMap<NYPath::TYPath, TErrorOr<NYTree::IAttributeDictionaryPtr>> ObjectAttributesSnapshot_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PhaseLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueryLogLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueryLogLock_);
     //! CHYT-specific query statistics.
     TStatistics Statistics_;
     NYTree::IAttributeDictionaryPtr RuntimeVariables_ = NYTree::CreateEphemeralAttributes();
@@ -264,12 +264,12 @@ private:
     TQueryProgress Progress_;
 
     //! Spinlock controlling lazy client creation.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ClientLock_);
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
     //! Spinlock controlling select query context map.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 
     // Transactionality

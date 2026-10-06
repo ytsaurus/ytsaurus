@@ -128,7 +128,7 @@ private:
     THashMap<std::string, TAllowedMethodsPtr> ClusterAllowedMethods_;
     TAllowedMethodsPtr DefaultAllowedMethods_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

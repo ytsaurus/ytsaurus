@@ -102,7 +102,7 @@ private:
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
     };
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToStateLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PoolNameToStateLock_);
     THashMap<std::string, TPoolState> PoolNameToState_;
 
     // NB(eshcherbin): Ideally pool's job metrics should be embedded in the state,

@@ -99,7 +99,7 @@ private:
 
     const NTableClient::TKeyComparer KeyComparer_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ChunkColumnMappingLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ChunkColumnMappingLock_);
     NTableClient::TChunkColumnMappingPtr ChunkColumnMapping_;
 
     TTimestamp MaxClipTimestamp_ = NullTimestamp;

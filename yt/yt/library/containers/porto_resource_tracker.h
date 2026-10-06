@@ -86,7 +86,7 @@ private:
 
     mutable std::atomic<TInstant> LastUpdateTime_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     mutable TResourceUsage ResourceUsage_;
     mutable TResourceUsage ResourceUsageDelta_;
 

@@ -105,7 +105,7 @@ private:
     std::atomic<bool> Enabled_ = true;
 
     TTabletNodeDynamicConfigPtr Config_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     void OnDynamicConfigChanged(
         const TTabletNodeDynamicConfigPtr& /*oldConfig*/,

@@ -281,7 +281,7 @@ private:
     int OccupantCount_ = 0;
     std::vector<ICellarOccupantPtr> Occupants_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellIdToOccupantLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CellIdToOccupantLock_);
     THashMap<TCellId, ICellarOccupantPtr> CellIdToOccupant_;
 
     ICellarOccupierProviderPtr OccupierProvider_;

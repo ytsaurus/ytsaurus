@@ -42,7 +42,7 @@ private:
     const TClosure OnGroupEmptied_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MembersLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MembersLock_);
     TSet<TMemberPtr, TMemberPtrComparer> Members_;
     THashMap<TMemberId, TMemberPtr> IdToMember_;
 

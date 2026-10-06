@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <contrib/libs/cppkafka/include/cppkafka/message_builder.h>
 
@@ -106,7 +106,7 @@ public:
     TError GetFatalError() const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TKafkaMessageToWrite> Pending_;
     THashMap<i64, TPromise<void>> Promises_;
     //! Outstanding record count for a multi-record seqNo; absent means a single record.

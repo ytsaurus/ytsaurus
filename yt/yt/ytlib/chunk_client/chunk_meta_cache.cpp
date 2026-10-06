@@ -10,7 +10,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NChunkClient {
 
@@ -202,7 +202,7 @@ public:
     }
 
 private:
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     TRefCountedChunkMetaPtr MainMeta_;
 

@@ -28,7 +28,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -588,7 +588,7 @@ public:
 private:
     bool Leading_;
     TAtomicConsumerTableRowConstPtr ConsumerRow_;
-    NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
+    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
     const TConsumerReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;

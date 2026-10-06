@@ -23,7 +23,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NChaosClient {
 namespace {
@@ -207,7 +207,7 @@ private:
         WatchContexts_.push_back(context);
     }
 
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     int MinimalFetchCount_ = 0;
     int ProgressFetchCount_ = 0;
     std::vector<TReplicationCardFetchOptions> FetchOptions_;

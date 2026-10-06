@@ -21,7 +21,7 @@
 
 #include <library/cpp/yt/misc/property.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -264,7 +264,7 @@ private:
     // For this purpose onAfterSnapshotLoaded flag is propagated through write-related methods.
     IRevisionProviderPtr RevisionProvider_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, RowBlockedLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, RowBlockedLock_);
     TRowBlockedHandler RowBlockedHandler_;
 
     // Reused between ModifyRow calls.

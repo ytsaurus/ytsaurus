@@ -12,7 +12,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NDiskManager {
 
@@ -80,7 +80,7 @@ private:
     const IDiskManagerProxyPtr DiskManagerProxy_;
     const IDiskInfoProviderPtr DiskInfoProvider_;
 
-    NThreading::TAtomicObject<TError> DiskIdsMismatchedAlert_;
+    TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<std::string> OldDiskIds_;
 
     void BuildOrchid(IYsonConsumer* consumer)

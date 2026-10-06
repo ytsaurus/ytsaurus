@@ -111,7 +111,7 @@ private:
     TInstant CurrentTime_;
 
     TLsmActionBatch OverallCompactionRequests_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CompactionRequestsSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CompactionRequestsSpinLock_);
 
     TStartedTasksSummary StartedTasksSummary_;
     // There are two algorithms: one selects the highest-priority task globally,

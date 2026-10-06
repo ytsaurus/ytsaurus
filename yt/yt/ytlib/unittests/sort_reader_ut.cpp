@@ -17,7 +17,7 @@
 
 #include <library/cpp/yt/misc/property.h>
 
-#include <library/cpp/yt/threading/event_count.h>
+#include <library/cpp/yt/system/event_count.h>
 
 #include <algorithm>
 #include <random>
