@@ -420,11 +420,12 @@ TUnversionedValueToSkiffConverter CreateTzValueConverter(const std::shared_ptr<T
 
 TUnversionedValueToSkiffConverter CreateSimpleValueConverter(
     const TFieldDescription& skiffField,
-    bool required,
     ESimpleLogicalValueType logicalType)
 {
-    const auto& skiffSchema = DeoptionalizeSchema(skiffField.Schema()).first;
-    auto wireType = skiffField.ValidatedGetDeoptionalizeType(/*simplify*/ false);
+    ValidateDoesNotMatchOptionalSingular(skiffField.Schema());
+    auto [skiffSchema, optionalKind] = StripOptional(skiffField.Schema());
+    auto wireType = skiffSchema->GetWireType();
+    bool required = optionalKind == EOptionalKind::None;
 
     switch (logicalType) {
         case ESimpleLogicalValueType::Int8:
@@ -543,9 +544,10 @@ TUnversionedValueToSkiffConverter CreateDecimalValueConverter(
     const TFieldDescription& field,
     const TDecimalLogicalType& logicalType)
 {
-    bool isRequired = field.IsRequired();
+    auto [skiffSchema, optionalKind] = StripOptional(field.Schema());
+    bool isRequired = optionalKind == EOptionalKind::None;
     int precision = logicalType.GetPrecision();
-    auto wireType = field.ValidatedGetDeoptionalizeType(/*simplify*/ true);
+    auto wireType = skiffSchema->GetWireType();
     switch (wireType) {
         case EWireType::Int32:
             return CreatePrimitiveValueConverter<EValueType::String>(
@@ -742,7 +744,10 @@ public:
                 //      e.g we allow column to be optional in table schema and be required in Skiff schema
                 //      (runtime check is used in such cases).
                 if (!columnSchema) {
-                    if (!skiffField.GetDeoptionalizeType(/*simplify*/ true) && !skiffField.IsRequired()) {
+                    auto [strippedSchema, optionalKind] = StripOptional(skiffField.Schema());
+                    if ((GetSchemaKind(strippedSchema->GetWireType()) != ESchemaKind::Simple && optionalKind != EOptionalKind::None) ||
+                        MatchesOptionalSingular(skiffField.Schema()))
+                    {
                         // NB. Special case, column is described in Skiff schema as non required complex field
                         // but is missing in schema.
                         // We expect it to be missing in whole table and return corresponding converter.
@@ -760,7 +765,6 @@ public:
                         case ELogicalMetatype::Simple:
                             return CreateSimpleValueConverter(
                                 skiffField,
-                                skiffField.IsRequired(),
                                 denullifiedLogicalType->AsSimpleTypeRef().GetElement());
                         case ELogicalMetatype::Decimal:
                             return CreateDecimalValueConverter(skiffField, denullifiedLogicalType->AsDecimalTypeRef());

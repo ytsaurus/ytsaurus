@@ -4,6 +4,8 @@
 #include "multi_table_parser.h"
 #endif
 
+#include "schema.h"
+
 #include <yt/yt/core/concurrency/coroutine.h>
 
 #include <library/cpp/yt/error/error.h>
@@ -37,11 +39,12 @@ public:
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
             for (size_t fieldIndex = 0; fieldIndex < genericTableDescription.DenseFieldDescriptionList.size(); ++fieldIndex) {
                 const auto& denseFieldDescription = genericTableDescription.DenseFieldDescriptionList[fieldIndex];
+                auto [strippedSchema, optionalKind] = NSkiffExt::StripOptional(denseFieldDescription.Schema());
                 parserTableDescription.DenseFields.emplace_back(
                     denseFieldDescription.Name(),
-                    denseFieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true),
+                    GetSupportedWireTypeOrThrow(strippedSchema),
                     tablesColumnIds[tableIndex].DenseFieldColumnIds[fieldIndex],
-                    denseFieldDescription.IsRequired());
+                    optionalKind == NSkiffExt::EOptionalKind::None);
             }
 
             YT_VERIFY(tablesColumnIds[tableIndex].SparseFieldColumnIds.size() == genericTableDescriptions[tableIndex].SparseFieldDescriptionList.size());
@@ -53,7 +56,7 @@ public:
                 const auto& fieldDescription = genericTableDescriptions[tableIndex].SparseFieldDescriptionList[fieldIndex];
                 parserTableDescription.SparseFields.emplace_back(
                     fieldDescription.Name(),
-                    fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true),
+                    GetSupportedWireTypeOrThrow(fieldDescription.Schema()),
                     tablesColumnIds[tableIndex].SparseFieldColumnIds[fieldIndex],
                     true);
             }

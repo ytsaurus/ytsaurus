@@ -168,7 +168,39 @@ TEST(TSkiffSchemaDescriptionTest, TestDescriptionDerivation)
     EXPECT_EQ(std::ssize(denseFieldDescriptionList), 2);
 
     EXPECT_EQ(denseFieldDescriptionList[0].Name(), "Foo");
-    EXPECT_EQ(denseFieldDescriptionList[0].ValidatedGetDeoptionalizeType(/*simplify*/ true), EWireType::Uint64);
+    EXPECT_EQ(denseFieldDescriptionList[0].Schema()->GetWireType(), EWireType::Uint64);
+}
+
+TEST(TSkiffSchemaDescriptionTest, StripOptional)
+{
+    auto nothingSchema = CreateSimpleTypeSchema(EWireType::Nothing);
+    auto uint64Schema = CreateSimpleTypeSchema(EWireType::Uint64);
+
+    auto expectNotOptional = [] (const TSkiffSchemaPtr& schema) {
+        auto [strippedSchema, optionalKind] = StripOptional(schema);
+        EXPECT_EQ(strippedSchema, schema);
+        EXPECT_EQ(optionalKind, EOptionalKind::None);
+    };
+    expectNotOptional(uint64Schema);
+    expectNotOptional(CreateVariant8Schema({uint64Schema, nothingSchema}));
+    expectNotOptional(CreateVariant8Schema({nothingSchema, uint64Schema, uint64Schema}));
+    expectNotOptional(CreateVariant16Schema({nothingSchema, uint64Schema}));
+
+    {
+        auto [strippedSchema, optionalKind] = StripOptional(CreateVariant8Schema({nothingSchema, uint64Schema}));
+        EXPECT_EQ(strippedSchema, uint64Schema);
+        EXPECT_EQ(optionalKind, EOptionalKind::Variant8);
+    }
+}
+
+TEST(TSkiffSchemaDescriptionTest, MatchesOptionalSingular)
+{
+    auto nothingSchema = CreateSimpleTypeSchema(EWireType::Nothing);
+    auto uint64Schema = CreateSimpleTypeSchema(EWireType::Uint64);
+
+    EXPECT_TRUE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, nothingSchema})));
+    EXPECT_FALSE(MatchesOptionalSingular(nothingSchema));
+    EXPECT_FALSE(MatchesOptionalSingular(CreateVariant8Schema({nothingSchema, uint64Schema})));
 }
 
 TEST(TSkiffSchemaDescriptionTest, TestKeySwitchColumn)
