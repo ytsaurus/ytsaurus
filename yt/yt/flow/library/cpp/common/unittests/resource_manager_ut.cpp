@@ -10,6 +10,8 @@
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -1683,6 +1685,113 @@ TEST_F(TResourceManagerTest, PlainResourceReportsNoRevision)
     EXPECT_EQ(resource->GetReconfigureCount(), 0);
     auto statuses = manager->CollectResourceStatuses();
     EXPECT_FALSE(statuses.contains("plain"));
+}
+
+std::optional<double> ReadResourceQueueSize(const NProfiling::TSolomonRegistryPtr& registry, const std::string& resourceId)
+{
+    registry->ProcessRegistrations();
+    registry->Collect();
+    const auto dump = registry->DumpSensors();
+    for (const auto& cube : dump.cubes()) {
+        if (cube.name() != "yt/test/resource/queue_size") {
+            continue;
+        }
+        for (const auto& projection : cube.projections()) {
+            for (auto id : projection.tag_ids()) {
+                const auto& tag = dump.tags(id);
+                if (tag.key() == "resource" && tag.value() == resourceId && projection.has_gauge()) {
+                    return projection.gauge();
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+IResourceManagerPtr CreateProfiledResourceManager(
+    const NProfiling::TSolomonRegistryPtr& registry,
+    const THashMap<TResourceId, TResourceSpecPtr>& resources,
+    IInvokerPtr invoker = nullptr)
+{
+    auto context = New<TResourceManagerContext>();
+    context->Invoker = invoker ? invoker : GetCurrentInvoker();
+    context->Logger = Logger();
+    context->StatusProfiler = CreateSyncStatusProfiler();
+    context->Profiler = NProfiling::TProfiler(registry, "/test");
+    return CreateResourceManager(std::move(context), resources, {});
+}
+
+TEST_F(TResourceManagerTest, FedQueueSizeExportedAsGauge)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto manager = CreateProfiledResourceManager(
+        registry,
+        {
+            {"fed", BuildReconfigurableResourceSpec()},
+            {"silent", BuildReconfigurableResourceSpec()},
+        });
+    // Only a loaded resource feeds its status.
+    WaitFor(manager->Load("fed")).ThrowOnError();
+
+    manager->FeedStatus("fed", 5, 0);
+    manager->FeedStatus("fed", 2, 3);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "fed"), std::optional<double>(4));
+
+    // A loaded resource keeps its sensor with an empty queue.
+    manager->FeedStatus("fed", 0, 4);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "fed"), std::optional<double>(0));
+
+    // A resource that never reports its queue gets no sensor.
+    EXPECT_EQ(ReadResourceQueueSize(registry, "silent"), std::nullopt);
+}
+
+TEST_F(TResourceManagerTest, DroppedPreloadLosesQueueSizeGaugeAfterDrain)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto actionQueue = New<TActionQueue>();
+    auto manager = CreateProfiledResourceManager(
+        registry,
+        {{"res", BuildPreloadRequiredSlowResourceSpec()}},
+        actionQueue->GetInvoker());
+
+    manager->UpdatePreloadedResources({"res"});
+    manager->FeedStatus("res", 5, 0);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::optional<double>(5));
+
+    // Requests of the dropped instance are still in flight.
+    manager->UpdatePreloadedResources({});
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::optional<double>(5));
+
+    manager->FeedStatus("res", 0, 2);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::optional<double>(3));
+
+    manager->FeedStatus("res", 0, 3);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::nullopt);
+}
+
+TEST_F(TResourceManagerTest, DroppedPreloadWithEmptyQueueLosesQueueSizeGauge)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto actionQueue = New<TActionQueue>();
+    auto manager = CreateProfiledResourceManager(
+        registry,
+        {{"res", BuildPreloadRequiredSlowResourceSpec()}},
+        actionQueue->GetInvoker());
+
+    manager->UpdatePreloadedResources({"res"});
+    manager->FeedStatus("res", 4, 4);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::optional<double>(0));
+
+    manager->UpdatePreloadedResources({});
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::nullopt);
+
+    // A preload issued again brings the sensor back.
+    manager->UpdatePreloadedResources({"res"});
+    manager->FeedStatus("res", 1, 0);
+    EXPECT_EQ(ReadResourceQueueSize(registry, "res"), std::optional<double>(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
