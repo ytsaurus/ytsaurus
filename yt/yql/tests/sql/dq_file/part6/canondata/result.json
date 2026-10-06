@@ -258,6 +258,13 @@
             "uri": "https://{canondata_backend}/1809005/5222a313514d8f9193c99bd53f21db1c34a08e46/resource.tar.gz#test.test_hor_join-out_table_record-default.txt-Plan_/plan.txt"
         }
     ],
+    "test.test[in-in_compact_distinct-empty_keepworld-Plan]": [
+        {
+            "checksum": "e48bf1eb298e457c06442eb50208f91d",
+            "size": 8134,
+            "uri": "https://{canondata_backend}/1936997/3ea71ad688a3ce5ddc06e64ac7d688e62cfa6865/resource.tar.gz#test.test_in-in_compact_distinct-empty_keepworld-Plan_/plan.txt"
+        }
+    ],
     "test.test[insert-append_missing_null-default.txt-Plan]": [
         {
             "checksum": "0428ee445c75a395f58c5d107acde4cc",
