@@ -462,6 +462,7 @@ private:
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
+    NYTree::IYPathServicePtr CreatePreliminaryGpuCheckOrchidService();
     NYTree::IYPathServicePtr CreateTestingOrchidService();
 
     // Helpers.

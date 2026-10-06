@@ -43,7 +43,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     YT_VERIFY(DirectoryManager_);
 }
 
-template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+template <auto Step> requires CWorkspaceBuilderStep<Step>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -74,46 +74,53 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
         .With("JobPhase", jobPhase)
         .With("ActionName", GetStepName<Step>());
 
-    return (*this.*Step)();
+    using TBaseMethod = TFuture<void>(TJobWorkspaceBuilder::*)();
+    auto baseStep = static_cast<TBaseMethod>(Step);
+    return (this->*baseStep)();
 }
 
-template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+template <auto Step> requires CWorkspaceBuilderStep<Step>
 constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
-    if (Step == &TJobWorkspaceBuilder::DoBuildSlotRootDirectory) {
+    using TBaseMethod = TFuture<void>(TJobWorkspaceBuilder::*)();
+    auto baseStep = static_cast<TBaseMethod>(Step);
+    if (baseStep == &TJobWorkspaceBuilder::DoBuildSlotRootDirectory) {
         return "DoBuildSlotRootDirectory";
-    } else if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
         return "DoPrepareRootVolume";
-    } else if (Step == &TJobWorkspaceBuilder::DoPrepareNonRootVolumes) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoPrepareNonRootVolumes) {
         return "DoPrepareNonRootVolumes";
-    } else if (Step == &TJobWorkspaceBuilder::DoPrepareLayers) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoPrepareLayers) {
         return "DoPrepareLayers";
-    } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
-    } else if (Step == &TJobWorkspaceBuilder::DoBindRootVolume) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoBindRootVolume) {
         return "DoBindRootVolume";
-    } else if (Step == &TJobWorkspaceBuilder::DoLinkVolumes) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoLinkVolumes) {
         return "DoLinkVolumes";
-    } else if (Step == &TJobWorkspaceBuilder::DoValidateRootFS) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoValidateRootFS) {
         return "DoValidateRootFS";
-    } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
         return "DoPrepareSandboxDirectories";
-    } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoRunSetupCommand) {
         return "DoRunSetupCommand";
-    } else if (Step == &TJobWorkspaceBuilder::DoRunCustomPreparations) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoRunCustomPreparations) {
         return "DoRunCustomPreparations";
-    } else if (Step == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
+    } else if (baseStep == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
         return "DoRunGpuCheckCommand";
+    } else if (baseStep == &TJobWorkspaceBuilder::DoApplyNetworkPriority) {
+        return "DoApplyNetworkPriority";
     }
+    YT_ABORT();
 }
 
-template <TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+template <auto Step> requires CWorkspaceBuilderStep<Step>
 TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return BIND([this, this_ = MakeStrong(this)] {
-        return GuardedAction<Method>();
+        return GuardedAction<Step>();
     }).AsyncVia(Invoker_);
 }
 
@@ -163,6 +170,20 @@ TFuture<void> TJobWorkspaceBuilder::DoBuildSlotRootDirectory()
     SetJobPhase(EJobPhase::PreparingSlotDirectories);
 
     return Context_.Slot->BuildSlotRootDirectory();
+}
+
+TFuture<void> TJobWorkspaceBuilder::DoPrepareGpuCheckVolume()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return OKFuture;
+}
+
+TFuture<void> TJobWorkspaceBuilder::DoApplyNetworkPriority()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return OKFuture;
 }
 
 void TJobWorkspaceBuilder::MakeArtifactSymlinks()
@@ -269,20 +290,27 @@ TFuture<void> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoBuildSlotRootDirectory>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareNonRootVolumes>())
-        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoBindRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoValidateRootFS>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
-        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
-            YT_TLOG_INFO("Job workspace building finished")
-                .With(result);
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>());
 
-            ResultHolder_.LastBuildError = result;
-        }).AsyncVia(Invoker_));
+    return FinishRun(std::move(future));
+}
+
+TFuture<void> TJobWorkspaceBuilder::FinishRun(TFuture<void> future)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    future = future.Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
+        YT_TLOG_INFO("Job workspace building finished")
+            .With(result);
+
+        ResultHolder_.LastBuildError = result;
+    }).AsyncVia(Invoker_));
 
     future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
         // Drop reference to close race with check in TJob::Cleanup() on cancellation.
@@ -435,23 +463,11 @@ private:
             }).AsyncVia(Invoker_));
     }
 
-    TFuture<void> DoPrepareGpuCheckVolume() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        YT_TLOG_DEBUG("GPU check volume preparation is not supported in simple workspace");
-
-        ValidateJobPhase(EJobPhase::PreparingVolumes);
-        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
-
-        return OKFuture;
-    }
-
     TFuture<void> DoBindRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         YT_TLOG_DEBUG("Root volume binding is not needed in simple workspace");
@@ -528,7 +544,6 @@ private:
         YT_TLOG_DEBUG("GPU check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
-        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
 
         return OKFuture;
     }
@@ -813,9 +828,6 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingVolumes);
-        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
-
         const auto& slot = Context_.Slot;
         const auto gpuVolumeParams = Context_.FSSecretary->GetGpuCheckVolumeParams();
 
@@ -847,7 +859,7 @@ private:
                     ResultHolder_.GpuCheckVolume = volumeOrError.Value();
 
                     SetNowTime(TimePoints_.PrepareGpuCheckVolumeFinishTime);
-                }));
+                }).AsyncVia(Invoker_));
         } else {
             YT_TLOG_DEBUG("GPU check volume preparation is not needed");
             return OKFuture;
@@ -860,7 +872,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         auto slot = Context_.Slot;
@@ -1068,6 +1080,13 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningCustomPreparations);
 
+        return OKFuture;
+    }
+
+    TFuture<void> DoApplyNetworkPriority() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
         if (!Context_.NeedGpu) {
             return OKFuture;
         }
@@ -1085,11 +1104,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
-
         if (Context_.GpuCheckOptions) {
-            SetJobPhase(EJobPhase::RunningGpuCheckCommand);
-
+            // NB: The GPU chain does not drive job phases.
             YT_VERIFY(ResultHolder_.GpuCheckVolume);
 
             auto options = *Context_.GpuCheckOptions;
@@ -1101,7 +1117,7 @@ private:
                 .CommandUser = Context_.CommandUser,
                 .Type = EGpuCheckType::Preliminary,
                 .Options = options,
-                .CurrentStartIndex = ResultHolder_.SetupCommandCount,
+                .CurrentStartIndex = 0,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
             };
@@ -1122,7 +1138,6 @@ private:
                 .AsyncVia(Invoker_)
                 .Run()
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
-                    ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
                         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
                             .With(std::move(result));
@@ -1132,11 +1147,70 @@ private:
                     YT_TLOG_INFO("Preliminary GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
-            // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
             YT_TLOG_INFO("No preliminary GPU check is needed");
 
             return OKFuture;
         }
+    }
+
+    TFuture<void> Run() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto layersFuture = MakeStep<&TPortoJobWorkspaceBuilder::DoPrepareLayers>()
+            .Run();
+
+        // Both chains create volumes in the porto place, so the slot root directory
+        // must be rebuilt before the chains fork. Apply network priority before the
+        // GPU check, which may use RDMA.
+        auto networkPriorityFuture = layersFuture
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoBuildSlotRootDirectory>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoApplyNetworkPriority>());
+
+        // This chain owns all job phase transitions.
+        auto rootChainFuture = networkPriorityFuture
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoPrepareRootVolume>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoPrepareNonRootVolumes>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoBindRootVolume>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoLinkVolumes>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoValidateRootFS>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoRunSetupCommand>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoRunCustomPreparations>());
+
+        auto gpuChainFuture = networkPriorityFuture
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
+            .Apply(MakeStep<&TPortoJobWorkspaceBuilder::DoRunGpuCheckCommand>());
+
+        // Wait for both chains so that every volume they create reaches FSSecretary for cleanup.
+        auto combinedFuture = AllSet(std::vector<TFuture<void>>{
+            std::move(rootChainFuture),
+            std::move(gpuChainFuture),
+        }).Apply(BIND([networkPriorityFuture] (const std::vector<TErrorOr<void>>& results) {
+            // Both chains are forked off networkPriorityFuture, so it is always set here.
+            const auto& prefixResult = networkPriorityFuture.GetOrCrash();
+            if (!prefixResult.IsOK()) {
+                THROW_ERROR prefixResult;
+            }
+
+            std::vector<TError> errors;
+            for (const auto& result : results) {
+                if (!result.IsOK()) {
+                    errors.push_back(result);
+                }
+            }
+
+            if (errors.size() == 1) {
+                THROW_ERROR errors[0];
+            }
+
+            if (!errors.empty()) {
+                THROW_ERROR_EXCEPTION("Failed to build job workspace")
+                    .With(errors);
+            }
+        }));
+
+        return FinishRun(std::move(combinedFuture));
     }
 };
 
@@ -1301,23 +1375,11 @@ private:
             }).AsyncVia(Invoker_));
     }
 
-    TFuture<void> DoPrepareGpuCheckVolume() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        YT_TLOG_DEBUG_IF(Context_.GpuCheckOptions, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
-
-        ValidateJobPhase(EJobPhase::PreparingVolumes);
-        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
-
-        return OKFuture;
-    }
-
     TFuture<void> DoBindRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         YT_TLOG_DEBUG("Root volume binding is not needed in cri workspace");
@@ -1422,7 +1484,6 @@ private:
         YT_TLOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
-        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
 
         return OKFuture;
     }
