@@ -92,6 +92,22 @@ TEST(TResourceStatusTest, CollectBetweenUpdatesKeepsLiveAverage)
     EXPECT_NEAR(*report->QueueGrowthRate10m, 0., 1e-6);
 }
 
+TEST(TResourceStatusTest, QueueSizeIsInstant)
+{
+    auto t0 = TInstant::Seconds(1'000'000);
+    TResourceStatus status;
+    EXPECT_EQ(status.GetQueueSize(), 0);
+
+    status.Update(65, 0, t0);
+    EXPECT_EQ(status.GetQueueSize(), 65);
+
+    status.Update(10, 40, t0 + TDuration::Seconds(1));
+    EXPECT_EQ(status.GetQueueSize(), 35);
+
+    status.Update(0, 35, t0 + TDuration::Seconds(1));
+    EXPECT_EQ(status.GetQueueSize(), 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

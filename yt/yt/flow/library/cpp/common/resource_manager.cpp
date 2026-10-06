@@ -223,7 +223,9 @@ public:
     {
         auto guard = Guard(Lock_);
 
-        ResourceStatuses_[resourceId].Update(morePushedToQueue, moreFetchedFromQueue);
+        auto& resourceStatus = ResourceStatuses_[resourceId];
+        resourceStatus.Update(morePushedToQueue, moreFetchedFromQueue);
+        UpdateQueueSizeGaugeGuarded(resourceId, resourceStatus.GetQueueSize(), guard);
     }
 
     THashMap<TResourceId, TWorkerResourceStatusPtr> CollectResourceStatuses() override
@@ -292,6 +294,9 @@ public:
             }
             PreloadStatus_.erase(resourceId);
             ResetResourceGuarded(resourceId, guard);
+            if (auto it = ResourceStatuses_.find(resourceId); it != ResourceStatuses_.end()) {
+                UpdateQueueSizeGaugeGuarded(resourceId, it->second.GetQueueSize(), guard);
+            }
         }
 
         // Handle added resources: those in the new set but not yet in PreloadStatus_.
@@ -364,6 +369,18 @@ public:
     }
 
 private:
+    struct TResourceMetrics
+    {
+        NProfiling::TGauge QueueSize;
+
+        TResourceMetrics(const NProfiling::TProfiler& profiler, const TResourceId& resourceId)
+            : QueueSize(profiler
+                    .WithTag("resource", resourceId.Underlying())
+                    .WithPrefix("/resource")
+                    .Gauge("/queue_size"))
+        { }
+    };
+
     const TResourceManagerContextPtr ManagerContext_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
@@ -373,6 +390,7 @@ private:
     THashMap<TResourceId, TDynamicResourceSpecPtr> DynamicResourceSpecs_;
     THashMap<TResourceId, TResourceRevisionPtr> TargetRevisions_;
     THashMap<TResourceId, TResourceStatus> ResourceStatuses_;
+    THashMap<TResourceId, TResourceMetrics> ResourceMetrics_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     // Protected by Lock_.
@@ -458,6 +476,17 @@ private:
     {
         ResourcesInitializationFutures_.erase(resourceId);
         Resources_[resourceId] = CreateResource(resourceId);
+    }
+
+    // Updates the queue size gauge, dropping it for an unloaded resource with an empty queue. Must be called with Lock_ held.
+    void UpdateQueueSizeGaugeGuarded(TResourceId resourceId, i64 queueSize, const TGuard<TSpinLock>&)
+    {
+        if (queueSize == 0 && !ResourcesInitializationFutures_.contains(resourceId)) {
+            ResourceMetrics_.erase(resourceId);
+            return;
+        }
+        auto& resourceMetrics = ResourceMetrics_.try_emplace(resourceId, ManagerContext_->Profiler, resourceId).first->second;
+        resourceMetrics.QueueSize.Update(queueSize);
     }
 
     // Resets the resource if its current load has failed. Must be called with Lock_ held.

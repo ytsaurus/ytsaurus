@@ -19,6 +19,9 @@ public:
 
     TWorkerResourceStatusPtr Collect(TInstant now = TInstant::Now());
 
+    //! Current number of items pushed to the queue and not yet fetched from it.
+    i64 GetQueueSize() const;
+
 private:
     static constexpr int TimeWindowsCount = 2;
     static constexpr std::array<TDuration, TimeWindowsCount> TimeWindowDurations = {TDuration::Seconds(30), TDuration::Minutes(10)};
