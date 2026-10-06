@@ -43,7 +43,27 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
 
 target_sources(server-lib-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/access_checker.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_admin.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_cypress.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_distributed_files.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_distributed_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_dynamic_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_file_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_files.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_flow.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_job_info.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_jobs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_journals.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_operation_info.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_operations.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_queries.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_queues.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_replicated_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_security.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_shuffle.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_static_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service_impl_transactions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/format_row_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/multiconnection_client_cache.cpp
