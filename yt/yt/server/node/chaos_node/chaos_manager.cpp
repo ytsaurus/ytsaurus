@@ -2792,19 +2792,14 @@ private:
 
     void HydraUpdateCoordinatorCells(NChaosNode::NProto::TReqUpdateCoordinatorCells* request)
     {
-        auto newCells = FromProto<std::vector<TCellId>>(request->add_coordinator_cell_ids());
-        auto oldCells = FromProto<std::vector<TCellId>>(request->remove_coordinator_cell_ids());
-        auto oldCellsSet = THashSet<TCellId>(oldCells.begin(), oldCells.end());
-        auto newCellsSet = THashSet<TCellId>(newCells.begin(), newCells.end());
+        auto newCellsSet = FromProto<THashSet<TCellId>>(request->add_coordinator_cell_ids());
+        auto oldCellsSet = FromProto<THashSet<TCellId>>(request->remove_coordinator_cell_ids());
         std::vector<TCellId> removedCells;
 
         int current = 0;
         for (int index = 0; index < std::ssize(CoordinatorCellIds_); ++index) {
             const auto& cellId = CoordinatorCellIds_[index];
-
-            if (auto it = newCellsSet.find(cellId)) {
-                newCellsSet.erase(it);
-            }
+            newCellsSet.erase(cellId);
 
             if (!oldCellsSet.contains(cellId)) {
                 if (current != index) {
@@ -2817,7 +2812,14 @@ private:
         }
 
         CoordinatorCellIds_.resize(current);
-        newCells = std::vector<TCellId>(newCellsSet.begin(), newCellsSet.end());
+
+        if (newCellsSet.empty()) {
+            YT_TLOG_DEBUG("Coordinator cells updated; no new cells to grant shortcuts to")
+                .With("RemovedCoordinatorCellIds", removedCells);
+            return;
+        }
+
+        auto newCells = std::vector(newCellsSet.begin(), newCellsSet.end());
         std::sort(newCells.begin(), newCells.end());
 
         auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
