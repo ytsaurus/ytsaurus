@@ -147,13 +147,20 @@ void ConfigureDqCliqueUploadOptions(
     for (const auto& backend : backends) {
         if (backend.GetClusterName() == cliqueRef.YtCluster) {
             options->YtBackend = backend;
+            options->YtBackend.SetProxyAddress(binding.ProxyAddress);
             options->UploadPrefix = GetDqCliqueUploadPrefix(backend);
             break;
         }
     }
-    if (options->UploadPrefix.empty()) {
-        ythrow yexception() << "YT backend " << cliqueRef.YtCluster
-            << " has no upload prefix";
+    if (options->YtBackend.GetPrefix().empty()) {
+        auto prefix = options->UploadPrefix;
+        const auto separator = prefix.rfind('/');
+        if (separator != TString::npos) {
+            prefix.resize(separator);
+        }
+        if (!prefix.empty()) {
+            options->YtBackend.SetPrefix(prefix);
+        }
     }
     YQL_CLOG(INFO, ProviderDq) << "Upload files to YT cluster "
         << cliqueRef.YtCluster << " (" << binding.ProxyAddress << ")"
