@@ -15,6 +15,7 @@ struct TDistributedQueryInfo
 {
     DB::QueryProcessingStage::Enum ProcessingStage;
     DB::Header OutputHeader;
+    DB::SortDescription CoordinatorSortDescription;
     std::vector<TSecondaryQuery> SecondaryQueries;
     TClusterNodes CliqueNodes;
     TSecondaryQueryReadTaskIteratorPtr TaskIterator;
@@ -44,6 +45,8 @@ public:
     std::vector<std::shared_ptr<IChytIndexStat>> ExtractIndexStats();
 
     DB::Header GetOutputHeader() const;
+
+    const DB::SortDescription& GetSortDescription() const;
 
 private:
     const DB::ContextPtr Context_;

@@ -476,10 +476,20 @@ DB::Pipes TDistributedQueryExecutor::ExtractPipes()
 DB::Pipe TDistributedQueryExecutor::ExtractUnitedPipe()
 {
     auto pipe = DB::Pipe::unitePipes(std::move(Pipes_));
+    // This concat only makes sense for `ORDER BY ... LIMIT N` queries: since pipes are concatenated,
+    // a step above the ReadFromYTRemote step will read one pipe after another and stop the ReadFromYTRemote step
+    // execution as soon as its output reaches N rows, allowing to fire less secondary nodes and read less data.
+    //
+    // However, for `ORDER BY ...` queries without `LIMIT` this will prevent parallelization from happening and make
+    // secondary queries work one by one instead of simultaneously.
+    // TODO(ivanzhukov):
+    //   1. remove this concat for queries without LIMIT;
+    //   2. (optimization) dynamically decide if we should add it for LIMIT queries. E.g. it makes sense for LIMIT queries
+    //      without any WHERE filtering, but not so much for LIMIT N, where N is far greater than one secondary node
+    //      could process.
     if (QueryAnalysisResult_->ReadInOrderMode != EReadInOrderMode::None && !pipe.empty() && pipe.numOutputPorts() > 1) {
         pipe.addTransform(std::make_shared<DB::ConcatProcessor>(pipe.getHeader(), pipe.numOutputPorts()));
     }
-
     return pipe;
 }
 
@@ -543,6 +553,11 @@ std::vector<std::shared_ptr<IChytIndexStat>> TDistributedQueryExecutor::ExtractI
 DB::Header TDistributedQueryExecutor::GetOutputHeader() const
 {
     return DistributeInfo_.OutputHeader;
+}
+
+const DB::SortDescription& TDistributedQueryExecutor::GetSortDescription() const
+{
+    return DistributeInfo_.CoordinatorSortDescription;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

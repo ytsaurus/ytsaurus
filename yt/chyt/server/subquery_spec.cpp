@@ -31,6 +31,37 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+int ConvertSortOrderToInt(NProto::TSortDescription::ESortOrder sortOrder)
+{
+    switch (sortOrder) {
+        case NProto::TSortDescription::UNKNOWN:
+            THROW_ERROR_EXCEPTION("Sort order is unknown");
+        case NProto::TSortDescription::ASCENDING:
+            return 1;
+        case NProto::TSortDescription::DESCENDING:
+            return -1;
+    }
+    THROW_ERROR_EXCEPTION("Unknown sort order %v", sortOrder);
+}
+
+NProto::TSortDescription::ESortOrder ConvertDirectionToSortOrder(int direction)
+{
+    switch (direction) {
+        case 1:
+            return NProto::TSortDescription::ASCENDING;
+        case -1:
+            return NProto::TSortDescription::DESCENDING;
+        default:
+            THROW_ERROR_EXCEPTION("Unknown sort direction %v", direction);
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FillDataSliceDescriptors(
     TSecondaryQueryReadDescriptors& dataSliceDescriptors,
     const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
@@ -96,6 +127,15 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     auto* protoSubqueryOptions = protoSpec->mutable_subquery_options();
     protoSubqueryOptions->set_use_distinct_read_optimization(spec.SubqueryOptions.UseDistinctReadOptimization);
     protoSubqueryOptions->set_use_min_max_optimization(spec.SubqueryOptions.UseMinMaxOptimization);
+    if (const auto& desc = spec.SubqueryOptions.SortDescription; !desc.empty()) {
+        auto* protoDesc = protoSubqueryOptions->mutable_sort_description();
+        for (const auto& column : desc) {
+            auto* protoColumn = protoDesc->add_columns();
+            protoColumn->set_name(column.column_name);
+            protoColumn->set_direction(ConvertDirectionToSortOrder(column.direction));
+            protoColumn->set_nulls_direction(ConvertDirectionToSortOrder(column.nulls_direction));
+        }
+    }
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -133,6 +173,16 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
         const auto& protoSubqueryOptions = protoSpec.subquery_options();
         spec->SubqueryOptions.UseDistinctReadOptimization = protoSubqueryOptions.use_distinct_read_optimization();
         spec->SubqueryOptions.UseMinMaxOptimization = protoSubqueryOptions.use_min_max_optimization();
+
+        if (protoSubqueryOptions.has_sort_description()) {
+            const auto& protoDesc = protoSubqueryOptions.sort_description();
+            for (const auto& protoColumn : protoDesc.columns()) {
+                spec->SubqueryOptions.SortDescription.emplace_back(
+                    protoColumn.name(),
+                    ConvertSortOrderToInt(protoColumn.direction()),
+                    ConvertSortOrderToInt(protoColumn.nulls_direction()));
+            }
+        }
     }
 }
 

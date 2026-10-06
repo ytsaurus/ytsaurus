@@ -81,6 +81,7 @@ public:
         , ChunkReaderHost_(New<TMultiChunkReaderHost>(
             New<TChunkReaderHost>(storageContext->QueryContext->Client())))
         , ChunkReadOptions_(chunkReadOptions)
+        , IsReadInOrder_(!subquerySpec.SubqueryOptions.SortDescription.empty())
         , TableReaderConfig_(MergeTableReaderConfigs(
             storageContext->Settings->TableReader,
             subquerySpec.TableReaderConfig))
@@ -138,6 +139,7 @@ private:
     const NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
     const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClientChunkReadOptions ChunkReadOptions_;
+    bool IsReadInOrder_;
     const TTableReaderConfigPtr TableReaderConfig_;
     const TNameTablePtr NameTable_;
     const NChunkClient::IMultiReaderMemoryManagerPtr RootReaderMemoryManager_;
@@ -160,7 +162,9 @@ private:
             QueryContext_->Host->GetConfig()->ReaderMemoryRequirement,
             {{"user", QueryContext_->User}});
 
-        return CreateSchemalessParallelMultiReader(
+        auto readerFactory = IsReadInOrder_ ? CreateSchemalessSequentialMultiReader : CreateSchemalessParallelMultiReader;
+
+        return readerFactory(
             TableReaderConfig_,
             New<TTableReaderOptions>(),
             ChunkReaderHost_,
