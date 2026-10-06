@@ -517,6 +517,19 @@ class YTInstance(object):
                 subj=f"/O={self.id}/OU=YT Public RPC Server",
             )
 
+        if self.yt_config.kafka_cert is None and self.yt_config.kafka_proxy_count > 0:
+            self.yt_config.kafka_cert = os.path.join(self.path, "kafka.crt")
+            self.yt_config.kafka_cert_key = os.path.join(self.path, "kafka.key")
+            create_certificate(
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
+                cert=self.yt_config.kafka_cert,
+                cert_key=self.yt_config.kafka_cert_key,
+                names=names,
+                extended_key_usage="serverAuth",
+                subj=f"/O={self.id}/OU=YT Kafka Server",
+            )
+
     def _prepare_builtin_environment(self, ports_generator, modify_configs_func, modify_driver_logging_config_func):
         service_infos = [
             ("ytserver-clock", "clocks", self.yt_config.clock_count),

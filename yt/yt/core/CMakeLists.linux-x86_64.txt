@@ -184,6 +184,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduled_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/crypto.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/tls.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/appendable_compressed_file.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/config.cpp

@@ -62,7 +62,7 @@ using TConnectionStatePtr = TIntrusivePtr<TConnectionState>;
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TProxyBootstrapConfigPtr config,
+    TKafkaServerConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestCallback requesCallback,

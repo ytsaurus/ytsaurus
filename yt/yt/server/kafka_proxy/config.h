@@ -6,13 +6,15 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/re2/public.h>
 
 #include <yt/yt/library/server_program/config.h>
 
-#include <yt/yt/library/auth_server/public.h>
+#include <yt/yt/core/crypto/config.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -36,13 +38,12 @@ DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProxyBootstrapConfig
-    : public NServer::TNativeServerBootstrapConfig
+//! Configures the TCP listener serving Kafka clients.
+struct TKafkaServerConfig
+    : public virtual NYTree::TYsonStruct
 {
     //! Kafka proxy will listen on this port.
     int Port;
-
-    bool AbortOnUnrecognizedOptions;
 
     //! Listener will try to bind a socket with
     //! provided number of retries and backoff.
@@ -62,6 +63,30 @@ struct TProxyBootstrapConfig
     //! When posting a message, this timeout for
     //! packets is used.
     TDuration WriteIdleTimeout;
+
+    //! If set, the Kafka proxy will serve TLS-encrypted connections using
+    //! the provided certificate chain and private key.
+    NCrypto::TServerSslContextConfigPtr Credentials;
+
+    REGISTER_YSON_STRUCT(TKafkaServerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TKafkaServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
+{
+    //! Configuration of the Kafka client listener.
+    TKafkaServerConfigPtr Server;
+
+    //! COMPAT(panesher): listener port. Prefer "server/port".
+    std::optional<int> Port;
+
+    bool AbortOnUnrecognizedOptions;
 
     NAuth::TAuthenticationManagerConfigPtr Auth;
 
