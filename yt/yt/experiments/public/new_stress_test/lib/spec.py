@@ -270,6 +270,9 @@ spec_template = {
         "replica_hunks_probability": 0.5,
         "add_replica_probability": 0.1,
         "create_probability": 0.2,
+        # Bound live queues and static tables together; shadows and replicas belong
+        # to their queue. Moves and conversions do not consume additional slots.
+        "max_table_count": 100,
         "copy_probability": 0.3,
         "move_probability": 0.3,
         "remove_probability": 0.2,
@@ -286,6 +289,8 @@ spec_template = {
         "move_static_table_probability": 0.1,
         "remove_static_table_probability": 0.1,
         "write_probability": 0.3,
+        # Chance to combine two queues selected for writing into one transaction.
+        "multi_queue_write_probability": 0.2,
         "read_probability": 0.3,
         "write_min_batch_size": 1,
         "write_max_batch_size": 100,
