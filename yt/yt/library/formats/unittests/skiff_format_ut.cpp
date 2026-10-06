@@ -1922,7 +1922,7 @@ std::vector<TParserCase> MakeColumnParserCases()
     result.push_back({
         .CaseName = "optional_nothing_schemaless",
         .SkiffSchema = CreateTupleSchema({CreateOptionalSchema(EWireType::Nothing)->SetName("opt_null")}),
-        .Expected = TExpectedError{"Column \"opt_null\" cannot be represented with Skiff schema"},
+        .Expected = TExpectedError{"Cannot create Skiff parser for column \"opt_null\""},
     });
 
     result.push_back({

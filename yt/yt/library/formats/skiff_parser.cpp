@@ -252,9 +252,10 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
     ui16 columnId,
     TYsonToUnversionedValueConverter* ysonConverter)
 {
-    const auto& skiffSchema = DeoptionalizeSchema(fieldDescription.Schema()).first;
-    auto wireType = fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ false);
-    bool required = fieldDescription.IsRequired();
+    ValidateDoesNotMatchOptionalSingular(fieldDescription.Schema());
+    auto [skiffSchema, optionalKind] = StripOptional(fieldDescription.Schema());
+    auto wireType = skiffSchema->GetWireType();
+    bool required = optionalKind == EOptionalKind::None;
     switch (columnType) {
         case ESimpleLogicalValueType::Int8:
         case ESimpleLogicalValueType::Int16:
@@ -337,7 +338,7 @@ TSkiffToUnversionedValueConverter CreateSimpleValueConverter(
         case ESimpleLogicalValueType::Uuid:
             ValidateWireTypeIsOneOf(wireType, {EWireType::Uint128, EWireType::String32, EWireType::Yson32});
             if (wireType == EWireType::Uint128) {
-                if (fieldDescription.IsNullable()) {
+                if (!required) {
                     return CreatePrimitiveTypeConverter<true>(columnId, TUuidParser());
                 } else {
                     return CreatePrimitiveTypeConverter<false>(columnId, TUuidParser());
@@ -355,12 +356,14 @@ TSkiffToUnversionedValueConverter CreateDecimalValueConverter(
     TYsonToUnversionedValueConverter* ysonConverter)
 {
     const auto precision = denullifiedType.GetPrecision();
-    const auto wireType = fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ false);
+    auto [skiffSchema, optionalKind] = StripOptional(fieldDescription.Schema());
+    const auto wireType = skiffSchema->GetWireType();
+    bool required = optionalKind == EOptionalKind::None;
     switch (wireType) {
 #define CASE(x) \
         case x: \
             do { \
-                if (fieldDescription.IsNullable()) { \
+                if (!required) { \
                     return CreatePrimitiveTypeConverter<true>(columnId, TDecimalSkiffParser<x>(precision)); \
                 } else { \
                     return CreatePrimitiveTypeConverter<false>(columnId, TDecimalSkiffParser<x>(precision)); \
@@ -372,7 +375,7 @@ TSkiffToUnversionedValueConverter CreateDecimalValueConverter(
         CASE(EWireType::Int256);
 #undef CASE
         case EWireType::Yson32:
-            return CreatePrimitiveTypeConverter(wireType, fieldDescription.IsRequired(), columnId, ysonConverter);
+            return CreatePrimitiveTypeConverter(wireType, required, columnId, ysonConverter);
         default:
             CheckSkiffWireTypeForDecimal(precision, wireType);
             YT_ABORT();

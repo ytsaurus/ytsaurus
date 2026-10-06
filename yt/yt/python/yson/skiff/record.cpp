@@ -7,6 +7,8 @@
 
 namespace NYT::NPython {
 
+using namespace NSkiffExt;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSkiffRecord::TSkiffRecord(TSkiffSchema* schema)
@@ -172,7 +174,8 @@ void TSkiffRecord::SetDenceField(ui16 index, const Py::Object& value)
         newFieldValue = Py::None();
     }
     auto fieldDescription = Schema_->GetDenseField(index);
-    CheckFieldType(newFieldValue, fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true), fieldDescription.IsRequired());
+    auto [strippedSchema, optionalKind] = StripOptional(fieldDescription.Schema());
+    CheckFieldType(newFieldValue, GetSupportedWireTypeOrThrow(strippedSchema), optionalKind == EOptionalKind::None);
     DenseFields_[index] = newFieldValue;
 }
 
@@ -183,7 +186,7 @@ void TSkiffRecord::SetSparseField(ui16 index, const Py::Object& value)
         return;
     }
     auto fieldDescription = Schema_->GetSparseField(index - Schema_->GetDenseFieldsCount());
-    CheckFieldType(value, fieldDescription.ValidatedGetDeoptionalizeType(/*simplify*/ true), false);
+    CheckFieldType(value, GetSupportedWireTypeOrThrow(fieldDescription.Schema()), false);
     SparseFields_[index] = value;
 }
 

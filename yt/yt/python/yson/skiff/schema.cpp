@@ -16,6 +16,35 @@ using namespace NSkiffExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSupportedWireType(NSkiff::EWireType wireType)
+{
+    using NSkiff::EWireType;
+
+    switch (wireType) {
+        case EWireType::Boolean:
+        case EWireType::Int64:
+        case EWireType::Uint64:
+        case EWireType::Double:
+        case EWireType::String32:
+        case EWireType::Yson32:
+            return true;
+        default:
+            return false;
+    }
+}
+
+NSkiff::EWireType GetSupportedWireTypeOrThrow(const NSkiff::TSkiffSchemaPtr& skiffSchema)
+{
+    auto wireType = skiffSchema->GetWireType();
+    if (!IsSupportedWireType(wireType)) {
+        THROW_ERROR_EXCEPTION("Wire type %Qlv is not supported by the Python Skiff bindings",
+            wireType);
+    }
+    return wireType;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSkiffSchema::TSkiffSchema(
     const std::shared_ptr<NSkiff::TSkiffSchema>& skiffSchema,
     const std::string& rangeIndexColumnName,
