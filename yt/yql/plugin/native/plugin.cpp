@@ -267,7 +267,7 @@ public:
         const TVector<TString>& columns) override
     {
         TMemoryUsageInfo memInfo("DqResOrPull");
-        TScopedAlloc alloc(__LOCATION__, NKikimr::TAlignedPagePoolCounters(), state->FunctionRegistry->SupportsSizedAllocators());
+        TScopedAlloc alloc(__LOCATION__);
         THolderFactory holderFactory(alloc.Ref(), memInfo, state->FunctionRegistry);
         TTypeEnvironment env(alloc);
         NYql::NCommon::TCodecContext codecCtx(env, *state->FunctionRegistry, &holderFactory);
