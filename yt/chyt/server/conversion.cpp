@@ -339,7 +339,7 @@ TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
  * Only first usedKeyColumnCount columns are converted, other values are discarded.
  *
  * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
- * filled with min (lower) or max (upper) possible value of the corresponding column.
+ * filled with the first (lower) or last (upper) possible value in column sort order.
  *
  * If provided bounds are exclusive and tryMakeBoundsInclusive is |true|,
  * this functions will try to convert them to inclusive using some heuristics.
@@ -353,6 +353,7 @@ TClickHouseKeys ToClickHouseKeys(
     int usedKeyColumnCount,
     bool tryMakeBoundsInclusive)
 {
+    // TODO(buyval01): Handle NaN values in key conditions properly.
     YT_VERIFY(usedKeyColumnCount <= std::ssize(dataTypes));
 
     auto convertToClickHouseKey = [&] (const TKeyBound& ytBound) {
@@ -382,7 +383,8 @@ TClickHouseKeys ToClickHouseKeys(
             int lastConvertedIndex = prefixSizeToConvert - 1;
 
             std::optional<DB::Field> adjustedValue;
-            if (ytBound.IsUpper) {
+            bool descending = schema.Columns()[lastConvertedIndex].SortOrder() == ESortOrder::Descending;
+            if (ytBound.IsUpper != descending) {
                 adjustedValue = TryDecrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
             } else {
                 adjustedValue = TryIncrementFieldValue(chKey[lastConvertedIndex], dataTypes[lastConvertedIndex]);
@@ -394,14 +396,15 @@ TClickHouseKeys ToClickHouseKeys(
             }
         }
 
-        // Fill remaining suffix with min/max values.
+        // Fill remaining suffix in physical key order.
         for (int index = prefixSizeToConvert; index < usedKeyColumnCount; ++index) {
             // For an inclusive bound we should set a value which will not shorten our range.
-            // Such value is the maximum type value for upper bound the minimum type value for an lower bound.
+            // Such value is the last value in sort order for an upper bound, or the first for a lower bound.
             // For an exclusive bound we can set any value, because it will only extend our range.
             // But to keep our keys as accurate as possible, we need to set a value which will extend our range the least.
             // Such value is an opposite to a value we chose for an inclusive bound.
-            if (ytBound.IsUpper ^ isInclusive) {
+            bool descending = schema.Columns()[index].SortOrder() == ESortOrder::Descending;
+            if (ytBound.IsUpper ^ isInclusive ^ descending) {
                 chKey[index] = GetMinimumTypeValue(dataTypes[index]);
             } else {
                 chKey[index] = GetMaximumTypeValue(dataTypes[index]);

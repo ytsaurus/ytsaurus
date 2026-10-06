@@ -72,6 +72,7 @@
 #include <Parsers/makeASTForLogicalFunction.h>
 
 #include <Storages/buildQueryTreeForShard.h>
+#include <Storages/KeyDescription.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 #include <library/cpp/iterator/enumerate.h>
@@ -1389,8 +1390,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         result.Tables.emplace_back(storage->GetTables());
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
-        int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
-        if (keyColumnCount > 0) {
+        if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
                 ToNamesAndTypesList(*schema, settings->Conversion)));
 
@@ -1443,9 +1443,13 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             DB::ActionsDAGWithInversionPushDown invertedDAG(filterActionsDAG ? filterActionsDAG->getOutputs().front() : nullptr, getContext());
-            auto keyColumns = schema->GetKeyColumns();
-            keyColumns.resize(keyColumnCount);
-            keyCondition.emplace(invertedDAG, getContext(), keyColumns, primaryKeyExpression);
+            DB::KeyDescription keyDescription;
+            keyDescription.column_names = schema->GetKeyColumns();
+            keyDescription.expression = primaryKeyExpression;
+            for (int keyIndex = 0; keyIndex < schema->GetKeyColumnCount(); ++keyIndex) {
+                keyDescription.reverse_flags.push_back(schema->Columns()[keyIndex].SortOrder() == ESortOrder::Descending);
+            }
+            keyCondition.emplace(invertedDAG, getContext(), std::move(keyDescription));
 
             bool suitableForReadRangeInferring = settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere();
             for (int tableIndex = 0; suitableForReadRangeInferring && tableIndex < std::ssize(result.Tables.back()); ++tableIndex) {
