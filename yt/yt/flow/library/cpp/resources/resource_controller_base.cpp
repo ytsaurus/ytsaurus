@@ -14,7 +14,7 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow {
 
@@ -1029,7 +1029,7 @@ private:
     const TResourceControllerContextPtr Context_;
     THashMap<TFileProviderId, TProviderEntry> Providers_;
 
-    mutable NThreading::TSpinLock Lock_;
+    mutable TSpinLock Lock_;
     TMutableStateClient<TFileProviderDiscoveryState> State_;
     IMapNodePtr DynamicFileProviders_;
     THashMap<TFileProviderId, TFileProviderRevisionPtr> PendingRevisions_;

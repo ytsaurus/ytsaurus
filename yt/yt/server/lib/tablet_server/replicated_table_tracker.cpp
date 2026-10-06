@@ -25,7 +25,7 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTabletServer {
 
@@ -1250,7 +1250,7 @@ private:
     TDynamicReplicatedTableTrackerConfigPtr Config_;
 
     std::atomic<i64> MaxActionQueueSize_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionQueueLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ActionQueueLock_);
     std::deque<TClosure> ActionQueue_;
 
     struct TTableCollocation
@@ -2053,7 +2053,7 @@ private:
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
     }
 
-    void RequestLoadingFromSnapshot(const TGuard<NThreading::TSpinLock>& /*guard*/)
+    void RequestLoadingFromSnapshot(const TGuard<TSpinLock>& /*guard*/)
     {
         Host_->RequestLoadingFromSnapshot();
         ActionQueue_.clear();

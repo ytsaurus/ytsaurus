@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NTabletNode {
 
@@ -205,7 +205,7 @@ private:
     std::atomic<TInstant> LogNoContextLastTime_;
     std::atomic<TDuration> LogNoContextInterval_;
 
-    static void MaybeDropError(NThreading::TAtomicObject<TError>* atomicError, TInstant expirationTime)
+    static void MaybeDropError(TAtomicObject<TError>* atomicError, TInstant expirationTime)
     {
         atomicError->Transform([expirationTime] (TError& error) {
             if (error.HasDatetime() && error.GetDatetime() <= expirationTime) {

@@ -6,8 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NDynamicConfig {
 
@@ -100,7 +100,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TError UpdateError_;
     TError UnrecognizedOptionError_;
     NYTree::IMapNodePtr UnrecognizedOptions_;
@@ -126,7 +126,7 @@ private:
     void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 
     //! Returns the list of last config update attempt errors when spinlock is already guarded.
-    std::vector<TError> LockedGetErrors(const TGuard<NThreading::TSpinLock>& guard) const;
+    std::vector<TError> LockedGetErrors(const TGuard<TSpinLock>& guard) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

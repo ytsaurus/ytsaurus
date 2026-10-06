@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -74,7 +74,7 @@ protected:
 
     std::atomic<int> Version_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LifetimeLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, LifetimeLock_);
     std::atomic<int> ReadLockCounter_ = 0;
     int UpdateLockCounter_ = 0;
     TFuture<void> RemovedFuture_;
@@ -114,7 +114,7 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    virtual void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard);
+    virtual void ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard);
 
     static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
         NChunkClient::TRefCountedChunkMetaPtr meta,

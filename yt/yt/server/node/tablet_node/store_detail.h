@@ -20,7 +20,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -322,7 +322,7 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, WeakCachedVersionedChunkMetaEntryLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, WeakCachedVersionedChunkMetaEntryLock_);
     TWeakPtr<TVersionedChunkMetaCacheEntry> WeakCachedVersionedChunkMetaEntry_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -354,7 +354,7 @@ private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;
 
     std::atomic<bool> CachedReadersInvalidationNeeded_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     IDynamicStorePtr BackingStore_;
 
     NChunkClient::IBlockCachePtr DoGetBlockCache();

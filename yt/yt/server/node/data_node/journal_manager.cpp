@@ -682,7 +682,7 @@ private:
     TAtomicPtr<TMultiplexedChangelogConfig> Config_;
 
     //! Protects a section of members.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     //! The current multiplexed changelog.
     IChangelogPtr MultiplexedChangelog_;

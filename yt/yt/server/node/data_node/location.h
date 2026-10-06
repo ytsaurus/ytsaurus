@@ -28,7 +28,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 #include <map>
@@ -371,7 +371,7 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
     THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
@@ -391,7 +391,7 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
     NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
@@ -508,7 +508,7 @@ private:
         i64 DiskSpace;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TrashMapSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 

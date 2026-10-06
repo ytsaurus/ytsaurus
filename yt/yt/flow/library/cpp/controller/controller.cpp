@@ -1451,13 +1451,13 @@ private:
     const NObjectClient::TCellTag ClockClusterTag_;
     const IStatusProfilerPtr RootStatusProfiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StartLock_);
     TCancelableContextPtr CancelableContext_;
     // Tracks the current leader; used for double-start detection and the post-stop watchdog.
     TWeakPtr<TControllerLeader> WeakLeader_;
     static constexpr TDuration LeaderStopTimeout = TDuration::Minutes(5);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, FreshStatusesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, FreshStatusesLock_);
     THashMap<TJobId, TJobStatusPtr> FreshJobStatuses_;
     THashMap<std::string, TWorkerStatusPtr> FreshWorkerStatuses_;
 

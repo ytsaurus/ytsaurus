@@ -20,11 +20,10 @@
 
 #include <yt/yt/client/misc/workload.h>
 
-#include <library/cpp/yt/threading/notification_handle.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+#include <library/cpp/yt/system/notification_handle.h>
 
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>
@@ -1667,7 +1666,7 @@ private:
 
     const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TFairShareSlotId, std::deque<TRequestDescriptor>> SlotIdToRequestIds_;
     THashSet<TFairShareSlotId> SlotIds_;
 
@@ -1677,7 +1676,7 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
     std::atomic<bool> Stopping_ = false;
-    NThreading::TEventCount EventCount_;
+    TEventCount EventCount_;
 
     // This must run before the priority-100 ThreadPool callback. The flag
     // prevents EngineLoop from missing the wakeup and then waiting for its
@@ -1750,7 +1749,7 @@ private:
     template <class TResponse>
     void HandleNextRequest(
         const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& slot,
-        TGuard<NThreading::TSpinLock> guard,
+        TGuard<TSpinLock> guard,
         TGuid requestId,
         THashMap<TGuid, TRequestHandler<TResponse>>& requestStorage)
     {

@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryClient {
 
@@ -105,7 +105,7 @@ private:
     const TServerAddressPoolPtr AddressPool_;
     const TDiscoveryConnectionConfigPtr ConnectionConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     TDiscoveryClientConfigPtr ClientConfig_;
 };
 

@@ -294,7 +294,7 @@ private:
     const TLogger Logger;
     TPeriodicExecutorPtr KeepSessionAliveExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TFuture<void> InitializeFuture_;
     TFuture<void> FinalizeFuture_;
 

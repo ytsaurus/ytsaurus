@@ -24,7 +24,6 @@ namespace NYT::NJobProxy {
 using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::TJobTraceId;
-using NThreading::TThreadId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

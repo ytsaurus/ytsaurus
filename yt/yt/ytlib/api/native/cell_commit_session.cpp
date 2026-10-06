@@ -122,7 +122,7 @@ private:
     // NB: All accesses are non-concurrent by construction; add a lock if that ever changes.
     std::vector<TTransactionActionData> Actions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TabletsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TabletsLock_);
     THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
@@ -284,7 +284,7 @@ private:
     const TLogger Logger;
     const bool UseUniformPrepareSignatures_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TCellId, ICellCommitSessionPtr> CellIdToCommitSession_;
 };
 

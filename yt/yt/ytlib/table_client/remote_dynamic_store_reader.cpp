@@ -35,7 +35,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -833,7 +833,7 @@ protected:
 
     // Data statistics of all previous dynamic store readers.
     TDataStatistics AccumulatedDataStatistics_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DataStatisticsLock_);
 
     bool ChunkReaderFallbackOccurred_ = false;
     bool FlushedToEmptyChunk_ = false;

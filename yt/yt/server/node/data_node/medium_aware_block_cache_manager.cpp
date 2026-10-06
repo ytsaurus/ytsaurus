@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -229,7 +229,7 @@ private:
 
     std::atomic<bool> Enabled_ = false;
 
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerMediumLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PerMediumLock_);
     THashMap<std::string, IClientBlockCachePtr> PerMedium_;
 
     static int GetLocationCount(

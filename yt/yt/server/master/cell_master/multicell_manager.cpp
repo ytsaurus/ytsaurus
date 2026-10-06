@@ -616,15 +616,15 @@ private:
     TPeriodicExecutorPtr SyncHiveClocksExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelCacheLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MasterChannelCacheLock_);
     THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellRolesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
     TEnumIndexedArray<EMasterCellRole, TCellTagSet> RoleMasterCells_;
     TEnumIndexedArray<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MasterCellNamesLock_);
     THashMap<TCellTag, std::string> MasterCellNameMap_;
     THashMap<std::string, TCellTag> NameMasterCellMap_;
 

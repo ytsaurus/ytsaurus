@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/scheduler/common/allocation.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <fstream>
 
@@ -89,7 +89,7 @@ private:
     struct TOperationStatisticsWithLock final
     {
         TOperationStatistics Value;
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     };
 
     using TOperationDescriptionMap = THashMap<NScheduler::TOperationId, TOperationDescription>;
@@ -188,7 +188,7 @@ public:
 private:
     std::ofstream OutputStream_;
     bool HeaderPrinted_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 };
 
 using TSharedRunningOperationsMap = TLockProtectedMap<NScheduler::TOperationId, NSchedulerSimulator::TOperationPtr>;

@@ -144,7 +144,7 @@ private:
     const TLogger Logger;
     std::vector<TChunk> Chunks_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkLock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ChunkLock);
 
     i64 Size_ = 0;
 

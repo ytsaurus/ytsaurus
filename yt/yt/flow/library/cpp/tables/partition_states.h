@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NTables {
 
@@ -123,7 +123,7 @@ private:
     const NLogging::TLogger Logger;
     const std::string DefaultTag_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TagMetricsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TagMetricsLock_);
     THashMap<std::string, TTagMetrics> TagMetrics_;
 };
 

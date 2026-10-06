@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/error.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <any>
 
@@ -43,7 +43,7 @@ private:
         std::any ServiceHolder;
     };
 
-    NThreading::TAtomicObject<THashMap<TServiceId, TServiceEntry>> ServiceMap_;
+    TAtomicObject<THashMap<TServiceId, TServiceEntry>> ServiceMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

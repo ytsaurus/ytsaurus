@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #ifdef _linux_
 #include <sys/mman.h>
@@ -231,7 +231,7 @@ private:
     i64 HugePageSize_ = 0;
     std::atomic<int> UsedHugePageCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     THashMap<i64, std::vector<TMutableRef>> HugePageSizeToFreeBlobs_;
 

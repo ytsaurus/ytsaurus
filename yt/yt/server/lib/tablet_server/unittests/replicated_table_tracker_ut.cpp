@@ -423,7 +423,7 @@ private:
     THashMap<TTableReplicaId, TReplicaInfo> ReplicaIdToInfo_;
     THashSet<TTableReplicaId> ReplicaModeCommandsToFail_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReplicaLagTimesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ReplicaLagTimesLock_);
     THashMap<TTableReplicaId, std::optional<TDuration>> ReplicaIdToLagTime_;
 
     struct TTableInfo

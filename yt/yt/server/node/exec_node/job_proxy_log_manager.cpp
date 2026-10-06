@@ -215,7 +215,7 @@ private:
 
     std::vector<TDiskHealthCheckerPtr> LocationHealthCheckers_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AliveLocationsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AliveLocationsLock_);
     std::vector<bool> AliveLocationIndices_;
 
     std::vector<TError> LocationAlerts_;
@@ -223,7 +223,7 @@ private:
 
     int ShardingKeyLength_;
 
-    NThreading::TAtomicObject<std::string> LogFileName_;
+    TAtomicObject<std::string> LogFileName_;
 
     TAsyncSemaphorePtr AsyncSemaphore_;
 

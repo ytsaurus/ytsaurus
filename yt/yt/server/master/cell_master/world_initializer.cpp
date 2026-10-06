@@ -61,7 +61,7 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NCellMaster {
 
@@ -153,8 +153,8 @@ private:
 
     std::vector<TFuture<void>> ScheduledMutations_;
 
-    NThreading::TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
-    NThreading::TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
+    TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
+    TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
 
 
     bool IsInitializedUncached()

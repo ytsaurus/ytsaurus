@@ -44,8 +44,9 @@
 #include <yt/yt/core/actions/bind.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <library/cpp/iterator/concatenate.h>
 
@@ -185,7 +186,7 @@ private:
 
     // Written from ControlSerializedInvoker_, read from JobSerializedInvoker_ (in ApplyPendingStates).
     TAtomicIntrusivePtr<TWatermarkState> PendingWatermarkState_;
-    NThreading::TAtomicObject<std::optional<THashMap<TStreamId, TStreamTraverseDataPtr>>> PendingInputStreams_;
+    TAtomicObject<std::optional<THashMap<TStreamId, TStreamTraverseDataPtr>>> PendingInputStreams_;
     TAtomicIntrusivePtr<TDynamicComputationContext> PendingDynamicContext_;
 
     // Only from JobSerializedInvoker_.
@@ -302,7 +303,7 @@ public:
     std::pair<TDeque, TDeque> Extract(bool finish = false);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool Finished_ = false;
     TDeque Normal_;
     TDeque Init_;
@@ -625,14 +626,14 @@ private:
     const TInstant StartTime_;
     const NProfiling::TCounter InputSkippedByExpressionCounter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LimitsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LimitsLock_);
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits_;
 
     //! Touched from the run fiber only.
     TBlockedTimeAccountant BlockedTimeAccountant_{StartTime_};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     i64 RunIteration_ = -1;
     std::atomic<i64> NonEmptyRunIterations_ = 0;
     TPromise<void> RunIterationStartPromise_;

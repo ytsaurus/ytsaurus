@@ -240,7 +240,7 @@ protected:
 private:
     const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CacheSpinLock_);
     THashMap<std::pair<TTablePath, TConsumerReference>, TConsumerRegistrationTableRow> Registrations_;
     THashMap<TTablePath, TTablePath> ReplicaToReplicatedTable_;
 

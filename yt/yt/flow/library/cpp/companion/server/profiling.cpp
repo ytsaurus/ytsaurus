@@ -123,7 +123,7 @@ private:
     const TWeakPtr<NProfiling::ISensorProducer> Producer_;
     const TExpiredCallback ExpiredCallback_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TIntrusivePtr<NProfiling::TSensorBuffer> LastSource_;
     TIntrusivePtr<NProfiling::TSensorBuffer> LastFiltered_;
 
@@ -310,7 +310,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProducersLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProducersLock_);
     //! Owns stand-ins because the registry stores producers weakly.
     THashMap<TOriginDroppingProducer*, TIntrusivePtr<TOriginDroppingProducer>> Producers_;
 };

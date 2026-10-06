@@ -1810,7 +1810,7 @@ void TFlowViewKeeper::RebuildNodeCache(const IInvokerPtr& invoker)
     }
 }
 
-void TFlowViewKeeper::EnsureInit(TGuard<NThreading::TSpinLock>& /*guard*/) const
+void TFlowViewKeeper::EnsureInit(TGuard<TSpinLock>& /*guard*/) const
 {
     if (!FlowView_ || !CachedYsonString_ || !CachedYsonIndex_ || !CachedCompressedFlowView_) {
         THROW_ERROR_EXCEPTION(EErrorCode::FlowViewKeeperIsNotInitialized, "FlowViewKeeper is not initialized");

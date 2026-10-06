@@ -15,7 +15,7 @@
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
-#include <library/cpp/yt/threading/notification_handle.h>
+#include <library/cpp/yt/system/notification_handle.h>
 
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>

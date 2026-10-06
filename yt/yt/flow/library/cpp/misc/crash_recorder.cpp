@@ -6,9 +6,8 @@
 
 #include <library/cpp/yt/error/origin_attributes.h>
 
+#include <library/cpp/yt/system/atomic_object.h>
 #include <library/cpp/yt/system/handle_eintr.h>
-
-#include <library/cpp/yt/threading/atomic_object.h>
 
 #include <util/generic/buffer.h>
 

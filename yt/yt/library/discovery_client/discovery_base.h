@@ -2,7 +2,7 @@
 
 #include "discovery.h"
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NDiscoveryClient {
 
@@ -33,7 +33,7 @@ protected:
     THashMap<std::string, NYTree::IAttributeDictionaryPtr> List_;
     THashMap<std::string, TInstant> BannedUntil_;
     TDuration BanTimeout_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     const NLogging::TLogger Logger;
     std::optional<std::pair<std::string, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;
     TFuture<void> ScheduledForceUpdate_;

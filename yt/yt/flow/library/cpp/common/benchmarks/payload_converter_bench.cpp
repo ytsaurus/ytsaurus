@@ -150,7 +150,7 @@ protected:
 
     IPayloadConverterCachePtr ConverterCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InitLock_);
     int ThreadReferenceCounter_ = 0;
 };
 

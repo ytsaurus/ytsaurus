@@ -84,7 +84,7 @@ private:
     const TMediumDirectoryPtr MediumDirectory_;
     const TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SessionsLock_);
     THashMap<TSessionId, IChunkWriterPtr> Sessions_;
 
     TS3MediumDescriptorPtr GetS3MediumDescriptor(int mediumIndex)

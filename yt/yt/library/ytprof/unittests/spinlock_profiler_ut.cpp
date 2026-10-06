@@ -9,7 +9,7 @@
 
 #include <library/cpp/testing/common/env.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/string/cast.h>
 #include <util/stream/file.h>
@@ -141,7 +141,7 @@ TEST_F(TSpinlockProfilerTest, YTLocks)
     RunUnderProfiler<TBlockingProfiler>("ytlock.pb.gz", [] {
         std::atomic<bool> Stop = false;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, lock);
         std::thread slow([&] {
             while (!Stop) {
                 lock.Acquire();

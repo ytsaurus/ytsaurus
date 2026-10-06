@@ -87,7 +87,7 @@ public:
     bool IsBlockCacheMemoryLimitExceeded() override;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
 
     NExecNode::IBootstrap* const Bootstrap_;
 

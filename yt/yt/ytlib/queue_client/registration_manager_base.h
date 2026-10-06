@@ -111,7 +111,7 @@ protected:
     TQueueConsumerRegistrationManagerProfilingCounters ProfilingCounters_;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ConfigurationSpinLock_);
     TQueueConsumerRegistrationManagerConfigPtr DynamicConfig_;
 
     //! Verifies that config->Implementation is equal to #GetImplementationType().

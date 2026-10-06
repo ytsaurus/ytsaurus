@@ -87,7 +87,7 @@ private:
     TFuture<void> ProcessFinishFuture_;
     std::optional<TQueryId> ActiveQueryId_;
     TDuration RunRequestTimeout_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActiveQueryIdLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ActiveQueryIdLock_);
 
     std::shared_ptr<IRetryPolicy<const std::exception&>> StartPluginRetryPolicy_ = IRetryPolicy<const std::exception&>::GetExponentialBackoffPolicy(
         /*retryClassFunction*/ [](const std::exception&) {

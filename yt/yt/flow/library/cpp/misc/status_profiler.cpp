@@ -4,7 +4,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <deque>
 
@@ -163,7 +163,7 @@ private:
     const TMuteStatePtr MuteState_;
     NProfiling::TGauge BrokenGauge_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TError Error_;
     TStatus Status_;
 
@@ -473,7 +473,7 @@ private:
     const TMuteStatePtr MuteState_;
     NConcurrency::TPeriodicExecutorPtr ReportExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TRegistrationCookie RegistrationCookieCounter_ = 0;
     THashMap<TRegistrationCookie, TChildHooks> Children_;
 

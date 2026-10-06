@@ -89,7 +89,7 @@ private:
         BIND(&TUserActivityTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     THashMap<NObjectClient::TObjectId, NProto::TUserActivityStatisticsUpdate> UserToActivityStatistics_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 

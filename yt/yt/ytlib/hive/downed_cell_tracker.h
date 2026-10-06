@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -35,12 +35,12 @@ private:
     std::atomic<TDuration> ChaosCellExpirationTime_;
     std::atomic<TDuration> TabletCellExpirationTime_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<NElection::TCellId, TExpirationListType::iterator> DownedCellIds_;
     TExpirationListType ExpirationList_;
     std::atomic<bool> IsEmpty_ = true;
 
-    bool GuardedExpire(TInstant now, const TGuard<NThreading::TSpinLock>& /*guard*/);
+    bool GuardedExpire(TInstant now, const TGuard<TSpinLock>& /*guard*/);
     TInstant GetExpirationTime(NElection::TCellId cellId, TInstant now) const;
 };
 

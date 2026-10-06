@@ -3,7 +3,7 @@
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/tag.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/singleton.h>
 
@@ -37,7 +37,7 @@ private:
     static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TKey, NProfiling::TCounter> Counters_;
     THashMap<TKey, NProfiling::TGauge> Gauges_;
     THashMap<TKey, NProfiling::TEventTimer> EventTimers_;

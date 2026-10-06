@@ -32,7 +32,7 @@
 #include <util/stream/file.h>
 #include <util/stream/str.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NYqlPlugin {
 
@@ -504,7 +504,7 @@ private:
     TMutex FlavorConfigsLock_;
     THashMap<TString, NYql::TGatewaysConfig> GatewaysConfigSnapshotByFlavor_;
 
-    NThreading::TAtomicObject<TString> FunctionRegistryData_;
+    TAtomicObject<TString> FunctionRegistryData_;
 
     std::optional<NYql::TGatewaysConfig> GetCurrentGatewaysConfig(const TString& flavor)
     {

@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NChaosElection {
 
@@ -44,7 +44,7 @@ private:
 
     std::atomic<i64> NextCellIndex_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CellIdsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CellIdsLock_);
     std::vector<NObjectClient::TCellId> CellIds_;
     //! Cells last seen rejecting a creation; cleared whenever the cell list is refetched.
     THashSet<NObjectClient::TCellId> NotEnabledCellIds_;

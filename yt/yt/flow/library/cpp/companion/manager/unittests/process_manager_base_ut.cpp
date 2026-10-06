@@ -134,7 +134,7 @@ private:
     const bool InvalidParameters_ = false;
     std::atomic<int> IncarnationCount_ = 0;
     std::atomic<int> HealthCheckCount_ = 0;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SessionLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SessionLock_);
     std::vector<std::string> IncarnationSessionIds_;
 };
 
@@ -290,7 +290,7 @@ TEST_F(TProcessManagerBaseTest, EachIncarnationGetsANewSessionThatFinishesOnExit
     // Shared with the callback, which may still run after the test body while a killed process exits.
     struct TFinishedSessions
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
         std::vector<std::string> SessionIds;
 
         std::vector<std::string> Get()

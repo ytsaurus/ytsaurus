@@ -405,18 +405,18 @@ private:
     std::atomic<bool> RegisteredAtPrimary_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
-    NThreading::TAtomicObject<std::string> LocalHostName_;
+    TAtomicObject<std::string> LocalHostName_;
 
     std::atomic<TMasterEpoch> Epoch_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LocalDescriptorLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LocalDescriptorLock_);
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     NApi::ITransactionPtr LeaseTransaction_;
 
     THashMap<TCellTag, TFuture<TNodeTrackerServiceProxy::TRspHeartbeatPtr>> CellTagToHeartbeatRspFuture_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
 
     std::atomic<TRevision> RegistrationRevision_ = NullRevision;

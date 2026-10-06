@@ -30,7 +30,7 @@
 
 #include <util/generic/algorithm.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow {
 
@@ -192,7 +192,7 @@ private:
     const IChannelFactoryPtr PlainChannelFactory_ = CreateCachingChannelFactory(
         NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::NTcp::TBusConfig>()));
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     //! The certificate of the last leader and the channels pinned to it. A leader restart rotates
     //! the certificate, and the channels to the previous incarnation are dropped with their factory.
     std::string PinnedCertificatePem_;

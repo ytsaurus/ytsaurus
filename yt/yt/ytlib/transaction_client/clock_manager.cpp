@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <atomic>
 
@@ -96,7 +96,7 @@ private:
     std::atomic<TCellTag> ClockClusterTag_;
 
     THashMap<TCellTag, ITimestampProviderPtr> TimestampProviderMap_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     IConnectionPtr GetNativeConnectionOrThrow()
     {

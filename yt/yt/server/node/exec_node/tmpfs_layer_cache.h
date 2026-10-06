@@ -78,11 +78,11 @@ private:
 
     THashMap<NYPath::TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DataSpinLock_);
     THashMap<TArtifactKey, TLayerPtr> CachedLayers_;
     NConcurrency::TPeriodicExecutorPtr LayerUpdateExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AlertSpinLock_);
     TError Alert_;
 
     const TPromise<void> Initialized_ = NewPromise<void>();

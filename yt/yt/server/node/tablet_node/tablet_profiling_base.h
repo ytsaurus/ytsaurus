@@ -52,7 +52,7 @@ public:
         NTabletClient::TTabletId tabletId);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     THashSet<NYPath::TYPath> AllTables_;
     NProfiling::TGauge ConsumedTableTags_;

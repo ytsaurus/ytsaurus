@@ -84,7 +84,7 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SyncOnceLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SyncOnceLock_);
     TFuture<void> SyncOnceFuture_;
     TInstant LastSuccessfulSyncTime_ = TInstant::Zero();
 

@@ -69,7 +69,7 @@ private:
 
     std::atomic<ui64> TotalWaitTime_{};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<NYPath::TYPath, TFuture<TTableMountInfoPtr>> TableInfoMap_;
 
     void AddWaitTime(TInstant start, const TError& /*error*/)

@@ -73,7 +73,7 @@ private:
 
     DB::ContextMutablePtr ServerContext_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SourceToStorageIdsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SourceToStorageIdsLock_);
     THashMap<TYPath, std::vector<DB::StorageID>> SourceToStorageIds_;
     std::vector<DB::StorageID> FullAccessStorageIds_;
 

@@ -46,7 +46,7 @@ protected:
 private:
     TMutableStateClient<TSyncSinkState> State_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TOutputMessageConstPtr> RegisteredMessages_;
 
 private:

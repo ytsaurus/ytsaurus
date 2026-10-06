@@ -63,7 +63,7 @@ private:
     TMessageId LastDistributedMessageId_ = {};
     i64 LastDistributedSeqNo_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TRequest> RegisteredRequests_;
     std::deque<TRequest> DistributedRequests_;
     std::deque<TRequest> PersistedRequests_;

@@ -23,11 +23,12 @@
 
 #include <library/cpp/containers/concurrent_hash_set/concurrent_hash_set.h>
 #include <library/cpp/iterator/zip.h>
-#include <library/cpp/yt/threading/atomic_object.h>
 #include <yt/yt/client/api/chaos_client.h>
 #include <yt/yt/client/api/prerequisite.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/server/lib/chaos_election/chaos_lease.h>
+
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NFlow::NController {
 
@@ -240,13 +241,13 @@ private:
     const TPeriodicExecutorPtr PingExecutor_;
 
     //! Guards #Leases_ against the ping executor, which runs off the scheduling cycle.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LeasesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, LeasesLock_);
     THashMap<TLeaseId, IPrerequisitePtr> Leases_;
     TConcurrentHashSet<TLeaseId> ExpiredLeases_;
 
     //! Ping outcomes of the round being dispatched, summarized by the next one.
     std::atomic<i64> FailedPingCount_ = 0;
-    NThreading::TAtomicObject<TError> LastPingError_;
+    TAtomicObject<TError> LastPingError_;
 
     TFuture<IPrerequisitePtr> StartLease()
     {

@@ -205,7 +205,7 @@ private:
     NProfiling::TGauge DynamicMemoryUsageWriteLogsCounter_ = Profiler_.WithTag("memory_type", "write_logs").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;

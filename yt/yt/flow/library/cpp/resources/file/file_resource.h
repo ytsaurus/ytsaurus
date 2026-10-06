@@ -7,7 +7,8 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <atomic>
 #include <memory>
@@ -190,10 +191,10 @@ private:
     };
 
     void OnReconfigured(const TDynamicResourceContextPtr& dynamicContext);
-    void SchedulePreparation(const TGuard<NThreading::TSpinLock>& guard);
+    void SchedulePreparation(const TGuard<TSpinLock>& guard);
     void StartPreparation(
         ESnapshotRole role,
-        const TGuard<NThreading::TSpinLock>& guard);
+        const TGuard<TSpinLock>& guard);
     void BeginPreparation(
         ESnapshotRole role,
         TResourceRevisionPtr target,
@@ -223,9 +224,9 @@ private:
         TFileSnapshotId previousSnapshotId,
         ui64 attemptGeneration,
         TDuration warningPeriod);
-    bool TryCompleteActivation(const TGuard<NThreading::TSpinLock>& guard);
-    bool CompleteActivation(const TGuard<NThreading::TSpinLock>& guard);
-    void ConfigureSlotsAfterActivation(const TGuard<NThreading::TSpinLock>& guard);
+    bool TryCompleteActivation(const TGuard<TSpinLock>& guard);
+    bool CompleteActivation(const TGuard<TSpinLock>& guard);
+    void ConfigureSlotsAfterActivation(const TGuard<TSpinLock>& guard);
     void HandlePreparationError(
         ESnapshotRole role,
         const TResourceRevisionPtr& target,
@@ -256,7 +257,7 @@ private:
     TDuration ActivationStallWarningPeriod_;
     TAtomicIntrusivePtr<TSnapshot> ActiveSnapshot_;
 
-    mutable NThreading::TSpinLock Lock_;
+    mutable TSpinLock Lock_;
     TResourceRevisionPtr Target_;
     TResourceRevisionPtr AppliedRevision_;
     std::optional<TFileSnapshotId> ActiveFileSnapshotId_;

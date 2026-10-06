@@ -1,6 +1,6 @@
 #include "stockpile.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <library/cpp/yt/misc/leaky_global.h>
 
@@ -59,7 +59,7 @@ private:
 
     const i64 PageSize_ = sysconf(_SC_PAGESIZE);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::vector<std::unique_ptr<std::thread>> Threads_;
     TStockpileOptions Options_;
     std::atomic<bool> Run_ = false;

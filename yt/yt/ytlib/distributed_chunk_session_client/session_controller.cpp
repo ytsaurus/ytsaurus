@@ -22,7 +22,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/random/random.h>
 
@@ -196,7 +196,7 @@ private:
 
     TPeriodicExecutorPtr SessionPingExecutor_;
 
-    NThreading::TAtomicObject<TSessionId> SessionId_;
+    TAtomicObject<TSessionId> SessionId_;
     TChunkReplicaWithMediumList Targets_;
 
     TNodeDescriptor SequencerDescriptor_;

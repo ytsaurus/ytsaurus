@@ -57,7 +57,7 @@ public:
 private:
     const std::function<TFuture<i64>()> GetRemainingSpace_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TFuture<i64> RemainingSpace_;
     i64 RemainingSpaceLastObserved_;
     TInstant LastObservedAt_;

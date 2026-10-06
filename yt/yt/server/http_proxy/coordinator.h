@@ -122,7 +122,7 @@ private:
 
     TAtomicIntrusivePtr<TCoordinatorProxy> Self_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxiesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProxiesLock_);
     std::vector<TCoordinatorProxyPtr> Proxies_;
 
     TInstant StatisticsUpdatedAt_;

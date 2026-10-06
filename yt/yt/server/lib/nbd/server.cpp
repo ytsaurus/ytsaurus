@@ -22,8 +22,8 @@
 
 #include <library/cpp/yt/misc/guid.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <util/system/byteorder.h>
 

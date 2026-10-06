@@ -694,7 +694,7 @@ private:
         TChunkDescriptor Descriptor;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
     TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()

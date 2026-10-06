@@ -84,7 +84,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/parser.h>
@@ -141,7 +141,7 @@ struct TQueryRepresentations
 {
     std::optional<TString> Plan;
     std::optional<TString> Ast;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReprSpinLock);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ReprSpinLock);
 };
 DECLARE_REFCOUNTED_TYPE(TQueryRepresentations)
 DEFINE_REFCOUNTED_TYPE(TQueryRepresentations)
@@ -1228,7 +1228,7 @@ private:
     TLangVersion MaxYqlLangVersionInitial_;
     TLangVersion DefaultYqlApiLangVersion_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
 

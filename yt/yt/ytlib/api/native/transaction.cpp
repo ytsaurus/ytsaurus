@@ -713,7 +713,7 @@ private:
     { };
     TChunkedMemoryPool HunkMemoryPool_{THunkTransactionTag()};
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
     std::vector<NApi::ITransactionPtr> AlienTransactions_;
@@ -1305,7 +1305,7 @@ private:
     TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
     bool SecondaryIndicesProcessed_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueProducerSessionSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, QueueProducerSessionSpinLock_);
     THashMap<std::tuple<TRichYPath, TRichYPath, TQueueProducerSessionId>, TQueueProducerSequenceNumber> QueueProducerSessionToSequenceNumber_;
 
     struct TSyncReplica
@@ -1676,7 +1676,7 @@ private:
     ICellCommitSessionProviderPtr CellCommitSessionProvider_;
 
     //! Maps replica cluster name to sync replica transaction.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
     THashMap<std::string, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
@@ -1888,7 +1888,7 @@ private:
         return it->second;
     }
 
-    TFuture<void> DoAbort(TGuard<NThreading::TSpinLock>* guard, const TTransactionAbortOptions& options = {})
+    TFuture<void> DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& options = {})
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);

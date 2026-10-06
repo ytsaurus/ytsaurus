@@ -1326,7 +1326,7 @@ private:
         i64 DiskWritten = 0;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CountersLock_);
     std::optional<NFS::TDeviceId> DeviceId_;
     TInstant LastUpdateTime_;
     std::optional<TCounters> LastCounters_;

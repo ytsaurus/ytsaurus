@@ -1350,7 +1350,7 @@ private:
     TDuration InitializationDuration_;
     TDuration PartitionsLookupDuration_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
     TFuture<void> SessionFuture_ = OKFuture;
 

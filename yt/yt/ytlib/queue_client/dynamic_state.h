@@ -35,7 +35,7 @@
 
 #include <yt/yt/core/misc/config.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NQueueClient {
 
@@ -88,7 +88,7 @@ private:
     const NYPath::TYPath Path_;
     const NApi::IClientPtr Client_;
 
-    NThreading::TAtomicObject<TExponentialBackoffOptions> RetryBackoffOptions_;
+    TAtomicObject<TExponentialBackoffOptions> RetryBackoffOptions_;
 
     template <typename R>
     TFuture<R> RetryCallback(

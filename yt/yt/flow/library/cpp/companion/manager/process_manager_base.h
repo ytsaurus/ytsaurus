@@ -118,7 +118,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr MetricsCollectionExecutor_;
     // Mutable state and lock.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool Started_ = false;
     bool RestartOnStop_ = false;
     TIntrusivePtr<TProcessBase> CurrentProcess_;

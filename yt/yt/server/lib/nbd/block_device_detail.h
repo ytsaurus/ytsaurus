@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NNbd {
 
@@ -40,7 +40,7 @@ protected:
     virtual void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 
 private:
-    NThreading::TAtomicObject<TError> Error_;
+    TAtomicObject<TError> Error_;
     TSingleShotCallbackList<void(const TError&)> ErrorList_;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;

@@ -929,14 +929,14 @@ private:
         //! Prevents concurrent job heartbeats.
         TAsyncReaderWriterLock JobHeartbeatLock;
     };
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerJobTrackerDataLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PerJobTrackerDataLock_);
     THashMap<std::string, std::unique_ptr<TPerJobTrackerData>> PerJobTrackerData_;
 
     IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobTrackerAddressesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, JobTrackerAddressesLock_);
     std::vector<std::string> JobTrackerAddresses_;
     int JobHeartbeatJobTrackerIndex_ = 0;
 
@@ -1139,7 +1139,7 @@ private:
         }
 
         {
-            auto guard = NThreading::WriterGuard(JobTrackerAddressesLock_);
+            auto guard = WriterGuard(JobTrackerAddressesLock_);
             ShuffleRange(JobTrackerAddresses_);
         }
     }
@@ -1504,7 +1504,7 @@ private:
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
         TCellTag cellTag,
-        std::optional<NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>> chunkMapGuard,
+        std::optional<TReaderGuard<TReaderWriterSpinLock>> chunkMapGuard,
         TRevision registrationRevision)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);

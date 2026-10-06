@@ -32,7 +32,7 @@
 
 #include <library/cpp/yt/misc/range_helpers.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -285,7 +285,7 @@ private:
     const TProfiler BaseProfiler_;
 
     TAtomicConsumerTableRowConstPtr ConsumerRow_;
-    NThreading::TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
+    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
     TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;

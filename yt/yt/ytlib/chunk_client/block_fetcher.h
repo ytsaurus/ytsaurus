@@ -148,7 +148,7 @@ private:
     struct TWindowSlot
     {
         // Created lazily in GetBlockPromise.
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BlockPromiseLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, BlockPromiseLock);
         TPromise<TBlock> BlockPromise;
 
         //! Number of not finished blocks. Used for firing OnReaderFinished signal.

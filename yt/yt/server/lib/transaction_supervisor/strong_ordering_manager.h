@@ -176,7 +176,7 @@ private:
     std::atomic<int> ReadyToFlushTransactionCount_ = 0;
 
     std::atomic<int> PreparedCommitCount_ = 0;
-    NThreading::TAtomicObject<TPromise<void>> PreparedCommitsFinished_;
+    TAtomicObject<TPromise<void>> PreparedCommitsFinished_;
 
     TStrongOrderingShard* GetOrCreateShard(const std::string& tag);
     TStrongOrderingShard* GetShardOrCrash(const std::string& tag);

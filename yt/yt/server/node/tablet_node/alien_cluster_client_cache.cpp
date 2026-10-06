@@ -76,7 +76,7 @@ private:
     const TClientOptions ClientOptions_;
     const std::optional<std::string> LocalDc_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedClientsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CachedClientsLock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

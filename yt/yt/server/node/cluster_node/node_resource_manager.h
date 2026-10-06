@@ -18,7 +18,7 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NClusterNode {
 
@@ -186,7 +186,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    NThreading::TAtomicObject<NContainers::TInstanceLimits> Limits_;
+    TAtomicObject<NContainers::TInstanceLimits> Limits_;
 
     i64 SelfMemoryGuarantee_ = 0;
     std::atomic<double> JobsCpuLimit_ = 0;

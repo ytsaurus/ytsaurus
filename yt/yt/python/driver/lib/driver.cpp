@@ -31,7 +31,7 @@
 
 #include <yt/yt/library/signals/signal_registry.h>
 
-#include <library/cpp/yt/threading/at_fork.h>
+#include <library/cpp/yt/system/at_fork.h>
 
 namespace NYT::NPython {
 
@@ -62,7 +62,7 @@ void RegisterForkDetection()
 {
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [] {
-        NThreading::RegisterAtForkHandlers(
+        RegisterAtForkHandlers(
             /*prepare*/ nullptr,
             /*parent*/ nullptr,
             /*child*/ [] { ForkOccurredFlag.store(true); });

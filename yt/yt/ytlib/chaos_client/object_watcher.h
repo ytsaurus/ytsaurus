@@ -10,8 +10,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <string>
 
@@ -149,7 +149,7 @@ private:
             NTransactionClient::TTimestamp currentCacheTimestamp,
             TObjectPtr object);
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
         NTransactionClient::TTimestamp CurrentCacheTimestamp = NTransactionClient::NullTimestamp;
         TObjectPtr Object;
         std::vector<TWatcherEntry> WatcherEntries;
@@ -174,13 +174,13 @@ private:
     const TDuration GoneObjectsExpirationTime_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EntriesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, EntriesLock_);
     THashMap<TChaosObjectId, std::unique_ptr<TWatchersList>> WatchersByObjectId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MigratedObjectsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MigratedObjectsLock_);
     THashMap<TChaosObjectId, TMigratedObjectEntry> MigratedObjects_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DeletedObjectsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, DeletedObjectsLock_);
     THashMap<TChaosObjectId, TInstant> DeletedObjects_;
 
     std::atomic<bool> IsRunning_ = false;

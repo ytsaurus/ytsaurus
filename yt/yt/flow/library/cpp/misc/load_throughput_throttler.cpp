@@ -84,7 +84,7 @@ void TLoadThroughputThrottler::RegisterKeys(TStringBuf tag, const std::vector<i6
     }
 }
 
-TLoadThroughputThrottler::TStatistics& TLoadThroughputThrottler::GetOrCreateStatistics(TStringBuf tag, TGuard<NThreading::TSpinLock>& /*guard*/)
+TLoadThroughputThrottler::TStatistics& TLoadThroughputThrottler::GetOrCreateStatistics(TStringBuf tag, TGuard<TSpinLock>& /*guard*/)
 {
     auto [iter, emplaced] = Statistics_.try_emplace(tag);
     if (emplaced) {

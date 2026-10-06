@@ -70,7 +70,7 @@ private:
     const TProfiler Profiler_;
     const TGauge Total_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<std::string, std::pair<TGauge, TCounter>> DisableSensors_;
     std::optional<std::string> CurrentDisableMeta_;
 };
@@ -154,7 +154,7 @@ std::optional<ELocationState> TDiskLocation::ChangeState(
             .With(disableReason);
     }
 
-    auto guard = NThreading::WriterGuard(StateChangingLock_);
+    auto guard = WriterGuard(StateChangingLock_);
 
     if (expectedState) {
         ELocationState currentState = State_.load();
@@ -191,7 +191,7 @@ void TDiskLocation::InitializeDiskLocationProfiling(const NProfiling::TProfiler&
         return;
     }
 
-    auto guard = NThreading::ReaderGuard(StateChangingLock_);
+    auto guard = ReaderGuard(StateChangingLock_);
 
     YT_VERIFY(!Profiling_);
     Profiling_ = New<TProfiling>(profiler);

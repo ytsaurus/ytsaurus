@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NCompanion {
 namespace {
@@ -121,7 +121,7 @@ public:
 private:
     const std::vector<ECompanionResourceExecuteStatus> ScriptedStatuses_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TCompanionInfoPtr CompanionInfo_;
     std::vector<TResourceExecuteCall> Calls_;
     THashMap<size_t, TFuture<TCompanionResourceExecuteResponsePtr>> DeferredResponses_;
@@ -213,7 +213,7 @@ protected:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool DelayPreparation_ = false;
     std::vector<TPromise<TResourceRevisionPtr>> PendingPreparations_;
 };
@@ -657,7 +657,7 @@ TEST_F(TCompanionResourceTest, OverlappingPublicationsExposeOnlyCompletedGenerat
     NConcurrency::WaitFor(resource->Load({})).ThrowOnError();
     resource->SetDelayPreparation(true);
 
-    NThreading::TSpinLock signalLock;
+    TSpinLock signalLock;
     std::vector<ui64> signaledGenerations;
     resource->SubscribeCompanionStateChanged(BIND([&] {
         auto generation = resource->GetReference().ConfigurationGeneration;

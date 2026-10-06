@@ -143,7 +143,7 @@ TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionTy
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaTransaction::TThreadSafeRowBuffer::TThreadSafeRowBuffer(
-    NThreading::TSpinLock* lock,
+    TSpinLock* lock,
     TRowBufferPtr rowBuffer)
     : Guard_(Guard(*lock))
     , RowBuffer_(std::move(rowBuffer))
@@ -530,7 +530,7 @@ private:
     { };
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSequoiaTransactionTag());
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     // For validation only.
     std::atomic<bool> CommitStarted_ = false;

@@ -13,7 +13,7 @@
 #include <library/cpp/yt/memory/new.h>
 #include <library/cpp/yt/memory/ref.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/datetime/base.h>
 

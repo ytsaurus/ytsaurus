@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -102,7 +102,7 @@ private:
             int EntryIndex = -1;
             bool Cached = false;
             std::unique_ptr<NChunkClient::ICachedBlockCookie> Cookie;
-            NThreading::TAtomicObject<NChunkClient::TBlock> Block;
+            TAtomicObject<NChunkClient::TBlock> Block;
             i64 BeginOffset = -1;
             i64 EndOffset = -1;
         };
@@ -114,7 +114,7 @@ private:
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
-        NThreading::TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
+        TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
         std::atomic<bool> Finished = false;
         NNode::TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
@@ -132,7 +132,7 @@ private:
     struct TReadBlockSetBatchState
         : public TRefCounted
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock);
         std::vector<TReadBlocksRequest> Requests;
         int NextRequestIndex = 0;
         int InFlightRequestCount = 0;
@@ -151,7 +151,7 @@ private:
 
     NChunkClient::NProto::TChunkInfo Info_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BlocksExtLock_);
     TWeakPtr<NIO::TBlocksExt> WeakBlocksExt_;
 
     // Protected by LifetimeLock_.
@@ -159,7 +159,7 @@ private:
     NIO::TChunkFileReaderPtr PreparedReader_;
 
     NIO::TChunkFileReaderPtr GetReader();
-    void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
+    void ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard) override;
 
     TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 

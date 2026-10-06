@@ -231,7 +231,7 @@ private:
     TLockProtectedMap<TAllocationId, TJobDescription> AllocationIdToJobDescription_;
     NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     // Protected by Lock_.
     int PendingJobCount_ = 0;
     int CompletedJobCount_ = 0;

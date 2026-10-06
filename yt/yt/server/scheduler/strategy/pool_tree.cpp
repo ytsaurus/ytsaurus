@@ -54,7 +54,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -189,7 +189,7 @@ private:
     TInstant LastLocalUpdateTime_;
 
     // This maps is updated rarely and accessed from Control thread.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<std::string, TResourceVolume> PoolToAccumulatedResourceUsage_;
     THashMap<TOperationId, TAccumulatedResourceDistribution> OperationIdToAccumulatedResourceDistribution_;
     TInstant LastUpdateTime_;

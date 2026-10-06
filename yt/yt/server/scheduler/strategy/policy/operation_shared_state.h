@@ -101,7 +101,7 @@ private:
     // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
     // of allocations' preemption statuses. This is why we use this value, which is shared between all snapshots,
     // and keep it updated, instead of using fair share from current snapshot.
-    NThreading::TAtomicObject<TResourceVector> FairShare_;
+    TAtomicObject<TResourceVector> FairShare_;
 
     std::atomic<bool> Preemptible_ = true;
 
@@ -127,15 +127,15 @@ private:
         TDiskQuota DiskQuota;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AllocationPropertiesMapLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, AllocationPropertiesMapLock_);
     THashMap<TAllocationId, TAllocationProperties> AllocationPropertiesMap_;
     TInstant LastScheduleAllocationSuccessTime_;
     TDiskQuota TotalDiskQuota_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiagnosticCountersLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, DiagnosticCountersLock_);
 
     const NLogging::TLogger Logger;
 

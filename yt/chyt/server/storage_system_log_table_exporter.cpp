@@ -94,7 +94,7 @@ private:
     i64 TotalBytes_ = 0;
     i64 TotalRows_ = 0;
 
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     std::deque<DB::Chunk> Chunks_;
 };
 

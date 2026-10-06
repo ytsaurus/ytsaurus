@@ -600,7 +600,7 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
 
 void TChunkStore::UpdateExistingChunk(
     const IChunkPtr& chunk,
-    const NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
+    const TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -825,7 +825,7 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 }
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
-    const NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock>& /*guard*/)
+    const TReaderGuard<TReaderWriterSpinLock>& /*guard*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
@@ -1201,14 +1201,14 @@ bool TChunkStore::ShouldSkipWriteThrottlingLocations()
         : Config_->SkipWriteThrottlingLocations;
 }
 
-NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
+TReaderGuard<TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReaderGuard(ChunkMapLock_);
 }
 
-NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapWriterLock()
+TWriterGuard<TReaderWriterSpinLock> TChunkStore::AcquireChunkMapWriterLock()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

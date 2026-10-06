@@ -13,7 +13,7 @@
 #include <yt/yt/flow/library/cpp/misc/lexicographically_serialize.h>
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <functional>
 #include <list>
@@ -269,7 +269,7 @@ private:
     NProfiling::TCounter PersistedCountCounter_;
     NProfiling::TCounter PersistedBytesCounter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DelayedPartitionInfoUpdatesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DelayedPartitionInfoUpdatesLock_);
     std::vector<TPartitionInfoUpdate> DelayedPartitionInfoUpdates_;
 
 private:

@@ -62,9 +62,9 @@ struct TBucket
         Queue.clear();
     }
 
-    NThreading::TThreadId GetThreadId() const override
+    TThreadId GetThreadId() const override
     {
-        return NThreading::InvalidThreadId;
+        return InvalidThreadId;
     }
 
     bool CheckAffinity(const IInvokerPtr& invoker) const override
@@ -158,7 +158,7 @@ public:
     using TWaitTimeObserver = ITwoLevelFairShareThreadPool::TWaitTimeObserver;
 
     TTwoLevelFairShareQueue(
-        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const std::string& threadNamePrefix,
         IPoolWeightProviderPtr poolWeightProvider)
         : CallbackEventCount_(std::move(callbackEventCount))
@@ -465,13 +465,13 @@ private:
         THashMap<TFairShareThreadPoolTag, TBucket*> TagToBucket;
     };
 
-    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
+    const TIntrusivePtr<TEventCount> CallbackEventCount_;
     const std::string ThreadNamePrefix_;
     const TProfiler Profiler_;
 
     IPoolWeightProviderPtr PoolWeightProvider_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     // NB: We set this flag to true so that whomever may spam tasks to queue
     // will stop doing so after the shutdown.
     bool Stopping_ = false;
@@ -623,7 +623,7 @@ class TFairShareThread
 public:
     TFairShareThread(
         TTwoLevelFairShareQueuePtr queue,
-        TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
+        TIntrusivePtr<TEventCount> callbackEventCount,
         const std::string& threadGroupName,
         const std::string& threadName,
         int index)
@@ -722,7 +722,7 @@ public:
     }
 
 private:
-    const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
+    const TIntrusivePtr<TEventCount> CallbackEventCount_ = New<TEventCount>();
     const TTwoLevelFairShareQueuePtr Queue_;
 
 

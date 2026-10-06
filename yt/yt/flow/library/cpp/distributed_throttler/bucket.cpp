@@ -67,7 +67,7 @@ TFuture<void> TDistributedThrottlerBucket::RequestQuota(
     ui64 timestamp)
 {
     auto promise = NewPromise<void>();
-    auto throttleHolder = std::make_shared<NThreading::TAtomicObject<TFuture<void>>>();
+    auto throttleHolder = std::make_shared<TAtomicObject<TFuture<void>>>();
     // One handler per request, forwarding cancellation to whichever chunk is
     // in flight.
     promise.OnCanceled(BIND([throttleHolder] (const TError& error) {

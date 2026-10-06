@@ -137,7 +137,7 @@ public:
     /*
      * \note Thread affinity: any
      */
-    TGuard<NThreading::TSpinLock> AcquireInnerStateLock();
+    TGuard<TSpinLock> AcquireInnerStateLock();
 
     /*
      * \note Thread affinity: any
@@ -186,7 +186,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InnerStateLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, InnerStateLock_);
 
     std::atomic<EControllerAgentState> State_;
 
@@ -208,7 +208,7 @@ private:
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 
     std::optional<TError> MaybeError_;

@@ -8,7 +8,7 @@
 
 #include <yt/yt/library/profiling/solomon/public.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <array>
 
@@ -44,7 +44,7 @@ public:
 private:
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StateSizesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateSizesLock_);
     //! State-size summaries keyed by direction, type, and name.
     THashMap<std::string, NProfiling::TSummary> StateSizes_;
 
@@ -79,7 +79,7 @@ private:
     const NProfiling::TProfiler Profiler_;
     const NProfiling::TProfiler ComputationProfiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TComputationId, TComputationCountersPtr> ComputationCounters_;
     //! Keyed by "<command>/<status>"; both are enums, so the map stays tiny.
     THashMap<std::string, NProfiling::TCounter> ResourceExecuteCounters_;

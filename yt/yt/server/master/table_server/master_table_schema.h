@@ -12,7 +12,7 @@
 
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NTableServer {
 
@@ -82,7 +82,7 @@ private:
     TCompactTableSchemaPtr CompactTableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MemoizedYsonLock_);
 
     TNativeTableSchemaToObjectMapIterator GetNativeTableSchemaToObjectMapIterator() const;
     void SetNativeTableSchemaToObjectMapIterator(TNativeTableSchemaToObjectMapIterator it);

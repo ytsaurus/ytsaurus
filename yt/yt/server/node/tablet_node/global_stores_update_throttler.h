@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -40,7 +40,7 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const NProfiling::TProfiler Profiler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CounterLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CounterLock_);
     THashMap<NObjectClient::TCellTag, NProfiling::TCounter> ThrottledRequestCounters_;
 
     NProfiling::TCounter FailedThrottleRequestCounter_;

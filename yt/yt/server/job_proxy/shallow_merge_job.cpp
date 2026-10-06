@@ -223,8 +223,8 @@ private:
 
     std::vector<TChunkId> FailedChunkIds_;
 
-    NThreading::TAtomicObject<TDataStatistics> InputDataStatistics_;
-    NThreading::TAtomicObject<TDataStatistics> OutputDataStatistics_;
+    TAtomicObject<TDataStatistics> InputDataStatistics_;
+    TAtomicObject<TDataStatistics> OutputDataStatistics_;
 
     std::vector<TTraceContextPtr> InputTraceContexts_;
     std::vector<TTraceContextFinishGuard> InputFinishGuards_;

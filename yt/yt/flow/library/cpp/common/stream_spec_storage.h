@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow {
 
@@ -135,7 +135,7 @@ private:
 private:
     const IPayloadConverterCachePtr ConverterCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriterLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, WriterLock_);
     TAtomicPtr<TSnapshot, /*EnableAcquireHazard*/ true> Snapshot_;
 };
 

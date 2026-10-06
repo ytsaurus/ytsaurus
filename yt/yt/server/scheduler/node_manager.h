@@ -111,7 +111,7 @@ private:
     std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
     // Special map to support node consistency between node shards YT-11381.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeIdLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, NodeAddressToNodeIdLock_);
     THashMap<std::string, NNodeTrackerClient::TNodeId> NodeAddressToNodeId_;
 
     const TNodeShardPtr& GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const;

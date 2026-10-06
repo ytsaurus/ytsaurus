@@ -13,8 +13,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <atomic>
 #include <memory>
@@ -64,7 +64,7 @@ public:
 private:
     //! Token-bucket wait of the chunk currently in flight, cancelled together
     //! with the request. Null while nothing is in flight.
-    using TThrottleHolderPtr = std::shared_ptr<NThreading::TAtomicObject<TFuture<void>>>;
+    using TThrottleHolderPtr = std::shared_ptr<TAtomicObject<TFuture<void>>>;
 
     struct TPendingRequest
     {
@@ -134,7 +134,7 @@ private:
     NProfiling::TCounter UnknownClassRequestsCounter_;
     NProfiling::TCounter ClasslessRequestsCounter_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TQuotaClassId, TClassQueue> ClassQueues_;
     TWeightedFairQueueScheduler Scheduler_;
     std::optional<i64> MaxGrantAmount_;

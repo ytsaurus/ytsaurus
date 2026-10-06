@@ -123,7 +123,7 @@ protected:
         TStateSchemaPtr Schema;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     THashMap<TKey, TListedRow> Listed_;
     THashMap<TKey, TStateHolderPtr> States_;

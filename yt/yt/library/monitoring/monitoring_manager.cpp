@@ -103,7 +103,7 @@ private:
 
     bool Started_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<TYPath, NYson::TYsonProducer> PathToProducer_;
     IMapNodePtr Root_;
 

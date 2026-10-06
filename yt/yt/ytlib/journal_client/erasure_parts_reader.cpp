@@ -211,10 +211,10 @@ private:
 
     std::unordered_map<int, TPartReadingSession> PartSessions_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
 
-    void TryScheduleNextRead(TGuard<NThreading::TSpinLock>&& guard, int partIndex)
+    void TryScheduleNextRead(TGuard<TSpinLock>&& guard, int partIndex)
     {
         const auto& partSession = GetOrCrash(PartSessions_, partIndex);
         if (partSession.IsFinished()) {
@@ -379,7 +379,7 @@ private:
         partSession.Data = std::move(data);
     }
 
-    void OnPartSessionFinished(int partIndex, TGuard<NThreading::TSpinLock>&& guard)
+    void OnPartSessionFinished(int partIndex, TGuard<TSpinLock>&& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -447,7 +447,7 @@ private:
         return result;
     }
 
-    void Complete(TGuard<NThreading::TSpinLock>&& guard, i64 rowCount)
+    void Complete(TGuard<TSpinLock>&& guard, i64 rowCount)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -505,7 +505,7 @@ private:
         YT_TLOG_DEBUG("Erasure rows read session completed");
     }
 
-    void Fail(TGuard<NThreading::TSpinLock>&& guard)
+    void Fail(TGuard<TSpinLock>&& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -607,7 +607,7 @@ private:
         DoCancelFutures(std::move(guard));
     }
 
-    void DoCancelFutures(TGuard<NThreading::TSpinLock>&& guard)
+    void DoCancelFutures(TGuard<TSpinLock>&& guard)
     {
         std::vector<TFuture<void>> futuresToCancel;
         for (const auto& [_, partSession] : PartSessions_) {

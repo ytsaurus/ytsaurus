@@ -11,7 +11,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NDataNode {
 
@@ -76,10 +76,10 @@ private:
     IBootstrap* const Bootstrap_;
     const NYTree::IYPathServicePtr OrchidService_;
 
-    NThreading::TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
-    NThreading::TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
-    NThreading::TAtomicObject<std::vector<std::string>> FailedUnlinkedDiskIds_;
-    NThreading::TAtomicObject<std::vector<NDiskManager::TDiskInfo>> CachedDiskInfos_;
+    TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
+    TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
+    TAtomicObject<std::vector<std::string>> FailedUnlinkedDiskIds_;
+    TAtomicObject<std::vector<NDiskManager::TDiskInfo>> CachedDiskInfos_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 
