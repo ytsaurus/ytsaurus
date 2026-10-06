@@ -1831,13 +1831,16 @@ class TestInferReadRange(ClickHouseTestBase):
                              'WHERE a = 2 AND b >= 2 AND b < 4 ORDER BY a, b')
                     expected_read_rows = 24 if directions[0] == "descending" else (
                         6 if directions[1] == "descending" else 2)
+                    if not infer_ranges:
+                        expected_read_rows = 2
                     result = clique.make_query_and_validate_read_row_count(
                         query, exact=expected_read_rows, settings=settings)
                     assert result == [{"a": 2, "b": 2}, {"a": 2, "b": 3}]
 
                     query = f'SELECT a, b FROM "{table}" WHERE a = 2 ORDER BY b'
                     assert clique.make_query_and_validate_read_row_count(
-                        query, exact=6 if directions[0] == "ascending" else 24, settings=settings
+                        query, exact=6 if not infer_ranges or directions[0] == "ascending" else 24,
+                        settings=settings
                     ) == [{"a": 2, "b": b} for b in range(6)]
 
                     for predicate, matches in predicates:
