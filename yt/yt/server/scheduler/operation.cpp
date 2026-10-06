@@ -689,6 +689,16 @@ void ParseSpec(
                 *operationId);
             specNode->RemoveChild("acl");
         }
+
+        try {
+            if (auto jobShellsNode = specNode->FindChild("job_shells")) {
+                ConvertTo<std::vector<TJobShellPtr>>(jobShellsNode);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to parse operation job shells from spec, removing them (OperationId: %v)",
+                *operationId);
+            specNode->RemoveChild("job_shells");
+        }
     }
 
     try {
