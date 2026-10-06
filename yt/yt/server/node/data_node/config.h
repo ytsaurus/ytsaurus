@@ -301,6 +301,8 @@ struct TArtifactCacheReaderConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
 {
+    int MaxParallelDownloadChunks;
+
     REGISTER_YSON_STRUCT(TArtifactCacheReaderConfig);
 
     static void Register(TRegistrar registrar);

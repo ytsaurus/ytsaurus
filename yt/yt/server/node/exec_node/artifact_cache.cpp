@@ -32,6 +32,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_reader.h>
@@ -56,6 +58,9 @@
 #include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
@@ -238,6 +243,33 @@ private:
     void DoFinish() override
     {
         Check(&IOutputStream::Finish);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPositionalFileOutput
+    : public IOutputStream
+{
+public:
+    TPositionalFileOutput(TFile file, i64 offset)
+        : File_(std::move(file))
+        , Offset_(offset)
+    { }
+
+    i64 GetPosition() const
+    {
+        return Offset_;
+    }
+
+private:
+    const TFile File_;
+    i64 Offset_;
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        File_.Pwrite(buf, len, Offset_);
+        Offset_ += len;
     }
 };
 
@@ -507,7 +539,7 @@ public:
             artifactDownloadOptions,
             /*bypassArtifactCache*/ true);
 
-        decltype(&TImpl::MakeFileProducer) producerBuilder;
+        decltype(&TImpl::MakeTableProducer) producerBuilder;
         switch (FromProto<EDataSourceType>(key.data_source().type())) {
             case EDataSourceType::File:
                 producerBuilder = &TImpl::MakeFileProducer;
@@ -1085,6 +1117,48 @@ private:
         return true;
     }
 
+    struct TFileChunkLayout
+    {
+        std::vector<i64> Offsets;
+        std::vector<i64> Sizes;
+        i64 TotalSize = 0;
+    };
+
+    // The artifact file content is the concatenation of its chunk data in chunk spec order.
+    static std::optional<TFileChunkLayout> TryGetFileChunkLayout(const TArtifactKey& key)
+    {
+        std::vector<i64> offsets;
+        std::vector<i64> sizes;
+        i64 offset = 0;
+        const auto& chunkSpecs = key.chunk_specs();
+        for (const auto& chunkSpec : chunkSpecs) {
+            if (chunkSpec.has_lower_limit() && !IsTrivial(chunkSpec.lower_limit())) {
+                return std::nullopt;
+            }
+            if (chunkSpec.has_upper_limit() && !IsTrivial(chunkSpec.upper_limit())) {
+                return std::nullopt;
+            }
+            if (!chunkSpec.has_uncompressed_data_size_override()) {
+                return std::nullopt;
+            }
+            const auto chunkSize = chunkSpec.uncompressed_data_size_override();
+            if (chunkSize <= 0) {
+                return std::nullopt;
+            }
+            offsets.push_back(offset);
+            sizes.push_back(chunkSize);
+            offset += chunkSize;
+        }
+        if (std::ssize(offsets) < 2) {
+            return std::nullopt;
+        }
+        return TFileChunkLayout{
+            .Offsets = std::move(offsets),
+            .Sizes = std::move(sizes),
+            .TotalSize = offset,
+        };
+    }
+
     TClientChunkReadOptions MakeClientChunkReadOptions(
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
@@ -1283,19 +1357,44 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
-            auto producer = MakeFileProducer(
-                key,
-                artifactDownloadOptions.TrafficMeter,
-                chunkReadOptions,
-                location->GetInThrottler());
+            auto readerConfig = GetArtifactCacheReaderConfig();
 
-            auto artifact = ProduceArtifactFile(
-                key,
-                location,
-                chunkId,
-                std::move(lockedChunkGuard),
-                producer,
-                Logger);
+            auto chunkLayout = readerConfig->MaxParallelDownloadChunks > 1
+                ? TryGetFileChunkLayout(key)
+                : std::nullopt;
+
+            TArtifactPtr artifact;
+            if (chunkLayout) {
+                YT_LOG_INFO("Downloading file artifact in parallel (ChunkCount: %v, TotalSize: %v, MaxParallelDownloadChunks: %v)",
+                    std::ssize(chunkLayout->Offsets),
+                    chunkLayout->TotalSize,
+                    readerConfig->MaxParallelDownloadChunks);
+
+                artifact = ProduceArtifactFileFromChunks(
+                    key,
+                    location,
+                    chunkId,
+                    std::move(lockedChunkGuard),
+                    artifactDownloadOptions,
+                    chunkReadOptions,
+                    *chunkLayout,
+                    Logger);
+            } else {
+                auto producer = MakeFileProducer(
+                    key,
+                    artifactDownloadOptions.TrafficMeter,
+                    chunkReadOptions,
+                    location->GetInThrottler());
+
+                artifact = ProduceArtifactFile(
+                    key,
+                    location,
+                    chunkId,
+                    std::move(lockedChunkGuard),
+                    producer,
+                    Logger);
+            }
+
             EndInsertIfEnabled(cookie, std::move(artifact), location);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
@@ -1305,15 +1404,140 @@ private:
         }
     }
 
+    void DownloadFileChunk(
+        const std::shared_ptr<const TArtifactKey>& key,
+        const TCacheLocationPtr& location,
+        const TChunkSpec& chunkSpec,
+        i64 offset,
+        TFile dataFile,
+        i64 expectedSize,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager,
+        const std::function<void()>& cleanupTempFiles)
+    {
+        auto readerConfig = GetArtifactCacheReaderConfig();
+
+        // Each chunk gets its own child memory manager: the shared manager is finalized
+        // once a chunk's only reader is opened, and a subsequent reader registration would fail.
+        auto childMemoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(
+            readerConfig->WindowSize);
+
+        auto positionalOutput = std::make_unique<TPositionalFileOutput>(std::move(dataFile), offset);
+        auto* positionalOutputPtr = positionalOutput.get();
+
+        TErrorInterceptingOutput checkedOutput(
+            location,
+            std::move(positionalOutput),
+            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
+            cleanupTempFiles);
+
+        auto producer = MakeFileProducer(
+            key,
+            artifactDownloadOptions.TrafficMeter,
+            chunkReadOptions,
+            location->GetInThrottler(),
+            std::vector<TChunkSpec>{chunkSpec},
+            std::move(childMemoryManager));
+
+        producer(&checkedOutput);
+
+        auto writtenBytes = positionalOutputPtr->GetPosition() - offset;
+        if (writtenBytes != expectedSize) {
+            THROW_ERROR_EXCEPTION("Chunk %v produced an artifact file chunk of unexpected size",
+                FromProto<TChunkId>(chunkSpec.chunk_id()))
+                << TErrorAttribute("expected_size", expectedSize)
+                << TErrorAttribute("written_size", writtenBytes)
+                << TErrorAttribute("offset", offset);
+        }
+    }
+
+    TArtifactPtr ProduceArtifactFileFromChunks(
+        const TArtifactKey& key,
+        const TCacheLocationPtr& location,
+        TChunkId chunkId,
+        TLockedChunkGuard lockedChunkGuard,
+        const TArtifactDownloadOptions& artifactDownloadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const TFileChunkLayout& chunkLayout,
+        const NLogging::TLogger& Logger)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+
+        auto dataFileFiller = [&] (const TArtifactDataContext& context) {
+            auto readerConfig = GetArtifactCacheReaderConfig();
+
+            auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+                TParallelReaderMemoryManagerOptions{
+                    .TotalReservedMemorySize = readerConfig->MaxBufferSize,
+                    .MaxInitialReaderReservedMemory = readerConfig->WindowSize,
+                },
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
+            auto sharedKey = std::make_shared<const TArtifactKey>(key);
+
+            const auto& chunkSpecs = key.chunk_specs();
+
+            std::vector<TCallback<TFuture<void>()>> chunkCallbacks;
+            chunkCallbacks.reserve(std::ssize(chunkSpecs));
+            for (int index = 0; index < std::ssize(chunkSpecs); ++index) {
+                chunkCallbacks.push_back(
+                    BIND(
+                        &TImpl::DownloadFileChunk,
+                        MakeStrong(this),
+                        sharedKey,
+                        location,
+                        chunkSpecs[index],
+                        chunkLayout.Offsets[index],
+                        context.DataFile,
+                        chunkLayout.Sizes[index],
+                        artifactDownloadOptions,
+                        chunkReadOptions,
+                        multiReaderMemoryManager,
+                        context.CleanupTempFiles)
+                        .AsyncVia(location->GetAuxPoolInvoker()));
+            }
+
+            WaitFor(RunWithAllSucceededBoundedConcurrency(
+                std::move(chunkCallbacks),
+                readerConfig->MaxParallelDownloadChunks))
+                .ThrowOnError();
+        };
+
+        return ProduceArtifactFile(
+            key,
+            location,
+            chunkId,
+            std::move(lockedChunkGuard),
+            dataFileFiller,
+            std::ssize(chunkLayout.Offsets),
+            Logger);
+    }
+
     std::function<void(IOutputStream*)> MakeFileProducer(
         const TArtifactKey& key,
         const TTrafficMeterPtr& trafficMeter,
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        return MakeFileProducer(
+            std::make_shared<const TArtifactKey>(key),
+            trafficMeter,
+            chunkReadOptions,
+            throttler,
+            std::vector<TChunkSpec>(key.chunk_specs().begin(), key.chunk_specs().end()),
+            /*multiReaderMemoryManager*/ nullptr);
+    }
 
-        std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
+    std::function<void(IOutputStream*)> MakeFileProducer(
+        std::shared_ptr<const TArtifactKey> key,
+        const TTrafficMeterPtr& trafficMeter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const IThroughputThrottlerPtr& throttler,
+        const std::vector<TChunkSpec>& chunkSpecs,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto readerOptions = New<TMultiChunkReaderOptions>();
         readerOptions->EnableP2P = true;
@@ -1333,14 +1557,15 @@ private:
             std::move(chunkReaderHost),
             chunkReadOptions,
             chunkSpecs,
-            FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
+            FromProto<NChunkClient::TDataSourcePtr>(key->data_source()),
+            std::move(multiReaderMemoryManager));
 
         auto asyncStream = CreateFileReaderAdapter(reader);
         auto prefetchingStream = CreatePrefetchingAdapter(
             std::move(asyncStream),
             GetArtifactCacheReaderConfig()->WindowSize);
 
-        return [prefetchingStream, key, throttler] (IOutputStream* output) {
+        return [prefetchingStream, key = std::move(key), throttler] (IOutputStream* output) {
             TThrottlingOutput throttlingOutput(output, throttler);
             auto syncStream = CreateSyncAdapter(prefetchingStream);
 
@@ -1353,8 +1578,8 @@ private:
                     THROW_ERROR_EXCEPTION(
                         NExecNode::EErrorCode::ArtifactFetchFailed,
                         "Error while fetching artifact chunks")
-                        << TErrorAttribute("path", key.data_source().path())
-                        << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
+                        << TErrorAttribute("path", key->data_source().path())
+                        << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key->filesystem()))
                         << ex;
                 }
                 if (size == 0) {
@@ -1535,12 +1760,47 @@ private:
         };
     }
 
+    struct TArtifactDataContext
+    {
+        TFile& DataFile;
+        std::function<void()> CleanupTempFiles;
+    };
+
     TArtifactPtr ProduceArtifactFile(
         const TArtifactKey& key,
         const TCacheLocationPtr& location,
         TChunkId chunkId,
         TLockedChunkGuard lockedChunkGuard,
         const std::function<void(IOutputStream*)>& producer,
+        const NLogging::TLogger& Logger)
+    {
+        auto dataFileFiller = [&] (const TArtifactDataContext& context) {
+            TErrorInterceptingOutput checkedOutput(
+                location,
+                std::make_unique<TUnbufferedFileOutput>(context.DataFile),
+                Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
+                context.CleanupTempFiles);
+
+            producer(&checkedOutput);
+        };
+
+        return ProduceArtifactFile(
+            key,
+            location,
+            chunkId,
+            std::move(lockedChunkGuard),
+            dataFileFiller,
+            /*ioRequestCount*/ 1,
+            Logger);
+    }
+
+    TArtifactPtr ProduceArtifactFile(
+        const TArtifactKey& key,
+        const TCacheLocationPtr& location,
+        TChunkId chunkId,
+        TLockedChunkGuard lockedChunkGuard,
+        const std::function<void(const TArtifactDataContext&)>& dataFileFiller,
+        int ioRequestCount,
         const NLogging::TLogger& Logger)
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
@@ -1559,7 +1819,7 @@ private:
         std::unique_ptr<TFile> tempMetaFile;
         i64 chunkSize;
 
-        auto cleanupTempFiles = [&] {
+        auto cleanupTempFiles = [=] {
             for (const auto& path : {tempDataFileName, tempMetaFileName}) {
                 try {
                     if (NFS::Exists(path)) {
@@ -1587,24 +1847,19 @@ private:
             guard.Release();
         })).Run();
 
-        TErrorInterceptingOutput checkedOutput(
-            location,
-            std::make_unique<TUnbufferedFileOutput>(*tempDataFile),
-            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling,
-            cleanupTempFiles);
-
         auto traceContext = CreateTraceContextFromCurrent("ArtifactCache");
         TTraceContextGuard guard(traceContext);
 
         PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
-        producer(&checkedOutput);
+        TArtifactDataContext dataFileContext{*tempDataFile, cleanupTempFiles};
+        dataFileFiller(dataFileContext);
 
         if (Bootstrap_->GetIOTracker()->IsEnabled()) {
             Bootstrap_->GetIOTracker()->Enqueue(
                 TIOCounters{
                     .Bytes = tempDataFile->GetLength(),
-                    .IORequests = 1,
+                    .IORequests = ioRequestCount,
                 },
                 /*tags*/ {
                     {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
