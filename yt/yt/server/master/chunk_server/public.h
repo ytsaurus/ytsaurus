@@ -131,6 +131,12 @@ constexpr int ReplicationPriorityCount = 3;
  */
 constexpr int RepairPriorityCount = 4;
 
+DEFINE_ENUM(ESealPriority,
+    ((JournalDefault)       (0))
+    ((HunkJournal)          (1))
+    ((JournalDistributed)   (2))
+);
+
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
     ((Offline)   (0))

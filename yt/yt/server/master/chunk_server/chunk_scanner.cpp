@@ -96,6 +96,11 @@ void TGlobalChunkScanner::OnChunkDestroyed(TChunk* chunk)
     }
 }
 
+bool TGlobalChunkScanner::IsRelevant(TChunk* chunk) const
+{
+    return ActiveShardIndices_.test(chunk->GetShardIndex());
+}
+
 TChunk* TGlobalChunkScanner::DequeueChunk()
 {
     if (ActiveGlobalChunkScanIndex_ != -1) {
@@ -194,11 +199,6 @@ TChunkScannerBase::TChunkScannerBase(
 int TChunkScannerBase::GetShardIndex(TChunk* chunk)
 {
     return chunk->GetShardIndex();
-}
-
-bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
-{
-    return ActiveShardIndices_.test(chunk->GetShardIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

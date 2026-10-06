@@ -216,6 +216,8 @@ NLogging::ELogLevel GetChunkLogLevel(
 int EncodeRepairQueueKey(int mediumIndex, int priority);
 std::pair<int, int> DecodeRepairQueueKey(int key);
 
+ESealPriority GetChunkSealPriority(const TChunk* chunk);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
