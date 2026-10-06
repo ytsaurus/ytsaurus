@@ -133,6 +133,15 @@ TEST_F(TCastExpressionTest, Basic)
     Check("CAST(\"1\" AS `Optional<Double>`)", "", MakeDouble(1.0));
 }
 
+TEST_F(TCastExpressionTest, ImplicitIntegerCastsInModulo)
+{
+    Check("i1 % u1", "i1=-1;u1=3u", MakeUint64(0));
+    Check("u1 % i1", "i1=-1;u1=3u", MakeUint64(3));
+    Check("i1 % u1", "i1=#;u1=3u", MakeNull());
+    Check("i1 % u1", "i1=-9223372036854775808;u1=3u", MakeUint64(2));
+    Check("farm_hash(s1) % i1", "s1=abc;i1=10", MakeUint64(8));
+}
+
 TEST_F(TCastExpressionTest, AnyToBasic)
 {
     Check("CAST(yson_string_to_any(\"123\") AS Int64)", "", MakeInt64(123));
