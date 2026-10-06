@@ -2109,7 +2109,11 @@ i64 TTablet::GetTotalRowCount() const
 void TTablet::UpdateTotalRowCount()
 {
     if (StoreRowIndexMap_.empty()) {
-        RuntimeData_->TotalRowCount = 0;
+        // COMPAT(ifsmirnov)
+        RuntimeData_->TotalRowCount =
+            GetCurrentMutationEffectiveReign() >= ETabletReign::FixTotalRowCountAfterFullTrim
+                ? GetTrimmedRowCount()
+                : 0;
     } else {
         auto it = StoreRowIndexMap_.rbegin();
         RuntimeData_->TotalRowCount = it->first + it->second->GetRowCount();
