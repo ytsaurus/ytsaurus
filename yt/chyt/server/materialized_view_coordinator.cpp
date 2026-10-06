@@ -515,15 +515,8 @@ private:
         }
         refreshLockOrError.ThrowOnError();
 
-        auto viewLocks = WaitFor(AllSucceeded(std::vector{
-            Transaction_->LockNode(View_.SourcePath, ELockMode::Snapshot),
-            Transaction_->LockNode(View_.TargetPath, ELockMode::Shared),
-        })).ValueOrThrow();
-
-        auto sourceObjectId = viewLocks[0].NodeId;
-        auto targetObjectId = viewLocks[1].NodeId;
-
-        ValidateTarget(targetObjectId);
+        auto sourceObjectId = WaitFor(Transaction_->LockNode(View_.SourcePath, ELockMode::Snapshot))
+            .ValueOrThrow().NodeId;
 
         auto persistedProgress = ProgressStore_->GetProgress(Transaction_, View_.ObjectId);
         if (View_.SourceType == EMaterializedViewSourceType::Queue) {
@@ -564,8 +557,9 @@ private:
                 .ThrowOnError();
         }
 
-        auto results = RunRefreshTasks(targetObjectId, tasks);
-        if (!results.empty()) {
+        auto results = RunRefreshTasks(tasks);
+        Refreshed_ = !results.empty();
+        if (Refreshed_) {
             THROW_ERROR_EXCEPTION_IF(Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
                 "Testing exception after materialized view refresh query");
         }
@@ -580,8 +574,6 @@ private:
             NeedCommit_ = true;
             RefreshResults_ = std::move(results);
         }
-
-        Refreshed_ = !tasks.empty();
     }
 
     void ValidateTarget(TObjectId targetId) const
@@ -775,10 +767,19 @@ private:
         return queries;
     }
 
-    std::vector<TRefreshResult> RunRefreshTasks(
-        TObjectId targetObjectId,
-        const std::vector<TRefreshTask>& tasks)
+    std::vector<TRefreshResult> RunRefreshTasks(const std::vector<TRefreshTask>& tasks)
     {
+        if (tasks.empty()) {
+            return {};
+        }
+
+        auto targetLock = WaitFor(Transaction_->LockNode(View_.TargetPath, ELockMode::Shared));
+        if (targetLock.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+            return {};
+        }
+        auto targetObjectId = targetLock.ValueOrThrow().NodeId;
+        ValidateTarget(targetObjectId);
+
         auto queries = BuildRefreshQueries(targetObjectId, tasks);
         std::vector<TFuture<TRefreshResult>> taskFutures;
         taskFutures.reserve(tasks.size());
