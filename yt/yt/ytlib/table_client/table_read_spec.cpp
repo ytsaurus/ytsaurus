@@ -178,6 +178,7 @@ TTableReadSpec FetchRegularTableReadSpec(
             TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                 schema,
                 *userObject->RowLevelAcl,
+                options.Client->GetOptions().GetAuthenticatedUser(),
                 Logger));
     }
 

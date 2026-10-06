@@ -760,6 +760,7 @@ private:
                 TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                     table->Schema,
                     table->RowLevelAcl,
+                    Client_->GetOptions().GetAuthenticatedUser(),
                     Logger()));
 
             // We do not need to fetch anything if table was filtered by index.

@@ -404,6 +404,7 @@ TInputTableInfo CollectInputTableInfo(
     auto rlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
         schema,
         userObject.RowLevelAcl,
+        client->GetOptions().GetAuthenticatedUser(),
         Logger());
 
     return TInputTableInfo{

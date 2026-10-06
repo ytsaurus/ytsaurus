@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     alter_table, authors, create, create_user, get, insert_rows, partition_tables, raises_yt_error, read_table, read_table_partition,
-    sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table, set as yt_set)
+    sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table, make_rl_ace, set as yt_set)
 
 from yt.yson import dumps, to_yson_type
 
@@ -839,8 +839,8 @@ class PartitionTablesRlsBase(TestPartitionTablesBase):
         create_user("u")
         self._create_table("//tmp/t", chunk_count=2, rows_per_chunk=4, row_weight=1)
         yt_set("//tmp/t/@acl", [
-            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000001"'),
-            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000002"'),
+            make_rl_ace("u", 'key_1 = "0000000001"'),
+            make_rl_ace("u", 'key_1 = "0000000002"'),
         ])
 
         partitions = partition_tables(
@@ -862,6 +862,46 @@ class PartitionTablesRlsBase(TestPartitionTablesBase):
             if row["key_1"] in ("0000000001", "0000000002")
         ]
         assert sorted_dicts(collected_rows) == expected_rows
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_partition_rls_authenticated_user(self, optimize_for):
+        users = ["val_2", "val_7", "no_matching_rows"]
+        for user in users:
+            create_user(user)
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "int", "type": "int64"},
+                {"name": "str", "type": "string"},
+            ],
+            "optimize_for": optimize_for,
+            "inherit_acl": False,
+            "acl": [
+                make_rl_ace(users),
+                make_rl_ace(users, "str = [$authenticated_user]"),
+            ],
+        })
+        rows = [{"int": value, "str": f"val_{value}"} for value in range(10)]
+        write_table("//tmp/t", rows[:5])
+        write_table("<append=%true>//tmp/t", rows[5:])
+
+        for user in users:
+            partitions = partition_tables(
+                ["//tmp/t{int}"],
+                data_weight_per_partition=1,
+                enable_cookies=True,
+                omit_inaccessible_rows=True,
+                authenticated_user=user,
+            )
+            assert len(partitions) > 1
+
+            collected_rows = []
+            for partition in partitions:
+                collected_rows.extend(read_table_partition(partition["cookie"], authenticated_user=user))
+            expected_rows = [
+                {"int": row["int"]} for row in rows if row["str"] == user
+            ]
+            assert sorted_dicts(collected_rows) == sorted_dicts(expected_rows)
 
 
 class TestPartitionTablesRlsNative(PartitionTablesRlsBase):

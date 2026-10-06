@@ -114,6 +114,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixOutputChunkPoolIndexSerialization)  (302207))
     ((FixPartitionsDispatchStatistics)       (302208))
     ((FixInputStreamDirectory)               (302209))
+    ((RlsAuthenticatedUser)                  (302210))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
