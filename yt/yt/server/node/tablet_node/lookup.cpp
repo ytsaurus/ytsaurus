@@ -2123,6 +2123,10 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+    if (keys.empty()) {
+        return {};
+    }
+
     TStoreSessionList sessions;
     sessions.reserve(stores.size());
 
