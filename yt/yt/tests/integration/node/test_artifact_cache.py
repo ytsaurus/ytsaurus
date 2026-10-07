@@ -109,7 +109,7 @@ class TestParallelFileArtifactDownload(YTEnvSetup):
         assert all(h == expected_md5 for h in hashes)
 
     @authors("yuryalekseev")
-    @pytest.mark.parametrize("max_parallel_download_chunks, writeback_batch_size", [(1, 0), (1, 1), (4, 0), (4, 1)])
+    @pytest.mark.parametrize("max_parallel_download_chunks, writeback_batch_size", [(1, None), (1, 1), (4, None), (4, 1)])
     def test_multichunk_file_assembled_correctly(self, max_parallel_download_chunks, writeback_batch_size):
         expected_md5 = self._make_multichunk_file(chunk_count=4)
 

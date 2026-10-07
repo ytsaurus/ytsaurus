@@ -277,7 +277,7 @@ private:
 
 // Triggers incremental writeback via sync_file_range every WritebackBatchSize bytes
 // so that the final Flush() does not have to flush the whole file at once.
-// Non-positive writebackBatchSize disables writeback.
+// nullopt writebackBatchSize disables writeback.
 class TIncrementalWritebackOutput
     : public IOutputStream
 {
@@ -285,7 +285,7 @@ public:
     TIncrementalWritebackOutput(
         TFile file,
         i64 startOffset,
-        i64 writebackBatchSize,
+        std::optional<i64> writebackBatchSize,
         NLogging::TLogger logger,
         std::unique_ptr<IOutputStream> underlying)
         : Underlying_(std::move(underlying))
@@ -297,7 +297,7 @@ public:
 
 private:
     const std::unique_ptr<IOutputStream> Underlying_;
-    const i64 WritebackBatchSize_;
+    const std::optional<i64> WritebackBatchSize_;
     const NLogging::TLogger Logger;
 
     TFile File_;
@@ -306,13 +306,13 @@ private:
 
     void AccountForWrittenBytes(i64 size)
     {
-        if (WritebackBatchSize_ <= 0) {
+        if (!WritebackBatchSize_) {
             return;
         }
 
         UnflushedBytes_ += size;
 
-        if (UnflushedBytes_ >= WritebackBatchSize_) {
+        if (UnflushedBytes_ >= *WritebackBatchSize_) {
             FlushUnflushedBytes();
         }
     }
