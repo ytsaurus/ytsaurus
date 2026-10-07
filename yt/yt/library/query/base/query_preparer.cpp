@@ -1041,6 +1041,16 @@ std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
     return std::nullopt;
 }
 
+std::optional<i64> TryGetProjectionIndex(NAst::TExpressionPtr expr)
+{
+    auto index = TryGetIntegerValue(expr);
+    if (!index || *index == 0) {
+        return std::nullopt;
+    }
+
+    return index;
+}
+
 class TCardinalityIntoHyperLogLogWithPrecisionRewriter
     : public NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>
 {
@@ -1149,12 +1159,10 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     int projectionCount = projections ? std::ssize(*projections) : 0;
 
     auto isIndexReference = [&] (NAst::TExpressionPtr expr) {
-        auto integerValue = TryGetIntegerValue(expr);
-
-        if (integerValue.has_value() && *integerValue != 0) {
-            if (*integerValue < 0 || *integerValue > projectionCount) {
+        if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+            if (*projectionIndex < 0 || *projectionIndex > projectionCount) {
                 THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    .With("index", *integerValue);
+                    .With("index", *projectionIndex);
             }
 
             return true;
@@ -1165,7 +1173,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     if (ast.GroupExprs) {
         for (auto* expr : ast.GroupExprs.value()) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1175,7 +1183,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     for (auto& orderExpr : orderExpressionList) {
         for (auto* expr : orderExpr.Expressions) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1220,10 +1228,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
         for (i64 index = 0; index < std::ssize(groupExpressionList); ++index) {
             auto& expr = groupExpressionList[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
@@ -1235,10 +1241,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     for (auto& orderExpr : orderExpressionList) {
         for (i64 index = 0; index < std::ssize(orderExpr.Expressions); ++index) {
             auto& expr = orderExpr.Expressions[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
