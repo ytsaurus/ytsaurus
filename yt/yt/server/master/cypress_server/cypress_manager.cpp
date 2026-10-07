@@ -2358,15 +2358,6 @@ public:
         YT_VERIFY(transaction);
         YT_VERIFY(request.Mode != ELockMode::None);
 
-        if (waitable && !transaction) {
-            THROW_ERROR_EXCEPTION("Waitable lock requires a transaction");
-        }
-
-        if (request.Mode == ELockMode::Snapshot && !transaction) {
-            THROW_ERROR_EXCEPTION("%Qlv lock requires a transaction",
-                request.Mode);
-        }
-
         // COMPAT(shakurov)
         if (GetDynamicConfig()->EnableSequoiaNodeStateValidationInCreateLock) {
             TCypressNode* originatingNode = nullptr;
