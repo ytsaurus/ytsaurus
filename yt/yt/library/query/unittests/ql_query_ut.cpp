@@ -8851,6 +8851,92 @@ TEST_F(TQueryEvaluateTest, UniqAggregate)
         EExecutionBackend::Native);
 }
 
+TEST_F(TQueryEvaluateTest, CardinalityOrderedTotalsWithThreeSplits)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::String, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Uint64},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"k0", EValueType::String},
+        {"c", EValueType::Uint64},
+    });
+
+    auto result = YsonToRows({
+        "k0=a;c=1u",
+        "k0=b;c=1u",
+        "k0=c;c=1u",
+        "c=3u",
+    }, resultSplit);
+
+    for (auto executionBackend : {EExecutionBackend::Native, EExecutionBackend::WebAssembly}) {
+        if (executionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
+            continue;
+        }
+
+        SCOPED_TRACE(ToString(executionBackend));
+        EvaluateFullCoordinatedGroupByImpl(
+            "k0, cardinality(v) as c from [//t] group by k0 with totals limit 100",
+            split,
+            {{
+                {"k0=a;k1=0;v=1u"},
+                {"k0=b;k1=0;v=2u"},
+                {"k0=c;k1=0;v=3u"},
+            }},
+            ResultMatcher(result),
+            executionBackend);
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityOrderedTotalsWithAggregatedStates)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::String, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Uint64},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"k0", EValueType::String},
+        {"c", EValueType::Uint64},
+    });
+
+    auto source = TSource{
+        "k0=a;k1=0;v=1u",
+        "k0=a;k1=1;v=2u",
+        "k0=b;k1=0;v=2u",
+        "k0=b;k1=1;v=3u",
+        "k0=c;k1=0;v=4u",
+    };
+
+    for (auto executionBackend : {EExecutionBackend::Native, EExecutionBackend::WebAssembly}) {
+        if (executionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
+            continue;
+        }
+
+        for (int limit : {2, 100}) {
+            SCOPED_TRACE(Format("ExecutionBackend: %v, Limit: %v", executionBackend, limit));
+
+            auto resultRows = TSource{"k0=a;c=2u", "k0=b;c=2u"};
+            if (limit == 2) {
+                resultRows.push_back("c=3u");
+            } else {
+                resultRows.push_back("k0=c;c=1u");
+                resultRows.push_back("c=4u");
+            }
+
+            EvaluateFullCoordinatedGroupByImpl(
+                Format("k0, cardinality(v) as c from [//t] group by k0 with totals limit %v", limit),
+                split,
+                {{source}},
+                ResultMatcher(YsonToRows(resultRows, resultSplit)),
+                executionBackend);
+        }
+    }
+}
+
 TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
 {
     auto split = MakeSplit({

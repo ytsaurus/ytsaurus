@@ -1693,6 +1693,19 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// If the query uses `WITH TOTALS` together with `LIMIT`, but without `ORDER BY`,
+// we should account totals on the query coordinator side,
+// since the coordinator decides which rows will be included into the response.
+// When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
+bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(
+    const TConstBaseQueryPtr& query,
+    bool allowUnorderedGroupByWithLimit)
+{
+    return query->GroupClause &&
+        query->GroupClause->TotalsMode != ETotalsMode::None &&
+        query->GetScanOrder(allowUnorderedGroupByWithLimit) == EScanOrder::Ordered;
+}
+
 class TGroupByStreamManager
 {
 public:
@@ -1770,15 +1783,6 @@ private:
     // COMPAT(sabdenovch)
     const bool AllowUnorderedGroupByWithLimit_;
 
-    // If the query uses `WITH TOTALS` together with `LIMIT`, but without `ORDER BY`,
-    // we should account totals on the query coordinator side,
-    // since the coordinator decides which rows will be included into the response.
-    // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
-    bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
-    {
-        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->GetScanOrder(AllowUnorderedGroupByWithLimit_) == EScanOrder::Ordered;
-    }
-
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
     // We can also convert intermediate to deltas if the query is disjoint (when the grouping key and the primary key are identical).
     void ConvertIntermediateToDelta(size_t* intermediate, size_t* delta) const
@@ -1845,7 +1849,7 @@ private:
             return;
         }
 
-        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
             if (!FinalMode_) {
                 // Do nothing.
             } else {
@@ -1896,7 +1900,7 @@ private:
 
     void AddDeltaToAggregated(size_t* delta, size_t* aggregated) const
     {
-        if (!ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+        if (!ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
             *delta = MakeCodegenFinalizeOp(
                 CodegenSource_,
                 SlotCount_,
@@ -1919,7 +1923,7 @@ private:
             return;
         }
 
-        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator()) {
+        if (ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(Query_, AllowUnorderedGroupByWithLimit_)) {
             *aggregated = MakeCodegenFinalizeOp(
                 CodegenSource_,
                 SlotCount_,
@@ -1978,6 +1982,7 @@ void TQueryProfiler::Profile(
 
     bool finalMode = query->IsFinal;
     bool exclusiveGroupKeyView = query->HasExclusiveGroupKeyView;
+    bool finalizeAggregatesAtCoordinator = ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator(query, AllowUnorderedGroupByWithLimit_);
 
     Fold(EFoldingObjectType::FinalMode);
     Fold(finalMode);
@@ -2065,7 +2070,9 @@ void TQueryProfiler::Profile(
             }
 
             stateTypes.push_back(GetWireType(aggregateItem.StateType));
-            aggregatedTypes.push_back(GetWireType(aggregateItem.ResultType));
+            aggregatedTypes.push_back(GetWireType(finalizeAggregatesAtCoordinator
+                ? aggregateItem.StateType
+                : aggregateItem.ResultType));
         }
 
         auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
@@ -2319,7 +2326,9 @@ void TQueryProfiler::Profile(
                 }
 
                 for (const auto& item : query->GroupClause->AggregateItems) {
-                    aggregatedTypes.emplace_back(GetWireType(item.ResultType));
+                    aggregatedTypes.emplace_back(GetWireType(finalizeAggregatesAtCoordinator
+                        ? item.StateType
+                        : item.ResultType));
                 }
 
                 aggregatedSlot = MakeCodegenAddStreamOp(
