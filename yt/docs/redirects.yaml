@@ -175,6 +175,10 @@ common:
       to: /user-guide/dynamic-tables/overview.md
       type: redirect
 ru:
+    - from: /concepts/computation.md
+      to: /flow/concepts/computation.md
+      type: redirect
+
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md
       type: redirect
@@ -1105,6 +1109,10 @@ ru:
       type: redirect
 
 en:
+    - from: /concepts/computation.md
+      to: /flow/concepts/computation.md
+      type: redirect
+
     - from: /flow/release/auth.md
       to: /flow/devops/vanilla/security.md
       type: redirect
