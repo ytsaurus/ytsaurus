@@ -175,7 +175,7 @@ public class RichYPath implements YPath {
 
     @Override
     public boolean hasObjectRootDesignator() {
-        return rootDesignator.startsWith("#");
+        return rootDesignator.startsWith("#") || rootDesignator.startsWith("&#");
     }
 
     @Override
@@ -593,16 +593,18 @@ public class RichYPath implements YPath {
     private static YPath getRootDesignatorAndRelativePath(String path) {
         if (path.startsWith("/")) {
             return new RichYPath("/", getRelativePath(path, 1));
-        } else if (path.startsWith("#")) {
-            int ptr = 0;
+        } else if (path.startsWith("#") || path.startsWith("&#")) {
+            // "&#<id>" suppresses redirection to the object's native cell.
+            int guidStart = path.indexOf('#') + 1;
+            int ptr = guidStart;
             while (ptr < path.length() && path.charAt(ptr) != '/') {
                 ++ptr;
             }
-            String guid = path.substring(1, ptr);
+            String guid = path.substring(guidStart, ptr);
             if (!GUID.isValid(guid)) {
                 throw new IllegalArgumentException(path);
             }
-            return new RichYPath("#" + guid, getRelativePath(path, ptr));
+            return new RichYPath(path.substring(0, guidStart) + guid, getRelativePath(path, ptr));
         } else {
             throw new IllegalArgumentException(path);
         }

@@ -41,6 +41,7 @@ SET(SRCS
     test_schema.py
     test_thread_pool.py
     test_typed.py
+    test_ypath.py
 )
 
 IF (NOT OPENSOURCE)
