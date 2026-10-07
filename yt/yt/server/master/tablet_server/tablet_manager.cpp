@@ -2749,28 +2749,6 @@ public:
         cell->RecomputeClusterStatistics();
     }
 
-    void RecomputeAllTabletCellStatistics()
-    {
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
-            YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
-            auto* cell = cellBase->As<TTabletCell>();
-            cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
-            for (auto tablet : cell->Tablets()) {
-                if (tablet->Servant().GetCell() == cell) {
-                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
-                } else if (tablet->AuxiliaryServant().GetCell() == cell) {
-                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
-                } else {
-                    YT_TLOG_ALERT("Tablet belongs to a cell by neither of its servants")
-                        .With("CellId", cell->GetId())
-                        .With("TabletId", tablet->GetId())
-                        .With("TableId", tablet->GetOwner()->GetId());
-                }
-            }
-        }
-    }
-
     void OnHunkJournalChunkSealed(TChunk* chunk) override
     {
         YT_VERIFY(chunk->IsSealed());
@@ -3525,10 +3503,7 @@ private:
                 tablet->NodeStatistics().preload_pending_store_count();
             table->AccountTabletStatisticsDelta(delta);
 
-            // COMPAT(ifsmirnov)
-            if (GetDynamicConfig()->AccumulatePreloadPendingStoreCountCorrectly) {
-                cell->GossipStatistics().Local() += delta;
-            }
+            cell->GossipStatistics().Local() += delta;
 
             tablet->NodeStatistics().set_preload_pending_store_count(preloadPendingStoreCount);
         }
@@ -4344,7 +4319,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = GetDynamicConfig();
 
@@ -4366,14 +4341,6 @@ private:
 
         if (ProfilingExecutor_) {
             ProfilingExecutor_->SetPeriod(config->ProfilingPeriod);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (!oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
-            config->AccumulatePreloadPendingStoreCountCorrectly)
-        {
-            YT_TLOG_DEBUG("Recomputing statistics of all tablet cells");
-            RecomputeAllTabletCellStatistics();
         }
     }
 
@@ -6971,3 +6938,4 @@ ITabletManagerPtr CreateTabletManager(NCellMaster::TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
+
