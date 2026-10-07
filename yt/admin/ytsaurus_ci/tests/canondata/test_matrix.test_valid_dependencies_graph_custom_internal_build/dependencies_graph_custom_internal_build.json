@@ -1,5 +1,20 @@
 {
     "0": {
+        "operator": "0.33.0",
+        "query_tracker_custom_internal_build": "0.4.1",
+        "ytsaurus_custom_internal_build": "25.3"
+    },
+    "1": {
+        "operator": "0.33.0",
+        "query_tracker_custom_internal_build": "0.4.1",
+        "ytsaurus_custom_internal_build": "25.4"
+    },
+    "2": {
+        "operator": "0.33.0",
+        "query_tracker_custom_internal_build": "0.4.1",
+        "ytsaurus_custom_internal_build": "26.1"
+    },
+    "3": {
         "operator": "main",
         "query_tracker_custom_internal_build": "main",
         "ytsaurus_custom_internal_build": "main"

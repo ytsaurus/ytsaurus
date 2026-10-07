@@ -227,6 +227,151 @@ func TestProxySetPriorityAwarenessThreshold(t *testing.T) {
 	require.True(t, pickedForeign)
 }
 
+func TestProxySetPowerOfTwoChoices(t *testing.T) {
+	set := &ProxySet{
+		UpdateFn:                        func() ([]string, error) { return []string{"a", "b"}, nil },
+		ActiveSetSize:                   2,
+		EnablePowerOfTwoChoicesStrategy: true,
+	}
+	updateProxySet(set)
+
+	set.IncrementInflightRequestCount("a")
+	for range 100 {
+		proxy, ok := set.doPickRandom()
+		require.True(t, ok)
+		require.Equal(t, "b", proxy)
+	}
+	set.DecrementInflightRequestCount("a")
+
+	set.IncrementInflightRequestCount("b")
+	for range 100 {
+		proxy, ok := set.doPickRandom()
+		require.True(t, ok)
+		require.Equal(t, "a", proxy)
+	}
+	set.DecrementInflightRequestCount("b")
+
+	require.Empty(t, set.inflightRequestCount)
+}
+
+func TestProxySetPowerOfTwoChoicesTie(t *testing.T) {
+	set := &ProxySet{
+		UpdateFn:                        func() ([]string, error) { return []string{"a", "b"}, nil },
+		ActiveSetSize:                   2,
+		EnablePowerOfTwoChoicesStrategy: true,
+	}
+	updateProxySet(set)
+
+	picked := map[string]bool{}
+	for range 100 {
+		proxy, ok := set.doPickRandom()
+		require.True(t, ok)
+		picked[proxy] = true
+	}
+	require.Equal(t, map[string]bool{"a": true, "b": true}, picked)
+}
+
+func TestProxySetPowerOfTwoChoicesWithSingleProxy(t *testing.T) {
+	set := &ProxySet{
+		UpdateFn:                        func() ([]string, error) { return []string{"a"}, nil },
+		ActiveSetSize:                   1,
+		EnablePowerOfTwoChoicesStrategy: true,
+	}
+	updateProxySet(set)
+
+	set.IncrementInflightRequestCount("a")
+	proxy, ok := set.doPickRandom()
+	require.True(t, ok)
+	require.Equal(t, "a", proxy)
+	set.DecrementInflightRequestCount("a")
+}
+
+func TestProxySetPowerOfTwoChoicesRespectsPriority(t *testing.T) {
+	t.Run("enough local proxies", func(t *testing.T) {
+		proxyList := []string{
+			"local-1.sas.example.net",
+			"local-2.sas.example.net",
+			"foreign.vla.example.net",
+		}
+		priorityProvider, _ := NewYPClusterProxyPriorityProvider("client.sas.example.net")
+		set := &ProxySet{
+			UpdateFn:                        func() ([]string, error) { return proxyList, nil },
+			ActiveSetSize:                   len(proxyList),
+			PriorityProvider:                priorityProvider,
+			EnablePowerOfTwoChoicesStrategy: true,
+		}
+		updateProxySet(set)
+
+		set.IncrementInflightRequestCount("local-1.sas.example.net")
+		for range 100 {
+			proxy, ok := set.doPickRandom()
+			require.True(t, ok)
+			require.Equal(t, "local-2.sas.example.net", proxy)
+		}
+		set.DecrementInflightRequestCount("local-1.sas.example.net")
+	})
+
+	t.Run("single local proxy", func(t *testing.T) {
+		proxyList := []string{
+			"local.sas.example.net",
+			"foreign.vla.example.net",
+		}
+		priorityProvider, _ := NewYPClusterProxyPriorityProvider("client.sas.example.net")
+		set := &ProxySet{
+			UpdateFn:                        func() ([]string, error) { return proxyList, nil },
+			ActiveSetSize:                   len(proxyList),
+			PriorityProvider:                priorityProvider,
+			EnablePowerOfTwoChoicesStrategy: true,
+		}
+		updateProxySet(set)
+
+		set.IncrementInflightRequestCount("local.sas.example.net")
+		for range 100 {
+			proxy, ok := set.doPickRandom()
+			require.True(t, ok)
+			require.Equal(t, "foreign.vla.example.net", proxy)
+		}
+		set.DecrementInflightRequestCount("local.sas.example.net")
+	})
+
+	t.Run("priority awareness threshold", func(t *testing.T) {
+		proxyList := []string{
+			"local-1.sas.example.net",
+			"local-2.sas.example.net",
+			"foreign-1.vla.example.net",
+			"foreign-2.vla.example.net",
+		}
+		priorityProvider, _ := NewYPClusterProxyPriorityProvider("client.sas.example.net")
+		set := &ProxySet{
+			UpdateFn:                         func() ([]string, error) { return proxyList, nil },
+			ActiveSetSize:                    len(proxyList),
+			PriorityProvider:                 priorityProvider,
+			MinPeerCountForPriorityAwareness: 3,
+			EnablePowerOfTwoChoicesStrategy:  true,
+		}
+		updateProxySet(set)
+
+		pickedForeign := false
+		pickedAllLocal := false
+		for range 1024 {
+			peers := set.pickActivePeers(2)
+			require.NotEqual(t, peers[0], peers[1])
+
+			foreignCount := 0
+			for _, peer := range peers {
+				if strings.Contains(peer, ".vla.") {
+					foreignCount++
+				}
+			}
+			require.LessOrEqual(t, foreignCount, 1)
+			pickedForeign = pickedForeign || foreignCount == 1
+			pickedAllLocal = pickedAllLocal || foreignCount == 0
+		}
+		require.True(t, pickedForeign)
+		require.True(t, pickedAllLocal)
+	})
+}
+
 func updateProxySet(set *ProxySet) {
 	updateDone := make(chan struct{})
 	set.updateProxies(updateDone)

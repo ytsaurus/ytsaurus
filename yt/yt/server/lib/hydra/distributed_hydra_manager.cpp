@@ -46,7 +46,7 @@
 
 #include <library/cpp/iterator/zip.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/generic/cast.h>
 
@@ -745,7 +745,7 @@ private:
     const TDistributedHydraManagerOptions Options_;
     const TStateHashCheckerPtr StateHashChecker_;
 
-    NThreading::TAtomicObject<TDistributedHydraManagerDynamicOptions> DynamicOptions_;
+    TAtomicObject<TDistributedHydraManagerDynamicOptions> DynamicOptions_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
@@ -782,7 +782,7 @@ private:
     TEpochContextPtr AutomatonEpochContext_;
     TAtomicIntrusivePtr<TEpochContext> AtomicEpochContext_;
 
-    NThreading::TAtomicObject<TPeerIdSet> AlivePeerIds_;
+    TAtomicObject<TPeerIdSet> AlivePeerIds_;
 
     TError LastRestartError_;
 

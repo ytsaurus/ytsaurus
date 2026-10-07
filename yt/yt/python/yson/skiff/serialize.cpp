@@ -20,6 +20,7 @@
 namespace NYT::NPython {
 
 using namespace NSkiff;
+using namespace NSkiffExt;
 using namespace NYson;
 using namespace NYTree;
 
@@ -95,7 +96,8 @@ void SerializeSkiff(
         const auto& fieldInfo = schema->GetDenseField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, fieldInfo.IsRequired(), encoding, skiffWriter);
+        auto [strippedSchema, optionalKind] = StripOptional(fieldInfo.Schema());
+        SerializeField(GetSupportedWireTypeOrThrow(strippedSchema), object, optionalKind == EOptionalKind::None, encoding, skiffWriter);
     }
 
     if (schema->GetSparseFieldsCount() > 0) {
@@ -108,7 +110,7 @@ void SerializeSkiff(
             }
 
             skiffWriter->WriteVariant16Tag(idx);
-            SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, /*required*/ true, encoding, skiffWriter);
+            SerializeField(GetSupportedWireTypeOrThrow(fieldInfo.Schema()), object, /*required*/ true, encoding, skiffWriter);
         }
         skiffWriter->WriteVariant16Tag(NSkiff::EndOfSequenceTag<ui16>());
     }

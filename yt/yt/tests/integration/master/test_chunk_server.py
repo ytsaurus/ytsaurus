@@ -1185,7 +1185,8 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
 
-        self.Env.start_nodes()
+        # Observe the intermediate state before waiting for node readiness.
+        self.Env.start_nodes(sync=False)
 
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         assert node not in get(f"#{chunk_id}/@stored_replicas")
@@ -1232,7 +1233,8 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         self.Env.kill_service("node", indexes=[node_index])
 
-        self.Env.start_nodes()
+        # Observe the intermediate state before waiting for node readiness.
+        self.Env.start_nodes(sync=False)
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
         remove("//tmp/t")
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted"
@@ -1599,6 +1601,13 @@ class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
         "node_tracker": {
             "profiling_period": 100,
         },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "testing": {
+                    "suppress_registration_revision_validation": True,
+                },
+            },
+        },
     }
 
     DELTA_NODE_CONFIG = {
@@ -1721,9 +1730,6 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "master_connector": {
-                "delay_before_full_heartbeat_report": 4000,
-            },
             "lease_transaction_timeout": 2000,
             "lease_transaction_ping_period": 1000,
         },
@@ -1731,6 +1737,13 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
     @authors("danilalexeev")
     def test_no_missing_replicas_erasure(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 4000,
+                },
+            },
+        })
         set("//sys/@config/chunk_manager/disposed_pending_restart_node_chunk_refresh_delay", 10000)
 
         create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
@@ -1757,7 +1770,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
         assert not status["parity_missing"]
 
         self.Env.kill_service("node", indexes=node_indexes)
-        self.Env.start_nodes()
+        self.Env.start_nodes(sync=False)
 
         # explicit statistics
         def check1():

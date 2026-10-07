@@ -94,7 +94,7 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     bool Started_ = false;
     bool Stopped_= false;
     TPromise<void> NextSyncPromise_ = NewPromise<void>();

@@ -1082,6 +1082,14 @@ func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.O
 		return nil, err
 	}
 
+	return a.describeOptions(specletYson)
+}
+
+func (a *API) DescribeDefaultOptions() ([]strawberry.OptionGroupDescriptor, error) {
+	return a.describeOptions(yson.RawValue("{}"))
+}
+
+func (a *API) describeOptions(specletYson yson.RawValue) ([]strawberry.OptionGroupDescriptor, error) {
 	strawberrySpeclet, err := strawberry.ParseSpeclet(specletYson)
 	if err != nil {
 		return nil, err

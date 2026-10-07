@@ -49,7 +49,7 @@ private:
 
 struct TFastColumnEvaluatorCacheHolder
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     TWeakPtr<IColumnEvaluatorCache> Cache;
 };
 

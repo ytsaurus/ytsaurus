@@ -54,12 +54,22 @@ type Config struct {
 	RPCProxyPriorityStrategy RPCProxyPriorityStrategy
 
 	// RPCProxyMinPeerCountForPriorityAwareness, if positive, is the number of active local RPC proxies
-	// required for requests to go to local proxies only. If it is not satisfied, a local proxy is chosen
-	// with probability L/N, where L is the number of active local proxies and N is this value capped
-	// by the number of active proxies.
+	// required for a single-proxy selection to use only local proxies. Without the power-of-two strategy,
+	// if this condition is not satisfied, a local proxy is chosen with probability L/N, where L is the
+	// number of active local proxies and N is this value capped by the number of active proxies.
+	// The power-of-two strategy raises the minimum to two for candidate selection; the final choice
+	// depends on load.
 	//
 	// Only relevant for RPC client with RPCProxyPriorityStrategyPreferLocal.
 	RPCProxyMinPeerCountForPriorityAwareness int
+
+	// EnableRPCProxyPowerOfTwoChoicesStrategy makes the client pick two distinct random active
+	// RPC proxies and send the request to the one with fewer requests from this client in flight.
+	// With RPCProxyPriorityStrategyPreferLocal, a proxy from another data center may be picked
+	// unless at least max(2, RPCProxyMinPeerCountForPriorityAwareness) local proxies are active.
+	//
+	// Only relevant for RPC client. By default, the strategy is disabled.
+	EnableRPCProxyPowerOfTwoChoicesStrategy bool
 
 	// ProxyRole configures desired proxy role used by the client.
 	//

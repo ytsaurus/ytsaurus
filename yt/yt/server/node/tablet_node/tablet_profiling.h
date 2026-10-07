@@ -561,7 +561,7 @@ private:
     std::optional<TLsmCounters> LsmCounters_;
     std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     template <class TCounter, class TCallback = std::monostate>
     TCounter* GetOrCreateCounter(std::optional<TCounter>* counter, TCallback&& callback = {});

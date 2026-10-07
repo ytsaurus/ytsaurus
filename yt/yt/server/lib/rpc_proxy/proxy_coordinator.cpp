@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <atomic>
 
@@ -37,9 +37,9 @@ private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
-    NThreading::TAtomicObject<std::string> BanMessage_;
+    TAtomicObject<std::string> BanMessage_;
 
-    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

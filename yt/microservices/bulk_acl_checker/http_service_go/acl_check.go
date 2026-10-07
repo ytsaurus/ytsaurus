@@ -10,7 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yterrors"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
 	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
@@ -150,6 +152,30 @@ func CheckCompressedACLLocal(groups Groups, acl CompressedACL) (result yt.Securi
 	return yt.ActionDeny
 }
 
+func getUserBanned(ctx context.Context, cluster, subject string, ytClient yt.Client) (bool, error) {
+	key := BannedCacheKey{Cluster: cluster, Subject: subject}
+	if banned, ok := Cache.BannedLRU.Get(key); ok {
+		return banned, nil
+	}
+	if ytClient == nil {
+		return false, fmt.Errorf("client for cluster %q is unavailable", cluster)
+	}
+	path := ypath.Path("//sys/users").Child(ypath.EscapeLiteral(subject)).Attr("banned")
+	var banned bool
+	err := ytClient.GetNode(ctx, path, &banned, &yt.GetNodeOptions{
+		MasterReadOptions: &yt.MasterReadOptions{ReadFrom: yt.ReadFromCache},
+	})
+	if yterrors.ContainsResolveError(err) {
+		// A missing user is cached as banned: a user created later stays denied until the entry expires.
+		banned, err = true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read banned attribute for user %q on cluster %q: %w", subject, cluster, err)
+	}
+	Cache.BannedLRU.Add(key, banned)
+	return banned, nil
+}
+
 func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string) (result []yt.SecurityAction, err error) {
 	result = []yt.SecurityAction{} // Initialize empty slise to avoid serialization to null
 	if req.Permission == "" {
@@ -157,6 +183,9 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 	}
 	if req.Permission != yt.PermissionRead && req.Permission != yt.PermissionWrite {
 		return nil, fmt.Errorf("unsupported permission %q", req.Permission)
+	}
+	if req.Subject == "" {
+		return nil, fmt.Errorf("subject cannot be empty")
 	}
 	metrics := ActorMetrics{}
 	aclCache := Cache.Get(req.Cluster)
@@ -167,6 +196,23 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 	if req.Permission == yt.PermissionWrite && aclCache.ACLDump.WriteACL == nil {
 		return nil, fmt.Errorf("ACL dump for cluster %s does not contain write permissions", req.Cluster)
 	}
+
+	banned, err := getUserBanned(ctx, req.Cluster, req.Subject, aclCache.YtClient)
+	if err != nil {
+		metrics.FailChecks += 1
+		Metrics.Update(actor, metrics)
+		for range req.Paths {
+			result = append(result, yt.SecurityAction("error"))
+		}
+		return result, nil
+	}
+	if banned {
+		for range req.Paths {
+			result = append(result, yt.ActionDeny)
+		}
+		return
+	}
+
 	path2hash := make(map[string]string)
 	hash2ACL := make(map[string]ACL)
 	hash2action := make(map[string]yt.SecurityAction)
@@ -203,7 +249,7 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 		if groups != nil {
 			metrics.SuccessChecks += 1
 			hash2action[hash] = CheckCompressedACLLocal(groups, compressedACL)
-		} else if action, ok := Cache.LRU.Get(lruKey); ok {
+		} else if action, ok := Cache.ACLLRU.Get(lruKey); ok {
 			metrics.SuccessChecks += 1
 			metrics.CacheHit += 1
 			hash2action[hash] = action
@@ -228,7 +274,7 @@ func BulkCheckACL(ctx context.Context, req bac_lib.CheckACLRequest, actor string
 			ACLHash:    answer.Hash,
 		}
 		metrics.SuccessChecks += 1
-		Cache.LRU.Add(lruKey, answer.Action)
+		Cache.ACLLRU.Add(lruKey, answer.Action)
 	}
 	Metrics.Update(actor, metrics)
 	for _, path := range req.Paths {

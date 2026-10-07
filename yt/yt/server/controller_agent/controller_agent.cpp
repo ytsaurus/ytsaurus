@@ -73,7 +73,7 @@
 
 #include <yt/yt/build/build.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/cast.h>
 
@@ -1261,7 +1261,7 @@ private:
 
     TOperationIdToOperationMap IdToOperation_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     struct TFilteredExecNodeDescriptors
@@ -1308,7 +1308,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
     std::shared_ptr<const THashMap<TClusterName, bool>> ClusterToNetworkBandwidthAvailability_;
     std::map<TClusterName, TCallbackList<void()>> ClusterToNetworkBandwidthAvailabilityCallbackLists_;
 

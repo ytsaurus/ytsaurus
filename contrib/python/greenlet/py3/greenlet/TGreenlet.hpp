@@ -828,10 +828,8 @@ public:
         int was_enabled = 0;
     public:
         GCDisabledGuard()
-            : was_enabled(PyGC_IsEnabled())
-        {
-            PyGC_Disable();
-        }
+            : was_enabled(PyGC_Disable())
+        {}
 
         ~GCDisabledGuard()
         {

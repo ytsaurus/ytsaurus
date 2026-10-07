@@ -41,6 +41,7 @@ class FakeClient:
                     replica.setdefault("state", "enabled")
                     replica.setdefault("mode", "sync")
                     replica.setdefault("replica_reached_last_own_era", True)
+                    replica.setdefault("replicated_table_tracker_enabled", False)
         self.calls = []
         self.created_replicas = 0
 
@@ -78,7 +79,11 @@ class FakeClient:
         self.calls.append(("freeze", table))
         self.attributes[f"{table}/@tablet_state"] = "frozen"
 
-    def remove(self, path):
+    def set(self, path, value):
+        self.calls.append(("set", path, value))
+        self.attributes[path] = value
+
+    def remove(self, path, force=False):
         self.calls.append(("remove", path))
         if path.startswith("#"):
             replica_id = path[1:]
@@ -108,6 +113,7 @@ class FakeClient:
                 "content_type": attributes["content_type"],
                 "mode": attributes["mode"],
                 "state": "enabled" if attributes.get("enabled") else "disabled",
+                "replicated_table_tracker_enabled": attributes.get("enable_replicated_table_tracker", False),
                 "replica_reached_last_own_era": self.newborn_confirms_era(),
             }
             return replica_id
@@ -121,11 +127,28 @@ class FakeClient:
     def alter_table(self, table, upstream_replica_id=None):
         self.calls.append(("alter_table", table, upstream_replica_id))
 
-    def alter_table_replica(self, replica_id, enabled):
-        self.calls.append(("alter_table_replica", replica_id, enabled))
+    def alter_table_replica(self, replica_id, enabled=None, mode=None, enable_replicated_table_tracker=None):
+        # One journal entry per call, so that a test can tell two alters from one carrying both
+        # properties. The wrapper takes sync and async only (dynamic_table_commands.py).
+        assert mode is None or mode in ("sync", "async"), f"Invalid mode {mode}"
+        properties = {
+            name: value
+            for name, value in (
+                ("enabled", enabled),
+                ("mode", mode),
+                ("enable_replicated_table_tracker", enable_replicated_table_tracker),
+            )
+            if value is not None
+        }
+        self.calls.append(("alter_table_replica", replica_id, properties))
         for key, value in self.attributes.items():
             if key.endswith("/@replicas") and replica_id in value:
-                value[replica_id]["state"] = "enabled" if enabled else "disabled"
+                if enabled is not None:
+                    value[replica_id]["state"] = "enabled" if enabled else "disabled"
+                if mode is not None:
+                    value[replica_id]["mode"] = mode
+                if enable_replicated_table_tracker is not None:
+                    value[replica_id]["replicated_table_tracker_enabled"] = enable_replicated_table_tracker
 
 
 def test_plain_table_is_resharded_in_place():
@@ -583,14 +606,277 @@ def test_recreate_replication_log_swaps_it():
             "enable_replicated_table_tracker": False,
         }
 
+    marker = "//pipeline/states/@flow_reshard_swapped_replicas"
     assert client.calls == [
+        ("set", marker, {f"zeno:{log}": {"mode": "sync", "replicated_table_tracker_enabled": False}}),
         ("create", "chaos_table_replica", None, replica_attributes(tmp)),
-        ("alter_table_replica", "queue-id", False),
+        ("alter_table_replica", "queue-id", {"enabled": False}),
         ("remove", "#queue-id"),
         ("create", "chaos_table_replica", None, replica_attributes(log)),
-        ("alter_table_replica", "created-0", False),
+        ("alter_table_replica", "created-0", {"enabled": False}),
         ("remove", "#created-0"),
+        ("remove", marker),
     ]
+
+
+def _recreate_log_with(replica_attributes, log_attributes, client_attributes=None):
+    """Runs one log swap and returns the replicated table client and the log client, for the
+    state-preserving tests below."""
+    crt = "//pipeline/states"
+    log = "//pipeline/states_log"
+    client = FakeClient(
+        {
+            **(client_attributes or {}),
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "queue-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "state": "enabled",
+                    **replica_attributes,
+                },
+            },
+        }
+    )
+    log_client = FakeClient(
+        {
+            f"{log}/@schema": [{"name": "key", "type": "string"}],
+            f"{log}/@tablet_state": "mounted",
+            **log_attributes,
+        }
+    )
+
+    recreate_replication_log(
+        client,
+        crt,
+        "zeno",
+        log,
+        log_pivot_keys=[[], [123]],
+        make_client=lambda proxy: log_client,
+        sleep=lambda seconds: None,
+    )
+    return client, log_client
+
+
+def alters_of(client, replica_id):
+    return [call for call in client.calls if call[0] == "alter_table_replica" and call[1] == replica_id]
+
+
+# A recreated log is born sync with the tracker off so that it survives its first seconds; the
+# reshard is not a licence to change what the owner set, so both go back once the swap is over.
+def test_recreated_log_returns_to_its_previous_async_mode():
+    client, _ = _recreate_log_with({"mode": "async"}, {})
+
+    assert alters_of(client, "created-1") == [("alter_table_replica", "created-1", {"mode": "async"})]
+
+
+def test_recreated_log_stays_sync_when_it_was_sync():
+    client, _ = _recreate_log_with({"mode": "sync"}, {})
+
+    assert alters_of(client, "created-1") == []
+
+
+def test_recreated_log_settles_a_mode_caught_mid_transition():
+    # @replicas reports a switch in progress as sync_to_async; the wrapper takes the target only.
+    client, _ = _recreate_log_with({"mode": "sync_to_async"}, {})
+
+    assert alters_of(client, "created-1") == [("alter_table_replica", "created-1", {"mode": "async"})]
+
+
+def test_recreated_log_returns_the_replicated_table_tracker():
+    client, _ = _recreate_log_with({"mode": "sync", "replicated_table_tracker_enabled": True}, {})
+
+    assert alters_of(client, "created-1") == [
+        ("alter_table_replica", "created-1", {"enable_replicated_table_tracker": True})
+    ]
+
+
+def test_recreated_log_leaves_the_tracker_off_when_it_was_off():
+    client, _ = _recreate_log_with({"mode": "sync", "replicated_table_tracker_enabled": False}, {})
+
+    assert alters_of(client, "created-1") == []
+
+
+def test_recreated_async_tracked_log_gets_its_mode_before_its_tracker():
+    # Enabling the tracker first would race the mode change, so the order is part of the contract.
+    client, _ = _recreate_log_with({"mode": "async", "replicated_table_tracker_enabled": True}, {})
+
+    assert alters_of(client, "created-1") == [
+        ("alter_table_replica", "created-1", {"mode": "async"}),
+        ("alter_table_replica", "created-1", {"enable_replicated_table_tracker": True}),
+    ]
+    assert client.attributes["//pipeline/states/@replicas"]["created-1"]["mode"] == "async"
+
+
+def test_recreated_log_keeps_the_user_attributes():
+    _, log_client = _recreate_log_with(
+        {"mode": "sync"},
+        {"//pipeline/states_log/@user_attributes": {"owner_ticket": "YTFLOW-1"}},
+    )
+
+    created = [call for call in log_client.calls if call[0] == "create"]
+    assert all(call[3]["owner_ticket"] == "YTFLOW-1" for call in created)
+
+
+@pytest.mark.parametrize("mode", ["sync", "async"])
+def test_matching_layout_is_a_noop_whatever_the_mode(mode):
+    # The run right after a swap: the layout is already right, so there is nothing to do. An async
+    # log counted as unhealthy here would swap the log over again on every single run.
+    client, log_client = _recreate_log_with(
+        {"mode": mode},
+        {"//pipeline/states_log/@pivot_keys": [[], [123]]},
+    )
+
+    assert client.calls == []
+    assert log_client.calls == []
+
+
+def test_swap_remembers_the_previous_replica_on_the_table():
+    # The marker is written before anything is destroyed and removed once the replica is back.
+    client, _ = _recreate_log_with({"mode": "async", "replicated_table_tracker_enabled": True}, {})
+
+    marker = "//pipeline/states/@flow_reshard_swapped_replicas"
+    assert (
+        "set",
+        marker,
+        {"zeno://pipeline/states_log": {"mode": "async", "replicated_table_tracker_enabled": True}},
+    ) in client.calls
+    assert [call[0] for call in client.calls if call[0] in ("set", "remove") and call[1] == marker] == ["set", "remove"]
+
+
+def test_interrupted_restore_is_finished_by_the_next_run():
+    # A run died between recreating the log and putting its replica back, so the replica is the
+    # newborn sync and untracked one and the layout already matches. Without the marker the rerun
+    # would call that the owner's choice and leave the log sync forever.
+    client, log_client = _recreate_log_with(
+        {"mode": "sync"},
+        {"//pipeline/states_log/@pivot_keys": [[], [123]]},
+        client_attributes={
+            "//pipeline/states/@flow_reshard_swapped_replicas": {
+                "zeno://pipeline/states_log": {"mode": "async", "replicated_table_tracker_enabled": True},
+            },
+        },
+    )
+
+    assert log_client.calls == []
+    assert alters_of(client, "queue-id") == [
+        ("alter_table_replica", "queue-id", {"mode": "async"}),
+        ("alter_table_replica", "queue-id", {"enable_replicated_table_tracker": True}),
+    ]
+    assert ("remove", "//pipeline/states/@flow_reshard_swapped_replicas") in client.calls
+
+
+def test_swap_resumed_from_the_temporary_log_restores_the_remembered_mode():
+    # The canonical replica is already gone, so its mode lives nowhere but the marker.
+    crt, log = "//pipeline/states", "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@flow_reshard_swapped_replicas": {
+                f"zeno:{log}": {"mode": "async", "replicated_table_tracker_enabled": True}
+            },
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "tmp-id": {"cluster_name": "zeno", "replica_path": tmp, "content_type": "queue", "state": "enabled"},
+            },
+        }
+    )
+    log_client = FakeClient({f"{tmp}/@schema": [], f"{tmp}/@tablet_state": "mounted"})
+
+    recreate_replication_log(
+        client, crt, "zeno", log, log_pivot_keys=[[]], make_client=lambda proxy: log_client, sleep=lambda seconds: None
+    )
+
+    assert alters_of(client, "created-0") == [
+        ("alter_table_replica", "created-0", {"mode": "async"}),
+        ("alter_table_replica", "created-0", {"enable_replicated_table_tracker": True}),
+    ]
+    assert ("remove", f"{crt}/@flow_reshard_swapped_replicas") in client.calls
+
+
+def test_a_path_keyed_marker_of_an_older_version_is_ignored():
+    # The marker used to be keyed by the log path alone. Such a record names no cluster, so it says
+    # nothing about any log: the live replica speaks for this one, and the record is left where it is.
+    legacy = {"//pipeline/states_log": {"mode": "sync", "replicated_table_tracker_enabled": True}}
+    marker = "//pipeline/states/@flow_reshard_swapped_replicas"
+    client, _ = _recreate_log_with({"mode": "async"}, {}, client_attributes={marker: legacy})
+
+    assert alters_of(client, "created-1") == [("alter_table_replica", "created-1", {"mode": "async"})]
+    assert [call for call in client.calls if call[1] == marker] == [
+        (
+            "set",
+            marker,
+            legacy | {"zeno://pipeline/states_log": {"mode": "async", "replicated_table_tracker_enabled": False}},
+        ),
+        ("set", marker, legacy),
+    ]
+    assert client.attributes[marker] == legacy
+
+
+def test_a_marker_written_by_one_swap_does_not_resurrect_a_finished_one():
+    # Every log of a run is planned before the first swap executes, so the map a plan carries can
+    # already name a log whose swap has finished and dropped its record. Writing that map back would
+    # put the record on the table again, and the next run would undo by it whatever the owner chose.
+    from yt.yt.flow.tools.reshard_flow_tables.lib import prepare_replication_log, execute_replication_log
+
+    crt, log = "//pipeline/states", "//pipeline/states_log"
+    marker = f"{crt}/@flow_reshard_swapped_replicas"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            marker: {f"pythia:{log}": {"mode": "async", "replicated_table_tracker_enabled": False}},
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "queue-pythia": {"cluster_name": "pythia", "replica_path": log, "content_type": "queue"},
+                "queue-zeno": {
+                    "cluster_name": "zeno",
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "replicated_table_tracker_enabled": True,
+                },
+            },
+        }
+    )
+    # The pythia log already has the planned layout, so its swap has nothing left but to put its
+    # replica back and drop its record; the zeno log is still to be recreated.
+    log_clients = {
+        "pythia": FakeClient(
+            {f"{log}/@schema": [], f"{log}/@tablet_state": "mounted", f"{log}/@pivot_keys": [[], [123]]}
+        ),
+        "zeno": FakeClient({f"{log}/@schema": [], f"{log}/@tablet_state": "mounted"}),
+    }
+    plans = [
+        prepare_replication_log(client, crt, cluster, log, [[], [123]], make_client=lambda proxy: log_clients[proxy])
+        for cluster in ("pythia", "zeno")
+    ]
+
+    for plan in plans:
+        execute_replication_log(plan, sleep=lambda seconds: None)
+
+    assert [call for call in client.calls if call[1] == marker] == [
+        ("remove", marker),
+        ("set", marker, {f"zeno:{log}": {"mode": "sync", "replicated_table_tracker_enabled": True}}),
+        ("remove", marker),
+    ]
+    assert marker not in client.attributes
 
 
 def test_also_chaos_replication_logs_recreates_the_log_after_data_reshard():
@@ -772,7 +1058,7 @@ def test_swap_resumes_when_only_the_tmp_log_is_attached():
         "tablet_cell_bundle": "bigb",
     }
     assert log_client.calls[-1] == ("remove", tmp)
-    assert ("alter_table_replica", "tmp-id", False) in client.calls
+    assert ("alter_table_replica", "tmp-id", {"enabled": False}) in client.calls
 
 
 def test_birth_race_retries_the_newborn_log():
@@ -850,10 +1136,12 @@ def test_plain_external_table_is_resharded_without_a_log():
 def test_every_replica_cluster_gets_its_log_recreated():
     # yt_sync gives a chaos table one replication log per replica cluster, and they all live at the
     # same path -- so a log is identified by (cluster, path). Keying by the path alone recreates an
-    # arbitrary one of them and leaves the rest un-resharded without a word.
+    # arbitrary one of them and leaves the rest un-resharded without a word; in the marker it would
+    # also hand the settings of one cluster's log to another's.
     crt = "//pipeline/states"
     log = "//pipeline/states_log"
     data = "//replica/states"
+    marker = f"{crt}/@flow_reshard_swapped_replicas"
     clients = {}
 
     def make_client(proxy):
@@ -871,6 +1159,10 @@ def test_every_replica_cluster_gets_its_log_recreated():
     client = FakeClient(
         {
             f"{crt}/@type": "chaos_replicated_table",
+            # An earlier run swapped the pythia log and died before putting its replica back, so the
+            # owner's settings for that log live in the marker and its live replica is the newborn
+            # sync and untracked one. The zeno log is healthy and keeps its settings on its replica.
+            marker: {f"pythia:{log}": {"mode": "async", "replicated_table_tracker_enabled": False}},
             f"{crt}/@replicas": {
                 f"data-{cluster}": {
                     "cluster_name": cluster,
@@ -881,13 +1173,22 @@ def test_every_replica_cluster_gets_its_log_recreated():
                 for cluster in ("pythia", "zeno")
             }
             | {
-                f"queue-{cluster}": {
-                    "cluster_name": cluster,
+                "queue-pythia": {
+                    "cluster_name": "pythia",
                     "replica_path": log,
                     "content_type": "queue",
                     "state": "enabled",
-                }
-                for cluster in ("pythia", "zeno")
+                    "mode": "sync",
+                    "replicated_table_tracker_enabled": False,
+                },
+                "queue-zeno": {
+                    "cluster_name": "zeno",
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "state": "enabled",
+                    "mode": "sync",
+                    "replicated_table_tracker_enabled": True,
+                },
             },
         }
     )
@@ -909,6 +1210,29 @@ def test_every_replica_cluster_gets_its_log_recreated():
         "queue-pythia",
         "queue-zeno",
     ], retired
+
+    replicas = client.attributes[f"{crt}/@replicas"]
+    recreated = {
+        replica["cluster_name"]: replica_id
+        for replica_id, replica in replicas.items()
+        if replica["content_type"] == "queue" and replica["replica_path"] == log
+    }
+
+    def settings_of(cluster):
+        replica = replicas[recreated[cluster]]
+        return replica["mode"], replica["replicated_table_tracker_enabled"]
+
+    # The pythia log goes back to what the marker of the interrupted run kept for it, the zeno log to
+    # what its own replica had. A marker read by the path alone would give zeno pythia's mode and
+    # take its tracker away.
+    assert alters_of(client, recreated["pythia"]) == [("alter_table_replica", recreated["pythia"], {"mode": "async"})]
+    assert alters_of(client, recreated["zeno"]) == [
+        ("alter_table_replica", recreated["zeno"], {"enable_replicated_table_tracker": True})
+    ]
+    assert settings_of("pythia") == ("async", False)
+    assert settings_of("zeno") == ("sync", True)
+    # Neither swap outlives its own record, and neither takes the other's with it.
+    assert marker not in client.attributes
 
 
 def test_unmounted_canonical_log_is_discarded_before_the_serving_tmp():
@@ -977,8 +1301,8 @@ def test_unmounted_canonical_log_is_discarded_before_the_serving_tmp():
     assert log_client.calls[0] == ("remove", log)
     assert ("freeze", log) not in log_client.calls
     assert [call for call in client.calls if call[0] == "alter_table_replica"] == [
-        ("alter_table_replica", "canonical-id", False),
-        ("alter_table_replica", "tmp-id", False),
+        ("alter_table_replica", "canonical-id", {"enabled": False}),
+        ("alter_table_replica", "tmp-id", {"enabled": False}),
     ]
 
 
@@ -1356,7 +1680,7 @@ def test_matching_canonical_log_only_retires_temporary_log(caplog, dry_run):
         assert client.calls == replica.calls == []
     else:
         assert replica.calls == [("freeze", tmp), ("unmount", tmp), ("remove", tmp)]
-        assert client.calls == [("alter_table_replica", "tmp", False), ("remove", "#tmp")]
+        assert client.calls == [("alter_table_replica", "tmp", {"enabled": False}), ("remove", "#tmp")]
     assert caplog.text.count("already OK") == 2
 
 
@@ -1375,7 +1699,10 @@ def test_chaos_execution_does_not_repeat_layout_analysis():
         def get(self, path):
             executing = any(client.calls for client in clients)
             if executing:
-                assert path.endswith(("/@replicas", "/@tablet_state")), f"Repeated layout analysis: {path}"
+                # The marker is not layout analysis: it is read back right before it is written, so
+                # that the record of a swap that has finished meanwhile is not raised from the dead.
+                allowed = ("/@replicas", "/@tablet_state", "/@flow_reshard_swapped_replicas")
+                assert path.endswith(allowed), f"Repeated layout analysis: {path}"
             else:
                 self.reads[path] += 1
                 if not path.endswith(("/@replicas", "/@tablet_state")):
@@ -1413,7 +1740,7 @@ def test_chaos_execution_does_not_repeat_layout_analysis():
 
 
 @pytest.mark.parametrize("with_temporary", [False, True])
-@pytest.mark.parametrize("failure", ["frozen", "disabled", "unconfirmed", "async", "changed_after_plan"])
+@pytest.mark.parametrize("failure", ["frozen", "disabled", "unconfirmed", "changed_after_plan"])
 def test_exact_log_boundaries_do_not_hide_unhealthy_canonical(caplog, with_temporary, failure):
     from yt.yt.flow.tools.reshard_flow_tables.lib import prepare_replication_log, execute_replication_log
 
@@ -1431,7 +1758,6 @@ def test_exact_log_boundaries_do_not_hide_unhealthy_canonical(caplog, with_tempo
             "replica_path": log,
             "content_type": "queue",
             "state": "disabled" if failure == "disabled" else "enabled",
-            "mode": "async" if failure == "async" else "sync",
             "replica_reached_last_own_era": failure != "unconfirmed",
         },
     }

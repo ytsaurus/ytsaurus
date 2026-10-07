@@ -93,7 +93,7 @@ std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 }
 
 template <typename TConfig>
-std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TGuard<NThreading::TSpinLock>& /*guard*/) const
+std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TGuard<TSpinLock>& /*guard*/) const
 {
     std::vector<TError> errors;
     if (!UpdateError_.IsOK()) {

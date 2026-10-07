@@ -97,7 +97,7 @@ private:
     TControllerRuntimeDataPtr ControllerRuntimeData_;
     TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;

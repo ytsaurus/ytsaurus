@@ -53,8 +53,8 @@ def get_args():
         type=int,
         required=False,
         default=10,
-        help="tablets per computation for pipeline tables; the total tablet count for an"
-        " --external-table (which has no computations)",
+        help="tablets per computation for pipeline tables (per key visitor stream for key_visitor_states); the total"
+        " tablet count for an --external-table (which has no computations)",
     )
     parser.add_argument(
         "--table",
@@ -68,6 +68,7 @@ def get_args():
             "partition_states",
             "partition_transactions",
             "leases",
+            "key_visitor_states",
         ],
         default=None,
         help="table to reshard",
@@ -261,6 +262,21 @@ COPIED_LOG_ATTRIBUTES = [
 TMP_SUFFIX = ".reshard_tmp"
 
 
+# Mode and tracker flag of the replica a swap is replacing, kept on the replicated table for the
+# duration of the swap, keyed by cluster and log path. The newborn log is deliberately sync and
+# untracked, so once the canonical replica is gone there is nowhere else to read the owner's
+# settings from.
+SWAPPED_REPLICAS_ATTRIBUTE = "flow_reshard_swapped_replicas"
+
+
+def swapped_replica_key(cluster, path):
+    """Key of one replication log in the marker map on the replicated table."""
+    # yt_sync gives a chaos table a log per replica cluster, all at the same path, so the path alone
+    # would let the record of one log speak for another. A record of an older version, keyed by the
+    # path alone, names no cluster and so matches nothing here: it is ignored and left where it is.
+    return f"{cluster}:{path}"
+
+
 @dataclass
 class ReplicationLogPlan:
     client: object
@@ -271,6 +287,8 @@ class ReplicationLogPlan:
     pivots: list
     attached: dict
     canonical_replica: dict
+    previous_replica: dict
+    previous_replica_stored: bool
     states: dict
     attributes: dict
     canonical: "TableReshardPlan | None"
@@ -313,12 +331,34 @@ def prepare_replication_log(
         states[path] = log_client.get(f"{path}/@tablet_state") if log_client.exists(f"{path}/@tablet_state") else None
         if states[path] is not None:
             layouts[path] = read_layout(log_client, path)
+    canonical_replica_id = attached.get(log_path)
+    canonical_replica = dict(replicas.get(canonical_replica_id, {}))
+    # The reshard changes the tablet layout and nothing else, so whatever the owner set on the
+    # replica is read here and put back once the swap is over (see #execute_replication_log). A
+    # marker left by an interrupted run outranks the live replica: what it carries then is the
+    # newborn's sync and untracked, not the owner's choice.
+    swapped_path = f"{table}/@{SWAPPED_REPLICAS_ATTRIBUTE}"
+    swapped = client.get(swapped_path) if client.exists(swapped_path) else {}
+    stored_replica = swapped.get(swapped_replica_key(log_cluster, log_path))
+    previous_replica = (
+        dict(stored_replica)
+        if stored_replica is not None
+        else {
+            "mode": settled_mode(canonical_replica.get("mode")) or "sync",
+            "replicated_table_tracker_enabled": bool(canonical_replica.get("replicated_table_tracker_enabled")),
+        }
+    )
     source_path = log_path if states[log_path] is not None else tmp_path
     schema = log_client.get(f"{source_path}/@schema")
     attributes = {"dynamic": True, "schema": schema}
     for name in COPIED_LOG_ATTRIBUTES:
         if log_client.exists(f"{source_path}/@{name}"):
             attributes[name] = log_client.get(f"{source_path}/@{name}")
+    # System attributes are listed above because a table needs them at creation; the user ones are
+    # whatever the owner put there, and they travel along as they are. One get of the whole map
+    # rather than a get per key: the keys are the owner's and need no escaping this way.
+    if log_client.exists(f"{source_path}/@user_attributes"):
+        attributes.update(log_client.get(f"{source_path}/@user_attributes"))
     table_plans = {
         path: TableReshardPlan(log_client, path, layout, {"pivot_keys": log_pivot_keys}, schema, computation_ids)
         for path, layout in layouts.items()
@@ -331,7 +371,9 @@ def prepare_replication_log(
         log_client,
         log_pivot_keys,
         attached,
-        dict(replicas.get(attached.get(log_path), {})),
+        canonical_replica,
+        previous_replica,
+        stored_replica is not None,
         states,
         attributes,
         table_plans.get(log_path),
@@ -339,12 +381,17 @@ def prepare_replication_log(
     )
 
 
+def settled_mode(mode):
+    """The mode a replica is heading for: @replicas reports a transition as a mode of its own."""
+    if mode is None:
+        return None
+    return {"sync_to_async": "async", "async_to_sync": "sync"}.get(str(mode), str(mode))
+
+
 def replica_ready(replica):
-    return (
-        replica.get("state") == "enabled"
-        and replica.get("mode") == "sync"
-        and bool(replica.get("replica_reached_last_own_era"))
-    )
+    # The mode is the owner's business rather than a health property: a stable async log serves
+    # writes as well as a sync one, and counting it unhealthy would swap the log on every run.
+    return replica.get("state") == "enabled" and bool(replica.get("replica_reached_last_own_era"))
 
 
 def log_replication_plan(plan):
@@ -404,6 +451,8 @@ def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attac
     log_cluster, log_path, log_client = plan.cluster, plan.path, plan.log_client
     log_pivot_keys, attributes = plan.pivots, plan.attributes
     tmp_path = f"{log_path}{TMP_SUFFIX}"
+    swapped_path = f"{table}/@{SWAPPED_REPLICAS_ATTRIBUTE}"
+    swapped_key = swapped_replica_key(log_cluster, log_path)
     canonical_replica_id = plan.attached.get(log_path)
     tmp_replica_id = plan.attached.get(tmp_path)
     states = dict(plan.states)
@@ -524,6 +573,42 @@ def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attac
                 retire_log(new_replica_id, path)
         raise RuntimeError(f"log {log_cluster}:{path} failed to confirm its era after {attach_attempts} attempts")
 
+    def stored_replicas():
+        # Read, modify, write: every log of a run is planned before the first of them executes, so the
+        # map a plan carries can already hold the record of a swap that has finished and dropped it,
+        # and writing that map back would put the record of that other log back on the table.
+        return dict(client.get(swapped_path)) if client.exists(swapped_path) else {}
+
+    def remember_replica_properties():
+        if plan.previous_replica_stored:
+            return
+        client.set(swapped_path, stored_replicas() | {swapped_key: plan.previous_replica})
+
+    def forget_replica_properties():
+        remaining = {key: properties for key, properties in stored_replicas().items() if key != swapped_key}
+        if remaining:
+            client.set(swapped_path, remaining)
+        else:
+            client.remove(swapped_path, force=True)
+
+    def restore_replica_properties(some_replica_id):
+        # attach_log creates the newborn sync and untracked so that it survives its first seconds;
+        # the reshard must change the tablet layout and nothing else, so the replica goes back to
+        # what the owner had. The tracker comes last: enabled earlier, it would race the mode, and
+        # it is restored even when the mode fails to change — otherwise one error drops it silently.
+        previous_mode = settled_mode(plan.previous_replica.get("mode"))
+        try:
+            if previous_mode is not None and previous_mode != "sync":
+                logging.info(f"Restoring the {previous_mode} mode of {log_cluster}:{log_path}")
+                client.alter_table_replica(some_replica_id, mode=previous_mode)
+        finally:
+            if plan.previous_replica.get("replicated_table_tracker_enabled"):
+                logging.info(f"Restoring the replicated table tracker of {log_cluster}:{log_path}")
+                client.alter_table_replica(some_replica_id, enable_replicated_table_tracker=True)
+        # The marker has done its job only now: left behind, it would outrank the owner's own later
+        # change of the mode; dropped before the alters, a failure here would lose the mode for good.
+        forget_replica_properties()
+
     def ready(replica_id, path):
         if replica_id is None:
             return False
@@ -537,8 +622,13 @@ def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attac
             retire_log(tmp_replica_id, tmp_path)
         else:
             drop_table(tmp_path)
+        # The layout is already right, so an earlier run got that far and died before putting the
+        # replica back; its marker is the only thing left to act on.
+        if plan.previous_replica_stored:
+            restore_replica_properties(canonical_replica_id)
         return
 
+    remember_replica_properties()
     if canonical_replica_id is not None and not canonical_ready:
         logging.warning(f"Log {log_cluster}:{log_path} is not ready; recovering it before retiring the temporary log")
         if not ready(tmp_replica_id, tmp_path):
@@ -562,8 +652,9 @@ def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attac
         # the temporary log as a mere leftover to skip is what used to strand the card on it.
         logging.info(f"Resuming the swap of {log_cluster}:{log_path} from {tmp_path}...")
         drop_table(log_path)
-        attach_healthy_log(log_path)
+        new_replica_id = attach_healthy_log(log_path)
         retire_log(tmp_replica_id, tmp_path)
+        restore_replica_properties(new_replica_id)
         logging.info(f"Recreated {log_cluster}:{log_path}")
         return
 
@@ -576,8 +667,9 @@ def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attac
 
     tmp_replica_id = attach_healthy_log(tmp_path)
     retire_log(canonical_replica_id, log_path)
-    attach_healthy_log(log_path)
+    new_replica_id = attach_healthy_log(log_path)
     retire_log(tmp_replica_id, tmp_path)
+    restore_replica_properties(new_replica_id)
     logging.info(f"Recreated {log_cluster}:{log_path}")
 
 
@@ -900,6 +992,34 @@ def plan_compact_partition_output_table(computations, path, tablet_count):
     return plan_partition_table(computations, f"{path}/compact_partition_output_messages", tablet_count)
 
 
+def plan_key_visitor_states_table(computation_streams, path, tablet_count):
+    table = f"{path}/key_visitor_states"
+    if len(computation_streams) == 0:
+        logging.info(f"Skip {table} because there are no key visitor streams")
+        return None
+
+    # Keyed by (computation_id, stream_id, key, is_lower): every stream gets its own range, split uniformly over the
+    # key hash.
+    pivot_keys = []
+    previous_computation_id = None
+    for computation_id, stream_id in sorted(computation_streams):
+        if not pivot_keys:
+            pivot_keys.append([])
+        elif computation_id != previous_computation_id:
+            pivot_keys.append([computation_id])
+        else:
+            pivot_keys.append([computation_id, stream_id])
+        previous_computation_id = computation_id
+        for k in range(1, tablet_count):
+            hash_value = (2**64 * k) // tablet_count
+            pivot_keys.append([computation_id, stream_id, yson.YsonList([yson.YsonUint64(hash_value)])])
+    return ReshardRequest(
+        table,
+        {"pivot_keys": pivot_keys},
+        tuple(sorted({computation_id for computation_id, _ in computation_streams})),
+    )
+
+
 def plan_compact_output_table(computations, source_keys, path, tablet_count):
     return plan_computation_key_table(computations, source_keys, f"{path}/compact_output_messages", tablet_count)
 
@@ -980,12 +1100,15 @@ def plan_pipeline_tables(client, args):
     timers = []
     sources = []
     computations = []
+    key_visitor_streams = []
 
     for computation_id, computation in spec["spec"]["computations"].items():
-        if computation["input_stream_ids"]:
+        # Controllers built before key_visitor_streams was added to the spec omit the field.
+        if computation["input_stream_ids"] or computation.get("key_visitor_streams"):
             assert computation[
                 "group_by_schema"
-            ], "Computation with input_stream_ids should have non-empty group_by_schema"
+            ], "Computation with input_stream_ids or key_visitor_streams should have non-empty group_by_schema"
+        if computation["input_stream_ids"]:
             assert (
                 computation["group_by_schema"][0]["type"] == "uint64"
             ), "First column in group_by_schema should have type equal to 'uint64' with hash value"
@@ -996,6 +1119,8 @@ def plan_pipeline_tables(client, args):
             timers.append(computation_id)
         if computation["source_streams"]:
             sources.append(computation_id)
+        for stream_id in computation.get("key_visitor_streams", {}):
+            key_visitor_streams.append((computation_id, stream_id))
         computations.append(computation_id)
 
     source_keys = defaultdict(list)
@@ -1024,6 +1149,12 @@ def plan_pipeline_tables(client, args):
         plans.append(plan_partition_transactions_table(computations, path, tablet_count))
     if args.table is None or args.table == "leases":
         plans.append(plan_leases_table(client, computations, path, tablet_count, infer_unused=args.table is None))
+    if args.table is None or args.table == "key_visitor_states":
+        for computation_id in {computation_id for computation_id, _ in key_visitor_streams}:
+            assert (
+                spec["spec"]["computations"][computation_id]["group_by_schema"][0]["type"] == "uint64"
+            ), "First column in group_by_schema should have type equal to 'uint64' with hash value"
+        plans.append(plan_key_visitor_states_table(key_visitor_streams, path, tablet_count))
     return [plan for plan in plans if plan is not None]
 
 

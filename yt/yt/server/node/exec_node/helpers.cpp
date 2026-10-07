@@ -215,9 +215,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     ValidateCompatibility(accessMethod, filesystem);
 
     // Create artifact key.
-    TArtifactKey layerKey;
-    ToProto(layerKey.mutable_chunk_specs(), chunkSpecs);
-    layerKey.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
+    auto layerKey = TArtifactKey(
+        EDataSourceType::File,
+        chunkSpecs);
     layerKey.mutable_data_source()->set_path(path);
     layerKey.set_access_method(ToProto(accessMethod));
     layerKey.set_filesystem(ToProto(filesystem));

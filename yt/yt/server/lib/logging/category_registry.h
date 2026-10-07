@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NLogging {
 
@@ -20,7 +20,7 @@ public:
     void DumpCategories(NYson::IYsonConsumer* consumer);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<std::string, NTableClient::TTableSchemaPtr> Categories_;
 };
 

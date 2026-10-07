@@ -23,7 +23,7 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChaosClient {
 
@@ -112,11 +112,11 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
+    TAtomicObject<TFuture<IChannelPtr>> ChannelFuture_;
 
     IChannelPtr Channel_;
     TCellTag CellTag_ = InvalidCellTag;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& error)
     {

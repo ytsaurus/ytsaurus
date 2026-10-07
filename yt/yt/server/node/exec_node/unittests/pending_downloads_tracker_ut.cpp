@@ -25,7 +25,7 @@ public:
 protected:
     alignas(128) const TPendingDownloadsTrackerPtr Tracker_;
 
-    NThreading::TAtomicObject<TPromise<i64>> FreeSpacePromise_ = NewPromise<i64>();
+    TAtomicObject<TPromise<i64>> FreeSpacePromise_ = NewPromise<i64>();
 };
 
 TEST_F(TPendingDownloadsTrackerTest, JustWorks)
@@ -97,7 +97,7 @@ protected:
     static constexpr int InitialDiskSize_ = 20;
     static constexpr int FileLimit_ = 5;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::minstd_rand Urbg_{std::random_device{}()};
     std::map<i64, TDownload> Downloads_;
     i64 IndexCounter_ = 0;
@@ -107,14 +107,14 @@ protected:
     int PendingModifications_ = 0;
     int PendingDownloadSize_ = 0;
 
-    void InvalidateFreeSpace(const TGuard<NThreading::TSpinLock>&)
+    void InvalidateFreeSpace(const TGuard<TSpinLock>&)
     {
         if (FreeSpacePromise_.Load().IsSet()) {
             FreeSpacePromise_.Store(NewPromise<i64>());
         }
     }
 
-    int RecalculateFreeSpace(TGuard<NThreading::TSpinLock>&& guard)
+    int RecalculateFreeSpace(TGuard<TSpinLock>&& guard)
     {
         int freeSpace = DiskSize_;
         for (const auto& [_, download] : Downloads_) {
@@ -146,7 +146,7 @@ protected:
         return freeSpace;
     }
 
-    int GetMaxDownloadSize(const TGuard<NThreading::TSpinLock>&)
+    int GetMaxDownloadSize(const TGuard<TSpinLock>&)
     {
         int freeSpace = DiskSize_ - PendingDownloadSize_;
         for (const auto& [_, download] : Downloads_) {

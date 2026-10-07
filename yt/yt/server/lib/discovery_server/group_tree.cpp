@@ -15,7 +15,8 @@
 #include <yt/yt/library/discovery_client/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <stack>
 
@@ -955,7 +956,7 @@ private:
     const TGroupNodePtr Root_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     THashMap<TGroupId, TGroupNodePtr> IdToNode_;
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)

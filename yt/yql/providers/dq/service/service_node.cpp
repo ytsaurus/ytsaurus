@@ -166,9 +166,13 @@ namespace NYql {
     }
 
     void TServiceNode::Stop(TDuration timeout) {
-        (static_cast<TDqsGrpcService*>(Service.Get()))->Stop().Wait(timeout);
+        if (Service) {
+            (static_cast<TDqsGrpcService*>(Service.Get()))->Stop().Wait(timeout);
+        }
 
-        Server->Stop();
+        if (Server) {
+            Server->Stop();
+        }
         for (auto id : ActorIds) {
             ActorSystem->Send(id, new NActors::TEvents::TEvPoison);
         }

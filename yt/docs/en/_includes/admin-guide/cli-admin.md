@@ -153,16 +153,29 @@ The utility retrieves pod names and directory paths from the cluster specificati
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `-n, --namespace <ns>` | `default` | Kubernetes namespace where the cluster is located |
+| `-n, --namespace <ns>` | From the active kubeconfig context or in-cluster configuration; otherwise `default` | Kubernetes namespace where the cluster is located. An explicit value takes precedence |
 | `-p, --pods <pod>` | — | Specific pod (can be specified multiple times) |
 | `--exec-slot-index <N>` | — | Slot index for job-proxy logs (for `exec_nodes` only) |
 | `--from-ts <ISO8601>` | — | Logs modified after the specified time, in the format `2026-06-15T14:00:00Z` |
 | `--to-ts <ISO8601>` | — | Logs created before the specified time, in the format `2026-06-15T14:00:00Z` |
+| `--duration <duration>` | `3h` | Duration of the period ending at the current time. A positive integer with unit `ms`, `s`, `m`, `h`, `d`, `w`, or `y`, for example `24h`. Cannot be combined with `--from-ts` or `--to-ts` |
 | `-w, --writer <name>` | — | Filter by writer name from the config (can be specified multiple times). The method for getting the list of writers is shown below |
 | `--writer-force <regex>` | — | Force regex for filtering log file names |
 | `-o, --output <dir>` | `logs` | Directory for saving logs |
 | `--grep <regex>` | — | Server-side grep on content (with auto-decompression of `.zstd`/`.gz`) |
-| `-y, --yes` | — | Skip the initial confirmation prompt for download. Does not disable the prompt about overwriting existing local files |
+| `-y, --yes` | — | Skip the initial confirmation prompt for search or download. Does not disable the prompt about overwriting existing local files |
+
+### Time range and confirmation
+
+Without `--from-ts`, `--to-ts`, or `--duration`, the command selects files for the last three hours. The selected time boundaries are displayed before the statistics.
+
+The `--duration` option sets a period ending at the current time: for example, `--duration 24h` selects files for the last day. This option cannot be combined with `--from-ts` or `--to-ts`.
+
+The `--from-ts` and `--to-ts` options set explicit time boundaries. If only one is specified, the other boundary is unbounded.
+
+The time range filters files by their creation and modification times. Lines within selected files are not filtered by time.
+
+With `--grep`, the statistics show the number and size of files to search. After the `Search these files and save matching lines? [y/N]` confirmation, the search runs in the pods, and only matching lines are saved to the `--output` directory. Without `--grep`, the command asks `Download these files? [y/N]` and downloads the selected files in full.
 
 ### Supported components
 
@@ -193,7 +206,7 @@ Pod names follow the pattern `<short_name>-<group>-<index>` (the `-<group>-` par
 Master logs for a time interval with two writers:
 
 ```bash
-yt admin logs k8s ytbench primary_masters \
+yt admin logs k8s ytserver primary_masters \
   -w access -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   -o case-1
@@ -202,7 +215,7 @@ yt admin logs k8s ytbench primary_masters \
 Only specific pods:
 
 ```bash
-yt admin logs k8s ytbench primary_masters -w debug \
+yt admin logs k8s ytserver primary_masters -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   -p ms-3 -p ms-4 -o case-1
 ```
@@ -210,15 +223,16 @@ yt admin logs k8s ytbench primary_masters -w debug \
 Job-proxy slot logs on an exec node:
 
 ```bash
-yt admin logs k8s ytbench exec_nodes -w debug \
+yt admin logs k8s ytserver exec_nodes -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   --exec-slot-index 17 -p end-6 -o case-2
 ```
 
-Server-side grep on content:
+Server-side grep on the contents of files for the last day:
 
 ```bash
-yt admin logs k8s ytbench primary_masters -w debug --grep "Transaction aborted" -o case-3
+yt admin logs k8s ytserver primary_masters -w debug \
+  --duration 24h --grep "Transaction aborted" -o case-3
 ```
 
 To get the list of available writers for a component, check its configuration in the CR. For example, for `primary_masters`:

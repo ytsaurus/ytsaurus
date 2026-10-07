@@ -153,7 +153,7 @@ private:
     };
     using TKafkaConnectionPtr = TIntrusivePtr<TKafkaConnection>;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionMapLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ConnectionMapLock_);
     THashMap<TConnectionId, TKafkaConnectionPtr> Connections_;
 
     void AsyncAcceptConnection()

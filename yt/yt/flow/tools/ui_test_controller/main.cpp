@@ -129,7 +129,7 @@ private:
         if (auto* orchid = JobOrchids_.FindPtr(partitionId)) {
             return *orchid;
         }
-        TErrorSanitizerGuard errorSanitizerGuard(Now_, TSharedRef::FromString(std::string("localhost")));
+        TErrorSanitizerGuard errorSanitizerGuard(Now_, "localhost");
         return TError("Job orchid for partition %v is unavailable in UI test controller", partitionId);
     }
 

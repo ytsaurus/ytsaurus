@@ -269,7 +269,7 @@ private:
 
     std::vector<TThroughputThrottlerConfigPtr> ThrottlerConfigs_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, UsageLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UsageLock_);
     std::vector<std::vector<i64>> DesiredUsage_;
 
     i64 GetDefaultThrottlerUsage(int factoryIndex)

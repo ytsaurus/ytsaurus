@@ -20,7 +20,8 @@ bool IsPersistenceEnabled(
     const NElection::TCellManagerPtr& cellManager,
     const TDistributedHydraManagerOptions& options);
 
-std::optional<TSharedRef> SanitizeLocalHostName(
+//! Returns an interned host name.
+std::optional<TStringBuf> SanitizeLocalHostName(
     const THashSet<std::string>& clusterPeersAddresses,
     const std::string& host);
 

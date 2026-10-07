@@ -27,7 +27,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 MaxQueryLimit = std::numeric_limits<i64>::max() - 2;
 constexpr int MaxJoinNumber = 200;
 constexpr int MaxMultiJoinGroupNumber = 15;
 
@@ -1042,6 +1041,16 @@ std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
     return std::nullopt;
 }
 
+std::optional<i64> TryGetProjectionIndex(NAst::TExpressionPtr expr)
+{
+    auto index = TryGetIntegerValue(expr);
+    if (!index || *index == 0) {
+        return std::nullopt;
+    }
+
+    return index;
+}
+
 class TCardinalityIntoHyperLogLogWithPrecisionRewriter
     : public NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>
 {
@@ -1150,12 +1159,10 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     int projectionCount = projections ? std::ssize(*projections) : 0;
 
     auto isIndexReference = [&] (NAst::TExpressionPtr expr) {
-        auto integerValue = TryGetIntegerValue(expr);
-
-        if (integerValue.has_value() && *integerValue != 0) {
-            if (*integerValue < 0 || *integerValue > projectionCount) {
+        if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+            if (*projectionIndex < 0 || *projectionIndex > projectionCount) {
                 THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    .With("index", *integerValue);
+                    .With("index", *projectionIndex);
             }
 
             return true;
@@ -1166,7 +1173,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     if (ast.GroupExprs) {
         for (auto* expr : ast.GroupExprs.value()) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1176,7 +1183,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     for (auto& orderExpr : orderExpressionList) {
         for (auto* expr : orderExpr.Expressions) {
-            hasIndexReference = isIndexReference(expr);
+            hasIndexReference |= isIndexReference(expr);
         }
     }
 
@@ -1221,10 +1228,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
         for (i64 index = 0; index < std::ssize(groupExpressionList); ++index) {
             auto& expr = groupExpressionList[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
@@ -1236,10 +1241,8 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     for (auto& orderExpr : orderExpressionList) {
         for (i64 index = 0; index < std::ssize(orderExpr.Expressions); ++index) {
             auto& expr = orderExpr.Expressions[index];
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value()) {
-                auto& aliasName = indexToAlias[*integerValue];
+            if (auto projectionIndex = TryGetProjectionIndex(expr)) {
+                auto& aliasName = indexToAlias[*projectionIndex];
                 auto* newExpr = head.New<NAst::TReferenceExpression>(
                     expr->SourceLocation,
                     aliasName);
@@ -1330,7 +1333,10 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     THashMap<NYPath::TYPath, TFuture<TDataSplit>> asyncDataSplits;
 
     auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
-        asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
+        auto [it, inserted] = asyncDataSplits.try_emplace(path);
+        if (inserted) {
+            it->second = callbacks->GetInitialSplit(path);
+        }
     });
     auto query = NAst::TQueryExpression({}, queryAst, aliasMap);
     pathCollector.Visit(&query);
@@ -1357,6 +1363,56 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
 }
 
 } // namespace
+
+void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst)
+{
+    if (!queryAst.OrderExpressions.empty() && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
+    }
+
+    if (queryAst.Offset && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
+    }
+
+    if (queryAst.Limit && *queryAst.Limit > MaxQueryLimit) {
+        THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
+            .With("limit", *queryAst.Limit)
+            .With("max_limit", MaxQueryLimit);
+    }
+
+    i64 offset = queryAst.Offset.value_or(0);
+    i64 limit = queryAst.Limit.value_or(UnorderedReadHint);
+    if (offset < 0) {
+        THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+            .With("offset", offset);
+    }
+
+    if (limit < 0) {
+        THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+            .With("limit", limit);
+    }
+
+    THROW_ERROR_EXCEPTION_IF(
+        offset > std::numeric_limits<i64>::max() - limit,
+        "Sum of offset %v and limit %v overflows i64",
+        offset,
+        limit);
+}
+
+void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy)
+{
+    if (!queryAst.HavingPredicate || hasOrderBy) {
+        return;
+    }
+
+    if (queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
+    }
+
+    if (queryAst.Offset) {
+        THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
+    }
+}
 
 TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
@@ -1490,32 +1546,15 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             .With("max_multi_join_group_number", MaxMultiJoinGroupNumber);
     }
 
+    ValidateOrderByOffsetAndLimit(queryAst);
+    ValidateHaving(queryAst, /*hasOrderBy*/ query->OrderClause != nullptr);
+
     if (queryAst.Limit) {
-        if (*queryAst.Limit > MaxQueryLimit) {
-            THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
-                .With("limit", *queryAst.Limit)
-                .With("max_limit", MaxQueryLimit);
-        }
-
         query->Limit = *queryAst.Limit;
-
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
-        }
-    } else if (!queryAst.OrderExpressions.empty()) {
-        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
     if (queryAst.Offset) {
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
-        }
-
         query->Offset = *queryAst.Offset;
-
-        if (!queryAst.Limit) {
-            THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
-        }
     }
 
     TryPushDownGroupBy(query, queryAst, Logger);

@@ -27,9 +27,11 @@
 #include <yt/yt/core/json/json_writer.h>
 #include <yt/yt/core/json/json_parser.h>
 
+#include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <library/cpp/yt/string/stream.h>
+#include <library/cpp/yt/string/string.h>
 
 #include <pyspark/sql/connect/proto/base.grpc.pb.h>
 
@@ -40,6 +42,8 @@
 #include <grpcpp/grpcpp.h>
 
 #include <util/generic/guid.h>
+#include <util/string/ascii.h>
+#include <util/string/subst.h>
 
 namespace NYT::NQueryTracker {
 
@@ -75,6 +79,12 @@ struct TSpytSettings
 
     THashMap<std::string, std::string> Params;
 
+    std::optional<std::string> Pool;
+
+    std::vector<std::string> Files;
+
+    std::vector<std::string> Jars;
+
     int NumExecutors;
 
     int ExecutorCores;
@@ -84,6 +94,8 @@ struct TSpytSettings
     int DriverCores;
 
     ui64 DriverMemory;
+
+    ui64 DriverMemoryOverhead;
 
     bool DriverReuse;
 
@@ -101,6 +113,12 @@ struct TSpytSettings
             .Default();
         registrar.Parameter("params", &TThis::Params)
             .Default();
+        registrar.Parameter("pool", &TThis::Pool)
+            .Default();
+        registrar.Parameter("files", &TThis::Files)
+            .Default();
+        registrar.Parameter("jars", &TThis::Jars)
+            .Default();
         registrar.Parameter("num_executors", &TThis::NumExecutors)
             .Default(2);
         registrar.Parameter("executor_cores", &TThis::ExecutorCores)
@@ -111,12 +129,38 @@ struct TSpytSettings
             .Default(1);
         registrar.Parameter("driver_memory", &TThis::DriverMemory)
             .Default(1536_MB);
+        registrar.Parameter("driver_memory_overhead", &TThis::DriverMemoryOverhead)
+            .Default(1_GB);
         registrar.Parameter("driver_reuse", &TThis::DriverReuse)
             .Default(true);
 
         registrar.Postprocessor([&] (TThis* config) {
+            if (config->DiscoveryPath) {
+                auto rejectUnsupportedSetting = [] (TStringBuf setting) {
+                    THROW_ERROR_EXCEPTION("Setting %Qv is not supported when discovery_path is present", setting);
+                };
+                if (!config->Files.empty()) {
+                    rejectUnsupportedSetting("files");
+                }
+                if (!config->Jars.empty()) {
+                    rejectUnsupportedSetting("jars");
+                }
+                if (config->Pool) {
+                    rejectUnsupportedSetting("pool");
+                }
+            }
             if (config->Proxy.empty() && config->Cluster) {
                 config->Proxy = *config->Cluster;
+            }
+            for (auto* paths : {&config->Files, &config->Jars}) {
+                for (auto& path : *paths) {
+                    if (path.contains(',')) {
+                        THROW_ERROR_EXCEPTION("Path %v must not contain commas", path);
+                    }
+                    if (path.starts_with("//")) {
+                        path = "yt:/" + path;
+                    }
+                }
             }
         });
     }
@@ -215,6 +259,13 @@ private:
             Settings_->DriverMemory
         ));
         hasher.Append(User_);
+        hasher.Append(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("pool").Value(Settings_->Pool)
+                .Item("files").Value(Settings_->Files)
+                .Item("jars").Value(Settings_->Jars)
+                .Item("driver_memory_overhead").Value(Settings_->DriverMemoryOverhead)
+            .EndMap().AsStringBuf());
         return hasher.GetHexDigestLowerCase();
     }
 };
@@ -341,31 +392,46 @@ private:
 
     TOperationId DriverOperationId_;
 
+    static std::string QuoteArgument(const std::string& argument)
+    {
+        return "'" + SubstGlobalCopy(argument, "'", "'\\''") + "'";
+    }
+
     std::string CreateCommand(const std::string& sparkHome, const std::string& sparkDistr) const
     {
         TStringBuilder command;
-        if (!Config_->UseSquashfs) {
-            command.AppendFormat("./setup-spyt-env.sh --spark-home . --spark-distributive %v.tgz && ", sparkDistr);
+        if (Config_->UseSquashfs) {
+            command.AppendString("./setup-spyt-env.sh --use-squashfs && ");
+        } else {
+            command.AppendFormat("./setup-spyt-env.sh --spark-home . --spark-distributive %v && ",
+                QuoteArgument(sparkDistr + ".tgz"));
         }
-        command.AppendFormat("%v/bin/spark-submit", sparkHome);
+        command.AppendString(QuoteArgument(sparkHome + "/bin/spark-submit"));
         auto master = Settings_->Proxy.empty() ? Config_->DefaultCluster : Settings_->Proxy;
-        command.AppendFormat(" --master ytsaurus://%v", master);
+        command.AppendFormat(" --master %v", QuoteArgument("ytsaurus://" + master));
         command.AppendString(" --deploy-mode client");
         command.AppendString(" --class org.apache.spark.sql.connect.ytsaurus.SpytConnectServer");
         command.AppendFormat(" --num-executors %v", Settings_->NumExecutors);
         command.AppendFormat(" --executor-cores %v", Settings_->ExecutorCores);
-        command.AppendFormat(" --executor-memory %v", Settings_->ExecutorMemory);
-        command.AppendFormat(" --queue %v", User_);
-        command.AppendFormat(" --name \"Spark connect driver for %v\"", User_);
+        command.AppendFormat(" --executor-memory %v", QuoteArgument(Settings_->ExecutorMemory));
+        command.AppendFormat(" --queue %v", QuoteArgument(Settings_->Pool.value_or(User_)));
+        command.AppendFormat(" --name %v", QuoteArgument(Format("Spark connect driver for %v", User_)));
         command.AppendFormat(" --conf spark.ytsaurus.squashfs.enabled=%v", Config_->UseSquashfs);
         command.AppendFormat(" --conf spark.driver.extraJavaOptions='-Djava.net.preferIPv6Addresses=%v'", Config_->PreferIpv6);
         command.AppendFormat(" --conf spark.connect.grpc.binding.port=%v", Config_->GrpcPort);
         command.AppendString(" --conf spark.ytsaurus.arrow.stringToBinary=true");
-        command.AppendString(" --conf spark.ytsaurus.driver.operation.id=$YT_OPERATION_ID");
-        for (auto confEntry : Settings_->SparkConf) {
-            command.AppendFormat(" --conf %v=%v", confEntry.first, confEntry.second);
+        for (const auto& confEntry : Settings_->SparkConf) {
+            command.AppendFormat(" --conf %v", QuoteArgument(Format("%v=%v", confEntry.first, confEntry.second)));
         }
-        command.AppendString(" spark-internal");
+        auto appendPaths = [&] (TStringBuf option, const std::vector<std::string>& paths) {
+            if (paths.empty()) {
+                return;
+            }
+            command.AppendFormat(" %v %v", option, QuoteArgument(JoinToString(paths, TStringBuf(","))));
+        };
+        appendPaths("--files", Settings_->Files);
+        appendPaths("--jars", Settings_->Jars);
+        command.AppendString(" --conf \"spark.ytsaurus.driver.operation.id=$YT_OPERATION_ID\" spark-internal");
 
         return command.Flush();
     }
@@ -381,7 +447,7 @@ private:
 
     IMapNodePtr CreateDriverSpec() const
     {
-        std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "$HOME/spark";
+        std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "spark";
         std::string sparkDistr = Format("spark-%v-bin-hadoop3", Config_->SparkVersion);
         std::string command = CreateCommand(sparkHome, sparkDistr);
 
@@ -397,7 +463,28 @@ private:
             Config_->SpytLaunchConfFile);
         auto releaseConfig = WaitFor(TargetClusterClient_->GetNode(releaseConfigPath))
             .ValueOrThrow();
-        auto releaseConfigNode = ConvertToNode(releaseConfig)->AsMap();
+        auto globalConfig = WaitFor(TargetClusterClient_->GetNode(Config_->SpytConfigPath + "/global"))
+            .ValueOrThrow();
+        auto launchConfigNode = PatchNode(ConvertToNode(globalConfig), ConvertToNode(releaseConfig))->AsMap();
+        auto getBooleanConf = [&] (const std::string& key, bool defaultValue) {
+            auto it = Settings_->SparkConf.find(key);
+            if (it == Settings_->SparkConf.end()) {
+                return defaultValue;
+            }
+            return AsciiEqualsIgnoreCase(it->second, "true");
+        };
+        auto rpcJobProxy = getBooleanConf("spark.ytsaurus.rpc.job.proxy.enabled", true);
+        // Reserve memory for the embedded RPC proxy without increasing the JVM heap.
+        auto driverMemoryLimit = Settings_->DriverMemory;
+        if (rpcJobProxy) {
+            driverMemoryLimit += Settings_->DriverMemoryOverhead;
+        }
+        auto shuffleService = getBooleanConf("spark.ytsaurus.shuffle.enabled", false);
+        auto environment = launchConfigNode->GetChildValueOrDefault<THashMap<std::string, std::string>>("environment", {});
+        environment["JAVA_HOME"] = launchConfigNode->GetChildValueOrDefault<std::string>("default_cluster_java_home", "/opt/jdk17");
+        environment["SPARK_CONF_DIR"] = Config_->UseSquashfs ? "/usr/lib/spyt/conf" : "spyt-package/conf";
+        environment["SPARK_USER"] = User_;
+        environment["SPARK_YT_RPC_JOB_PROXY_ENABLED"] = rpcJobProxy ? "True" : "False";
 
         YT_TLOG_DEBUG("Creating Spark connect driver specification")
             .With("SparkVersion", Config_->SparkVersion)
@@ -408,14 +495,14 @@ private:
         std::vector<std::string> filePaths;
 
         if (Config_->UseSquashfs) {
-            auto squashfsLayerPaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("squashfs_layer_paths");
+            auto squashfsLayerPaths = launchConfigNode->GetChildValueOrThrow<std::vector<std::string>>("squashfs_layer_paths");
 
             layerPaths.reserve(squashfsLayerPaths.size() + 2);
             layerPaths.push_back(Format("//home/spark/spyt/%v/%v/spyt-package.squashfs", releaseType, Config_->SpytVersion));
             layerPaths.push_back(Format("//home/spark/distrib/%v/%v.squashfs", versionPath, sparkDistr));
             layerPaths.insert(layerPaths.end(), squashfsLayerPaths.begin(), squashfsLayerPaths.end());
         } else {
-            auto confLayerPaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("layer_paths");
+            auto confLayerPaths = launchConfigNode->GetChildValueOrThrow<std::vector<std::string>>("layer_paths");
             layerPaths.reserve(confLayerPaths.size());
             layerPaths.insert(layerPaths.end(), confLayerPaths.begin(), confLayerPaths.end());
 
@@ -426,7 +513,7 @@ private:
             }
         }
 
-        auto confFilePaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("file_paths");
+        auto confFilePaths = launchConfigNode->GetChildValueOrThrow<std::vector<std::string>>("file_paths");
         filePaths.reserve(filePaths.size() + confFilePaths.size());
         for (size_t i = 0; i < confFilePaths.size(); i++) {
             auto path = confFilePaths[i];
@@ -445,23 +532,26 @@ private:
                 .Item("issue_temporary_token").Value(true)
                 .Item("temporary_token_environment_variable_name").Value("YT_TOKEN")
                 .Item("max_failed_job_count").Value(1)
+                .Item("fail_on_job_restart").Value(true)
+                .OptionalItem("pool", Settings_->Pool)
                 .Item("tasks").BeginMap()
                     .Item("driver").BeginMap()
                         .Item("command").Value(command)
                         .Item("job_count").Value(1)
                         .Item("cpu_limit").Value(Settings_->DriverCores)
-                        .Item("memory_limit").Value(Settings_->DriverMemory)
+                        .Item("memory_limit").Value(driverMemoryLimit)
+                        .Item("memory_reserve_factor").Value(1.0)
+                        .Item("enable_rpc_proxy_in_job_proxy").Value(rpcJobProxy)
+                        .DoIf(shuffleService, [&] (auto fluent) {
+                            fluent.Item("enable_shuffle_service_in_job_proxy").Value(true);
+                        })
                         .Item("layer_paths").DoListFor(layerPaths, [&] (auto fluent, auto item) {
                             fluent.Item().Value(item);
                         })
                         .Item("file_paths").DoListFor(filePaths, [&] (auto fluent, auto item) {
                             fluent.Item().Value(item);
                         })
-                        .Item("environment").BeginMap()
-                            .Item("JAVA_HOME").Value("/opt/jdk17")
-                            .Item("SPARK_CONF_DIR").Value(Config_->UseSquashfs ? "/usr/lib/spyt/conf" : "spyt-package/conf")
-                            .Item("SPARK_USER").Value(User_)
-                        .EndMap()
+                        .Item("environment").Value(environment)
                         .DoIf(Settings_->SparkConf.contains("spark.ytsaurus.network.project"), [&] (auto fluent) {
                             fluent
                                 .Item("network_project").Value(Settings_->SparkConf["spark.ytsaurus.network.project"]);

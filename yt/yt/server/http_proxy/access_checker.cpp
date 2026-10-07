@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NHttpProxy {
 
@@ -78,7 +78,7 @@ private:
     TBootstrap const* Bootstrap_;
     const TAccessCheckerConfigPtr Config_;
 
-    NThreading::TAtomicObject<std::string> ProxyRole_;
+    TAtomicObject<std::string> ProxyRole_;
 
     std::atomic<bool> Enabled_;
 

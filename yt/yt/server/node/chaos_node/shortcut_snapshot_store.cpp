@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <library/cpp/yt/string/guid.h>
 
@@ -79,7 +79,7 @@ private:
     struct TBucket
     {
         THashMap<TChaosObjectId, TShortcutSnapshot> ShortcutSnapshots;
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock);
     };
 
     std::array<TBucket, ConcurrentHashBucketCount> Buckets_;

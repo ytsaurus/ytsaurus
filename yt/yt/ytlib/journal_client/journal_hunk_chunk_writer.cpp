@@ -78,7 +78,7 @@ public:
         std::vector<TFuture<std::vector<TJournalHunkDescriptor>>> futures;
 
         bool newRecord = true;
-        std::optional<TGuard<NThreading::TSpinLock>> guard;
+        std::optional<TGuard<TSpinLock>> guard;
         for (auto& payload : payloads) {
             if (newRecord) {
                 newRecord = false;
@@ -143,7 +143,7 @@ private:
 
     const TChunkId ChunkId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     std::vector<TSharedRef> CurrentRecordPayloads_;
     std::vector<TPromise<std::vector<TJournalHunkDescriptor>>> CurrentRecordPromises_;
@@ -185,7 +185,7 @@ private:
         FlushCurrentRecord(guard);
     }
 
-    bool FlushIfNeeded(std::optional<TGuard<NThreading::TSpinLock>>& guard)
+    bool FlushIfNeeded(std::optional<TGuard<TSpinLock>>& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
@@ -199,7 +199,7 @@ private:
         }
     }
 
-    void FlushCurrentRecord(std::optional<TGuard<NThreading::TSpinLock>>& guard)
+    void FlushCurrentRecord(std::optional<TGuard<TSpinLock>>& guard)
     {
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 

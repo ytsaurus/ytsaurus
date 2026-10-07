@@ -17,9 +17,9 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_;
-YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TDriverResponseHolder::DestructionSpinLock_);
+YT_DECLARE_SPIN_LOCK(TSpinLock, TDriverResponseHolder::DestructionSpinLock_);
 
-YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AliveDriverResponseHoldersLock);
+YT_DECLARE_SPIN_LOCK(TSpinLock, AliveDriverResponseHoldersLock);
 THashSet<TDriverResponseHolder*> AliveDriverResponseHolders;
 
 TDriverResponseHolder::TDriverResponseHolder()

@@ -19,7 +19,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NHttpProxy {
 
@@ -137,7 +137,7 @@ private:
 
     std::string GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BanCacheLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BanCacheLock_);
     THashMap<std::string, TInstant> BanCache_;
 
     struct TProfilingCounters

@@ -1268,7 +1268,10 @@ std::vector<TWriterCase> MakeCompositeWriterCases()
     result.push_back({
         .CaseName = "required_complex_field_for_missing_column",
         .SkiffSchema = CreateTupleSchema({listSchema}),
-        .Expected = TExpectedError{"Unexpected wire type \"repeated_variant8\""},
+        .Expected = TExpectedError{
+            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"string32\", \"boolean\", \"double\", "
+            "\"nothing\", \"yson32\", got \"repeated_variant8\""},
     });
 
     auto optionalListSchema = CreateTupleSchema({
@@ -1367,7 +1370,10 @@ std::vector<TWriterCase> MakeColumnWriterCases()
         .SkiffSchema = CreateTupleSchema({
             CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
-        .Expected = TExpectedError{"Unexpected wire type \"variant8\""},
+        .Expected = TExpectedError{
+            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"string32\", \"boolean\", \"double\", "
+            "\"nothing\", \"yson32\", got \"variant8\""},
     });
 
     return result;
@@ -1916,7 +1922,7 @@ std::vector<TParserCase> MakeColumnParserCases()
     result.push_back({
         .CaseName = "optional_nothing_schemaless",
         .SkiffSchema = CreateTupleSchema({CreateOptionalSchema(EWireType::Nothing)->SetName("opt_null")}),
-        .Expected = TExpectedError{"Column \"opt_null\" cannot be represented with Skiff schema"},
+        .Expected = TExpectedError{"Cannot create Skiff parser for column \"opt_null\""},
     });
 
     result.push_back({
@@ -1924,7 +1930,10 @@ std::vector<TParserCase> MakeColumnParserCases()
         .SkiffSchema = CreateTupleSchema({
             CreateVariant8Schema({CreateOptionalSchema(EWireType::Yson32)})->SetName("opt_yson32"),
         }),
-        .Expected = TExpectedError{"Unexpected wire type \"variant8\""},
+        .Expected = TExpectedError{
+            "Unexpected wire type: expected one of \"int8\", \"int16\", \"int32\", \"int64\", "
+            "\"uint8\", \"uint16\", \"uint32\", \"uint64\", \"double\", \"boolean\", \"string32\", "
+            "\"nothing\", \"yson32\", got \"variant8\""},
     });
 
     return result;

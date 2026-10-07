@@ -15,7 +15,7 @@ public:
     void Check(TValue value);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TValue Value_ = Min<TValue>();
 };
 
@@ -34,7 +34,7 @@ public:
 private:
     const int PeerCount_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<ui64, std::pair<i64, int>> Mutations_;
 };
 
@@ -55,7 +55,7 @@ public:
 private:
     const TConfigPtr Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     int ErrorCount_ = 0;
     TInstant LastStateChangeTime_ = TInstant::Now();

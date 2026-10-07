@@ -345,9 +345,13 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
                 return DoReadMeta(options, /*partitionTags*/ {}, /*fairShareSlotId*/ {})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                         auto guard = Guard(ChunkFragmentReadsLock_);
-                        BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
-                        if (BlocksExtCache_) {
-                            BlocksExtCache_->Put(meta, BlocksExt_);
+                        // The other I/O mode may have already published the blocks extension.
+                        // Fragment requests access it without taking ChunkFragmentReadsLock_.
+                        if (!BlocksExt_) {
+                            BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
+                            if (BlocksExtCache_) {
+                                BlocksExtCache_->Put(meta, BlocksExt_);
+                            }
                         }
                         ChunkFragmentReadsPrepared_[directIOFlag].store(true);
                     }));

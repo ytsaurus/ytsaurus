@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/rpc/roaming_channel.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NHiveClient {
 
@@ -603,7 +603,7 @@ private:
         TEnumIndexedArray<EPeerKind, IChannelPtr> Channels;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellId, TEntry> CellIdToEntry_;
     THashMap<TCellTag, TEntry*> CellTagToEntry_;
     THashSet<TCellId> UnregisteredCellIds_;

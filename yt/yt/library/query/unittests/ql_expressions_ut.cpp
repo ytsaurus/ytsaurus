@@ -3649,7 +3649,35 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "is_finite(d1)",
-            MakeNull())));
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(i1, u1, b, s1)",
+            MakeUint64(0x5f90424776524127ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-7;u1=11u;b=%true;s1=xy",
+            "farm_hash(s1, b, u1, i1)",
+            MakeUint64(0xfd2435eda17206d9ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=18446744073709551615u",
+            "farm_hash(u1)",
+            MakeUint64(0x62f280995c3dea58ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=-1",
+            "farm_hash(i1, i1)",
+            MakeUint64(0x940af1fb538b6bd5ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="a\0b")",
+            "farm_hash(s1)",
+            MakeUint64(0x0706e84ffa9edd01ULL)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            R"(s1="")",
+            "farm_hash(s1)",
+            MakeUint64(0xfcc22541f5657d35ULL))));
 
 class TEvaluateLikeExpressionTest
     : public ::testing::Test

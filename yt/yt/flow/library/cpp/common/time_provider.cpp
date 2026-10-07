@@ -12,7 +12,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow {
 
@@ -101,12 +101,12 @@ private:
     const NObjectClient::TCellTag ClockClusterTag_;
     const TDuration TimestampCacheTtl_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SeqNoLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SeqNoLock_);
     mutable i64 CurrentSeqNo_ = 0;
     mutable i64 MaxSeqNo_ = 0;
     mutable TInstant LastSeqNoUpdate_ = TInstant::Zero();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TimestampCacheLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TimestampCacheLock_);
     mutable TSystemTimestamp CachedTimestamp_ = ZeroSystemTimestamp;
     mutable TInstant CachedTimestampGeneratedAt_ = TInstant::Zero();
 

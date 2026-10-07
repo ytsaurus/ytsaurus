@@ -93,10 +93,14 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     TBase::ListSystemAttributes(descriptors);
 
     const auto* cell = GetThisImpl();
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
     descriptors->push_back(EInternedAttributeKey::LeadingPeerId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Health)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HealthHistory)
+        .SetOpaque(true)
+        .SetPresent(multicellManager->IsPrimaryMaster()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LocalHealth)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::Peers);
@@ -153,6 +157,14 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 BuildYsonFluently(consumer)
                     .Value(cell->GetHealth());
             }
+            return true;
+
+        case EInternedAttributeKey::HealthHistory:
+            if (!multicellManager->IsPrimaryMaster()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->HealthHistory());
             return true;
 
         case EInternedAttributeKey::LocalHealth:

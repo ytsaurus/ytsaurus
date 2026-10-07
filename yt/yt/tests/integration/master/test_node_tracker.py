@@ -860,8 +860,16 @@ class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
         wait(lambda: self._has_alert("Node(s) had no job heartbeat for too long"))
 
     @authors("grphil")
-    def test_incomplete_state_alert(self):
-        set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 1)
+    @pytest.mark.parametrize("all_inclomplete", [False, True])
+    def test_incomplete_state_alert(self, all_inclomplete):
+        # Both should work for being disposed.
+        if all_inclomplete:
+            set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 1)
+            set("//sys/@config/node_tracker/max_node_dispose_state_duration", 30000)
+        else:
+            set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 30000)
+            set("//sys/@config/node_tracker/max_node_dispose_state_duration", 1)
+
         set("//sys/@config/node_tracker/node_alerts_check_period", 100)
 
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)

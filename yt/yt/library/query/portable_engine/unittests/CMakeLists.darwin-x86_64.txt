@@ -60,6 +60,8 @@ target_link_options(unittester-library-query-portable-engine PRIVATE
 
 target_sources(unittester-library-query-portable-engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/builtin_registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/column_evaluator_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/column_evaluator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/program_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/query_evaluator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/unittests/registry_ut.cpp

@@ -2305,6 +2305,7 @@ SRCS(
     Storages/MergeTree/IMergedBlockOutputStream.cpp
     Storages/MergeTree/InsertBlockInfo.cpp
     Storages/MergeTree/KeyCondition.cpp
+    Storages/MergeTree/KeyOrder.cpp
     Storages/MergeTree/MarkRange.cpp
     Storages/MergeTree/MergeFromLogEntryTask.cpp
     Storages/MergeTree/MergeList.cpp

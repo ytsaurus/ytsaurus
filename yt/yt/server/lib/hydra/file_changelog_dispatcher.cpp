@@ -276,7 +276,7 @@ private:
     //! True if #AppendQueue_ is empty.
     std::atomic<bool> AppendQueueEmpty_ = true;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
 
     //! These records are currently being flushed to the underlying sync changelog and
     //! immediately follow the flushed part.

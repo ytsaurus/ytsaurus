@@ -639,17 +639,25 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
     @authors("buyval01")
     def test_background_refresh_lock_contention(self):
         config_patch = {"yt": {"materialized_views": {"scan_period": 1000}}}
-        expected_rows = [{"key": 1, "value": "new-1"}]
+        expected_rows = [{"key": 1, "value": "new"}]
 
         with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
             clique.make_query(self.CREATE_MV_QUERY)
-            transaction_id = start_transaction(timeout=10000)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+
+            transaction_id = start_transaction(timeout=60000)
             try:
                 lock("//tmp/target", mode="exclusive", tx=transaction_id)
                 write_table("<append=%true>//tmp/source", expected_rows)
-                time.sleep(2)
+                wait(lambda: get(progress_path)["partitions"][0]["total_row_count"] == len(expected_rows), timeout=5)
+
+                progress = get(progress_path)
+                partition = progress["partitions"][0]
+                assert partition["next_row_index"] == 0
+                assert partition["last_error"] == ""
+                assert progress["last_error"] == ""
                 assert read_table("//tmp/target") == []
-                clique.make_query("SELECT 1")
             finally:
                 abort_transaction(transaction_id)
 
@@ -665,6 +673,9 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         create("table", "//tmp/source_directory/good", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/source_directory/bad", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/int_target", attributes={"schema": int_schema})
+        good_rows = [{"key": 1, "value": 42}]
+        write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
+        write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
         config_patch = {
             "yt": {
                 "settings": {
@@ -683,22 +694,12 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             clique.make_query(
                 'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
                 'AS SELECT key, accurateCast(value, \'Int64\') AS value '
-                'FROM concatYtTablesRange("//tmp/source_directory")')
+                'FROM concatYtTablesRange("//tmp/source_directory")',
+                settings={"chyt.materialized_view_populate": 1})
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
             good_part_id = get("//tmp/source_directory/good/@id")
             bad_part_id = get("//tmp/source_directory/bad/@id")
-
-            good_rows = [{"key": 1, "value": 42}]
-            # Use the target lock as a barrier so both source partitions are written before refresh starts.
-            transaction_id = start_transaction(timeout=60000)
-            try:
-                lock_id = lock("//tmp/int_target", mode="exclusive", tx=transaction_id, waitable=True)["lock_id"]
-                wait(lambda: get(f"#{lock_id}/@state") == "acquired")
-                write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
-                write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
-            finally:
-                abort_transaction(transaction_id)
 
             wait_breakpoint("refresh_commit")
             try:

@@ -213,7 +213,7 @@ private:
 
     TJobResourceManager::TImpl* const ResourceManagerImpl_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ResourcesLock_);
 
     NClusterNode::TJobResources BaseResourceUsage_;
     NClusterNode::TJobResources AdditionalResourceUsage_;

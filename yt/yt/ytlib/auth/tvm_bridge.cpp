@@ -110,7 +110,7 @@ private:
 
     const TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, Lock_);
     THashMap<TTvmId, TErrorOr<std::string>> ServiceIdToTicket_;
 
     TPeriodicExecutorPtr PeriodicExecutor_;

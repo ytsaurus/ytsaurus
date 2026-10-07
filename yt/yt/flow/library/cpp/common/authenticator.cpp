@@ -135,7 +135,7 @@ private:
 
     const std::string StaticSecret_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TInstant TicketInstant_ = TInstant::Zero();
     std::string Ticket_;
 
@@ -798,7 +798,7 @@ void TPipelineAuthenticationDescription::Register(TRegistrar registrar)
 
 struct TDefaultTvmAliases final
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     bool AllRegistered = false;
     THashMap<std::string, NAuth::TTvmId> Aliases = {
         {std::string{TPipelineAuthenticator::YTTvmAlias}, TPipelineAuthenticator::YTTvmId},

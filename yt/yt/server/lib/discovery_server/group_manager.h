@@ -11,7 +11,7 @@
 
 #include <yt/yt/library/discovery_client/helpers.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -43,7 +43,7 @@ private:
 
     TGroupManagerInfo GroupManagerInfo_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModifiedMembersLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ModifiedMembersLock_);
     THashSet<TMemberPtr> ModifiedMembers_;
 
     THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds, bool respectLimits);

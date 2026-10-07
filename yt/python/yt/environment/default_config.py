@@ -169,7 +169,6 @@ def get_dynamic_master_config():
 
         "tablet_manager": {
             "cell_scan_period": 100,
-            "accumulate_preload_pending_store_count_correctly": True,
             "increase_upload_replication_factor": True,
 
             "replicated_table_tracker": {
@@ -755,6 +754,8 @@ def get_dynamic_node_config():
                     "heartbeat_executor": {
                         "period": 100,
                         "splay": 100,
+                        # Must stay below job_tracker/node_disconnection_timeout (2s);
+                        # the 5s default lets one failed heartbeat abort the node's jobs.
                         "min_backoff": 200,
                         "max_backoff": 200,
                         "backoff_multiplier": 1.0,

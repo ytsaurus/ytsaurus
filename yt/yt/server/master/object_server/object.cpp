@@ -156,7 +156,7 @@ void OnObjectDestroyed(TObject* object)
 
 struct TEpochRefCounterShard
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
 };
 
 constexpr int EpochRefCounterShardCount = 256;

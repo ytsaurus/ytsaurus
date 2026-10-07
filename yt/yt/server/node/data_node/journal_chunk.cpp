@@ -661,10 +661,17 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
 
     openChangelogPromise.SetFrom(
         Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<IFileChangelogPtr>& changelogOrError) {
                 auto writerGuard = WriterGuard(LifetimeLock_);
 
-                OpenChangelogPromise_.Reset();
+                // Retry failed opens only while the location is enabled. Otherwise, keep the error
+                // cached to avoid redundant opens while chunks are being unregistered; location
+                // resurrection creates new chunk instances with fresh promises.
+                if (changelogOrError.IsOK() || StoreLocation_->IsEnabled()) {
+                    OpenChangelogPromise_.Reset();
+                }
+
+                const auto& changelog = changelogOrError.ValueOrThrow();
 
                 if (ReadLockCounter_.load() == 0 || Changelog_) {
                     return;

@@ -175,6 +175,10 @@ common:
       to: /user-guide/dynamic-tables/overview.md
       type: redirect
 ru:
+    - from: /concepts/computation.md
+      to: /flow/concepts/computation.md
+      type: redirect
+
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md
       type: redirect
@@ -1036,6 +1040,14 @@ ru:
       to: /flow/extensions/monium.md
       type: redirect
 
+    - from: /flow/file-providers/sandbox.md
+      to: /flow/extensions/sandbox.md
+      type: redirect
+
+    - from: /flow/file-providers/model-service.md
+      to: /flow/extensions/model-service.md
+      type: redirect
+
     - from: /flow/release/launch-vanilla.md
       to: /flow/devops/vanilla/initial-deploy.md
       type: redirect
@@ -1096,7 +1108,32 @@ ru:
       to: /flow/$1
       type: redirect
 
+    # ORM docs reorg
+    - from: /orm/description/api.md
+      to: /orm/api/object-service.md
+      type: redirect
+
+    - from: /orm/description/index.md
+      to: /orm/common/overview.md
+      type: redirect
+
+    - from: /orm/admin/index.md
+      to: /orm/admin/ops.md
+      type: redirect
+
+    - from: /orm/user-guide/index.md
+      to: /orm/user-guide/idm-integration-setup.md
+      type: redirect
+
+    - from: /orm/other/index.md
+      to: /orm/other/video.md
+      type: redirect
+
 en:
+    - from: /concepts/computation.md
+      to: /flow/concepts/computation.md
+      type: redirect
+
     - from: /flow/release/auth.md
       to: /flow/devops/vanilla/security.md
       type: redirect

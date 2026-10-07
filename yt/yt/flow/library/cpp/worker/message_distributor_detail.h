@@ -38,7 +38,7 @@ namespace NYT::NFlow::NWorker {
 
 struct TTimestampStatisticsWithLock final
 {
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
     TTimestampStatistics Statistics;
 };
 
@@ -171,11 +171,11 @@ public:
     TMessageDistributorStatusPtr GetStatus() const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StreamTimestampStatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StreamTimestampStatisticsLock_);
     THashMap<TStreamId, TTimestampStatisticsWithLockPtr> StreamTimestampStatistics_;
 
     TAtomicIntrusivePtr<TOrderingTimestampBiases> CachedBiases_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BiasesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, BiasesLock_);
     // Last seen non-empty statistics per stream; restores a stream's bias when it goes
     // momentarily idle (MessageCount drops to 0) so the cache never serves a zero bias.
     THashMap<TStreamId, TTimestampStatistics> LastNonEmptyStreamStatistics_;
@@ -282,7 +282,7 @@ private:
 
     TInstant UpdateGaugesInstant_ = TInstant::Zero();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SentTasksLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SentTasksLock_);
     std::vector<TRoutedTask> SentTasks_;
 
 private:

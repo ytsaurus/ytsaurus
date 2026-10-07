@@ -14,7 +14,8 @@
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <library/cpp/yt/misc/guid.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/folder/path.h>
 #include <util/generic/scope.h>
@@ -1747,7 +1748,7 @@ private:
     const TCounter RejectedPublicationCounter_;
     const TPeriodicExecutorPtr CleanupExecutor_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<std::string, TObjectEntryPtr> Objects_;
     THashMap<std::string, TInflightEntry> Inflight_;
     THashSet<std::string> ActiveStaging_;

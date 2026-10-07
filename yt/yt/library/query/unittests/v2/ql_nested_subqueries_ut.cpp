@@ -302,5 +302,111 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, HavingValidation)
+{
+    auto split = MakeSplit({
+        {"item", EValueType::Int64},
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    for (const auto& [clauses, error] : std::vector<std::pair<std::string, std::string>>{
+        {"LIMIT 0", "HAVING with LIMIT is not allowed"},
+        {"LIMIT 1", "HAVING with LIMIT is not allowed"},
+        {"OFFSET 0 LIMIT 1", "HAVING with LIMIT is not allowed"},
+        {"OFFSET 1 LIMIT 1", "HAVING with LIMIT is not allowed"},
+        {"OFFSET 1", "OFFSET used without LIMIT"},
+        {"ORDER BY item", "ORDER BY used without LIMIT"},
+    }) {
+        for (const auto& query : {
+            Format("SELECT item FROM `//t` GROUP BY item HAVING item > 0 %v", clauses),
+            Format(
+                "SELECT (SELECT item FROM (t.numbers AS item) GROUP BY item HAVING item > 0 %v) AS nested "
+                "FROM `//t` AS t",
+                clauses),
+        }) {
+            SCOPED_TRACE(query);
+            EXPECT_THROW_THAT(
+                Prepare(
+                    query,
+                    {{"//t", split}},
+                    /*placeholderValues*/ {},
+                    {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+                HasSubstr(error));
+        }
+    }
+
+    for (const auto& clauses : {"", "ORDER BY item LIMIT 1"}) {
+        auto query = Format(
+            "SELECT (SELECT item FROM (t.numbers AS item) GROUP BY item HAVING item > 0 %v) AS nested "
+            "FROM `//t` AS t",
+            clauses);
+        SCOPED_TRACE(query);
+        EXPECT_THROW_THAT(
+            Prepare(
+                query,
+                {{"//t", split}},
+                /*placeholderValues*/ {},
+                {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+            HasSubstr("HAVING clause is not supported in subqueries"));
+    }
+
+    auto orderedQuery = "SELECT item FROM `//t` GROUP BY item HAVING item > 0 ORDER BY item LIMIT 1";
+    EXPECT_NO_THROW(
+        Prepare(
+            orderedQuery,
+            {{"//t", split}},
+            /*placeholderValues*/ {},
+            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}));
+
+    auto sortedSplit = MakeSplit({
+        {"item", EValueType::Int64, ESortOrder::Ascending},
+    });
+    EXPECT_THROW_THAT(
+        Prepare(
+            orderedQuery,
+            {{"//t", sortedSplit}},
+            /*placeholderValues*/ {},
+            {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+        HasSubstr("HAVING with LIMIT is not allowed"));
+}
+
+TEST_F(TQueryEvaluateTest, OrderByOffsetAndLimitValidation)
+{
+    auto split = MakeSplit({
+        {"item", EValueType::Int64},
+        {"numbers", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    for (const auto& [clauses, error] : std::vector<std::pair<std::string, std::string>>{
+        {"ORDER BY item", "ORDER BY used without LIMIT"},
+        {"OFFSET 0", "OFFSET used without LIMIT"},
+        {"OFFSET 1", "OFFSET used without LIMIT"},
+        {"OFFSET 9223372036854775808 LIMIT 2", "Negative OFFSET is forbidden"},
+        {"OFFSET 18446744073709551615 LIMIT 2", "Negative OFFSET is forbidden"},
+        {"LIMIT 9223372036854775808", "Negative LIMIT is forbidden"},
+        {"LIMIT 18446744073709551615", "Negative LIMIT is forbidden"},
+        {Format("LIMIT %v", UnorderedReadHint), "Maximum LIMIT exceeded"},
+        {Format("LIMIT %v", OrderedReadWithPrefetchHint), "Maximum LIMIT exceeded"},
+        {Format("OFFSET 3 LIMIT %v", OrderedReadWithPrefetchHint - 1), "overflows i64"},
+        {"OFFSET 9223372036854775807 LIMIT 1", "overflows i64"},
+    }) {
+        for (const auto& query : {
+            Format("SELECT item FROM `//t` %v", clauses),
+            Format("SELECT (SELECT item FROM (t.numbers AS item) %v) AS nested FROM `//t` AS t", clauses),
+        }) {
+            SCOPED_TRACE(query);
+            EXPECT_THROW_THAT(
+                Prepare(
+                    query,
+                    {{"//t", split}},
+                    /*placeholderValues*/ {},
+                    {.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+                HasSubstr(error));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient

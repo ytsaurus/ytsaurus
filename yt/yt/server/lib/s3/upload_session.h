@@ -107,7 +107,7 @@ private:
     NConcurrency::TAsyncSemaphorePtr UploadWindowSemaphore_;
 
     //! Protects the fields below.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     //! This state is not an atomic because it lives in the same plane as the data buffer and pending uploads.
     ES3UploadSessionState State_ = ES3UploadSessionState::Created;
     //! Filled after upload is started. Read-only afterwards.

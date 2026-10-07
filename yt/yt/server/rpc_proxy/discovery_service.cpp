@@ -162,7 +162,7 @@ private:
 
     std::atomic<TInstant> LastSuccessTimestamp_ = Now();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProxySpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ProxySpinLock_);
 
     struct TProxy
     {

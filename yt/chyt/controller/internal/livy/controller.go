@@ -1,6 +1,7 @@
 package livy
 
 import (
+	"bytes"
 	"context"
 
 	"go.ytsaurus.tech/library/go/core/log"
@@ -25,6 +26,14 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 
 func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
 	return make(yson.RawValue, 0), nil
+}
+
+func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *strawberry.Oplet) (bool, error) {
+	current, err := c.GetControllerSnapshot()
+	if err != nil {
+		return false, err
+	}
+	return !bytes.Equal(snapshot, current), nil
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (

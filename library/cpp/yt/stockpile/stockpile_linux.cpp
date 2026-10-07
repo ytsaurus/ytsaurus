@@ -1,6 +1,6 @@
 #include "stockpile.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <library/cpp/yt/misc/leaky_global.h>
 
@@ -59,7 +59,7 @@ private:
 
     const i64 PageSize_ = sysconf(_SC_PAGESIZE);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::vector<std::unique_ptr<std::thread>> Threads_;
     TStockpileOptions Options_;
     std::atomic<bool> Run_ = false;
@@ -94,8 +94,12 @@ private:
     void RunWithFixedBreaks(i64 bufferSize, TDuration period)
     {
         auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_TLOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed")
-            .With("Error", strerror(errno));
+        if (returnCode != 0) {
+            char errorBuffer[256];
+            LastSystemErrorText(errorBuffer, sizeof(errorBuffer), errno);
+            YT_TLOG_DEBUG("System call \"madvise\" failed")
+                .With("Error", errorBuffer);
+        }
 
         RestlessSleep(period);
     }
@@ -105,8 +109,12 @@ private:
         auto started = GetApproximateCpuInstant();
 
         auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_TLOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed")
-            .With("Error", strerror(errno));
+        if (returnCode != 0) {
+            char errorBuffer[256];
+            LastSystemErrorText(errorBuffer, sizeof(errorBuffer), errno);
+            YT_TLOG_DEBUG("System call \"madvise\" failed")
+                .With("Error", errorBuffer);
+        }
 
         auto duration = CpuDurationToDuration(GetApproximateCpuInstant() - started);
         if (duration < period) {
@@ -124,9 +132,12 @@ private:
             return {Options_.BufferSize, Options_.Period};
         }
 
+        int error = errno;
+        char errorBuffer[256];
+        LastSystemErrorText(errorBuffer, sizeof(errorBuffer), errno);
         YT_TLOG_DEBUG("System call \"madvise\" failed")
-            .With("Error", strerror(errno));
-        switch (errno) {
+            .With("Error", errorBuffer);
+        switch (error) {
             case ENOMEM:
                 if (adjustedBufferSize / 2 >= PageSize_) {
                     // Immediately make an attempt to reclaim half as much.

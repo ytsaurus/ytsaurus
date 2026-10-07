@@ -67,9 +67,10 @@ struct TTransactionalKafkaWriterOptions
 //! Writes records in Kafka transactions under a transactional id that survives restarts; starting fences
 //! the writers of earlier sessions. Each transaction also commits the seqNo of its last record as the progress
 //! marker (see #KafkaProgressMarkerMetadata), and a restarted writer acknowledges the replayed messages the
-//! marker covers without writing them. Promises resolve in seqNo order once their transaction commits. Any
-//! error the writer cannot retry within its budget fails every write for good (see #GetFatalError()); a
-//! restart then recovers from the marker.
+//! marker covers without writing them. A writer that starts without a marker commits one at the persisted
+//! frontier. Promises resolve in seqNo order once their transaction commits. Any error the writer cannot
+//! retry within its budget fails every write for good (see #GetFatalError()); a restart then recovers from
+//! the marker.
 class TTransactionalKafkaWriter
     : public TRefCounted
 {
@@ -83,6 +84,10 @@ public:
 
     void Start();
     void Terminate();
+
+    //! Set once the writer has fenced earlier sessions and its progress marker is in Kafka, or with the
+    //! error it failed to start with. Canceling it has no effect.
+    TFuture<void> GetStarted() const;
 
     TFuture<void> Write(TKafkaMessageToWrite&& message);
 
@@ -98,6 +103,10 @@ private:
     const NLogging::TLogger Logger;
     const IStatusErrorStatePtr ErrorState_;
 
+    const TPromise<void> StartedPromise_ = NewPromise<void>();
+    //! A waiter that cancels it would otherwise set the promise for everyone else.
+    const TFuture<void> StartedFuture_ = StartedPromise_.ToFuture().ToUncancelable();
+
     NConcurrency::TActionQueuePtr WriteQueue_;
     std::atomic<bool> Terminated_ = false;
 
@@ -106,20 +115,31 @@ private:
     void Run();
     void Fail(const TError& error);
 
-    //! Fences earlier sessions and resolves the marker; returns an error if the writer cannot start.
-    TErrorOr<std::optional<i64>> Initialize(cppkafka::Producer& producer);
+    //! Fences earlier sessions and returns the seqNo of the marker, committing one if none can be trusted;
+    //! returns an error if the writer cannot start.
+    TErrorOr<i64> Initialize(
+        cppkafka::Producer& producer,
+        const rd_kafka_consumer_group_metadata_s* groupMetadata);
     TErrorOr<std::optional<TKafkaCommittedOffset>> ReadCommittedOffset();
+    //! Commits the marker at the persisted frontier, retrying within the failure budget.
+    TError CommitInitialMarker(
+        cppkafka::Producer& producer,
+        const rd_kafka_consumer_group_metadata_s* groupMetadata);
+    //! Requests the topic metadata, which creates a missing topic where the broker allows; returns an
+    //! error while the topic is unavailable.
+    TError ResolveTopic(cppkafka::Producer& producer);
 
     //! Takes ownership of |error|, which is null on success.
     static TCallResult ClassifyTransactionError(rd_kafka_error_s* error, TStringBuf operation);
     //! Repeats |call| while it fails retriably, within the failure budget.
     TCallResult CallRetrying(const std::function<rd_kafka_error_s*()>& call, TStringBuf operation);
-    //! Writes |records| and the marker for the last of them in one transaction, aborting it on an abortable
-    //! error.
+    //! Commits |records|, possibly none, and the marker at |markerSeqNo| in one transaction, aborting it on
+    //! an abortable error.
     TCallResult TryCommitTransaction(
         cppkafka::Producer& producer,
         const rd_kafka_consumer_group_metadata_s* groupMetadata,
-        std::span<const TKafkaMessageToWrite> records);
+        std::span<const TKafkaMessageToWrite> records,
+        i64 markerSeqNo);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionalKafkaWriter);

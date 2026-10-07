@@ -521,14 +521,14 @@ private:
 
     struct TEntry
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
         TInstant LastAccessTime;
         TPromise<TAllyReplicasInfo> Promise;
         TFuture<TAllyReplicasInfo> Future;
     };
 
     // TODO(babenko): maybe implement sharding
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EntriesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, EntriesLock_);
     THashMap<TChunkId, std::unique_ptr<TEntry>> Entries_;
     TMemoryUsageTrackerGuard MemoryGuard_;
 

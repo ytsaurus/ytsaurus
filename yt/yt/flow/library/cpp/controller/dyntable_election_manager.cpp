@@ -8,7 +8,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NController {
 
@@ -166,7 +166,7 @@ private:
     std::atomic<ui64> LeadershipEpoch_ = 0;
     //! Guards the pair (#LeadershipEpoch_, #RecoveryRenewalEnabled_) so that a stale callback
     //! cannot disarm the renewal of a leadership acquired in between; reads stay lock-free.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RecoveryRenewalLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, RecoveryRenewalLock_);
     TInstant LastRenewalSuccess_;
 
     TPeriodicExecutorPtr PeriodicExecutor_;

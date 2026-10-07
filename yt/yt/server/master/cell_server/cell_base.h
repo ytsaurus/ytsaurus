@@ -27,6 +27,7 @@
 
 #include <library/cpp/yt/misc/property.h>
 
+#include <deque>
 #include <optional>
 
 namespace NYT::NCellServer {
@@ -47,6 +48,16 @@ void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& statistics);
 void FromProto(TCellStatus* status, const NProto::TCellStatus& protoStatistics);
 
 void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellHealthHistoryItem
+{
+    TInstant Time;
+    ECellHealth Health;
+};
+
+void Serialize(const TCellHealthHistoryItem& item, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +103,9 @@ public:
     //! Last cell status reported during gossip.
     // NB: This field is intentionally transient.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TCellStatus>, LastGossipStatus);
+
+    //! History of cluster health changes. Diagnostics only, not persisted.
+    DEFINE_BYREF_RO_PROPERTY(std::deque<TCellHealthHistoryItem>, HealthHistory);
 
     //! Overrides `peer_count` in cell bundle.
     DEFINE_BYREF_RW_PROPERTY(std::optional<int>, PeerCount);
@@ -159,6 +173,12 @@ public:
 
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatus();
+
+    void UpdateHealthHistory(
+        ECellHealth oldHealth,
+        ECellHealth newHealth,
+        int healthHistoryMaxSize,
+        TDuration healthHistoryExpirationTime);
 
     //! Helper to calculate aggregated health.
     static ECellHealth CombineHealths(ECellHealth lhs, ECellHealth rhs);

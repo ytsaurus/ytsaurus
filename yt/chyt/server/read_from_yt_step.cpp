@@ -407,6 +407,11 @@ void TReadFromYTStep::describeActions(DB::JSONBuilder::JSONMap& map) const
     }
 }
 
+const DB::SortDescription& TReadFromYTStep::getSortDescription() const
+{
+    return Executor_.GetSortDescription();
+}
+
 DB::ASTPtr TReadFromYTStep::DescribeFilterPushDown() const
 {
     if (!filter_actions_dag) {

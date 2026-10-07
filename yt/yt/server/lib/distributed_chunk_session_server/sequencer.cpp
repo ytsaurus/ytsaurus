@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/concurrency/serialized_invoker.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/generic/hash.h>
 
@@ -270,7 +270,7 @@ private:
     const TPromise<void> AllWritesFinishedPromise_ = NewPromise<void>();
     const TLogger Logger;
 
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StateLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_);
     TDistributedChunkSessionProgress Progress_;
     //! Progress every accepted record would add up to, checked before submission.
     TDistributedChunkSessionProgress AcceptedProgress_;

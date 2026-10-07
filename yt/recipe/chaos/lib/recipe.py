@@ -1,3 +1,4 @@
+from yt.common import wait
 from yt.wrapper import yson
 
 from yt.recipe.basic.lib import recipe as basic_yt_recipe
@@ -43,6 +44,18 @@ def _patch_rpc_proxy_config(clusters, bundle_name, clock_cluster_tag):
         )
 
 
+def _create_tablet_cells(clusters, bundle_name):
+    cells = []
+    for cluster in clusters.values():
+        yt_client = cluster.get_yt_client()
+        cell_id = yt_client.create("tablet_cell", attributes={"cell_bundle": bundle_name})
+        cells.append((yt_client, cell_id))
+
+    wait(
+        lambda: all(yt_client.get("#{}/@health".format(cell_id)) == "good" for yt_client, cell_id in cells), timeout=60
+    )
+
+
 def start(yt_cluster_factory, args, work_dir=None):
     """recipe entry point (start services)."""
     parser = argparse.ArgumentParser()
@@ -75,6 +88,7 @@ def start(yt_cluster_factory, args, work_dir=None):
         _create_tablet_cell_bundle(clusters, parsed_args.tablet_cell_bundle_name, clock_cluster_tag)
         if parsed_args.db_mode == "chaos":
             _patch_rpc_proxy_config(clusters, parsed_args.tablet_cell_bundle_name, clock_cluster_tag)
+            _create_tablet_cells(clusters, parsed_args.tablet_cell_bundle_name)
 
     return clusters
 

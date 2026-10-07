@@ -24,7 +24,7 @@
 
 #include <library/cpp/yt/misc/variant.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/random/random.h>
 
@@ -219,7 +219,7 @@ private:
     bool Finalized_ = false;
     TPromise<void> FinalizedPromise_ = NewPromise<void>();
 
-    NThreading::TAtomicObject<THashMap<int, TSessionDescriptor>> ReadySessions_;
+    TAtomicObject<THashMap<int, TSessionDescriptor>> ReadySessions_;
 
     std::optional<TChunkId> MaybeMarkSessionSealed(TNonNullPtr<TSessionEntry> entry) const
     {

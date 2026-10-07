@@ -6,7 +6,7 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -42,7 +42,7 @@ private:
     struct TInProgressJobCounter
         : public TRefCounted
     {
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, Lock);
         i64 Count = 0;
         NProfiling::TGauge Gauge;
     };

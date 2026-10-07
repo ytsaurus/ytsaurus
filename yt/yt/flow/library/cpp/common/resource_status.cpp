@@ -18,6 +18,11 @@ void TResourceStatus::Update(i64 morePushedToQueue, i64 moreFetchedFromQueue, TI
     LastUpdateTime_ = now;
 }
 
+i64 TResourceStatus::GetQueueSize() const
+{
+    return QueuePushedTotal_ - QueueFetchedTotal_;
+}
+
 TWorkerResourceStatusPtr TResourceStatus::Collect(TInstant now)
 {
     // The queue size is a gauge that holds its last value until the next update; feed it again at

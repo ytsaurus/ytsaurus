@@ -32,7 +32,7 @@ private:
     const IInvokerPtr Invoker_;
     TFuture<void> PendingOperationFuture_ = OKFuture;
     bool Closed_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
 private:
     TFuture<void> DoWriteFrame(TString header, const std::optional<TSharedRef>& frame);

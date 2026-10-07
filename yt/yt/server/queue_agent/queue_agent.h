@@ -104,7 +104,7 @@ private:
     };
     using TObjectMap = THashMap<NQueueClient::TGenericObjectReference, TObject>;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ObjectLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ObjectLock_);
     //! Objects available in this queue agent.
     //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedArray<EObjectKind, TObjectMap> Objects_;

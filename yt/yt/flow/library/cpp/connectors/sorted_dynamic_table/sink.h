@@ -58,7 +58,7 @@ private:
 private:
     const NApi::IClientPtr Client_;
     const IStatusErrorStatePtr UpdatePartitionCountErrorState_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StateLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_);
     TMutableStateClient<TInfoControllerState> State_;
     NConcurrency::TPeriodicExecutorPtr Executor_;
 };

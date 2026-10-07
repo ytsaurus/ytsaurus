@@ -10,7 +10,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -141,7 +141,7 @@ private:
 
     TObjectId LockNodeId_;
 
-    NThreading::TAtomicObject<TTransactionId> PrerequisiteTransactionId_;
+    TAtomicObject<TTransactionId> PrerequisiteTransactionId_;
 
     ITransactionPtr Transaction_;
     TObjectId LockId_;

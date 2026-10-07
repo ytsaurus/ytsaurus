@@ -148,7 +148,7 @@ private:
 
     std::atomic<int> GpuDeviceCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> GpuDeviceIndices_;
     THashSet<int> LostGpuDeviceIndices_;

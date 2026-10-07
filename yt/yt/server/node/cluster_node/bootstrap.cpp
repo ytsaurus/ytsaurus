@@ -772,13 +772,13 @@ private:
     TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachingObjectServicesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CachingObjectServicesLock_);
     THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
     THashMap<TCellTag, IServicePtr> ProxyingChunkServices_;
 
     NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SecondaryMasterConnectionLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SecondaryMasterConnectionLock_);
     TSecondaryMasterConnectionConfigs SecondaryMasterConnectionConfigs_;
 
     IIOTrackerPtr IOTracker_;

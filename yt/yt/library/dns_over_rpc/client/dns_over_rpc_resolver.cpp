@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NDns {
 
@@ -72,7 +72,7 @@ private:
     const NYT::NBus::IBusClientPtr BusClient_;
     const IChannelPtr Channel_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TDelayedExecutorCookie BatchingTimeoutCookie_;
     google::protobuf::RepeatedPtrField<NProto::TReqResolve_TSubrequest> Subrequests_;
     std::vector<TPromise<TNetworkAddress>> Promises_;

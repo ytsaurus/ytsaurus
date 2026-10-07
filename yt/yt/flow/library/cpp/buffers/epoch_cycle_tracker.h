@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <util/datetime/base.h>
 
@@ -36,7 +36,7 @@ public:
     std::optional<TDuration> GetMedianCycle() const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::array<TDuration, MaxWindowSize> Samples_;
     size_t SampleCount_ = 0;
     size_t NextIndex_ = 0;

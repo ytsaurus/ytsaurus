@@ -11,6 +11,7 @@
 #include <library/cpp/threading/future/future.h>
 
 #include <util/datetime/base.h>
+#include <util/generic/yexception.h>
 #include <util/system/file.h>
 #include <util/system/mutex.h>
 
@@ -38,6 +39,22 @@ struct TExeUploadCache {
     THashMap<TString, TExeUploadCacheEntry> Entries;
     ui64 NextGeneration = 0;
 };
+
+void ValidateUploadOptions(const TResourceManagerOptions& options) {
+    const auto& backend = options.YtBackend;
+    if (backend.GetUser().empty()) {
+        ythrow yexception() << "YT backend " << backend.GetClusterName()
+            << " has no user";
+    }
+    if (backend.GetPrefix().empty()) {
+        ythrow yexception() << "YT backend " << backend.GetClusterName()
+            << " has no prefix";
+    }
+    if (options.UploadPrefix.empty()) {
+        ythrow yexception() << "YT backend " << backend.GetClusterName()
+            << " has no upload prefix";
+    }
+}
 
 // Collect all unique files from task metas in the plan, split by type.
 TCollectedFiles CollectFilesFromPlan(const NDqs::TPlan& plan) {
@@ -167,6 +184,20 @@ public:
             return NThreading::MakeErrorFuture<TResult>(std::current_exception());
         }
 
+        if (collected.UdfFiles.empty() && collected.ExeFiles.empty()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TDqGatewayWithUploader: no files to upload, forwarding ExecutePlan";
+            ClearLocalPathsFromPlan(plan);
+            return Underlying_->ExecutePlan(
+                sessionId, std::move(plan), columns, secureParams, graphParams,
+                settings, progressWriter, modulesMapping, discard, executionTimeout);
+        }
+
+        try {
+            ValidateUploadOptions(uploadOpts);
+        } catch (...) {
+            return NThreading::MakeErrorFuture<TResult>(std::current_exception());
+        }
+
         TVector<NThreading::TFuture<void>> uploadFutures;
 
         // Upload UDF/user files to <UploadPrefix>/udfs/
@@ -186,14 +217,6 @@ public:
         // Upload exe files to <UploadPrefix>/bin/<objectId>/
         for (const auto& exeFile : collected.ExeFiles) {
             uploadFutures.push_back(UploadExeFile(uploadOpts, exeFile));
-        }
-
-        if (uploadFutures.empty()) {
-            YQL_CLOG(DEBUG, ProviderDq) << "TDqGatewayWithUploader: no files to upload, forwarding ExecutePlan";
-            ClearLocalPathsFromPlan(plan);
-            return Underlying_->ExecutePlan(
-                sessionId, std::move(plan), columns, secureParams, graphParams,
-                settings, progressWriter, modulesMapping, discard, executionTimeout);
         }
 
         YQL_CLOG(DEBUG, ProviderDq) << "TDqGatewayWithUploader: uploading "

@@ -395,7 +395,7 @@ private:
     //! Retrieve transaction context base.
     virtual TPersistedStateTransactionContextBase& GetTransactionContextBase(TPersistedStateTransactionPtr& tx) = 0;
     //! Retrieve transactional lock.
-    virtual TGuard<NThreading::TSpinLock> TransactionGuard() const = 0;
+    virtual TGuard<TSpinLock> TransactionGuard() const = 0;
 };
 
 template <class TKey, class TValue>

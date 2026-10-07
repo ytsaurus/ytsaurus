@@ -1157,7 +1157,7 @@ private:
             .With("IncarnationId", agent->GetIncarnationId());
     }
 
-    void UnregisterAgent(const TControllerAgentPtr& agent, TGuard<NThreading::TSpinLock>&& guard)
+    void UnregisterAgent(const TControllerAgentPtr& agent, TGuard<TSpinLock>&& guard)
     {
         auto agentState = agent->GetState();
         if (agentState == EControllerAgentState::Unregistering ||
@@ -1215,7 +1215,7 @@ private:
         scheduler->GetNodeManager()->UnregisterAgentFromNodeShards(agent->GetId());
     }
 
-    void TerminateAgent(const TControllerAgentPtr& agent, TGuard<NThreading::TSpinLock>&& guard)
+    void TerminateAgent(const TControllerAgentPtr& agent, TGuard<TSpinLock>&& guard)
     {
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());

@@ -22,15 +22,20 @@ DECLARE_REFCOUNTED_STRUCT(TQueryCorpusReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyHeapUsageProfiler)
 DECLARE_REFCOUNTED_STRUCT(TApiTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TMulticonnectionClientCache)
+DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
+DECLARE_REFCOUNTED_CLASS(TApiService)
 
 DECLARE_REFCOUNTED_STRUCT(IAccessChecker)
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)
 DECLARE_REFCOUNTED_STRUCT(IApiService)
+DECLARE_REFCOUNTED_STRUCT(IApiServiceContext)
 DECLARE_REFCOUNTED_STRUCT(IQueryCorpusReporter)
 DECLARE_REFCOUNTED_STRUCT(IMultiproxyAccessValidator)
 
 enum class EMultiproxyEnabledMethods;
 enum class EMultiproxyMethodKind;
+
+using TMultiproxyMethodList = std::vector<std::pair<std::string, EMultiproxyMethodKind>>;
 
 //! TMultiConnectionClientCacheKey is a tuple containing
 //!   - cluster-name

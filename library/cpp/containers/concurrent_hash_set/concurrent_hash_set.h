@@ -3,7 +3,7 @@
 #include <array>
 #include <atomic>
 
-#include <library/cpp/yt/threading/writer_starving_rw_spin_lock.h>
+#include <library/cpp/yt/system/writer_starving_rw_spin_lock.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/maybe.h>
 #include <util/generic/yexception.h>
@@ -75,9 +75,9 @@ class TConcurrentHashSet {
         using EqualKey::operator();
     };
 
-    using TLock = NYT::NThreading::TWriterStarvingRWSpinLock;
-    using TReaderGuard = NYT::NThreading::TReaderGuard<TLock>;
-    using TWriterGuard = NYT::NThreading::TWriterGuard<TLock>;
+    using TLock = NYT::TWriterStarvingRWSpinLock;
+    using TReaderGuard = NYT::TReaderGuard<TLock>;
+    using TWriterGuard = NYT::TWriterGuard<TLock>;
     using TActualSet = THashSet<V, THasher, TEqualer>;
 
     class TBucket {

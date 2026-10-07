@@ -232,7 +232,7 @@ private:
     i64 TotalPayloadWrittenBytes_ = 0;
     i64 TotalMediaWrittenBytes_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WrittenBytesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, WrittenBytesLock_);
     std::optional<TDuration> WrittenBytesMovingAverageWindow_;
     mutable TAverageDurationMovingAverage PayloadWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
     mutable TAverageDurationMovingAverage MediaWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};

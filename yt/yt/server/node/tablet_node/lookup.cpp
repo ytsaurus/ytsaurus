@@ -1350,7 +1350,7 @@ private:
     TDuration InitializationDuration_;
     TDuration PartitionsLookupDuration_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
     TFuture<void> SessionFuture_ = OKFuture;
 
@@ -2122,6 +2122,10 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
     const TSharedRange<TLegacyKey>& keys)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+    if (keys.empty()) {
+        return {};
+    }
 
     TStoreSessionList sessions;
     sessions.reserve(stores.size());

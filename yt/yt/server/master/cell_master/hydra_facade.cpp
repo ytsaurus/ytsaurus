@@ -273,7 +273,7 @@ public:
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         if (IsAutomatonLocked()) {
             auto automatonThreadId = AutomatonThread_Slot.GetBoundThreadId();
-            YT_VERIFY(automatonThreadId != NThreading::InvalidThreadId);
+            YT_VERIFY(automatonThreadId != InvalidThreadId);
             YT_VERIFY(GetSystemThreadId() != automatonThreadId);
         } else {
             YT_ASSERT_THREAD_AFFINITY(AutomatonThread);

@@ -10,7 +10,9 @@ The YQL over YTFlow team currently maintains this backend and defines its suppor
 
 ## Supported operations
 
-The following operations are available through the internal expression program. Public `engine_api` adapters are not implemented yet.
+The following operations are available through the internal expression program and the scalar and column evaluator adapters in `engine_api`. Column evaluators support expression columns, but not aggregate columns or custom LLVM function profilers.
+
+Column evaluators can be created directly or reused through a bounded cache keyed by the full table schema, including column order and expressions.
 
 | Operation | Supported signature | Null handling |
 |---|---|---|

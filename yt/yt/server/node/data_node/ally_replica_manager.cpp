@@ -27,7 +27,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -367,7 +367,7 @@ private:
     const TPeriodicExecutorPtr ProfilingExecutor_;
     const TPeriodicExecutorPtr QueueFlushExecutor_;
 
-    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, YT_SPIN_LOCK_INPLACE_TYPE(NThreading::TSpinLock)> AllyReplicasInfos_;
+    TConcurrentHashMap<TChunkId, TAllyReplicasInfo, 32, YT_SPIN_LOCK_INPLACE_TYPE(TSpinLock)> AllyReplicasInfos_;
 
     struct TNodeState
     {
@@ -396,7 +396,7 @@ private:
         // Next item in the linked list of all nodes.
         std::atomic<TNodeState*> NextInList = nullptr;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock);
     };
 
     // Accessed only from control thread.

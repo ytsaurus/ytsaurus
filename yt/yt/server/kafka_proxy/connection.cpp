@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NKafkaProxy {
 

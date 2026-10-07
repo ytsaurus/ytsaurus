@@ -62,8 +62,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NTabletNode {
 
@@ -293,7 +293,7 @@ private:
 
     const TAsyncSemaphorePtr PreloadSemaphore_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
@@ -862,7 +862,7 @@ private:
     std::atomic<bool> Sending_ = false;
     std::atomic<bool> Dropped_ = false;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     i64 CurrentSize_ = 0;
 

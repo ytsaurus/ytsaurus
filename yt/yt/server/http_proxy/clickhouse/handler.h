@@ -57,7 +57,7 @@ private:
     NProfiling::TCounter BannedCount_;
 
     NConcurrency::TPeriodicExecutorPtr OperationIdUpdateExecutor_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, OperationIdLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, OperationIdLock_);
     THashMap<std::string, NScheduler::TOperationId> AliasToOperationId_;
     std::atomic<bool> AliasToOperationIdInitialized_ = false;
 

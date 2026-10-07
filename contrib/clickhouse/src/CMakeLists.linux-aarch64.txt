@@ -1604,6 +1604,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergedBlockOutputStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/InsertBlockInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/KeyCondition.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/KeyOrder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MarkRange.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeFromLogEntryTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeList.cpp

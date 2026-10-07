@@ -153,16 +153,29 @@ yt admin logs k8s [options] <cluster_name> <component_name> [<group_name>]
 
 | Параметр | По умолчанию | Описание |
 | --- | --- | --- |
-| `-n, --namespace <ns>` | `default` | Пространство имен Kubernetes, в котором расположен кластер |
+| `-n, --namespace <ns>` | Из текущего контекста kubeconfig или in-cluster конфигурации; иначе `default` | Пространство имен Kubernetes, в котором расположен кластер. Явное значение имеет приоритет |
 | `-p, --pods <pod>` | — | Конкретный под (можно указывать несколько раз) |
 | `--exec-slot-index <N>` | — | Индекс слота для логов job-proxy (только для `exec_nodes`) |
 | `--from-ts <ISO8601>` | — | Логи, изменённые после указанного времени, вида `2026-06-15T14:00:00Z` |
 | `--to-ts <ISO8601>` | — | Логи, созданные до указанного времени, вида `2026-06-15T14:00:00Z` |
+| `--duration <duration>` | `3h` | Длительность периода до текущего времени. Положительное целое число с единицей `ms`, `s`, `m`, `h`, `d`, `w` или `y`, например `24h`. Нельзя сочетать с `--from-ts` или `--to-ts` |
 | `-w, --writer <name>` | — | Фильтр по имени writer'а из конфига (можно несколько раз). Ниже показан способ получения списка writer'ов |
 | `--writer-force <regex>` | — | Принудительный regex для фильтрации имён файлов логов |
 | `-o, --output <dir>` | `logs` | Каталог для сохранения логов |
 | `--grep <regex>` | — | Серверный grep по содержимому (с авто-распаковкой `.zstd`/`.gz`) |
-| `-y, --yes` | — | Пропустить начальный запрос подтверждения выгрузки. Не отключает запрос о перезаписи уже существующих локальных файлов |
+| `-y, --yes` | — | Пропустить начальный запрос подтверждения поиска или скачивания. Не отключает запрос о перезаписи уже существующих локальных файлов |
+
+### Период и подтверждение
+
+Без `--from-ts`, `--to-ts` и `--duration` команда выбирает файлы за последние три часа. Выбранные границы периода выводятся перед статистикой.
+
+Параметр `--duration` задает период до текущего времени: например, `--duration 24h` выбирает файлы за последние сутки. Этот параметр нельзя сочетать с `--from-ts` или `--to-ts`.
+
+Параметры `--from-ts` и `--to-ts` задают явные границы периода. Если указан только один из них, другая граница не ограничена.
+
+Период ограничивает набор файлов по времени их создания и изменения. Строки внутри выбранных файлов по времени не фильтруются.
+
+В режиме `--grep` статистика показывает количество и объем файлов для поиска. После подтверждения `Search these files and save matching lines? [y/N]` поиск выполняется в подах, а в каталог `--output` сохраняются только совпавшие строки. Без `--grep` команда запрашивает `Download these files? [y/N]` и скачивает выбранные файлы целиком.
 
 ### Поддерживаемые компоненты
 
@@ -193,7 +206,7 @@ yt admin logs k8s [options] <cluster_name> <component_name> [<group_name>]
 Логи мастеров за интервал времени с двумя writer'ами:
 
 ```bash
-yt admin logs k8s ytbench primary_masters \
+yt admin logs k8s ytserver primary_masters \
   -w access -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   -o case-1
@@ -202,7 +215,7 @@ yt admin logs k8s ytbench primary_masters \
 Только конкретные поды:
 
 ```bash
-yt admin logs k8s ytbench primary_masters -w debug \
+yt admin logs k8s ytserver primary_masters -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   -p ms-3 -p ms-4 -o case-1
 ```
@@ -210,15 +223,16 @@ yt admin logs k8s ytbench primary_masters -w debug \
 Логи слота job-proxy на exec-ноде:
 
 ```bash
-yt admin logs k8s ytbench exec_nodes -w debug \
+yt admin logs k8s ytserver exec_nodes -w debug \
   --from-ts 2026-02-07T14:38:01Z --to-ts 2026-02-07T14:48:01Z \
   --exec-slot-index 17 -p end-6 -o case-2
 ```
 
-Серверный grep по содержимому:
+Серверный grep по содержимому файлов за последние сутки:
 
 ```bash
-yt admin logs k8s ytbench primary_masters -w debug --grep "Transaction aborted" -o case-3
+yt admin logs k8s ytserver primary_masters -w debug \
+  --duration 24h --grep "Transaction aborted" -o case-3
 ```
 
 Получить список доступных writer'ов компонента можно из его конфигурации в CR. Например, для `primary_masters`:

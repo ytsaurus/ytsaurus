@@ -51,10 +51,10 @@ private:
     const NConcurrency::IReconfigurableThroughputThrottlerPtr ThroughputThrottler_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<std::string, TStatistics> Statistics_;
 
-    TStatistics& GetOrCreateStatistics(TStringBuf tag, TGuard<NThreading::TSpinLock>& guard);
+    TStatistics& GetOrCreateStatistics(TStringBuf tag, TGuard<TSpinLock>& guard);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLoadThroughputThrottler);

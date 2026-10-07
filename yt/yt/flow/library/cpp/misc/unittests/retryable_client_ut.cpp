@@ -88,6 +88,33 @@ TEST(TRetryableClientTest, RetryAndSuccess)
     EXPECT_EQ(result.Rowset, rowset);
 }
 
+TEST(TRetryableClientTest, GetNodeRetryAndSuccess)
+{
+    auto client = New<TStrictMockClient>();
+    auto schema = NYson::TYsonString(TStringBuf("[]"));
+    EXPECT_CALL(*client, GetNode("//path/@schema", _))
+        .WillOnce(Return(MakeFuture<NYson::TYsonString>(TError(NYT::EErrorCode::Timeout, "Fake timeout"))))
+        .WillOnce(Return(MakeFuture(schema)));
+
+    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
+    retryableClient->Reconfigure(MakeShortRetrySpec());
+    auto result = WaitFor(retryableClient->GetNode("//path/@schema", /*options*/ {}))
+        .ValueOrThrow();
+    EXPECT_EQ(result, schema);
+}
+
+TEST(TRetryableClientTest, GetNodeNonRetriableError)
+{
+    auto client = New<TStrictMockClient>();
+    EXPECT_CALL(*client, GetNode("//path/@schema", _))
+        .WillOnce(Return(MakeFuture<NYson::TYsonString>(TError("Schema unavailable"))));
+
+    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
+    retryableClient->Reconfigure(MakeShortRetrySpec());
+    auto result = WaitFor(retryableClient->GetNode("//path/@schema", /*options*/ {}));
+    EXPECT_FALSE(result.IsOK());
+}
+
 TEST(TRetryableClientTest, Timeout)
 {
     auto aqueue = New<TActionQueue>();

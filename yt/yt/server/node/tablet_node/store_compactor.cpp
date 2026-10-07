@@ -1254,18 +1254,18 @@ private:
     bool IsProcessingActionBatch_ = false;
 
     // Variables below contain per-iteration state for slot scan.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ScanSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ScanSpinLock_);
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<std::unique_ptr<TCompactionTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TCompactionTask>> CompactionCandidates_;
 
     // Variables below are actually used during the scheduling.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TaskSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, TaskSpinLock_);
     std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_;
     std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartedTasksSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StartedTasksSpinLock_);
     std::vector<NLsm::TStartedCompactionTask> StartedCompactionTasks_;
     std::vector<NLsm::TStartedCompactionTask> StartedPartitioningTasks_;
 
@@ -1275,7 +1275,7 @@ private:
 
     const TGlobalStoresUpdateThrottlerPtr GlobalStoresUpdateThrottler_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNamesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, PoolNamesLock_);
     std::optional<std::string> CompactionFairSharePool_;
     std::optional<std::string> PartitioningFairSharePool_;
 
@@ -1425,7 +1425,7 @@ private:
         candidates->clear();
     }
 
-    void PickMorePartitionings(TGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMorePartitionings(TGuard<TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &PartitioningCandidates_,
@@ -1433,7 +1433,7 @@ private:
             FeasiblePartitioningsCounter_);
     }
 
-    void PickMoreCompactions(TGuard<NThreading::TSpinLock>& /*guard*/)
+    void PickMoreCompactions(TGuard<TSpinLock>& /*guard*/)
     {
         PickMoreTasks(
             &CompactionCandidates_,

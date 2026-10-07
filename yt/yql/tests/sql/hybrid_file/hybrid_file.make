@@ -32,7 +32,6 @@ DEPENDS(
 DATA(
     arcadia/yt/yql/tests/sql/hybrid_file
     arcadia/yt/yql/tests/sql/suites
-    arcadia/yql/essentials/mount
 )
 INCLUDE(${ARCADIA_ROOT}/yql/essentials/cfg/configs.inc)
 

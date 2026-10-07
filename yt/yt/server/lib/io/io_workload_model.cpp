@@ -220,7 +220,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ModelLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ModelLock_);
     TRequestSizes RequestSizes_;
     TRequestLatencies RequestLatencies_;
 };
@@ -582,7 +582,7 @@ private:
     const NLogging::TLogger Logger;
     const TWorkloadModelManagerPtr ModelManager_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StatsLock_);
     std::optional<TRequestSizes> RequestSizeStats_;
     std::optional<TRequestLatencies> RequestLatencyStats_;
 

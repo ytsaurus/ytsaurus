@@ -17,6 +17,8 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/sync_cache.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
 namespace NYT::NExecNode {
 
 using namespace NChunkClient;
@@ -37,7 +39,7 @@ std::string MakeNbdDeviceId(TJobId jobId, int nbdDeviceIndex)
 // A global cache mapping TArtifactKey to a stable NBD device id (eviction is acceptable).
 constexpr i64 NbdDeviceIdCacheMaxSize = 100'000;
 TSimpleLruCache<TArtifactKey, std::string> NbdDeviceIdCache(NbdDeviceIdCacheMaxSize);
-YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NbdDeviceIdCacheLock);
+YT_DECLARE_SPIN_LOCK(TSpinLock, NbdDeviceIdCacheLock);
 
 std::string GetOrCreateNbdDeviceId(const TArtifactKey& artifactKey)
 {
@@ -360,12 +362,10 @@ void TJobFSSecretary::ConfigureUdfArtifacts(TNonNullPtr<TJobFSDescription> descr
 
     const auto& querySpec = jobSpecExt.input_query_spec();
     for (const auto& function : querySpec.external_functions()) {
-        TArtifactKey key;
-        key.mutable_data_source()->set_type(ToProto(EDataSourceType::File));
-
-        for (const auto& chunkSpec : function.chunk_specs()) {
-            *key.add_chunk_specs() = chunkSpec;
-        }
+        auto key = TArtifactKey(
+            EDataSourceType::File,
+            function.chunk_specs()
+                | RangeTo<std::vector<NChunkClient::NProto::TChunkSpec>>());
 
         description->Artifacts.push_back(TArtifactDescription{
             .SandboxKind = ESandboxKind::Udf,
@@ -395,13 +395,15 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
 
     // Mark artifacts that will be accessed via virtual layer and create virtual artifact key.
     if (HasVirtualSandboxArtifacts_) {
-        TArtifactKey virtualArtifactKey;
+        auto virtualArtifactKey = TArtifactKey(
+            EDataSourceType::File,
+            description->Artifacts
+                | std::views::filter(&TArtifactDescription::AccessedViaVirtualSandbox)
+                | std::views::transform([] (const auto& artifact) { return artifact.Key.chunk_specs(); })
+                | std::views::join
+                | RangeTo<std::vector<NChunkClient::NProto::TChunkSpec>>());
         virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
         virtualArtifactKey.set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
-        {
-            auto* dataSource = virtualArtifactKey.mutable_data_source();
-            dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
-        }
 
         for (const auto& artifact : description->Artifacts) {
             if (artifact.AccessedViaVirtualSandbox) {
@@ -411,10 +413,6 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
                     dataSource->set_path(artifact.Key.data_source().path());
                 } else {
                     dataSource->set_path(Format("%v;%v", dataSource->path(), artifact.Key.data_source().path()));
-                }
-
-                for (const auto& chunkSpec : artifact.Key.chunk_specs()) {
-                    virtualArtifactKey.add_chunk_specs()->CopyFrom(chunkSpec);
                 }
             }
         }

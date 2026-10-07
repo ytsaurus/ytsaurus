@@ -21,7 +21,7 @@
 #include <yt/yt/core/concurrency/serialized_invoker.h>
 #include <yt/yt/core/concurrency/context_switch.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChaosElection {
 
@@ -206,7 +206,7 @@ private:
 
     IPrerequisitePtr Lease_;
 
-    NThreading::TAtomicObject<NPrerequisiteClient::TPrerequisiteId> PrerequisiteId_;
+    TAtomicObject<NPrerequisiteClient::TPrerequisiteId> PrerequisiteId_;
 
     std::atomic<bool> IsActive_ = false;
 

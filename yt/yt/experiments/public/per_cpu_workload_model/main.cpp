@@ -23,7 +23,7 @@ struct TStatsHolder
         RequestLatencies_.Reads[category].RecordValue(requestTime.MilliSeconds());
     }
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
+    YT_DECLARE_SPIN_LOCK(NYT::TSpinLock, StatsLock_);
 };
 
 struct TPerCpuStatsHolder

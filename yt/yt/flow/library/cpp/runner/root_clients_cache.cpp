@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NFlow {
 
@@ -19,9 +19,9 @@ namespace {
 
 constinit const auto& Logger = RootClientsCacheLogger;
 
-NThreading::TAtomicObject<TRootClientsCacheFactory>& GetRootClientsCacheFactory()
+TAtomicObject<TRootClientsCacheFactory>& GetRootClientsCacheFactory()
 {
-    static NThreading::TAtomicObject<TRootClientsCacheFactory> factory;
+    static TAtomicObject<TRootClientsCacheFactory> factory;
     return factory;
 }
 

@@ -38,7 +38,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TDiscoveryConnectionConfigPtr Config_;
     THashSet<std::string> UpAddresses_;
     THashSet<std::string> ProbationAddresses_;
@@ -88,7 +88,7 @@ private:
     const TServerAddressPoolPtr AddressPool_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AddressesLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, AddressesLock_);
 
     std::vector<std::string> UpAddresses_;
     int CurrentUpAddressIndex_ = 0;
@@ -97,7 +97,7 @@ private:
     std::vector<std::string> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ErrorsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void AddError(const TError& error);
@@ -134,7 +134,7 @@ private:
     const TGroupId GroupId_;
     const TListMembersOptions Options_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<TMemberId, TMemberInfo> IdToMember_;
     int SuccessCount_ = 0;
 
@@ -165,7 +165,7 @@ private:
     const TGroupId GroupPrefix_;
     const TListGroupsOptions Options_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashSet<TGroupId> FoundGroupIds_;
     bool Incomplete_ = false;
     int SuccessCount_ = 0;
@@ -195,7 +195,7 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TGroupMeta GroupMeta_;
     int SuccessCount_ = 0;
 

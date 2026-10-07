@@ -44,6 +44,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/guid.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NApi::NNative {
@@ -323,6 +325,8 @@ TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTableReader(
     const TYsonString& format,
     const TTableReaderOptions& options)
 {
+    NProfiling::TWallTimer totalTimer;
+
     return CreateTableReader(path, options).Apply(BIND([=] (const ITableReaderPtr& tableReader) {
         auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
         controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
@@ -335,7 +339,8 @@ TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTableReader(
             ConvertTo<NFormats::TFormat>(format),
             tableReader->GetTableSchema(),
             path.GetColumns(),
-            std::move(controlAttributesConfig));
+            std::move(controlAttributesConfig),
+            totalTimer);
     }));
 }
 
@@ -344,6 +349,8 @@ TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTablePartitionReader(
     const TYsonString& format,
     const TReadTablePartitionOptions& options)
 {
+    NProfiling::TWallTimer totalTimer;
+
     return CreateTablePartitionReader(cookie, options).Apply(BIND([=] (const ITablePartitionReaderPtr& tableReader) {
         auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
         controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
@@ -359,7 +366,8 @@ TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTablePartitionReader(
             ConvertTo<NFormats::TFormat>(format),
             std::move(schemas[0]),
             std::move(columnFilters[0]),
-            std::move(controlAttributesConfig));
+            std::move(controlAttributesConfig),
+            totalTimer);
     }));
 }
 

@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NFlow::NCompanion {
 namespace {
@@ -169,7 +169,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     i64 ProcessId_;
     int RemovalFailureCount_ = 0;
     bool HangRemovals_ = false;

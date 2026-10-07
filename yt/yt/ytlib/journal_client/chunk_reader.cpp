@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 
@@ -321,7 +321,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    NThreading::TAtomicObject<TChunkReplicaList> InitialReplicas_;
+    TAtomicObject<TChunkReplicaList> InitialReplicas_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)

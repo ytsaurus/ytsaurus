@@ -180,7 +180,7 @@ private:
     const NSimpleExternalState::TOperator Operator_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     std::optional<TEpochState> EpochState_;
 
@@ -253,7 +253,7 @@ private:
     const NSimpleExternalState::TOperator Operator_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
 
     TStateSchemaPtr StateSchema_;
     THashMap<TKey, TStateHolderPtr> States_;

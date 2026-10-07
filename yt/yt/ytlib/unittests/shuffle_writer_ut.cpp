@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/concurrency/suspendable_action_queue.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <deque>
 #include <functional>
@@ -128,7 +128,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     THashMap<int, std::deque<TPromise<TSessionDescriptor>>> Pending_;
     THashMap<int, std::deque<TSessionDescriptor>> Responses_;
     THashMap<int, std::deque<TError>> ErrorResponses_;
@@ -227,7 +227,7 @@ public:
 
 private:
     const TSessionId SessionId_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::vector<TSharedRef> Records_;
     std::vector<TDistributedChunkSessionWriteStatistics> Statistics_;
     std::vector<TPromise<void>> Promises_;
@@ -339,7 +339,7 @@ private:
     const ISuspendableActionQueuePtr ActionQueue_;
     const TFakeProviderPtr Provider_;
     const TRowBufferPtr RowBuffer_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkWritersLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ChunkWritersLock_);
     THashMap<TSessionId, TFakeDistributedChunkWriterPtr> ChunkWriters_;
 };
 

@@ -12,7 +12,7 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NNbd::NChunk {
 

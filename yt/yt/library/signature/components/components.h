@@ -46,7 +46,7 @@ private:
 
     TFuture<void> InitializeCryptographyFuture_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, ReconfigureSpinLock_);
 
     //! A YSON snapshot of the last applied key reader config, used to detect
     //! config changes; null iff validation is disabled. A snapshot is required

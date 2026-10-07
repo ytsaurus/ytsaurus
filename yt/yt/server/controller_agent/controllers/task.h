@@ -42,7 +42,7 @@
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 #include <expected>
 
@@ -476,7 +476,7 @@ private:
     // NB: This field is used in BuildJobSpecProto which is run in an non-serialized invoker,
     // so access it only under the following spinlock.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);
 
     std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;
@@ -515,7 +515,7 @@ private:
 
     //! Availability of clusters read from by task.
     THashMap<NScheduler::TClusterName, bool> ClusterToNetworkBandwidthAvailability_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
 
     struct TOutputCookieInfo
     {

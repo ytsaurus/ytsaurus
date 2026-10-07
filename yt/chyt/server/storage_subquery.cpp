@@ -14,7 +14,25 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <Core/Settings.h>
+
+#include <Interpreters/InterpreterSelectQuery.h>
+
+#include <Processors/QueryPlan/QueryPlan.h>
+#include <Processors/QueryPlan/ReadFromPreparedSource.h>
+
 #include <QueryPipeline/Pipe.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool parallelize_output_from_storages;
+extern const SettingsBool distributed_aggregation_memory_efficient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -70,6 +88,31 @@ std::vector<TColumnSchema> GetColumnSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReadFromYTExecutorStep
+    : public DB::ReadFromPreparedSource
+{
+public:
+    TReadFromYTExecutorStep(DB::Pipe pipe, DB::SortDescription sortDescription)
+        : DB::ReadFromPreparedSource(std::move(pipe))
+        , SortDescription_(std::move(sortDescription))
+    { }
+
+    String getName() const override
+    {
+        return "ReadFromYTExecutor";
+    }
+
+    const DB::SortDescription& getSortDescription() const override
+    {
+        return SortDescription_;
+    }
+
+private:
+    const DB::SortDescription SortDescription_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStorageSubquery
     : public TYtStorageBase
 {
@@ -112,6 +155,66 @@ public:
     bool supportsFiltersAnalysis() const override
     {
         return true;
+    }
+
+    // Core vanilla CH logic from IStorage::read(queryPlan, ...).
+    void ParallelizePipeIfNeeded(
+        DB::Pipe& pipe,
+        const DB::ContextPtr& context,
+        DB::QueryProcessingStage::Enum processedStage,
+        size_t maxStreamCount)
+    {
+        const size_t outputPorts = pipe.numOutputPorts();
+        const bool parallelizeOutput = context->getSettingsRef()[DB::Setting::parallelize_output_from_storages];
+
+        // For distributed_aggregation_memory_efficient with Two-Level-Hash aggregation, the `GroupingAggregatedTransform`
+        // need to receive buckets from Remote in order of bucket number, while resize here will break the buckets order
+        // return from `RemoteSource`. See https://github.com/ClickHouse/ClickHouse/issues/76934.
+        const bool shouldNotResize = context->getSettingsRef()[DB::Setting::distributed_aggregation_memory_efficient]
+            && processedStage == DB::QueryProcessingStage::Enum::WithMergeableState;
+
+        if (!shouldNotResize && parallelizeOutput && outputPorts > 0 && outputPorts < maxStreamCount) {
+            pipe.resize(maxStreamCount);
+        }
+    }
+
+    void read(
+        DB::QueryPlan& queryPlan,
+        const DB::Names& columnNames,
+        const DB::StorageSnapshotPtr& storageSnapshot,
+        DB::SelectQueryInfo& queryInfo,
+        DB::ContextPtr context,
+        DB::QueryProcessingStage::Enum processedStage,
+        size_t maxBlockSize,
+        size_t maxStreamCount) override
+    {
+        auto pipe = read(
+            columnNames,
+            storageSnapshot,
+            queryInfo,
+            context,
+            processedStage,
+            maxBlockSize,
+            maxStreamCount);
+
+        auto sortDescription = SubquerySpec_.SubqueryOptions.SortDescription;
+        if (sortDescription.empty()) {
+            ParallelizePipeIfNeeded(pipe, context, processedStage, maxStreamCount);
+        }
+
+        if (pipe.empty()) {
+            // From IStorage::readFromPipe(...).
+            auto header = storageSnapshot->getSampleBlockForColumns(columnNames);
+            DB::InterpreterSelectQuery::addEmptySourceToQueryPlan(queryPlan, header, queryInfo);
+            return;
+        }
+
+        // From IStorage::readFromPipe(...) -> ReadFromStorageStep::ReadFromStorageStep(...).
+        for (const auto& processor : pipe.getProcessors()) {
+            processor->setStorageLimits(queryInfo.storage_limits);
+        }
+
+        queryPlan.addStep(std::make_unique<TReadFromYTExecutorStep>(std::move(pipe), std::move(sortDescription)));
     }
 
     DB::Pipe read(

@@ -700,7 +700,7 @@ private:
 
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StatisticsLock_);
     NYT::TStatistics CustomStatistics_;
 
     std::atomic<int> JobProfilerFailureCount_ = 0;
@@ -723,10 +723,17 @@ private:
         WaitFor(Host_->GetUserJobContainerCreationThrottler()->Throttle(1))
             .ThrowOnError();
 
-        return UserJobEnvironment_->SpawnUserProcess(
+        auto processFinished = UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
+
+        // Cleanup requested before this point could have missed the process.
+        if (JobErrorPromise_.IsSet()) {
+            CleanupUserProcesses();
+        }
+
+        return processFinished;
     }
 
     void InitShellManager()

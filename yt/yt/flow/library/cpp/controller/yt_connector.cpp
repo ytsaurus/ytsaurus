@@ -297,7 +297,7 @@ private:
     ILockElectionManagerPtr ElectionManager_;
     //! Set alongside #ElectionManager_ when the Dyntable backend is selected; null otherwise.
     //! Written on the serialized invoker, read from any thread by #GetDyntableElectionManager.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DyntableElectionManagerLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DyntableElectionManagerLock_);
     IDyntableElectionManagerPtr DyntableElectionManager_;
 
     IDyntableElectionManagerPtr GetDyntableElectionManager() const

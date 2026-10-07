@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NRpcProxy {
 
@@ -87,7 +87,7 @@ private:
 
     std::atomic<bool> Enabled_;
 
-    NThreading::TAtomicObject<std::optional<std::string>> ProxyRole_;
+    TAtomicObject<std::optional<std::string>> ProxyRole_;
 
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,

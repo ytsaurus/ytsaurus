@@ -667,7 +667,7 @@ private:
     TEmaCounter<double, 1> GlobalInputBytesCounter_;
     THashMap<TStreamId, TEmaCounter<double, 1>> StreamInputBytesCounters_;
     std::optional<TRemedianSplitter<TKey>> RemedianSplitter_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TNodeInputMetricsPtr JobInputMetrics_;
     const TJobRuntimeCountersPtr RuntimeCounters_ = New<TJobRuntimeCounters>();
 
@@ -680,10 +680,10 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DistributingLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DistributingLock_);
     std::deque<TDistributorOutputMessage> DistributingQueue_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MarkPersistedQueueLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, MarkPersistedQueueLock_);
     std::deque<TMessageId> MarkPersistedQueue_;
     std::deque<TMessageId> DuplicateAcknowledgementQueue_;
 

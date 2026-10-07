@@ -269,7 +269,7 @@ public:
     }
 
 private:
-    static NThreading::TSpinLock Lock_;
+    static TSpinLock Lock_;
     static THashMap<std::string, int> DownloadCounts_;
     static THashMap<std::string, int> CompletedDownloadCounts_;
     static std::string BlockedContentId_;
@@ -280,7 +280,7 @@ private:
     static THashMap<std::string, TFuture<void>> DiscoveryGates_;
 };
 
-NThreading::TSpinLock TFakeFileProvider::Lock_;
+TSpinLock TFakeFileProvider::Lock_;
 THashMap<std::string, int> TFakeFileProvider::DownloadCounts_;
 THashMap<std::string, int> TFakeFileProvider::CompletedDownloadCounts_;
 std::string TFakeFileProvider::BlockedContentId_;
@@ -400,7 +400,7 @@ public:
     }
 
 private:
-    NThreading::TSpinLock Lock_;
+    TSpinLock Lock_;
     std::vector<std::unique_ptr<TTempDir>> Directories_;
     THashMap<std::string, NFileStorage::IFileStorageObjectPtr> Objects_;
     THashMap<std::string, TFuture<NFileStorage::IFileStorageObjectPtr>> Inflight_;
@@ -656,7 +656,7 @@ private:
         WaitFor(gate).ThrowOnError();
     }
 
-    static NThreading::TSpinLock Lock_;
+    static TSpinLock Lock_;
     static THashMap<std::string, int> InitializeCounts_;
     static std::string BlockedInitializationValue_;
     static TPromise<void> InitializationGate_;
@@ -666,7 +666,7 @@ private:
     static TPromise<void> ValidationStarted_;
 };
 
-NThreading::TSpinLock TTestFileResource::Lock_;
+TSpinLock TTestFileResource::Lock_;
 THashMap<std::string, int> TTestFileResource::InitializeCounts_;
 std::string TTestFileResource::BlockedInitializationValue_;
 TPromise<void> TTestFileResource::InitializationGate_ = NewPromise<void>();

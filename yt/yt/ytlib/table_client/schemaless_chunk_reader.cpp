@@ -1941,6 +1941,10 @@ public:
 
     void InitializeRefCounted()
     {
+        if (IsSamplingCompleted()) {
+            Completed_ = true;
+        }
+
         if (Completed_) {
             return;
         }
@@ -1959,9 +1963,6 @@ public:
                         .With("RowIndex", RowIndex_);
 
                     if (RowIndex_ >= HardUpperRowIndex_) {
-                        Completed_ = true;
-                    }
-                    if (IsSamplingCompleted()) {
                         Completed_ = true;
                     }
                 })));

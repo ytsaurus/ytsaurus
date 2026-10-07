@@ -195,6 +195,53 @@ class TestLookup(TestSortedDynamicTablesBase):
         _check(actual[0])
 
     @authors("savrus")
+    def test_lookup_versioned_column_filter_order(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "k0", "type": "int64", "sort_order": "ascending"},
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "int64"},
+        ])
+        sync_mount_table("//tmp/t")
+
+        key = {"k0": 10, "k1": 11, "k2": 12}
+        insert_rows("//tmp/t", [{**key, "v": 13}])
+
+        valid_column_names = [
+            ["v"],
+            ["k2", "v"],
+            ["k2", "k0", "v"],
+            ["k2", "k0", "k1", "v"],
+        ]
+        for column_names in valid_column_names:
+            row = lookup_rows(
+                "//tmp/t",
+                [key],
+                column_names=column_names,
+                versioned=True,
+            )[0]
+            assert sorted(row.keys()) == sorted(column_names)
+            for column_name in column_names:
+                if column_name == "v":
+                    assert int(row[column_name][0]) == 13
+                else:
+                    assert row[column_name] == key[column_name]
+
+        invalid_column_names = [
+            ["v", "k2"],
+            ["v", "k2", "k0"],
+            ["k2", "v", "k0"],
+            ["v", "k2", "k0", "k1"],
+            ["k2", "v", "k0", "k1"],
+            ["k2", "k0", "v", "k1"],
+        ]
+        for column_names in invalid_column_names:
+            with raises_yt_error("Key columns must precede value columns in versioned lookup column filter"):
+                lookup_rows("//tmp/t", [key], column_names=column_names, versioned=True)
+
+    @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_lookup_versioned_filter_alter(self, optimize_for):
         sync_create_cells(1)

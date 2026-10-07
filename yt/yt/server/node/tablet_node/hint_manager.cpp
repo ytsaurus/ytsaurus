@@ -93,7 +93,7 @@ private:
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
     THashSet<std::string, THash<TStringBuf>, TEqualTo<TStringBuf>> BannedReplicaClusters_;
 
     void OnDynamicConfigChanged(

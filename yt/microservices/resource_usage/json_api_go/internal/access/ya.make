@@ -7,8 +7,6 @@ SRCS(
     models.go
 )
 
-GO_TEST_SRCS(models_test.go)
-
 IF (OPENSOURCE)
     SRCS(
         accesschecker_external.go

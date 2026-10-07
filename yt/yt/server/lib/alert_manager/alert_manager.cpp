@@ -271,7 +271,7 @@ private:
     const NProfiling::TProfiler AlertProfiler_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     std::vector<TAlert> Alerts_;
     THashMap<std::string, THashMap<NProfiling::TTagList, TAlert>> StagedAlerts_;
     THashMap<std::string, THashMap<NProfiling::TTagList, NProfiling::TGauge>> CategoryToGauges_;

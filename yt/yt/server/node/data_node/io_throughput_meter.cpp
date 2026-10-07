@@ -246,7 +246,7 @@ private:
 
     std::optional<TSession> Session_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TStoreLocation::TIOStatistics LastMeasuredThroughput_;
     TInstant LastFinishedTime_ = TInstant::Now();
 

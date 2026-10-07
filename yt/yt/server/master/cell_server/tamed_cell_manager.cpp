@@ -1405,6 +1405,7 @@ private:
             }
 
             auto& health = cell->GossipStatus().Local().Health;
+            auto oldHealth = health;
             auto newHealth = cell->GetHealth();
 
             if (health != newHealth) {
@@ -1415,9 +1416,21 @@ private:
                 health = newHealth;
             }
 
-            if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
-                cell->RecomputeClusterStatus();
-                tabletManager->RecomputeTabletCellStatistics(cell);
+            if (multicellManager->IsPrimaryMaster()) {
+                const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->CellManager;
+
+                if (multicellManager->IsMulticell()) {
+                    oldHealth = cell->GossipStatus().Cluster().Health;
+                    cell->RecomputeClusterStatus();
+                    tabletManager->RecomputeTabletCellStatistics(cell);
+                    newHealth = cell->GossipStatus().Cluster().Health;
+                }
+
+                cell->UpdateHealthHistory(
+                    oldHealth,
+                    newHealth,
+                    config->CellHealthHistoryMaxSize,
+                    config->CellHealthHistoryExpirationTime);
             }
 
             cell->ExpireDiagnosticErrors(peerRevocationReasonDeadline);

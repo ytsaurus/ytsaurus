@@ -9,7 +9,8 @@
 #include <yt/yt/client/table_client/public.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <optional>
 #include <string>
@@ -90,7 +91,7 @@ private:
     const std::vector<NTableClient::TTableSchemaPtr> StreamSchemas_;
     const std::vector<TKeyColumnIndexes> KeyColumnIndexes_;
     const THashMap<const NTableClient::TTableSchema*, size_t> SchemaIndexes_;
-    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedSchemaIndexesLock_);
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, CachedSchemaIndexesLock_);
     mutable THashMap<const NTableClient::TTableSchema*, size_t> CachedSchemaIndexes_;
     mutable std::vector<NTableClient::TTableSchemaPtr> CachedSchemas_;
 

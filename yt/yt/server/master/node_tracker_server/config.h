@@ -147,6 +147,7 @@ struct TDynamicNodeTrackerConfig
     TDuration NodeJobHeartbeatOutdateDuration;
 
     TDuration MaxNodeIncompleteStateDuration;
+    TDuration MaxNodeDisposeStateDuration;
 
     bool NoRestartingNodesDisposal;
 

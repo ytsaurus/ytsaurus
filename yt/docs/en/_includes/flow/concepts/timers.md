@@ -61,6 +61,14 @@ Within one timer stream, timers for the same key are processed in `TriggerTimest
 
 Processing order across timer streams is not guaranteed. To make timer A fire after timer B, add stream B to the `streams` field in timer A's spec. Timer A will then wait for stream B's watermark to advance.
 
+## Blocking related timer streams {#timer-stream-blocking}
+
+When output limits block a timer stream, delivery of ready timers pauses for its entire group, even if the blocked stream has no registered timers. Other groups can continue processing.
+
+Timer streams belong to the same group if they use the same `time_type` (`event_time` or `system_time`) and their watermark input sets overlap. Grouping is transitive: streams that wait for `{a, b}`, `{b, c}`, and `{c, d}` form one group. Differences in `streams_with_delays` values do not split a group. All `real_time` timer streams form a separate group, regardless of their configured inputs and delays.
+
+Groups include all timer streams configured for the computation, not just those with registered timers. Grouping does not add ordering guarantees across streams.
+
 ## Timer structure {#timer-structure}
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TTimerSerializer.md) %}

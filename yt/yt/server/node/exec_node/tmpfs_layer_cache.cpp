@@ -412,8 +412,7 @@ void TTmpfsLayerCache::UpdateLayers()
             .With("CacheName", CacheName_);
         hasImportedLayer = true;
 
-        TArtifactKey key;
-        key.CopyFrom(layer->GetMeta().artifact_key());
+        auto key = TArtifactKey(layer->GetMeta().artifact_key());
 
         auto guard = Guard(DataSpinLock_);
         CachedLayers_[key] = layer;

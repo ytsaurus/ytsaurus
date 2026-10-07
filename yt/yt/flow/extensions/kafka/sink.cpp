@@ -610,8 +610,12 @@ TFuture<void> TKafkaSink::DoDistribute(const TOutputMessageConstPtr& message, i6
     if (TransactionalWriter_) {
         // The recovery check relies on it: a message reaches the writer only after an epoch persisting a
         // bound that covers it commits.
-        YT_VERIFY(seqNo <= MaxDistributedSeqNo_);
-        return TransactionalWriter_->Write(MakeRecord(message, seqNo));
+        if (seqNo <= MaxDistributedSeqNo_) {
+            return TransactionalWriter_->Write(MakeRecord(message, seqNo));
+        }
+        // Released by #Commit().
+        auto& withheld = WithheldWrites_.emplace_back(MakeRecord(message, seqNo), NewPromise<void>());
+        return withheld.Promise.ToFuture();
     }
     return Write(message, seqNo);
 }
@@ -626,11 +630,25 @@ void TKafkaSink::Sync(NApi::IDynamicTableTransactionPtr transaction)
     }
     TOrderedAsyncSinkBase::Sync(std::move(transaction));
     if (TransactionalWriter_) {
-        // Everything registered so far is distributed once this epoch commits. The bound never shrinks:
-        // after a restart, an epoch may commit before the replay registers what it covers.
-        MaxDistributedSeqNo_ = std::max(MaxDistributedSeqNo_, GetLastDistributedSeqNo());
+        // Once the writer has its marker, everything registered so far is distributed when this epoch
+        // commits; a bound raised earlier would look like one whose marker is lost. The bound never
+        // shrinks: after a restart, an epoch may commit before the replay registers what it covers.
+        if (auto started = TransactionalWriter_->GetStarted().TryGet(); started && started->IsOK()) {
+            MaxDistributedSeqNo_ = std::max(MaxDistributedSeqNo_, GetLastDistributedSeqNo());
+        }
         TransactionalState_->MaxDistributedSeqNo = MaxDistributedSeqNo_;
     }
+}
+
+void TKafkaSink::Commit()
+{
+    // The bound is persisted now; the writes it covers go ahead of the newly registered ones.
+    while (!WithheldWrites_.empty() && WithheldWrites_.front().Record.SeqNo <= MaxDistributedSeqNo_) {
+        auto& withheld = WithheldWrites_.front();
+        withheld.Promise.SetFrom(TransactionalWriter_->Write(std::move(withheld.Record)));
+        WithheldWrites_.pop_front();
+    }
+    TOrderedAsyncSinkBase::Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
+#include <Core/SortDescription.h>
+
 #include <vector>
 
 namespace NYT::NClickHouseServer {
@@ -36,6 +38,7 @@ void FillDataSliceDescriptors(
 struct TSubqueryOptions {
     bool UseDistinctReadOptimization = false;
     bool UseMinMaxOptimization = false;
+    DB::SortDescription SortDescription;
 };
 
 struct TSubquerySpec

@@ -569,7 +569,7 @@ private:
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobsLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, JobsLock_);
 
     THashMap<TJobId, TJobPtr> IdToJob_;
     THashMap<TAllocationId, TAllocationPtr> IdToAllocations_;
@@ -618,7 +618,7 @@ private:
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
-    NThreading::TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
+    TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 

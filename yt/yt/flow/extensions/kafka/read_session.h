@@ -12,8 +12,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 #include <contrib/libs/cppkafka/include/cppkafka/consumer.h>
 
@@ -99,7 +99,7 @@ public:
     i64 GetBufferBytes() const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TKafkaMessage> Buffer_;
     i64 BufferBytes_ = 0;
     bool Started_ = false;
@@ -202,7 +202,7 @@ private:
     std::atomic<i64> PersistedOffsetExclusive_;
 
     //! Published by the poll thread.
-    NThreading::TAtomicObject<std::optional<TKafkaWatermarks>> Watermarks_;
+    TAtomicObject<std::optional<TKafkaWatermarks>> Watermarks_;
 
     //! Published by the poll thread; -1 until resolved.
     std::atomic<i64> StartOffset_ = -1;

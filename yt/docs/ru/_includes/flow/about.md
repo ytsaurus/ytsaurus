@@ -1,5 +1,7 @@
 # Что такое {{product-name}} Flow?
 
+![{{product-name}} Flow](../../flow/_images/flow-logo.png)
+
 {{product-name}} Flow &mdash; это фреймворк для потоковой кросс-ДЦ обработки событий с гарантиями exactly-once в рамках экосистемы {{product-name}} с API для [C++](../../flow/cpp/getting-started.md), [Java и Kotlin](../../flow/java/getting-started.md), [Python](../../flow/python/getting-started.md), [Go](../../flow/go/getting-started.md), а также поддержкой декларативного описания пайплайнов на [YQL](../../flow/yql/getting-started.md).{% if audience == "internal" %} Система является логическим развитием фреймворка [BigRT](https://docs.yandex-team.ru/big_rt/).{% endif %}
 
 Ближайшими внешними аналогами являются [Google Cloud Dataflow](https://cloud.google.com/products/dataflow?skip_cache=true%22%22) и [Apache Flink](https://flink.apache.org/).{% if audience == "internal" %} В отдельной статье можно ознакомиться с [подробным сравнением с альтернативными технологиями](../../flow/other/comparison.md).{% endif %}

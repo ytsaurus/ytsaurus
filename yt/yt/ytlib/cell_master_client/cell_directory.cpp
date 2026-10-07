@@ -35,7 +35,7 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -396,7 +396,7 @@ private:
     const NNative::TConnectionOptions Options_;
     const NHiveClient::ICellDirectoryPtr HiveCellDirectory_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> RetryingCellChannelMap_;
     THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> NonRetryingCellChannelMap_;
     THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;

@@ -49,6 +49,8 @@
 
 #include <library/cpp/yt/memory/blob.h>
 
+#include <library/cpp/yt/system/local_host.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -723,7 +725,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
     TPromise<void> SuspendedPromise_;
     i64 SyncSize_ = 0;
     i64 AsyncSize_ = 0;
@@ -911,7 +913,7 @@ void TDecoratedAutomaton::ResetState()
             TPhysicalVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString(std::string(UnknownHostName)));
+            /*localHostNameOverride*/ UnknownHostName);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -1321,7 +1323,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
     }
 }
 
-TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
+TStringBuf TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = GetLocalHostName();
 
@@ -1344,13 +1346,13 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
             .With("LocalHost", localHost)
             .With("SanitizedLocalHost", UnknownHostName);
 
-        return TSharedRef::FromString(std::string(UnknownHostName));
+        return UnknownHostName;
     }
 
     YT_TLOG_INFO("Local host name sanitization disabled, using local host name as is")
         .With("LocalHost", localHost);
 
-    return TSharedRef::FromString(localHost);
+    return InternHostName(localHost);
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
@@ -1681,7 +1683,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
     YT_VERIFY(!EpochContext_.Exchange(std::move(epochContext)));
 
     SanitizedLocalHostName_ = SanitizeLocalHostName();
-    YT_VERIFY(!SanitizedLocalHostName_.Empty());
+    YT_VERIFY(!SanitizedLocalHostName_.empty());
 }
 
 void TDecoratedAutomaton::CancelSnapshot(const TError& error)
@@ -1704,7 +1706,7 @@ void TDecoratedAutomaton::StopEpoch()
     CancelSnapshot(error);
 
     EpochContext_.Store(nullptr);
-    SanitizedLocalHostName_.Reset();
+    SanitizedLocalHostName_ = {};
 }
 
 void TDecoratedAutomaton::OnSnapshotBuilt(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)

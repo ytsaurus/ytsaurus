@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/yt/system/atomic_object.h>
 
 namespace NYT::NChunkClient {
 
@@ -135,7 +135,7 @@ private:
     //! NodeId -> UnbanTime for nodes that throttled our requests.
     THashMap<NNodeTrackerClient::TNodeId, TInstant> UnbanTime_;
 
-    NThreading::TAtomicObject<TFuture<void>> ActiveTaskFuture_;
+    TAtomicObject<TFuture<void>> ActiveTaskFuture_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 

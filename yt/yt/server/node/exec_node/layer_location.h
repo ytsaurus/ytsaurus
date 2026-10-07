@@ -172,7 +172,7 @@ private:
 
     std::atomic<int> LayerImportsInProgress_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
 
     THashMap<TLayerId, TLayerMeta> LayerIdToMeta_;
     THashMap<TVolumeId, TVolumeMeta> VolumeIdToMeta_;

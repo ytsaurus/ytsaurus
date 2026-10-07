@@ -95,7 +95,7 @@ public:
     }
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TRecordedRequest LastRequest_;
     std::atomic<TDuration> ReplyDelay_ = TDuration::Zero();
 

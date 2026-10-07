@@ -7,8 +7,8 @@
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/system/atomic_object.h>
+#include <library/cpp/yt/system/rw_spin_lock.h>
 
 namespace NYT::NScheduler::NStrategy {
 
@@ -48,7 +48,7 @@ public:
     inline bool GetAlive() const;
     inline void SetNonAlive();
 
-    NThreading::TWriterGuard<NThreading::TPaddedReaderWriterSpinLock> AcquireWriteLock();
+    TWriterGuard<TPaddedReaderWriterSpinLock> AcquireWriteLock();
 
     inline const std::string& GetId();
 
@@ -59,7 +59,7 @@ private:
     const std::string Id_;
     const EResourceTreeElementKind Kind_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TPaddedReaderWriterSpinLock, ResourceUsageLock_);
+    YT_DECLARE_SPIN_LOCK(TPaddedReaderWriterSpinLock, ResourceUsageLock_);
     std::optional<TJobResources> SpecifiedResourceLimits_;
     TJobResources SpecifiedResourceLimitsOvercommitTolerance_;
     TJobResources ResourceUsage_;

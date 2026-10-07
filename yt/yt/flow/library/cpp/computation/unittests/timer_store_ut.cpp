@@ -124,6 +124,135 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTimerStreamGroupsTest
+    : public ::testing::Test
+{
+protected:
+    TTimerTriggerConditions Conditions_;
+
+    void AddTimer(
+        const TStreamId& timerId,
+        THashMap<TStreamId, TDuration> streams,
+        ETimeType timeType = ETimeType::SystemTime)
+    {
+        TTimerTriggerCondition condition{
+            .TimeType = timeType,
+            .StreamsWithDelays = std::move(streams),
+        };
+        Conditions_.emplace(timerId, std::move(condition));
+    }
+
+    void ExpectGroups(std::vector<std::vector<TStreamId>> expected)
+    {
+        auto actual = BuildTimerStreamGroups(Conditions_);
+        auto normalize = [] (auto* groups) {
+            for (auto& group : *groups) {
+                std::sort(group.begin(), group.end());
+            }
+            std::sort(groups->begin(), groups->end());
+        };
+        normalize(&actual);
+        normalize(&expected);
+        EXPECT_EQ(actual, expected);
+    }
+};
+
+TEST_F(TTimerStreamGroupsTest, Empty)
+{
+    ExpectGroups({});
+}
+
+TEST_F(TTimerStreamGroupsTest, TransitiveIntersection)
+{
+    AddTimer("first", {{"a", {}}, {"b", {}}});
+    AddTimer("bridge", {{"b", TDuration::Seconds(1)}, {"c", {}}});
+    AddTimer("last", {{"c", TDuration::Seconds(2)}, {"d", {}}});
+    AddTimer("independent", {{"e", {}}});
+    ExpectGroups({{"first", "bridge", "last"}, {"independent"}});
+}
+
+TEST_F(TTimerStreamGroupsTest, EqualAndNestedConditions)
+{
+    AddTimer("wide", {{"a", {}}, {"b", {}}});
+    AddTimer("equal", {{"a", {}}, {"b", {}}});
+    AddTimer("narrow", {{"a", {}}});
+    AddTimer("other", {{"c", {}}});
+    AddTimer("other_equal", {{"c", TDuration::Seconds(10)}});
+    ExpectGroups({{"wide", "equal", "narrow"}, {"other", "other_equal"}});
+}
+
+TEST_F(TTimerStreamGroupsTest, TimeTypes)
+{
+    AddTimer("system", {{"a", {}}});
+    AddTimer("event", {{"a", {}}}, ETimeType::EventTime);
+    AddTimer("current", {{"a", {}}}, ETimeType::CurrentTime);
+    AddTimer("other_current", {{"b", TDuration::Seconds(10)}}, ETimeType::CurrentTime);
+    AddTimer("empty_current", {}, ETimeType::CurrentTime);
+    ExpectGroups({{"system"}, {"event"}, {"current", "other_current", "empty_current"}});
+}
+
+TEST_F(TTimerStreamGroupsTest, EmptyConditions)
+{
+    AddTimer("first", {{"a", {}}});
+    AddTimer("empty", {});
+    AddTimer("other_empty", {});
+    ExpectGroups({{"first"}, {"empty"}, {"other_empty"}});
+}
+
+TEST(TTimerTriggerConditionsTest, ResolveConditions)
+{
+    for (auto timeType : {ETimeType::SystemTime, ETimeType::EventTime, ETimeType::CurrentTime}) {
+        auto context = New<TTimerStoreContext>();
+        for (const auto& name : {"default", "streams", "delays", "empty_streams", "empty_delays"}) {
+            auto timerId = TStreamId(name);
+            auto spec = New<TTimerSpec>();
+            spec->TimeType = timeType;
+            context->TimerSpecs[timerId] = spec;
+            context->StreamsDependency[timerId] = {"default_input"};
+        }
+        context->TimerSpecs["streams"]->Streams = THashSet<TStreamId>{"a", "b"};
+        auto delayedSpec = context->TimerSpecs["delays"];
+        delayedSpec->Streams = THashSet<TStreamId>{"ignored"};
+        delayedSpec->StreamsWithDelays = {{"c", TDuration::Seconds(2)}, {"d", TDuration::Seconds(5)}};
+        context->TimerSpecs["empty_streams"]->Streams.emplace();
+        auto emptyDelaysSpec = context->TimerSpecs["empty_delays"];
+        emptyDelaysSpec->Streams = THashSet<TStreamId>{"ignored"};
+        emptyDelaysSpec->StreamsWithDelays.emplace();
+
+        auto conditions = BuildTimerTriggerConditions(context);
+        ASSERT_EQ(conditions.size(), 5u);
+        for (const auto& [timerId, condition] : conditions) {
+            EXPECT_EQ(condition.TimeType, timeType);
+        }
+        const THashMap<TStreamId, TDuration> defaultInputs = {{"default_input", {}}};
+        const THashMap<TStreamId, TDuration> explicitInputs = {{"a", {}}, {"b", {}}};
+        EXPECT_EQ(GetOrCrash(conditions, "default").StreamsWithDelays, defaultInputs);
+        EXPECT_EQ(GetOrCrash(conditions, "streams").StreamsWithDelays, explicitInputs);
+        EXPECT_EQ(GetOrCrash(conditions, "delays").StreamsWithDelays, *delayedSpec->StreamsWithDelays);
+        EXPECT_TRUE(GetOrCrash(conditions, "empty_streams").StreamsWithDelays.empty());
+        EXPECT_TRUE(GetOrCrash(conditions, "empty_delays").StreamsWithDelays.empty());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TTimerStoreTest, AllowedStreamsApplyTimerGroups)
+{
+    auto context = MakeContext();
+    const TStreamId blockedId("blocked");
+    context->TimerSpecs[blockedId] = context->TimerSpecs[TimerStreamId];
+    context->StreamsDependency[blockedId].insert(InputStreamId);
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+    store->Register({MakeTimer("timer")});
+    SetWatermark(store, /*timestamp*/ 1000);
+
+    EXPECT_TRUE(store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB).empty());
+    auto batch = store->GetNextBatch({TimerStreamId, blockedId}, /*maxRows*/ 100, /*maxByteSize*/ 1_MB);
+    ASSERT_EQ(batch.size(), 1u);
+    EXPECT_EQ(batch[0]->MessageId, TMessageId("timer"));
+}
+
 TEST_F(TTimerStoreTest, InitReturnsOK)
 {
     auto context = MakeContext();

@@ -2382,12 +2382,17 @@ void TSchedulingPolicy::Initialize()
         BIND(&TSchedulingPolicy::ManageSchedulingSegments, MakeWeak(this)),
         Config_->SchedulingSegments->ManagePeriod);
     SchedulingSegmentsManagementExecutor_->Start();
+}
 
-    MinNodeResourceLimitsCheckExecutor_ = New<TPeriodicExecutor>(
-        StrategyHost_->GetControlInvoker(EControlQueue::Strategy),
-        BIND(&TSchedulingPolicy::CheckMinNodeResourceLimits, MakeWeak(this)),
-        Config_->MinNodeResourceLimitsCheckPeriod);
-    MinNodeResourceLimitsCheckExecutor_->Start();
+std::vector<TExecNodeDescriptorPtr> TSchedulingPolicy::GetNodeDescriptors() const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TExecNodeDescriptorPtr> descriptors;
+    for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
+        descriptors.push_back(state->Descriptor);
+    }
+    return descriptors;
 }
 
 void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddress)
@@ -3035,8 +3040,6 @@ void TSchedulingPolicy::UpdateConfig(TStrategyTreeConfigPtr config)
             Y_UNUSED(SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState));
         }
     }
-
-    MinNodeResourceLimitsCheckExecutor_->SetPeriod(Config_->MinNodeResourceLimitsCheckPeriod);
 
     UpdateSsdPriorityPreemptionMedia();
 }
@@ -4052,70 +4055,6 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
         .ThrowOnError();
 }
 
-void TSchedulingPolicy::CheckMinNodeResourceLimits()
-{
-    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
-
-    static const int MaxViolatingNodesInError = 10;
-
-    if (!TreeHost_->IsConnected()) {
-        return;
-    }
-
-    auto now = TInstant::Now();
-    auto gracePeriod = Config_->MinNodeResourceLimitsViolationTimeout;
-    auto minResourceLimits = ToJobResources(Config_->MinNodeResourceLimits, TJobResources());
-
-    THashSet<std::string> currentlyViolatingAddresses;
-    for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
-        if (!state->Descriptor) {
-            continue;
-        }
-
-        // Ignore nodes with disabled jobs.
-        if (state->Descriptor->ResourceLimits.GetUserSlots() == 0) {
-            continue;
-        }
-
-        if (!Dominates(state->Descriptor->ResourceLimits, minResourceLimits)) {
-            currentlyViolatingAddresses.insert(state->Descriptor->GetDefaultAddress());
-        }
-    }
-
-    std::vector<std::string> addressesToRemove;
-    for (const auto& [address, _] : NodeToResourceLimitsViolationStartTime_) {
-        if (!currentlyViolatingAddresses.contains(address)) {
-            addressesToRemove.push_back(address);
-        }
-    }
-    for (const auto& address : addressesToRemove) {
-        NodeToResourceLimitsViolationStartTime_.erase(address);
-    }
-
-    for (const auto& address : currentlyViolatingAddresses) {
-        NodeToResourceLimitsViolationStartTime_.emplace(address, now);
-    }
-
-    std::vector<std::string> violatingNodes;
-    for (const auto& [address, violationStartTime] : NodeToResourceLimitsViolationStartTime_) {
-        if (now >= violationStartTime + gracePeriod) {
-            violatingNodes.push_back(address);
-        }
-    }
-
-    TError error;
-    if (violatingNodes.size() > 0) {
-        error = TError("Found violating nodes in tree %Qv", TreeId_);
-        if (violatingNodes.size() > MaxViolatingNodesInError) {
-            violatingNodes.resize(MaxViolatingNodesInError);
-            error = error.With("violating_nodes_truncated", true);
-        }
-        error = error.With("violating_nodes", violatingNodes);
-    }
-
-    TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::NodesWithInsufficientResourceLimits, error);
-}
-
 void TSchedulingPolicy::ManageSchedulingSegments()
 {
     YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
@@ -4204,10 +4143,7 @@ void TSchedulingPolicy::UpdateDynamicAttributesListSnapshot(
 
 TFuture<void> TSchedulingPolicy::Stop()
 {
-    return AllSucceeded(std::vector<TFuture<void>>{
-        SchedulingSegmentsManagementExecutor_->Stop(),
-        MinNodeResourceLimitsCheckExecutor_->Stop()
-    });
+    return SchedulingSegmentsManagementExecutor_->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

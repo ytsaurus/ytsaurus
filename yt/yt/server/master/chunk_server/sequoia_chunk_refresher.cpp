@@ -259,7 +259,7 @@ public:
 private:
     TBootstrap* Bootstrap_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TSequoiaChunkRefresherStatus Status_;
 
     NConcurrency::TPeriodicExecutorPtr SequoiaChunkRefreshExecutor_;
@@ -293,7 +293,7 @@ private:
     }
 
     void UpdateShards(
-        const TGuard<NThreading::TSpinLock>&,
+        const TGuard<TSpinLock>&,
         bool deactivateAllShards)
     {
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
@@ -322,7 +322,7 @@ private:
     }
 
     void UpdateAndStartSequoiaChunkRefresh(
-        const TGuard<NThreading::TSpinLock>&,
+        const TGuard<TSpinLock>&,
         TDynamicSequoiaChunkReplicasConfigPtr sequoiaReplicasConfig)
     {
         VerifyPersistentStateRead();
@@ -348,7 +348,7 @@ private:
         }
     }
 
-    void StopSequoiaChunkRefresh(const TGuard<NThreading::TSpinLock>&)
+    void StopSequoiaChunkRefresh(const TGuard<TSpinLock>&)
     {
         if (Status_.SequoiaChunkRefreshEnabled) {
             YT_TLOG_DEBUG("Stopping Sequoia chunk refresh");
@@ -362,7 +362,7 @@ private:
     }
 
     void UpdateAndStartGlobalRefresh(
-        const TGuard<NThreading::TSpinLock>& guard,
+        const TGuard<TSpinLock>& guard,
         TDynamicSequoiaChunkReplicasConfigPtr sequoiaReplicasConfig)
     {
         VerifyPersistentStateRead();
@@ -386,7 +386,7 @@ private:
         }
     }
 
-    void StartNewGlobalRefreshEpoch(const TGuard<NThreading::TSpinLock>&)
+    void StartNewGlobalRefreshEpoch(const TGuard<TSpinLock>&)
     {
         Status_.GlobalRefreshEnabled = true;
         ++Status_.GlobalRefreshEpoch;
@@ -405,7 +405,7 @@ private:
         UnsuccessfulGlobalRefreshIterations_ = 0;
     }
 
-    void StopGlobalRefresh(const TGuard<NThreading::TSpinLock>&)
+    void StopGlobalRefresh(const TGuard<TSpinLock>&)
     {
         if (Status_.GlobalRefreshEnabled) {
             YT_TLOG_DEBUG("Stopping global Sequoia chunk refresh");
@@ -426,7 +426,7 @@ private:
     }
 
     void UpdateAndStartLocationRefresh(
-        const TGuard<NThreading::TSpinLock>&,
+        const TGuard<TSpinLock>&,
         TDynamicSequoiaChunkReplicasConfigPtr sequoiaReplicasConfig)
     {
         MaxConcurrentLocationsToRefresh_ = sequoiaReplicasConfig->MaxConcurrentLocationsToRefresh;
@@ -448,7 +448,7 @@ private:
         }
     }
 
-    void StopLocationRefresh(const TGuard<NThreading::TSpinLock>&)
+    void StopLocationRefresh(const TGuard<TSpinLock>&)
     {
         if (Status_.LocationRefreshEnabled) {
             YT_TLOG_DEBUG("Stopping Sequoia location refresh");
@@ -462,7 +462,7 @@ private:
     }
 
     bool ShouldAbortRefreshIterationCausedByShardsChange(
-        const TGuard<NThreading::TSpinLock>&,
+        const TGuard<TSpinLock>&,
         const std::array<TSequoiaChunkRefresherShardStatus, ChunkShardCount>& shards,
         const std::string& executorName)
     {
@@ -525,7 +525,7 @@ private:
         }
 
         auto shouldAbortRefreshIteration = [this, this_ = MakeStrong(this)] (
-            const TGuard<NThreading::TSpinLock>& guard,
+            const TGuard<TSpinLock>& guard,
             int epoch,
             const auto& shards)
         {
@@ -739,7 +739,7 @@ private:
                 batchSize));
         }
 
-        auto shouldAbortRefreshIteration = [&] (const TGuard<NThreading::TSpinLock>& guard) {
+        auto shouldAbortRefreshIteration = [&] (const TGuard<TSpinLock>& guard) {
             if (!Status_.GlobalRefreshEnabled) {
                 YT_TLOG_DEBUG("Aborting global Sequoia chunk refresh iteration, global Sequoia chunk refresh is disabled");
                 return true;
@@ -946,7 +946,7 @@ private:
         }
 
         auto rescheduleLocationsRefresh = [&](
-            const TGuard<NThreading::TSpinLock>& guard,
+            const TGuard<TSpinLock>& guard,
             bool increaseFailedAttempts) {
             for (auto& location : locations) {
                 if (increaseFailedAttempts) {

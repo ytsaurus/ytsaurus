@@ -1252,6 +1252,9 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         THROW_ERROR_EXCEPTION("WITH INDEX clause is not supported in subqueries");
     }
 
+    ValidateOrderByOffsetAndLimit(queryExpr->Query);
+    ValidateHaving(queryExpr->Query, /*hasOrderBy*/ !queryExpr->Query.OrderExpressions.empty());
+
     if (queryExpr->Query.HavingPredicate) {
         THROW_ERROR_EXCEPTION("HAVING clause is not supported in subqueries");
     }

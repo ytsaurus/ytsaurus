@@ -10,7 +10,9 @@
 #include <contrib/libs/cppkafka/include/cppkafka/configuration.h>
 #include <contrib/libs/cppkafka/include/cppkafka/consumer.h>
 #include <contrib/libs/cppkafka/include/cppkafka/exceptions.h>
+#include <contrib/libs/cppkafka/include/cppkafka/metadata.h>
 #include <contrib/libs/cppkafka/include/cppkafka/producer.h>
+#include <contrib/libs/cppkafka/include/cppkafka/topic.h>
 
 #include <librdkafka/rdkafka.h>
 
@@ -169,6 +171,11 @@ void TTransactionalKafkaWriter::Terminate()
     }
 }
 
+TFuture<void> TTransactionalKafkaWriter::GetStarted() const
+{
+    return StartedFuture_;
+}
+
 TFuture<void> TTransactionalKafkaWriter::Write(TKafkaMessageToWrite&& message)
 {
     return Queue_.Enqueue(std::move(message));
@@ -185,6 +192,8 @@ void TTransactionalKafkaWriter::Fail(const TError& error)
         .With(error);
     ErrorState_->SetError(error);
     Queue_.Fail(error);
+    // A no-op unless the writer is still starting.
+    StartedPromise_.TrySet(error);
 }
 
 void TTransactionalKafkaWriter::Run()
@@ -202,20 +211,22 @@ void TTransactionalKafkaWriter::Run()
         return;
     }
 
-    auto markerOrError = Initialize(*producer);
+    std::unique_ptr<rd_kafka_consumer_group_metadata_t, decltype(&rd_kafka_consumer_group_metadata_destroy)> groupMetadata(
+        rd_kafka_consumer_group_metadata_new(Options_.TransactionalId.c_str()),
+        &rd_kafka_consumer_group_metadata_destroy);
+
+    auto markerOrError = Initialize(*producer, groupMetadata.get());
     if (!markerOrError.IsOK()) {
         if (!Terminated_.load()) {
             Fail(TError("Kafka transactional writer failed to start").With(markerOrError));
         } else {
             Queue_.Fail(markerOrError);
+            StartedPromise_.TrySet(TError(markerOrError));
         }
         return;
     }
     const auto marker = markerOrError.Value();
-
-    std::unique_ptr<rd_kafka_consumer_group_metadata_t, decltype(&rd_kafka_consumer_group_metadata_destroy)> groupMetadata(
-        rd_kafka_consumer_group_metadata_new(Options_.TransactionalId.c_str()),
-        &rd_kafka_consumer_group_metadata_destroy);
+    StartedPromise_.Set();
 
     // The records taken from the queue; those before |nextIndex| are committed.
     std::vector<TKafkaMessageToWrite> backlog;
@@ -230,7 +241,7 @@ void TTransactionalKafkaWriter::Run()
             for (auto& record : Queue_.TakePending(Options_.MaxTransactionRecordCount, Options_.MaxTransactionByteSize)) {
                 // The replay numbers messages from the persisted frontier as the earlier sessions did, so the
                 // records the marker covers are committed already.
-                if (marker && record.SeqNo <= *marker) {
+                if (record.SeqNo <= marker) {
                     Queue_.Complete(record.SeqNo, TError());
                     ++skippedCount;
                 } else {
@@ -240,7 +251,7 @@ void TTransactionalKafkaWriter::Run()
             if (skippedCount > 0) {
                 YT_TLOG_INFO("Skipping replayed messages already committed to Kafka")
                     .With("Count", skippedCount)
-                    .With("MarkerSeqNo", *marker);
+                    .With("MarkerSeqNo", marker);
             }
             if (backlog.empty()) {
                 // Waits for more records.
@@ -253,7 +264,7 @@ void TTransactionalKafkaWriter::Run()
             nextIndex,
             std::min<size_t>(batchLimit, backlog.size() - nextIndex));
         auto startTime = TInstant::Now();
-        auto result = TryCommitTransaction(*producer, groupMetadata.get(), batch);
+        auto result = TryCommitTransaction(*producer, groupMetadata.get(), batch, batch.back().SeqNo);
         if (Terminated_.load()) {
             break;
         }
@@ -298,7 +309,9 @@ void TTransactionalKafkaWriter::Run()
     Queue_.Fail(TError("Kafka writer terminated before the message was committed"));
 }
 
-TErrorOr<std::optional<i64>> TTransactionalKafkaWriter::Initialize(cppkafka::Producer& producer)
+TErrorOr<i64> TTransactionalKafkaWriter::Initialize(
+    cppkafka::Producer& producer,
+    const rd_kafka_consumer_group_metadata_t* groupMetadata)
 {
     // Fences the producers of earlier sessions with this transactional id and completes a transaction one
     // of them left open, so the marker read next is final.
@@ -340,12 +353,72 @@ TErrorOr<std::optional<i64>> TTransactionalKafkaWriter::Initialize(cppkafka::Pro
         return TError(markerOrError).With("group_id", Options_.TransactionalId);
     }
 
+    if (!marker) {
+        // The marker must exist before any message is handed over: otherwise a restart could not tell a
+        // writer that has never committed from one whose marker is lost.
+        if (auto error = CommitInitialMarker(producer, groupMetadata); !error.IsOK()) {
+            return error;
+        }
+        marker = Recovery_.MaxPersistedSeqNo;
+    }
+
     YT_TLOG_INFO("Kafka transactional writer initialized")
-        .With("MarkerSeqNo", marker.value_or(-1))
+        .With("MarkerSeqNo", *marker)
         .With("MaxPersistedSeqNo", Recovery_.MaxPersistedSeqNo)
         .With("MaxDistributedSeqNo", Recovery_.MaxDistributedSeqNo);
     ErrorState_->ClearError();
-    return marker;
+    return *marker;
+}
+
+TError TTransactionalKafkaWriter::CommitInitialMarker(
+    cppkafka::Producer& producer,
+    const rd_kafka_consumer_group_metadata_t* groupMetadata)
+{
+    for (int attempt = 1;; ++attempt) {
+        // Unlike producing, committing an offset does not create a missing topic. The attempt is repeated
+        // while the broker creates it.
+        TCallResult result{.Error = ResolveTopic(producer), .Kind = ETransactionErrorKind::Abortable};
+        if (result.Error.IsOK()) {
+            result = TryCommitTransaction(producer, groupMetadata, /*records*/ {}, Recovery_.MaxPersistedSeqNo);
+        }
+        if (result.Kind == ETransactionErrorKind::None) {
+            YT_TLOG_INFO("Committed the initial Kafka sink progress marker")
+                .With("MarkerSeqNo", Recovery_.MaxPersistedSeqNo);
+            return {};
+        }
+        if (result.Kind == ETransactionErrorKind::Fatal ||
+            attempt >= Options_.MaxConsecutiveFailures ||
+            Terminated_.load())
+        {
+            return TError("Failed to commit the initial Kafka sink progress marker")
+                .With("attempt_count", attempt)
+                .With(result.Error);
+        }
+        YT_TLOG_WARNING("Failed to commit the initial Kafka sink progress marker, retrying")
+            .With(result.Error);
+        ErrorState_->SetError(result.Error);
+        SleepUnlessTerminated(Terminated_, Options_.RetryBackoff);
+    }
+}
+
+TError TTransactionalKafkaWriter::ResolveTopic(cppkafka::Producer& producer)
+{
+    try {
+        auto metadata = producer.get_metadata(producer.get_topic(Options_.Topic), TransactionRequestTimeout);
+        if (auto error = metadata.get_error()) {
+            return TError("Kafka metadata request for topic %Qv failed: %v",
+                Options_.Topic,
+                error.to_string())
+                .With("sasl_username", Client_->GetSaslUsername());
+        }
+        if (metadata.get_partitions().empty()) {
+            return TError("Kafka reported no partitions for topic %Qv", Options_.Topic);
+        }
+        return {};
+    } catch (const std::exception& ex) {
+        return TError("Kafka metadata request for topic %Qv failed", Options_.Topic)
+            .With(ex);
+    }
 }
 
 TErrorOr<std::optional<TKafkaCommittedOffset>> TTransactionalKafkaWriter::ReadCommittedOffset()
@@ -415,7 +488,8 @@ TTransactionalKafkaWriter::TCallResult TTransactionalKafkaWriter::CallRetrying(
 TTransactionalKafkaWriter::TCallResult TTransactionalKafkaWriter::TryCommitTransaction(
     cppkafka::Producer& producer,
     const rd_kafka_consumer_group_metadata_s* groupMetadata,
-    std::span<const TKafkaMessageToWrite> records)
+    std::span<const TKafkaMessageToWrite> records,
+    i64 markerSeqNo)
 {
     auto* handle = producer.get_handle();
     auto timeoutMs = ToTimeoutMs(TransactionRequestTimeout);
@@ -473,7 +547,7 @@ TTransactionalKafkaWriter::TCallResult TTransactionalKafkaWriter::TryCommitTrans
     std::string metadata(KafkaProgressMarkerMetadata);
     auto* offsets = rd_kafka_topic_partition_list_new(/*size*/ 1);
     auto* marker = rd_kafka_topic_partition_list_add(offsets, Options_.Topic.c_str(), ProgressMarkerPartition);
-    marker->offset = records.back().SeqNo;
+    marker->offset = markerSeqNo;
     // Borrowed from |metadata|; detached before the list frees its elements.
     marker->metadata = metadata.data();
     marker->metadata_size = metadata.size();

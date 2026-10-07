@@ -1,6 +1,7 @@
 package sleep
 
 import (
+	"bytes"
 	"context"
 
 	"go.ytsaurus.tech/library/go/core/log"
@@ -90,6 +91,14 @@ func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
 	}
 	// NOTE: Must use same yson format as cypress node get response to match.
 	return yson.MarshalFormat(snapshot, yson.FormatBinary)
+}
+
+func (c *Controller) IsControllerSnapshotOutdated(snapshot yson.RawValue, _ *strawberry.Oplet) (bool, error) {
+	current, err := c.GetControllerSnapshot()
+	if err != nil {
+		return false, err
+	}
+	return !bytes.Equal(snapshot, current), nil
 }
 
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {

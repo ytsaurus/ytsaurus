@@ -668,11 +668,11 @@ TCounter* TTableProfiler::GetOrCreateCounter(std::optional<TCounter>* counter, T
         return &staticCounter;
     }
 
-    auto readerGuard = NThreading::ReaderGuard(SpinLock_);
+    auto readerGuard = ReaderGuard(SpinLock_);
     if (!counter->has_value()) {
         readerGuard.Release();
 
-        auto writerGuard = NThreading::WriterGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
         if (!counter->has_value()) {
             if constexpr (std::is_same_v<TCallback, std::monostate>) {
                 counter->emplace(Profiler_);

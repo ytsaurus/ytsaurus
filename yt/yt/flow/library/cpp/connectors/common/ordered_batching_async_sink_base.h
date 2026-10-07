@@ -79,7 +79,7 @@ private:
     TMessageId LastMessageId_ = {};
     i64 LastSeqNo_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     std::deque<TMessageId> OldBounds_;
     TRequest Request_;
     TError DistributeError_;

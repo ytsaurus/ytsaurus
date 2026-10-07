@@ -25,7 +25,7 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
-#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/system/spin_lock.h>
 
 namespace NYT::NJournalClient {
 namespace {
