@@ -1015,8 +1015,7 @@ TFuture<void> TLayerCache::Initialize()
         DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager->LayerCache->LayerImportConcurrency);
     for (const auto& location : LayerLocations_) {
         for (const auto& layerMeta : location->GetAllLayers()) {
-            TArtifactKey key;
-            key.MergeFrom(layerMeta.artifact_key());
+            auto key = TArtifactKey(layerMeta.artifact_key());
 
             YT_TLOG_DEBUG("Loading existing cached Porto layer")
                 .With("LayerId", layerMeta.Id)

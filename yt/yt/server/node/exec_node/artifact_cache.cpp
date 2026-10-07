@@ -551,13 +551,6 @@ public:
         return false;
     }
 
-    TArtifactPtr FindArtifact(TChunkId chunkId)
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return Find(TArtifactKey(chunkId));
-    }
-
     std::vector<TArtifactPtr> GetArtifacts()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -595,25 +588,30 @@ public:
         YT_TLOG_INFO("Downloading artifact")
             .With("ArtifactKey", key);
 
-        auto cookie = BeginInsert(key);
+        auto cookie = BeginInsert(key, key.GetFileSizeEstimateOrCrash());
         auto cookieValue = cookie.GetValue();
 
         if (cookie.IsActive()) {
-            if (auto optionalDescriptor = ExtractRegisteredChunk(key)) {
-                // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
+            auto future = ExtractRegisteredChunk(key);
+            if (fetchedFromCache) {
                 // NB: fetchedFromCache is set optimistically before validation completes.
                 // If DoValidateChunk finds corruption and falls back to DoDownloadArtifact,
                 // the artifact will be fetched over the network despite fetchedFromCache=true.
-                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor, Logger);
-                if (fetchedFromCache) {
-                    *fetchedFromCache = true;
-                }
-            } else {
-                DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
-                if (fetchedFromCache) {
-                    *fetchedFromCache = false;
-                }
+                *fetchedFromCache = !future.IsSet() || future.GetOrCrash().ValueOrDefault(std::nullopt).has_value();
             }
+            return future.Apply(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<std::optional<TRegisteredChunkDescriptor>>& optionalDescriptor) mutable {
+                if (optionalDescriptor.IsOK() && optionalDescriptor.ValueOrCrash().has_value()) {
+                    // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
+                    DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor.ValueOrCrash(), Logger);
+                } else {
+                    if (!optionalDescriptor.IsOK()) {
+                        YT_TLOG_WARNING("Error extracting registered chunk")
+                            .With(optionalDescriptor);
+                    }
+                    DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
+                }
+                return cookieValue.As<TArtifactPtr>();
+            }));
         } else {
             YT_TLOG_INFO("Artifact is either found in cache or is being downloaded");
             if (fetchedFromCache) {
@@ -664,8 +662,32 @@ public:
                 }
             }
 
+            std::vector<TFuture<void>> pendingRegistrations;
             {
-                auto guard = Guard(RegisteredChunkMapLock_);
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                THashMap<TChunkId, TPendingChunkRegistrationDescriptor> newPendingChunkRegistrationMap;
+
+                for (const auto& [chunkId, chunkDescriptor] : PendingChunkRegistrationMap_) {
+                    if (chunkDescriptor.Location == location) {
+                        if (!chunkDescriptor.Registration) {
+                            continue;
+                        }
+                        pendingRegistrations.push_back(chunkDescriptor.Registration);
+                    }
+                    newPendingChunkRegistrationMap.emplace(chunkId, chunkDescriptor);
+                }
+                PendingChunkRegistrationMap_ = std::move(newPendingChunkRegistrationMap);
+            }
+
+            WaitUntilSet(
+                AllSet(std::move(pendingRegistrations))
+                    .AsVoid());
+
+            {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                for (const auto& [chunkId, chunkDescriptor] : PendingChunkRegistrationMap_) {
+                    YT_VERIFY(chunkDescriptor.Location != location);
+                }
                 THashMap<TArtifactKey, TRegisteredChunkDescriptor> newRegisteredChunkMap;
                 for (const auto& [artifactKey, chunkDescriptor] : RegisteredChunkMap_) {
                     if (chunkDescriptor.Location != location) {
@@ -694,8 +716,16 @@ private:
         TChunkDescriptor Descriptor;
     };
 
-    YT_DECLARE_SPIN_LOCK(TSpinLock, RegisteredChunkMapLock_);
+    struct TPendingChunkRegistrationDescriptor
+    {
+        TCacheLocationPtr Location;
+        TChunkDescriptor Descriptor;
+        TFuture<void> Registration;
+    };
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, UnvalidatedChunkMapsLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
+    THashMap<TChunkId, TPendingChunkRegistrationDescriptor> PendingChunkRegistrationMap_;
 
     TPerCategoryThrottlerProvider CreateBandwithThrottlerProvider()
     {
@@ -733,8 +763,33 @@ private:
             return;
         }
 
+        // If a chunk is discovered on disk, it needs to be registered (which involves reading
+        // meta from disk to deserialize the artifact key), and then validated, before finally
+        // being inserted into SLRU. This either happens when the artifact is first requested
+        // or eventually via background validation.
         for (const auto& descriptor : descriptors) {
-            RegisterChunk(location, descriptor);
+            if (IsArtifactChunkId(descriptor.Id)) {
+                // These are registered and put into RegisteredChunkMap_ straight away, because
+                // their chunk id cannot be reconstructed from an artifact key and therefore we
+                // need to deserialize it now.
+                RegisterChunk(location, descriptor);
+                continue;
+            }
+
+            // For single-chunk file artifacts, whose chunk id equals file chunk id, we can
+            // postpone registration because their chunk id can be used for lookup instead of
+            // artifact key. Before they make it into RegisteredChunkMap_, they will hang around
+            // in PendingChunkRegistrationMap_.
+            auto guard = Guard(UnvalidatedChunkMapsLock_);
+            if (PendingChunkRegistrationMap_.contains(descriptor.Id)) {
+                guard.Release();
+                RemoveUnregisteredChunkFiles(location, descriptor.Id);
+                continue;
+            }
+            EmplaceOrCrash(PendingChunkRegistrationMap_, descriptor.Id, TPendingChunkRegistrationDescriptor{
+                .Location = location,
+                .Descriptor = descriptor,
+            });
         }
 
         location->Start();
@@ -773,44 +828,76 @@ private:
 
     void RunBackgroundValidation()
     {
-        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND_NO_PROPAGATE([this_ = MakeStrong(this), this] {
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] {
             // Delay start of background validation to populate chunk cache with useful artifacts.
             TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
 
             YT_TLOG_INFO("Background artifacts validation started");
 
             while (true) {
-                auto guard = Guard(RegisteredChunkMapLock_);
-                if (RegisteredChunkMap_.empty()) {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+
+                if (!RegisteredChunkMap_.empty()) {
+                    auto artifactKey = RegisteredChunkMap_.begin()->first;
+
+                    guard.Release();
+
+                    auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, /*artifactDownloadOptions*/ {}));
+                    if (!errorOrChunk.IsOK()) {
+                        YT_TLOG_WARNING("Background artifact validation failed")
+                            .With("ArtifactKey", artifactKey)
+                            .With(errorOrChunk);
+                    }
+                } else if (!PendingChunkRegistrationMap_.empty()) {
+                    auto chunkId = PendingChunkRegistrationMap_.begin()->first;
+                    GuardedRegisterChunkIfNeeded(chunkId, guard);
+                    auto future = PendingChunkRegistrationMap_.begin()->second.Registration;
+                    YT_VERIFY(future);
+
+                    guard.Release();
+
+                    auto registrationResult = WaitFor(future);
+                    if (!registrationResult.IsOK()) {
+                        YT_TLOG_WARNING("Artifact registration failed")
+                            .With("ChunkId", chunkId)
+                            .With(registrationResult);
+                    }
+                } else {
                     YT_TLOG_INFO("Background artifacts validation finished");
                     return;
-                }
-
-                auto artifactKey = RegisteredChunkMap_.begin()->first;
-                guard.Release();
-
-                TArtifactDownloadOptions options;
-                auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
-                if (!errorOrChunk.IsOK()) {
-                    YT_TLOG_WARNING("Background artifact validation failed")
-                        .With("ArtifactKey", artifactKey)
-                        .With(errorOrChunk);
                 }
 
                 TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
             }}));
     }
 
-    std::optional<TRegisteredChunkDescriptor> ExtractRegisteredChunk(const TArtifactKey& key)
+    TFuture<std::optional<TRegisteredChunkDescriptor>> ExtractRegisteredChunk(const TArtifactKey& key)
     {
-        auto guard = Guard(RegisteredChunkMapLock_);
-        auto it = RegisteredChunkMap_.find(key);
-        if (it == RegisteredChunkMap_.end()) {
-            return std::nullopt;
+        auto guard = Guard(UnvalidatedChunkMapsLock_);
+        TChunkId chunkId;
+        if (key.chunk_specs_size() == 1) {
+            chunkId = FromProto<TChunkId>(key.chunk_specs()[0].chunk_id());
+            GuardedRegisterChunkIfNeeded(chunkId, guard);
         }
-        auto descriptor = std::move(it->second);
-        RegisteredChunkMap_.erase(it);
-        return descriptor;
+        if (chunkId && PendingChunkRegistrationMap_.contains(chunkId)) {
+            const auto& registration = GetOrCrash(PendingChunkRegistrationMap_, chunkId).Registration;
+            YT_VERIFY(registration);
+            return registration.Apply(BIND([=, this, this_ = MakeStrong(this)] () -> std::optional<TRegisteredChunkDescriptor> {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                if (!RegisteredChunkMap_.contains(key)) {
+                    return std::nullopt;
+                }
+                auto descriptor = std::move(GetOrCrash(RegisteredChunkMap_, key));
+                EraseOrCrash(RegisteredChunkMap_, key);
+                return std::move(descriptor);
+            }));
+        }
+        if (auto it = RegisteredChunkMap_.find(key); it != RegisteredChunkMap_.end()) {
+            auto descriptor = std::move(it->second);
+            RegisteredChunkMap_.erase(it);
+            return MakeFuture(std::optional(descriptor));
+        }
+        return MakeFuture<std::optional<TRegisteredChunkDescriptor>>(std::nullopt);
     }
 
     void DoDownloadArtifact(
@@ -928,16 +1015,8 @@ private:
 
             auto dataFileName = location->GetChunkPath(chunkId);
 
-            auto chunkReader = New<TChunkFileReader>(
-                location->GetIOEngine(),
-                chunkId,
-                dataFileName);
-
-            auto metaOrError = WaitFor(chunkReader->GetMeta(chunkReadOptions, {}));
-            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to read cached chunk meta");
-
-            auto meta = std::move(metaOrError.Value());
-            auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
+            YT_VERIFY(key.chunk_specs_size() == 1);
+            auto miscExt = GetProtoExtension<TMiscExt>(key.chunk_specs()[0].chunk_meta().extensions());
 
             try {
                 TFile dataFile(dataFileName, OpenExisting | RdOnly | CloseOnExec);
@@ -1050,6 +1129,41 @@ private:
         }
     }
 
+    void GuardedRegisterChunkIfNeeded(TChunkId chunkId, const TGuard<TSpinLock>& /*guard*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto it = PendingChunkRegistrationMap_.find(chunkId);
+        if (it == PendingChunkRegistrationMap_.end()) {
+            return;
+        }
+        if (it->second.Registration) {
+            return;
+        }
+
+        it->second.Registration = BIND(
+            &TImpl::RegisterChunk,
+            MakeStrong(this),
+            it->second.Location,
+            it->second.Descriptor)
+            .AsyncVia(it->second.Location->GetAuxPoolInvoker())
+            .Run()
+            .Apply(BIND([this, this_ = MakeStrong(this), chunkId] (const TError& result) {
+                auto guard = Guard(UnvalidatedChunkMapsLock_);
+                EraseOrCrash(PendingChunkRegistrationMap_, chunkId);
+                result.ThrowOnError();
+            })
+                .AsyncVia(it->second.Location->GetAuxPoolInvoker()))
+            .ToUncancelable();
+    }
+
+    void RegisterChunkIfNeeded(TChunkId chunkId)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        GuardedRegisterChunkIfNeeded(chunkId, Guard(UnvalidatedChunkMapsLock_));
+    }
+
     void RegisterChunk(
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
@@ -1058,21 +1172,32 @@ private:
 
         auto chunkId = descriptor.Id;
 
+        auto lockedChunkGuard = location->TryLockChunk(chunkId);
+        YT_VERIFY(lockedChunkGuard);
+
+        auto fileRemover = Finally([&] {
+            location->RemoveChunkFiles(chunkId, /*force*/ true);
+        });
+
+        // RemoveChunkFiles will unlock the chunk instead.
+        std::move(lockedChunkGuard).Release();
+
         auto optionalKey = TryParseArtifactMeta(location, chunkId);
         if (!optionalKey) {
             return;
         }
         const auto& key = *optionalKey;
 
-        {
-            auto lockedChunkGuard = location->TryLockChunk(chunkId);
-            YT_VERIFY(lockedChunkGuard);
-            std::move(lockedChunkGuard).Release();
+        // COMPAT(dann239): Previous node versions sometimes constructed "hollow" artifact keys.
+        if (!key.IsInitialized()) {
+            YT_TLOG_WARNING("Skipping chunk with an uninitialized key")
+                .With("ChunkId", chunkId);
+            return;
         }
 
         bool inserted;
         {
-            auto guard = Guard(RegisteredChunkMapLock_);
+            auto guard = Guard(UnvalidatedChunkMapsLock_);
             inserted = RegisteredChunkMap_.emplace(key, TRegisteredChunkDescriptor{
                 .Location = location,
                 .Descriptor = descriptor
@@ -1082,10 +1207,10 @@ private:
         if (!inserted) {
             YT_TLOG_WARNING("Removing duplicate cached chunk")
                 .With("ChunkId", chunkId);
-            location->RemoveChunkFiles(chunkId, true);
             return;
         }
 
+        fileRemover.Release();
         YT_TLOG_DEBUG("Cached chunk registered")
             .With("ChunkId", chunkId)
             .With("LocationId", location->GetId())
@@ -2012,11 +2137,34 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
+        auto dataFileName = location->GetChunkPath(chunkId);
+
         if (!IsArtifactChunkId(chunkId)) {
-            return TArtifactKey(chunkId);
+            auto chunkReader = New<TChunkFileReader>(
+                location->GetIOEngine(),
+                chunkId,
+                dataFileName);
+
+            auto options = MakeClientChunkReadOptions(
+                /*artifactDownloadOptions*/ {},
+                /*bypassArtifactCache*/ false);
+
+            auto metaOrError = WaitFor(chunkReader->GetMeta(options, {}));
+            if (!metaOrError.IsOK()) {
+                YT_TLOG_WARNING("Failed to read cached chunk meta")
+                    .With(metaOrError);
+                return std::nullopt;
+            }
+
+            auto meta = std::move(metaOrError.Value());
+
+            auto chunkSpec = TChunkSpec();
+            ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+            chunkSpec.mutable_chunk_meta()->CopyFrom(*meta);
+
+            return TArtifactKey(EDataSourceType::File, {std::move(chunkSpec)});
         }
 
-        auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
 
         TSharedMutableRef metaBlob;
@@ -2031,47 +2179,53 @@ private:
             metaInput.Read(metaBlob.Begin(), metaFile.GetLength());
         })).Run();
 
-        auto readMeta = [&] () -> std::optional<TArtifactKey> {
-            if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
-                YT_TLOG_WARNING("Artifact meta file is too short")
-                    .With("FileName", metaFileName)
-                    .With("MinSize", sizeof(TArtifactMetaHeader));
-                return std::nullopt;
-            }
-
-            const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
-            if (header->Signature != header->ExpectedSignature) {
-                YT_TLOG_WARNING("Bad signature in artifact meta file")
-                    .With("FileName", metaFileName)
-                    .WithFormat("ExpectedSignature", "%X", header->ExpectedSignature)
-                    .WithFormat("Signature", "%X", header->Signature);
-                return std::nullopt;
-            }
-
-            if (header->Version != header->ExpectedVersion) {
-                YT_TLOG_WARNING("Incompatible version in artifact meta file")
-                    .With("FileName", metaFileName)
-                    .With("ExpectedVersion", header->ExpectedVersion)
-                    .With("Version", header->Version);
-                return std::nullopt;
-            }
-
-            metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
-            TArtifactKey key;
-            if (!TryDeserializeProto(&key, metaBlob)) {
-                YT_TLOG_WARNING("Failed to parse artifact meta file")
-                    .With("FileName", metaFileName);
-                return std::nullopt;
-            }
-
-            return key;
-        };
-
-        auto key = readMeta();
-        if (!key) {
-            location->RemoveChunkFiles(chunkId, true);
+        if (metaBlob.Size() < sizeof(TArtifactMetaHeader)) {
+            YT_TLOG_WARNING("Artifact meta file is too short")
+                .With("FileName", metaFileName)
+                .With("MinSize", sizeof(TArtifactMetaHeader));
+            return std::nullopt;
         }
-        return key;
+
+        const auto* header = reinterpret_cast<const TArtifactMetaHeader*>(metaBlob.Begin());
+        if (header->Signature != header->ExpectedSignature) {
+            YT_TLOG_WARNING("Bad signature in artifact meta file")
+                .With("FileName", metaFileName)
+                .WithFormat("ExpectedSignature", "%X", header->ExpectedSignature)
+                .WithFormat("Signature", "%X", header->Signature);
+            return std::nullopt;
+        }
+
+        if (header->Version != header->ExpectedVersion) {
+            YT_TLOG_WARNING("Incompatible version in artifact meta file")
+                .With("FileName", metaFileName)
+                .With("ExpectedVersion", header->ExpectedVersion)
+                .With("Version", header->Version);
+            return std::nullopt;
+        }
+
+        metaBlob = metaBlob.Slice(sizeof(TArtifactMetaHeader), metaBlob.Size());
+        NProto::TArtifactKey key;
+        if (!TryDeserializeProto(&key, metaBlob)) {
+            YT_TLOG_WARNING("Failed to parse artifact meta file")
+                .With("FileName", metaFileName);
+            return std::nullopt;
+        }
+
+        return TArtifactKey(key);
+    }
+
+    void RemoveUnregisteredChunkFiles(const TCacheLocationPtr& location, TChunkId chunkId)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+
+        YT_TLOG_INFO("Removing an unwanted unregistered chunk")
+            .With("ChunkId", chunkId)
+            .With("LocationId", location->GetId());
+
+        auto guard = location->TryLockChunk(chunkId);
+        YT_VERIFY(guard);
+        std::move(guard).Release();
+        location->RemoveChunkFiles(chunkId, /*force*/ true);
     }
 
     NDataNode::TArtifactCacheReaderConfigPtr GetArtifactCacheReaderConfig() const
@@ -2111,13 +2265,6 @@ bool TArtifactCache::IsEnabled() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->IsEnabled();
-}
-
-TArtifactPtr TArtifactCache::FindArtifact(TChunkId chunkId)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return Impl_->FindArtifact(chunkId);
 }
 
 std::vector<TArtifactPtr> TArtifactCache::GetArtifacts()

@@ -43,9 +43,6 @@ public:
     //! Returns |true| if at least one chunk cache location is enabled.
     bool IsEnabled() const;
 
-    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    TArtifactPtr FindArtifact(NChunkClient::TChunkId chunkId);
-
     //! Returns the list of all registered chunks.
     std::vector<TArtifactPtr> GetArtifacts();
 
