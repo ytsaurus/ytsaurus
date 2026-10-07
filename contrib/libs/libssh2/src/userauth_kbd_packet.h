@@ -1,7 +1,4 @@
-#ifndef LIBSSH2_USERAUTH_H
-#define LIBSSH2_USERAUTH_H
-/* Copyright (C) Sara Golemon <sarag@libssh2.org>
- * Copyright (C) Daniel Stenberg
+/* Copyright (C) Xaver Loppenstedt <xaver@loppenstedt.de>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms,
@@ -40,14 +37,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-int
-_libssh2_userauth_publickey(LIBSSH2_SESSION *session,
-                            const char *username,
-                            size_t username_len,
-                            const unsigned char *pubkeydata,
-                            size_t pubkeydata_len,
-                            LIBSSH2_USERAUTH_PUBLICKEY_SIGN_FUNC
-                                ((*sign_callback)),
-                            void *abstract);
+#ifndef LIBSSH2_USERAUTH_KBD_PACKET_H
+#define LIBSSH2_USERAUTH_KBD_PACKET_H
 
-#endif /* LIBSSH2_USERAUTH_H */
+int userauth_keyboard_interactive_decode_info_request(LIBSSH2_SESSION *);
+
+#endif /* LIBSSH2_USERAUTH_KBD_PACKET_H */
