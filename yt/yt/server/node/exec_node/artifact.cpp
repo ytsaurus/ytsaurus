@@ -20,18 +20,19 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArtifactKey::TArtifactKey(TChunkId chunkId)
+TArtifactKey::TArtifactKey(
+    EDataSourceType dataSource,
+    const std::vector<TChunkSpec>& specs)
 {
-    mutable_data_source()->set_type(ToProto(EDataSourceType::File));
+    mutable_data_source()->set_type(ToProto(dataSource));
+    for (const auto& spec : specs) {
+        add_chunk_specs()->CopyFrom(spec);
+    }
+}
 
-    NChunkClient::NProto::TChunkSpec chunkSpec;
-    ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-
-    TMiscExt miscExt;
-    miscExt.set_compression_codec(ToProto(NCompression::ECodec::None));
-    SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
-
-    *add_chunk_specs() = chunkSpec;
+TArtifactKey::TArtifactKey(const NProto::TArtifactKey& key)
+{
+    CopyFrom(key);
 }
 
 TArtifactKey::TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor)
@@ -101,6 +102,11 @@ std::optional<i64> TArtifactKey::TryGetFileSizeEstimate() const
     }
 
     return fileSizeEstimate;
+}
+
+i64 TArtifactKey::GetFileSizeEstimateOrCrash() const
+{
+    return GetOrCrash(TryGetFileSizeEstimate());
 }
 
 TArtifactKey::operator size_t() const
