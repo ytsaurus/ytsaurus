@@ -1361,6 +1361,56 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
 
 } // namespace
 
+void ValidateOrderByOffsetAndLimit(const NAst::TQuery& queryAst)
+{
+    if (!queryAst.OrderExpressions.empty() && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
+    }
+
+    if (queryAst.Offset && !queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
+    }
+
+    if (queryAst.Limit && *queryAst.Limit > MaxQueryLimit) {
+        THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
+            .With("limit", *queryAst.Limit)
+            .With("max_limit", MaxQueryLimit);
+    }
+
+    i64 offset = queryAst.Offset.value_or(0);
+    i64 limit = queryAst.Limit.value_or(UnorderedReadHint);
+    if (offset < 0) {
+        THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+            .With("offset", offset);
+    }
+
+    if (limit < 0) {
+        THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+            .With("limit", limit);
+    }
+
+    THROW_ERROR_EXCEPTION_IF(
+        offset > std::numeric_limits<i64>::max() - limit,
+        "Sum of offset %v and limit %v overflows i64",
+        offset,
+        limit);
+}
+
+void ValidateHaving(const NAst::TQuery& queryAst, bool hasOrderBy)
+{
+    if (!queryAst.HavingPredicate || hasOrderBy) {
+        return;
+    }
+
+    if (queryAst.Limit) {
+        THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
+    }
+
+    if (queryAst.Offset) {
+        THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
+    }
+}
+
 TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
@@ -1493,32 +1543,15 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             .With("max_multi_join_group_number", MaxMultiJoinGroupNumber);
     }
 
+    ValidateOrderByOffsetAndLimit(queryAst);
+    ValidateHaving(queryAst, /*hasOrderBy*/ query->OrderClause != nullptr);
+
     if (queryAst.Limit) {
-        if (*queryAst.Limit > MaxQueryLimit) {
-            THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
-                .With("limit", *queryAst.Limit)
-                .With("max_limit", MaxQueryLimit);
-        }
-
         query->Limit = *queryAst.Limit;
-
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
-        }
-    } else if (!queryAst.OrderExpressions.empty()) {
-        THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
     if (queryAst.Offset) {
-        if (!query->OrderClause && query->HavingClause) {
-            THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
-        }
-
         query->Offset = *queryAst.Offset;
-
-        if (!queryAst.Limit) {
-            THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
-        }
     }
 
     TryPushDownGroupBy(query, queryAst, Logger);
