@@ -551,6 +551,12 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
+    registrar.Parameter("replication_card_retry_count", &TThis::ReplicationCardRetryCount)
+        .GreaterThanOrEqual(0)
+        .Default(5);
+    registrar.Parameter("replication_card_retry_slack_period", &TThis::ReplicationCardRetrySlackPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("replica_fallback_retry_count", &TThis::ReplicaFallbackRetryCount)
         .GreaterThanOrEqual(0)
         .Default(3);
