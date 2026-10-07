@@ -30,6 +30,11 @@ public:
     void UnregisterNode(TNodeId /*nodeId*/) override
     { }
 
+    std::vector<TExecNodeDescriptorPtr> GetNodeDescriptors() const override
+    {
+        return {};
+    }
+
     TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
