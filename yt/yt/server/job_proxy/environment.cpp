@@ -652,8 +652,13 @@ public:
     {
         YT_VERIFY(Instance_);
 
-        Instance_->Respawn();
-        OnSidecarStarted();
+        try {
+            Instance_->Respawn();
+            OnSidecarStarted();
+        } catch (const std::exception& ex) {
+            FailedSidecarCallback_(TError("Failed to restart Porto sidecar %Qv", Name_)
+                .With(ex));
+        }
     }
 
     bool IsAlive() final
