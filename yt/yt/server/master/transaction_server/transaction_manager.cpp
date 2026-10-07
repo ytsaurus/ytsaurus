@@ -1910,6 +1910,10 @@ public:
 
         MaybeValidateWritePermission(transaction);
 
+        if (!persistent && !options.PrerequisiteTransactionIds.empty()) {
+            THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported for a transient transaction commit");
+        }
+
         auto state = transaction->GetState(persistent);
         YT_VERIFY(state == ETransactionState::Active);
 
