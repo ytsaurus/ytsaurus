@@ -168,10 +168,9 @@ class RichYPath(object):
         return symbol in b"/#"
 
     def starts_with_root_designator(self, path):
-        non_space_index = len(path) - len(path.lstrip(b' '))
-        if non_space_index != len(path) and not self.is_root_designator(path[non_space_index]):
-            return False
-        return True
+        stripped = path.lstrip(b' ')
+        # "&#<id>" suppresses redirection to the object's native cell.
+        return not stripped or stripped.startswith(b'&#') or self.is_root_designator(stripped[0])
 
     def is_valid_cluster_symbol(self, symbol):
         return symbol in b"_-" or chr(symbol).isalnum()
@@ -181,7 +180,7 @@ class RichYPath(object):
             return path
         if self.starts_with_root_designator(path):
             return path
-        if b'://' not in path and b':#' not in path:
+        if b'://' not in path and b':#' not in path and b':&#' not in path:
             return path
         if b':' not in path:
             raise YPathError(

@@ -40,6 +40,16 @@ public class YPathTest {
     }
 
     @Test
+    public void simpleAmpersandObjectRoot() {
+        YPath path = YPath.simple("&#1-2-3-4/tables");
+        assertEquals(new RichYPath("&#1-2-3-4", Arrays.asList("tables")), path);
+        assertEquals("&#1-2-3-4/tables", path.toString());
+        assertTrue(path.hasObjectRootDesignator());
+        assertEquals(path, RichYPath.fromString("&#1-2-3-4/tables"));
+        assertThrows(IllegalArgumentException.class, () -> YPath.simple("&//home"));
+    }
+
+    @Test
     public void simpleIncorrectRootDesignator() {
         assertThrows(IllegalArgumentException.class, () -> YPath.simple("@hello"));
     }

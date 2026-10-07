@@ -27,12 +27,14 @@ class TokensByPath(object):
             self.slash = b"/"
             self.double_slash = b"//"
             self.sharp = b"#"
+            self.ampersand_sharp = b"&#"
             self.raw_path = bytes(path)
             self.string_type = bytes
         else:
             self.slash = "/"
             self.double_slash = "//"
             self.sharp = "#"
+            self.ampersand_sharp = "&#"
             self.raw_path = str(path)
             self.string_type = str
 
@@ -47,8 +49,8 @@ def _process_prefix(path, prefix):
     if prefix is not None and type(tokens.raw_path) is not type(prefix):
         raise YtError("Type mismatch of ypath %r and prefix %r" % (tokens.raw_path, prefix))
 
-    if tokens.raw_path == tokens.slash or tokens.raw_path.startswith(tokens.double_slash) or \
-            tokens.raw_path.startswith(tokens.sharp):
+    if tokens.raw_path == tokens.slash or \
+            tokens.raw_path.startswith((tokens.double_slash, tokens.sharp, tokens.ampersand_sharp)):
         return path
     else:
         require(prefix,
