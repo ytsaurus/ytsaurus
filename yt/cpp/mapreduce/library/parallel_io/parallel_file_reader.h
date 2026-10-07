@@ -33,6 +33,24 @@ struct TParallelFileReaderOptions
     FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 
+/// @brief Options for @ref NYT::CreateParallelFilePartitionReader.
+struct TParallelFilePartitionReaderOptions
+{
+    /// @cond Doxygen_Suppress
+    using TSelf = TParallelFilePartitionReaderOptions;
+    /// @endcond
+
+    /// @brief Number of threads.
+    FLUENT_FIELD_DEFAULT(size_t, ThreadCount, 5);
+
+    /// @brief Limits RAM usage of working threads
+    /// @note RamLimiter doesn't manage returned data
+    FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
+
+    /// @brief Options for each partition reader.
+    FLUENT_FIELD_OPTION(TFilePartitionReaderOptions, ReaderOptions);
+};
+
 /// @brief Allow to read a file in parallel.
 ///
 /// @note All Read methods are non-threadsafe.
@@ -77,6 +95,21 @@ void SaveFileParallel(
     const IClientBasePtr& client,
     const TRichYPath& path,
     const TParallelFileReaderOptions& options = {});
+
+/// @brief Create parallel reader of file partitions, see @ref NYT::IClientBase::GetFilePartitions.
+///
+/// Partitions are read in the given order, one batch per partition; empty partitions are skipped.
+::TIntrusivePtr<IParallelFileReader> CreateParallelFilePartitionReader(
+    const IClientBasePtr& client,
+    const TVector<TFilePartition>& partitions,
+    const std::shared_ptr<IThreadPool>& threadPool,
+    const TParallelFilePartitionReaderOptions& options = {});
+
+/// @brief Create parallel reader of file partitions.
+::TIntrusivePtr<IParallelFileReader> CreateParallelFilePartitionReader(
+    const IClientBasePtr& client,
+    const TVector<TFilePartition>& partitions,
+    const TParallelFilePartitionReaderOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
