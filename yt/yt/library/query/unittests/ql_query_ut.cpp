@@ -1222,6 +1222,33 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
     }, HasSubstr("OFFSET used without LIMIT"));
 }
 
+TEST_F(TQueryPrepareTest, IncorrectOffsetAndLimit)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::Int64},
+        }))));
+
+    for (const auto& [clauses, error] : std::vector<std::pair<std::string, std::string>>{
+        {"OFFSET 9223372036854775808 LIMIT 2", "Negative OFFSET is forbidden"},
+        {"OFFSET 18446744073709551615 LIMIT 2", "Negative OFFSET is forbidden"},
+        {"LIMIT 9223372036854775808", "Negative LIMIT is forbidden"},
+        {"LIMIT 18446744073709551615", "Negative LIMIT is forbidden"},
+        {Format("LIMIT %v", UnorderedReadHint), "Maximum LIMIT exceeded"},
+        {Format("LIMIT %v", OrderedReadWithPrefetchHint), "Maximum LIMIT exceeded"},
+        {Format("OFFSET 3 LIMIT %v", OrderedReadWithPrefetchHint - 1), "overflows i64"},
+        {"OFFSET 9223372036854775807 LIMIT 1", "overflows i64"},
+    }) {
+        for (bool ordered : {false, true}) {
+            auto query = Format("SELECT a FROM [//t] %v %v", ordered ? "ORDER BY a" : "", clauses);
+            SCOPED_TRACE(query);
+            EXPECT_THROW_THAT(
+                ParseAndPreparePlanFragment(&PrepareMock_, query),
+                HasSubstr(error));
+        }
+    }
+}
+
 TEST_F(TQueryPrepareTest, FormatQueryDepthLimit)
 {
     std::string expr;
@@ -1701,6 +1728,37 @@ TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
         }, split);
 
         Evaluate("a FROM [//t] offset 5 limit 1", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, OffsetAndLimitBoundaries)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+    auto source = TSource{
+        "a=1",
+        "a=2",
+        "a=3",
+    };
+
+    for (const auto& [offset, limit, expectedRows] : std::vector<std::tuple<i64, i64, TSource>>{
+        {0, 0, {}},
+        {0, OrderedReadWithPrefetchHint - 1, {"a=1", "a=2", "a=3"}},
+        {1, OrderedReadWithPrefetchHint - 1, {"a=2", "a=3"}},
+        {2, OrderedReadWithPrefetchHint - 1, {"a=3"}},
+        {std::numeric_limits<i64>::max(), 0, {}},
+    }) {
+        auto result = YsonToRows(expectedRows, split);
+        for (bool ordered : {false, true}) {
+            auto query = Format(
+                "SELECT a FROM [//t] %v OFFSET %v LIMIT %v",
+                ordered ? "ORDER BY a" : "",
+                offset,
+                limit);
+            SCOPED_TRACE(query);
+            Evaluate(query, split, source, ResultMatcher(result));
+        }
     }
 }
 
