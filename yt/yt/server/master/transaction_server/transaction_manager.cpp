@@ -309,6 +309,12 @@ public:
         }
     }
 
+    void Clear()
+    {
+        TransactionToReferencedLeases_.clear();
+        LeaseToReferencingTransactions_.clear();
+    }
+
     void RefLease(TTransaction* transaction, ILease* lease)
     {
         lease->RefPersistently(/*force*/ false); // May throw on inactive lease.
@@ -4329,6 +4335,8 @@ private:
 
         StuckTransactions_.clear();
         ClearBarriers();
+        LeasePersistentReferenceTracker_.Clear();
+        BoomerangTracker_->Clear();
     }
 
     void OnStartLeading() override
