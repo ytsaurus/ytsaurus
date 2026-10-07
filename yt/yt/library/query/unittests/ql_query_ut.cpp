@@ -11796,6 +11796,132 @@ TEST_F(TQueryEvaluateTest, BigJoin2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, MixedProjectionIndicesInGroupByAndOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto source = TSource{"a=3;b=c", "a=1;b=z", "a=2;b=b", "a=2;b=a"};
+    auto resultSplit = MakeSplit({
+        {"score", EValueType::Int64},
+        {"text", EValueType::String},
+    });
+    auto result = YsonToRows({"score=13;text=c", "score=12;text=a"}, resultSplit);
+
+    for (const auto* clauses : {
+        "ORDER BY 1 DESC, text ASC LIMIT 2",
+        "ORDER BY (1, -a) DESC, text ASC LIMIT 2",
+        "ORDER BY 1 DESC, 2 ASC, length(b) LIMIT 2",
+        "GROUP BY 1, b ORDER BY score DESC, text ASC LIMIT 2",
+        "GROUP BY b, 1 ORDER BY score DESC, text ASC LIMIT 2",
+        "GROUP BY 1, b ORDER BY 1 DESC, text ASC LIMIT 2",
+        "ORDER BY 0, 1 DESC, 2 ASC LIMIT 2",
+        "ORDER BY 1 DESC, 0, 2 ASC LIMIT 2",
+        "ORDER BY 1 DESC, 2 ASC, 0 LIMIT 2",
+        "ORDER BY 0, score DESC, text ASC LIMIT 2",
+        "GROUP BY 0, 1, b ORDER BY 1 DESC, 2 ASC LIMIT 2",
+        "GROUP BY 1, 0, b ORDER BY score DESC, text ASC LIMIT 2",
+        "GROUP BY 1, b, 0 ORDER BY score DESC, text ASC LIMIT 2",
+        "GROUP BY 1, b ORDER BY 0, score DESC, text ASC LIMIT 2",
+        "GROUP BY 0, score, b ORDER BY 1 DESC, 2 ASC LIMIT 2",
+    }) {
+        auto query = Format("SELECT a + 10 AS score, b AS text FROM `//t` %v", clauses);
+        SCOPED_TRACE(query);
+        EXPECT_NO_THROW(Evaluate(
+            query,
+            split,
+            source,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 3}));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByMixedProjectionIndicesWithoutOrderBy)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto source = TSource{"a=3;b=c", "a=1;b=z", "a=2;b=b", "a=2;b=a", "a=4;b=a"};
+    auto resultSplit = MakeSplit({
+        {"parity", EValueType::Int64},
+        {"b", EValueType::String},
+        {"count", EValueType::Int64},
+    });
+    auto result = YsonToRows({
+        "parity=0;b=a;count=2",
+        "parity=0;b=b;count=1",
+        "parity=1;b=c;count=1",
+        "parity=1;b=z;count=1",
+    }, resultSplit);
+
+    for (const auto* keys : {"1, b", "b, 1", "1, b, length(b)"}) {
+        auto query = Format(
+            "SELECT a %% 2 AS parity, b, sum(1) AS count FROM `//t` GROUP BY %v",
+            keys);
+        SCOPED_TRACE(query);
+        EXPECT_NO_THROW(Evaluate(
+            query,
+            split,
+            source,
+            OrderedResultMatcher(result, std::vector<std::string>{"parity", "b"}),
+            {.SyntaxVersion = 3}));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, UnaliasedMixedProjectionIndices)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto source = TSource{"a=3;b=c", "a=1;b=z", "a=2;b=b", "a=2;b=a"};
+    auto resultSplit = MakeSplit({
+        {"$projection_1", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto result = YsonToRows({"\"$projection_1\"=13;b=c", "\"$projection_1\"=12;b=a"}, resultSplit);
+
+    for (const auto* clauses : {
+        "ORDER BY 1 DESC, b ASC LIMIT 2",
+        "GROUP BY 1, b ORDER BY 1 DESC, b ASC LIMIT 2",
+    }) {
+        auto query = Format("SELECT a + 10, b FROM `//t` %v", clauses);
+        SCOPED_TRACE(query);
+        EXPECT_NO_THROW(Evaluate(
+            query,
+            split,
+            source,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 3}));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, ProjectionIndicesKeepLegacyIntegerConstants)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto source = TSource{"a=3;b=c", "a=1;b=z", "a=2;b=b", "a=2;b=a"};
+    auto resultSplit = MakeSplit({
+        {"score", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+    auto result = YsonToRows({"score=12;b=a", "score=12;b=b"}, resultSplit);
+
+    for (int syntaxVersion : {1, 2}) {
+        SCOPED_TRACE(syntaxVersion);
+        Evaluate(
+            "SELECT a + 10 AS score, b FROM `//t` ORDER BY 1 DESC, b ASC LIMIT 2",
+            split,
+            source,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = syntaxVersion});
+    }
+}
+
 class TQueryEvaluateSQLCompatibleGroupByOrderByTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<std::tuple<
@@ -11936,6 +12062,24 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(
             "a, b from `//t` order by -1 limit 42",
             "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` order by 1, 3, b limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` order by (1, -1), b limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` group by 1, 3, b",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` group by 1, -1, b",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` group by 1, b order by 3 limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "avg(a) as average, b from `//t` group by 1, b",
+            "Misuse of aggregate function \"avg\""),
         std::make_tuple(
             "avg(a % 2) from `//t` group by 1",
             "Misuse of aggregate function \"avg\"")));
