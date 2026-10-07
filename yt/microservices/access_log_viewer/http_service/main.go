@@ -437,13 +437,10 @@ func RunServer(cmd *cobra.Command, args []string) {
 
 	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
 
-	corsConfig := ytmsvc.CORSConfig{
-		AllowedHosts:        ytmsvc.Must(cmd.Flags().GetStringSlice("allowed-hosts")),
-		AllowedHostSuffixes: ytmsvc.Must(cmd.Flags().GetStringSlice("allowed-host-suffixes")),
-	}
+	corsConfig := newCORSConfigFromCmd(cmd)
 
 	addr := fmt.Sprintf(":%v", port)
-	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, &corsConfig)
+	router := GetRouterHandler(chytCluster, chytAlias, snapshotRoot, ytTokenEnvVariable, logsTimezone, authorizer, corsConfig)
 
 	ytmsvc.Must0(http.ListenAndServe(addr, router))
 }
