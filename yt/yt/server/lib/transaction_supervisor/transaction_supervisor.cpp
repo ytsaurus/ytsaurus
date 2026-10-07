@@ -847,7 +847,10 @@ private:
             TStrongOrderingTagsMap strongOrderingTags;
             for (const auto& entry : request->strong_ordering_tags_map()) {
                 auto cellId = FromProto<TCellId>(entry.cell_id());
-                EmplaceOrCrash(strongOrderingTags, cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags()));
+                if (!strongOrderingTags.emplace(cellId, FromProto<std::vector<std::string>>(entry.strong_ordering_tags())).second) {
+                    THROW_ERROR_EXCEPTION("Duplicate cell %v in strong ordering tags map",
+                        cellId);
+                }
             }
 
             auto expectedPrepareSignatures = BuildExpectedPrepareSignaturesFromRequest(*request, participantCellIds.size());
@@ -865,7 +868,9 @@ private:
                     info.target_commit_approval_count());
             }
 
-            YT_VERIFY(GetPrerequisiteTransactionIds(context->GetRequestHeader()).empty());
+            if (!GetPrerequisiteTransactionIds(context->GetRequestHeader()).empty()) {
+                THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported for transaction commit");
+            }
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
