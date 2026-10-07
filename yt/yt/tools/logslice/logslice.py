@@ -19,8 +19,9 @@ subdirectories; an archive is consulted only when a time window is given, and
 only the day subdirectories overlapping that window are searched.
 
 All times are interpreted exactly as `logslice` interprets them (server local
-time); the precise filtering is always delegated to `logslice` itself, so the
-in-script time handling only needs to be good enough to pick the right files.
+time). Ordinary service logs delegate precise filtering to `logslice`.
+For Cron job components, bounds select scheduled-hour files under /opt/cron/logs;
+complete job output is read without record-time filtering.
 """
 
 import argparse
@@ -988,9 +989,28 @@ def list_remote_dir(ssh, directory):
     return [line for line in out.splitlines() if line]
 
 
-def discover_live(ssh, log_type, component=None):
+def discover_cron_files(ssh, job, start_time, end_time):
+    """Cron appends each job's output to a scheduled-hour file, without
+    requiring timestamps in its contents. Select intersecting hour buckets;
+    never include latest.log (a duplicate symlink) or perform_*.log."""
+    directory = "/opt/cron/logs/" + job
+    names = ssh.run(["ls", "-1", directory]).splitlines()
+    files = []
+    for name in names:
+        if not re.fullmatch(r"\d{2}-\d{2}-\d{2}\.\d{2}:00\.log", name):
+            continue
+        try:
+            hour = datetime.strptime(name, "%y-%m-%d.%H:00.log")
+        except ValueError:
+            continue
+        if hour <= end_time and hour + timedelta(hours=1) > start_time:
+            files.append(LogFile(name, job, "", "", directory))
+    return sorted(files, key=lambda file: file.name)
+
+
+def discover_live(ssh, log_type, component=None, directory=None):
     """The family's live directory: returns (base, ordered_files)."""
-    directory = live_log_dir(log_type)
+    directory = directory or live_log_dir(log_type)
     parsed = [parse_log_name(name, directory)
               for name in list_remote_dir(ssh, directory)]
     return order_series(parsed, log_type, component)
@@ -1388,13 +1408,13 @@ def _candidate_bases(names, log_type, directory=REMOTE_LOGS_DIR):
 
 
 def discover_component_candidates(ssh, log_type, start_time, end_time,
-                                  archive_dir):
+                                  archive_dir, directory=None):
     """Return discovered component bases and every directory inspected.
 
     Only directory entries are read here. Log contents are untouched until the
     caller resolves an exact component and starts ``FileSelector``.
     """
-    directory = live_log_dir(log_type)
+    directory = directory or live_log_dir(log_type)
     roots = [directory]
     candidates = _candidate_bases(
         list_remote_dir(ssh, directory), log_type, directory
@@ -1415,7 +1435,9 @@ def discover_component_candidates(ssh, log_type, start_time, end_time,
 
 def infer_host_component(host):
     """Infer ``(role, component)`` from known YP pod hostname markers."""
-    short = host.split(".", 1)[0].lower()
+    short = host.rsplit("@", 1)[-1].split(".", 1)[0].lower()
+    if short == "cron":
+        return "cron", "runner"
     node = re.search(
         r"(?:^|-)(?P<role>tab|dat|exec)-(?:node|sen)(?:-|$)",
         short,
@@ -1575,7 +1597,7 @@ def normalize_selection_result(result):
 
 
 def discover_series(ssh, log_type, start_time, end_time, archive_dir,
-                    component=None):
+                    component=None, directory=None):
     """The log series to search, ordered oldest -> newest: the archive (when a
     window is given and day subdirectories are in range) followed by the live
     ``logs`` directory. Each entry is an ``(origin, base, ordered_files)`` tuple;
@@ -1585,7 +1607,7 @@ def discover_series(ssh, log_type, start_time, end_time, archive_dir,
         ssh, log_type, start_time, end_time, archive_dir, component)
     if archive_files:
         series.append(("archive", archive_base, archive_files))
-    live_base, live_files = discover_live(ssh, log_type, component)
+    live_base, live_files = discover_live(ssh, log_type, component, directory)
     if live_files:
         series.append(("live", live_base, live_files))
     return series
@@ -1739,15 +1761,15 @@ def _run_main(context):
               "[-t start_time] [-e end_time] [-x pipeline] "
               "[--access-log-pipeline pipeline] -- grep_args...")
     parser.add_argument("host", help="remote machine name")
-    parser.add_argument("--type", default="debug",
+    parser.add_argument("--type", default=None,
                         help="log type: debug, error, info, access/access.json, "
                              "event_log, gpu_event_log, comma-separated "
-                             "types, or all (default: debug); event_log and "
+                             "types, or all (default: info on Cron, debug otherwise); event_log and "
                              "gpu_event_log cannot be combined with other types")
     parser.add_argument(
         "--component",
         default=None,
-        help="exact log base to select; overrides hostname-derived routing",
+        help="exact log base or Cron job name; Cron defaults to runner",
     )
     parser.add_argument("-l", dest="logslice", default=None,
                         help="path to a logslice binary")
@@ -1810,10 +1832,17 @@ def _run_main(context):
     # Legacy "-- grep_args" is just a leading grep stage; -x appends arbitrary
     # whitelisted stages after it. All filtering is done by real remote tools, not
     # by logslice's own -g option.
+    is_cron = infer_host_component(args.host)[0] == "cron"
+    cron_job = args.component if is_cron and args.component != "runner" else None
     try:
-        log_types = parse_log_types(args.type)
+        log_types = parse_log_types(args.type or ("info" if is_cron else "debug"))
     except ValueError as ex:
         parser.error(str(ex))
+    if cron_job:
+        if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", cron_job):
+            parser.error("Cron --component must be a single job directory name")
+        if log_types != ["info"] or args.archive_dir is not None:
+            parser.error("Cron job output uses --type info and has no separate archive")
     if "access" in log_types and not _is_master_route(
             args.host, args.component):
         parser.error("access logs are available only for actual master routes")
@@ -1854,13 +1883,16 @@ def _run_main(context):
     if args.end and end_time is None:
         eprint("Warning: could not parse end time {!r}; "
                "scanning all files.".format(args.end))
+    if cron_job and (
+            start_time is None or end_time is None or start_time > end_time):
+        parser.error("Cron jobs require a valid finite -t/-e window in ascending order")
     try:
         validate_debug_window(
             log_types, start_time, end_time, args.allow_broad_debug)
     except ValueError as ex:
         parser.error(str(ex))
 
-    execution_result = make_execution_result(args.component)
+    execution_result = make_execution_result(cron_job or args.component)
     context["result"] = execution_result
     ssh = Ssh(
         args.host,
@@ -1874,8 +1906,9 @@ def _run_main(context):
             execution_result, access_failure))
         return OPERATIONAL_FAILURE_EXIT
 
-    local_bin = resolve_logslice(args.logslice)
-    ssh.copy_binary(local_bin, REMOTE_BIN)
+    if not cron_job:
+        local_bin = resolve_logslice(args.logslice)
+        ssh.copy_binary(local_bin, REMOTE_BIN)
     server_timezone = ssh.run(
         ["date", "+%z"], check=False, warn_on_error=True).strip() or "unknown"
     start_time = parse_server_time(args.start, server_timezone) \
@@ -1901,52 +1934,69 @@ def _run_main(context):
         archive_dir = archive_dir_for_route(args.host, args.component)
     else:
         archive_dir = args.archive_dir or None
-    candidates = set()
-    roots = []
-    for log_type in log_types:
-        type_candidates, type_roots = discover_component_candidates(
-            ssh, log_type, start_time, end_time, archive_dir)
-        candidates.update(type_candidates)
-        for root in type_roots:
-            if root not in roots:
-                roots.append(root)
-    try:
-        route = resolve_component_route(args.host, args.component, candidates)
-    except ValueError as error:
-        sys.exit(str(error))
-    execution_result["selected_component"] = route["component"]
-    execution_result["selected_base"] = route["base"]
-    for line in routing_metadata(route, roots):
-        eprint(line)
+    if cron_job:
+        if start_time is None or end_time is None:
+            parser.error("could not normalize cron window to the server timezone")
+        cron_files = discover_cron_files(ssh, cron_job, start_time, end_time)
+        selected = [("info", file) for file in cron_files]
+        selected_paths = [file.path for file in cron_files]
+        type_coverages = {"info": None}
+        retained_boundaries = []
+        execution_result["selected_component"] = cron_job
+        execution_result["selected_base"] = cron_job
+        execution_result["selection_basis"] = "scheduled_hour"
+        eprint("Cron routing: job={} root=/opt/cron/logs/{} files={}; "
+               "window selects scheduled-hour buckets, complete job output follows; "
+               "record-time coverage is unknown".format(
+                   cron_job, cron_job, len(cron_files)))
+    else:
+        discovery_options = {"directory": "/opt/cron/logs"} if is_cron else {}
+        candidates = set()
+        roots = []
+        for log_type in log_types:
+            type_candidates, type_roots = discover_component_candidates(
+                ssh, log_type, start_time, end_time, archive_dir, **discovery_options)
+            candidates.update(type_candidates)
+            for root in type_roots:
+                if root not in roots:
+                    roots.append(root)
+        try:
+            route = resolve_component_route(args.host, args.component, candidates)
+        except ValueError as error:
+            sys.exit(str(error))
+        execution_result["selected_component"] = route["component"]
+        execution_result["selected_base"] = route["base"]
+        for line in routing_metadata(route, roots):
+            eprint(line)
 
-    selected = []
-    selected_paths = []
-    type_coverages = {}
-    retained_boundaries = []
-    for log_type in log_types:
-        series = discover_series(
-            ssh, log_type, start_time, end_time, archive_dir,
-            component=route["base"])
-        if not series:
-            eprint("Found 0 {} log files on {}.".format(log_type, args.host))
-            type_coverages[log_type] = None
-            continue
-        type_selected, summary, coverage, boundaries = \
-            normalize_selection_result(select_log_files(
-                ssh, REMOTE_BIN, series, start_time, end_time))
-        for boundary in boundaries:
-            boundary["log_type"] = log_type
-        retained_boundaries.extend(boundaries)
-        type_coverages[log_type] = coverage
-        for origin, base, total, sel in summary:
-            eprint("Found {} {} log file(s) for component '{}' ({})."
-                   .format(total, log_type, base, origin))
-            if sel:
-                eprint("Selected {} {} file(s): {} .. {}".format(
-                    len(sel), origin, sel[0].name, sel[-1].name))
-        for log_file in type_selected:
-            selected.append((log_type, log_file))
-            selected_paths.append(log_file.path)
+        selected = []
+        selected_paths = []
+        type_coverages = {}
+        retained_boundaries = []
+        for log_type in log_types:
+            series = discover_series(
+                ssh, log_type, start_time, end_time, archive_dir,
+                component=route["base"], **discovery_options)
+            if not series:
+                eprint("Found 0 {} log files on {}.".format(log_type, args.host))
+                type_coverages[log_type] = None
+                continue
+            type_selected, summary, coverage, boundaries = \
+                normalize_selection_result(select_log_files(
+                    ssh, REMOTE_BIN, series, start_time, end_time))
+            for boundary in boundaries:
+                boundary["log_type"] = log_type
+            retained_boundaries.extend(boundaries)
+            type_coverages[log_type] = coverage
+            for origin, base, total, sel in summary:
+                eprint("Found {} {} log file(s) for component '{}' ({})."
+                       .format(total, log_type, base, origin))
+                if sel:
+                    eprint("Selected {} {} file(s): {} .. {}".format(
+                        len(sel), origin, sel[0].name, sel[-1].name))
+            for log_file in type_selected:
+                selected.append((log_type, log_file))
+                selected_paths.append(log_file.path)
 
     execution_result["selected_files"] = selected_paths
     gaps = find_coverage_gaps(start_time, end_time, type_coverages)
@@ -1961,11 +2011,13 @@ def _run_main(context):
         # them and for the interior files they are a harmless no-op. This keeps
         # the output correct even when the conservative selection includes a file
         # that is not fully inside the window.
-        if args.start:
+        if args.start and not cron_job:
             head += ["-t", args.start]
-        if args.end:
+        if args.end and not cron_job:
             head += ["-e", args.end]
         head.append(path)
+        if cron_job:
+            head = ["cat", "--", path]
         file_stages = access_stages if log_type == "access" else stages
         completed = ssh.run_pipeline_result(
             head,
@@ -2010,10 +2062,16 @@ def _run_main(context):
 
     if outputs:
         try:
-            write_merged_pipeline_outputs(
-                outputs,
-                sys.stdout,
-                parse_yson=any(log_type in YSON_LOG_TYPES for log_type in log_types))
+            if cron_job:
+                # Keep each job's multiline output intact and in run order.
+                for completed in outputs:
+                    for chunk in completed.iter_stdout_lines():
+                        sys.stdout.write(chunk)
+            else:
+                write_merged_pipeline_outputs(
+                    outputs,
+                    sys.stdout,
+                    parse_yson=any(log_type in YSON_LOG_TYPES for log_type in log_types))
         finally:
             for completed in outputs:
                 completed.close()

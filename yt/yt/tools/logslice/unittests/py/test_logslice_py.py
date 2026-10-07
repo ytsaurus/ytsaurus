@@ -2438,5 +2438,83 @@ class SshIntegrationTest(unittest.TestCase):
         subprocess.run(["rm", "-f", marker])
 
 
+class TestCronLogs(unittest.TestCase):
+    JOB = "notify_dynamic_tables_team_startrek"
+
+    def test_hour_selection_ignores_alias_and_perform_logs(self):
+        ssh = mock.Mock()
+        ssh.run.return_value = "\n".join([
+            "latest.log", "perform_26-10-07.10:00.log",
+            "26-10-06.10:00.log", "26-10-07.09:00.log",
+            "26-10-07.10:00.log", "26-10-07.11:00.log",
+            "26-99-07.10:00.log",
+        ])
+        files = logslice.discover_cron_files(
+            ssh, self.JOB, datetime(2026, 10, 7, 10, 5),
+            datetime(2026, 10, 7, 10, 20))
+        self.assertEqual([f.name for f in files], ["26-10-07.10:00.log"])
+        ssh.run.assert_called_once_with(["ls", "-1", "/opt/cron/logs/" + self.JOB])
+
+    def run_cron(self, records, names="26-10-07.10:00.log", extra=None):
+        argv = ["logslice.py", "nobody@Cron.example", "--component", self.JOB,
+                "-t", "2026-10-07 10:05:00", "-e", "2026-10-07 10:20:00"]
+        argv += extra or []
+        stdout, stderr = io.StringIO(), io.StringIO()
+        ssh = mock.Mock()
+        ssh.run.side_effect = ["+0300", names]
+        ssh.run_pipeline_result.side_effect = [
+            logslice.PipelineResult(0 if record else 1, 0, record, "")
+            for record in records
+        ]
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "Ssh", return_value=ssh), \
+                mock.patch.object(logslice, "ssh_access_preflight", return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice") as resolve, \
+                contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = logslice.main()
+        resolve.assert_not_called()
+        ssh.copy_binary.assert_not_called()
+        return code, stdout.getvalue(), stderr.getvalue(), ssh
+
+    def test_reads_untimestamped_output_without_record_time_bounds(self):
+        body = "INFO:root:Querying startrek\n<h3>YTADMINREQ</h3>\n"
+        code, stdout, stderr, ssh = self.run_cron([body])
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout, body)
+        self.assertIn('"selection_basis": "scheduled_hour"', stderr)
+        self.assertIn('"gaps": null', stderr)
+        self.assertEqual(ssh.run_pipeline_result.call_args.args[:2], (
+            ["cat", "--", "/opt/cron/logs/" + self.JOB + "/26-10-07.10:00.log"], []))
+
+    def test_empty_or_missing_logs_do_not_prove_absence(self):
+        for records, names in [([""], "26-10-07.10:00.log"), ([], "latest.log")]:
+            code, stdout, stderr, _ = self.run_cron(records, names)
+            self.assertEqual(code, logslice.COVERAGE_INCOMPLETE_EXIT)
+            self.assertEqual(stdout, "")
+            self.assertIn("coverage_incomplete", stderr)
+
+    def test_invalid_cron_options_fail_before_ssh(self):
+        for extra in [["--component", "../other"], ["--type", "debug"],
+                      ["--archive-dir", "/other"], ["-e", "bad-time"]]:
+            with self.assertRaises(SystemExit) as error:
+                self.run_cron([], extra=extra)
+            self.assertEqual(error.exception.code, 2)
+
+    def test_cron_hostname_selects_runner(self):
+        for host in ["Cron.pod", "root@Cron.pod", "nobody@cron.pod"]:
+            self.assertEqual(logslice.infer_host_component(host), ("cron", "runner"))
+            route = logslice.resolve_component_route(host, None, ["runner", "other"])
+            self.assertEqual(route["base"], "runner")
+
+    def test_runner_rotations_use_cron_log_directory(self):
+        ssh = mock.Mock()
+        ssh.run.return_value = "runner.log\nrunner.log.1\nother.log\n"
+        series = logslice.discover_series(
+            ssh, "info", None, None, None,
+            component="runner", directory="/opt/cron/logs")
+        self.assertEqual([file.path for file in series[0][2]], [
+            "/opt/cron/logs/runner.log.1", "/opt/cron/logs/runner.log"])
+
+
 if __name__ == "__main__":
     unittest.main()
