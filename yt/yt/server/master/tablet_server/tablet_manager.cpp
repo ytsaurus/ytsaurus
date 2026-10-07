@@ -2749,6 +2749,28 @@ public:
         cell->RecomputeClusterStatistics();
     }
 
+    void RecomputeAllTabletCellStatistics()
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
+            YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
+            auto* cell = cellBase->As<TTabletCell>();
+            cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
+            for (auto tablet : cell->Tablets()) {
+                if (tablet->Servant().GetCell() == cell) {
+                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
+                } else if (tablet->AuxiliaryServant().GetCell() == cell) {
+                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
+                } else {
+                    YT_TLOG_ALERT("Tablet belongs to a cell by neither of its servants")
+                        .With("CellId", cell->GetId())
+                        .With("TabletId", tablet->GetId())
+                        .With("TableId", tablet->GetOwner()->GetId());
+                }
+            }
+        }
+    }
+
     void OnHunkJournalChunkSealed(TChunk* chunk) override
     {
         YT_VERIFY(chunk->IsSealed());
@@ -2936,6 +2958,9 @@ private:
 
     // COMPAT(ifsmirnov): LegacyBaseIOConfigs.
     bool MigrateLegacyBaseIOConfigs_ = false;
+
+    // COMPAT(sabdenovch)
+    bool RecomputeAllTabletCellStatistics_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -4376,6 +4401,10 @@ private:
         if (context.GetVersion() < EMasterReign::LegacyBaseIOConfigs) {
             MigrateLegacyBaseIOConfigs_ = true;
         }
+
+        if (context.GetVersion() < EMasterReign::RecomputeAllTabletCellStatistics) {
+            RecomputeAllTabletCellStatistics_ = true;
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4457,6 +4486,10 @@ private:
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
             InitializeGossipValue(&bundle->ResourceUsage(), Bootstrap_);
+        }
+
+        if (RecomputeAllTabletCellStatistics_) {
+            RecomputeAllTabletCellStatistics();
         }
 
         TabletActionManager_->OnAfterCellManagerSnapshotLoaded();
