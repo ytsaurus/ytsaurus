@@ -180,6 +180,7 @@ def yql_agent(request):
             "yql/essentials/tools/udf_resolver/udf_resolver")
         config["qtworker_udf_dep_stub_path"] = yatest.common.binary_path(
             "yql/essentials/tools/udf_dep_stub/libyql_udf_dep_stub.so")
+        config["qtworker_skip_instances"] = getattr(cls, "YQL_QTWORKER_SKIP_INSTANCES", None)
 
     with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)

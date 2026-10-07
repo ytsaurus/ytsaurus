@@ -614,6 +614,11 @@ public:
         return response;
     }
 
+    bool IsReady() const override
+    {
+        return YqlPlugin_->IsReady();
+    }
+
 private:
     const std::set<TString> SupportedFlavors_;
     const TString ProtoDynamicConfigsPath_;
@@ -1021,6 +1026,7 @@ private:
     {
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("ready").Value(IsReady())
                 .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
                 .Item("udf_meta").Value(UdfMetaManager_->GetConfigNode())
                 .Item("proto_configs_modification_time").Value(ProtoConfigsModificationTime_)

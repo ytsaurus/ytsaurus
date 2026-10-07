@@ -174,6 +174,11 @@ public:
         YqlPluginForGetUsedClusters_->Start();
     }
 
+    bool IsReady() const override
+    {
+        return WorkerApi_ && WorkerApi_->IsHealthy();
+    }
+
     TClustersResult GetUsedClusters(
         TQueryId queryId,
         TString queryText,
@@ -193,12 +198,6 @@ public:
         int executeMode,
         NYqlClient::EQueryType queryType) override
     {
-        if (!WorkerApi_ || !WorkerApi_->IsHealthy()) {
-            return TQueryResult{
-                .YsonError = MessageToYtErrorYson("No healthy workers"),
-            };
-        }
-
         try {
             auto action = ExecuteModeToProto(executeMode);
             auto data = BuildTaskData(queryId, user, queryText, settings, credentials, files, queryType);
@@ -207,6 +206,13 @@ public:
             const auto snapshot = callback->GetTaskResult();
             auto progressYson = callback->GetProgress();
             return TaskResultToYqlResult(snapshot, std::move(progressYson));
+        } catch (const NYql::NWorkerApi::TRunTaskError& ex) {
+            if (ex.GetReason() == NYql::NWorkerApi::TRunTaskError::EReason::REJECTED) {
+                THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentNotReady, "%v", ex.GetMessage());
+            }
+            return TQueryResult{
+                .YsonError = MessageToYtErrorYson(ex.GetMessage()),
+            };
         } catch (const std::exception& ex) {
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(TString{ex.what()})
@@ -343,10 +349,6 @@ public:
         TYsonString settings,
         TYsonString credentials) override
     {
-        if (!WorkerApi_ || !WorkerApi_->IsHealthy()) {
-            ythrow yexception() << "No healthy workers";
-        }
-
         auto data = BuildTaskData(queryId, user, queryText, settings, credentials, /*files*/ {});
         auto callback = RunTaskToCompletion(
             queryId,
@@ -447,7 +449,7 @@ private:
 
         auto runTaskResult = WorkerApi_->RunTask(action, std::move(data), callback);
         if (!runTaskResult) {
-            ythrow yexception() << runTaskResult.error().GetMessage();
+            throw runTaskResult.error();
         }
 
         if (!persist) {

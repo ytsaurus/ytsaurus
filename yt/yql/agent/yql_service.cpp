@@ -65,6 +65,13 @@ private:
             THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
         }
 
+        if (!YqlAgent_->IsReady()) {
+            YT_TLOG_INFO("YQL agent is not ready; failing query")
+                .With("QueryId", queryId)
+                .With("User", user);
+            THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentNotReady, "Yql agent is not ready");
+        }
+
         auto responseFuture = YqlAgent_->StartQuery(queryId, user, *request);
 
         context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -158,7 +165,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return !ComponentStateChecker_->IsComponentBanned();
+        return !ComponentStateChecker_->IsComponentBanned() && YqlAgent_->IsReady();
     }
 };
 

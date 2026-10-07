@@ -23,6 +23,7 @@ DEFINE_ENUM(EQueryType,
 YT_DEFINE_ERROR_ENUM(
     ((RequestThrottled)     (40100))
     ((YqlAgentBanned)       (40101))
+    ((YqlAgentNotReady)     (40102))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

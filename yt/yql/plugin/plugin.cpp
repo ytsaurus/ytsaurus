@@ -15,6 +15,11 @@ IMapNodePtr IYqlPlugin::GetOrchidNode() const
     return GetEphemeralNodeFactory()->CreateMap();
 }
 
+bool IYqlPlugin::IsReady() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYqlNativePluginOptions ConvertToNativePluginOptions(
