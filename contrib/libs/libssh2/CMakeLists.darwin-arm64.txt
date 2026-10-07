@@ -51,12 +51,13 @@ target_link_libraries(contrib-libs-libssh2 PUBLIC
 
 target_sources(contrib-libs-libssh2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/agent.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/agent_win.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/bcrypt_pbkdf.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/blowfish.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/chacha.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/channel.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/cipher-chachapoly.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/comp.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/crypt.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/crypto.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/global.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/hostkey.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/keepalive.c
@@ -64,15 +65,16 @@ target_sources(contrib-libs-libssh2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/knownhost.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/mac.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/misc.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/openssl.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/packet.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/pem.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/poly1305.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/publickey.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/scp.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/session.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/sftp.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/transport.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/userauth.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/userauth_kbd_packet.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/version.c
 )
 
@@ -87,14 +89,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/agent_win.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/bcrypt_pbkdf.c
   APPEND
   PROPERTY
@@ -103,7 +97,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/blowfish.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/chacha.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -112,6 +106,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/channel.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/cipher-chachapoly.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -128,6 +130,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/crypt.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/crypto.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -191,14 +201,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/openssl.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/packet.c
   APPEND
   PROPERTY
@@ -208,6 +210,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/pem.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/poly1305.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -256,6 +266,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/userauth.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/src/userauth_kbd_packet.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
