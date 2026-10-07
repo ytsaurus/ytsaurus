@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(sqlalchemy)
 
-VERSION(2.0.52)
+VERSION(2.0.54)
 
 LICENSE(MIT)
 
@@ -236,6 +236,7 @@ PY_SRCS(
     sqlalchemy/testing/assertions.py
     sqlalchemy/testing/assertsql.py
     sqlalchemy/testing/asyncio.py
+    sqlalchemy/testing/cancellation.py
     sqlalchemy/testing/config.py
     sqlalchemy/testing/engines.py
     sqlalchemy/testing/entities.py
