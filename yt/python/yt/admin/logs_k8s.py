@@ -2,9 +2,10 @@ import yt.logger as logger
 import yt.yson as yson
 from yt.admin._experimental import warn_experimental, EXPERIMENTAL_HELP_SUFFIX
 from yt.admin.helpers import confirm
+from yt.admin.metrics.config import parse_duration_ms
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Set
 import argparse
 import os
@@ -33,6 +34,7 @@ COMPONENTS_MAP = {
 }
 
 YTSERVER_CONTAINER = "ytserver"
+DEFAULT_DURATION = "3h"
 
 
 def _parse_iso8601(value: str) -> datetime:
@@ -329,10 +331,20 @@ class LogDownloader:
             self._log_statistics(pod, pod_log_size, filtered_log_files)
 
         if files_map:
-            logger.info(f"Found {sum(len(v) for v in files_map.values())} files. Size: {total_size / (2 ** 20):.2f} MB")
+            logger.info(
+                "Found %d files for %s. Total file size: %.2f MB.",
+                sum(len(files) for files in files_map.values()),
+                "search" if cfg.grep else "download",
+                total_size / (2 ** 20),
+            )
         return files_map
 
     def run(self, cfg: LogFetchConfig):
+        logger.info(
+            "Log file time range: %s to %s",
+            cfg.from_ts.isoformat() if cfg.from_ts else "unbounded",
+            cfg.to_ts.isoformat() if cfg.to_ts else "unbounded",
+        )
         group_info = self.yt.get_group_info(cfg.component_name, cfg.group_name)
         logger.debug(f"Fetching logs from {group_info.component_type} (group {group_info.group_name})")
 
@@ -351,7 +363,10 @@ class LogDownloader:
             logger.info("No logs matched criteria.")
             return
 
-        if not confirm("Download?", assume_yes=cfg.yes):
+        prompt = (
+            "Search these files and save matching lines?" if cfg.grep else "Download these files?"
+        )
+        if not confirm(prompt, assume_yes=cfg.yes):
             return
         self._download_logs(files_map, cfg.output, cfg.exec_slot_index, cfg.grep)
 
@@ -484,8 +499,17 @@ def _add_logs_k8s_arguments(parser) -> None:
     parser.add_argument("group_name", nargs="?", default="default", help="Component group name")
     parser.add_argument("-p", "--pods", action="append", type=str, help="Specific pod name (can be specified multiple times)")
     parser.add_argument("--exec-slot-index", type=int, help="Slot index for job proxy logs (useful only for exec nodes)")
-    parser.add_argument("--from-ts", type=str, metavar="ISO8601", help=f"Filter logs from this time (i.e. {current_time})")
+    parser.add_argument("--from-ts", type=str, metavar="ISO8601", help=f"Filter log files from this time (i.e. {current_time})")
     parser.add_argument("--to-ts", type=str, metavar="ISO8601", help=f"Filter logs up to this time (i.e. {current_time})")
+    parser.add_argument(
+        "--duration", type=parse_duration_ms, metavar="DURATION", default=argparse.SUPPRESS,
+        help=(
+            "Select log files for the last specified duration; "
+            "cannot be combined with --from-ts or --to-ts; "
+            "positive integer with unit ms, s, m, h, d, w or y, e.g. 24h; "
+            f"defaults to {DEFAULT_DURATION}"
+        ),
+    )
     parser.add_argument("-w", "--writer", type=str, action="append", help="Filter by writer name (can be specified multiple times)")
     parser.add_argument("--writer-force", type=str, metavar="regex", action="append", help="Force add regex pattern for filename filtering")
     parser.add_argument("-o", "--output", type=str, metavar="dir", default="logs", help="Output directory path")
@@ -494,9 +518,28 @@ def _add_logs_k8s_arguments(parser) -> None:
 
 
 @warn_experimental
-def run_logs_k8s(namespace, cluster_name, component_name, group_name, pods, exec_slot_index, from_ts, to_ts, writer, writer_force, output, grep, yes, **_) -> None:
+def run_logs_k8s(
+    namespace, cluster_name, component_name, group_name, pods, exec_slot_index,
+    from_ts, to_ts, writer, writer_force, output, grep, yes, duration=None, **_,
+) -> None:
     if exec_slot_index is not None and component_name != "exec_nodes":
         raise ValueError("--exec-slot-index can only be used when component_name=exec_nodes")
+
+    if duration is not None and (from_ts or to_ts):
+        raise ValueError("--duration cannot be combined with --from-ts or --to-ts")
+
+    if from_ts or to_ts:
+        from_ts = _parse_iso8601(from_ts).astimezone(timezone.utc) if from_ts else None
+        to_ts = _parse_iso8601(to_ts).astimezone(timezone.utc) if to_ts else None
+        if from_ts is not None and to_ts is not None and from_ts > to_ts:
+            raise ValueError("--from-ts must not be later than --to-ts")
+    else:
+        if duration is None:
+            duration = parse_duration_ms(DEFAULT_DURATION)
+        if duration <= 0:
+            raise ValueError("--duration must be positive")
+        to_ts = datetime.now(timezone.utc)
+        from_ts = to_ts - timedelta(milliseconds=duration)
 
     cfg = LogFetchConfig(
         component_name=component_name,
@@ -505,8 +548,8 @@ def run_logs_k8s(namespace, cluster_name, component_name, group_name, pods, exec
         exec_slot_index=exec_slot_index,
         writer=writer,
         writer_force=writer_force,
-        from_ts=_parse_iso8601(from_ts) if from_ts else None,
-        to_ts=_parse_iso8601(to_ts) if to_ts else None,
+        from_ts=from_ts,
+        to_ts=to_ts,
         output=output,
         grep=grep,
         yes=yes,
