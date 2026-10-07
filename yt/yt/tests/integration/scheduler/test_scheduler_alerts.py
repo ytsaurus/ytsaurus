@@ -5,9 +5,10 @@ from yt_commands import (
     remove, create_pool, update_scheduler_config,
     read_table, write_table, map, map_reduce, run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
-    create_test_tables, update_pool_tree_config)
+    create_test_tables, update_pool_tree_config, create_domestic_medium)
 
 from yt_type_helpers import make_schema
+from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
 import yt.yson as yson
 
@@ -25,6 +26,21 @@ def wait_single_scheduler_alert(alert_type):
     alert = get("//sys/scheduler/@alerts")[0]
     assert alert["attributes"]["alert_type"] == alert_type
     return alert
+
+
+def get_node_resource_limit_violations(alert):
+    tree_alert = alert["inner_errors"][0]
+    assert tree_alert["attributes"]["tree_id"] == "default"
+    violations = {}
+    for node_error in tree_alert["inner_errors"]:
+        address = node_error["attributes"]["node_address"]
+        assert address not in violations
+        violations[address] = {
+            error["attributes"]["resource"]: error["attributes"]
+            for error in node_error["inner_errors"]
+        }
+    assert sorted(violations) == sorted(tree_alert["attributes"]["violating_nodes"])
+    return violations
 
 
 ##################################################################
@@ -135,32 +151,52 @@ class TestSchedulerAlerts(TestSchedulerAlertsBase):
 
         wait_single_scheduler_alert("unrecognized_pool_tree_config_options")
 
+
+class TestSchedulerMinNodeResourceLimits(TestSchedulerAlertsBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("renadeen")
-    def test_min_node_resource_limits(self):
+    @pytest.mark.parametrize("resource, limit, reset_limit", [
+        ("cpu", 100.0, 0.0),
+        ("memory", 1 << 60, 0),
+        ("gpu", 100, 0),
+        ("disk_space", 1 << 60, 0),
+    ])
+    def test_min_node_resource_limits(self, resource, limit, reset_limit):
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
         update_pool_tree_config("default", {
             "min_node_resource_limits": {
-                "cpu": 100.0,
+                resource: limit,
             },
             "min_node_resource_limits_check_period": 100,
             "min_node_resource_limits_violation_grace_period": 0,
         })
 
-        wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+        alert = wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+        violations = get_node_resource_limit_violations(alert)
+        assert sorted(violations) == sorted(ls("//sys/cluster_nodes"))
+        for resources in violations.values():
+            assert resources.keys() == {resource}
+            assert resources[resource]["min_resource_limit"] == limit
+            assert 0 <= resources[resource]["resource_limit"] < limit
 
         update_pool_tree_config("default", {
             "min_node_resource_limits": {
-                "cpu": 0.0,
+                resource: reset_limit,
             },
         })
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
     @authors("renadeen")
-    def test_min_node_resource_limits_grace_period(self):
+    @pytest.mark.parametrize("resource, limit, reset_limit", [
+        ("cpu", 100.0, 0.0),
+        ("disk_space", 1 << 60, 0),
+    ])
+    def test_min_node_resource_limits_grace_period(self, resource, limit, reset_limit):
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
         update_pool_tree_config("default", {
             "min_node_resource_limits": {
-                "cpu": 100.0,
+                resource: limit,
             },
             "min_node_resource_limits_check_period": 100,
             "min_node_resource_limits_violation_grace_period": 5000,
@@ -175,10 +211,132 @@ class TestSchedulerAlerts(TestSchedulerAlertsBase):
 
         update_pool_tree_config("default", {
             "min_node_resource_limits": {
-                "cpu": 0.0,
+                resource: reset_limit,
             },
         })
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+
+class TestSchedulerDiskSpaceAlerts(TestSchedulerAlertsBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_NODES = 1
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        location = config["exec_node"]["slot_manager"]["locations"][0]
+        config["exec_node"]["slot_manager"]["locations"] = [
+            dict(location, path=location["path"] + str(index), medium_name=medium,
+                 disk_quota=quota, disk_usage_watermark=0)
+            for index, (medium, quota) in enumerate([
+                ("default", 1 << 30),
+                ("ssd", 2 << 30),
+                ("default", 1 << 30),
+            ])
+        ]
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("ssd")
+
+    @authors("renadeen")
+    @pytest.mark.parametrize("limit", [2 << 30, (2 << 30) - 1])
+    def test_min_node_resource_limits_max_disk_location(self, limit):
+        # Total capacity is 4 GiB, but no individual location can satisfy this limit.
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {"disk_space": (2 << 30) + 1},
+            "min_node_resource_limits_check_period": 100,
+            "min_node_resource_limits_violation_grace_period": 0,
+        })
+        alert = wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+        violations = get_node_resource_limit_violations(alert)
+        assert len(violations) == 1
+        resources = next(iter(violations.values()))
+        assert resources.keys() == {"disk_space"}
+        assert resources["disk_space"]["resource_limit"] == 2 << 30
+        assert resources["disk_space"]["min_resource_limit"] == (2 << 30) + 1
+
+        # The largest location satisfies the limit, even though the others do not.
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {"disk_space": limit},
+        })
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
+
+    @authors("renadeen")
+    def test_min_node_resource_limits_multiple_violations(self):
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {"cpu": 100.0, "disk_space": (2 << 30) + 1},
+            "min_node_resource_limits_check_period": 100,
+            "min_node_resource_limits_violation_grace_period": 0,
+        })
+        alert = wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+        violations = get_node_resource_limit_violations(alert)
+        assert len(violations) == 1
+        resources = next(iter(violations.values()))
+        assert resources.keys() == {"cpu", "disk_space"}
+        assert resources["cpu"]["min_resource_limit"] == 100.0
+        assert resources["cpu"]["resource_limit"] < 100.0
+        assert resources["disk_space"]["resource_limit"] == 2 << 30
+        assert resources["disk_space"]["min_resource_limit"] == (2 << 30) + 1
+
+        # Refresh the details while this node remains in violation.
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {"cpu": 0.0, "disk_space": (2 << 30) + 1},
+        })
+
+        def only_disk_violates():
+            alert = get("//sys/scheduler/@alerts")[0]
+            violations = get_node_resource_limit_violations(alert)
+            return next(iter(violations.values())).keys() == {"disk_space"}
+
+        wait(only_disk_violates)
+
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {"disk_space": 2 << 30},
+        })
+        wait(lambda: get("//sys/scheduler/@alerts") == [])
+
+
+class GpuPolicyResourceLimitsMixin:
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
+    }
+
+    @classmethod
+    def modify_scheduler_config(cls, config, cluster_index):
+        super().modify_scheduler_config(config, cluster_index)
+        config["scheduler"]["template_pool_tree_config_map"] = {
+            "gpu": {
+                "priority": 1,
+                "filter": "default",
+                "config": {
+                    "policy_kind": "gpu",
+                    "main_resource": "gpu",
+                    "gpu_scheduling_policy": {"mode": "allocating"},
+                },
+            },
+        }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        nodes_path = scheduler_new_orchid_pool_tree_path("default") + "/gpu_assignment_plan/nodes"
+        wait(lambda: len(get(nodes_path, default={})) == self.NUM_NODES)
+
+
+@pytest.mark.ignore_in_opensource_ci
+class TestSchedulerMinNodeResourceLimitsGpu(GpuPolicyResourceLimitsMixin, TestSchedulerMinNodeResourceLimits):
+    pass
+
+
+@pytest.mark.ignore_in_opensource_ci
+class TestSchedulerDiskSpaceAlertsGpu(GpuPolicyResourceLimitsMixin, TestSchedulerDiskSpaceAlerts):
+    pass
 
 
 class TestSchedulerClusterDirectoryAlerts(TestSchedulerAlertsBase):

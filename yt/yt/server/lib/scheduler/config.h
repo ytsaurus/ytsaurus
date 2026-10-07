@@ -556,7 +556,8 @@ struct TStrategyTreeConfig
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
     TJobResourcesWithDiskConfigPtr GuaranteedJobResources;
-    TJobResourcesConfigPtr MinNodeResourceLimits;
+    //! Disk space is checked against the largest disk location's limit, regardless of medium.
+    TJobResourcesWithDiskConfigPtr MinNodeResourceLimits;
 
     TDuration MinNodeResourceLimitsCheckPeriod;
     TDuration MinNodeResourceLimitsViolationTimeout;
