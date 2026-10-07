@@ -41,8 +41,6 @@ type prepare struct {
 	actions []prepareAction
 
 	jobStatePaths []ypath.Path
-
-	localClusterName string
 }
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
@@ -238,64 +236,21 @@ func createSkiffFormat(schemas []skiff.Schema) skiff.Format {
 	}
 }
 
-func getPathCluster(path ypath.YPath) (string, bool) {
+func isClusterQualifiedPath(path ypath.YPath) bool {
 	switch path := path.(type) {
 	case ypath.Rich:
-		return path.Cluster, path.Cluster != ""
+		return path.Cluster != ""
 	case *ypath.Rich:
-		if path == nil {
-			return "", false
-		}
-		return path.Cluster, path.Cluster != ""
+		return path.Cluster != ""
 	case ypath.Path:
 		rich, err := ypath.Parse(path.String())
-		if err != nil || rich.Cluster == "" {
-			return "", false
-		}
-		return rich.Cluster, true
+		return err == nil && rich.Cluster != ""
 	case *ypath.Path:
-		if path == nil {
-			return "", false
-		}
 		rich, err := ypath.Parse(path.String())
-		if err != nil || rich.Cluster == "" {
-			return "", false
-		}
-		return rich.Cluster, true
+		return err == nil && rich.Cluster != ""
 	default:
-		return "", false
+		return false
 	}
-}
-
-func (p *prepare) getLocalClusterName() (string, error) {
-	if p.localClusterName != "" {
-		return p.localClusterName, nil
-	}
-
-	if err := p.mr.yc.GetNode(
-		p.ctx,
-		ypath.Path("//sys/@cluster_name"),
-		&p.localClusterName,
-		nil,
-	); err != nil {
-		return "", xerrors.Errorf("failed to get local cluster name: %w", err)
-	}
-
-	return p.localClusterName, nil
-}
-
-func (p *prepare) isRemotePath(path ypath.YPath) (bool, error) {
-	clusterName, ok := getPathCluster(path)
-	if !ok {
-		return false, nil
-	}
-
-	localClusterName, err := p.getLocalClusterName()
-	if err != nil {
-		return false, err
-	}
-
-	return clusterName != localClusterName, nil
 }
 
 func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
@@ -306,11 +261,7 @@ func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
 
 	schemas := make([]*schema.Schema, len(p.spec.InputTablePaths))
 	for i, inputTablePath := range p.spec.InputTablePaths {
-		remote, err := p.isRemotePath(inputTablePath)
-		if err != nil {
-			return nil, err
-		}
-		if remote {
+		if isClusterQualifiedPath(inputTablePath) {
 			continue
 		}
 
@@ -319,7 +270,7 @@ func (p *prepare) getInputTableSchemas() ([]*schema.Schema, error) {
 			SchemaMode string        `yson:"schema_mode"`
 		}
 
-		err = yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &attrs, &yt.GetNodeOptions{
+		err := yc.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &attrs, &yt.GetNodeOptions{
 			Attributes: []string{"schema", "schema_mode"},
 		})
 		if err != nil {
@@ -409,11 +360,7 @@ func (p *prepare) prepare(opts []OperationOption) error {
 
 	if p.spec.Type != yt.OperationRemoteCopy {
 		for _, inputTablePath := range p.spec.InputTablePaths {
-			remote, err := p.isRemotePath(inputTablePath)
-			if err != nil {
-				return err
-			}
-			if remote {
+			if isClusterQualifiedPath(inputTablePath) {
 				continue
 			}
 
@@ -422,7 +369,7 @@ func (p *prepare) prepare(opts []OperationOption) error {
 				Schema schema.Schema `yson:"schema"`
 			}
 
-			err = cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
+			err := cypress.GetNode(p.ctx, inputTablePath.YPath().Attrs(), &tableAttrs, nil)
 			if yterrors.ContainsResolveError(err) {
 				return xerrors.Errorf("mr: input table %v is missing: %w", inputTablePath.YPath(), err)
 			} else if err != nil {
