@@ -1927,8 +1927,13 @@ public:
 
         try {
             const auto& leaseManager = Bootstrap_->GetLeaseManager();
+            // RefLease crashes if the same lease is referenced twice.
+            THashSet<TTransactionId> referencedPrerequisiteTransactionIds;
             for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
                 if (IsCypressTransactionMirroredToSequoia(prerequisiteTransactionId)) {
+                    if (!referencedPrerequisiteTransactionIds.insert(prerequisiteTransactionId).second) {
+                        continue;
+                    }
                     if (auto* lease = leaseManager->FindLease(prerequisiteTransactionId)) {
                         LeasePersistentReferenceTracker_.RefLease(transaction, lease); // May throw on inactive lease.
                     } else {
