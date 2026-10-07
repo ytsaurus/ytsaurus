@@ -2931,6 +2931,7 @@ private:
         auto minLastDataHeartbeatTime = now - GetDynamicConfig()->NodeDataHeartbeatOutdateDuration;
         auto minLastJobHeartbeatTime = now - GetDynamicConfig()->NodeJobHeartbeatOutdateDuration;
         auto minLastIncompleteStateChangeTime = now - GetDynamicConfig()->MaxNodeIncompleteStateDuration;
+        auto minLastdisposeStateChangeTime = now - GetDynamicConfig()->MaxNodeDisposeStateDuration;
 
         std::vector<TError> alerts;
 
@@ -2943,11 +2944,12 @@ private:
                 continue;
             }
 
-            if (node->GetAggregatedState() == ENodeState::Offline) {
+            auto state = node->GetAggregatedState();
+            if (state == ENodeState::Offline) {
                 continue;
             }
 
-            if (node->GetAggregatedState() == ENodeState::Online) {
+            if (state == ENodeState::Online) {
                 if (node->IsDataNode()) {
                     if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
                         dataHeartbeatAlert.Update(node->GetDefaultAddress(), node->GetLastDataHeartbeatTime());
@@ -2959,11 +2961,24 @@ private:
                 }
             } else {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster() && node->GetLastStateChangeTime() < minLastIncompleteStateChangeTime) {
-                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), node->GetLastStateChangeTime());
+                auto lastChangeTime = node->GetLastStateChangeTime();
+                auto beingDisposed = state == ENodeState::BeingDisposed;
+                if (state == ENodeState::Mixed) {
+                    for (auto& [_, descriptor] : node->MulticellDescriptors()) {
+                        if (descriptor.State == ENodeState::BeingDisposed) {
+                            beingDisposed = true;
+                        }
+                    }
+                }
+
+                if (multicellManager->IsPrimaryMaster() && ((lastChangeTime < minLastIncompleteStateChangeTime) ||
+                    (beingDisposed && lastChangeTime < minLastdisposeStateChangeTime)))
+                {
+                    noStateChangeAlert[node->GetAggregatedState()].Update(node->GetDefaultAddress(), lastChangeTime);
                 }
             }
         }
+
         if (dataHeartbeatAlert.AlertedNodeCount > 0) {
             YT_TLOG_ALERT("Nodes had no data heartbeat for too long")
                 .With("NodeCount", dataHeartbeatAlert.AlertedNodeCount)
