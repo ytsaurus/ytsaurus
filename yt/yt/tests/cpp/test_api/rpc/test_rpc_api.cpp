@@ -23,6 +23,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/formats/format.h>
 
@@ -1725,6 +1727,102 @@ TEST_F(TMutationIdTest, Commit)
     EXPECT_NO_THROW(commit(false));
     // Second commit with same mutationId doesn't throw
     EXPECT_NO_THROW(commit(true));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableReaderTimingStatisticsTest
+    : public TClearTmpTestBase
+{
+protected:
+    static TRichYPath CreateTable(int rowCount, int valueSize)
+    {
+        TRichYPath path(MakeRandomTmpPath());
+        WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table))
+            .ThrowOnError();
+
+        auto writer = WaitFor(Client_->CreateTableWriter(path))
+            .ValueOrThrow();
+        auto valueId = writer->GetNameTable()->GetIdOrRegisterName("value");
+        auto value = std::string(valueSize, 'x');
+
+        auto rowBuffer = New<TRowBuffer>();
+        constexpr int RowsPerWrite = 1000;
+        for (int startIndex = 0; startIndex < rowCount; startIndex += RowsPerWrite) {
+            rowBuffer->Clear();
+            std::vector<TUnversionedRow> rows;
+            for (int index = startIndex; index < std::min(rowCount, startIndex + RowsPerWrite); ++index) {
+                TUnversionedOwningRowBuilder builder;
+                builder.AddValue(MakeUnversionedStringValue(value, valueId));
+                rows.push_back(rowBuffer->CaptureRow(builder.FinishRow().Get()));
+            }
+            if (!writer->Write(TRange<TUnversionedRow>(rows))) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        return path;
+    }
+
+    static void ReadAll(const ITableReaderPtr& reader, TDuration sleepAfterFirstBatch = TDuration::Zero())
+    {
+        bool firstBatch = true;
+        while (auto batch = reader->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+            if (firstBatch) {
+                firstBatch = false;
+                Sleep(sleepAfterFirstBatch);
+            }
+        }
+    }
+};
+
+TEST_F(TTableReaderTimingStatisticsTest, RemoteStatistics)
+{
+    auto path = CreateTable(/*rowCount*/ 10000, /*valueSize*/ 10);
+
+    auto reader = WaitFor(Client_->CreateTableReader(path))
+        .ValueOrThrow();
+    ReadAll(reader);
+
+    auto statistics = reader->GetTimingStatistics();
+    ASSERT_TRUE(statistics.DataReadTiming.has_value());
+    ASSERT_TRUE(statistics.DecodeTime.has_value());
+    ASSERT_TRUE(statistics.Remote.has_value());
+    EXPECT_FALSE(statistics.MasterFetchTime.has_value());
+
+    const auto& remote = *statistics.Remote;
+    ASSERT_TRUE(remote.MasterFetchTime.has_value());
+    ASSERT_TRUE(remote.DataReadTiming.has_value());
+    EXPECT_GT(*remote.MasterFetchTime, TDuration::Zero());
+    EXPECT_GT(remote.DataReadTiming->ReadTime, TDuration::Zero());
+    EXPECT_GE(remote.TotalTime, *remote.MasterFetchTime + remote.DataReadTiming->GetTotalTime());
+    EXPECT_GE(statistics.TotalTime, remote.TotalTime);
+    EXPECT_GE(
+        statistics.TotalTime,
+        statistics.DataReadTiming->WaitTime + statistics.DataReadTiming->ReadTime + statistics.DataReadTiming->IdleTime);
+}
+
+TEST_F(TTableReaderTimingStatisticsTest, WriteStall)
+{
+    // The table is larger than the default streaming window, so a slow client stalls the proxy.
+    auto path = CreateTable(/*rowCount*/ 24000, /*valueSize*/ 1000);
+
+    auto reader = WaitFor(Client_->CreateTableReader(path))
+        .ValueOrThrow();
+    ReadAll(reader, /*sleepAfterFirstBatch*/ TDuration::Seconds(1));
+
+    auto statistics = reader->GetTimingStatistics();
+    ASSERT_TRUE(statistics.Remote.has_value());
+    EXPECT_GT(statistics.Remote->WriteStallTime, TDuration::Zero());
+    EXPECT_GE(statistics.DataReadTiming->IdleTime, TDuration::MilliSeconds(500));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

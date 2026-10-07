@@ -7,8 +7,11 @@
 
 #include <yt/yt/client/api/formatted_table_reader.h>
 #include <yt/yt/client/api/row_batch_reader.h>
+#include <yt/yt/client/api/table_reader.h>
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 #include <library/cpp/yt/string/stream.h>
 
@@ -30,7 +33,8 @@ public:
         TFormat format,
         TTableSchemaPtr tableSchema,
         std::optional<std::vector<std::string>> columns,
-        TControlAttributesConfigPtr controlAttributesConfig)
+        TControlAttributesConfigPtr controlAttributesConfig,
+        NProfiling::TWallTimer totalTimer)
         : OutputStream_(Data_)
         , AsyncOutputStream_(CreateAsyncAdapter(&OutputStream_))
         , FormatWriter_(CreateStaticTableWriterForFormat(
@@ -43,6 +47,8 @@ public:
             controlAttributesConfig,
             /*keyColumnCount*/ 0))
         , RowReader_(std::move(batchReader))
+        , TableReader_(DynamicPointerCast<ITableReader>(RowReader_))
+        , TotalTimer_(std::move(totalTimer))
     { }
 
     TFuture<TSharedRef> Read() override
@@ -68,6 +74,20 @@ public:
         return MakeFuture(TSharedRef());
     }
 
+    TTableReaderTimingStatistics GetTimingStatistics() const override
+    {
+        TTableReaderTimingStatistics statistics{
+            .TotalTime = TotalTimer_.GetElapsedTime(),
+        };
+        // Table partition readers do not track timing, so only the total time is reported for them.
+        if (TableReader_) {
+            auto readerStatistics = TableReader_->GetTimingStatistics();
+            statistics.MasterFetchTime = readerStatistics.MasterFetchTime;
+            statistics.DataReadTiming = readerStatistics.DataReadTiming;
+        }
+        return statistics;
+    }
+
 private:
     /// NB(achains): Non-const members come first because async stream and format writer depends on them.
     std::string Data_;
@@ -76,6 +96,8 @@ private:
     const IFlushableAsyncOutputStreamPtr AsyncOutputStream_;
     const ISchemalessFormatWriterPtr FormatWriter_;
     const IRowBatchReaderPtr RowReader_;
+    const ITableReaderPtr TableReader_;
+    const NProfiling::TWallTimer TotalTimer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +108,8 @@ IFormattedTableReaderPtr CreateEncodedRowStream(
     NFormats::TFormat format,
     NTableClient::TTableSchemaPtr tableSchema,
     std::optional<std::vector<std::string>> columns,
-    NFormats::TControlAttributesConfigPtr controlAttributesConfig)
+    NFormats::TControlAttributesConfigPtr controlAttributesConfig,
+    NProfiling::TWallTimer totalTimer)
 {
     return New<TEncodedRowStream>(
         std::move(batchReader),
@@ -94,7 +117,8 @@ IFormattedTableReaderPtr CreateEncodedRowStream(
         std::move(format),
         std::move(tableSchema),
         std::move(columns),
-        std::move(controlAttributesConfig));
+        std::move(controlAttributesConfig),
+        std::move(totalTimer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

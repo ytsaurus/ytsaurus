@@ -29,6 +29,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/stream.h>
 
 namespace NYT::NRpcProxy {
@@ -221,6 +223,21 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         .ThrowOnError();
 
     bool finished = false;
+    TDuration encodeTime;
+
+    auto makeTimingStatistics = [&] {
+        auto timingStatistics = tableReader->GetTimingStatistics();
+        auto streamStatistics = context->GetResponseAttachmentsStreamStatistics();
+        YT_VERIFY(streamStatistics);
+        return NApi::TRemoteTableReaderTimingStatistics{
+            .MasterFetchTime = timingStatistics.MasterFetchTime,
+            .DataReadTiming = timingStatistics.DataReadTiming,
+            .TotalTime = timingStatistics.TotalTime,
+            .EncodeTime = encodeTime,
+            .WriteStallTime = streamStatistics->WriteStallTime,
+            .WindowDrainedTime = streamStatistics->WindowDrainedTime,
+        };
+    };
 
     const auto& config = Config_.Acquire();
 
@@ -244,10 +261,16 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
             NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
             statistics.set_total_row_count(tableReader->GetTotalRowCount());
             ToProto(statistics.mutable_data_statistics(), tableReader->GetDataStatistics());
+            ToProto(statistics.mutable_timing_statistics(), makeTimingStatistics());
 
+            NProfiling::TValueIncrementingTimingGuard<NProfiling::TWallTimer> encodeTimingGuard(&encodeTime);
             return encoder->Encode(
                 batch ? batch : CreateEmptyUnversionedRowBatch(),
                 &statistics);
+        },
+        [&] {
+            context->AnnotateResponse()
+                .With("TimingStatistics", makeTimingStatistics());
         });
 }
 
