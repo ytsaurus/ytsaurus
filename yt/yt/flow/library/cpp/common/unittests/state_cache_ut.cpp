@@ -502,6 +502,33 @@ TEST(TStateCacheReclamationTest, ShrinkingCompressedCapacityReclaimsOutsideCache
     EXPECT_EQ(destroyedCount.load(), 1);
 }
 
+// At zero ttl Insert is a no-op, so what a previous non-zero ttl left in the cache must not be served either.
+TEST(TStateCacheReclamationTest, ExpiringCacheExtractsNothingAtZeroTtl)
+{
+    auto queue = New<NConcurrency::TActionQueue>();
+    auto invoker = NConcurrency::CreateSerializedInvoker(queue->GetInvoker());
+    auto cache = MakeTestableCache(1_MB, 1_MB);
+    auto namedCache = cache->WithJob(TJobId(TGuid::Create()), NProfiling::TProfiler{})->WithName("state");
+    auto key = MakeKey(ui64{0});
+    auto value = New<TReclaimableValue>([] {
+    });
+
+    auto spec = New<TDynamicExpiringJobNamedStateCacheSpec>();
+    spec->Ttl = TDuration::Hours(1);
+    auto zeroTtlSpec = New<TDynamicExpiringJobNamedStateCacheSpec>();
+    ASSERT_EQ(zeroTtlSpec->Ttl, TDuration::Zero());
+
+    // The cache captures the invoker it is created in, so its own calls all have to run there.
+    auto done = BIND([&] {
+        auto expiringCache = New<TExpiringJobNamedStateCache>(namedCache, spec);
+        expiringCache->Insert(key, value, /*cookie*/ std::nullopt);
+        expiringCache->Reconfigure(zeroTtlSpec);
+        EXPECT_FALSE(expiringCache->Extract(key));
+    }).AsyncVia(invoker)
+        .Run();
+    NConcurrency::WaitFor(done).ThrowOnError();
+}
+
 TEST(TStateCacheReclamationTest, ExpiringCacheReclaimsOutsideCacheLock)
 {
     for (bool reconfigure : {false, true}) {

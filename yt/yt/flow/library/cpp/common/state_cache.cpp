@@ -236,6 +236,10 @@ std::optional<std::pair<IStateCacheValuePtr, TExpiringJobNamedStateCache::TCooki
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
+    if (DynamicSpec_->Ttl == TDuration::Zero()) {
+        return std::nullopt;
+    }
+
     auto result = DynamicPointerCast<TExpiringCacheValue>(StateCache_->Extract(key));
     if (!result) {
         return std::nullopt;
