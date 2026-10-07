@@ -316,9 +316,6 @@ struct TDynamicTabletManagerConfig
     //! during decommission through extra peers.
     TDuration ExtraPeerDropDelay;
 
-    // COMPAT(ifsmirnov): YT-13541
-    bool AccumulatePreloadPendingStoreCountCorrectly;
-
     // COMPAT(akozhikhov): YT-14187
     bool IncreaseUploadReplicationFactor;
 

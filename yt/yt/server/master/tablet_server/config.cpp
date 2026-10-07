@@ -252,8 +252,6 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("extra_peer_drop_delay", &TThis::ExtraPeerDropDelay)
         .Default(TDuration::Minutes(1));
-    registrar.Parameter("accumulate_preload_pending_store_count_correctly", &TThis::AccumulatePreloadPendingStoreCountCorrectly)
-        .Default(false);
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)

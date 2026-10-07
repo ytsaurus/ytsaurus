@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexMoveWithinCell)                                 (3356))  // sabdenovch
     ((TwoPhaseAlterTable)                                           (3357))  // ifsmirnov
     ((SetEmptyRequisitionIndexOnImportByDefault)                    (3358))  // theevilbird
+    ((AccumulatePreloadPendingStoreCountCorrectly)                  (3359))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

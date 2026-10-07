@@ -169,7 +169,6 @@ def get_dynamic_master_config():
 
         "tablet_manager": {
             "cell_scan_period": 100,
-            "accumulate_preload_pending_store_count_correctly": True,
             "increase_upload_replication_factor": True,
 
             "replicated_table_tracker": {
