@@ -1333,7 +1333,10 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     THashMap<NYPath::TYPath, TFuture<TDataSplit>> asyncDataSplits;
 
     auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
-        asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
+        auto [it, inserted] = asyncDataSplits.try_emplace(path);
+        if (inserted) {
+            it->second = callbacks->GetInitialSplit(path);
+        }
     });
     auto query = NAst::TQueryExpression({}, queryAst, aliasMap);
     pathCollector.Visit(&query);
