@@ -144,6 +144,7 @@ func newClient(conf *yt.Config, getLocalHostName func() (string, error)) (*clien
 		UpdateFn:                         c.listRPCProxies,
 		PriorityProvider:                 priorityProvider,
 		MinPeerCountForPriorityAwareness: conf.RPCProxyMinPeerCountForPriorityAwareness,
+		EnablePowerOfTwoChoicesStrategy:  conf.EnableRPCProxyPowerOfTwoChoicesStrategy,
 	}
 
 	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
@@ -325,7 +326,12 @@ func (c *client) invoke(
 	)
 
 	start := time.Now()
-	err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+	func() {
+		c.proxySet.IncrementInflightRequestCount(addr)
+		defer c.proxySet.DecrementInflightRequestCount(addr)
+
+		err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+	}()
 	duration := time.Since(start)
 
 	ctxlog.Debug(ctx, c.log.Logger(), "received RPC response",
