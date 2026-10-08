@@ -299,6 +299,12 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
     registrar.Parameter("plan_update_period", &TThis::PlanUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("enable_overreserved_module_repair", &TThis::EnableOverreservedModuleRepair)
+        .Default(false);
+
+    registrar.Parameter("overreserved_module_repair_timeout", &TThis::OverreservedModuleRepairTimeout)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
         .Default(TDuration::Minutes(20));
 
