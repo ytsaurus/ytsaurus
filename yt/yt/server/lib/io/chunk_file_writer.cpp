@@ -33,6 +33,8 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
+static const std::string TempFileSuffix(NFS::TempFileSuffix);
+
 constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,7 +223,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + std::string(NFS::TempFileSuffix), GetFileMode()})
+    return IOEngine_->Open({FileName_ + TempFileSuffix, GetFileMode()})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -399,7 +401,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
-            return IOEngine_->Open({metaFileName + std::string(NFS::TempFileSuffix), GetFileMode()});
+            return IOEngine_->Open({metaFileName + TempFileSuffix, GetFileMode()});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,
@@ -460,8 +462,8 @@ TFuture<void> TChunkFileWriter::Close(
         ] () mutable {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            NFS::Rename(metaFileName + std::string(NFS::TempFileSuffix), metaFileName);
-            NFS::Rename(FileName_ + std::string(NFS::TempFileSuffix), FileName_);
+            NFS::Rename(metaFileName + TempFileSuffix, metaFileName);
+            NFS::Rename(FileName_ + TempFileSuffix, FileName_);
 
             if (!SyncOnClose_) {
                 return OKFuture;
@@ -521,8 +523,8 @@ TFuture<void> TChunkFileWriter::Cancel()
                     NFS::Remove(path);
                 }
             };
-            removeIfExists(FileName_ + std::string(NFS::TempFileSuffix));
-            removeIfExists(FileName_ + ChunkMetaSuffix + std::string(NFS::TempFileSuffix));
+            removeIfExists(FileName_ + TempFileSuffix);
+            removeIfExists(FileName_ + ChunkMetaSuffix + TempFileSuffix);
 
             State_.store(EState::Aborted);
         })
