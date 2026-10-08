@@ -36,6 +36,7 @@ target_link_options(force_abort_tx PRIVATE
 
 target_sources(force_abort_tx PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/force_abort_tx/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/force_abort_tx/secrets_os.cpp
 )
 
 
