@@ -92,7 +92,7 @@ public:
     }
 
 #ifdef __APPLE__
-    void AddChdirFileAction(std::string path)
+    void AddChdirFileAction(const std::string& path)
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_addchdir_np(&Actions_, path.c_str()) != 0,

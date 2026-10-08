@@ -829,7 +829,7 @@ private:
         for (const auto& container : containers) {
             const auto& absoluteName = container.status().absolute_name();
             if (!absoluteName.empty()) {
-                containerNames.emplace_back(absoluteName);
+                containerNames.push_back(absoluteName);
             }
         }
         return containerNames;

@@ -893,7 +893,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 
 TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
     const IInstancePtr& instance,
-    const std::string containerCategory,
+    const std::string& containerCategory,
     const TPodSpecConfigPtr& podSpec)
 {
     auto portoResourceTracker = New<TPortoResourceTracker>(

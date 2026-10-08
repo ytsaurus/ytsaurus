@@ -293,7 +293,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace; !namespace_.empty()) {
+            if (const auto& namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
@@ -314,7 +314,7 @@ public:
         {
             auto* filter = req->mutable_filter();
 
-            if (auto namespace_ = Config_->Namespace; !namespace_.empty()) {
+            if (const auto& namespace_ = Config_->Namespace; !namespace_.empty()) {
                 auto& labels = *filter->mutable_label_selector();
                 labels[YTPodNamespaceLabel] = namespace_;
             }
