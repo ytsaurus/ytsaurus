@@ -20,6 +20,7 @@ from yt.yql.tests.sql.runners.common import (
 from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
 DQRUN_PATH = yql_binary_path('yt/yql/tools/dqrun_light/dqrun_light')
+YTFILERUN_PATH = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
@@ -73,7 +74,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
                 primary_name = 'Scalar'
                 reference_name = 'Block'
             else:
-                yqlrun_res, yqlrun_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, data_path=DATA_PATH,
+                yqlrun_res, yqlrun_tables_res = run_file_no_cache('yt', suite, case, cfg, config, yql_http_file_server, yqlrun_binary=YTFILERUN_PATH, data_path=DATA_PATH,
                                                                   cfg_postprocess=cfg_postprocess, langver=langver, patch_cfg_file=patch_cfg_file_path)
                 primary_name = 'DQFILE'
                 reference_name = 'YQLRUN'
