@@ -1,4 +1,5 @@
 LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 # Avoid llvm-symbolizer cache thrashing for large line-table-only ASan binaries.
 IF (SANITIZER_TYPE == "address" AND DEBUGINFO_LINES_ONLY == "yes")

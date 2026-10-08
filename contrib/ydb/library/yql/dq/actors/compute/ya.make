@@ -24,6 +24,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/compute/events
     contrib/ydb/library/yql/dq/actors/spilling
     contrib/ydb/library/yql/dq/common
+    contrib/ydb/library/yql/dq/comp_nodes/operator_memory_quota
     contrib/ydb/library/yql/dq/proto
     contrib/ydb/library/yql/dq/runtime
     contrib/ydb/library/yql/dq/runtime/streaming
@@ -33,6 +34,7 @@ PEERDIR(
     yql/essentials/public/issue
     contrib/ydb/core/quoter/public
     library/cpp/html/escape
+    library/cpp/time_provider
 )
 
 END()
