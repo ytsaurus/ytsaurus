@@ -10,6 +10,8 @@
 #include <util/generic/hash_set.h>
 #include <util/string/vector.h>
 
+#include <algorithm>
+
 namespace NYT::NYqlPlugin {
 
 using namespace NYTree;
@@ -258,27 +260,24 @@ void TDQYTBackend::Register(TRegistrar registrar)
         if (config->JobsPerOperation == 0) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: jobs_per_operation must be positive", config->ClusterName);
         }
-        if (config->MaxJobs == 0) {
-            THROW_ERROR_EXCEPTION("DQ backend %Qv: max_jobs must be positive", config->ClusterName);
-        }
-        if (config->MaxJobs < config->JobsPerOperation) {
+        if (config->MaxJobs != 0 && config->MaxJobs < config->JobsPerOperation) {
             THROW_ERROR_EXCEPTION(
                 "DQ backend %Qv: max_jobs (%v) must not be less than jobs_per_operation (%v)",
                 config->ClusterName,
                 config->MaxJobs,
                 config->JobsPerOperation);
         }
-        if (config->MaxJobs % config->JobsPerOperation != 0) {
+        if (config->MaxJobs != 0 && config->MaxJobs % config->JobsPerOperation != 0) {
             THROW_ERROR_EXCEPTION(
                 "DQ backend %Qv: max_jobs (%v) must be divisible by jobs_per_operation (%v)",
                 config->ClusterName,
                 config->MaxJobs,
                 config->JobsPerOperation);
         }
-        if (config->VanillaJobLite.empty()) {
+        if (config->MaxJobs != 0 && config->VanillaJobLite.empty()) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: vanilla_job_lite must not be empty", config->ClusterName);
         }
-        if (config->VanillaJobCommand.empty()) {
+        if (config->MaxJobs != 0 && config->VanillaJobCommand.empty()) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: vanilla_job_command must not be empty", config->ClusterName);
         }
         if (config->Prefix.empty()) {
@@ -395,15 +394,21 @@ void TDQManagerConfig::Register(TRegistrar registrar)
         THashSet<TString> clusterNames;
         TString vanillaJobLite;
         constexpr ui32 WorkerNodeIdCount = 8192 - 512;
-        if (config->YTBackends.size() > WorkerNodeIdCount) {
+        const auto communalBackendCount = std::count_if(
+            config->YTBackends.begin(),
+            config->YTBackends.end(),
+            [] (const auto& backend) {
+                return backend->MaxJobs != 0;
+            });
+        if (communalBackendCount > WorkerNodeIdCount) {
             THROW_ERROR_EXCEPTION(
-                "Too many DQ backends: %v backends cannot share %v worker node IDs",
-                config->YTBackends.size(),
+                "Too many communal DQ backends: %v backends cannot share %v worker node IDs",
+                communalBackendCount,
                 WorkerNodeIdCount);
         }
-        const ui32 nodesPerBackend = config->YTBackends.empty()
-            ? 0
-            : WorkerNodeIdCount / config->YTBackends.size();
+        const ui32 nodesPerBackend = communalBackendCount == 0
+            ? WorkerNodeIdCount
+            : WorkerNodeIdCount / communalBackendCount;
         for (const auto& backend : config->YTBackends) {
             if (!clusterNames.insert(backend->ClusterName).second) {
                 THROW_ERROR_EXCEPTION("Duplicate DQ backend cluster_name %Qv", backend->ClusterName);
@@ -426,14 +431,16 @@ void TDQManagerConfig::Register(TRegistrar registrar)
                     backend->MaxJobs,
                     nodeIdCount);
             }
-            if (vanillaJobLite.empty()) {
-                vanillaJobLite = backend->VanillaJobLite;
-            } else if (backend->VanillaJobLite != vanillaJobLite) {
-                THROW_ERROR_EXCEPTION(
-                    "All DQ backends must use the same vanilla_job_lite; backend %Qv has %Qv instead of %Qv",
-                    backend->ClusterName,
-                    backend->VanillaJobLite,
-                    vanillaJobLite);
+            if (backend->MaxJobs != 0) {
+                if (vanillaJobLite.empty()) {
+                    vanillaJobLite = backend->VanillaJobLite;
+                } else if (backend->VanillaJobLite != vanillaJobLite) {
+                    THROW_ERROR_EXCEPTION(
+                        "All DQ backends must use the same vanilla_job_lite; backend %Qv has %Qv instead of %Qv",
+                        backend->ClusterName,
+                        backend->VanillaJobLite,
+                        vanillaJobLite);
+                }
             }
         }
     });

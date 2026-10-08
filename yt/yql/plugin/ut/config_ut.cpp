@@ -35,6 +35,39 @@ TEST(TDqConfigValidationTest, AcceptsConsistentJobCounts)
     EXPECT_NO_THROW(ParseBackend());
 }
 
+TEST(TDqConfigValidationTest, AcceptsCliqueOnlyBackend)
+{
+    EXPECT_NO_THROW(ConvertTo<TDQYTBackendPtr>(TYsonString(TString(R"({
+        cluster_name="local";
+        max_jobs=0;
+        token_file="/tmp/token";
+    })"))));
+}
+
+TEST(TDqConfigValidationTest, CountsOnlyCommunalBackendsForNodeIdAllocation)
+{
+    EXPECT_NO_THROW(ConvertTo<TDQManagerConfigPtr>(TYsonString(TString(R"({
+        interconnect_port=31002;
+        grpc_port=31001;
+        yt_coordinator={cluster_name="local";token_file="/tmp/token";};
+        yt_backends=[
+            {
+                cluster_name="communal";
+                jobs_per_operation=1;
+                max_jobs=4000;
+                vanilla_job_lite="/bin/dq_vanilla_job_lite";
+                vanilla_job_command="./dq_vanilla_job";
+                token_file="/tmp/token";
+            };
+            {
+                cluster_name="clique";
+                max_jobs=0;
+                token_file="/tmp/token";
+            };
+        ];
+    })"))));
+}
+
 TEST(TDqConfigValidationTest, RejectsOperationLargerThanMaximum)
 {
     EXPECT_THROW_WITH_SUBSTRING(
