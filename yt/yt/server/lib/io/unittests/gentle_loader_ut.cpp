@@ -35,21 +35,21 @@ public:
         auto tmpName = MakeTempName();
         NFs::Remove(tmpName);
         Name_ = tmpName;
-        Y_ENSURE(NFs::MakeDirectory(TString(Name_)));
+        Y_ENSURE(NFs::MakeDirectory(Name_));
     }
 
     ~TTempDirectory()
     {
-        NFs::RemoveRecursive(TString(Name_));
+        NFs::RemoveRecursive(Name_);
     }
 
-    const std::string& GetName() const
+    std::string GetName() const
     {
-        return Name_;
+        return std::string(Name_);
     }
 
 private:
-    std::string Name_;
+    TString Name_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
