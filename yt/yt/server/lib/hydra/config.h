@@ -515,7 +515,7 @@ struct TDistributedHydraManagerConfig
     //! The default value of this flag is passed through TDistributedHydraManagerOptions.
     std::optional<bool> ReportReignChange;
 
-    //! Sets log level at which the exceptions which are not marked as acceptible
+    //! Sets log level at which the exceptions which are not marked as acceptable
     //! and thrown from mutation handlers are logged.
     NLogging::ELogLevel MutationHandlerFailureLogLevel;
 

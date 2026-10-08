@@ -2135,7 +2135,7 @@ private:
             for (const auto& protoSecondaryIndex : protoReplicationCard.secondary_indices()) {
                 TIndexInfo indexInfo;
                 FromProto(&indexInfo, protoSecondaryIndex);
-                replicationCard->SecondaryIndices().emplace_back(std::move(indexInfo));
+                replicationCard->SecondaryIndices().push_back(std::move(indexInfo));
             }
             if (protoMigrationCard.has_secondary_index_pending_transition()) {
                 FromProto(&replicationCard->SecondaryIndexPendingTransition(), protoMigrationCard.secondary_index_pending_transition());
@@ -3166,7 +3166,7 @@ private:
             .With("ReplicationCardId", replicationCard->GetId())
             .With("Index", ConvertToYsonString(secondaryIndexInfo, EYsonFormat::Text).AsStringBuf());
 
-        replicationCard->SecondaryIndices().emplace_back(std::move(secondaryIndexInfo));
+        replicationCard->SecondaryIndices().push_back(std::move(secondaryIndexInfo));
 
         indexTableReplicationCard->IndexTo() = replicationCard->GetId();
 
