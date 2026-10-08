@@ -1249,8 +1249,7 @@ extend google.protobuf.EnumOptions
     // The file into which this enum should be exported.
     optional string enum_output_filename = 33006;
 
-    // For columnar enums there is DEFINE_ENUM generated.
-    // By default enum name is chosen. This option overrides it.
+    // Overrides the C++ type name of the DEFINE_ENUM generated for a columnar enum (the enum name by default).
     // TODO(dgolear): Get rid of DEFINE_ENUM.
     optional string enum_cpp_type_name = 33008;
 }
