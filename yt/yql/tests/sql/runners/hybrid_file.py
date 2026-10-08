@@ -13,6 +13,7 @@ from yt.yql.tests.sql.runners.common import (
 from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
 DQRUN_PATH = yql_binary_path('yt/yql/tools/dqrun_light/dqrun_light')
+YTFILERUN_PATH = yql_binary_path('yt/yql/tools/ytfilerun/impl/ytfilerun')
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
@@ -48,6 +49,7 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
                 cfg,
                 config,
                 yql_http_file_server,
+                yqlrun_binary=YTFILERUN_PATH,
                 data_path=DATA_PATH,
                 cfg_postprocess=cfg_postprocess,
                 langver=langver,
