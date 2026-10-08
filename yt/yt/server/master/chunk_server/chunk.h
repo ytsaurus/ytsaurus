@@ -174,6 +174,7 @@ public:
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
+    void ClearLastSeenReplicas();
 
     void AddReplica(
         TAugmentedStoredChunkReplicaPtr replica,

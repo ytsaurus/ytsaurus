@@ -2854,6 +2854,9 @@ private:
     // COMPAT(aleksandra-zh)
     bool RecomputeHistoricallyNonVital_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool ClearSequoiaLastSeenReplicasOnMaster_ = false;
+
     // COMPAT(akozhikhov)
     bool RecomputeHunkRelatedChunkStatistics_ = false;
 
@@ -6210,6 +6213,7 @@ private:
         }
 
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
+        ClearSequoiaLastSeenReplicasOnMaster_ = context.GetVersion() < EMasterReign::ClearSequoiaLastSeenReplicasOnMaster;
 
         RecomputeHunkRelatedChunkStatistics_ = context.GetVersion() < EMasterReign::HunkChunkTreeStatisticsOverhaul ||
             (context.GetVersion() >= EMasterReign::Start_26_2 &&
@@ -6273,6 +6277,13 @@ private:
 
             for (auto [_, chunk] : ChunkMap_) {
                 RegisterChunk(chunk);
+
+                if (ClearSequoiaLastSeenReplicasOnMaster_) {
+                    auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunk->GetId(), GetDynamicConfig()->SequoiaChunkReplicas);
+                    if (chunkSequoiaConfig.StoreInSequoia && !chunkSequoiaConfig.StoreSequoiaReplicasOnMaster) {
+                        chunk->ClearLastSeenReplicas();
+                    }
+                }
 
                 if (chunk->HasConsistentReplicaPlacementHash()) {
                     crpChunks.push_back(chunk);
@@ -6661,6 +6672,7 @@ private:
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
         RecomputeHistoricallyNonVital_ = false;
+        ClearSequoiaLastSeenReplicasOnMaster_ = false;
 
         LastSequoiaReplicasCommitTimestamp_ = NullTimestamp;
 
