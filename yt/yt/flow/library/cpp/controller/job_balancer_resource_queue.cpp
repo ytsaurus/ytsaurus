@@ -2068,6 +2068,29 @@ TRebalanceResult DoBalanceResourceQueue(
     bool equalizationWorthTrying = aboveZeroLevel &&
         baselineMetric.Deviation > kEpsilon &&
         baselineMetric.Deviation >= improvementThreshold;
+    // Expose the criterion as the balancer sees it: the same values that gate Step 8.
+    TResourceQueueRoundStats roundStats;
+    for (const auto& [workerAddress, workerInfo] : context.Workers) {
+        const auto& state = GetOrDefault(baselineState, workerAddress, TEmulatedWorker{});
+        roundStats.Workers[workerAddress] = TResourceQueueWorkerStats{
+            .QueueSize = workerInfo.TotalQueueSize,
+            .ProjectedQueue = computeProjectedAvgQueue(workerAddress, state),
+            .Load = workerInfo.TotalLoad,
+            .Capacity = workerInfo.TotalCapacity,
+            .Underloaded = workerInfo.Underloaded,
+            .Enrolled = enrolledWorkers.contains(workerAddress),
+        };
+    }
+    roundStats.Mean = baselineMetric.Mean;
+    roundStats.Deviation = baselineMetric.Deviation;
+    roundStats.TargetDeviation = balancerSpec->RebalanceTargetDeviation;
+    roundStats.AboveZeroLevel = aboveZeroLevel;
+    roundStats.Balanced = !equalizationWorthTrying;
+    // Deviation > 0 implies Mean > 0: projected queues are non-negative.
+    roundStats.Imbalance = aboveZeroLevel && baselineMetric.Deviation > kEpsilon
+        ? baselineMetric.Deviation / baselineMetric.Mean
+        : 0.;
+
     if (!equalizationWorthTrying) {
         YT_TLOG_DEBUG("ResourceQueue: Step 8 skipped, nothing to equalize")
             .With("WorkerGroup", workerGroup)
@@ -2241,6 +2264,11 @@ TRebalanceResult DoBalanceResourceQueue(
         .With("NewMean", newMetric.Mean)
         .With("ImprovementThreshold", improvementThreshold)
         .With("Accepted", equalizationAccepted);
+
+    roundStats.TentativeMoves = std::ssize(tentativeMoves) / 2; // A move is a Del and an Add.
+    roundStats.NewDeviation = newMetric.Deviation;
+    roundStats.Accepted = equalizationAccepted;
+    rebalanceResult.ResourceQueueStats = std::move(roundStats);
 
     if (equalizationAccepted) {
         for (auto& action : tentativeMoves) {

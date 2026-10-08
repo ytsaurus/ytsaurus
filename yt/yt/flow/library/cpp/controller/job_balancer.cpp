@@ -3393,6 +3393,98 @@ class TBalanceAsyncSynchronizer
         THashMap<std::optional<TComputationId>, THashMap<std::string, NProfiling::TGauge>> Gauges_;
     };
 
+    //! The criterion of the resource_queue balancer: per-worker projected queues and the group verdict.
+    class TResourceQueueMetrics
+    {
+    public:
+        TResourceQueueMetrics(const NProfiling::TProfiler& profiler)
+            : Profiler_(profiler)
+        { }
+
+        void Update(const TResourceQueueRoundStats& stats, const TFlowViewPtr& flowView)
+        {
+            for (const auto& [workerAddress, workerStats] : stats.Workers) {
+                const auto& gauges = GetOrInsert(WorkerGauges_, workerAddress, [&] {
+                    auto worker = GetOrDefault(flowView->State->Workers, workerAddress, nullptr);
+                    const std::string& metricKey = worker && !worker->Name.empty() ? worker->Name : workerAddress;
+                    return TWorkerGauges{
+                        .QueueSize = Profiler_.Gauge("/queue_size/" + metricKey),
+                        .ProjectedQueue = Profiler_.Gauge("/projected_queue/" + metricKey),
+                        .Load = Profiler_.Gauge("/load/" + metricKey),
+                        .Capacity = Profiler_.Gauge("/capacity/" + metricKey),
+                        .Underloaded = Profiler_.Gauge("/underloaded/" + metricKey),
+                        .Enrolled = Profiler_.Gauge("/enrolled/" + metricKey),
+                    };
+                });
+                gauges.QueueSize.Update(workerStats.QueueSize);
+                gauges.ProjectedQueue.Update(workerStats.ProjectedQueue);
+                gauges.Load.Update(workerStats.Load);
+                gauges.Capacity.Update(workerStats.Capacity);
+                gauges.Underloaded.Update(workerStats.Underloaded ? 1. : 0.);
+                gauges.Enrolled.Update(workerStats.Enrolled ? 1. : 0.);
+            }
+            DropMissingKeys(WorkerGauges_, stats.Workers);
+
+            if (!GroupGauges_) {
+                GroupGauges_ = TGroupGauges{
+                    .Mean = Profiler_.Gauge("/mean"),
+                    .Deviation = Profiler_.Gauge("/deviation"),
+                    .TargetDeviation = Profiler_.Gauge("/target_deviation"),
+                    .AboveZeroLevel = Profiler_.Gauge("/above_zero_level"),
+                    .Imbalance = Profiler_.Gauge("/imbalance"),
+                    .Balanced = Profiler_.Gauge("/balanced"),
+                    .TentativeMoves = Profiler_.Gauge("/tentative_moves"),
+                    .NewDeviation = Profiler_.Gauge("/new_deviation"),
+                    .Accepted = Profiler_.Gauge("/accepted"),
+                };
+            }
+            GroupGauges_->Mean.Update(stats.Mean);
+            GroupGauges_->Deviation.Update(stats.Deviation);
+            GroupGauges_->TargetDeviation.Update(stats.TargetDeviation);
+            GroupGauges_->AboveZeroLevel.Update(stats.AboveZeroLevel ? 1. : 0.);
+            GroupGauges_->Imbalance.Update(stats.Imbalance);
+            GroupGauges_->Balanced.Update(stats.Balanced ? 1. : 0.);
+            GroupGauges_->TentativeMoves.Update(stats.TentativeMoves);
+            GroupGauges_->NewDeviation.Update(stats.NewDeviation);
+            GroupGauges_->Accepted.Update(stats.Accepted ? 1. : 0.);
+        }
+
+        //! Drops all gauges, so a group that switched balancers does not keep reporting its last round.
+        void Reset()
+        {
+            WorkerGauges_.clear();
+            GroupGauges_.reset();
+        }
+
+    private:
+        struct TWorkerGauges
+        {
+            NProfiling::TGauge QueueSize;
+            NProfiling::TGauge ProjectedQueue;
+            NProfiling::TGauge Load;
+            NProfiling::TGauge Capacity;
+            NProfiling::TGauge Underloaded;
+            NProfiling::TGauge Enrolled;
+        };
+
+        struct TGroupGauges
+        {
+            NProfiling::TGauge Mean;
+            NProfiling::TGauge Deviation;
+            NProfiling::TGauge TargetDeviation;
+            NProfiling::TGauge AboveZeroLevel;
+            NProfiling::TGauge Imbalance;
+            NProfiling::TGauge Balanced;
+            NProfiling::TGauge TentativeMoves;
+            NProfiling::TGauge NewDeviation;
+            NProfiling::TGauge Accepted;
+        };
+
+        NProfiling::TProfiler Profiler_;
+        THashMap<std::string, TWorkerGauges> WorkerGauges_;
+        std::optional<TGroupGauges> GroupGauges_;
+    };
+
     //! Stores all the data that should be passed from JobManager to balancer instance.
     struct TStartData
     {
@@ -3405,6 +3497,7 @@ class TBalanceAsyncSynchronizer
     TWorkerCoefMetrics WorkerCoefMetrics_;
     TWorkerQueueMetrics WorkerQueueMetrics_;
     TBalancerIncomingMetrics IncomingMetrics_;
+    TResourceQueueMetrics ResourceQueueMetrics_;
     TSequenceIdGeneratorPtr SequenceIdGenerator_ = New<TSequenceIdGenerator>();
     TSequenceIdGeneratorPtr DeferredSequenceIdGenerator_ = New<TSequenceIdGenerator>();
     TWorkerGroupId WorkerGroup_;
@@ -3430,6 +3523,9 @@ public:
         , WorkerCoefMetrics_(profiler.WithPrefix("/worker_coefs"))
         , WorkerQueueMetrics_(profiler.WithPrefix("/worker_queue_sizes"))
         , IncomingMetrics_(profiler.WithPrefix("/incoming_metrics"))
+        , ResourceQueueMetrics_(profiler.WithPrefix(workerGroup.Underlying().empty()
+                ? "/resource_queue/default"
+                : Format("/resource_queue/groups/%v", workerGroup.Underlying())))
         , WorkerGroup_(workerGroup)
         , AppliedActions_(SequenceIdGenerator_)
         , DeferredAppliedActions_(DeferredSequenceIdGenerator_)
@@ -3685,8 +3781,12 @@ public:
             }
         } else if (balancerSpec->BalancerType == EJobBalancerType::ResourceQueue) {
             rebalanceResult = DoBalanceResourceQueue(flowView, balancerSpec, WorkerGroup_);
+            ResourceQueueMetrics_.Update(rebalanceResult.ResourceQueueStats, flowView);
         } else {
             THROW_ERROR_EXCEPTION("Unknown balancer type: %v", balancerSpec->BalancerType);
+        }
+        if (balancerSpec->BalancerType != EJobBalancerType::ResourceQueue) {
+            ResourceQueueMetrics_.Reset();
         }
 
         return rebalanceResult;
