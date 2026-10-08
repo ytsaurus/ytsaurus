@@ -268,6 +268,9 @@ struct TGpuSchedulingPolicyConfig
 
     TDuration PlanUpdatePeriod;
 
+    bool EnableOverreservedModuleRepair;
+    TDuration OverreservedModuleRepairTimeout;
+
     TDuration ModuleReconsiderationTimeout;
 
     // TODO(eshcherbin): Rework how modules are configured.
