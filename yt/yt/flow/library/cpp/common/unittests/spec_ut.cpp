@@ -1163,6 +1163,17 @@ TEST(TSpecTest, BalanceWeightsValidation)
             "{balance_weights = {disk = 1.0}}"))));
 }
 
+TEST(TSpecTest, WorkerCoefMaxRatioValidation)
+{
+    auto parse = [] (TStringBuf yson) {
+        return ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(yson));
+    };
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = 0.5}"));
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = 1001.0}"));
+    EXPECT_ANY_THROW(parse("{worker_coef_max_ratio = %inf}"));
+    EXPECT_NO_THROW(parse("{worker_coef_max_ratio = 1000.0}"));
+}
+
 TEST(TSpecTest, RebalanceTargetDeviationValidation)
 {
     // The ResourceQueue balancer seeds Step 2 below (1 - deviation) of the consumption, so anything

@@ -4,6 +4,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <cmath>
+#include <limits>
+#include <tuple>
 
 namespace NYT::NFlow::NBalancer {
 namespace {
@@ -150,6 +152,174 @@ TEST_F(TWorkerCoefEstimatorTest, ObservationComparesCpuPerMessage)
     EXPECT_FALSE(estimator.MakeObservation(1.0, 100.0, 2.0, 5.0));
     EXPECT_FALSE(estimator.MakeObservation(0.001, 100.0, 2.0, 100.0));
     EXPECT_FALSE(estimator.MakeObservation(1.0, 0.0, 2.0, 100.0));
+}
+
+TEST_F(TWorkerCoefEstimatorTest, IdlePartitionsGiveNoObservation)
+{
+    auto estimator = MakeEstimator();
+    // An idle partition has nothing to compare even when the ratio is finite.
+    EXPECT_FALSE(estimator.MakeObservation(0.06, 0.001, 0.06, 0.001));
+    EXPECT_FALSE(estimator.MakeObservation(0.1, 0.005, 0.05, 0.005));
+    // A rate the EMA has decayed into the subnormal range, as seen in production.
+    EXPECT_FALSE(estimator.MakeObservation(0.06, 1e-320, 0.06, 1e-320));
+}
+
+TEST_F(TWorkerCoefEstimatorTest, NonFiniteMeasurementsGiveNoObservation)
+{
+    const double inf = std::numeric_limits<double>::infinity();
+    auto estimator = MakeEstimator();
+    EXPECT_FALSE(estimator.MakeObservation(std::nan(""), 100.0, 2.0, 100.0));
+    EXPECT_FALSE(estimator.MakeObservation(1.0, std::nan(""), 2.0, 100.0));
+    EXPECT_FALSE(estimator.MakeObservation(1.0, 100.0, inf, 100.0));
+    EXPECT_FALSE(estimator.MakeObservation(-inf, 100.0, 2.0, 100.0));
+    EXPECT_FALSE(estimator.MakeObservation(1.0, -100.0, 2.0, 100.0));
+    // The rate ratio of two infinities is NaN and passes the ratio gate.
+    EXPECT_FALSE(estimator.MakeObservation(1.0, inf, 2.0, inf));
+    // Passes every gate, yet CPU per message overflows on both sides.
+    EXPECT_FALSE(estimator.MakeObservation(1e307, 0.01, 1e307, 0.01));
+}
+
+TEST_F(TWorkerCoefEstimatorTest, NonFiniteObservationIsIgnored)
+{
+    const double inf = std::numeric_limits<double>::infinity();
+    auto estimator = MakeEstimator();
+    estimator.AddObservation("A", "B", 0.2, 1.0, T0);
+    estimator.AddObservation("A", "B", std::nan(""), 1.0, T0);
+    estimator.AddObservation("A", "B", 0.2, inf, T0);
+    estimator.AddObservation("A", "B", 0.2, 0.0, T0);
+    estimator.AddObservation("A", "B", 0.2, -1.0, T0);
+    estimator.AddObservation("B", "C", inf, 1.0, T0);
+    estimator.AddObservation("C", "D", 0.1, std::nan(""), T0);
+    EXPECT_EQ(estimator.GetEdgeCount(), 1);
+    const auto& edge = State->WorkerCoefEdges.at("A").at("B");
+    EXPECT_EQ(edge.Obs, 0.2);
+    EXPECT_EQ(edge.Weight, 1.0);
+}
+
+//! A state written before non-finite observations were rejected: one such value discredits
+//! every observation of the state.
+TEST_F(TWorkerCoefEstimatorTest, PoisonedStateIsReset)
+{
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::nan("");
+    auto putEdge = [&] (const std::string& from, const std::string& to, double obs, double weight) {
+        auto& edge = State->WorkerCoefEdges[from][to];
+        edge.From = from;
+        edge.To = to;
+        edge.Obs = obs;
+        edge.Weight = weight;
+        edge.UpdatedAt = T0;
+    };
+
+    struct TPoison
+    {
+        std::string Name;
+        std::optional<std::tuple<std::string, std::string, double, double>> Edge;
+        std::optional<std::pair<std::string, double>> Coef;
+    };
+
+    std::vector<TPoison> poisons = {
+        {"nan obs", std::tuple{"A", "B", nan, 0.0625}, {}},
+        {"inf obs", std::tuple{"G", "H", inf, 1.0}, {}},
+        {"inf weight", std::tuple{"A", "D", 0.2, inf}, {}},
+        {"zero weight", std::tuple{"E", "F", 0.1, 0.0}, {}},
+        {"negative weight", std::tuple{"E", "F", 0.1, -1.0}, {}},
+        {"nan coef", {}, std::pair{"A", nan}},
+        {"inf coef", {}, std::pair{"C", inf}},
+        {"-inf coef", {}, std::pair{"D", -inf}},
+    };
+    auto seed = [&] (const TPoison& poison) {
+        State = New<TBalancerGroupState>();
+        putEdge("A", "C", 0.2, 1.0);
+        State->WorkerLogCoefs["A"] = -0.1;
+        State->WorkerLogCoefs["C"] = 0.1;
+        State->WorkerLastSeen["A"] = T0;
+        if (poison.Edge) {
+            std::apply(putEdge, *poison.Edge);
+        }
+        if (poison.Coef) {
+            State->WorkerLogCoefs[poison.Coef->first] = poison.Coef->second;
+        }
+    };
+    for (const auto& poison : poisons) {
+        seed(poison);
+        EXPECT_TRUE(MakeEstimator().ResetIfPoisoned()) << poison.Name;
+
+        seed(poison);
+        auto estimator = MakeEstimator();
+        for (const auto& [worker, logCoef] : State->WorkerLogCoefs) {
+            if (!std::isfinite(logCoef)) {
+                EXPECT_EQ(estimator.GetCoef(worker), 1.0) << poison.Name << " " << worker;
+            }
+        }
+        estimator.Solve();
+        EXPECT_EQ(estimator.GetEdgeCount(), 0) << poison.Name;
+        EXPECT_TRUE(State->WorkerLogCoefs.empty()) << poison.Name;
+        EXPECT_TRUE(State->WorkerLastSeen.empty()) << poison.Name;
+    }
+
+    // A finite state is left alone.
+    State = New<TBalancerGroupState>();
+    putEdge("A", "C", 0.2, 1.0);
+    auto estimator = MakeEstimator();
+    EXPECT_FALSE(estimator.ResetIfPoisoned());
+    estimator.Solve();
+    EXPECT_EQ(estimator.GetEdgeCount(), 1);
+    EXPECT_EQ(std::ssize(State->WorkerLogCoefs), 2);
+    EXPECT_NEAR(LogCoef("C") - LogCoef("A"), 0.2, 0.01);
+}
+
+TEST_F(TWorkerCoefEstimatorTest, ObservationResetsPoisonedStateFirst)
+{
+    for (const auto& [from, to, obs] : {std::tuple("A", "B", std::nan("")), std::tuple("C", "D", 0.1)}) {
+        auto& edge = State->WorkerCoefEdges[from][to];
+        edge.From = from;
+        edge.To = to;
+        edge.Obs = obs;
+        edge.Weight = 1.0;
+        edge.UpdatedAt = T0;
+    }
+
+    // Neither the poisoned edge nor its finite neighbour survives; the observation does.
+    auto estimator = MakeEstimator();
+    estimator.AddObservation("A", "B", 0.3, 1.0, T0);
+    EXPECT_EQ(estimator.GetEdgeCount(), 1);
+    const auto& edge = State->WorkerCoefEdges.at("A").at("B");
+    EXPECT_EQ(edge.Obs, 0.3);
+    EXPECT_EQ(edge.Weight, 1.0);
+    estimator.Solve();
+    EXPECT_EQ(estimator.GetEdgeCount(), 1);
+    EXPECT_NEAR(LogCoef("B") - LogCoef("A"), 0.3, 0.02);
+}
+
+//! Finite but extreme values can overflow the merge and the solver; neither may store the result.
+TEST_F(TWorkerCoefEstimatorTest, OverflowLeavesNoNonFiniteValue)
+{
+    auto estimator = MakeEstimator();
+    estimator.AddObservation("A", "B", 700.0, 1e306, T0);
+    estimator.AddObservation("A", "B", 700.0, 1e306, T0);
+    const auto& edge = State->WorkerCoefEdges.at("A").at("B");
+    EXPECT_EQ(edge.Obs, 700.0);
+    EXPECT_EQ(edge.Weight, 2e306);
+    estimator.AddObservation("A", "B", 700.0, 1e308, T0);
+    estimator.AddObservation("A", "B", 700.0, 1e308, T0);
+    EXPECT_EQ(edge.Obs, 700.0);
+    EXPECT_EQ(edge.Weight, 1e308);
+
+    State = New<TBalancerGroupState>();
+    auto& huge = State->WorkerCoefEdges["A"]["B"];
+    huge.From = "A";
+    huge.To = "B";
+    huge.Obs = 1e308;
+    huge.Weight = 2.0;
+    huge.UpdatedAt = T0;
+    auto solver = MakeEstimator();
+    for (int round = 0; round < 2; ++round) {
+        solver.Solve();
+        EXPECT_EQ(solver.GetEdgeCount(), 1);
+        EXPECT_TRUE(State->WorkerLogCoefs.empty());
+        EXPECT_EQ(solver.GetCoef("A"), 1.0);
+    }
 }
 
 TEST_F(TWorkerCoefEstimatorTest, OldEvidenceFadesOnlyWhenNewArrives)

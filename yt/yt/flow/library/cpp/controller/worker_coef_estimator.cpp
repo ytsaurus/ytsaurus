@@ -31,7 +31,7 @@ TWorkerCoefEstimator::TWorkerCoefEstimator(TBalancerGroupStatePtr state, TWorker
 
 std::optional<double> TWorkerCoefEstimator::MakeObservation(double cpuA, double rpsA, double cpuB, double rpsB) const
 {
-    if (cpuA < Config_.MinCpuUsage || cpuB < Config_.MinCpuUsage || rpsA <= 0. || rpsB <= 0.) {
+    if (cpuA < Config_.MinCpuUsage || cpuB < Config_.MinCpuUsage || rpsA < Config_.MinMessageRate || rpsB < Config_.MinMessageRate) {
         return std::nullopt;
     }
     double rateRatio = rpsB / rpsA;
@@ -39,14 +39,19 @@ std::optional<double> TWorkerCoefEstimator::MakeObservation(double cpuA, double 
         return std::nullopt;
     }
     // CPU per message: a backlog catch-up after the move inflates CPU and rate alike.
-    return std::log((cpuB / rpsB) / (cpuA / rpsA));
+    double observation = std::log((cpuB / rpsB) / (cpuA / rpsA));
+    if (!std::isfinite(observation)) {
+        return std::nullopt;
+    }
+    return observation;
 }
 
 void TWorkerCoefEstimator::AddObservation(const std::string& from, const std::string& to, double obs, double weight, TInstant now)
 {
-    if (from == to || weight <= 0.) {
+    if (from == to || weight <= 0. || !std::isfinite(weight) || !std::isfinite(obs)) {
         return;
     }
+    ResetIfPoisoned();
     // An edge is a pair, not a direction: store it as From < To.
     if (to < from) {
         AddObservation(to, from, -obs, weight, now);
@@ -73,8 +78,16 @@ void TWorkerCoefEstimator::AddObservation(const std::string& from, const std::st
     auto& edge = it->second;
     double decay = std::exp2(-std::max(0., (now - edge.UpdatedAt).SecondsFloat()) / Config_.HalfLife.SecondsFloat());
     double oldWeight = edge.Weight * decay;
-    edge.Weight = oldWeight + weight;
-    edge.Obs = (edge.Obs * oldWeight + obs * weight) / edge.Weight;
+    double mergedWeight = oldWeight + weight;
+    // A convex combination cannot overflow for finite observations.
+    double mergedObs = edge.Obs * (oldWeight / mergedWeight) + obs * (weight / mergedWeight);
+    if (!std::isfinite(mergedWeight) || !std::isfinite(mergedObs)) {
+        // The weights overflowed: the observation replaces the edge.
+        mergedWeight = weight;
+        mergedObs = obs;
+    }
+    edge.Weight = mergedWeight;
+    edge.Obs = mergedObs;
     edge.UpdatedAt = now;
 }
 
@@ -157,8 +170,31 @@ void TWorkerCoefEstimator::Prune(const THashSet<std::string>& present, TInstant 
     });
 }
 
+bool TWorkerCoefEstimator::ResetIfPoisoned()
+{
+    bool poisoned = false;
+    for (const auto& [_, edges] : State_->WorkerCoefEdges) {
+        for (const auto& [_, edge] : edges) {
+            poisoned |= !std::isfinite(edge.Obs) || !std::isfinite(edge.Weight) || edge.Weight <= 0.;
+        }
+    }
+    for (const auto& [_, logCoef] : State_->WorkerLogCoefs) {
+        poisoned |= !std::isfinite(logCoef);
+    }
+    if (!poisoned) {
+        return false;
+    }
+    // The other observations of such a state came from the same source and are as suspect.
+    State_->WorkerCoefEdges.clear();
+    State_->WorkerLogCoefs.clear();
+    State_->WorkerLastSeen.clear();
+    return true;
+}
+
 void TWorkerCoefEstimator::Solve()
 {
+    ResetIfPoisoned();
+
     // Minimizes sum_e W_e (x_To - x_From - O_e)^2 + PriorWeight * sum_w x_w^2 by Gauss-Seidel
     // sweeps from the previous solution. The prior makes the minimum unique and pins the mean of
     // log(coef) in every connected component to zero, i.e. the geometric mean of coefficients to 1.
@@ -256,6 +292,10 @@ void TWorkerCoefEstimator::Solve()
             break;
         }
     }
+    // An overflow is invisible to the convergence test: std::max(0., NaN) is 0.
+    EraseNodesIf(x, [] (const auto& item) {
+        return !std::isfinite(item.second);
+    });
     State_->WorkerLogCoefs = std::move(x);
 }
 
@@ -271,7 +311,7 @@ int TWorkerCoefEstimator::GetEdgeCount() const
 double TWorkerCoefEstimator::GetCoef(const std::string& worker) const
 {
     auto* logCoef = State_->WorkerLogCoefs.FindPtr(worker);
-    if (!logCoef) {
+    if (!logCoef || !std::isfinite(*logCoef)) {
         return 1.;
     }
     double limit = std::log(Config_.MaxRatio);

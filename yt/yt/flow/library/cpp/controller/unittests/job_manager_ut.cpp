@@ -741,6 +741,12 @@ public:
         return layout->Jobs.at(*layout->Partitions.at(partitionId)->CurrentJobId);
     }
 
+    //! The id the feedback stamps on a status: the current job's, or none for a jobless partition.
+    TJobId GetCurrentJobId(const TPartitionId& partitionId)
+    {
+        return FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId)->CurrentJobId.value_or(TJobId());
+    }
+
     std::vector<TPartitionId> GetPartitionIds()
     {
         std::vector<TPartitionId> result;
@@ -866,6 +872,7 @@ public:
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto partitionJobStatus = New<TPartitionJobStatus>();
             partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+            partitionJobStatus->CurrentJobStatus->JobId = jobId;
             partitionJobStatus->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             partitionJobStatus->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
 
@@ -886,6 +893,7 @@ public:
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto partitionJobStatus = New<TPartitionJobStatus>();
             partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+            partitionJobStatus->CurrentJobStatus->JobId = jobId;
             if (slowWorkerAddresses.contains(job->WorkerAddress)) {
                 partitionJobStatus->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = slowWorkerFactor * BaseCpuLoad;
             } else {
@@ -963,6 +971,7 @@ public:
 
             auto partitionJobStatus = New<TPartitionJobStatus>();
             partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+            partitionJobStatus->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             partitionJobStatus->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = (GetOrDefault(deviatingPartitions, partitionId, 1.0)) * BaseCpuLoad;
             partitionJobStatus->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
 
@@ -1519,6 +1528,7 @@ TEST_F(TJobBalancerTest, StrayManyOnePartitionComputations)
     for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
         auto status = New<TPartitionJobStatus>();
         status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
         status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
         status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
         FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
@@ -1565,6 +1575,7 @@ TEST_F(TJobBalancerTest, MemoryWeightedBalancingSpreadsMemoryHeavyPartitions)
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = jobId;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -1622,6 +1633,7 @@ TEST_F(TJobBalancerTest, CpuUnweightedConfigBalancesByMemory)
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = jobId;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -1751,6 +1763,7 @@ TEST_F(TJobBalancerTest, MemoryReliefSpreadsSinglePartitionComputations)
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = jobId;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -1849,6 +1862,7 @@ TEST_F(TJobBalancerTest, MemoryReliefSkipsCappedComputationCandidate)
         for (const auto& [partitionId, memory] : memoryByPartition) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -1946,6 +1960,7 @@ TEST_F(TJobBalancerTest, MemoryReliefDoesNotClashWithPersistedSlowActions)
         for (const auto& [partitionId, load] : loadByPartition) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = load.first;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = load.first;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = load.second;
@@ -2044,6 +2059,7 @@ TEST_F(TJobBalancerTest, ForeignStrayPartitionsDoNotReleaseTheRebalanceBuffer)
         for (const auto& partitionId : balancedPartitions) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2143,6 +2159,7 @@ TEST_F(TJobBalancerTest, MemoryReliefConvergesAcrossThreeWorkers)
         for (const auto& [partitionId, memory] : memoryByPartition) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2219,6 +2236,7 @@ TEST_F(TJobBalancerTest, OvercountKickEvictsAlongOverloadedResource)
     for (const auto& partitionId : partitionIds) {
         auto status = New<TPartitionJobStatus>();
         status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
         status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
         status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = partitionId == monsterId ? MonsterMemory : LightMemory;
         status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2290,6 +2308,7 @@ TEST_F(TJobBalancerTest, StrayPlacementRoutesByPartitionShape)
     auto setLoad = [&] (const TPartitionId& partitionId, double cpu, double memory) {
         auto status = New<TPartitionJobStatus>();
         status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
         status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = cpu;
         status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
         status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2378,6 +2397,7 @@ TEST_F(TJobBalancerTest, SlowBalancingSwapPartnerFollowsBottleneckResource)
         for (const auto& [partitionId, memory] : memoryByPartition) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = GetCurrentJobId(partitionId);
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2433,6 +2453,7 @@ TEST_F(TJobBalancerTest, MemoryUnweightedBalancingIgnoresMemory)
         for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
             auto status = New<TPartitionJobStatus>();
             status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->JobId = jobId;
             status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
             status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
             status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
@@ -2961,6 +2982,129 @@ TEST_F(TJobBalancerTest, ProbingLearnsFromMovedPartition)
     EXPECT_DOUBLE_EQ(restoredEdges.at(GetWorkerAddress(0)).at(GetWorkerAddress(1)).Obs, edge.Obs);
 }
 
+//! A graceful move creates the new job in the iteration whose feedback still holds the status of
+//! the job it replaced: that status is the history itself and must not be compared with it.
+TEST_F(TJobBalancerTest, ProbingWaitsForTheStatusOfTheNewJob)
+{
+    Reset();
+    PrepareBalancerTest(2, {{4, {}}});
+    DistributeJobs();
+    const TVersion specVersion(3);
+    SetMatureStatusesWithRates(BaseCpuLoad, 100.0, specVersion);
+
+    // Swap one partition of each worker, so that the layout stays even and nothing else moves.
+    std::optional<TPartitionId> movedId;
+    std::optional<TPartitionId> swappedId;
+    for (const auto& partitionId : GetPartitionIds()) {
+        auto& slot = GetJob(partitionId)->WorkerAddress == GetWorkerAddress(0) ? movedId : swappedId;
+        if (!slot) {
+            slot = partitionId;
+        }
+    }
+    ASSERT_TRUE(movedId && swappedId);
+    {
+        FlowView->State->StartMutation();
+        for (const auto& [partitionId, toWorker] : {std::pair(*movedId, GetWorkerAddress(1)), std::pair(*swappedId, GetWorkerAddress(0))}) {
+            NBalancer::RemoveJobKeepingMetrics(FlowView, GetJob(partitionId)->JobId, EJobFinishReason::Rebalanced);
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = toWorker;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(toWorker)->IncarnationId;
+            job->PartitionId = partitionId;
+            FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+    // Only the first partition is to give an observation.
+    SetMetricsHistory(*swappedId, GetWorkerAddress(1), BaseCpuLoad, 100.0, TVersion(2));
+    ASSERT_TRUE(GetMetricsHistory(*movedId));
+
+    DistributeJobs();
+    EXPECT_TRUE(GetBalancerGroupState()->WorkerCoefEdges.empty());
+    EXPECT_TRUE(GetMetricsHistory(*movedId));
+    EXPECT_TRUE(GetMetricsHistory(*swappedId));
+
+    // The next feedback collection drops the previous jobs' statuses; the new jobs have none yet.
+    FlowView->Feedback->PartitionJobStatuses.erase(*movedId);
+    FlowView->Feedback->PartitionJobStatuses.erase(*swappedId);
+    DistributeJobs();
+    EXPECT_TRUE(GetBalancerGroupState()->WorkerCoefEdges.empty());
+    EXPECT_TRUE(GetMetricsHistory(*movedId));
+    EXPECT_TRUE(GetMetricsHistory(*swappedId));
+
+    // The new jobs report their own metrics: twice the CPU per message.
+    SetMatureStatusesWithRates(2 * BaseCpuLoad, 100.0, specVersion);
+    DistributeJobs();
+    const auto& state = GetBalancerGroupState();
+    ASSERT_EQ(state->WorkerCoefEdges.size(), 1u);
+    const auto& edge = state->WorkerCoefEdges.at(GetWorkerAddress(0)).at(GetWorkerAddress(1));
+    EXPECT_NEAR(edge.Obs, std::log(2.0), 1e-9);
+    EXPECT_DOUBLE_EQ(edge.Weight, 0.5);
+    EXPECT_FALSE(GetMetricsHistory(*movedId));
+    EXPECT_FALSE(GetMetricsHistory(*swappedId));
+}
+
+//! In the legacy coefficient mode the history is retired once the new job matures, not in the
+//! iteration of the move, where the feedback still shows the previous job as mature.
+TEST_F(TJobBalancerTest, LegacyModeKeepsHistoryUntilTheNewJobMatures)
+{
+    Reset();
+    PrepareBalancerTest(2, {{4, {}}});
+    FlowView->CurrentDynamicSpec->GetValue()->JobManager->WorkerCoefMode = EWorkerCoefMode::Legacy;
+    DistributeJobs();
+    SetMatureStatusesWithRates(BaseCpuLoad, 100.0, TVersion(3));
+
+    auto movedId = GetPartitionIds()[0];
+    auto fromWorker = GetJob(movedId)->WorkerAddress;
+    auto toWorker = fromWorker == GetWorkerAddress(0) ? GetWorkerAddress(1) : GetWorkerAddress(0);
+    {
+        FlowView->State->StartMutation();
+        NBalancer::RemoveJobKeepingMetrics(FlowView, GetJob(movedId)->JobId, EJobFinishReason::Rebalanced);
+        auto job = New<TJob>();
+        job->JobId = TJobId(TGuid::Create());
+        job->WorkerAddress = toWorker;
+        job->WorkerIncarnationId = FlowView->State->Workers.at(toWorker)->IncarnationId;
+        job->PartitionId = movedId;
+        FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+        FlowView->State->CommitMutation();
+    }
+    ASSERT_TRUE(GetMetricsHistory(movedId));
+
+    DistributeJobs();
+    EXPECT_TRUE(GetMetricsHistory(movedId));
+
+    SetMatureStatusesWithRates(BaseCpuLoad, 100.0, TVersion(3));
+    DistributeJobs();
+    EXPECT_FALSE(GetMetricsHistory(movedId));
+}
+
+//! A job removed before the feedback has reported it leaves the history of its predecessor alone.
+TEST_F(TJobBalancerTest, JobRemovalIgnoresStatusOfPreviousJob)
+{
+    Reset();
+    PrepareBalancerTest(2, {{2, {}}});
+    DistributeJobs();
+    SetMatureStatusesWithRates(BaseCpuLoad, 100.0, TVersion(3));
+
+    auto partitionId = GetPartitionIds()[0];
+    auto firstWorker = GetJob(partitionId)->WorkerAddress;
+    auto otherWorker = firstWorker == GetWorkerAddress(0) ? GetWorkerAddress(1) : GetWorkerAddress(0);
+    FlowView->State->StartMutation();
+    NBalancer::RemoveJobKeepingMetrics(FlowView, GetJob(partitionId)->JobId, EJobFinishReason::Rebalanced);
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->WorkerAddress = otherWorker;
+    job->WorkerIncarnationId = FlowView->State->Workers.at(otherWorker)->IncarnationId;
+    job->PartitionId = partitionId;
+    FlowView->State->ExecutionSpec->Layout->CreateJob(job);
+    NBalancer::RemoveJobKeepingMetrics(FlowView, job->JobId, EJobFinishReason::Rebalanced);
+    FlowView->State->CommitMutation();
+
+    auto history = GetMetricsHistory(partitionId);
+    ASSERT_TRUE(history);
+    EXPECT_EQ(history->WorkerAddress, firstWorker);
+}
+
 //! A move across a pipeline spec change compares different implementations: no observation,
 //! but the history is retired all the same.
 TEST_F(TJobBalancerTest, ProbingSkipsObservationAcrossImplementations)
@@ -3004,6 +3148,69 @@ TEST_F(TJobBalancerTest, ProbingStateIsPerWorkerGroup)
     DistributeJobs();
     EXPECT_EQ(GetBalancerGroupState(GetWorkerGroupId(0))->WorkerCoefEdges.size(), 1u);
     EXPECT_TRUE(GetBalancerGroupState(GetWorkerGroupId(1))->WorkerCoefEdges.empty());
+}
+
+//! A persisted state with a non-finite value is dropped whatever the coefficient mode, so that it
+//! does not outlive the mode that wrote it.
+TEST_F(TJobBalancerTest, PoisonedWorkerCoefStateIsDroppedInLegacyMode)
+{
+    Reset();
+    PrepareBalancerTest(2, {{4, {}}});
+    FlowView->CurrentDynamicSpec->GetValue()->JobManager->WorkerCoefMode = EWorkerCoefMode::Legacy;
+    auto state = New<TBalancerGroupState>();
+    auto& edge = state->WorkerCoefEdges[GetWorkerAddress(0)][GetWorkerAddress(1)];
+    edge.From = GetWorkerAddress(0);
+    edge.To = GetWorkerAddress(1);
+    edge.Obs = std::nan("");
+    edge.Weight = 1.0;
+    edge.UpdatedAt = TInstant::Now();
+    state->WorkerLogCoefs[GetWorkerAddress(0)] = std::nan("");
+    // As the controller reads it back from the persisted document.
+    FlowView->State->BalancerState->Groups[TWorkerGroupId()] = ConvertTo<TBalancerGroupStatePtr>(NYson::ConvertToYsonString(state));
+    ASSERT_TRUE(std::isnan(GetBalancerGroupState()->WorkerLogCoefs.at(GetWorkerAddress(0))));
+
+    DistributeJobs();
+    ASSERT_TRUE(FlowView->State->BalancerState->Groups.contains(TWorkerGroupId()));
+    EXPECT_TRUE(GetBalancerGroupState()->WorkerCoefEdges.empty());
+    EXPECT_TRUE(GetBalancerGroupState()->WorkerLogCoefs.empty());
+}
+
+//! The first observation after a poisoned state is not lost with it, whichever part was poisoned.
+TEST_F(TJobBalancerTest, ProbingKeepsTheFirstObservationAfterPoisonedState)
+{
+    Reset();
+    PrepareBalancerTest(2, {{4, {}}});
+    DistributeJobs();
+    const TVersion specVersion(3);
+    SetMatureStatusesWithRates(BaseCpuLoad, 100.0, specVersion);
+    auto& edge = GetBalancerGroupState()->WorkerCoefEdges[GetWorkerAddress(1)]["gone"];
+    edge.From = GetWorkerAddress(1);
+    edge.To = "gone";
+    edge.Obs = std::nan("");
+    edge.Weight = 1.0;
+    edge.UpdatedAt = TInstant::Now();
+    GetBalancerGroupState()->WorkerLogCoefs[GetWorkerAddress(0)] = std::nan("");
+
+    std::optional<TPartitionId> movedId;
+    for (const auto& partitionId : GetPartitionIds()) {
+        if (GetJob(partitionId)->WorkerAddress == GetWorkerAddress(1)) {
+            movedId = partitionId;
+            break;
+        }
+    }
+    ASSERT_TRUE(movedId);
+    SetMetricsHistory(*movedId, GetWorkerAddress(0), 2 * BaseCpuLoad, 100.0, specVersion);
+
+    DistributeJobs();
+    const auto& state = GetBalancerGroupState();
+    ASSERT_EQ(state->WorkerCoefEdges.size(), 1u);
+    const auto& observed = state->WorkerCoefEdges.at(GetWorkerAddress(0)).at(GetWorkerAddress(1));
+    EXPECT_NEAR(observed.Obs, -std::log(2.0), 1e-9);
+    EXPECT_DOUBLE_EQ(observed.Weight, 0.5);
+    EXPECT_EQ(state->WorkerLogCoefs.size(), 2u);
+    for (const auto& [worker, logCoef] : state->WorkerLogCoefs) {
+        EXPECT_TRUE(std::isfinite(logCoef)) << worker;
+    }
 }
 
 //! A group that lost its last computation has no balancer to age its observations, so its
@@ -4167,6 +4374,7 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
         // Add partition job status so the balancer has metrics.
         auto partitionJobStatus = New<TPartitionJobStatus>();
         partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+        partitionJobStatus->CurrentJobStatus->JobId = job->JobId;
         partitionJobStatus->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
         auto inputMetrics = New<TNodeInputMetrics>();
         inputMetrics->Global.MessagesPerSecond = 1.0;
@@ -4414,6 +4622,7 @@ TEST_F(TJobBalancerTest, PreloadAddPreservesExistingResources)
 
         auto partitionJobStatus = New<TPartitionJobStatus>();
         partitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+        partitionJobStatus->CurrentJobStatus->JobId = job->JobId;
         partitionJobStatus->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
         auto inputMetrics = New<TNodeInputMetrics>();
         inputMetrics->Global.MessagesPerSecond = 1.0;

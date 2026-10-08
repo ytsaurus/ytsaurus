@@ -23,6 +23,10 @@ double GetJobMetricsMaturity(const TJobStatusPtr& status, TInstant now);
 //! before every worker had registered must still be spread by the count kick.
 bool IsJobFreshlyStarted(const TJobStatusPtr& status, TInstant now);
 
+//! The status of the partition's current job; nothing while the feedback still holds the status
+//! of a previous job or the partition has no job.
+const TJobStatusPtr& GetStatusOfCurrentJob(const TFlowViewPtr& flowView, const TPartitionPtr& partition);
+
 //! Whether the balancer may move the partition: a partition without a job always, a running job
 //! only while it is freshly started or once its metrics are mature, unless the group's warm-up
 //! protection is off (see #IsWarmupProtectionActive).
@@ -34,9 +38,9 @@ double GetIdleWorkerShare(const TFlowViewPtr& flowView, const TWorkerGroupId& wo
 //! |balance_warmup_idle_worker_share| of the group's workers are idle.
 bool IsWarmupProtectionActive(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec, const TWorkerGroupId& workerGroup);
 
-//! The only way to remove a job from the layout: saves the windowed metrics of the job's last
-//! status as its partition's history first, since the removal drops the status. A job whose
-//! metrics are not mature yet leaves the history as it was. A pipeline stop saves nothing:
+//! The only way to remove a job from the layout: saves the windowed metrics of the job's own
+//! status as its partition's history first, since the next feedback collection drops it. A job
+//! whose metrics are not mature yet leaves the history as it was. A pipeline stop saves nothing:
 //! the history serves moves, and after a restart too much changes to draw conclusions from it.
 void RemoveJobKeepingMetrics(const TFlowViewPtr& flowView, const TJobId& jobId, EJobFinishReason jobFinishReason);
 

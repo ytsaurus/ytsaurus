@@ -1182,7 +1182,7 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
         .GreaterThan(0.);
     registrar.Parameter("worker_coef_max_ratio", &TThis::WorkerCoefMaxRatio)
         .Default(4.)
-        .GreaterThanOrEqual(1.);
+        .InRange(1., 1000.);
     registrar.Parameter("disable_even_load_gate", &TThis::DisableEvenLoadGate)
         .Default();
     registrar.Parameter("async_balancing", &TThis::AsyncBalancing)
