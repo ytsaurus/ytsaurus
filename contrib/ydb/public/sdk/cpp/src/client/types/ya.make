@@ -1,4 +1,5 @@
 LIBRARY()
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
     virtual_timestamp.cpp

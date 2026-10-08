@@ -1,4 +1,5 @@
 LIBRARY(sdk-library-grpc-client-v3)
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
     grpc_client_low.cpp

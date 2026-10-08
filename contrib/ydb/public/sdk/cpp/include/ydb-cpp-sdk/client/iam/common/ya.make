@@ -1,4 +1,5 @@
 LIBRARY(client-iam-common-include)
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/public/sdk/cpp/sdk_common_arcadia.inc)
 
 SRCS(
     types.h
