@@ -1072,6 +1072,50 @@ func logReadTablePartitionOptions(o *yt.ReadTablePartitionOptions) []log.Field {
 	return fields
 }
 
+func writeGetTableColumnarStatisticsOptions(w *yson.Writer, o *yt.GetTableColumnarStatisticsOptions) {
+	if o == nil {
+		return
+	}
+	if o.FetcherMode != nil {
+		w.MapKeyString("fetcher_mode")
+		w.Any(o.FetcherMode)
+	}
+	if o.MaxChunksPerNodeFetch != nil {
+		w.MapKeyString("max_chunks_per_node_fetch")
+		w.Any(o.MaxChunksPerNodeFetch)
+	}
+	if o.EnableEarlyFinish != nil {
+		w.MapKeyString("enable_early_finish")
+		w.Any(o.EnableEarlyFinish)
+	}
+	if o.EnableReadSizeEstimation != nil {
+		w.MapKeyString("enable_read_size_estimation")
+		w.Any(o.EnableReadSizeEstimation)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logGetTableColumnarStatisticsOptions(o *yt.GetTableColumnarStatisticsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.FetcherMode != nil {
+		fields = append(fields, log.Any("fetcher_mode", o.FetcherMode))
+	}
+	if o.MaxChunksPerNodeFetch != nil {
+		fields = append(fields, log.Any("max_chunks_per_node_fetch", o.MaxChunksPerNodeFetch))
+	}
+	if o.EnableEarlyFinish != nil {
+		fields = append(fields, log.Any("enable_early_finish", o.EnableEarlyFinish))
+	}
+	if o.EnableReadSizeEstimation != nil {
+		fields = append(fields, log.Any("enable_read_size_estimation", o.EnableReadSizeEstimation))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
 func writeStartOperationOptions(w *yson.Writer, o *yt.StartOperationOptions) {
 	if o == nil {
 		return
@@ -4466,6 +4510,51 @@ func (p *ReadTablePartitionParams) TransactionOptions() **yt.TransactionOptions 
 
 func (p *ReadTablePartitionParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 	return &p.options.AccessTrackingOptions
+}
+
+type GetTableColumnarStatisticsParams struct {
+	verb    Verb
+	paths   []ypath.YPath
+	options *yt.GetTableColumnarStatisticsOptions
+}
+
+func NewGetTableColumnarStatisticsParams(
+	paths []ypath.YPath,
+	options *yt.GetTableColumnarStatisticsOptions,
+) *GetTableColumnarStatisticsParams {
+	if options == nil {
+		options = &yt.GetTableColumnarStatisticsOptions{}
+	}
+	optionsCopy := *options
+	return &GetTableColumnarStatisticsParams{
+		Verb("get_table_columnar_statistics"),
+		paths,
+		&optionsCopy,
+	}
+}
+
+func (p *GetTableColumnarStatisticsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetTableColumnarStatisticsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetTableColumnarStatisticsParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("paths", p.paths),
+	}
+	fields = append(fields, logGetTableColumnarStatisticsOptions(p.options)...)
+	return fields
+}
+
+func (p *GetTableColumnarStatisticsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("paths")
+	w.Any(p.paths)
+	writeGetTableColumnarStatisticsOptions(w, p.options)
+}
+
+func (p *GetTableColumnarStatisticsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
 }
 
 type StartOperationParams struct {

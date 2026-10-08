@@ -25,6 +25,7 @@ GO_TEST_SRCS(
     auth_client_test.go
     batch_request_test.go
     client_test.go
+    columnar_statistics_test.go
     complex_types_test.go
     compression_test.go
     credentials_provider_test.go
