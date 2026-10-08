@@ -426,18 +426,22 @@ void TJobProxy::SendHeartbeat()
             YT_TLOG_DEBUG("Job proxy peak memory profile is not ready to be reported in the current heartbeat");
         } else {
             YT_TLOG_DEBUG("Reporting job proxy peak memory profile");
-            auto profile = JobProxyPeakMemoryProfile_
+            auto profileOrError = JobProxyPeakMemoryProfile_
                 .AsUnique()
-                .GetOrCrash()
-                .ValueOrThrow();
+                .GetOrCrash();
 
-            ToProto(
-                req->add_profiles(),
-                TJobProfile(
-                    EProfilingBinary::JobProxy,
-                    EProfilerType::PeakMemory,
-                    1.0,
-                    std::move(profile)));
+            if (profileOrError.IsOK()) {
+                ToProto(
+                    req->add_profiles(),
+                    TJobProfile(
+                        EProfilingBinary::JobProxy,
+                        EProfilerType::PeakMemory,
+                        1.0,
+                        std::move(profileOrError.Value())));
+            } else {
+                YT_TLOG_WARNING("Failed to report job proxy peak memory profile")
+                    .With(profileOrError);
+            }
             JobProxyPeakMemoryProfile_.Reset();
         }
     }
