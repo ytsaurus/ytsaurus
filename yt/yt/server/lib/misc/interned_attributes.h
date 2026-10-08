@@ -262,6 +262,7 @@
     XX(HasRowLevelAce, has_row_level_ace) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
+    XX(HealthHistory, health_history) \
     XX(HistoricUsageAggregationPeriod, historic_usage_aggregation_period) \
     XX(HistoricallyNonVital, historically_non_vital) \
     XX(Host, host) \

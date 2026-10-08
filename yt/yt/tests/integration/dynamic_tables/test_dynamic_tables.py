@@ -41,6 +41,7 @@ import yt.yson as yson
 import pytest
 from flaky import flaky
 from collections import Counter
+from contextlib import contextmanager
 import time
 import random
 import string
@@ -4020,6 +4021,99 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/default/@options/changelog_account", "foo")
         wait(_check)
 
+    HEALTH_HISTORY_MAX_SIZE_CONFIG_PATH = "//sys/@config/cell_manager/cell_health_history_max_size"
+    HEALTH_HISTORY_EXPIRATION_TIME_CONFIG_PATH = "//sys/@config/cell_manager/cell_health_history_expiration_time"
+
+    def _prepare_health_history_cell(self):
+        set(self.HEALTH_HISTORY_MAX_SIZE_CONFIG_PATH, 100)
+        set(self.HEALTH_HISTORY_EXPIRATION_TIME_CONFIG_PATH, 7 * 24 * 60 * 60 * 1000)
+        for node in ls("//sys/tablet_nodes")[:2]:
+            set(f"//sys/cluster_nodes/{node}/@user_tags", ["health_history"])
+        create_tablet_cell_bundle("health_history", attributes={
+            "options": {"peer_count": 2},
+            "node_tag_filter": "health_history",
+        })
+        cell_id = sync_create_cells(1, tablet_cell_bundle="health_history")[0]
+        cell_path = f"//sys/tablet_cells/{cell_id}"
+        wait(lambda: get(f"{cell_path}/@health") == "good")
+        set(self.HEALTH_HISTORY_MAX_SIZE_CONFIG_PATH, 0)
+        wait(lambda: get(f"{cell_path}/@health_history") == [])
+        set(self.HEALTH_HISTORY_MAX_SIZE_CONFIG_PATH, 100)
+        return cell_path
+
+    @contextmanager
+    def _tablet_cells_disabled_on_peer(self, cell_path, peer_id):
+        address = get(f"{cell_path}/@peers/{peer_id}/address")
+        disable_tablet_cells_on_node(address, "test cell health history")
+        try:
+            yield
+        finally:
+            enable_tablet_cells_on_node(address)
+
+    def _wait_for_health_history(self, cell_path, expected_healths):
+        def check():
+            history = get(f"{cell_path}/@health_history")
+            return [item["health"] for item in history][-len(expected_healths):] == expected_healths
+
+        wait(check)
+        return get(f"{cell_path}/@health_history")
+
+    def _wait_for_last_health_history_item(self, cell_path, expected_health):
+        def check():
+            history = get(f"{cell_path}/@health_history")
+            return history and history[-1]["health"] == expected_health
+
+        wait(check)
+
+    @authors("fomasha")
+    def test_cell_health_history_transitions(self):
+        cell_path = self._prepare_health_history_cell()
+        leading_peer_id = get(f"{cell_path}/@leading_peer_id")
+        following_peer_id = 1 - leading_peer_id
+
+        with self._tablet_cells_disabled_on_peer(cell_path, following_peer_id):
+            wait(lambda: get(f"{cell_path}/@health") == "degraded")
+            self._wait_for_health_history(cell_path, ["degraded"])
+
+            with self._tablet_cells_disabled_on_peer(cell_path, leading_peer_id):
+                wait(lambda: get(f"{cell_path}/@health") == "failed")
+                self._wait_for_health_history(cell_path, ["degraded", "failed"])
+
+        wait(lambda: get(f"{cell_path}/@health") == "good")
+        wait(lambda: get(f"{cell_path}/@health_history")[-1]["health"] == "good")
+        history = get(f"{cell_path}/@health_history")
+        healths = [item["health"] for item in history]
+        assert any(
+            healths[index:index + 2] == ["degraded", "failed"]
+            for index in range(len(healths) - 1)
+        )
+        assert healths[-1] == "good"
+        assert all(lhs["time"] < rhs["time"] for lhs, rhs in zip(history, history[1:]))
+
+    @authors("fomasha")
+    def test_cell_health_history_limits(self):
+        cell_path = self._prepare_health_history_cell()
+        set(self.HEALTH_HISTORY_MAX_SIZE_CONFIG_PATH, 2)
+
+        with self._tablet_cells_disabled_on_peer(cell_path, get(f"{cell_path}/@leading_peer_id")):
+            wait(lambda: get(f"{cell_path}/@health") == "failed")
+            self._wait_for_last_health_history_item(cell_path, "failed")
+        wait(lambda: get(f"{cell_path}/@health") == "good")
+        self._wait_for_last_health_history_item(cell_path, "good")
+
+        with self._tablet_cells_disabled_on_peer(cell_path, get(f"{cell_path}/@leading_peer_id")):
+            wait(lambda: get(f"{cell_path}/@health") == "failed")
+            self._wait_for_last_health_history_item(cell_path, "failed")
+            history = get(f"{cell_path}/@health_history")
+            assert len(history) == 2
+
+            set(self.HEALTH_HISTORY_EXPIRATION_TIME_CONFIG_PATH, 0)
+            oldest_item_time = history[0]["time"]
+            wait(lambda: all(
+                item["time"] != oldest_item_time
+                for item in get(f"{cell_path}/@health_history")
+            ))
+
 
 ##################################################################
 
@@ -4085,7 +4179,6 @@ class TestDynamicTablesAvailability(DynamicTablesBase):
         with self.CellsDisabled(clusters=["primary"], tablet_bundles=[bundle_name]):
             with raises_yt_error("Tablet cell bundle health subrequest failed"):
                 check_cluster_liveness(check_tablet_cell_bundle=bundle_name)
-
 
 ##################################################################
 
