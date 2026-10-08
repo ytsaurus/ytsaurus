@@ -423,6 +423,22 @@ void TChunk::AddReplica(
     }
 }
 
+void TChunk::ClearLastSeenReplicas()
+{
+    if (!ReplicasData_) {
+        return;
+    }
+
+    if (ReplicasData_->StoredReplicaList().empty()) {
+        ReplicasData_.reset();
+        return;
+    }
+
+    auto lastSeenReplicas = ReplicasData_->MutableLastSeenReplicas();
+    std::fill(lastSeenReplicas.begin(), lastSeenReplicas.end(), InvalidNodeId);
+    ReplicasData_->LastSeenReplicaCount = 0;
+}
+
 void TChunk::RemoveReplica(
     TChunkLocationPtrWithReplicaIndex replica,
     bool approved)
