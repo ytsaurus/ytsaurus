@@ -21,10 +21,22 @@ type File struct {
 }
 
 type DiskRequest struct {
-	DiskSpace  int64  `yson:"disk_space,omitempty"`
-	InodeCount int64  `yson:"inode_count,omitempty"`
-	Account    string `yson:"account,omitempty"`
-	MediumName string `yson:"medium_name,omitempty"`
+	DiskSpace  int64    `yson:"disk_space,omitempty"`
+	InodeCount int64    `yson:"inode_count,omitempty"`
+	Account    string   `yson:"account,omitempty"`
+	MediumName string   `yson:"medium_name,omitempty"`
+	NBDDisk    *NBDDisk `yson:"nbd_disk,omitempty"`
+}
+
+type NBDDisk struct {
+	DataNodeRPCTimeout            yson.Duration `yson:"data_node_rpc_timeout,omitempty"`
+	DataNodeAddress               string        `yson:"data_node_address,omitempty"`
+	MasterRPCTimeout              yson.Duration `yson:"master_rpc_timeout,omitempty"`
+	MinDataNodeCount              int           `yson:"min_data_node_count,omitempty"`
+	MaxDataNodeCount              int           `yson:"max_data_node_count,omitempty"`
+	DataNodeNBDServiceRPCTimeout  yson.Duration `yson:"data_node_nbd_service_rpc_timeout,omitempty"`
+	DataNodeNBDServiceMakeTimeout yson.Duration `yson:"data_node_nbd_service_make_timeout,omitempty"`
+	MultiplexingParallelism       int           `yson:"multiplexing_parallelism,omitempty"`
 }
 
 type UserScript struct {
