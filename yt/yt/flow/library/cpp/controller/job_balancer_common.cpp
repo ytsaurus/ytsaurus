@@ -48,6 +48,21 @@ bool IsJobFreshlyStarted(const TJobStatusPtr& status, TInstant now)
     return status && status->StartTime != TInstant::Zero() && now - status->StartTime < FreshJobAge;
 }
 
+const TJobStatusPtr& GetStatusOfCurrentJob(const TFlowViewPtr& flowView, const TPartitionPtr& partition)
+{
+    static const TJobStatusPtr nothing;
+    if (!partition->CurrentJobId) {
+        return nothing;
+    }
+    const auto& status = flowView->Feedback->GetCurrentJobStatus(partition->PartitionId);
+    // The feedback is collected on its own cadence: after a job change it keeps the status of
+    // the previous job until the next collection.
+    if (!status || status->JobId != *partition->CurrentJobId) {
+        return nothing;
+    }
+    return status;
+}
+
 bool IsPartitionMovable(const TFlowViewPtr& flowView, const TPartitionId& partitionId, bool warmupProtectionActive)
 {
     if (!warmupProtectionActive) {
@@ -57,8 +72,7 @@ bool IsPartitionMovable(const TFlowViewPtr& flowView, const TPartitionId& partit
     if (!partitionPtr || !(*partitionPtr)->CurrentJobId) {
         return true;
     }
-    // The controller drops the status whenever the partition's job changes, so this status is the current job's.
-    const auto& status = flowView->Feedback->GetCurrentJobStatus(partitionId);
+    const auto& status = GetStatusOfCurrentJob(flowView, *partitionPtr);
     auto now = TInstant::Now();
     return IsJobFreshlyStarted(status, now) || GetJobMetricsMaturity(status, now) >= 1.;
 }
@@ -108,7 +122,7 @@ void RemoveJobKeepingMetrics(const TFlowViewPtr& flowView, const TJobId& jobId, 
     auto job = GetOrCrash(layout->Jobs, jobId);
     const auto& status = flowView->Feedback->GetCurrentJobStatus(job->PartitionId);
     // Steady but immature metrics still carry the tail of the initialization in their windows.
-    if (jobFinishReason != EJobFinishReason::Stopped && GetJobMetricsMaturity(status, TInstant::Now()) >= 1.) {
+    if (jobFinishReason != EJobFinishReason::Stopped && status && status->JobId == jobId && GetJobMetricsMaturity(status, TInstant::Now()) >= 1.) {
         const auto& metrics = status->PerformanceMetrics;
         auto history = New<TPartitionMetricsHistory>();
         history->WorkerAddress = job->WorkerAddress;
@@ -163,7 +177,7 @@ void PrunePartitionHistories(const TFlowViewPtr& flowView, const TDynamicJobBala
         if (balancerSpec->BalancerType != EJobBalancerType::CpuAware) {
             return true;
         }
-        if (!partition->CurrentJobId || GetJobMetricsMaturity(flowView->Feedback->GetCurrentJobStatus(item.first), now) < 1.) {
+        if (!partition->CurrentJobId || GetJobMetricsMaturity(GetStatusOfCurrentJob(flowView, partition), now) < 1.) {
             return false;
         }
         // The balancer runs on the job's own metrics from now on; a partition that has moved still

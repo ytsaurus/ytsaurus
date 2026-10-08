@@ -1532,8 +1532,8 @@ void TPartitionDistributionData::CollectPartitions(
         }
     }
 
-    for (const auto& [partitionId, partitionJobStatus] : flowView->Feedback->PartitionJobStatuses) {
-        auto& currentJobStatus = partitionJobStatus->CurrentJobStatus;
+    for (const auto& [partitionId, partition] : layout->Partitions) {
+        const auto& currentJobStatus = GetStatusOfCurrentJob(flowView, partition);
         auto it2 = PartitionInfos_.find(partitionId);
         if (it2 == PartitionInfos_.end()) {
             continue;
@@ -1701,6 +1701,26 @@ void TPartitionDistributionData::LoadWorkerCoefs(const TFlowViewPtr& flowView, c
     }
 }
 
+//! Drops a persisted worker-coefficient state that holds a non-finite value or a non-positive
+//! edge weight. Runs whatever the coefficient mode, so that the state does not outlive the mode
+//! that wrote it.
+void ResetPoisonedWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSpecPtr& balancerSpec, const TWorkerGroupId& workerGroup)
+{
+    auto* groupState = flowView->State->BalancerState->Groups.FindPtr(workerGroup);
+    if (!groupState) {
+        return;
+    }
+    TWorkerCoefEstimator estimator(*groupState, MakeWorkerCoefEstimatorConfig(balancerSpec));
+    int edgeCount = estimator.GetEdgeCount();
+    int coefCount = std::ssize((*groupState)->WorkerLogCoefs);
+    if (estimator.ResetIfPoisoned()) {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Warning, "Poisoned worker coef state dropped")
+            .With("WorkerGroup", workerGroup)
+            .With("Edges", edgeCount)
+            .With("Coefs", coefCount);
+    }
+}
+
 //! Turns the partitions that have moved and matured on their new worker into worker-coefficient
 //! observations, then re-solves the group's coefficients. Runs in the synchronous part of the
 //! balancing so that the persisted state is updated in the controller's mutation.
@@ -1743,7 +1763,8 @@ void UpdateWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSp
 
     int observations = 0;
     for (const auto& partition : moved) {
-        const auto& status = flowView->Feedback->GetCurrentJobStatus(partition->PartitionId);
+        // Right after a graceful move the feedback still holds the status the history was taken from.
+        const auto& status = GetStatusOfCurrentJob(flowView, partition);
         if (GetJobMetricsMaturity(status, now) < 1.) {
             continue;
         }
@@ -1754,8 +1775,9 @@ void UpdateWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSp
         // to the hardware.
         bool sameImplementation = history->FlowCoreVersion && history->FlowCoreVersion == metrics->FlowCoreVersion &&
             history->PipelineSpecVersion && history->PipelineSpecVersion == metrics->PipelineSpecVersion;
+        bool comparable = sameImplementation && history->MessagesPerSecond && metrics->MessagesPerSecond10m;
         std::optional<double> observation;
-        if (sameImplementation && history->MessagesPerSecond && metrics->MessagesPerSecond10m) {
+        if (comparable) {
             observation = estimator.MakeObservation(history->CpuUsage, *history->MessagesPerSecond, *metrics->CpuUsage10m, *metrics->MessagesPerSecond10m);
         }
         if (observation) {
@@ -1773,6 +1795,15 @@ void UpdateWorkerCoefs(const TFlowViewPtr& flowView, const TDynamicJobBalancerSp
                 .With("RateAfter", *metrics->MessagesPerSecond10m)
                 .With("Observation", *observation)
                 .With("Weight", weight);
+        } else if (comparable) {
+            YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Worker coef observation rejected")
+                .With("Partition", partition->PartitionId)
+                .With("From", history->WorkerAddress)
+                .With("To", job->WorkerAddress)
+                .With("CpuBefore", history->CpuUsage)
+                .With("RateBefore", *history->MessagesPerSecond)
+                .With("CpuAfter", *metrics->CpuUsage10m)
+                .With("RateAfter", *metrics->MessagesPerSecond10m);
         }
         // Taken into account exactly once; the balancer runs on the job's own metrics from now on.
         histories.erase(partition->PartitionId);
@@ -3721,6 +3752,7 @@ public:
         std::optional<TDuration> timeSinceSynced,
         EPipelineState targetState) override
     {
+        ResetPoisonedWorkerCoefs(flowView, balancerSpec, WorkerGroup_);
         UpdateMetrics(flowView, controllers, balancerSpec);
         PrunePartitionHistories(flowView, balancerSpec, WorkerGroup_);
 

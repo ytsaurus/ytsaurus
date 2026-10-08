@@ -22,6 +22,8 @@ struct TWorkerCoefEstimatorConfig
     //! An observation whose message rates differ more than this is not comparable.
     double MaxRateRatio = 10.;
     double MinCpuUsage = 0.01;
+    //! A partition this idle carries no information about the speed of its workers.
+    double MinMessageRate = 0.01;
 };
 
 //! Estimates the relative speed of the workers of one group from partitions that moved between them.
@@ -37,19 +39,27 @@ class TWorkerCoefEstimator
 public:
     TWorkerCoefEstimator(TBalancerGroupStatePtr state, TWorkerCoefEstimatorConfig config);
 
-    //! Observation of a partition moved from A to B, or nothing when the measurements are not comparable.
+    //! Observation of a partition moved from A to B, or nothing when the measurements are too small,
+    //! not finite or not comparable.
     std::optional<double> MakeObservation(double cpuA, double rpsA, double cpuB, double rpsB) const;
 
+    //! Merges an observation into the edge of the pair; a non-finite value or a non-positive weight
+    //! is ignored. Runs #ResetIfPoisoned() first.
     void AddObservation(const std::string& from, const std::string& to, double obs, double weight, TInstant now);
 
     //! Forgets observed workers that have been absent longer than the retention; |present| are the
     //! workers of the group now. Only workers with edges are tracked.
     void Prune(const THashSet<std::string>& present, TInstant now);
 
+    //! Clears the state when an edge or a coefficient is not finite or an edge has a non-positive
+    //! weight: a state that produced such a value is not trusted. Returns whether it did.
+    bool ResetIfPoisoned();
+
     //! Solves the coefficients of every worker that has edges; others stay implicit (1).
+    //! Runs #ResetIfPoisoned() first.
     void Solve();
 
-    //! The clamped coefficient from the last solution; 1 for an unknown worker.
+    //! The clamped coefficient from the last solution; 1 for an unknown worker or a non-finite stored value.
     double GetCoef(const std::string& worker) const;
 
     int GetEdgeCount() const;
