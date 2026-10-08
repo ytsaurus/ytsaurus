@@ -454,6 +454,203 @@ TEST_F(TResourceBalancerTest, NoQueueEqualizationWhenAlreadyBalanced)
     EXPECT_TRUE(dels.empty());
 }
 
+//! Round stats of an unbalanced group: the criterion reported equals the one that gates Step 8.
+TEST_F(TResourceBalancerTest, RoundStatsReportImbalance)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    for (int i = 1; i <= 4; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps*/ 1.0, "worker1");
+    }
+    AddPartition(FlowView, MakePartitionId(5), compId, /*rps*/ 1.0, "worker2");
+
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 5.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 100.0,
+        /*queueGrowthRate*/ 3.0);
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate*/ 1.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 0.0,
+        /*queueGrowthRate*/ 0.0);
+
+    auto result = RunBalancer(/*planningHorizonSeconds*/ 60.0);
+
+    const auto& stats = result.ResourceQueueStats;
+    EXPECT_TRUE(stats.AboveZeroLevel);
+    EXPECT_FALSE(stats.Balanced);
+    EXPECT_GT(stats.Mean, 0.);
+    EXPECT_NEAR(stats.Imbalance, stats.Deviation / stats.Mean, 1e-9);
+    EXPECT_GE(stats.Imbalance, stats.TargetDeviation);
+
+    ASSERT_EQ(stats.Workers.size(), 2u);
+    const auto& worker1 = stats.Workers.at("worker1");
+    const auto& worker2 = stats.Workers.at("worker2");
+    EXPECT_TRUE(worker1.Enrolled);
+    EXPECT_TRUE(worker2.Enrolled);
+    EXPECT_DOUBLE_EQ(worker1.QueueSize, 100.0);
+    EXPECT_GT(worker1.ProjectedQueue, worker2.ProjectedQueue);
+    EXPECT_NEAR((worker1.ProjectedQueue + worker2.ProjectedQueue) / 2., stats.Mean, 1e-9);
+
+    ASSERT_TRUE(stats.Accepted);
+    EXPECT_FALSE(GetDelActions(result).empty());
+    EXPECT_GT(stats.TentativeMoves, 0);
+    EXPECT_LE(stats.NewDeviation, stats.Deviation - stats.TargetDeviation * stats.Mean + 1e-9);
+}
+
+//! Round stats of a balanced group: equal queues give no imbalance.
+TEST_F(TResourceBalancerTest, RoundStatsBalancedWhenQueuesEqual)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compId, /*rps*/ 1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(3), compId, /*rps*/ 1.0, "worker2");
+    AddPartition(FlowView, MakePartitionId(4), compId, /*rps*/ 1.0, "worker2");
+
+    for (const auto& worker : {"worker1", "worker2"}) {
+        SetWorkerResourceStatus(FlowView, worker, resId,
+            /*putRate*/ 2.0,
+            /*fetchRate*/ 2.0,
+            /*queueSize*/ 10.0,
+            /*queueGrowthRate*/ 0.0);
+    }
+
+    auto result = RunBalancer();
+
+    const auto& stats = result.ResourceQueueStats;
+    EXPECT_TRUE(stats.Balanced);
+    EXPECT_DOUBLE_EQ(stats.Imbalance, 0.);
+    EXPECT_NEAR(stats.Deviation, 0., 1e-9);
+    EXPECT_EQ(stats.TentativeMoves, 0);
+    EXPECT_FALSE(stats.Accepted);
+}
+
+//! Round stats below the zero-queue level: a spread of queues shorter than ZeroQueueLatency of the
+//! load is not a queue for the balancer, so the group counts as balanced despite the deviation.
+TEST_F(TResourceBalancerTest, RoundStatsBalancedBelowZeroQueueLevel)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    for (int i = 1; i <= 4; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps*/ 1.0, "worker1");
+    }
+    AddPartition(FlowView, MakePartitionId(5), compId, /*rps*/ 1.0, "worker2");
+
+    // worker1 keeps up: its queue is a quarter of a second of its load.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 4.0,
+        /*fetchRate*/ 4.0,
+        /*queueSize*/ 1.0,
+        /*queueGrowthRate*/ 0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate*/ 1.0,
+        /*fetchRate*/ 1.0,
+        /*queueSize*/ 0.0,
+        /*queueGrowthRate*/ 0.0);
+
+    auto result = RunBalancer();
+
+    const auto& stats = result.ResourceQueueStats;
+    EXPECT_FALSE(stats.AboveZeroLevel);
+    EXPECT_GT(stats.Deviation, 0.);
+    EXPECT_TRUE(stats.Balanced);
+    EXPECT_DOUBLE_EQ(stats.Imbalance, 0.);
+    EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! Round stats of a group with a queue and a spread below the tolerance: the imbalance is reported
+//! as is, below the target deviation, and the group counts as balanced.
+TEST_F(TResourceBalancerTest, RoundStatsImbalanceBelowTargetDeviation)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compId, /*rps*/ 1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(3), compId, /*rps*/ 1.0, "worker2");
+    AddPartition(FlowView, MakePartitionId(4), compId, /*rps*/ 1.0, "worker2");
+
+    // Queues of 21 and 19: Cv = 5% against the default tolerance of 10%.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 2.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 21.0,
+        /*queueGrowthRate*/ 0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate*/ 2.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 19.0,
+        /*queueGrowthRate*/ 0.0);
+
+    auto result = RunBalancer();
+
+    const auto& stats = result.ResourceQueueStats;
+    EXPECT_TRUE(stats.AboveZeroLevel);
+    EXPECT_GT(stats.Deviation, 0.);
+    EXPECT_TRUE(stats.Balanced);
+    EXPECT_NEAR(stats.Imbalance, stats.Deviation / stats.Mean, 1e-9);
+    EXPECT_GT(stats.Imbalance, 0.);
+    EXPECT_LT(stats.Imbalance, stats.TargetDeviation);
+    EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! Round stats of a single-worker group: the metric needs at least two workers, so it is zero
+//! and the group counts as balanced.
+TEST_F(TResourceBalancerTest, RoundStatsBalancedForSingleWorker)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compId, /*rps*/ 1.0, "worker1");
+
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 5.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 100.0,
+        /*queueGrowthRate*/ 3.0);
+
+    auto result = RunBalancer();
+
+    const auto& stats = result.ResourceQueueStats;
+    ASSERT_EQ(stats.Workers.size(), 1u);
+    EXPECT_TRUE(stats.Workers.at("worker1").Enrolled);
+    EXPECT_DOUBLE_EQ(stats.Mean, 0.);
+    EXPECT_DOUBLE_EQ(stats.Deviation, 0.);
+    EXPECT_DOUBLE_EQ(stats.Imbalance, 0.);
+    EXPECT_TRUE(stats.Balanced);
+    EXPECT_FALSE(stats.Accepted);
+}
+
 //! Shared resource — two computations sharing the same resource on a worker.
 //! The resource should be deployed once (capability consumed once).
 //! Worker has cap=2, resource requires cap=1. Both computations need the same resource.
