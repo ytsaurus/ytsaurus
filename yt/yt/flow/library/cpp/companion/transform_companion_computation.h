@@ -19,7 +19,7 @@ namespace NYT::NFlow::NCompanion {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCompanionParameters
-    : public TTransformComputation::TParameters
+    : public TCompanionComputationBaseAdapter<TTransformComputation>::TParameters
 {
     std::optional<THashSet<std::string>> InternalStates;
 

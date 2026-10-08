@@ -9,6 +9,40 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompanionFunctionParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("function_ids", &TThis::FunctionIds)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* parameters) {
+        if (!parameters->FunctionIds) {
+            return;
+        }
+        THROW_ERROR_EXCEPTION_IF(parameters->FunctionIds->empty(), "\"function_ids\" cannot be empty");
+        THashSet<std::string> functions;
+        for (const auto& function : *parameters->FunctionIds) {
+            THROW_ERROR_EXCEPTION_UNLESS(
+                functions.insert(function).second,
+                "\"function_ids\" lists function %Qv more than once",
+                function);
+        }
+    });
+}
+
+void ValidateCompanionFunctionIds(
+    const TCompanionFunctionParameters& parameters,
+    const TCompanionComputationInfo& computationInfo)
+{
+    // A companion that does not resolve the IDs would silently run only the function of the computation ID.
+    THROW_ERROR_EXCEPTION_UNLESS(
+        !parameters.FunctionIds || computationInfo.SupportsFunctionIds,
+        "Companion does not support \"function_ids\"; update the companion SDK or remove the parameter")
+        .With("computation_id", computationInfo.ComputationId)
+        .With("function_ids", *parameters.FunctionIds);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCompanionResponsePtr ProcessWithCompanionHealing(
     const ICompanionClientPtr& client,
     const TCompanionProcessRequestPtr& request,

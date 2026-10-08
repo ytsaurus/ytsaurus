@@ -26,6 +26,7 @@ import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.internal.resource.CompanionResourceInstanceReference;
+import tech.ytsaurus.flow.job.Job;
 import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.resource.ResourceContext;
@@ -35,6 +36,7 @@ import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.rpc.EResourceCommand;
 import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
 import tech.ytsaurus.flow.rpc.EResponseStatus;
+import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqListJobs;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TReqPutJob;
@@ -235,6 +237,92 @@ public class CompanionRequestProcessorTest {
         }
 
         @Test
+        @DisplayName("Error handling: job registered for another computation")
+        void testProcessBatchJobOfAnotherComputation() throws Exception {
+            // Given: A job registered for one computation.
+            var jobId = GUID.create();
+            TReqProcessBatch seed = fixture.createRequestBuilder()
+                    .setComputationId(TEST_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .setJobId(jobId)
+                    .setAddJobInfo(true)
+                    .createProcessBatch();
+            assertEquals(EResponseStatus.RS_OK, fixture.processBatch(seed).getStatus());
+
+            // When: A batch addresses that job through another registered computation.
+            TReqProcessBatch request = fixture.createRequestBuilder()
+                    .setComputationId(TEST_SOURCE_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .setJobId(jobId)
+                    .setAddJobInfo(false)
+                    .createProcessBatch();
+
+            // Then: The batch is rejected instead of running with the context of the other job.
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> fixture.processBatch(request)
+            );
+            assertTrue(exception.getMessage().contains("Job belongs to another computation"));
+            assertTrue(exception.getMessage().contains(TEST_COMPUTATION_ID));
+        }
+
+        @Test
+        @DisplayName("Error handling: job info cannot move a job to another computation")
+        void testJobInfoCannotMoveJobToAnotherComputation() throws Exception {
+            // Given: A job registered for one computation.
+            var jobId = GUID.create();
+            TReqProcessBatch seed = fixture.createRequestBuilder()
+                    .setComputationId(TEST_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .setJobId(jobId)
+                    .setAddJobInfo(true)
+                    .createProcessBatch();
+            assertEquals(EResponseStatus.RS_OK, fixture.processBatch(seed).getStatus());
+
+            // When & Then: Job info sent with a batch does not re-register it for another computation.
+            TReqProcessBatch batch = fixture.createRequestBuilder()
+                    .setComputationId(TEST_SOURCE_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .setJobId(jobId)
+                    .setAddJobInfo(true)
+                    .createProcessBatch();
+            IllegalArgumentException batchException = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> fixture.processBatch(batch)
+            );
+            assertTrue(batchException.getMessage().contains("Job belongs to another computation"));
+
+            // When & Then: Neither does PutJob.
+            TReqPutJob putJob = fixture.createRequestBuilder()
+                    .setComputationId(TEST_SOURCE_COMPUTATION_ID)
+                    .setJobId(jobId)
+                    .createPutJob();
+            IllegalArgumentException putJobException = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> fixture.processor().putJob(putJob)
+            );
+            assertTrue(putJobException.getMessage().contains("Job belongs to another computation"));
+
+            // Then: The original registration is intact and can still be updated.
+            TReqProcessBatch original = fixture.createRequestBuilder()
+                    .setComputationId(TEST_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .setJobId(jobId)
+                    .setAddJobInfo(false)
+                    .createProcessBatch();
+            assertEquals(EResponseStatus.RS_OK, fixture.processBatch(original).getStatus());
+            assertEquals(EResponseStatus.RS_OK, fixture.processBatch(seed).getStatus());
+
+            // Then: The id is bound to the job entry, so it is free again once the job is removed.
+            TReqRemoveJob removeRequest = TReqRemoveJob.newBuilder()
+                    .setRequestId(ProtoUtils.toProto(GUID.create()))
+                    .setJobId(ProtoUtils.toProto(jobId))
+                    .build();
+            assertEquals(EResponseStatus.RS_OK, fixture.processor().removeJob(removeRequest));
+            assertEquals(EResponseStatus.RS_OK, fixture.processor().putJob(putJob).getStatus());
+        }
+
+        @Test
         @DisplayName("RemoveJob: removed job is unknown until healed")
         void testRemoveJob() throws Exception {
             // Given: A registered job.
@@ -330,6 +418,66 @@ public class CompanionRequestProcessorTest {
                     () -> assertNotNull(result.getData()),
                     () -> assertNotNull(result.getResourceStats())
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("Job Spec Validation Tests")
+    class JobSpecValidationTests {
+
+        @Test
+        @DisplayName("Batch validation: runs for inline and registered jobs before user code")
+        void testValidateRequestRunsBeforeUserCode() throws Exception {
+            // Given: A computation counting processed messages and a validator recording validated batches.
+            var computationId = "validated-computation";
+            var processed = new AtomicInteger();
+            fixture.registerComputation(Computation.builder()
+                    .setComputationId(computationId)
+                    .setProcessFunction((RowFunction) (message, output, ctx) -> processed.incrementAndGet())
+                    .build());
+            var validated = new ArrayList<GUID>();
+            var reject = new AtomicBoolean();
+            var processor = new CompanionRequestProcessor(
+                    new PipelineContextSnapshot(fixture.pipelineContext), fixture.jobContext, new JobSpecValidator() {
+                        @Override
+                        public void validate(String id, TJobInfo jobInfo) {
+                        }
+
+                        @Override
+                        public void validateRequest(Job job, TReqProcessBatch request) {
+                            validated.add(job.getJobId());
+                            if (reject.get()) {
+                                throw new IllegalArgumentException("Rejected batch");
+                            }
+                        }
+                    });
+            var jobId = GUID.create();
+            TReqProcessBatch inline = fixture.createRequestBuilder()
+                    .setComputationId(computationId)
+                    .setMessageCount(2)
+                    .setJobId(jobId)
+                    .setAddJobInfo(true)
+                    .createProcessBatch();
+            TReqProcessBatch registered = fixture.createRequestBuilder()
+                    .setComputationId(computationId)
+                    .setMessageCount(2)
+                    .setJobId(jobId)
+                    .setAddJobInfo(false)
+                    .createProcessBatch();
+
+            // When: Processing a batch with job info, then one for the registered job.
+            assertEquals(EResponseStatus.RS_OK, processor.processBatch(inline).getStatus());
+            assertEquals(EResponseStatus.RS_OK, processor.processBatch(registered).getStatus());
+
+            // Then: Both batches are validated and processed.
+            assertEquals(List.of(jobId, jobId), validated);
+            assertEquals(4, processed.get());
+
+            // When & Then: A rejected batch fails without reaching user code.
+            reject.set(true);
+            var error = assertThrows(IllegalArgumentException.class, () -> processor.processBatch(registered));
+            assertTrue(error.getMessage().contains("Rejected batch"), error.getMessage());
+            assertEquals(4, processed.get());
         }
     }
 

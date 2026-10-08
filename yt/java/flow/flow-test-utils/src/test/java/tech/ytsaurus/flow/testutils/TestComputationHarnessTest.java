@@ -952,6 +952,26 @@ class TestComputationHarnessTest {
         }
 
         @Test
+        @DisplayName("doProcess: one harness serves several computations")
+        void testSeveralComputations() {
+            // Given: A harness hosting two computations; the companion keeps a separate job for each.
+            var context = ctx(COMPUTATION_ID, false);
+            context.registerComputation(passthroughSourceComputation(SOURCE_COMPUTATION_ID));
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(spec)
+                    .build();
+
+            // When & Then: Requests alternating between the computations are all processed.
+            for (String computationId : List.of(COMPUTATION_ID, SOURCE_COMPUTATION_ID, COMPUTATION_ID)) {
+                var request = TestDoProcessRequest.builder(computationId)
+                        .setMessages(extMessages(2))
+                        .build();
+                assertEquals(2, harness.doProcess(request).getOutputMessagesFlatten().size());
+            }
+        }
+
+        @Test
         @DisplayName("doProcess: empty messages returns empty output")
         void testEmptyMessages() {
             // Given: A request with no messages.

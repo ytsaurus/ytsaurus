@@ -32,6 +32,8 @@ void TCompanionComputationInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("supported_state_formats", &TThis::SupportedStateFormats)
         .Default({FormatEnum(EStateFormat::SimpleRow)});
+    registrar.Parameter("supports_function_ids", &TThis::SupportsFunctionIds)
+        .Default(false);
 }
 
 void TCompanionInfo::Register(TRegistrar registrar)

@@ -48,6 +48,7 @@ void TCompanionComputationBaseAdapter<TBase>::FetchAndValidateCompanionInfo()
         THROW_ERROR_EXCEPTION("There is no corresponding computation in companion")
             .With("computation_id", this->GetComputationId());
     }
+    ValidateCompanionFunctionIds(*GetParameters(), *computationIt->second);
 }
 
 template <class TBase>
