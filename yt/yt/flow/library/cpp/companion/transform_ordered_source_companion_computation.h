@@ -16,7 +16,7 @@ namespace NYT::NFlow::NCompanion {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransformOrderedSourceCompanionParameters
-    : public TTransformOrderedSourceComputation::TParameters
+    : public TCompanionComputationBaseAdapter<TTransformOrderedSourceComputation>::TParameters
 {
     std::optional<THashSet<std::string>> InternalStates;
 

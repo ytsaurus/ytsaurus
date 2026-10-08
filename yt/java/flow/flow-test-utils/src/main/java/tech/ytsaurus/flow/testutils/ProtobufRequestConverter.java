@@ -1,12 +1,15 @@
 package tech.ytsaurus.flow.testutils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.google.protobuf.ByteString;
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.TGuid;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -45,12 +48,15 @@ import tech.ytsaurus.ysontree.YTreeNode;
  */
 public class ProtobufRequestConverter {
 
-    private TGuid jobId = ProtobufRequestBuilder.PROTO_JOB_ID;
+    private @Nullable TGuid jobId;
     private CodecRegistry codecRegistry = CodecRegistry.getInstance();
     private List<TCompanionResourceInstanceReference> companionResources = List.of();
 
     /**
      * Overrides the job id used for subsequent {@code create*} calls.
+     * <p>
+     * By default every computation gets its own stable job id: a job belongs to one computation,
+     * and the companion rejects a job id that is already registered for another one.
      *
      * @param jobId the new job identifier
      * @return this converter
@@ -123,7 +129,7 @@ public class ProtobufRequestConverter {
     ) {
         var builder = TReqProcessBatch.newBuilder()
                 .setRequestId(ProtoUtils.toProto(GUID.create()))
-                .setJobId(jobId)
+                .setJobId(jobId != null ? jobId : defaultJobId(computationId))
                 .setComputationId(computationId);
 
         var pipelineContext = extractPipelineContext(computationId, pipelineSpec, streamsContext);
@@ -442,5 +448,10 @@ public class ProtobufRequestConverter {
         }
         stateBuilder.addAllStateItems(stateItems);
         return stateBuilder.build();
+    }
+
+    private static TGuid defaultJobId(String computationId) {
+        var uuid = UUID.nameUUIDFromBytes(computationId.getBytes(StandardCharsets.UTF_8));
+        return ProtoUtils.toProto(new GUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits()));
     }
 }

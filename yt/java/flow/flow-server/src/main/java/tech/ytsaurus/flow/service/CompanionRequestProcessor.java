@@ -47,6 +47,7 @@ public class CompanionRequestProcessor {
     private final ResponseProtoMapper responseMapper;
     private final JobProtoMapper jobMapper;
     private final JobSpecValidator jobSpecValidator;
+    private final Object jobRegistrationLock = new Object();
 
     public CompanionRequestProcessor(PipelineContextSnapshot pipelineContext, JobContext jobContext) {
         this(pipelineContext, jobContext, JobSpecValidator.NOOP);
@@ -136,10 +137,17 @@ public class CompanionRequestProcessor {
     }
 
     private BatchOutput processBatchData(TReqProcessBatch request, GUID jobId, String computationId) throws Exception {
-        Job job = retrieveOrCreateJob(jobId, computationId, request.hasJobInfo() ? request.getJobInfo() : null);
-        if (job == null) {
-            return new BatchOutput(EResponseStatus.RS_JOB_NOT_FOUND, null);
+        Job job;
+        if (request.hasJobInfo()) {
+            job = registerJob(jobId, computationId, request.getJobInfo());
+        } else {
+            job = jobContext.getJob(jobId);
+            if (job == null) {
+                return new BatchOutput(EResponseStatus.RS_JOB_NOT_FOUND, null);
+            }
+            requireJobComputation(job, computationId);
         }
+        jobSpecValidator.validateRequest(job, request);
         ResourceLease lease = resourceStore.acquire(job.getCompanionResources());
         if (lease == null) {
             return new BatchOutput(EResponseStatus.RS_RESOURCE_NOT_INITIALIZED, null);
@@ -175,9 +183,7 @@ public class CompanionRequestProcessor {
         log.debug("Processing PutJob: (RequestId: {}, JobId: {})", requestId, jobId);
 
         var measured = executionMeter.measure(() -> {
-            jobSpecValidator.validate(request.getComputationId(), request.getJobInfo());
-            var job = jobMapper.fromProto(request);
-            jobContext.putJob(jobId, job);
+            registerJob(jobId, request.getComputationId(), request.getJobInfo());
             return EResponseStatus.RS_OK;
         });
 
@@ -254,14 +260,35 @@ public class CompanionRequestProcessor {
         return new CompanionInfoResult(EResponseStatus.RS_OK, contextYTree);
     }
 
-    private @Nullable Job retrieveOrCreateJob(GUID jobId, String computationId, @Nullable TJobInfo jobInfo) {
-        if (jobInfo != null) {
-            jobSpecValidator.validate(computationId, jobInfo);
-            Job job = jobMapper.fromProto(jobId, computationId, jobInfo);
+    /**
+     * Registers a job or updates its info, as requested by {@code PutJob} or by job info sent with a batch.
+     *
+     * @throws IllegalArgumentException if the job is already registered for another computation
+     */
+    private Job registerJob(GUID jobId, String computationId, TJobInfo jobInfo) {
+        jobSpecValidator.validate(computationId, jobInfo);
+        Job job = jobMapper.fromProto(jobId, computationId, jobInfo);
+        // The owner check and the replacement are atomic, so concurrent registrations cannot both win.
+        synchronized (jobRegistrationLock) {
+            Job registered = jobContext.getJob(jobId);
+            if (registered != null) {
+                requireJobComputation(registered, computationId);
+            }
             jobContext.putJob(jobId, job);
-            return job;
         }
-        return jobContext.getJob(jobId);
+        return job;
+    }
+
+    /**
+     * A job belongs to one computation for its whole life, so its context is never handed to another one.
+     */
+    private static void requireJobComputation(Job job, String computationId) {
+        if (!job.getComputationId().equals(computationId)) {
+            throw new IllegalArgumentException(
+                    "Job belongs to another computation: (JobId: %s, JobComputationId: %s, ComputationId: %s)"
+                            .formatted(job.getJobId(), job.getComputationId(), computationId)
+            );
+        }
     }
 
     /**

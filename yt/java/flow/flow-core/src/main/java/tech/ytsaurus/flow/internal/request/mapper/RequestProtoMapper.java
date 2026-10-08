@@ -60,7 +60,7 @@ public class RequestProtoMapper {
         // Streams overrides for source computation.
         if (request.getStreamsCount() > 0) {
             var streamSpecsMapper = new StreamSpecsProtoMapper(streamsContext);
-            var streamSpecsOverride = streamSpecsMapper.fromProto(request.getStreamsList());
+            var streamSpecsOverride = streamSpecsMapper.fromProtoOverrides(request.getStreamsList());
             streamSpecs = streamSpecsOverride;
             builder.setStreamSpecsOverride(streamSpecsOverride);
         }

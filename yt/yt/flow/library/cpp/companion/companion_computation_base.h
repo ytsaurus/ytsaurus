@@ -6,11 +6,32 @@
 #include <yt/yt/flow/library/cpp/companion/client/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/manager/companion_manager.h>
 #include <yt/yt/flow/library/cpp/companion/resources/companion_resource.h>
+
+#include <yt/yt/flow/library/cpp/common/registry.h>
+
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
 
 #include <functional>
 
 namespace NYT::NFlow::NCompanion {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompanionFunctionParameters
+    : public virtual NYTree::TYsonStruct
+{
+    //! IDs of the application functions the companion runs in this computation.
+    std::optional<std::vector<std::string>> FunctionIds;
+
+    REGISTER_YSON_STRUCT(TCompanionFunctionParameters);
+
+    static void Register(TRegistrar registrar);
+};
+
+//! Rejects |function_ids| unless the companion advertised that it resolves them.
+void ValidateCompanionFunctionIds(
+    const TCompanionFunctionParameters& parameters,
+    const TCompanionComputationInfo& computationInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +77,11 @@ class TCompanionComputationBaseAdapter
     // Verify that TBase is derived from TUniversalComputationBase.
     static_assert(std::derived_from<TBase, TUniversalComputationBase>);
 
+    using TExtendedParameters = TCombinedYsonStruct<typename TBase::TParameters, TCompanionFunctionParameters>;
+
 public:
+    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters, TBase);
+
     TCompanionComputationBaseAdapter(
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);
@@ -70,9 +95,10 @@ protected:
     //! Fetches and validates companion info.
     /*!
      *  This method should be called from DoInit() of the derived class.
-     *  It fetches the companion info and validates that the computation exists
-     *  and that the companion supports resource commands when the computation
-     *  requires companion resources.
+     *  It fetches the companion info and validates that the computation exists,
+     *  that the companion supports resource commands when the computation
+     *  requires companion resources, and that it resolves |function_ids| when
+     *  the parameter is set.
      */
     void FetchAndValidateCompanionInfo();
 

@@ -11,7 +11,6 @@ import tech.ytsaurus.flow.job.Job;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
-import tech.ytsaurus.flow.rpc.TReqPutJob;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
 import tech.ytsaurus.flow.stream.StreamSpecs;
 import tech.ytsaurus.flow.utils.ProtoUtils;
@@ -30,18 +29,6 @@ public class JobProtoMapper {
 
     public JobProtoMapper(FlowStreamsContext streamsContext) {
         this.streamsContext = Objects.requireNonNull(streamsContext, "streamsContext must not be null");
-    }
-
-    /**
-     * Creates a {@link Job} from a PutJob protobuf request.
-     *
-     * @param request the protobuf PutJob request
-     * @return the job
-     */
-    public Job fromProto(TReqPutJob request) {
-        GUID jobId = ProtoUtils.fromProto(request.getJobId());
-        String computationId = request.getComputationId();
-        return fromProto(jobId, computationId, request.getJobInfo());
     }
 
     /**

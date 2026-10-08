@@ -42,16 +42,19 @@ public class PipelineContextTest {
                             computation_id="computation_id_1";
                             computation_type="Source";
                             supported_state_formats=["simple_row";"proto";];
+                            supports_function_ids=%false;
                         };
                         "computation_id_2"={
                             computation_id="computation_id_2";
                             computation_type="Source";
                             supported_state_formats=["simple_row";"proto";];
+                            supports_function_ids=%false;
                         };
                         "computation_id_3"={
                             computation_id="computation_id_3";
                             computation_type="Transform";
                             supported_state_formats=["simple_row";"proto";];
+                            supports_function_ids=%true;
                         };
                     };
                     resource_classes=[];
@@ -79,6 +82,7 @@ public class PipelineContextTest {
                     // Passthrough.
                     output.addMessage(message);
                 })
+                .setSupportsFunctionIds(true)
                 .build();
         context.registerComputation(transformComputation);
         var expectedComputationsMap = YTreeTextSerializer.stableSerialize(expected);

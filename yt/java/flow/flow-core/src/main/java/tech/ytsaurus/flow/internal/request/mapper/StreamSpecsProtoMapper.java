@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.rpc.TStream;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
@@ -38,13 +39,24 @@ public class StreamSpecsProtoMapper {
      * @return the stream specs
      */
     public StreamSpecs fromProto(List<TStream> protoStreams) {
+        return fromProto(protoStreams, false);
+    }
+
+    /**
+     * Resolves batch overrides using their native schemas for raw payload streams.
+     */
+    public StreamSpecs fromProtoOverrides(List<TStream> protoStreams) {
+        return fromProto(protoStreams, true);
+    }
+
+    private StreamSpecs fromProto(List<TStream> protoStreams, boolean overrideRawSchemas) {
         var mappingBuilder = StreamIdsMapping.builder();
         var flowStreams = new ArrayList<FlowStream<?>>(protoStreams.size());
         for (var protoStream : protoStreams) {
             YTreeNode streamSchema = YsonUtils.yTreeFromProto(protoStream.getSchema());
             mappingBuilder.addMapping(protoStream.getStreamId(), protoStream.getStreamSpecId());
             var stream = streamsContext.getStream(protoStream.getStreamId());
-            if (stream == null) {
+            if (stream == null || (overrideRawSchemas && stream.getMessageClass() == Payload.class)) {
                 stream = FlowStreams.raw(
                         protoStream.getStreamId(),
                         TableSchema.fromYTree(streamSchema)

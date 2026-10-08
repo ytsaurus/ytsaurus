@@ -174,6 +174,9 @@ struct TCompanionComputationInfo
     //! (e.g. "simple_row", "proto"). Old SDKs advertise nothing and default to
     //! simple rows only; unknown names are ignored by the worker.
     std::vector<std::string> SupportedStateFormats;
+    //! Whether the companion resolves the |function_ids| computation parameter.
+    //! Old SDKs advertise nothing and do not.
+    bool SupportsFunctionIds = false;
 
     REGISTER_YSON_STRUCT(TCompanionComputationInfo);
 

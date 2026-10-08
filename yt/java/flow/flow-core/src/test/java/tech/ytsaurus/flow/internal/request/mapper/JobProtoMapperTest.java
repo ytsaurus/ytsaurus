@@ -8,7 +8,6 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.internal.resource.CompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
-import tech.ytsaurus.flow.rpc.TReqPutJob;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
 import tech.ytsaurus.flow.utils.ProtoUtils;
 import tech.ytsaurus.flow.utils.YsonUtils;
@@ -27,7 +26,7 @@ class JobProtoMapperTest {
     private final JobProtoMapper mapper = new JobProtoMapper(new FlowStreamsContext(Map.of()));
 
     @Test
-    void putJobPreservesExactResourceReferences() {
+    void jobInfoPreservesExactResourceReferences() {
         var direct = TCompanionResourceInstanceReference.newBuilder()
                 .setResourceId("dictionary")
                 .setIncarnationId(ProtoUtils.toProto(INCARNATION))
@@ -40,7 +39,7 @@ class JobProtoMapperTest {
                 .setConfigurationGeneration(29)
                 .build();
 
-        var job = mapper.fromProto(request(jobInfo(List.of(direct, transitive))));
+        var job = mapper.fromProto(JOB_ID, COMPUTATION_ID, jobInfo(List.of(direct, transitive)));
 
         assertEquals(JOB_ID, job.getJobId());
         assertEquals(COMPUTATION_ID, job.getComputationId());
@@ -67,10 +66,7 @@ class JobProtoMapperTest {
 
     @Test
     void jobsWithoutResourcesHaveEmptyReferences() {
-        var info = jobInfo(List.of());
-
-        assertTrue(mapper.fromProto(request(info)).getCompanionResources().isEmpty());
-        assertTrue(mapper.fromProto(JOB_ID, COMPUTATION_ID, info).getCompanionResources().isEmpty());
+        assertTrue(mapper.fromProto(JOB_ID, COMPUTATION_ID, jobInfo(List.of())).getCompanionResources().isEmpty());
     }
 
     private static TJobInfo jobInfo(List<TCompanionResourceInstanceReference> references) {
@@ -79,15 +75,6 @@ class JobProtoMapperTest {
                 .setSpec(emptyMap)
                 .setDynamicSpec(emptyMap)
                 .addAllCompanionResources(references)
-                .build();
-    }
-
-    private static TReqPutJob request(TJobInfo jobInfo) {
-        return TReqPutJob.newBuilder()
-                .setRequestId(ProtoUtils.toProto(GUID.valueOf("d-e-f-10")))
-                .setJobId(ProtoUtils.toProto(JOB_ID))
-                .setComputationId(COMPUTATION_ID)
-                .setJobInfo(jobInfo)
                 .build();
     }
 }
