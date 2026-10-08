@@ -267,7 +267,6 @@ private:
 
                 waitOnBlockedRowTimer.Record(CpuDurationToDuration(GetCpuInstant() - start));
             }));
-
     }
 
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)

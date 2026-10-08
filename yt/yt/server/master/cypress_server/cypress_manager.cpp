@@ -724,7 +724,7 @@ public:
 
     void RegisterMovedIndex(TSecondaryIndex* source, TTableNode* clonedTrunkNode, bool isIndexTable) override
     {
-        auto [it, inserted] = ClonedSecondaryIndices_.insert({source, {}});
+        auto [it, inserted] = ClonedSecondaryIndices_.emplace(source, TClonedSecondaryIndexState{});
 
         if (isIndexTable) {
             it->second.ClonedIndexTable = clonedTrunkNode;
@@ -755,13 +755,15 @@ public:
 
         for (auto it : GetIteratorsSortedByKey(ClonedSecondaryIndices_)) {
             const auto& [sourceSecondaryIndex, state] = *it;
-            YT_LOG_ALERT_AND_THROW_UNLESS(state.SourceIndexedTable,
-                "Source indexed table missing during index move validation (SecondaryIndexId: %v)",
-                sourceSecondaryIndex->GetId());
+            YT_TLOG_ALERT_AND_THROW_UNLESS(
+                state.SourceIndexedTable,
+                "Source indexed table missing during index move validation")
+                .With("SecondaryIndexId", sourceSecondaryIndex->GetId());
 
-            YT_LOG_ALERT_AND_THROW_UNLESS(state.SourceIndexTable,
-                "Source index table missing during index move validation (SecondaryIndexId: %v)",
-                sourceSecondaryIndex->GetId());
+            YT_TLOG_ALERT_AND_THROW_UNLESS(
+                state.SourceIndexTable,
+                "Source index table missing during index move validation")
+                .With("SecondaryIndexId", sourceSecondaryIndex->GetId());
 
             tableManager->ValidateSecondaryIndexCreationAndGetTables(
                 sourceSecondaryIndex->GetKind(),
@@ -829,10 +831,10 @@ private:
 
     struct TClonedSecondaryIndexState
     {
-        TTableNode* ClonedIndexedTable = {};
-        TTableNode* ClonedIndexTable = {};
-        TTableNode* SourceIndexedTable = {};
-        TTableNode* SourceIndexTable = {};
+        TTableNode* ClonedIndexedTable = nullptr;
+        TTableNode* ClonedIndexTable = nullptr;
+        TTableNode* SourceIndexedTable = nullptr;
+        TTableNode* SourceIndexTable = nullptr;
     };
     THashMap<TSecondaryIndex*, TClonedSecondaryIndexState> ClonedSecondaryIndices_;
 
@@ -844,7 +846,6 @@ private:
         TCellTagSet ExternalCellTags;
     };
     std::vector<TCreatedExternalObject> CreatedExternalObjects_;
-
 
     void RegisterCreatedNode(TCypressNode* trunkNode)
     {
