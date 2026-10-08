@@ -161,6 +161,42 @@ TEST_F(TCastExpressionTest, ToComposite)
         MakeComposite("[alyx;#;13.2]"));
 }
 
+TEST_F(TCastExpressionTest, StructDictLayout)
+{
+    CheckThrows(
+        "CAST(yson_string_to_any(\"{a=alyx;b=#;c=13.2}\") AS `Struct<a:String, b:Int32?, c:Double?>`)",
+        /*rowString*/ "",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(yson_string_to_any(\"{a=alyx;b=#;c=13.2}\") AS `Optional<Struct<a:String, b:Int32?, c:Double?>>`)",
+        /*rowString*/ "",
+        "expected \"begin_list\", found \"begin_map\"");
+}
+
+TEST_F(TCastExpressionTest, StructNarrowing)
+{
+    Schema_ = New<TTableSchema>(std::vector{
+        TColumnSchema("s", ParseType("Struct<a:Int64, b:Int64, c:Int64>")),
+    });
+
+    CheckThrows("CAST(s AS `Struct<a:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+    CheckThrows("CAST(s AS `Struct<b:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+    CheckThrows("CAST(s AS `Struct<c:Int64, a:Int64>`)", "s=[1;2;3]", "expected \"end_list\", found \"int64_value\"");
+
+    CheckThrows(
+        "CAST(s AS `Struct<a:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(s AS `Struct<b:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
+    CheckThrows(
+        "CAST(s AS `Struct<c:Int64, a:Int64>`)",
+        "s={a=1;b=2;c=3}",
+        "expected \"begin_list\", found \"begin_map\"");
+}
+
 TEST_F(TCastExpressionTest, ToAny)
 {
     Check("CAST(1 AS `Any?`)", "", MakeAny("1"));
