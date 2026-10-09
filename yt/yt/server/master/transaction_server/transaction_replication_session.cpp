@@ -95,13 +95,15 @@ TTransactionReplicationSessionBase::TTransactionReplicationSessionBase(
     TMultiPhaseCellSyncSessionPtr cellSyncSession,
     std::vector<TTransactionId> transactionIds,
     std::optional<TTransactionReplicationInitiatorRequestInfo> requestInfo,
-    bool enableMirroringToSequoia)
+    bool enableMirroringToSequoia,
+    bool useSeparateSequoiaTransactionPerCoordinator)
     : Bootstrap_(bootstrap)
     , CellSyncSession_(std::move(cellSyncSession))
     , RequestInfo_(std::move(requestInfo))
     , Logger(MakeLogger(RequestInfo_))
     , AllTransactionIds_(NormalizeTransactionIds(std::move(transactionIds)))
     , MirroringToSequoiaEnabled_(enableMirroringToSequoia)
+    , UseSeparateSequoiaTransactionPerCoordinator_(useSeparateSequoiaTransactionPerCoordinator)
 {
     Initialize();
 }
@@ -387,15 +389,21 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
         MirroredTransactionIds_.begin(),
         MirroredTransactionIds_.end());
 
-    mirroredTransactionsToReplicate.erase(
-        std::remove_if(
-            mirroredTransactionsToReplicate.begin(),
-            mirroredTransactionsToReplicate.end(),
-            [&] (TTransactionId transactionId) {
-                return transactionPresenceCache->GetTransactionPresence(transactionId) !=
-                    ETransactionPresence::None;
-            }),
-        mirroredTransactionsToReplicate.end());
+    // In separate sequoia tx per coordinator mode, boomerang wave size has
+    // already been decided upon based on the number of tx coordinator cells.
+    // Using tx presence cache would potentially change the number of boomerang
+    // returns and lead to a stuck boomerang.
+    if (!UseSeparateSequoiaTransactionPerCoordinator_) {
+        mirroredTransactionsToReplicate.erase(
+            std::remove_if(
+                mirroredTransactionsToReplicate.begin(),
+                mirroredTransactionsToReplicate.end(),
+                [&] (TTransactionId transactionId) {
+                    return transactionPresenceCache->GetTransactionPresence(transactionId) !=
+                        ETransactionPresence::None;
+                }),
+            mirroredTransactionsToReplicate.end());
+    }
 
     YT_ASSERT(MirroringToSequoiaEnabled_ || mirroredTransactionsToReplicate.empty());
 
@@ -409,20 +417,23 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
                 bootstrap = Bootstrap_,
                 mirroredTransactionsToReplicate = std::move(mirroredTransactionsToReplicate),
                 mirroredBoomerang = std::move(MirroredBoomerang_),
-                sequoiaNodeIdToLock = SequoiaNodeIdToLock_
+                sequoiaNodeIdToLock = SequoiaNodeIdToLock_,
+                useSeparateSequoiaTransactionPerCoordinator = UseSeparateSequoiaTransactionPerCoordinator_
             ] () mutable {
                 return ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
                     bootstrap,
                     std::move(mirroredTransactionsToReplicate),
                     std::move(mirroredBoomerang),
-                    sequoiaNodeIdToLock);
+                    sequoiaNodeIdToLock,
+                    useSeparateSequoiaTransactionPerCoordinator);
             }));
         } else {
             mirroredResult = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
                 Bootstrap_,
                 std::move(mirroredTransactionsToReplicate),
                 std::move(MirroredBoomerang_),
-                SequoiaNodeIdToLock_);
+                SequoiaNodeIdToLock_,
+                UseSeparateSequoiaTransactionPerCoordinator_);
         }
     }
 
@@ -627,7 +638,15 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
 
     if (MirroringToSequoiaEnabled_) {
         if (!MirroredTransactionIds_.empty() || SequoiaNodeIdToLock_) {
-            ++boomerangWaveSize;
+            if (UseSeparateSequoiaTransactionPerCoordinator_) {
+                TCellTagSet cellTags;
+                for (auto transactionId : MirroredTransactionIds_) {
+                    cellTags.insert(CellTagFromId(transactionId));
+                }
+                boomerangWaveSize += std::max<size_t>(1, cellTags.size());
+            } else {
+                ++boomerangWaveSize;
+            }
 
             MirroredBoomerang_ = std::make_unique<NProto::TReqReturnBoomerang>();
             fillBoomerangRequest(MirroredBoomerang_.get());
@@ -799,7 +818,8 @@ void RunTransactionReplicationSessionAndReply(
     const IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
     bool enableMutationBoomerangs,
-    bool enableMirroringToSequoia)
+    bool enableMirroringToSequoia,
+    bool useSeparateSequoiaTransactionPerCoordinator)
 {
     YT_VERIFY(context);
 
@@ -821,7 +841,8 @@ void RunTransactionReplicationSessionAndReply(
             std::move(cellSyncSession),
             std::move(transactionIds),
             std::move(requestInfo),
-            enableMirroringToSequoia);
+            enableMirroringToSequoia,
+            useSeparateSequoiaTransactionPerCoordinator);
         replicationSession->SetMutation(std::move(mutation), /*sequoiaNodeIdToLock*/ NullObjectId);
         YT_UNUSED_FUTURE(replicationSession->Run(context));
     } else {
@@ -831,7 +852,8 @@ void RunTransactionReplicationSessionAndReply(
             std::move(cellSyncSession),
             std::move(transactionIds),
             std::move(requestInfo),
-            enableMirroringToSequoia);
+            enableMirroringToSequoia,
+            useSeparateSequoiaTransactionPerCoordinator);
         YT_UNUSED_FUTURE(replicationSession->Run()
             .Apply(BIND([=, mutation = std::move(mutation)] (const TError& error) {
                 if (error.IsOK()) {
@@ -848,7 +870,8 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    bool enableMirroringToSequoia)
+    bool enableMirroringToSequoia,
+    bool useSeparateSequoiaTransactionPerCoordinator)
 {
     auto cellSyncSession = New<TMultiPhaseCellSyncSession>(bootstrap, TransactionServerLogger());
     if (syncWithUpstream) {
@@ -864,7 +887,8 @@ TFuture<void> RunTransactionReplicationSession(
         std::move(cellSyncSession),
         std::move(transactionIds),
         /*requestInfo*/ std::nullopt,
-        enableMirroringToSequoia);
+        enableMirroringToSequoia,
+        useSeparateSequoiaTransactionPerCoordinator);
     return replicationSession->Run();
 }
 

@@ -389,6 +389,7 @@ private:
     std::atomic<bool> EnablePerUserThrottling_ = false;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
+    std::atomic<bool> ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_ = false;
     static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
     std::atomic<bool> MinimizeExecuteLatency_ = false;
@@ -1443,7 +1444,8 @@ private:
                             .RequestId = RequestId_,
                             .SubrequestIndex = subrequestIndex,
                         },
-                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
+                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
+                        Owner_->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
                 }
                 if (subrequest.Mutation) {
                     // Pre-phase-two.
@@ -1467,7 +1469,8 @@ private:
                     .Identity = Identity_,
                     .RequestId = RequestId_,
                 },
-                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
+                Owner_->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -2666,6 +2669,9 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
+        std::memory_order::release);
+    ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.store(
+        sequoiaConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator,
         std::memory_order::release);
     WrapRequestsIntoSequoiaTransactions_.store(
         sequoiaConfig->WrapObjectServiceExecuteIntoSequoiaTransaction,

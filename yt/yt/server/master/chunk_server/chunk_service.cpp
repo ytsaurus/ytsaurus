@@ -170,6 +170,7 @@ private:
     TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
     std::atomic<bool> EnableCypressTransactionsInSequoia_;
+    std::atomic<bool> ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_;
 
     void OnLeaderActive()
     {
@@ -247,6 +248,9 @@ private:
         const auto& sequoiaManagerConfig = config->SequoiaManager;
         EnableCypressTransactionsInSequoia_.store(
             sequoiaManagerConfig->Enable && sequoiaManagerConfig->EnableCypressTransactionsInSequoia,
+            std::memory_order::release);
+        ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.store(
+            sequoiaManagerConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator,
             std::memory_order::release);
 
         const auto& chunkServiceConfig = config->ChunkService;
@@ -820,7 +824,8 @@ private:
             context,
             chunkManager->CreateExecuteBatchMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -848,7 +853,8 @@ private:
             context,
             chunkManager->CreateAttachChunkTreesMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DetachChunkTrees)
@@ -907,7 +913,8 @@ private:
             context,
             chunkManager->CreateCreateChunkListsMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
@@ -970,7 +977,8 @@ private:
             context,
             chunkManager->CreateCreateChunkMutation(context),
             enableMutationBoomerangs,
-            AreCypressTransactionsInSequoiaEnabled());
+            AreCypressTransactionsInSequoiaEnabled(),
+            ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator_.load(std::memory_order::acquire));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)

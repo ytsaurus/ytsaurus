@@ -102,6 +102,9 @@ struct TDynamicSequoiaManagerConfig
 
     bool WrapObjectServiceExecuteIntoSequoiaTransaction;
 
+    // COMPAT(shakurov)
+    bool ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator;
+
     // NB: don't use it directly. Use ShouldUseSequoiaRevisions() instead.
     bool EnableSequoiaRevisions;
 

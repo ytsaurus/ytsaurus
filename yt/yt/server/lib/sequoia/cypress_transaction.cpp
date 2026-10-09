@@ -2475,7 +2475,7 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ReplicateCypressTransactionsToCell(
+std::pair<TFuture<void>, TCellId> ReplicateCypressTransactionsToCell(
     ISequoiaClientPtr sequoiaClient,
     std::vector<TTransactionId> transactionIds,
     TCellId destinationCellId,
@@ -2488,7 +2488,7 @@ TFuture<void> ReplicateCypressTransactionsToCell(
 {
     // Fast path.
     if (transactionIds.empty() && !boomerang) {
-        return OKFuture;
+        return {OKFuture, TCellId()};
     }
 
     auto sequoiaTransactionCoordinatorCellId = destinationCellId;
@@ -2498,16 +2498,19 @@ TFuture<void> ReplicateCypressTransactionsToCell(
         sequoiaTransactionCoordinatorCellId = cypressTransactionCoordinatorCellId;
     }
 
-    return New<TReplicateCypressTransactions>(
-        std::move(sequoiaClient),
+    return {
+        New<TReplicateCypressTransactions>(
+            std::move(sequoiaClient),
+            sequoiaTransactionCoordinatorCellId,
+            TCellTagList{CellTagFromId(destinationCellId)},
+            std::move(transactionIds),
+            std::move(boomerang),
+            sequoiaNodeIdToLock,
+            std::move(invoker),
+            std::move(logger))
+            ->Apply(std::move(features)),
         sequoiaTransactionCoordinatorCellId,
-        TCellTagList{CellTagFromId(destinationCellId)},
-        std::move(transactionIds),
-        std::move(boomerang),
-        sequoiaNodeIdToLock,
-        std::move(invoker),
-        std::move(logger))
-        ->Apply(std::move(features));
+    };
 }
 
 TFuture<void> ReplicateCypressTransactionToCells(
