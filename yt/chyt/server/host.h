@@ -131,6 +131,9 @@ public:
     //! or if the election is not configured (in which case it always returns |true|).
     bool IsLeader() const;
 
+    //! Returns nullopt outside leadership, or a null transaction id if election is disabled.
+    std::optional<NTransactionClient::TTransactionId> GetLeadershipTransactionId() const;
+
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
     TYtConfigPtr GetConfig() const;
