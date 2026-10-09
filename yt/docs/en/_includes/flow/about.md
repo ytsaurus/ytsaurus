@@ -1,6 +1,10 @@
 # What is {{product-name}} Flow?
 
+{% if audience == "public" %}
+{% include notitle [Flow logo](../../../ru/_includes/flow/logo.md) %}
+{% else %}
 ![YTsaurus Flow](../../flow/_images/flow-logo.png)
+{% endif %}
 
 {{product-name}} Flow is a framework for streaming cross-DC event processing with exactly-once guarantees within the {{product-name}} ecosystem. It offers APIs for [C++](../../flow/cpp/getting-started.md), [Java and Kotlin](../../flow/java/getting-started.md), [Python](../../flow/python/getting-started.md), and [Go](../../flow/go/getting-started.md), and supports declarative pipeline descriptions in [YQL](../../flow/yql/getting-started.md).{% if audience == "internal" %} The system is a logical evolution of the [BigRT](https://docs.yandex-team.ru/big_rt/) framework.{% endif %}
 
