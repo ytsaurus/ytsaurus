@@ -964,7 +964,10 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , ThreadPool_(CreateThreadPool(Config_->HeavyInvokerThreadCount, "JobTrackerHeavy"))
     , JobEventsControllerQueue_(bootstrap->GetConfig()->ControllerAgent->JobEventsControllerQueue)
     , HeartbeatProtoMessageBytes_(NodeHeartbeatProfiler().WithHot().Counter("/proto_message_bytes"))
-    , HeartbeatDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/data_statistics_bytes"))
+    , HeartbeatTotalOutputDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/data_statistics_bytes"))
+    , HeartbeatTotalInputDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/input_data_statistics_bytes"))
+    , HeartbeatTotalDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/total_data_statistics_bytes"))
+    , HeartbeatStatisticsYsonBytes_(NodeHeartbeatProfiler().WithHot().Counter("/statistics_yson_bytes"))
     , HeartbeatEnqueuedControllerEvents_(NodeHeartbeatProfiler().WithHot().GaugeSummary("/enqueued_controller_events"))
     , SettleJobRequestWaitingOnBarriers_(SettleJobRequestProfiler().GaugeSummary("/settle_job_request_waiting_on_barriers"))
     , CancelledSettleJobRequestWaitingOnBarrierCount_(SettleJobRequestProfiler().WithHot().Counter("/cancelled_settle_job_request_waiting_on_barrier_count"))
@@ -1454,15 +1457,24 @@ IInvokerPtr TJobTracker::GetHeavyInvoker() const
 
 void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
 {
-    i64 totalJobDataStatisticsSize = 0;
+    i64 totalOutputDataStatisticsSize = 0;
+    i64 totalInputDataStatisticsSize = 0;
+    i64 totalStatisticsYsonSize = 0;
     for (const auto& job : request->jobs()) {
         for (const auto& dataStatistics : job.output_data_statistics()) {
-            totalJobDataStatisticsSize += dataStatistics.ByteSizeLong();
+            totalOutputDataStatisticsSize += dataStatistics.ByteSizeLong();
         }
+        if (job.has_total_input_data_statistics()) {
+            totalInputDataStatisticsSize += job.total_input_data_statistics().ByteSizeLong();
+        }
+        totalStatisticsYsonSize += job.statistics().size();
     }
 
     HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
-    HeartbeatDataStatisticsBytes_.Increment(totalJobDataStatisticsSize);
+    HeartbeatTotalOutputDataStatisticsBytes_.Increment(totalOutputDataStatisticsSize);
+    HeartbeatTotalInputDataStatisticsBytes_.Increment(totalInputDataStatisticsSize);
+    HeartbeatTotalDataStatisticsBytes_.Increment(totalOutputDataStatisticsSize + totalInputDataStatisticsSize);
+    HeartbeatStatisticsYsonBytes_.Increment(totalStatisticsYsonSize);
     HeartbeatCount_.Increment();
     ReceivedJobCount_.Increment(request->jobs_size());
 }

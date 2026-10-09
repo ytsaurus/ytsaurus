@@ -489,6 +489,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("resend_full_job_info", &TThis::ResendFullJobInfo)
         .Default(true);
+    registrar.Parameter("omit_data_statistics_from_yson", &TThis::OmitDataStatisticsFromYson)
+        .Default(false);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TControllerAgentConnectorDynamicConfig& config, TStringBuf spec)
@@ -745,7 +747,8 @@ void TJobCommonConfig::Register(TRegistrar registrar)
         .Default("root");
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();

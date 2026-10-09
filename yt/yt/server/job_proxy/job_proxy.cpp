@@ -194,12 +194,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedStatistics)
+void FillStatistics(auto& req, IJob::TStatistics jobStatistics)
 {
-    auto extendedStatistics = job->GetStatistics();
-    req->set_statistics(ToProto(ConvertToYsonString(enrichedStatistics)));
-    *req->mutable_total_input_data_statistics() = std::move(extendedStatistics.TotalInputStatistics.DataStatistics);
-    for (auto& statistics : extendedStatistics.OutputStatistics) {
+    req->set_statistics(ToProto(ConvertToYsonString(jobStatistics.Statistics)));
+    *req->mutable_total_input_data_statistics() = std::move(jobStatistics.TotalInputStatistics.DataStatistics);
+    for (auto& statistics : jobStatistics.OutputStatistics) {
         *req->add_output_data_statistics() = std::move(statistics.DataStatistics);
     }
 }
@@ -413,7 +412,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(job->GetProgress());
-    FillStatistics(req, job, GetEnrichedStatistics());
+    FillStatistics(req, GetEnrichedStatistics(job));
     req->set_stderr_size(job->GetStderrSize());
     req->set_has_job_trace(job->HasJobTrace());
     req->set_epoch(epoch);
@@ -1282,7 +1281,7 @@ void TJobProxy::ReportResult(
     req->set_finish_time(ToProto(finishTime));
     auto job = FindJob();
     if (job) {
-        FillStatistics(req, job, GetEnrichedStatistics());
+        FillStatistics(req, GetEnrichedStatistics(job));
     }
 
     // Check that data statistics do not contradict with the actual
@@ -1433,31 +1432,27 @@ void TJobProxy::InitializeChunkReaderHost()
         clusterContextList);
 }
 
-TStatistics TJobProxy::GetEnrichedStatistics() const
+IJob::TStatistics TJobProxy::GetEnrichedStatistics(const IJobPtr& job) const
 {
-    TStatistics statistics;
+    auto jobStatistics = job ? job->GetStatistics() : IJob::TStatistics{};
+    auto& statistics = jobStatistics.Statistics;
 
     auto statisticsOutputTableCountLimit = Config_->StatisticsOutputTableCountLimit.value_or(std::numeric_limits<int>::max());
 
-    if (auto job = FindJob()) {
-        auto extendedStatistics = job->GetStatistics();
-        statistics = std::move(extendedStatistics.Statistics);
-
+    if (job) {
         if (job->HasInput()) {
-            statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
-            DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
+            DumpCodecStatistics(jobStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
 
-        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, jobStatistics.OutputStatistics.size()); ++index) {
             auto ypathIndex = TStatisticPathLiteral(ToString(index));
-            statistics.AddSample("/data/output"_SP / ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
-            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
+            DumpCodecStatistics(jobStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
         auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
         if (GetJobSpecHelper()->GetJobType() == EJobType::RemoteCopy) {
             // Chunk reader statistics for remote copy is collected in a custom way.
-            if (auto chunkReaderStatistics = extendedStatistics.RemoteCopyChunkReaderStatistics) {
+            if (auto chunkReaderStatistics = jobStatistics.RemoteCopyChunkReaderStatistics) {
                 auto remoteCopyJobSpecExt = GetJobSpecHelper()->GetJobSpec()
                     .GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
 
@@ -1491,14 +1486,14 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         }
 
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, totalChunkReaderStatistics);
-        DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
+        DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, jobStatistics.TimingStatistics);
 
-        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, jobStatistics.ChunkWriterStatistics.size()); ++index) {
             auto ypathIndex = TStatisticPathLiteral(ToString(index));
-            DumpChunkWriterStatistics(&statistics, "/chunk_writer_statistics"_SP / ypathIndex, extendedStatistics.ChunkWriterStatistics[index]);
+            DumpChunkWriterStatistics(&statistics, "/chunk_writer_statistics"_SP / ypathIndex, jobStatistics.ChunkWriterStatistics[index]);
         }
 
-        if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
+        if (const auto& pipeStatistics = jobStatistics.PipeStatistics) {
             auto dumpPipeStatistics = [&] (const TStatisticPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
                 statistics.AddSample(path / "idle_time"_L, pipeStatistics.ConnectionStatistics.IdleDuration);
                 statistics.AddSample(path / "busy_time"_L, pipeStatistics.ConnectionStatistics.BusyDuration);
@@ -1514,15 +1509,15 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             }
         }
 
-        if (auto time = extendedStatistics.LatencyStatistics.InputTimeToFirstReadBatch) {
+        if (auto time = jobStatistics.LatencyStatistics.InputTimeToFirstReadBatch) {
             statistics.AddSample("/latency/input/time_to_first_read_batch"_SP, *time);
         }
-        if (auto time = extendedStatistics.LatencyStatistics.InputTimeToFirstWrittenBatch) {
+        if (auto time = jobStatistics.LatencyStatistics.InputTimeToFirstWrittenBatch) {
             statistics.AddSample("/latency/input/time_to_first_written_batch"_SP, *time);
         }
 
         TDuration minOutputTimeToFirstBatch = TDuration::Max();
-        for (const auto& [index, time] : Enumerate(extendedStatistics.LatencyStatistics.OutputTimeToFirstReadBatch)) {
+        for (const auto& [index, time] : Enumerate(jobStatistics.LatencyStatistics.OutputTimeToFirstReadBatch)) {
             if (!time) {
                 continue;
             }
@@ -1538,7 +1533,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 minOutputTimeToFirstBatch);
         }
 
-        for (const auto& [index, timingStatistics] : SEnumerate(extendedStatistics.WriterTimingStatistics)) {
+        for (const auto& [index, timingStatistics] : SEnumerate(jobStatistics.WriterTimingStatistics)) {
             statistics.AddSample(
                 "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "write_time"_L,
                 timingStatistics.WriteTime);
@@ -1614,7 +1609,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
     statistics.SetTimestamp(TInstant::Now());
 
-    return statistics;
+    return jobStatistics;
 }
 
 IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const

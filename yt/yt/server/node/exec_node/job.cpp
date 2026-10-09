@@ -28,6 +28,7 @@
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/job_statistics_wire.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
 #include <yt/yt/server/lib/io/io_tracker.h>
@@ -125,6 +126,8 @@
 #include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+
+#include <limits>
 
 namespace NYT::NExecNode {
 
@@ -947,9 +950,9 @@ void TJob::OnJobFinalized()
 
     FinishTime_ = TInstant::Now();
     // Copy info from traffic meter to statistics.
-    auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
+    auto statistics = ConvertTo<TStatistics>(StatisticsWithoutDataYson_);
     FillTrafficStatistics("exec_agent"_L, statistics, TrafficMeter_);
-    StatisticsYson_ = ConvertToYsonString(statistics);
+    UpdateStatisticsYson(std::move(statistics));
 
     // NB(eshcherbin): We need to destroy this producer, otherwise it will continue
     // to send metrics for some time after the job is finished.
@@ -1422,6 +1425,29 @@ TYsonString TJob::GetStatistics() const
     return StatisticsYson_;
 }
 
+TYsonString TJob::GetStatisticsForHeartbeat(bool omitDataStatisticsFromYson) const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return omitDataStatisticsFromYson ? StatisticsWithoutDataYson_ : StatisticsYson_;
+}
+
+void TJob::FillStatisticsForHeartbeat(
+    TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
+    bool omitDataStatisticsFromYson) const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    EncodeJobStatisticsForHeartbeat(
+        status,
+        GetStatisticsForHeartbeat(omitDataStatisticsFromYson),
+        omitDataStatisticsFromYson
+            ? EJobStatisticsWireFormat::OmitDataStatistics
+            : EJobStatisticsWireFormat::Legacy,
+        HasInputDataStatisticsInFullYson_,
+        FullYsonOutputTableCount_);
+}
+
 TDataStatistics TJob::GetTotalInputDataStatistics() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1450,11 +1476,30 @@ void TJob::ResetStatisticsLastSendTime()
     StatisticsLastSendTime_ = TInstant::Now();
 }
 
-void TJob::SetStatistics(const TYsonString& statisticsYson)
+void TJob::SetStatistics(
+    const TYsonString& statisticsYson,
+    TDataStatistics inputDataStatistics,
+    std::vector<TDataStatistics> outputDataStatistics)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_.load() != EJobPhase::Running && JobPhase_.load() != EJobPhase::FinalizingJobProxy) {
+        // A final result can arrive while cleanup waits for job proxy.
+        // Keep its data counters with the statistics enriched before cleanup.
+        TotalInputDataStatistics_ = std::move(inputDataStatistics);
+        OutputDataStatistics_ = std::move(outputDataStatistics);
+        if (HasJobProxyStatistics_) {
+            auto previousFullYsonOutputTableCount = FullYsonOutputTableCount_;
+            FullYsonOutputTableCount_ = std::min<int>(
+                StatisticsOutputTableCountLimit_.value_or(std::numeric_limits<int>::max()),
+                OutputDataStatistics_.size());
+            if (HasInputDataStatisticsInFullYson_ ||
+                previousFullYsonOutputTableCount > 0 ||
+                FullYsonOutputTableCount_ > 0)
+            {
+                UpdateStatisticsYson(ConvertTo<TStatistics>(StatisticsWithoutDataYson_));
+            }
+        }
         return;
     }
 
@@ -1475,9 +1520,38 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 
     UpdateIOStatistics(statistics);
 
-    StatisticsYson_ = ConvertToYsonString(statistics);
+    TotalInputDataStatistics_ = std::move(inputDataStatistics);
+    OutputDataStatistics_ = std::move(outputDataStatistics);
+    HasInputDataStatisticsInFullYson_ = HasInput();
+    FullYsonOutputTableCount_ = std::min<int>(
+        StatisticsOutputTableCountLimit_.value_or(std::numeric_limits<int>::max()),
+        OutputDataStatistics_.size());
+    UpdateStatisticsYson(std::move(statistics));
+    HasJobProxyStatistics_ = true;
 
     UpdateUserJobMonitoring();
+}
+
+bool TJob::HasInput() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return !HasUserJobSpec() ||
+        (Type_ != EJobType::Vanilla && !UserJobSpec_->is_secondary_distributed());
+}
+
+void TJob::UpdateStatisticsYson(TStatistics statisticsWithoutData)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    StatisticsWithoutDataYson_ = ConvertToYsonString(statisticsWithoutData);
+    AddJobDataStatistics(
+        GetPtr(statisticsWithoutData),
+        TotalInputDataStatistics_,
+        OutputDataStatistics_,
+        HasInputDataStatisticsInFullYson_,
+        FullYsonOutputTableCount_);
+    StatisticsYson_ = ConvertToYsonString(statisticsWithoutData);
 }
 
 void TJob::UpdateUserJobMonitoring()
@@ -1490,20 +1564,6 @@ void TJob::UpdateUserJobMonitoring()
     CollectSensorsFromStatistics(&userJobSensors);
     CollectSensorsFromGpuAndRdmaDeviceInfo(&userJobSensors);
     UserJobSensorProducer_->Update(std::move(userJobSensors));
-}
-
-void TJob::SetTotalInputDataStatistics(TDataStatistics datastatistics)
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    TotalInputDataStatistics_ = std::move(datastatistics);
-}
-
-void TJob::SetOutputDataStatistics(std::vector<TDataStatistics> dataStatistics)
-{
-    YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-    OutputDataStatistics_ = std::move(dataStatistics);
 }
 
 TBriefJobInfo TJob::GetBriefInfo() const
@@ -3611,6 +3671,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
 
     proxyInternalConfig->StatisticsOutputTableCountLimit = CommonConfig_->StatisticsOutputTableCountLimit;
+    StatisticsOutputTableCountLimit_ = proxyInternalConfig->StatisticsOutputTableCountLimit;
 
     proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 

@@ -19,6 +19,7 @@
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
+#include <yt/yt/server/lib/controller_agent/job_statistics_wire.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/structs.h>
@@ -998,9 +999,14 @@ private:
 
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
 
-        auto getJobStatistics = [] (const TJobPtr& job) {
-            auto statistics = job->GetStatistics();
-            if (!statistics) {
+        auto tryFillJobStatistics = [&] (
+            const TJobPtr& job,
+            TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
+            bool throttleStatistics)
+        {
+            auto statistics = job->GetStatisticsForHeartbeat(context->OmitDataStatisticsFromYson);
+            auto hasJobStatistics = static_cast<bool>(statistics);
+            if (!hasJobStatistics) {
                 if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
                     TStatistics timeStatisticsToSend;
                     timeStatisticsToSend.SetTimestamp(TInstant::Now());
@@ -1011,7 +1017,26 @@ private:
                 }
             }
 
-            return statistics;
+            if (!statistics) {
+                return false;
+            }
+            if (throttleStatistics && !context->StatisticsThrottler->TryAcquire(statistics.AsStringBuf().size())) {
+                return false;
+            }
+
+            if (hasJobStatistics) {
+                job->FillStatisticsForHeartbeat(status, context->OmitDataStatisticsFromYson);
+            } else {
+                EncodeJobStatisticsForHeartbeat(
+                    status,
+                    statistics,
+                    context->OmitDataStatisticsFromYson
+                        ? EJobStatisticsWireFormat::OmitDataStatistics
+                        : EJobStatisticsWireFormat::Legacy,
+                    /*inputDataStatisticsOmitted*/ false,
+                    /*outputDataStatisticsOmittedCount*/ 0);
+            }
+            return true;
         };
 
         auto addAllocationInfoToHeartbeatRequest = [&] (const TAllocationPtr& allocation) {
@@ -1039,10 +1064,8 @@ private:
 
             job->ResetStatisticsLastSendTime();
 
-            if (auto statistics = getJobStatistics(job)) {
-                auto statisticsString = statistics.ToString();
-                finishedJobsStatisticsSize += std::ssize(statisticsString);
-                jobStatus->set_statistics(std::move(statisticsString));
+            if (tryFillJobStatistics(job, GetPtr(*jobStatus), /*throttleStatistics*/ false)) {
+                finishedJobsStatisticsSize += jobStatus->statistics().size();
             }
         };
 
@@ -1181,15 +1204,11 @@ private:
 
             ++consideredRunningJobCount;
 
-            if (auto statistics = getJobStatistics(job)) {
-                auto statisticsString = statistics.ToString();
-                if (context->StatisticsThrottler->TryAcquire(statisticsString.size())) {
-                    ++reportedRunningJobCount;
+            if (tryFillJobStatistics(job, GetPtr(*jobStatus), /*throttleStatistics*/ true)) {
+                ++reportedRunningJobCount;
 
-                    runningJobsStatisticsSize += statisticsString.size();
-                    job->ResetStatisticsLastSendTime();
-                    jobStatus->set_statistics(std::move(statisticsString));
-                }
+                job->ResetStatisticsLastSendTime();
+                runningJobsStatisticsSize += jobStatus->statistics().size();
             }
         }
 

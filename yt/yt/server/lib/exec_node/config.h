@@ -367,6 +367,8 @@ struct TControllerAgentConnectorDynamicConfig
 
     bool ResendFullJobInfo;
 
+    bool OmitDataStatisticsFromYson;
+
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -256,6 +256,31 @@ class TestSchedulerMapCommands(YTEnvSetup):
         wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5))
         wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1))
 
+    @authors("pogorelov")
+    def test_job_statistics_wire_mode_1(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "omit_data_statistics_from_yson": True,
+                },
+            },
+        })
+
+        create("table", "//tmp/wire_input")
+        create("table", "//tmp/wire_output_0")
+        create("table", "//tmp/wire_output_1")
+        write_table("//tmp/wire_input", [{"key": 1}, {"key": 2}])
+
+        op = map(
+            command="cat; echo {key=3} >&4",
+            in_="//tmp/wire_input",
+            out=["//tmp/wire_output_0", "//tmp/wire_output_1"],
+        )
+
+        wait(lambda: assert_statistics(op, "data.input.row_count", lambda count: count == 2))
+        wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda count: count == 2))
+        wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda count: count == 1))
+
     @authors("renadeen")
     def test_codec_statistics(self):
         create("table", "//tmp/t1", attributes={"compression_codec": "lzma_9"})

@@ -240,7 +240,7 @@ private:
 
     void InitializeChunkReaderHost();
 
-    TStatistics GetEnrichedStatistics() const;
+    IJob::TStatistics GetEnrichedStatistics(const IJobPtr& job) const;
 
     IJobPtr CreateBuiltinJob();
 
