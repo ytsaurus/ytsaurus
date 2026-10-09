@@ -1765,6 +1765,30 @@ TEST_P(TTestMergeSplitTabletsParameterized, MultimetricMatchesScalarSum)
     }
 }
 
+TEST(TParameterizedResharderTest, ZeroTableMetric)
+{
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(
+        "{config={groups={default={parameterized={enable_reshard=%true;metric=\"0\"}}}};"
+        "tables=[{config={enable_parameterized=%true;desired_tablet_metric=3145728};tablets=["
+            "{tablet_index=1;cell_index=1;"
+                "statistics={memory_size=0;uncompressed_data_size=3000000000;compressed_data_size=3000000000;partition_count=1}}]}];"
+        "cells=[{cell_index=1;node_address=home}];"
+        "nodes=[{node_address=home}]}"));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
+    const auto& table = bundle->Tables.begin()->second;
+
+    auto resharder = CreateParameterizedResharder(
+        bundle,
+        /*performanceCountersKeys*/ {},
+        TParameterizedResharderConfig{}.MergeWith(
+            GetOrCrash(bundle->Config->Groups, DefaultGroupName)->Parameterized),
+        DefaultGroupName,
+        Logger());
+
+    EXPECT_TRUE(resharder->BuildTableActionDescriptors(table).empty());
+}
+
 TEST(TParameterizedResharderTest, DesiredTabletSizeBelowOneByte)
 {
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(

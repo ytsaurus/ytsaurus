@@ -459,10 +459,16 @@ private:
             statistics.DesiredTabletSize = statistics.TableSize / statistics.DesiredTabletCount;
         } else {
             statistics.DesiredTabletMetric = config->DesiredTabletMetric.value();
-            statistics.DesiredTabletCount = statistics.TableMetric / statistics.DesiredTabletMetric;
 
-            // NB(dave11ar): For accuracy purposes.
-            statistics.DesiredTabletSize = statistics.DesiredTabletMetric * statistics.TableSize / statistics.TableMetric;
+            if (statistics.TableMetric == 0.0) {
+                // With no metric load or explicit tablet count, the whole table fits in one tablet.
+                statistics.DesiredTabletCount = 1;
+                statistics.DesiredTabletSize = statistics.TableSize;
+            } else {
+                statistics.DesiredTabletCount = statistics.TableMetric / statistics.DesiredTabletMetric;
+                // NB(dave11ar): For accuracy purposes.
+                statistics.DesiredTabletSize = statistics.DesiredTabletMetric * statistics.TableSize / statistics.TableMetric;
+            }
         }
 
         // A desired metric can correspond to less than one byte. Integer truncation
@@ -472,8 +478,6 @@ private:
         statistics.MinTabletSize = statistics.DesiredTabletSize / 1.9;
         statistics.MaxTabletSize = statistics.DesiredTabletSize * 1.9;
 
-        statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
-
         if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {
             YT_TLOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero")
                 .With("TableId", table->Id)
@@ -482,6 +486,7 @@ private:
             statistics.DesiredTabletMetric = 1;
         }
 
+        statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
         statistics.MaxTabletMetric = statistics.DesiredTabletMetric * 1.9;
 
         YT_TLOG_DEBUG_IF(
