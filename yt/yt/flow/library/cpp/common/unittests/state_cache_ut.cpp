@@ -12,11 +12,14 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <util/system/event.h>
 
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <utility>
 
@@ -74,6 +77,28 @@ class TTestableStateCache
 public:
     using TStateCache::GetKeyWeight;
     using TStateCache::TStateCache;
+};
+
+class TMutableWeightValue
+    : public IStateCacheValue
+{
+public:
+    explicit TMutableWeightValue(i64 weight)
+        : Weight(weight)
+    { }
+
+    void Compress() override
+    { }
+
+    void Decompress() override
+    { }
+
+    i64 GetWeight() override
+    {
+        return Weight;
+    }
+
+    i64 Weight;
 };
 
 class TReclamation
@@ -316,6 +341,177 @@ TEST(TStateCacheReclamationTest, ReclaimsBeforeReconfigureReturns)
     for (int index = 0; index < Count; ++index) {
         EXPECT_TRUE(namedCache->Extract(MakeKey(static_cast<ui64>(index))));
     }
+}
+
+TEST(TStateCacheReclamationTest, ClearingCompressedCacheReleasesKeys)
+{
+    auto cache = New<TReclamationTwoLevelCache>();
+    const int shardCount = New<TSlruCacheConfig>()->ShardCount;
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 2 * shardCount);
+    std::vector<std::weak_ptr<int>> keys;
+    for (int index = 0; index < 64; ++index) {
+        TCacheTestKey key;
+        keys.emplace_back(key.Identity);
+        cache->Insert(key, New<TReclaimableValue>([] {
+        }));
+    }
+
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 0);
+    for (const auto& key : keys) {
+        EXPECT_TRUE(key.expired());
+    }
+}
+
+TEST(TStateCacheWeightTest, MutableCompressedValueDoesNotCorruptCapacity)
+{
+    for (bool grow : {false, true}) {
+        SCOPED_TRACE(grow);
+        auto cache = MakeTestableCache(/*uncompressed*/ 0, /*compressed*/ 1_MB);
+        const auto jobId = TJobId(TGuid::Create());
+        const TStateCacheKey key{jobId, MakeKey(ui64{0}), "state"};
+        TStateCacheKey nextKey = key;
+        const int shardCount = New<TSlruCacheConfig>()->ShardCount;
+        for (int index = 1;; ++index) {
+            nextKey = TStateCacheKey{jobId, MakeKey(static_cast<ui64>(index)), "state"};
+            if (THash<TStateCacheKey>()(nextKey) % shardCount == THash<TStateCacheKey>()(key) % shardCount) {
+                break;
+            }
+        }
+
+        const i64 initialWeight = grow ? 1_KB : 10_KB;
+        auto value = New<TMutableWeightValue>(initialWeight);
+        cache->Insert(key, value);
+        // A retained provider may update shared state without extracting its cache entry.
+        value->Weight = grow ? 10_KB : 1_KB;
+        cache->Insert(key, value);
+
+        cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 0);
+        EXPECT_FALSE(cache->Extract(key));
+        if (!grow) {
+            cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 64_KB);
+        }
+
+        auto nextValue = New<TMutableWeightValue>(/*weight*/ 2_KB);
+        cache->Insert(nextKey, nextValue);
+        if (grow) {
+            EXPECT_FALSE(cache->Extract(nextKey));
+        } else {
+            EXPECT_EQ(cache->Extract(nextKey), nextValue);
+        }
+    }
+}
+
+TEST(TStateCacheReclamationTest, ExtractWaitsForConcurrentCompression)
+{
+    TManualEvent compressionStarted;
+    TManualEvent resumeCompression;
+    TManualEvent extractionStarted;
+    TManualEvent extractionFinished;
+    auto cache = MakeTestableCache(/*uncompressed*/ 1_MB, /*compressed*/ 1_MB);
+    const TStateCacheKey key{TJobId(TGuid::Create()), MakeKey(ui64{0}), "state"};
+    auto value = New<TReclaimableValue>([] {
+    },
+        [&] {
+            compressionStarted.Signal();
+            resumeCompression.WaitI();
+        });
+    cache->Insert(key, value);
+
+    std::thread producer([&] {
+        cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    });
+    std::thread extractor;
+    IStateCacheValuePtr extracted;
+    auto cleanup = Finally([&] {
+        resumeCompression.Signal();
+        if (producer.joinable()) {
+            producer.join();
+        }
+        if (extractor.joinable()) {
+            extractor.join();
+        }
+    });
+
+    ASSERT_TRUE(compressionStarted.WaitT(TDuration::Seconds(5)));
+    extractor = std::thread([&] {
+        extractionStarted.Signal();
+        extracted = cache->Extract(key);
+        extractionFinished.Signal();
+    });
+    ASSERT_TRUE(extractionStarted.WaitT(TDuration::Seconds(5)));
+    EXPECT_FALSE(extractionFinished.WaitT(TDuration::MilliSeconds(100)));
+    resumeCompression.Signal();
+    ASSERT_TRUE(extractionFinished.WaitT(TDuration::Seconds(5)));
+    producer.join();
+    extractor.join();
+    EXPECT_EQ(extracted.Get(), value.Get());
+    EXPECT_EQ(value->CompressCount, 1);
+    EXPECT_EQ(value->DecompressCount, 1);
+    EXPECT_FALSE(cache->Extract(key));
+}
+
+TEST(TStateCacheMetricsTest, CompressedWeightSizeAndRequestsKeepTheirNames)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    NProfiling::TProfiler profiler(registry, "/test/state_cache");
+    auto spec = New<TDynamicStateCacheSpec>();
+    spec->UncompressedCacheWeight = NYTree::TSize(0);
+    spec->CompressedCacheWeight = NYTree::TSize(1_MB);
+    auto cache = New<TTestableStateCache>(spec, profiler);
+    auto collect = [&] {
+        registry->ProcessRegistrations();
+        registry->Collect();
+        return registry->DumpSensors();
+    };
+    collect();
+    const TStateCacheKey key{TJobId(TGuid::Create()), MakeKey(ui64{0}), "state"};
+    auto value = New<TReclaimableValue>([] {
+    });
+    cache->Insert(key, value);
+    const i64 expectedWeight = cache->GetKeyWeight(key) + value->GetWeight();
+
+    auto dump = collect();
+    auto readMetric = [&] (TStringBuf name) -> std::optional<double> {
+        for (const auto& cube : dump.cubes()) {
+            if (cube.name() != name) {
+                continue;
+            }
+            for (const auto& projection : cube.projections()) {
+                bool compressed = false;
+                bool hitType = false;
+                for (i64 id : projection.tag_ids()) {
+                    const auto& tag = dump.tags(id);
+                    compressed |= tag.key() == "cache" && tag.value() == "compressed";
+                    hitType |= tag.key() == "hit_type";
+                }
+                if (compressed && !hitType) {
+                    if (projection.has_gauge()) {
+                        return projection.gauge();
+                    }
+                    if (projection.has_counter()) {
+                        return projection.counter();
+                    }
+                }
+            }
+        }
+        return std::nullopt;
+    };
+
+    EXPECT_EQ(readMetric("yt/test/state_cache/weight"), expectedWeight);
+    EXPECT_EQ(readMetric("yt/test/state_cache/size"), 1);
+    EXPECT_EQ(readMetric("yt/test/state_cache/missed_count"), 1);
+    EXPECT_EQ(readMetric("yt/test/state_cache/missed_weight"), expectedWeight);
+    EXPECT_EQ(readMetric("yt/test/state_cache/hit_count"), 0);
+    EXPECT_EQ(cache->Extract(key).Get(), value.Get());
+    dump = collect();
+    EXPECT_EQ(readMetric("yt/test/state_cache/weight"), 0);
+    EXPECT_EQ(readMetric("yt/test/state_cache/size"), 0);
+    EXPECT_EQ(readMetric("yt/test/state_cache/hit_count"), 1);
+    EXPECT_EQ(readMetric("yt/test/state_cache/hit_weight"), expectedWeight);
+    EXPECT_FALSE(cache->Extract(key));
+    dump = collect();
+    EXPECT_EQ(readMetric("yt/test/state_cache/missed_count"), 1);
 }
 
 TEST(TStateCacheReclamationTest, BlockingDestructorDoesNotHoldCacheLock)
