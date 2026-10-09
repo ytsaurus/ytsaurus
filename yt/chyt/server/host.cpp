@@ -650,7 +650,16 @@ public:
 
     bool IsLeader() const
     {
-        return !ElectionManager_ || ElectionManager_->IsLeader();
+        return GetLeadershipTransactionId().has_value();
+    }
+
+    std::optional<NTransactionClient::TTransactionId> GetLeadershipTransactionId() const
+    {
+        if (!ElectionManager_) {
+            return NTransactionClient::NullTransactionId;
+        }
+        auto transactionId = ElectionManager_->GetPrerequisiteTransactionId();
+        return transactionId ? std::optional(transactionId) : std::nullopt;
     }
 
     const IInvokerPtr& GetControlInvoker() const
@@ -1503,6 +1512,11 @@ int THost::GetInstanceCookie() const
 bool THost::IsLeader() const
 {
     return Impl_->IsLeader();
+}
+
+std::optional<NTransactionClient::TTransactionId> THost::GetLeadershipTransactionId() const
+{
+    return Impl_->GetLeadershipTransactionId();
 }
 
 void THost::HandleCrashSignal() const

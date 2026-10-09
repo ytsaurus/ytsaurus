@@ -62,6 +62,15 @@ class MaterializedViewsTestBase:
             for key in ("object_id", "next_row_index", "total_row_count")
         }
 
+    @classmethod
+    def _leader_transaction(cls, clique):
+        lock_path = clique.election_lock_path or cls.DELTA_CHYT_CONFIG["yt"]["election_manager"]["lock_path"]
+        return next((
+            entry["transaction_id"]
+            for entry in get(lock_path + "/@locks")
+            if entry["state"] == "acquired"
+        ), None)
+
     def _check_populate(self, source_expression, append_rows):
         initial_rows = [{"key": i, "value": str(i)} for i in range(3)]
         new_rows = [{"key": 3, "value": "3"}]
@@ -292,6 +301,60 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             wait(lambda: read_table("//tmp/target") == rows)
 
     @authors("buyval01")
+    def test_progress_is_reloaded(self):
+        for throw_after_commit in (True, False):
+            write_table("//tmp/source", [])
+            write_table("//tmp/target", [])
+            config_patch = {
+                "solomon_exporter": {"grid_step": 100},
+                "yt": {
+                    "settings": {
+                        "testing": {"throw_exception_after_refresh_commit": throw_after_commit},
+                    },
+                    "election_manager": {"transaction_ping_period": 50},
+                    "materialized_views": {"scan_period": 100},
+                },
+            }
+            with Clique(1, config_patch=config_patch) as clique:
+                clique.make_query(self.CREATE_MV_QUERY)
+                view_id = get(self._statement_path(clique) + "/@id")
+                progress_path = clique.materialized_views_path + "/progress/" + view_id
+                reads = clique.get_profiler_counter(
+                    "clickhouse/yt/materialized_views/progress_read_count")
+                refreshes = clique.get_profiler_counter(
+                    "clickhouse/yt/materialized_views/refresh_count")
+                wait(lambda: refreshes.get(default=0) >= 1)
+                assert reads.get(default=0) == 1
+
+                rows = [{"key": 1, "value": "new"}]
+                write_table("//tmp/source", rows)
+                wait(lambda: read_table("//tmp/target") == rows)
+                if not throw_after_commit:
+                    transaction_id = self._leader_transaction(clique)
+                    assert transaction_id is not None
+                    abort_transaction(transaction_id)
+                    wait(
+                        lambda: self._leader_transaction(clique) not in (None, transaction_id),
+                        timeout=3)
+                    refresh_count = refreshes.get(default=0)
+                    wait(lambda: refreshes.get(default=0) >= refresh_count + 3)
+
+                wait(lambda: reads.get(default=0) >= 2, timeout=10)
+                read_count = reads.get(default=0)
+                if throw_after_commit:
+                    assert read_count == 2
+                assert get(progress_path)["last_error"] == ""
+                assert read_table("//tmp/target") == rows
+
+                refresh_count = refreshes.get(default=0)
+                wait(lambda: refreshes.get(default=0) >= refresh_count + 3)
+                assert reads.get(default=0) == read_count
+                assert read_table("//tmp/target") == rows
+                transaction_id = self._leader_transaction(clique)
+
+            abort_transaction(transaction_id)
+
+    @authors("buyval01")
     def test_background_refresh(self):
         write_table("//tmp/source", [
             {"key": 0, "value": "initial-0"},
@@ -329,8 +392,28 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert partition["last_error"] == ""
             assert read_table("//tmp/target") == []
 
+            wait(lambda: clique.get_leader_instance_cookie() is not None)
+            leader_cookie = clique.get_leader_instance_cookie()
+            reads = clique.get_profiler_counter("clickhouse/yt/materialized_views/progress_read_count", leader_cookie)
+            writes = clique.get_profiler_counter("clickhouse/yt/materialized_views/progress_write_count", leader_cookie)
+            refreshes = clique.get_profiler_counter("clickhouse/yt/materialized_views/refresh_count", leader_cookie)
+
+            wait(lambda: refreshes.get(default=0) >= 3)
+            assert reads.get(default=0) == 1
+            revision = get(progress_path + "/@revision")
+            refresh_count = refreshes.get(default=0)
+            wait(lambda: refreshes.get(default=0) >= refresh_count + 3)
+            assert get(progress_path + "/@revision") == revision
+            assert reads.get(default=0) == 1
+            assert writes.get(default=0) == 0
+
             write_table("<append=%true>//tmp/source", expected_rows)
             wait(lambda: read_table("//tmp/target") == expected_rows)
+
+            refresh_count = refreshes.get(default=0)
+            wait(lambda: refreshes.get(default=0) >= refresh_count + 3)
+            assert reads.get(default=0) == 1
+            assert writes.get(default=0) == len(expected_rows)
 
             assert ls(progress_root) == [view_id]
             assert get(progress_path + "/@type") == "document"
@@ -713,15 +796,8 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
                 assert partitions[bad_part_id]["next_row_index"] == 0
                 assert not partitions[bad_part_id].get("last_update")
                 assert partitions[bad_part_id]["last_error"]
-                progress_revision = get(progress_path + "/@revision")
             finally:
                 release_breakpoint("refresh_commit")
-
-            for _ in range(2):
-                wait(lambda: get(progress_path + "/@revision") > progress_revision, timeout=10)
-                assert get(progress_path)["last_error"] == ""
-                progress_revision = get(progress_path + "/@revision")
-            assert read_table("//tmp/int_target") == good_rows
 
             write_table("<append=%true>//tmp/source_directory/good", [{"key": 3, "value": "invalid"}])
             wait(lambda: all(partition["last_error"] for partition in get(progress_path)["partitions"]), timeout=10)
@@ -907,6 +983,9 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             wait(lambda: get(progress_path + "/queue_consumer_initialized"), timeout=10)
             unregister_queue_consumer("//tmp/source", consumer_path)
             set(progress_path + "/queue_consumer_initialized", False)
+            transaction_id = self._leader_transaction(clique)
+            abort_transaction(transaction_id)
+            wait(lambda: self._leader_transaction(clique) not in (None, transaction_id))
 
             rows = [{"key": 1, "value": "new"}]
             insert_rows("//tmp/source", rows)
@@ -1138,6 +1217,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
     def test_delayed_refresh_does_not_overwrite_consumer_offset(self):
         self._create_queue_source()
         config_patch = {
+            "solomon_exporter": {"grid_step": 100},
             "yt": {
                 "settings": {
                     "testing": {
@@ -1157,6 +1237,8 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
             consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+            refreshes = clique.get_profiler_counter("clickhouse/yt/materialized_views/refresh_count")
+            wait(lambda: refreshes.get(default=0) >= 1)
 
             insert_rows("//tmp/source", [
                 {"key": 1, "value": "first"},
@@ -1165,6 +1247,7 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             wait_breakpoint("consumer_commit")
             try:
                 progress = get(progress_path)
+                refresh_count = refreshes.get(default=0)
                 assert progress["partitions"][0]["next_row_index"] == 1
                 advance_consumer(
                     consumer_path,
@@ -1175,7 +1258,8 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
             finally:
                 release_breakpoint("consumer_commit")
 
-            wait(lambda: get(progress_path)["last_error"] != "", timeout=3)
+            wait(lambda: refreshes.get(default=0) > refresh_count, timeout=3)
+            assert get(progress_path) == progress
             assert [
                 row["offset"]
                 for row in select_rows("[offset] from [{}]".format(consumer_path))
