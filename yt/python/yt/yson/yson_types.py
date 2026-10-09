@@ -166,6 +166,9 @@ class YsonStringProxy(YsonType):
         else:
             return NotImplemented
 
+    def __bool__(self):
+        return bool(self._bytes)
+
     def __ne__(self, other):
         return not (self == other)
 
