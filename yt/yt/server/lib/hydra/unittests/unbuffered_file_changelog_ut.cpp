@@ -76,6 +76,7 @@ protected:
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             config);
         changelog->Create(/*meta*/ {}, GetFormatParam());
         AppendRecords(changelog, 0, recordCount);
@@ -131,6 +132,7 @@ protected:
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             config);
         changelog->Open();
         return changelog;
@@ -234,7 +236,7 @@ protected:
                 /*memoryUsageTracker*/ nullptr,
                 TempIndexFile_->Name(),
                 DefaultFileChangelogConfig_,
-                EWorkloadCategory::Idle);
+                TWorkloadDescriptor(EWorkloadCategory::Idle));
             EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
             EXPECT_EQ(flushIndex ? 1 : 0, index->GetRecordCount());
         }
@@ -248,6 +250,7 @@ TEST_P(TUnbufferedFileChangelogTest, Empty)
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             New<TFileChangelogConfig>());
         changelog->Create(/*meta*/ {}, GetFormatParam());
         EXPECT_EQ(0, changelog->GetRecordCount());
@@ -257,6 +260,7 @@ TEST_P(TUnbufferedFileChangelogTest, Empty)
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
+            TWorkloadDescriptor(EWorkloadCategory::UserBatch),
             New<TFileChangelogConfig>());
         changelog->Open();
         EXPECT_EQ(0, changelog->GetRecordCount());
@@ -382,7 +386,7 @@ TEST_P(TUnbufferedFileChangelogTest, TestIndexFlushOnClose)
             /*memoryUsageTracker*/ nullptr,
             TempIndexFile_->Name(),
             DefaultFileChangelogConfig_,
-            EWorkloadCategory::Idle);
+            TWorkloadDescriptor(EWorkloadCategory::Idle));
         EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
         EXPECT_EQ(RecordCount, index->GetRecordCount());
     }
