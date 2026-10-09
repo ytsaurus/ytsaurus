@@ -83,13 +83,13 @@ def process_cell(cell_id, peers, cells, cells_without_leader):
         cells.append(Cell(id=cell_id, node_address=leader_address))
 
 
-def get_leading_peers(bundle):
+def get_leading_peers(cell_filter):
     cells = yt.list(TABLET_CELLS_PATH, attributes=["peers", "tablet_cell_bundle"])
     logger.info(f"Found {len(cells)} tablet cells")
 
-    if bundle is not None:
-        cells = [cell for cell in cells if cell.attributes.get("tablet_cell_bundle", "").startswith(bundle)]
-        logger.info(f"Found {len(cells)} tablet cells in bundles with prefix {bundle}")
+    if cell_filter is not None:
+        cells = [cell for cell in cells if cell_filter(cell)]
+        logger.info(f"Found {len(cells)} tablet cells after filtering by bundle")
 
     active_cells = []
     cells_without_leader = {}
@@ -228,6 +228,14 @@ def log_failures(cells_without_leader, errors):
             logger.warning(f"Failed request (NodeAddress: {cell.node_address}, TabletCellId: {cell.id}): {error}")
 
 
+def make_cell_filter(args):
+    if args.bundle is not None:
+        return lambda cell: cell.attributes.get("tablet_cell_bundle") == args.bundle
+    if args.bundle_prefix is not None:
+        return lambda cell: cell.attributes.get("tablet_cell_bundle", "").startswith(args.bundle_prefix)
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Collect stuck tablet transactions from leading peers of all tablet cells via orchid "
@@ -247,7 +255,9 @@ def main():
         help="Only transactions started before this time; ISO format (UTC+3 if no tz)",
     )
     parser.add_argument("--output", default="stuck_transactions", help="Output file")
-    parser.add_argument("--bundle", help="Only tablet cells of tablet cell bundles with this prefix")
+    bundle_group = parser.add_mutually_exclusive_group()
+    bundle_group.add_argument("--bundle", help="Only tablet cells of this tablet cell bundle")
+    bundle_group.add_argument("--bundle-prefix", help="Only tablet cells of tablet cell bundles with this prefix")
     args = parser.parse_args()
 
     setup_logging()
@@ -255,10 +265,10 @@ def main():
     logger.info(
         f"Collecting transactions (Proxy: {yt.config['proxy']['url']}, Concurrency: {args.concurrency}, "
         f"CreatedBefore: {args.created_before.isoformat()}, States: {', '.join(sorted(STUCK_STATES))}, "
-        f"Bundle: {args.bundle})"
+        f"Bundle: {args.bundle}, BundlePrefix: {args.bundle_prefix})"
     )
 
-    cells, cells_without_leader = get_leading_peers(args.bundle)
+    cells, cells_without_leader = get_leading_peers(make_cell_filter(args))
     results, errors = fetch_transactions(args.concurrency, cells)
 
     transactions = filter_transactions(results, args.created_before)
