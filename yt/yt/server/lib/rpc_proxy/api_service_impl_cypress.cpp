@@ -21,32 +21,28 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterCypressMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterCypressMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExistsNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LockNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnlockNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CopyNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MoveNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LinkNode));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExistsNode));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetNode));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LockNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnlockNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CopyNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MoveNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(LinkNode));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ConcatenateNodes));
-
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateObject));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateObject));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CreateObject)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CreateObject)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -78,7 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateObject)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ExistsNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ExistsNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -116,7 +112,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExistsNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GetNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GetNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -167,7 +163,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ListNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ListNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -215,7 +211,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CreateNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CreateNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -268,7 +264,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CreateNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, RemoveNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -300,7 +296,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, SetNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, SetNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -336,7 +332,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SetNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, MultisetAttributesNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, MultisetAttributesNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -376,7 +372,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultisetAttributesNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, LockNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, LockNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -424,7 +420,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LockNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, UnlockNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, UnlockNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -450,7 +446,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnlockNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CopyNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CopyNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -527,7 +523,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CopyNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, MoveNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, MoveNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -598,7 +594,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MoveNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, LinkNode)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, LinkNode)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -651,7 +647,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, LinkNode)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ConcatenateNodes)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ConcatenateNodes)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

@@ -11,6 +11,7 @@ PEERDIR(
     yt/yt/library/dynamic_config
     yt/yt/library/server_program
     yt/yt/server/lib/cross_cluster_replicated_state
+    yt/yt/server/lib/rpc_proxy
     yt/yt/ytlib
 )
 

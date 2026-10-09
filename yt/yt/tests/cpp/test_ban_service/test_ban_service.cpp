@@ -104,7 +104,7 @@ TEST_F(TBanServiceTest, BanService)
             .ThrowOnError();
         ADD_FAILURE();
     } catch (const TErrorException& error) {
-        EXPECT_TRUE(std::string_view(error.what()).contains(R"(User "user" is banned via ban service)"));
+        EXPECT_TRUE(std::string_view(error.what()).contains(R"(User "user" is banned)"));
     }
 
     bannedList = WaitFor(nativeClient->ListBannedUsers())

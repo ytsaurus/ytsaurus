@@ -115,6 +115,13 @@ struct IConnection
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
 
+    // COMPAT(danilalexeev): local native-service routing for the embedded ApiService.
+    //! Only for Cypress proxy's native clients; the supplied channel must be local.
+    virtual NRpc::IChannelPtr WrapAsCypressChannelOrThrow(
+        const NRpc::IChannelPtr& localChannel,
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+
     virtual const NRpc::IChannelPtr& GetCypressProxyChannel() = 0;
 
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;

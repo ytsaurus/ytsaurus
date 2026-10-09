@@ -197,7 +197,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiService
+class TMasterMetadataApiService
     : public NRpc::TServiceBase
     , public IApiService
 {
@@ -205,6 +205,169 @@ public:
     template <class TRequestMessage, class TResponseMessage>
     using TTypedServiceContextImpl = TApiServiceContext<TRequestMessage, TResponseMessage>;
 
+    TMasterMetadataApiService(
+        TApiServiceConfigPtr config,
+        IInvokerPtr defaultInvoker,
+        TPooledInvokerProvider workerInvokerProvider,
+        NApi::NNative::IConnectionPtr connection,
+        NRpc::IAuthenticatorPtr authenticator,
+        IProxyCoordinatorPtr proxyCoordinator,
+        IAccessCheckerPtr accessChecker,
+        NTracing::TSamplerPtr traceSampler,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler,
+        INodeMemoryTrackerPtr memoryTracker,
+        NApi::IStickyTransactionPoolPtr stickyTransactionPool,
+        NRpc::IChannelPtr cypressProxyChannelOverride);
+
+    //! Called by New after the most-derived service registers its methods.
+    void InitializeRefCounted();
+
+    void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override;
+    NYTree::IYPathServicePtr CreateOrchidService() override;
+
+protected:
+    const TApiServiceConfigPtr ApiServiceConfig_;
+    const NProfiling::TProfiler Profiler_;
+    const TPooledInvokerProvider WorkerInvokerProvider_;
+
+    TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
+
+    TRuntimeMethodInfoPtr RegisterApiMethod(
+        EMultiproxyMethodKind methodKind,
+        TMethodDescriptor&& descriptor);
+
+    template <class TRequestMessage, class TResponseMessage>
+    void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context);
+
+    // Must be called only once per request.
+    NApi::NNative::IClientPtr GetAuthenticatedClientOrThrow(
+        const NRpc::IServiceContextPtr& context,
+        const google::protobuf::Message* request);
+
+    template <class TContext, class TExecutor, class TResultHandler>
+    void ExecuteCall(
+        TIntrusivePtr<TContext> context,
+        TExecutor&& executor,
+        TResultHandler&& resultHandler);
+
+    template <class TContext, class TExecutor>
+    void ExecuteCall(
+        const TIntrusivePtr<TContext>& context,
+        TExecutor&& executor);
+
+    NApi::ITransactionPtr GetTransactionOrThrow(
+        const NApi::NNative::IClientPtr& client,
+        NObjectClient::TTransactionId transactionId,
+        const std::optional<NApi::TTransactionAttachOptions>& options,
+        bool searchInPool = true);
+
+private:
+    static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
+
+    const NApi::NNative::IConnectionPtr LocalConnection_;
+    const NRpc::IChannelPtr CypressProxyChannelOverride_;
+    const IProxyCoordinatorPtr ProxyCoordinator_;
+    const IAccessCheckerPtr AccessChecker_;
+    const NTracing::TSamplerPtr TraceSampler_;
+    const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
+    const NServer::THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
+    const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
+    const NApi::IStickyTransactionPoolPtr StickyTransactionPool_;
+
+    TMultiproxyMethodList MultiproxyMethods_;
+    IMultiproxyAccessValidatorPtr MultiproxyAccessValidator_;
+
+    // Separate sequence-number streams for clients attached to the same sticky tablet transaction.
+    std::atomic<i64> NextSequenceNumberSourceId_ = 0;
+
+    template <class TContext, class TExecutor, class TResultHandler>
+    class TExecuteCallSession;
+
+    std::optional<std::string> GetMultiproxyTargetCluster(const NRpc::IServiceContextPtr& context);
+    void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
+    void SetupTracing(const NRpc::IServiceContextPtr& context);
+
+    bool IsUp(const TCtxDiscoverPtr& /*context*/) override;
+
+    NApi::ITransactionPtr FindTransaction(
+        const NApi::NNative::IClientPtr& client,
+        NObjectClient::TTransactionId transactionId,
+        const std::optional<NApi::TTransactionAttachOptions>& options,
+        bool searchInPool = true);
+
+    void RegisterTransactionMethods();
+    void RegisterCypressMethods();
+    void RegisterDynamicTableMethods();
+    void RegisterReplicatedTableMethods();
+    void RegisterAdminMethods();
+    void RegisterSecurityMethods();
+    void RegisterJournalMethods();
+    void RegisterFileCacheMethods();
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FlushTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DetachTransaction);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateObject);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTableMountInfo);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTablePivotKeys);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExistsNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultisetAttributesNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnlockNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MoveNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LinkNode);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ConcatenateNodes);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MountTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnmountTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemountTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FreezeTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnfreezeTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTableAutomatic);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTableReplica);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BalanceTabletCells);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferBundleResources);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MasterExitReadOnly);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscombobulateNonvotingPeers);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResetDynamicallyPropagatedMasterCells);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMaintenance);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMaintenance);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetCurrentUser);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermission);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermissionByAcl);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferAccountResources);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckClusterLiveness);
+
+    IInvokerPtr GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const;
+    IInvokerPtr GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiService
+    : public TMasterMetadataApiService
+{
+public:
     TApiService(
         TApiServiceConfigPtr config,
         IInvokerPtr defaultInvoker,
@@ -222,25 +385,9 @@ public:
         IQueryCorpusReporterPtr queryCorpusReporter);
 
 private:
-    TApiServiceConfigPtr ApiServiceConfig_;
-    const NProfiling::TProfiler Profiler_;
-    TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
-    const NApi::NNative::IConnectionPtr LocalConnection_;
-    const IProxyCoordinatorPtr ProxyCoordinator_;
-    const IAccessCheckerPtr AccessChecker_;
-    const NTracing::TSamplerPtr TraceSampler_;
-    const NApi::IStickyTransactionPoolPtr StickyTransactionPool_;
-    const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
-    const NServer::THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const NSignature::ISignatureValidatorPtr SignatureValidator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
-    const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
-    const TPooledInvokerProvider WorkerInvokerProvider_;
-
-    static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
-
-    IMultiproxyAccessValidatorPtr MultiproxyAccessValidator_;
 
     NProfiling::TCounter SelectConsumeDataWeight_;
     NProfiling::TCounter SelectConsumeRowCount_;
@@ -267,53 +414,30 @@ private:
     >;
     TDetailedProfilingCountersMap DetailedProfilingCountersMap_;
 
-    std::atomic<i64> NextSequenceNumberSourceId_ = 0;
+    void RegisterDynamicTableMethods();
+    void RegisterReplicatedTableMethods();
+    void RegisterOperationMethods();
+    void RegisterOperationInfoMethods();
+    void RegisterJobInfoMethods();
+    void RegisterJobMethods();
+    void RegisterQueueMethods();
+    void RegisterAdminMethods();
+    void RegisterFileMethods();
+    void RegisterJournalMethods();
+    void RegisterStaticTableMethods();
+    void RegisterFlowMethods();
+    void RegisterQueryMethods();
+    void RegisterDistributedTableMethods();
+    void RegisterDistributedFileMethods();
+    void RegisterShuffleMethods();
 
-    template <class TContext, class TExecutor, class TResultHandler>
-    class TExecuteCallSession;
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FlushTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DetachTransaction);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateObject);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTableMountInfo);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTablePivotKeys);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExistsNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultisetAttributesNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnlockNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CopyNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MoveNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LinkNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ConcatenateNodes);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExternalizeNode);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, InternalizeNode);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MountTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnmountTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemountTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FreezeTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnfreezeTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReshardTableAutomatic);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TrimTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTable);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterTableReplica);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingChaosLease);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BalanceTabletCells);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateTableBackup);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RestoreTableBackup);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferBundleResources);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartOperation);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortOperation);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendOperation);
@@ -370,10 +494,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BatchModifyRows);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BuildSnapshot);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExitReadOnly);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MasterExitReadOnly);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscombobulateNonvotingPeers);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResetDynamicallyPropagatedMasterCells);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendCoordinator);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeCoordinator);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MigrateReplicationCards);
@@ -381,25 +501,16 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeChaosCells);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendTabletCells);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeTabletCells);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMaintenance);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMaintenance);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DisableChunkLocations);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DestroyChunkLocations);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResurrectChunkLocations);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RequestRestart);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetCurrentUser);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMember);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermission);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckPermissionByAcl);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferAccountResources);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PartitionFile);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFilePartition);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics);
@@ -413,8 +524,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingDistributedWriteFileSession);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishDistributedWriteFileSession);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFileFragment);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineSpec);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetPipelineSpec);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineDynamicSpec);
@@ -437,75 +546,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartShuffle);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadShuffleData);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteShuffleData);
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckClusterLiveness);
-
-    void RegisterMethodForMultiproxy(
-        TMultiproxyMethodList* methodList,
-        EMultiproxyMethodKind methodKind,
-        const TMethodDescriptor& descriptor);
-
-    void RegisterTransactionMethods(TMultiproxyMethodList* methodList);
-    void RegisterCypressMethods(TMultiproxyMethodList* methodList);
-    void RegisterDynamicTableMethods(TMultiproxyMethodList* methodList);
-    void RegisterReplicatedTableMethods(TMultiproxyMethodList* methodList);
-    void RegisterOperationMethods(TMultiproxyMethodList* methodList);
-    void RegisterOperationInfoMethods(TMultiproxyMethodList* methodList);
-    void RegisterJobInfoMethods(TMultiproxyMethodList* methodList);
-    void RegisterJobMethods(TMultiproxyMethodList* methodList);
-    void RegisterQueueMethods(TMultiproxyMethodList* methodList);
-    void RegisterAdminMethods(TMultiproxyMethodList* methodList);
-    void RegisterSecurityMethods(TMultiproxyMethodList* methodList);
-    void RegisterFileMethods(TMultiproxyMethodList* methodList);
-    void RegisterJournalMethods(TMultiproxyMethodList* methodList);
-    void RegisterStaticTableMethods(TMultiproxyMethodList* methodList);
-    void RegisterFileCacheMethods(TMultiproxyMethodList* methodList);
-    void RegisterFlowMethods(TMultiproxyMethodList* methodList);
-    void RegisterQueryMethods(TMultiproxyMethodList* methodList);
-    void RegisterDistributedTableMethods(TMultiproxyMethodList* methodList);
-    void RegisterDistributedFileMethods(TMultiproxyMethodList* methodList);
-    void RegisterShuffleMethods(TMultiproxyMethodList* methodList);
-
-    void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override;
-    NYTree::IYPathServicePtr CreateOrchidService() override;
-    std::optional<std::string> GetMultiproxyTargetCluster(const NRpc::IServiceContextPtr& context);
-    void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
-    void BuildOrchid(NYson::IYsonConsumer* consumer);
-    void SetupTracing(const NRpc::IServiceContextPtr& context);
-
-    template <class TRequestMessage, class TResponseMessage>
-    void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context);
-    // Must be called only once per request.
-    NApi::NNative::IClientPtr GetAuthenticatedClientOrThrow(
-        const NRpc::IServiceContextPtr& context,
-        const google::protobuf::Message* request);
-    NApi::ITransactionPtr FindTransaction(
-        const NApi::NNative::IClientPtr& client,
-        NObjectClient::TTransactionId transactionId,
-        const std::optional<NApi::TTransactionAttachOptions>& options,
-        bool searchInPool = true);
-    NApi::ITransactionPtr GetTransactionOrThrow(
-        const NApi::NNative::IClientPtr& client,
-        NObjectClient::TTransactionId transactionId,
-        const std::optional<NApi::TTransactionAttachOptions>& options,
-        bool searchInPool = true);
-
-    template <class TContext, class TExecutor, class TResultHandler>
-    void ExecuteCall(
-        TIntrusivePtr<TContext> context,
-        TExecutor&& executor,
-        TResultHandler&& resultHandler);
-
-    template <class TContext, class TExecutor>
-    void ExecuteCall(
-        const TIntrusivePtr<TContext>& context,
-        TExecutor&& executor);
 
     TDetailedProfilingCountersPtr GetOrCreateDetailedProfilingCounters(
         const TDetailedProfilingCountersKey& key);
-
-    IInvokerPtr GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const;
-
-    IInvokerPtr GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const;
 
     IInvokerPtr GetWorkerInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const;
 
@@ -552,8 +595,6 @@ private:
     NQueryTrackerClient::TQueryTrackerServiceProxy GetQueryTrackerProxy(
         const NRpc::IServiceContextPtr& context,
         const TRequest* request);
-
-    bool IsUp(const TCtxDiscoverPtr& /*context*/) override;
 
     void ValidateFormat(const std::string& user, const NYTree::INodePtr& formatNode);
 

@@ -15,22 +15,18 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterFlowMethods(TMultiproxyMethodList* methodList)
+void TApiService::RegisterFlowMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartPipeline));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StopPipeline));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PausePipeline));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineState));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFlowView));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlowExecute));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartPipeline));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StopPipeline));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PausePipeline));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetPipelineState));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFlowView));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlowExecute));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

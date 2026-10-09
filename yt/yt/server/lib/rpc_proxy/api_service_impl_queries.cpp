@@ -20,21 +20,17 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterQueryMethods(TMultiproxyMethodList* methodList)
+void TApiService::RegisterQueryMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartQuery));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortQuery));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryResult));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadQueryResult));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQuery));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryDeclaredParametersInfo));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartQuery));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortQuery));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryResult));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadQueryResult));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQuery));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryDeclaredParametersInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

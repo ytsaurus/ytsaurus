@@ -445,7 +445,10 @@ private:
     {
         const auto& user = AuthenticationIdentity_.User;
         if (Owner_->Bootstrap_->GetBanService()->IsBanned(user)) {
-            THROW_ERROR_EXCEPTION("User %Qv is banned via ban service", user);
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::UserBanned,
+                "User %Qv is banned",
+                user);
         }
     }
 

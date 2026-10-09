@@ -33,23 +33,19 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterQueueMethods(TMultiproxyMethodList* methodList)
+void TApiService::RegisterQueueMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueue));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullConsumer));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PushQueueProducer));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueue));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PushQueueProducer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

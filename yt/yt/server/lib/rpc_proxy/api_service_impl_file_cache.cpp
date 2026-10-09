@@ -14,19 +14,15 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterFileCacheMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterFileCacheMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFileFromCache));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PutFileToCache));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetFileFromCache));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PutFileToCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GetFileFromCache)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GetFileFromCache)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -61,7 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetFileFromCache)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, PutFileToCache)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, PutFileToCache)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

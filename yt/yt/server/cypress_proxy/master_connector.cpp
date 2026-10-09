@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/cypress_proxy/config.h>
 
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
+
 #include <yt/yt/server/lib/sequoia/cypress_proxy_tracker_service_proxy.h>
 
 #include <yt/yt/server/lib/sequoia/proto/cypress_proxy_tracker.pb.h>
@@ -31,6 +33,7 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NNet;
 using namespace NObjectClient;
+using namespace NYT::NRpcProxy;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NThreading;
@@ -45,8 +48,11 @@ class TMasterConnector
     : public IMasterConnector
 {
 public:
-    explicit TMasterConnector(IBootstrap* bootstrap)
+    TMasterConnector(
+        IBootstrap* bootstrap,
+        IProxyCoordinatorPtr proxyCoordinator)
         : Bootstrap_(bootstrap)
+        , ProxyCoordinator_(std::move(proxyCoordinator))
         , SelfAddress_(
             BuildServiceAddress(
                 GetLocalHostName(),
@@ -56,7 +62,9 @@ public:
             BIND(&TMasterConnector::Heartbeat, MakeWeak(this)),
             Bootstrap_->GetConfig()->HeartbeatPeriod))
         , RegistrationError_(TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered"))
-    { }
+    {
+        ProxyCoordinator_->SetAvailableState(false);
+    }
 
     void Start() override
     {
@@ -107,6 +115,7 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
+    const IProxyCoordinatorPtr ProxyCoordinator_;
     const std::string SelfAddress_;
     const TPeriodicExecutorPtr Executor_;
 
@@ -134,6 +143,8 @@ private:
 
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
+            ProxyCoordinator_->SetAvailableState(false);
+
             YT_TLOG_EVENT(
                 Logger,
                 Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
@@ -183,14 +194,18 @@ private:
             YT_TLOG_DEBUG("Cypress proxy registered at primary master")
                 .With("MasterReign", reign);
         }
+
+        ProxyCoordinator_->SetAvailableState(true);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
+IMasterConnectorPtr CreateMasterConnector(
+    IBootstrap* bootstrap,
+    IProxyCoordinatorPtr proxyCoordinator)
 {
-    return New<TMasterConnector>(bootstrap);
+    return New<TMasterConnector>(bootstrap, std::move(proxyCoordinator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

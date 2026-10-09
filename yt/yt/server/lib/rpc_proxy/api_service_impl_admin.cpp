@@ -21,33 +21,33 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterAdminMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterAdminMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResetDynamicallyPropagatedMasterCells));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(AddMaintenance));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
 
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResetDynamicallyPropagatedMasterCells));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(AddMaintenance));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
-    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RequestRestart));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+}
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
+void TApiService::RegisterAdminMethods()
+{
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendChaosCells));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeChaosCells));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendTabletCells));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResumeTabletCells));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
+    RegisterApiMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(RequestRestart));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +99,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ExitReadOnly)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, MasterExitReadOnly)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, MasterExitReadOnly)
 {
     TMasterExitReadOnlyOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -116,7 +116,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MasterExitReadOnly)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, DiscombobulateNonvotingPeers)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, DiscombobulateNonvotingPeers)
 {
     TDiscombobulateNonvotingPeersOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -134,7 +134,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DiscombobulateNonvotingPeers)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ResetDynamicallyPropagatedMasterCells)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ResetDynamicallyPropagatedMasterCells)
 {
     TResetDynamicallyPropagatedMasterCellsOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -149,7 +149,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ResetDynamicallyPropagatedMasterCells)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GCCollect)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GCCollect)
 {
     TGCCollectOptions options;
     SetTimeoutOptions(&options, context.Get());
@@ -342,7 +342,7 @@ static EMaintenanceType MaintenanceTypeFromProto(
     }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AddMaintenance)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AddMaintenance)
 {
     auto component = MaintenanceComponentFromProto(request->component());
     auto address = request->address();
@@ -392,7 +392,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMaintenance)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMaintenance)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, RemoveMaintenance)
 {
     auto component = MaintenanceComponentFromProto(request->component());
     auto address = request->address();
@@ -613,7 +613,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RequestRestart)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CheckClusterLiveness)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CheckClusterLiveness)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

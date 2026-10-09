@@ -145,25 +145,21 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterStaticTableMethods(TMultiproxyMethodList* methodList)
+void TApiService::RegisterStaticTableMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTable)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTable)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTable)
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTable)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionTables));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTablePartition)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionTables));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTablePartition)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
 
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
 }
