@@ -482,7 +482,7 @@ def main():
         max_chunk_count=args.max_chunk_count,
     )
 
-    logger.info(f"Total limits: disk={total_resources.max_disk_space:_}, chunks={total_resources.max_chunk_count:_}, nodes={total_resources.max_node_count:_}")
+    logger.info(f"Total limits: disk={total_resources.max_disk_space or 0:_}, chunks={total_resources.max_chunk_count or 0:_}, nodes={total_resources.max_node_count or 0:_}")
 
     # collect aux objects
     logger.info("Start collecting links and dirs")
@@ -534,7 +534,7 @@ def main():
         args,
         counters)
     logger.info("Finished collecting objects to remove")
-    logger.info(f"Calculated usage: disk={total_resources.disk_space:_}, chunks={total_resources.chunk_count:_}, nodes={total_resources.node_count:_}")
+    logger.info(f"Calculated usage: disk={total_resources.disk_space or 0:_}, chunks={total_resources.chunk_count or 0:_}, nodes={total_resources.node_count or 0:_}")
 
     max_batch_size = get_value(args.remove_batch_size, yt_client.config["max_batch_size"])
     batch_client = yt_client.create_batch_client()
