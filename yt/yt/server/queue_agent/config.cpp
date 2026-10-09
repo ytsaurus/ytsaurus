@@ -42,6 +42,8 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("chaos_replicated_table_queue_agent_stage", &TThis::ChaosReplicatedTableQueueAgentStage)
         .Default(NQueueClient::ProductionStage);
+    registrar.Parameter("ignored_object_list", &TThis::IgnoredObjectList)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
