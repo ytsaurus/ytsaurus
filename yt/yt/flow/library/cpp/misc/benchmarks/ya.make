@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    state_cache_bench.cpp
     compact_unversioned_owning_row_bench.cpp
     cow_tree_bench.cpp
     indexed_yson_string_bench.cpp
@@ -18,6 +19,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/misc
+    yt/yt/flow/library/cpp/common
 )
 
 SIZE(MEDIUM)

@@ -6,6 +6,7 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace NYT::NFlow::NCache {
 namespace {
@@ -25,6 +26,7 @@ public:
     bool Compressed = false;
     int CompressCount = 0;
     int DecompressCount = 0;
+    i64 CompressedWeight = 1;
 
     void Compress()
     {
@@ -49,7 +51,7 @@ public:
         if (Compressed && FailCompressedWeight) {
             throw std::runtime_error("Compressed weight failed");
         }
-        return Compressed ? 1 : 1_KB;
+        return Compressed ? CompressedWeight : 1_KB;
     }
 };
 
@@ -101,6 +103,53 @@ TEST(TTwoLevelCacheTest, ReconfigureCompressesValues)
     EXPECT_EQ(value->CompressCount, 1);
     EXPECT_EQ(cache->Extract(/*key*/ 0), value);
     EXPECT_EQ(value->DecompressCount, 1);
+}
+
+TEST(TTwoLevelCacheTest, ShrinkingCompressedCapacityEvictsValues)
+{
+    auto cache = New<TTestTwoLevelCache>();
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    std::vector<TIntrusivePtr<TCacheTestValue>> values;
+    for (int key = 0; key < 64; ++key) {
+        auto value = New<TCacheTestValue>();
+        cache->Insert(key, value);
+        values.push_back(std::move(value));
+    }
+
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 0);
+    for (int key = 0; key < 64; ++key) {
+        EXPECT_FALSE(cache->Extract(key));
+        EXPECT_EQ(values[key]->CompressCount, 1);
+        EXPECT_EQ(values[key]->DecompressCount, 0);
+    }
+}
+
+TEST(TTwoLevelCacheTest, ExtractedCompressedValueCanBeReinserted)
+{
+    auto cache = New<TTestTwoLevelCache>();
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 1_MB);
+    auto value = New<TCacheTestValue>();
+    for (int iteration = 1; iteration <= 3; ++iteration) {
+        cache->Insert(/*key*/ 0, value);
+        EXPECT_TRUE(value->Compressed);
+        EXPECT_EQ(value->CompressCount, iteration);
+        EXPECT_EQ(cache->Extract(/*key*/ 0), value);
+        EXPECT_FALSE(value->Compressed);
+        EXPECT_EQ(value->DecompressCount, iteration);
+        EXPECT_FALSE(cache->Extract(/*key*/ 0));
+    }
+}
+
+TEST(TTwoLevelCacheTest, OversizedCompressedValueIsEvicted)
+{
+    auto cache = New<TTestTwoLevelCache>();
+    cache->Reconfigure(/*capacity*/ 0, /*compressedCapacity*/ 16);
+    auto value = New<TCacheTestValue>();
+    value->CompressedWeight = 2;
+    cache->Insert(/*key*/ 0, value);
+    EXPECT_EQ(value->CompressCount, 1);
+    EXPECT_FALSE(cache->Extract(/*key*/ 0));
+    EXPECT_EQ(value->DecompressCount, 0);
 }
 
 TEST(TTwoLevelCacheTest, WeightErrorOutsideEvictionPropagates)
