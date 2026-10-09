@@ -258,6 +258,13 @@
             "uri": "https://{canondata_backend}/1809005/4902e887ae6316a590efad62d932f5cca26d468a/resource.tar.gz#test.test_insert-append_sorted--Plan_/plan.txt"
         }
     ],
+    "test.test[insert-empty_select_limit_zero--Plan]": [
+        {
+            "checksum": "694b424aee74208958089de121a96394",
+            "size": 3077,
+            "uri": "https://{canondata_backend}/1942525/c8d94d4f3ac16d345ec2e526019214c3cc38d7df/resource.tar.gz#test.test_insert-empty_select_limit_zero--Plan_/plan.txt"
+        }
+    ],
     "test.test[insert-keepmeta--Plan]": [
         {
             "checksum": "7c15476df0f24d9e76fea49d51a91954",
