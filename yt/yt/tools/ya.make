@@ -1,6 +1,7 @@
 RECURSE(
     changelog_surgeon
     chaos_tools
+    collect_stuck_transactions
     cuda_core_dump_injection
     data_node_rpc_request
     dump_changelog
