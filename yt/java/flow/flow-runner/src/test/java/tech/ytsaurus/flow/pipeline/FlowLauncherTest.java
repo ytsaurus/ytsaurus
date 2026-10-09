@@ -27,6 +27,7 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,7 +91,9 @@ class FlowLauncherTest {
         }
     }
 
-    /** Writes the in-memory config to a file under the test's temporary directory. */
+    /**
+     * Writes the in-memory config to a file under the test's temporary directory.
+     */
     private Path writeConfig(YTreeNode node) {
         try {
             Path path = tempDir.resolve("pipeline-" + System.nanoTime() + ".yson");
@@ -101,7 +104,9 @@ class FlowLauncherTest {
         }
     }
 
-    /** Drives the launcher end-to-end against the parsed test pipeline. */
+    /**
+     * Drives the launcher end-to-end against the parsed test pipeline.
+     */
     private void enrich() {
         YTreeMapNode root = config.mapNode();
         launcher.enrichForVanillaLaunch(
@@ -109,7 +114,9 @@ class FlowLauncherTest {
                 root.getOrThrow("spec").mapNode());
     }
 
-    /** A jar discovery stubbed to the given jars, without touching the host file system. */
+    /**
+     * A jar discovery stubbed to the given jars, without touching the host file system.
+     */
     private CompanionJars fakeJars(Path... jars) {
         List<Path> list = List.of(jars);
         return new CompanionJars() {
@@ -128,7 +135,9 @@ class FlowLauncherTest {
         return config.mapNode().getOrThrow("vanilla").mapNode().getOrThrow("controller").mapNode();
     }
 
-    /** Declares a minimal controller task in the config, as a hand-written spec would. */
+    /**
+     * Declares a minimal controller task in the config, as a hand-written spec would.
+     */
     private void declareController() {
         config.mapNode().getOrThrow("vanilla").mapNode()
                 .put("controller", YTree.mapBuilder().key("count").value(1).buildMap());
@@ -735,12 +744,94 @@ class FlowLauncherTest {
         assertEquals(0, launcher.launch(pipelinePath, "/bin/true", Map.of(), List.of()));
     }
 
+    private Path recordingFlowServer() throws IOException {
+        Path script = tempDir.resolve("flow_server");
+        Files.writeString(script, """
+                #!/bin/sh
+                set -eu
+                cp "$2" "$0.config"
+                printf '%s' "$2" > "$0.config-path"
+                """);
+        assertTrue(script.toFile().setExecutable(true));
+        return script;
+    }
+
+    @Test
+    void testLaunchUsesTransformedConfigAfterStandardEnrichment() throws Exception {
+        Path script = recordingFlowServer();
+        byte[] binary = {(byte) 0xff, 0, (byte) 0x80};
+        byte[] original = Files.readAllBytes(Path.of(pipelinePath));
+        assertEquals(0, launcher.launch(pipelinePath, script.toString(), enriched -> {
+            assertTrue(enriched.mapNode().getOrThrow("vanilla").mapNode().getOrThrow("worker")
+                    .mapNode().containsKey("local_files"));
+            var result = YTree.deepCopy(enriched);
+            result.mapNode().put("derived", YTree.bytesNode(binary));
+            return result;
+        }));
+        var submitted = loadConfig(script + ".config");
+        assertArrayEquals(binary, submitted.mapNode().getOrThrow("derived").bytesValue());
+        assertArrayEquals(original, Files.readAllBytes(Path.of(pipelinePath)));
+        Path temporary = Path.of(Files.readString(Path.of(script + ".config-path")));
+        assertFalse(Files.exists(temporary.getParent()));
+    }
+
+    @Test
+    void testRejectedConfigTransformNeverStartsFlowServer() throws Exception {
+        Path script = recordingFlowServer();
+        assertThrows(IllegalArgumentException.class, () -> launcher.launch(pipelinePath, script.toString(), config -> {
+            throw new IllegalArgumentException("Invalid application spec");
+        }));
+        assertFalse(Files.exists(Path.of(script + ".config")));
+    }
+
+    @Test
+    void testFinalValidationChecksTheTransformedConfig() throws Exception {
+        Path script = recordingFlowServer();
+        assertThrows(IllegalStateException.class, () -> launcher.launch(pipelinePath, script.toString(), config -> {
+            config.mapNode().getOrThrow("spec").mapNode().getOrThrow("resources").mapNode()
+                    .getOrThrow("CompanionManager").mapNode().getOrThrow("parameters").mapNode().remove("main_class");
+            return config;
+        }));
+        assertFalse(Files.exists(Path.of(script + ".config")));
+    }
+
+    @Test
+    void testNullTransformResultHasContextAndNeverStartsFlowServer() throws Exception {
+        Path script = recordingFlowServer();
+        var error = assertThrows(
+                NullPointerException.class,
+                () -> launcher.launch(pipelinePath, script.toString(), config -> null)
+        );
+        assertTrue(error.getMessage().contains("configTransform must return"), error.getMessage());
+        assertFalse(Files.exists(Path.of(script + ".config")));
+    }
+
+    @Test
+    void testMalformedTransformResultHasContextAndNeverStartsFlowServer() throws Exception {
+        Path script = recordingFlowServer();
+        for (var result : List.of(
+                YTree.node(List.of()),
+                YTree.entityNode(),
+                YTree.mapBuilder().buildMap(),
+                YTree.mapBuilder().key("spec").value(List.of()).buildMap()
+        )) {
+            var error = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> launcher.launch(pipelinePath, script.toString(), config -> result)
+            );
+            assertTrue(error.getMessage().contains("Pipeline config"), error.getMessage());
+            assertFalse(Files.exists(Path.of(script + ".config")));
+        }
+    }
+
     @Test
     void testTakesFlowBinFromEnvVarWithoutFlag() throws Exception {
         env.setVar(FlowLauncher.ENV_VAR_YT_FLOW_BIN, "/bin/true");
 
         assertEquals(0, launcher.launch(pipelinePath, null, Map.of(), List.of()));
         assertEquals(0, launcher.launch(pipelinePath, "", Map.of(), List.of()));
+        assertEquals(0, launcher.launch(pipelinePath, null, config -> config));
+        assertEquals(0, launcher.launch(pipelinePath, "", config -> config));
     }
 
     @Test

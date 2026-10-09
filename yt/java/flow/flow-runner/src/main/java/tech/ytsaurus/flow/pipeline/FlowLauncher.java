@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -68,6 +70,25 @@ public class FlowLauncher {
     }
 
     /**
+     * Launches with an application-specific config transformation after standard enrichment and before final
+     * validation. A rejected config never starts flow_server.
+     *
+     * <p>This overload declares no registered streams or states. The config or the transformation must supply
+     * their schemas and state descriptors; a profile state must carry its own descriptor source.
+     *
+     * @param configPath path to the pipeline config in YSON format.
+     * @param flowBin path to flow_server, or null/empty to use {@code $YT_FLOW_BIN}.
+     * @param configTransform returns a non-null full config containing a {@code spec} map.
+     */
+    public int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            UnaryOperator<YTreeNode> configTransform
+    ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, Map.of(), List.of(), List.of(), configTransform);
+    }
+
+    /**
      * Enriches the pipeline config with the registered streams, runs flow_server on it, and
      * returns its exit code. Declares no states: a profile state must then carry its own
      * descriptor source in the spec.
@@ -111,6 +132,17 @@ public class FlowLauncher {
             Collection<StateDescriptor<?>> states,
             List<String> flowServerFlags
     ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, streams, states, flowServerFlags, UnaryOperator.identity());
+    }
+
+    private int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            List<String> flowServerFlags,
+            UnaryOperator<YTreeNode> configTransform
+    ) throws IOException, InterruptedException {
         if (configPath == null || configPath.isEmpty()) {
             throw new IllegalArgumentException("--config <pipeline.yson> is required to launch the pipeline");
         }
@@ -121,7 +153,7 @@ public class FlowLauncher {
         }
         String flowBinAbs = Paths.get(flowBinPath).toAbsolutePath().toString();
 
-        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states);
+        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states, configTransform);
         Path extendedConfig = writeExtendedConfig(pipelineConfig);
         try {
             List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfig.toString()));
@@ -164,14 +196,19 @@ public class FlowLauncher {
             Map<String, FlowStream<?>> streams,
             Collection<StateDescriptor<?>> states
     ) {
+        return buildExtendedConfig(configPath, streams, states, UnaryOperator.identity());
+    }
+
+    private YTreeNode buildExtendedConfig(
+            String configPath,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            UnaryOperator<YTreeNode> configTransform
+    ) {
         PipelineRunnerConfig runnerConfig = new PipelineRunnerConfig(configPath, envReader);
         YTreeNode pipelineConfig = runnerConfig.getFullSpec();
         YTreeMapNode root = pipelineConfig.mapNode();
-        YTreeMapNode spec = root
-                .get("spec")
-                .filter(YTreeNode::isMapNode)
-                .map(YTreeNode::mapNode)
-                .orElseThrow(() -> new IllegalArgumentException("Pipeline config has no \"spec\" map"));
+        YTreeMapNode spec = requirePipelineSpec(pipelineConfig);
 
         // The registered pipeline is the source of truth for stream schemas, whether or not the
         // runner also submits a vanilla operation.
@@ -190,10 +227,24 @@ public class FlowLauncher {
             enrichForVanillaLaunch(vanilla, spec);
         }
 
+        pipelineConfig = Objects.requireNonNull(
+                configTransform.apply(pipelineConfig),
+                "configTransform must return a non-null full pipeline config"
+        );
         // Last: the final gate validates the spec exactly as it is submitted.
-        PipelineSpecEnricher.validateCompanionMainClass(spec);
+        PipelineSpecEnricher.validateCompanionMainClass(requirePipelineSpec(pipelineConfig));
 
         return pipelineConfig;
+    }
+
+    private static YTreeMapNode requirePipelineSpec(YTreeNode config) {
+        if (!config.isMapNode()) {
+            throw new IllegalArgumentException("Pipeline config must be a map");
+        }
+        return config.mapNode().get("spec")
+                .filter(YTreeNode::isMapNode)
+                .map(YTreeNode::mapNode)
+                .orElseThrow(() -> new IllegalArgumentException("Pipeline config has no \"spec\" map"));
     }
 
     /**
@@ -228,7 +279,9 @@ public class FlowLauncher {
         return created;
     }
 
-    /** Writes the enriched config into a fresh temp dir. Visible for tests. */
+    /**
+     * Writes the enriched config into a fresh temp dir. Visible for tests.
+     */
     Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
         Path dir = Files.createTempDirectory("flow_runner_");
         Path path = dir.resolve("extended-pipeline.yson");
@@ -244,7 +297,9 @@ public class FlowLauncher {
         return path;
     }
 
-    /** Removes the config written by {@link #writeExtendedConfig} together with its temp dir. Visible for tests. */
+    /**
+     * Removes the config written by {@link #writeExtendedConfig} together with its temp dir. Visible for tests.
+     */
     static void deleteExtendedConfig(Path extendedConfig) {
         try {
             Files.deleteIfExists(extendedConfig);
