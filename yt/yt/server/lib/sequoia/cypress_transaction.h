@@ -109,9 +109,13 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
 
 //! Starts replication of active Cypress transactions to the cell and returns
 //! the future which is set when replication is done at leader of destination
-//! master cell. If #boomerang is not null it's executed on the destination cell
-//! in the same mutation as Cypress transaction materialization.
-TFuture<void> ReplicateCypressTransactionsToCell(
+//! master cell. Additionally, returns ID of the cell coordinating Sequoia tx
+//! doing the replication.
+//! If #boomerang is not null it's applied on the destination cell in the same
+//! mutation as Cypress transaction materialization.
+//! May be noop if all transactions are already replicated and there's no
+//! boomerang to apply. It that case, returns OKFuture and null cell ID.
+std::pair<TFuture<void>, NObjectClient::TCellId> ReplicateCypressTransactionsToCell(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     std::vector<NTransactionClient::TTransactionId> transactionIds,
     NObjectClient::TCellId destinationCellId,

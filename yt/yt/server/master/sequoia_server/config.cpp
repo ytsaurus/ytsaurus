@@ -104,6 +104,12 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter(
+        "replicate_cypress_transactions_via_separate_sequoia_transaction_per_coordinator",
+        &TThis::ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter(
         "enable_sequoia_revisions",
         &TThis::EnableSequoiaRevisions)
         .Default(false);

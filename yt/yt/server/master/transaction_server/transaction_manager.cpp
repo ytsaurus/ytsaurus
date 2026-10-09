@@ -1834,11 +1834,13 @@ public:
                     return multicellManager->FindMasterChannel(cellTag, EPeerKind::Leader);
                 })));
 
+            const auto& sequoiaManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
             asyncResults.push_back(RunTransactionReplicationSession(
                 /*syncWithUpstream*/ false,
                 Bootstrap_,
                 leaseAgnosticPrerequisiteTransactionIds,
-                IsMirroringToSequoiaEnabled()));
+                IsMirroringToSequoiaEnabled(),
+                sequoiaManagerConfig->ReplicateCypressTransactionsViaSeparateSequoiaTransactionPerCoordinator));
         }
 
         if (!cellIdsToSyncWith.empty()) {
