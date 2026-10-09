@@ -35,6 +35,7 @@ target_link_libraries(server-lib-cypress_proxy PUBLIC
   yt-library-dynamic_config
   yt-library-server_program
   server-lib-cross_cluster_replicated_state
+  server-lib-rpc_proxy
   yt-yt-ytlib
 )
 

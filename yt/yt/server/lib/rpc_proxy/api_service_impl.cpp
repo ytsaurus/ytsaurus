@@ -311,6 +311,58 @@ TCounter* TDetailedProfilingCounters::GetRetryCounterByReason(TErrorCode reason)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMasterMetadataApiService::TMasterMetadataApiService(
+    TApiServiceConfigPtr config,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::IAuthenticatorPtr authenticator,
+    IProxyCoordinatorPtr proxyCoordinator,
+    IAccessCheckerPtr accessChecker,
+    NTracing::TSamplerPtr traceSampler,
+    NLogging::TLogger logger,
+    TProfiler profiler,
+    INodeMemoryTrackerPtr memoryTracker,
+    IStickyTransactionPoolPtr stickyTransactionPool,
+    IChannelPtr cypressProxyChannelOverride)
+    : TServiceBase(
+        std::move(defaultInvoker),
+        GetServiceDescriptor(),
+        std::move(logger),
+        TServiceOptions{
+            .MemoryUsageTracker = WithCategory(memoryTracker, EMemoryCategory::Rpc),
+            .Authenticator = std::move(authenticator),
+        })
+    , ApiServiceConfig_(config)
+    , Profiler_(std::move(profiler))
+    , WorkerInvokerProvider_(std::move(workerInvokerProvider))
+    , LocalConnection_(std::move(connection))
+    , CypressProxyChannelOverride_(std::move(cypressProxyChannelOverride))
+    , ProxyCoordinator_(std::move(proxyCoordinator))
+    , AccessChecker_(std::move(accessChecker))
+    , TraceSampler_(std::move(traceSampler))
+    , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
+    , HeapProfilerTestingOptions_(config->TestingOptions
+        ? config->TestingOptions->HeapProfiler
+        : nullptr)
+    , UserAccessValidator_(CreateUserAccessValidator(
+        ApiServiceConfig_->UserAccessValidator,
+        LocalConnection_,
+        Logger))
+    , StickyTransactionPool_(stickyTransactionPool
+        ? std::move(stickyTransactionPool)
+        : CreateStickyTransactionPool(Logger))
+{
+    RegisterTransactionMethods();
+    RegisterCypressMethods();
+    RegisterDynamicTableMethods();
+    RegisterReplicatedTableMethods();
+    RegisterAdminMethods();
+    RegisterSecurityMethods();
+    RegisterJournalMethods();
+    RegisterFileCacheMethods();
+}
+
 TApiService::TApiService(
     TApiServiceConfigPtr config,
     IInvokerPtr defaultInvoker,
@@ -326,84 +378,71 @@ TApiService::TApiService(
     IStickyTransactionPoolPtr stickyTransactionPool,
     ISignatureValidatorPtr signatureValidator,
     IQueryCorpusReporterPtr queryCorpusReporter)
-    : TServiceBase(
+    : TMasterMetadataApiService(
+        std::move(config),
         std::move(defaultInvoker),
-        GetServiceDescriptor(),
+        std::move(workerInvokerProvider),
+        std::move(connection),
+        std::move(authenticator),
+        std::move(proxyCoordinator),
+        std::move(accessChecker),
+        std::move(traceSampler),
         std::move(logger),
-        TServiceOptions{
-            .MemoryUsageTracker = WithCategory(memoryTracker, EMemoryCategory::Rpc),
-            .Authenticator = std::move(authenticator),
-        })
-    , ApiServiceConfig_(config)
-    , Profiler_(std::move(profiler))
-    , LocalConnection_(std::move(connection))
-    , ProxyCoordinator_(std::move(proxyCoordinator))
-    , AccessChecker_(std::move(accessChecker))
-    , TraceSampler_(std::move(traceSampler))
-    , StickyTransactionPool_(stickyTransactionPool
-        ? stickyTransactionPool
-        : CreateStickyTransactionPool(Logger))
-    , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
-    , HeapProfilerTestingOptions_(config->TestingOptions
-        ? config->TestingOptions->HeapProfiler
-        : nullptr)
+        std::move(profiler),
+        memoryTracker,
+        std::move(stickyTransactionPool),
+        /*cypressProxyChannelOverride*/ nullptr)
     , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
     , SignatureValidator_(std::move(signatureValidator))
     , QueryCorpusReporter_(std::move(queryCorpusReporter))
-    , UserAccessValidator_(CreateUserAccessValidator(
-        ApiServiceConfig_->UserAccessValidator,
-        LocalConnection_,
-        Logger))
-    , WorkerInvokerProvider_(std::move(workerInvokerProvider))
     , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
     , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
     , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
     , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
 {
-    TMultiproxyMethodList methodList;
+    DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
+    DeclareServerFeature(ERpcProxyFeature::WideLocks);
+
+    RegisterDynamicTableMethods();
+    RegisterReplicatedTableMethods();
+    RegisterOperationMethods();
+    RegisterOperationInfoMethods();
+    RegisterJobInfoMethods();
+    RegisterJobMethods();
+    RegisterQueueMethods();
+    RegisterAdminMethods();
+    RegisterFileMethods();
+    RegisterJournalMethods();
+    RegisterStaticTableMethods();
+    RegisterFlowMethods();
+    RegisterQueryMethods();
+    RegisterDistributedTableMethods();
+    RegisterDistributedFileMethods();
+    RegisterShuffleMethods();
+}
+
+void TMasterMetadataApiService::InitializeRefCounted()
+{
+    YT_VERIFY(!MultiproxyAccessValidator_);
+    MultiproxyAccessValidator_ = CreateMultiproxyAccessValidator(std::move(MultiproxyMethods_));
+}
+
+TServiceBase::TRuntimeMethodInfoPtr TMasterMetadataApiService::RegisterApiMethod(
+    EMultiproxyMethodKind methodKind,
+    TMethodDescriptor&& descriptor)
+{
+    YT_VERIFY(!MultiproxyAccessValidator_);
 
     // Read / Write markup is for multiproxy mode.
     // Rpc proxy can be configured to redirect requests for other clusters if request has corresponding header.
     // Rpc proxy can allow redirect read requests or read and write requests (or disallow redirecting completely).
     //
     // YT-24245
-    RegisterTransactionMethods(&methodList);
-    RegisterCypressMethods(&methodList);
-    RegisterDynamicTableMethods(&methodList);
-    RegisterReplicatedTableMethods(&methodList);
-    RegisterOperationMethods(&methodList);
-    RegisterOperationInfoMethods(&methodList);
-    RegisterJobInfoMethods(&methodList);
-    RegisterJobMethods(&methodList);
-    RegisterQueueMethods(&methodList);
-    RegisterAdminMethods(&methodList);
-    RegisterSecurityMethods(&methodList);
-    RegisterFileMethods(&methodList);
-    RegisterJournalMethods(&methodList);
-    RegisterStaticTableMethods(&methodList);
-    RegisterFileCacheMethods(&methodList);
-    RegisterFlowMethods(&methodList);
-    RegisterQueryMethods(&methodList);
-    RegisterDistributedTableMethods(&methodList);
-    RegisterDistributedFileMethods(&methodList);
-    RegisterShuffleMethods(&methodList);
-
-    DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
-    DeclareServerFeature(ERpcProxyFeature::WideLocks);
-    MultiproxyAccessValidator_ = CreateMultiproxyAccessValidator(std::move(methodList));
+    MultiproxyMethods_.emplace_back(std::string(descriptor.Method), methodKind);
+    return RegisterMethod(descriptor);
 }
 
-void TApiService::RegisterMethodForMultiproxy(
-    TMultiproxyMethodList* methodList,
-    EMultiproxyMethodKind methodKind,
-    const TMethodDescriptor& descriptor)
-{
-    const auto& methodName = descriptor.Method;
-    methodList->emplace_back(std::string(methodName), methodKind);
-    RegisterMethod(descriptor);
-}
-
-void TApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config)
+void TMasterMetadataApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -421,13 +460,13 @@ void TApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& conf
     Config_.Store(config);
 }
 
-IYPathServicePtr TApiService::CreateOrchidService()
+IYPathServicePtr TMasterMetadataApiService::CreateOrchidService()
 {
-    return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TApiService::BuildOrchid, MakeStrong(this)))
+    return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TMasterMetadataApiService::BuildOrchid, MakeStrong(this)))
         ->Via(WorkerInvokerProvider_(OrchidExecutionPoolName, DefaultExecutionTag));
 }
 
-std::optional<std::string> TApiService::GetMultiproxyTargetCluster(const IServiceContextPtr& context)
+std::optional<std::string> TMasterMetadataApiService::GetMultiproxyTargetCluster(const IServiceContextPtr& context)
 {
     const auto& header = context->GetRequestHeader();
     const auto& multiproxyTargetExt = header.GetExtension(NRpc::NProto::TMultiproxyTargetExt::multiproxy_target_ext);
@@ -442,7 +481,7 @@ std::optional<std::string> TApiService::GetMultiproxyTargetCluster(const IServic
     return cluster;
 }
 
-void TApiService::AllocateTestData(const TTraceContextPtr& traceContext)
+void TMasterMetadataApiService::AllocateTestData(const TTraceContextPtr& traceContext)
 {
     if (!HeapProfilerTestingOptions_ || !traceContext) {
         return;
@@ -462,7 +501,7 @@ void TApiService::AllocateTestData(const TTraceContextPtr& traceContext)
     }
 }
 
-void TApiService::BuildOrchid(IYsonConsumer* consumer)
+void TMasterMetadataApiService::BuildOrchid(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .DoMap([] (TFluentMap fluent) {
@@ -475,7 +514,7 @@ void TApiService::BuildOrchid(IYsonConsumer* consumer)
         });
 }
 
-void TApiService::SetupTracing(const IServiceContextPtr& context)
+void TMasterMetadataApiService::SetupTracing(const IServiceContextPtr& context)
 {
     auto* traceContext = NTracing::TryGetCurrentTraceContext();
     if (!traceContext) {
@@ -509,7 +548,7 @@ void TApiService::SetupTracing(const IServiceContextPtr& context)
     }
 }
 
-NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
+NNative::IClientPtr TMasterMetadataApiService::GetAuthenticatedClientOrThrow(
     const IServiceContextPtr& context,
     const google::protobuf::Message* request)
 {
@@ -548,11 +587,16 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
         connection = LocalConnection_;
     }
 
+    auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(identity);
+    if (!multiproxyTargetCluster) {
+        clientOptions.CypressProxyChannelOverride = CypressProxyChannelOverride_;
+    }
+
     auto client = AuthenticatedClientCache_->Get(
         multiproxyTargetCluster,
         identity,
         connection,
-        NNative::TClientOptions::FromAuthenticationIdentity(identity));
+        clientOptions);
 
     if (!client) {
         THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
@@ -563,7 +607,7 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
     return client;
 }
 
-ITransactionPtr TApiService::FindTransaction(
+ITransactionPtr TMasterMetadataApiService::FindTransaction(
     const NNative::IClientPtr& client,
     TTransactionId transactionId,
     const std::optional<TTransactionAttachOptions>& options,
@@ -582,7 +626,7 @@ ITransactionPtr TApiService::FindTransaction(
     return transaction;
 }
 
-ITransactionPtr TApiService::GetTransactionOrThrow(
+ITransactionPtr TMasterMetadataApiService::GetTransactionOrThrow(
     const NNative::IClientPtr& client,
     TTransactionId transactionId,
     const std::optional<TTransactionAttachOptions>& options,
@@ -621,7 +665,7 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
         .first;
 }
 
-IInvokerPtr TApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
+IInvokerPtr TMasterMetadataApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
 {
     auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
     return WorkerInvokerProvider_(DyntableLightPoolName, tag);
@@ -644,7 +688,7 @@ IInvokerPtr TApiService::GetWorkerInvoker(const NRpc::NProto::TRequestHeader& re
     return WorkerInvokerProvider_(poolName, tag);
 }
 
-IInvokerPtr TApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
+IInvokerPtr TMasterMetadataApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
 {
     auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
     return WorkerInvokerProvider_(DyntableLightPoolName, tag);
@@ -664,14 +708,47 @@ TFuture<bool> TApiService::ValidateSignature(const TSignaturePtr& signedValue) c
     return SignatureValidator_->Validate(signedValue);
 }
 
-bool TApiService::IsUp(const TCtxDiscoverPtr& /*context*/)
+bool TMasterMetadataApiService::IsUp(const TCtxDiscoverPtr& /*context*/)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ProxyCoordinator_->GetOperableState();
 }
 
-const TStructuredLoggingMethodDynamicConfigPtr TApiService::DefaultMethodConfig = New<TStructuredLoggingMethodDynamicConfig>();
+const TStructuredLoggingMethodDynamicConfigPtr TMasterMetadataApiService::DefaultMethodConfig = New<TStructuredLoggingMethodDynamicConfig>();
+
+////////////////////////////////////////////////////////////////////////////////
+
+IApiServicePtr CreateMasterMetadataApiService(
+    TApiServiceConfigPtr config,
+    IInvokerPtr defaultInvoker,
+    TPooledInvokerProvider workerInvokerProvider,
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::IAuthenticatorPtr authenticator,
+    IProxyCoordinatorPtr proxyCoordinator,
+    IAccessCheckerPtr accessChecker,
+    NTracing::TSamplerPtr traceSampler,
+    NLogging::TLogger logger,
+    TProfiler profiler,
+    INodeMemoryTrackerPtr memoryUsageTracker,
+    IStickyTransactionPoolPtr stickyTransactionPool,
+    IChannelPtr cypressProxyChannelOverride)
+{
+    return New<TMasterMetadataApiService>(
+        std::move(config),
+        std::move(defaultInvoker),
+        std::move(workerInvokerProvider),
+        std::move(connection),
+        std::move(authenticator),
+        std::move(proxyCoordinator),
+        std::move(accessChecker),
+        std::move(traceSampler),
+        std::move(logger),
+        std::move(profiler),
+        std::move(memoryUsageTracker),
+        std::move(stickyTransactionPool),
+        std::move(cypressProxyChannelOverride));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

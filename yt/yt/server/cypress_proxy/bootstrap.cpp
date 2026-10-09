@@ -4,6 +4,7 @@
 
 #include "cypress_transaction_service.h"
 #include "dynamic_config_manager.h"
+#include "embedded_api_service.h"
 #include "internal_api_service.h"
 #include "master_connector.h"
 #include "object_service.h"
@@ -20,6 +21,9 @@
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
+
+#include <yt/yt/server/lib/rpc_proxy/api_service.h>
+#include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -66,6 +70,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -242,6 +247,7 @@ private:
 
     IObjectServicePtr ObjectService_;
     IBanServicePtr BanService_;
+    NRpcProxy::IApiServicePtr ApiService_;
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
@@ -267,6 +273,7 @@ private:
 
         BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+        RpcServer_->Configure(Config_->RpcServer);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
         if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
             HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
@@ -296,7 +303,8 @@ private:
                 ? NApi::EMasterChannelKind::Follower
                 : NApi::EMasterChannelKind::Cache);
 
-        MasterConnector_ = CreateMasterConnector(this);
+        auto apiServiceProxyCoordinator = NRpcProxy::CreateProxyCoordinator();
+        MasterConnector_ = CreateMasterConnector(this, apiServiceProxyCoordinator);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -356,6 +364,15 @@ private:
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
         RpcServer_->RegisterService(CreateInternalApiService(this));
         RpcServer_->RegisterService(BanService_->GetService());
+        ApiService_ = CreateEmbeddedApiService(
+            this,
+            std::move(apiServiceProxyCoordinator),
+            NRpc::CreateLocalChannel(RpcServer_));
+        RpcServer_->RegisterService(ApiService_);
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/api_service",
+            CreateVirtualNode(ApiService_->CreateOrchidService()));
     }
 
     void DoStart()
@@ -391,6 +408,7 @@ private:
         ThreadPool_->SetThreadCount(newConfig->ThreadPoolSize);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
         BanService_->Reconfigure(newConfig->BanService);
+        ApiService_->OnDynamicConfigChanged(newConfig->ApiService);
     }
 };
 

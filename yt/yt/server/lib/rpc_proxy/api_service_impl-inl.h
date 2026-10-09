@@ -211,7 +211,7 @@ std::vector<TSharedRef> PrepareRowsetForAttachment(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage, class TResponseMessage>
-void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context)
+void TMasterMetadataApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context)
 {
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
@@ -280,12 +280,12 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TContext, class TExecutor, class TResultHandler>
-class TApiService::TExecuteCallSession
+class TMasterMetadataApiService::TExecuteCallSession
     : public TRefCounted
 {
 public:
     TExecuteCallSession(
-        TApiServicePtr apiService,
+        TIntrusivePtr<TMasterMetadataApiService> apiService,
         TIntrusivePtr<TContext> context,
         TExecutor&& executor,
         TResultHandler&& resultHandler)
@@ -328,7 +328,7 @@ public:
     }
 
 private:
-    const TApiServicePtr ApiService_;
+    const TIntrusivePtr<TMasterMetadataApiService> ApiService_;
     const TIntrusivePtr<TContext> Context_;
     const TExecutor Executor_;
     const TResultHandler ResultHandler_;
@@ -347,7 +347,7 @@ private:
 };
 
 template <class TContext, class TExecutor, class TResultHandler>
-void TApiService::ExecuteCall(
+void TMasterMetadataApiService::ExecuteCall(
     TIntrusivePtr<TContext> context,
     TExecutor&& executor,
     TResultHandler&& resultHandler)
@@ -361,7 +361,7 @@ void TApiService::ExecuteCall(
 }
 
 template <class TContext, class TExecutor>
-void TApiService::ExecuteCall(
+void TMasterMetadataApiService::ExecuteCall(
     const TIntrusivePtr<TContext>& context,
     TExecutor&& executor)
 {

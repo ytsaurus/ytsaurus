@@ -26,33 +26,29 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterTransactionMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterTransactionMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(
+    RegisterApiMethod(
         EMultiproxyMethodKind::Write,
         RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
-            .SetInvokerProvider(BIND(&TApiService::GetGenerateTimestampsInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TMasterMetadataApiService::GetGenerateTimestampsInvoker, Unretained(this))));
 
-    registerMethod(
+    RegisterApiMethod(
         EMultiproxyMethodKind::Write,
         RPC_SERVICE_METHOD_DESC(StartTransaction)
-            .SetInvokerProvider(BIND(&TApiService::GetStartTransactionInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TMasterMetadataApiService::GetStartTransactionInvoker, Unretained(this))));
 
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortTransaction));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CommitTransaction));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlushTransaction));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AttachTransaction));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DetachTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CommitTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FlushTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AttachTransaction));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DetachTransaction));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GenerateTimestamps)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -107,7 +103,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, StartTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, StartTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -188,7 +184,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartTransaction)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, PingTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -214,7 +210,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CommitTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -271,7 +267,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, FlushTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -303,7 +299,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AbortTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AbortTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -330,7 +326,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortTransaction)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AttachTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AttachTransaction)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -367,7 +363,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AttachTransaction)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, DetachTransaction)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, DetachTransaction)
 {
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 

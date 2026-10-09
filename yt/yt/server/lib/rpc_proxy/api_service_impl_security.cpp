@@ -15,23 +15,19 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterSecurityMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterSecurityMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
-
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetCurrentUser));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferAccountResources));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetCurrentUser));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferAccountResources));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GetCurrentUser)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -51,7 +47,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetCurrentUser)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AddMember)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AddMember)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -78,7 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AddMember)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMember)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, RemoveMember)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -105,7 +101,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemoveMember)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermission)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CheckPermission)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -153,7 +149,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermission)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, CheckPermissionByAcl)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -193,7 +189,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CheckPermissionByAcl)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, TransferAccountResources)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, TransferAccountResources)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

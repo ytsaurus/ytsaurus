@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/rpc_proxy/public.h>
+
 #include <yt/yt/ytlib/sequoia_client/transaction_options.h>
 
 namespace NYT::NCypressProxy {
@@ -33,7 +35,9 @@ DEFINE_REFCOUNTED_TYPE(IMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap);
+IMasterConnectorPtr CreateMasterConnector(
+    IBootstrap* bootstrap,
+    NRpcProxy::IProxyCoordinatorPtr proxyCoordinator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

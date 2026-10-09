@@ -27,22 +27,22 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterReplicatedTableMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterReplicatedTableMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTableReplica));
+}
 
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTableReplica));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingChaosLease));
+void TApiService::RegisterReplicatedTableMethods()
+{
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingChaosLease));
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AlterTableReplica)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AlterTableReplica)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

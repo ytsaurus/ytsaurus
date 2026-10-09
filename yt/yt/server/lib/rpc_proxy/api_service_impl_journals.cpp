@@ -23,19 +23,19 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterJournalMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterJournalMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TruncateJournal));
+}
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadJournal)
+void TApiService::RegisterJournalMethods()
+{
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadJournal)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteJournal)
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteJournal)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TruncateJournal));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +132,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteJournal)
         true /*feedbackEnabled*/);
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, TruncateJournal)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, TruncateJournal)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

@@ -23,6 +23,10 @@ public:
     static TClientOptions FromServiceTicketAuth(NAuth::IServiceTicketAuthPtr ticketAuth);
     static TClientOptions FromUserTicket(std::string userTicket);
 
+    // COMPAT(danilalexeev): intended only for the embedded ApiService at Cypress Proxy.
+    //! If set, routes this client's Cypress traffic through the given channel.
+    NRpc::IChannelPtr CypressProxyChannelOverride;
+
     TCallback<NRpc::IChannelPtr(NRpc::IChannelPtr)> ChannelWrapper;
     TCallback<NRpc::IChannelFactoryPtr(NRpc::IChannelFactoryPtr)> ChannelFactoryWrapper;
 };

@@ -693,19 +693,17 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return CreateCypressChannelOrThrow(CypressProxyChannel_, kind, cellTag);
+    }
 
-        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
-            ? GetPrimaryMasterCellTag()
-            : cellTag;
-
-        auto canUseCypressProxy =
-            effectiveKind == EMasterChannelKind::Leader ||
-            effectiveKind == EMasterChannelKind::Follower;
-
-        return canUseCypressProxy && CypressProxyChannel_
-            ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
-            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    IChannelPtr WrapAsCypressChannelOrThrow(
+        const IChannelPtr& localChannel,
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        YT_VERIFY(localChannel);
+        YT_VERIFY(localChannel->GetEndpointAttributes().Get<bool>("local", false));
+        return CreateCypressChannelOrThrow(localChannel, kind, cellTag);
     }
 
     EMasterChannelKind GetEffectiveMasterChannelKind(EMasterChannelKind kind) const
@@ -1189,6 +1187,25 @@ private:
     NSequoiaClient::ISequoiaConnectionPtr SequoiaConnection_;
 
     std::atomic<bool> Terminated_ = false;
+
+    IChannelPtr CreateCypressChannelOrThrow(
+        const IChannelPtr& cypressProxyChannel,
+        EMasterChannelKind kind,
+        TCellTag cellTag)
+    {
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
+            ? GetPrimaryMasterCellTag()
+            : cellTag;
+
+        auto canUseCypressProxy =
+            effectiveKind == EMasterChannelKind::Leader ||
+            effectiveKind == EMasterChannelKind::Follower;
+
+        return canUseCypressProxy && cypressProxyChannel
+            ? New<TTargetMasterPeerInjectingChannel>(cypressProxyChannel, effectiveCellTag, effectiveKind)
+            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    }
 
     void ConfigureMasterCells()
     {

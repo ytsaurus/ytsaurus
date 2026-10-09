@@ -49,52 +49,52 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TApiService::RegisterDynamicTableMethods(TMultiproxyMethodList* methodList)
+void TMasterMetadataApiService::RegisterDynamicTableMethods()
 {
-    auto registerMethod = [&] (EMultiproxyMethodKind methodKind, TMethodDescriptor&& descriptor) {
-        RegisterMethodForMultiproxy(methodList, methodKind, descriptor);
-    };
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MountTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnmountTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemountTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FreezeTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnfreezeTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferBundleResources));
 
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(MountTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnmountTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemountTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FreezeTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(UnfreezeTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ReshardTableAutomatic));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TrimTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTable));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferBundleResources));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
+}
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows)
+void TApiService::RegisterDynamicTableMethods()
+{
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TrimTable));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows)
         .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows)
         .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
         .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetConcurrencyLimit(1'000));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
         .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
         .SetCancelable(true));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletInfos));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletErrors));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletInfos));
+    RegisterApiMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ModifyRows));
-    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BatchModifyRows));
-
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ModifyRows));
+    RegisterApiMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GetTableMountInfo)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -145,7 +145,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTableMountInfo)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, GetTablePivotKeys)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, GetTablePivotKeys)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -167,7 +167,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTablePivotKeys)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, MountTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, MountTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -198,7 +198,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MountTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, UnmountTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, UnmountTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -224,7 +224,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnmountTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, RemountTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, RemountTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -247,7 +247,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RemountTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, FreezeTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, FreezeTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -270,7 +270,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FreezeTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, UnfreezeTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, UnfreezeTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -293,7 +293,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, UnfreezeTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ReshardTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -349,7 +349,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTable)
     }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, ReshardTableAutomatic)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, ReshardTableAutomatic)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -408,7 +408,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, TrimTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, AlterTable)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, AlterTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -458,7 +458,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AlterTable)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, BalanceTabletCells)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, BalanceTabletCells)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -547,7 +547,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RestoreTableBackup)
         });
 }
 
-DEFINE_RPC_SERVICE_METHOD(TApiService, TransferBundleResources)
+DEFINE_RPC_SERVICE_METHOD(TMasterMetadataApiService, TransferBundleResources)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 

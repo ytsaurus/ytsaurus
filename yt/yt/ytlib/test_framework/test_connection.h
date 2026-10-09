@@ -165,6 +165,7 @@ public:
     MOCK_METHOD(const NChunkClient::IBlockCachePtr&, GetBlockCache, (), (override));
     MOCK_METHOD(const NChunkClient::IClientChunkMetaCachePtr&, GetChunkMetaCache, (), (override));
     MOCK_METHOD(const NCellMasterClient::ICellDirectoryPtr&, GetMasterCellDirectory, (), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, WrapAsCypressChannelOrThrow, (const NRpc::IChannelPtr&, NApi::EMasterChannelKind, NObjectClient::TCellTag), (override));
     MOCK_METHOD(const NCellMasterClient::ICellDirectorySynchronizerPtr&, GetMasterCellDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NHiveClient::ICellDirectorySynchronizerPtr&, GetCellDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosCellDirectorySynchronizerPtr&, GetChaosCellDirectorySynchronizer, (), (override));

@@ -175,6 +175,13 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    NRpc::IChannelPtr WrapAsCypressChannelOrThrow(
+        const NRpc::IChannelPtr& /*localChannel*/,
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NRpc::IChannelPtr& GetCypressProxyChannel() override
     {
         YT_UNIMPLEMENTED();
