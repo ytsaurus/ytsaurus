@@ -633,6 +633,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(std::nullopt)
         .DontSerializeDefault();
 
+    registrar.Parameter("always_show_master_last_seen_replicas", &TThis::AlwaysShowMasterLastSeenReplicas)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {

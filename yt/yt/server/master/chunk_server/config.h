@@ -626,6 +626,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxConcurrentSequoiaReplicaModifications;
     int MaxConcurrentReplicasInSequoiaReplicaModifications;
 
+    bool AlwaysShowMasterLastSeenReplicas;
+
     std::optional<TDuration> SleepDurationBeforeSequoiaReplicaModifications;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
