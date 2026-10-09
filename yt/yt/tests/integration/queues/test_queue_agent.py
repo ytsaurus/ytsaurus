@@ -2555,6 +2555,66 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         assert_yt_error(error, "Invalid replicated table mapping row")
         assert_yt_error(error, "meta cannot be null")
 
+    @authors("apachee")
+    def test_ignored_object_list(self):
+        orchid = CypressSynchronizerOrchid()
+
+        q1 = self._get_queue_name("a")
+        q2 = self._get_queue_name("b")
+        c1 = self._get_consumer_name("a")
+        c2 = self._get_consumer_name("b")
+
+        self._create_queue_object(q1)
+        self._create_queue_object(q2)
+        self._create_consumer_object(c1)
+        self._create_consumer_object(c2)
+        orchid.wait_fresh_pass()
+
+        self._get_queues_and_check_invariants(expected_count=2)
+        self._get_consumers_and_check_invariants(expected_count=2)
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "ignored_object_list": [
+                    yt.yson.loads(f"<cluster=primary>\"{q2}\"".encode()),
+                    yt.yson.loads(f"<cluster=primary>\"{c2}\"".encode()),
+                ],
+            }
+        })
+        orchid.wait_fresh_pass()
+
+        def get_rows(table):
+            return {row["path"]: row for row in select_rows(f"* from [{table}]")}
+
+        old_queues = get_rows("//sys/queue_agents/queues")
+        old_consumers = get_rows("//sys/queue_agents/consumers")
+
+        for path in (q1, q2, c1, c2):
+            set(path + "/@queue_agent_stage", "foo")
+        orchid.wait_fresh_pass()
+
+        queues = get_rows("//sys/queue_agents/queues")
+        consumers = get_rows("//sys/queue_agents/consumers")
+
+        # Rows of ignored objects are left as is.
+        assert queues[q2] == old_queues[q2]
+        assert consumers[c2] == old_consumers[c2]
+
+        # Other objects are still synchronized.
+        assert queues[q1]["queue_agent_stage"] == "foo"
+        assert consumers[c1]["queue_agent_stage"] == "foo"
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "ignored_object_list": [],
+            }
+        })
+        orchid.wait_fresh_pass()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        assert all(row["queue_agent_stage"] == "foo" for row in queues + consumers)
+
 
 class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -3253,6 +3313,61 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
 
         self._assert_internal_queues_are({replicated_queue})
         self._assert_internal_consumers_are({replicated_consumer})
+
+    @authors("apachee")
+    def test_ignored_object_list(self):
+        replicated_queue = "//tmp/replicated_queue"
+
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_replicated_table_base(
+            replicated_queue,
+            [{"cluster_name": "primary", "replica_path": f"{replicated_queue}_replica_0"}],
+            schema=self.QUEUE_SCHEMA,
+            create_replica_tables=False)
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        def get_queues():
+            return list(select_rows("* from [//sys/queue_agents/queues]"))
+
+        def get_replicated_table_mapping():
+            return list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
+
+        def get_replica_paths():
+            rows = get_replicated_table_mapping()
+            assert [row["path"] for row in rows] == [replicated_queue]
+            replicas = rows[0]["meta"]["replicated_table_meta"]["replicas"].values()
+            return builtins.set(replica["replica_path"] for replica in replicas)
+
+        assert get_replica_paths() == {f"{replicated_queue}_replica_0"}
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "ignored_object_list": [yt.yson.loads(f"<cluster=primary>\"{replicated_queue}\"".encode())],
+            }
+        })
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        old_queues = get_queues()
+        old_replicated_table_mapping = get_replicated_table_mapping()
+
+        set(f"{replicated_queue}/@queue_agent_stage", "foo")
+        create_table_replica(replicated_queue, "primary", f"{replicated_queue}_replica_1")
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        # Rows of ignored objects are left as is.
+        assert get_queues() == old_queues
+        assert get_replicated_table_mapping() == old_replicated_table_mapping
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "ignored_object_list": [],
+            }
+        })
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        assert [row["queue_agent_stage"] for row in get_queues()] == ["foo"]
+        assert get_replica_paths() == {f"{replicated_queue}_replica_0", f"{replicated_queue}_replica_1"}
 
 
 class TestDynamicConfig(TestQueueAgentBase):
