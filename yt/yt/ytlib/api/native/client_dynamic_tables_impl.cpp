@@ -2075,6 +2075,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .MaxProjectionCount = queryEngineConfig
                 ? queryEngineConfig->MaxProjectionCount
                 : DefaultMaxProjectionCount,
+            // COMPAT(dtorilov): Remove after 26.2.
+            .EnableScalarSubqueryOrderByAndLimit = queryEngineConfig
+                ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2274,6 +2278,10 @@ NYson::TYsonString TClient::DoExplainQuery(
             .MaxProjectionCount = queryEngineConfig
                 ? queryEngineConfig->MaxProjectionCount
                 : DefaultMaxProjectionCount,
+            // COMPAT(dtorilov): Remove after 26.2.
+            .EnableScalarSubqueryOrderByAndLimit = queryEngineConfig
+                ? queryEngineConfig->EnableScalarSubqueryOrderByAndLimit.value_or(false)
+                : false,
         },
         HeavyRequestMemoryUsageTracker_);
 

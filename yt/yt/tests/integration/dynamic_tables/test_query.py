@@ -3357,6 +3357,237 @@ class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+    @authors("dtorilov")
+    def test_hierarchical_join_composite_key_top_distinct_values(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash([meta.group_id])"},
+                {"name": "meta.group_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "meta.id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "dummy", "type": "int64"},
+            ],
+            [{"meta.group_id": 1, "meta.id": key_id} for key_id in (10, 20, 30)],
+        )
+        foreign_rows = [
+            {"group_id": 1, "source_id": 10, "value_id": value_id}
+            for value_id in range(1, 103)
+        ] + [
+            {"group_id": 1, "source_id": 20, "value_id": 200},
+            {"group_id": 1, "source_id": 20, "value_id": 201},
+            {"group_id": 2, "source_id": 10, "value_id": 0},
+        ]
+        self._create_table(
+            "//tmp/foreign",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash([group_id])"},
+                {"name": "group_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "source_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "value_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "dummy", "type": "int64"},
+            ],
+            foreign_rows,
+        )
+
+        query = """
+        SELECT
+            t.`meta.id` AS key_id,
+            (
+                SELECT value_id
+                FROM (
+                    CAST(make_list(t.`meta.group_id`) AS `List<Uint64>`) AS group_id,
+                    CAST(make_list(t.`meta.id`) AS `List<Uint64>`) AS join_key
+                )
+                JOIN `//tmp/foreign` AS f
+                    ON (group_id, join_key) =
+                       (f.group_id, f.source_id)
+                GROUP BY f.value_id AS value_id
+                ORDER BY value_id ASC
+                LIMIT 100
+            ) AS value_ids
+        FROM `//tmp/t` AS t
+        """
+        # COMPAT(dtorilov): Remove after 26.2.
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_scalar_subquery_order_by_and_limit", True):
+            actual = select_rows(query, expression_builder_version=2, syntax_version=2)
+
+        expected = [
+            {"key_id": 10, "value_ids": [{"value_id": value_id} for value_id in range(1, 101)]},
+            {"key_id": 20, "value_ids": [{"value_id": 200}, {"value_id": 201}]},
+            {"key_id": 30, "value_ids": []},
+        ]
+        assert sorted(actual, key=lambda row: row["key_id"]) == expected
+
+    @authors("dtorilov")
+    def test_hierarchical_join_filtered_top_values(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash([meta.id])"},
+                {"name": "meta.id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "dummy", "type": "int64"},
+            ],
+            [{"meta.id": 1}, {"meta.id": 2}],
+        )
+        foreign_rows = [
+            {"id": 1, "kind": "selected", "name": f"item{index:02d}", "value": value}
+            for index, value in enumerate([5, 100, 20, 20, 10, 9, 8, 7, 6, 4, 3, 2], start=1)
+        ] + [
+            {"id": 1, "kind": "selected", "name": "negative", "value": -1},
+            {"id": 1, "kind": "selected", "name": "zero", "value": 0},
+            {"id": 1, "kind": "unrelated", "name": "other", "value": 1000},
+        ]
+        self._create_table(
+            "//tmp/foreign",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash([id])"},
+                {"name": "id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "kind", "type": "string", "sort_order": "ascending"},
+                {"name": "name", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "int64", "aggregate": "sum", "lock": "value", "group": "value"},
+            ],
+            foreign_rows,
+        )
+
+        query = """
+        SELECT
+            t.`meta.id` AS key_id,
+            (
+                SELECT f.name AS item, f.value AS score
+                FROM (CAST(make_list(t.`meta.id`) AS `List<Uint64>`) AS join_key)
+                JOIN `//tmp/foreign` AS f
+                    ON join_key = f.id
+                WHERE
+                    f.kind = 'selected'
+                    AND f.value > 0
+                ORDER BY f.value DESC, f.name ASC
+                LIMIT 10
+            ) AS top_items
+        FROM `//tmp/t` AS t
+        """
+        # COMPAT(dtorilov): Remove after 26.2.
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_scalar_subquery_order_by_and_limit", True):
+            actual = select_rows(query, expression_builder_version=2, syntax_version=2)
+
+        expected = [
+            {"key_id": 1, "top_items": [
+                {"item": "item02", "score": 100},
+                {"item": "item03", "score": 20},
+                {"item": "item04", "score": 20},
+                {"item": "item05", "score": 10},
+                {"item": "item06", "score": 9},
+                {"item": "item07", "score": 8},
+                {"item": "item08", "score": 7},
+                {"item": "item09", "score": 6},
+                {"item": "item01", "score": 5},
+                {"item": "item10", "score": 4},
+            ]},
+            {"key_id": 2, "top_items": []},
+        ]
+        assert sorted(actual, key=lambda row: row["key_id"]) == expected
+
+    @authors("dtorilov")
+    def test_hierarchical_join_filtered_top_aggregates(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "hash", "type": "uint64", "sort_order": "ascending",
+                 "expression": "farm_hash([meta.group_id])"},
+                {"name": "meta.group_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "meta.id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "dummy", "type": "int64"},
+            ],
+            [{"meta.group_id": 1, "meta.id": key_id} for key_id in (10, 20, 30)],
+        )
+        foreign_rows = [
+            {"key_id": 10, "category_id": 1, "timestamp": 999, "amount": 1000.0, "count": 100},
+            {"key_id": 10, "category_id": 1, "timestamp": 1000, "amount": 40.25, "count": 2},
+            {"key_id": 10, "category_id": 1, "timestamp": 1999, "amount": 59.75, "count": 3},
+            {"key_id": 10, "category_id": 1, "timestamp": 2000, "amount": 1000.0, "count": 100},
+            {"key_id": 10, "category_id": 2, "timestamp": 1500, "amount": 100.0, "count": 4},
+        ] + [
+            {"key_id": 10, "category_id": category_id, "timestamp": 1500,
+             "amount": float(100 - category_id), "count": category_id}
+            for category_id in range(3, 13)
+        ] + [
+            {"key_id": 10, "category_id": 99, "timestamp": 1500, "amount": 1000.0, "count": 100},
+            {"key_id": 20, "category_id": 1, "timestamp": 1100, "amount": 1.5, "count": 1},
+            {"key_id": 20, "category_id": 1, "timestamp": 1200, "amount": 2.5, "count": 2},
+            {"key_id": 20, "category_id": 2, "timestamp": 1500, "amount": 4.0, "count": 5},
+            {"key_id": 30, "category_id": 1, "timestamp": 2000, "amount": 1000.0, "count": 100},
+        ]
+        self._create_table(
+            "//tmp/foreign",
+            [
+                {"name": "key_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "category_id", "type": "uint64", "sort_order": "ascending"},
+                {"name": "timestamp", "type": "uint64", "sort_order": "ascending"},
+                {"name": "amount", "type": "double"},
+                {"name": "count", "type": "int64"},
+            ],
+            foreign_rows,
+        )
+
+        query = """
+        SELECT
+            t.`meta.id` AS key_id,
+            (
+                SELECT
+                    category_id,
+                    sum(f.amount) AS amount,
+                    sum(f.count) AS total_count
+                FROM (CAST(make_list(t.`meta.id`) AS `List<Uint64>`) AS join_key)
+                JOIN `//tmp/foreign` AS f
+                    ON join_key = f.key_id
+                WHERE
+                    f.timestamp >= {from_time}
+                    AND f.timestamp < {to_time}
+                    AND f.category_id IN {category_ids}
+                GROUP BY f.category_id AS category_id
+                ORDER BY sum(f.amount) DESC, category_id ASC
+                LIMIT 10
+            ) AS top_groups
+        FROM `//tmp/t` AS t
+        """
+        # COMPAT(dtorilov): Remove after 26.2.
+        with self.RpcProxyDynamicConfig("/query_engine_config/enable_scalar_subquery_order_by_and_limit", True):
+            actual = select_rows(
+                query,
+                expression_builder_version=2,
+                syntax_version=2,
+                placeholder_values={
+                    "from_time": yson.YsonUint64(1000),
+                    "to_time": yson.YsonUint64(2000),
+                    "category_ids": [yson.YsonUint64(category_id) for category_id in range(1, 13)],
+                },
+            )
+
+        expected = [
+            {"key_id": 10, "top_groups": [
+                {"category_id": 1, "amount": 100.0, "total_count": 5},
+                {"category_id": 2, "amount": 100.0, "total_count": 4},
+            ] + [
+                {"category_id": category_id, "amount": float(100 - category_id), "total_count": category_id}
+                for category_id in range(3, 11)
+            ]},
+            {"key_id": 20, "top_groups": [
+                {"category_id": 1, "amount": 4.0, "total_count": 3},
+                {"category_id": 2, "amount": 4.0, "total_count": 5},
+            ]},
+            {"key_id": 30, "top_groups": []},
+        ]
+        assert sorted(actual, key=lambda row: row["key_id"]) == expected
+
     @authors("akozhikhov", "alexelexa")
     def test_detailed_select_profiling(self):
         sync_create_cells(1)

@@ -2839,6 +2839,101 @@ size_t MakeCodegenNestedGroupOp(
     return newSlot;
 }
 
+size_t MakeCodegenNestedOrderOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> exprIds,
+    std::vector<EValueType> orderColumnTypes,
+    std::vector<EValueType> sourceSchema,
+    std::vector<bool> isDesc,
+    TComparerManagerPtr comparerManager,
+    int offsetId,
+    int limitId)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        exprIds = std::move(exprIds),
+        orderColumnTypes = std::move(orderColumnTypes),
+        sourceSchema = std::move(sourceSchema),
+        isDesc = std::move(isDesc),
+        comparerManager = std::move(comparerManager)
+    ] (TCGOperatorContext& builder) {
+        i64 schemaSize = std::ssize(sourceSchema);
+        i64 rowSize = schemaSize + std::ssize(exprIds);
+
+        auto collect = MakeClosure<void(TNestedOrderByClosure*)>(builder, "NestedOrderCollect", [&] (
+            TCGOperatorContext& builder,
+            Value* orderByClosure) {
+            Value* newValues = CodegenAllocateValues(builder, rowSize);
+
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
+            Value* expressionClosurePtr = builder->CreateAlloca(
+                closureType,
+                nullptr,
+                "expressionClosurePtr");
+
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+                Value* newValuesRef = builder->ViaClosure(newValues);
+                for (i64 index = 0; index < std::ssize(sourceSchema); ++index) {
+                    TCGValue::LoadFromRowValues(builder, values, index, sourceSchema[index], "orderedRow")
+                        .StoreToValues(builder, newValuesRef, index);
+                }
+
+                auto innerBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    values,
+                    builder.Buffer,
+                    builder->ViaClosure(expressionClosurePtr));
+
+                for (i64 index = 0; index < std::ssize(exprIds); ++index) {
+                    CodegenFragment(innerBuilder, exprIds[index])
+                        .StoreToValues(builder, newValuesRef, schemaSize + index);
+                }
+
+                builder->CreateCall(
+                    builder.Module->GetRoutine("SubqueryAddOrderRow"),
+                    {
+                        builder->ViaClosure(orderByClosure),
+                        newValuesRef,
+                    });
+
+                return builder->getFalse();
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        auto consumeRows = MakeConsumer(builder, "SubqueryConsumeOrderedRows", consumerSlot);
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryOrderOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                comparerManager->GetOrderByComparerFunction(orderColumnTypes, builder.Module, schemaSize, isDesc),
+                collect.ClosurePtr,
+                collect.Function,
+                consumeRows.ClosurePtr,
+                consumeRows.Function,
+                builder->getInt32(rowSize),
+                builder->CreateLoad(builder->getInt64Ty(), builder.GetOpaqueValue(offsetId)),
+                builder->CreateLoad(builder->getInt64Ty(), builder.GetOpaqueValue(limitId)),
+            });
+    };
+
+    return consumerSlot;
+}
+
 void MakeCodegenSubqueryWriteOp(
     TCodegenSource* codegenSource,
     size_t producerSlot,
@@ -2848,7 +2943,7 @@ void MakeCodegenSubqueryWriteOp(
         =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-        auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "SubqueryWriteOpInner", [&] (
+        auto collect = MakeClosure<void(TSubqueryWriteOpClosure*)>(builder, "SubqueryWriteOpInner", [&] (
             TCGOperatorContext& builder,
             Value* writeRowClosure) {
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {

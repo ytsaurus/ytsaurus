@@ -288,6 +288,10 @@ struct TSubqueryExpression
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
     TConstProjectClausePtr ProjectClause;
+    TConstOrderClausePtr OrderClause;
+
+    i64 Offset = 0;
+    i64 Limit = UnorderedReadHint;
 
     using TExpression::TExpression;
 };

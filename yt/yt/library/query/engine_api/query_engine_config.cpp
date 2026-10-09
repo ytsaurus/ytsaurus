@@ -55,6 +55,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_reverse_scan_for_order_by", &TThis::AllowReverseScanForOrderBy)
         .Optional();
 
+    // COMPAT(dtorilov): Remove after 26.2.
+    registrar.Parameter("enable_scalar_subquery_order_by_and_limit", &TThis::EnableScalarSubqueryOrderByAndLimit)
+        .Optional();
+
     registrar.Parameter("allow_heavy_range_inference_in_joins", &TThis::AllowHeavyRangeInferenceInJoins)
         .Optional();
 

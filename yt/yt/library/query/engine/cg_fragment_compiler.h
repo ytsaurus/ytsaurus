@@ -178,6 +178,19 @@ void MakeCodegenSubqueryWriteOp(
     size_t producerSlot,
     size_t rowSize);
 
+size_t MakeCodegenNestedOrderOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> exprIds,
+    std::vector<EValueType> orderColumnTypes,
+    std::vector<EValueType> sourceSchema,
+    std::vector<bool> isDesc,
+    TComparerManagerPtr comparerManager,
+    int offsetId,
+    int limitId);
+
 TCodegenExpression MakeCodegenSubqueryExpr(
     TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,

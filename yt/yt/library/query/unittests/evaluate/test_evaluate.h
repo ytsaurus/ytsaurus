@@ -31,6 +31,7 @@ struct TEvaluateOptions
     bool UseCanonicalNullRelations = false;
     bool AllowUnorderedGroupByWithLimit = true;
     i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+    bool EnableScalarSubqueryOrderByAndLimit = false; // COMPAT(dtorilov): Remove after 26.2.
 };
 
 ////////////////////////////////////////////////////////////////////////////////
