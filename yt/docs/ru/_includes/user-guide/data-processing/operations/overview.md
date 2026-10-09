@@ -21,6 +21,30 @@
 
 В рамках операции выполняются **джобы** (jobs). Джобы являются единицей параллелизма операции. Входные данные операции делятся на части. Каждая часть входных данных обрабатывается одним джобом.
 
+## Типы джобов { #job_types }
+
+Каждая операция состоит из джобов одного или нескольких типов. Тип джоба определяет, какую обработку выполняет данный джоб. В таблице ниже перечислены все типы джобов планировщика с кратким описанием и указанием, какие операции их используют.
+
+| Тип джоба | Операции | Описание |
+|---|---|---|
+| Map | [Map](../../../../user-guide/data-processing/operations/map.md) | Применяет пользовательский маппер к части входных данных. |
+| OrderedMap | [Map](../../../../user-guide/data-processing/operations/map.md) (упорядоченный режим) | Аналогичен Map, но гарантирует, что входные строки поступают в определённом порядке. Активируется при `ordered=%true`. |
+| Partition | [Sort](../../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Читает часть входных данных и распределяет их по партициям на основе хеша ключа. Используется при отсутствии пользовательского маппера. |
+| PartitionMap | [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Совмещает маппер с партиционированием: применяет пользовательский маппер и распределяет результат по партициям. |
+| SimpleSort | [Sort](../../../../user-guide/data-processing/operations/sort.md) | Сортирует данные внутри одной партиции, если она достаточно мала для обработки одним джобом. |
+| IntermediateSort | [Sort](../../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Сортирует части партиции, если она слишком велика для одного джоба SimpleSort. |
+| FinalSort | [Sort](../../../../user-guide/data-processing/operations/sort.md) | Сливает отсортированные части партиции на финальном этапе сортировки. |
+| PartitionReduce | [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Сортирует маленькую партицию в памяти и применяет к ней редьюсер. |
+| SortedReduce | [Reduce](../../../../user-guide/data-processing/operations/reduce.md), [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Сливает отсортированные потоки и применяет пользовательский редьюсер к каждой группе строк с одинаковым ключом. |
+| JoinReduce | [Reduce](../../../../user-guide/data-processing/operations/reduce.md) | Вариант SortedReduce, используемый при наличии внешних (foreign) входных таблиц. |
+| ReduceCombiner | [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) | Применяет пользовательский комбайнер для частичной редукции данных в больших партициях перед финальной фазой reduce. |
+| SortedMerge | [Sort](../../../../user-guide/data-processing/operations/sort.md), [Merge](../../../../user-guide/data-processing/operations/merge.md) | Сливает уже отсортированные входные таблицы с сохранением порядка сортировки. |
+| OrderedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md) | Сливает входные таблицы путём конкатенации в указанном порядке. |
+| UnorderedMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md), [Sort](../../../../user-guide/data-processing/operations/sort.md) | Сливает чанки входных таблиц без гарантий порядка. Также используется для автоматического слияния выходных чанков. |
+| ShallowMerge | [Merge](../../../../user-guide/data-processing/operations/merge.md), [автоматическое слияние чанков](../../../../user-guide/data-processing/operations/automerge.md) | Сливает чанки на уровне метаданных без чтения данных строк. Используется при автоматическом слиянии выходных данных операции. |
+| RemoteCopy | [RemoteCopy](../../../../user-guide/data-processing/operations/remote-copy.md) | Копирует чанки данных с одного кластера на другой. |
+| Vanilla | [Vanilla](../../../../user-guide/data-processing/operations/vanilla.md) | Запускает пользовательский код без предопределённой семантики обработки входных/выходных данных. |
+
 ## Параметры запущенной операции
 
 {% note info "Примечание" %}
