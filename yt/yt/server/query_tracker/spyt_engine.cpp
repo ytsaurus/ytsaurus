@@ -42,6 +42,7 @@
 #include <grpcpp/grpcpp.h>
 
 #include <util/generic/guid.h>
+
 #include <util/string/ascii.h>
 #include <util/string/subst.h>
 
@@ -93,9 +94,9 @@ struct TSpytSettings
 
     int DriverCores;
 
-    ui64 DriverMemory;
+    i64 DriverMemory;
 
-    ui64 DriverMemoryOverhead;
+    i64 DriverMemoryOverhead;
 
     bool DriverReuse;
 
@@ -128,9 +129,11 @@ struct TSpytSettings
         registrar.Parameter("driver_cores", &TThis::DriverCores)
             .Default(1);
         registrar.Parameter("driver_memory", &TThis::DriverMemory)
-            .Default(1536_MB);
+            .Default(1536_MBs)
+            .GreaterThan(0);
         registrar.Parameter("driver_memory_overhead", &TThis::DriverMemoryOverhead)
-            .Default(1_GB);
+            .Default(1_GBs)
+            .GreaterThanOrEqual(0);
         registrar.Parameter("driver_reuse", &TThis::DriverReuse)
             .Default(true);
 
