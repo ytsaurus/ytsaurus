@@ -251,8 +251,13 @@ public:
         auto chunkId = chunk->GetId();
         auto isErasure = chunk->IsErasure();
 
-        auto masterReplicas = chunk->LastSeenReplicas();
-        std::vector<TNodeId> replicas(masterReplicas.begin(), masterReplicas.end());
+        const auto& config = GetDynamicConfig();
+        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, GetDynamicConfig());
+        std::vector<TNodeId> replicas;
+        if (config->AlwaysShowMasterLastSeenReplicas || !chunkSequoiaConfig.StoreInSequoia || chunkSequoiaConfig.StoreSequoiaReplicasOnMaster) {
+            auto masterReplicas = chunk->LastSeenReplicas();
+            replicas.assign(masterReplicas.begin(), masterReplicas.end());
+        }
 
         if (isErasure && std::ssize(replicas) < ::NErasure::MaxTotalPartCount) {
             if (!replicas.empty()) {
@@ -263,7 +268,6 @@ public:
             replicas.resize(::NErasure::MaxTotalPartCount);
         }
 
-        auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, GetDynamicConfig());
         if (!chunkSequoiaConfig.FetchReplicasFromSequoia) {
             return MakeFuture(replicas);
         }
