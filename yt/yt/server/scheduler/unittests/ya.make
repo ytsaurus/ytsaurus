@@ -7,6 +7,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    allocation_update_ut.cpp
     helpers_ut.cpp
 )
 

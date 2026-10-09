@@ -487,4 +487,12 @@ DEFINE_REFCOUNTED_TYPE(TNodeShard)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Folds |otherUpdate| into |update|; both must describe the same allocation under the same
+//! controller epoch.
+void MergeAllocationUpdates(
+    NStrategy::TAllocationUpdate* update,
+    const NStrategy::TAllocationUpdate& otherUpdate);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

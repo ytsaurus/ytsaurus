@@ -125,6 +125,13 @@ struct TAllocationUpdate
 
     // Is non-empty if preemptible progress has been reset.
     std::optional<TInstant> PreemptibleProgressStartTime;
+
+    // Controller epoch of the operation at the moment the update was produced. An update produced
+    // before a revival must never be replayed after it.
+    TControllerEpoch ControllerEpoch = InvalidControllerEpoch;
+
+    // Time |AllocationResources| was written.
+    TCpuInstant ResourcesUpdateTime = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
