@@ -1,6 +1,7 @@
 #include "public.h"
 #include "structs.h"
 #include "statistics.h"
+#include "job_statistics_wire.h"
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
@@ -86,7 +87,7 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         auto mutableStatistics = std::make_shared<TStatistics>();
-        *mutableStatistics = ConvertTo<TStatistics>(TYsonStringBuf(status->statistics()));
+        *mutableStatistics = DecodeJobStatisticsFromHeartbeat(*status);
         Statistics = std::move(mutableStatistics);
     }
 

@@ -397,6 +397,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->RunningJobStatisticsSendingBackoff = GetConfig()->RunningJobStatisticsSendingBackoff;
     context->JobStalenessDelay = GetConfig()->JobStalenessDelay;
     context->ResendFullJobInfo = GetConfig()->ResendFullJobInfo;
+    context->OmitDataStatisticsFromYson = GetConfig()->OmitDataStatisticsFromYson;
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);

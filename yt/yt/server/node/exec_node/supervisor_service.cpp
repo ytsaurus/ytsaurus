@@ -293,14 +293,15 @@ private:
         auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
-            job->SetStatistics(ysonStatistics);
+            job->SetStatistics(
+                ysonStatistics,
+                request->total_input_data_statistics(),
+                FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
 
             // NB(bystrovserg): Always report statistics when job is finished.
             jobReport.Statistics(job->GetStatistics());
         }
 
-        job->SetTotalInputDataStatistics(request->total_input_data_statistics());
-        job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
             jobReport.StartTime(FromProto<TInstant>(request->start_time()));
@@ -376,9 +377,10 @@ private:
                 .With("StoredEpoch", job->GetJobProxyHeartbeatEpoch());
         } else {
             job->SetProgress(progress);
-            job->SetStatistics(statistics);
-            job->SetTotalInputDataStatistics(request->total_input_data_statistics());
-            job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
+            job->SetStatistics(
+                statistics,
+                request->total_input_data_statistics(),
+                FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
             job->SetStderrSize(stderrSize);
             job->SetHasJobTrace(hasJobTrace);
             if (request->has_last_progress_save_time()) {

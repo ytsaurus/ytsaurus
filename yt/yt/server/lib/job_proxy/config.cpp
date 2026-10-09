@@ -443,7 +443,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0);
 
     registrar.Parameter("dns_over_rpc_resolver", &TThis::DnsOverRpcResolver)
         .Default();

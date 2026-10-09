@@ -110,6 +110,12 @@ message TJobStatus
     optional uint64 last_progress_save_time = 23;
 
     optional int32 phase = 24;
+
+    // Format 0 is the legacy full job statistics YSON.
+    // Format 1 may omit data statistics leaves that can be restored from the protobuf fields below.
+    optional uint32 statistics_wire_format = 25 [default = 0];
+    optional bool input_data_statistics_omitted_from_yson = 26 [default = false];
+    optional int32 output_data_statistics_omitted_from_yson_count = 27 [default = 0];
 }
 
 message TCoreInfo

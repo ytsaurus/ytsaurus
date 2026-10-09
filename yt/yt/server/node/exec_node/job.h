@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +177,10 @@ public:
     const NJobAgent::TArtifactStatistics& GetArtifactStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
+    NYson::TYsonString GetStatisticsForHeartbeat(bool omitDataStatisticsFromYson) const;
+    void FillStatisticsForHeartbeat(
+        TNonNullPtr<NControllerAgent::NProto::TJobStatus> status,
+        bool omitDataStatisticsFromYson) const;
     NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
     std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics() const;
 
@@ -184,9 +190,10 @@ public:
 
     void UpdateUserJobMonitoring();
 
-    void SetStatistics(const NYson::TYsonString& statisticsYson);
-    void SetTotalInputDataStatistics(NChunkClient::NProto::TDataStatistics dataStatistics);
-    void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);
+    void SetStatistics(
+        const NYson::TYsonString& statisticsYson,
+        NChunkClient::NProto::TDataStatistics inputDataStatistics,
+        std::vector<NChunkClient::NProto::TDataStatistics> outputDataStatistics);
 
     TBriefJobInfo GetBriefInfo() const;
     NYTree::IYPathServicePtr GetOrchidService();
@@ -346,6 +353,14 @@ private:
     bool GracefulAbortRequested_ = false;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
+    NYson::TYsonString StatisticsWithoutDataYson_ = NYson::TYsonString(TStringBuf("{}"));
+    bool HasJobProxyStatistics_ = false;
+    //! Data statistics included in the full StatisticsYson_.
+    //! Output statistics cover the first FullYsonOutputTableCount_ tables.
+    bool HasInputDataStatisticsInFullYson_ = false;
+    int FullYsonOutputTableCount_ = 0;
+    //! Captured from the configuration passed to job proxy.
+    std::optional<int> StatisticsOutputTableCountLimit_;
 
     using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, std::optional<TInstant>>;
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
@@ -645,6 +660,10 @@ private:
     void Finalize(EJobState finalState, TError error);
 
     void OnJobFinalized();
+
+    bool HasInput() const;
+
+    void UpdateStatisticsYson(TStatistics statisticsWithoutData);
 
     void DeduceAndSetFinishedJobState();
 

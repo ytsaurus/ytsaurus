@@ -96,7 +96,14 @@ private:
     EOperationControllerQueue JobEventsControllerQueue_;
 
     NProfiling::TCounter HeartbeatProtoMessageBytes_;
-    NProfiling::TCounter HeartbeatDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalOutputDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalInputDataStatisticsBytes_;
+    NProfiling::TCounter HeartbeatTotalDataStatisticsBytes_;
+    // YSON bytes after initial request validation, before parsing and filtering job statuses.
+    // Includes unknown operations, statuses skipped for abort/release and requests whose
+    // subsequent processing fails. HeartbeatStatisticsBytes_ below counts only processed
+    // statuses from successfully handled heartbeats.
+    NProfiling::TCounter HeartbeatStatisticsYsonBytes_;
     // Array of size 2: [0] - unknown job, [1] - known job.
     std::array<NProfiling::TCounter, 2> HeartbeatJobResultBytes_;
     TEnumIndexedArray<EJobStage, std::array<NProfiling::TCounter, 2>> HeartbeatStatisticsBytes_;
