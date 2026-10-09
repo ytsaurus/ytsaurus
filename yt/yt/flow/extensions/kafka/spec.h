@@ -128,7 +128,7 @@ struct TKafkaSinkParameters
     : public TOrderedAsyncSinkBase::TParameters
     , public virtual TCommonKafkaSinkParameters
 {
-    EKafkaDeliveryGuarantee DeliveryGuarantee = EKafkaDeliveryGuarantee::AtLeastOnce;
+    EKafkaDeliveryGuarantee DeliveryGuarantee = EKafkaDeliveryGuarantee::ExactlyOnce;
 
     //! With #EKafkaDeliveryGuarantee::ExactlyOnce, the sink's transactional id is this prefix followed
     //! by its producer id. A consumer group of the same name keeps the sink's progress as its offset on

@@ -232,9 +232,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Primary sink: per-message async writes. At-least-once by default, with the idempotent producer
-//! dropping the retries within a session but not the replays after a restart; exactly-once with
-//! #EKafkaDeliveryGuarantee::ExactlyOnce (see #TTransactionalKafkaWriter).
+//! Primary sink: per-message async writes. Exactly-once by default (see #TTransactionalKafkaWriter);
+//! at-least-once with #EKafkaDeliveryGuarantee::AtLeastOnce, where the idempotent producer drops the
+//! retries within a session but not the replays after a restart.
 class TKafkaSink
     : public TOrderedAsyncSinkBase
     , public TCommonKafkaSink

@@ -77,7 +77,7 @@ void TCommonKafkaSinkParameters::Register(TRegistrar registrar)
 void TKafkaSinkParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("delivery_guarantee", &TThis::DeliveryGuarantee)
-        .Default(EKafkaDeliveryGuarantee::AtLeastOnce);
+        .Default(EKafkaDeliveryGuarantee::ExactlyOnce);
     registrar.Parameter("transactional_id_prefix", &TThis::TransactionalIdPrefix)
         .Default("flow-");
     // librdkafka rejects a shorter one.

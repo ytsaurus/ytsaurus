@@ -45,11 +45,11 @@ TEST(TKafkaInfoSpecTest, RejectsNonPositivePeriods)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TKafkaSinkSpecTest, IsAtLeastOnceByDefault)
+TEST(TKafkaSinkSpecTest, IsExactlyOnceByDefault)
 {
     auto parameters = Parse<TKafkaSinkParameters>("{topic=t}");
 
-    EXPECT_EQ(parameters->DeliveryGuarantee, EKafkaDeliveryGuarantee::AtLeastOnce);
+    EXPECT_EQ(parameters->DeliveryGuarantee, EKafkaDeliveryGuarantee::ExactlyOnce);
     EXPECT_EQ(parameters->TransactionalIdPrefix, "flow-");
     EXPECT_EQ(parameters->TransactionTimeout, TDuration::Minutes(1));
     EXPECT_EQ(parameters->MaxTransactionRecordCount, 10'000);
@@ -84,6 +84,13 @@ TEST(TKafkaSinkSpecTest, ParsesTheExactlyOnceSettings)
     EXPECT_EQ(parameters->TransactionalIdPrefix, "team-");
     EXPECT_EQ(parameters->TransactionTimeout, TDuration::Seconds(30));
     EXPECT_THROW(Parse<TKafkaSinkParameters>("{topic=t;delivery_guarantee=twice}"), std::exception);
+}
+
+TEST(TKafkaSinkSpecTest, ParsesAtLeastOnce)
+{
+    auto parameters = Parse<TKafkaSinkParameters>("{topic=t;delivery_guarantee=at_least_once}");
+
+    EXPECT_EQ(parameters->DeliveryGuarantee, EKafkaDeliveryGuarantee::AtLeastOnce);
 }
 
 TEST(TKafkaSourceSpecTest, RequiresAGroupId)
