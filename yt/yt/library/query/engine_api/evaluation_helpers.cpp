@@ -1,10 +1,14 @@
 #include "evaluation_helpers.h"
 
+#include "position_independent_value_transfer.h"
+
 #include <yt/yt/library/numeric/util.h>
 #include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+
+#include <algorithm>
 
 namespace NYT::NQueryClient {
 
@@ -160,6 +164,61 @@ TMultiJoinClosure::TItem::TItem(
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
     : OutputContext(MakeExpressionContext(TOutputBufferTag(), std::move(chunkProvider)))
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNestedOrderByClosure::TNestedOrderByClosure(
+    TExpressionContext* context,
+    TCompartmentFunction<TComparerFunction> comparer,
+    i64 limit,
+    int rowSize)
+    : Context_(context)
+    , Comparer_(comparer)
+    , Limit_(limit)
+    , RowSize_(rowSize)
+{ }
+
+void TNestedOrderByClosure::AddRow(const TPIValue* row)
+{
+    if (Limit_ == 0) {
+        return;
+    }
+
+    if (RowCount_ == std::ssize(Rows_)) {
+        Rows_.push_back(AllocatePIValueRange(Context_, RowSize_, EAddressSpace::WebAssembly).Begin());
+    }
+
+    auto* compartment = GetCurrentCompartment();
+    auto* destination = PtrFromVM(compartment, Rows_[RowCount_], RowSize_);
+    auto* source = PtrFromVM(compartment, row, RowSize_);
+    // The subquery keeps source rows and expression buffers alive until ordered rows are consumed.
+    for (int index = 0; index < RowSize_; ++index) {
+        CopyPositionIndependent(&destination[index], source[index]);
+    }
+
+    ++RowCount_;
+    if (RowCount_ - Limit_ == Limit_) {
+        Trim();
+    }
+}
+
+TRange<TPIValue*> TNestedOrderByClosure::GetRows()
+{
+    if (RowCount_ > Limit_) {
+        Trim();
+    }
+
+    std::sort(Rows_.begin(), Rows_.begin() + RowCount_, Comparer_);
+    return TRange(Rows_.data(), RowCount_);
+}
+
+void TNestedOrderByClosure::Trim()
+{
+    YT_ASSERT(RowCount_ > Limit_);
+
+    std::nth_element(Rows_.begin(), Rows_.begin() + Limit_, Rows_.begin() + RowCount_, Comparer_);
+    RowCount_ = Limit_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -49,6 +49,7 @@ using NYT::NQueryClient::TSubqueryParameters;
 using NYT::NQueryClient::TSubqueryWriteOpClosure;
 using NYT::NQueryClient::TNestedExecutionContext;
 using NYT::NQueryClient::TNestedGroupByClosure;
+using NYT::NQueryClient::TNestedOrderByClosure;
 
 using NYT::NTableClient::TRowBuffer;
 using NYT::NTableClient::TLogicalTypePtr;
@@ -98,6 +99,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TLogicalTypePtr*)
 
     OPAQUE_TYPE(TNestedExecutionContext*)
+    OPAQUE_TYPE(TNestedOrderByClosure*)
 
     OPAQUE_TYPE(struct tm*)
 

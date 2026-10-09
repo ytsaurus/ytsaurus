@@ -1040,7 +1040,23 @@ bool Compare(
         CHECK(subqueryRhs);
 
         CHECK(Compare(subqueryLhs->FromExpressions, subqueryRhs->FromExpressions, referenceComparer));
-        CHECK(Compare(subqueryLhs->WhereClause, subqueryRhs->WhereClause, referenceComparer));
+        CHECK(static_cast<bool>(subqueryLhs->WhereClause) == static_cast<bool>(subqueryRhs->WhereClause));
+        if (subqueryLhs->WhereClause) {
+            CHECK(Compare(subqueryLhs->WhereClause, subqueryRhs->WhereClause, referenceComparer));
+        }
+
+        CHECK(subqueryLhs->Offset == subqueryRhs->Offset);
+        CHECK(subqueryLhs->Limit == subqueryRhs->Limit);
+        CHECK(static_cast<bool>(subqueryLhs->OrderClause) == static_cast<bool>(subqueryRhs->OrderClause));
+        if (subqueryLhs->OrderClause) {
+            const auto& lhsItems = subqueryLhs->OrderClause->OrderItems;
+            const auto& rhsItems = subqueryRhs->OrderClause->OrderItems;
+            CHECK(lhsItems.size() == rhsItems.size());
+            for (int index = 0; index < std::ssize(lhsItems); ++index) {
+                CHECK(lhsItems[index].Descending == rhsItems[index].Descending);
+                CHECK(Compare(lhsItems[index].Expression, rhsItems[index].Expression, referenceComparer));
+            }
+        }
 
         if (subqueryLhs->ProjectClause) {
             CHECK(subqueryRhs->ProjectClause);
@@ -1138,6 +1154,9 @@ void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& seria
 
 void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original);
 void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& serialized);
+
+void ToProto(NProto::TOrderClause* proto, const TConstOrderClausePtr& original);
+void FromProto(TConstOrderClausePtr* original, const NProto::TOrderClause& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1356,6 +1375,13 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
             ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
         }
 
+        if (subqueryExpr->OrderClause) {
+            ToProto(proto->mutable_order_clause(), subqueryExpr->OrderClause);
+        }
+
+        proto->set_offset(subqueryExpr->Offset);
+        proto->set_limit(subqueryExpr->Limit);
+
         ToProto(proto->mutable_join_clauses(), subqueryExpr->JoinClauses);
     }
 }
@@ -1552,6 +1578,15 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             if (ext.has_project_clause()) {
                 FromProto(&result->ProjectClause, ext.project_clause());
+            }
+
+            if (ext.has_order_clause()) {
+                FromProto(&result->OrderClause, ext.order_clause());
+            }
+
+            result->Offset = ext.offset();
+            if (ext.has_limit()) {
+                result->Limit = ext.limit();
             }
 
             FromProto(&result->JoinClauses, ext.join_clauses());

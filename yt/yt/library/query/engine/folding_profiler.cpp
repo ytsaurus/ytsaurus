@@ -1612,6 +1612,57 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenFragmentBodies(&codegenSource, fragmentInfos);
     }
 
+    bool considerLimit = !subqueryExpr->OrderClause &&
+        (subqueryExpr->Offset != 0 || subqueryExpr->Limit < UnorderedReadHint);
+    Fold(considerLimit);
+
+    int offsetId = -1;
+    int limitId = -1;
+    if (considerLimit || subqueryExpr->OrderClause) {
+        offsetId = Variables_->AddOpaque<i64>(subqueryExpr->Offset);
+        limitId = Variables_->AddOpaque<i64>(subqueryExpr->Limit);
+    }
+
+    if (auto orderClause = subqueryExpr->OrderClause.Get()) {
+        Fold(EFoldingObjectType::OrderOp);
+
+        auto orderExprIds = std::vector<size_t>();
+        auto orderColumnTypes = std::vector<EValueType>();
+        auto isDesc = std::vector<bool>();
+        auto orderExprFragments = TExpressionFragments();
+        id.AddInteger(orderClause->OrderItems.size());
+        for (const auto& orderItem : orderClause->OrderItems) {
+            orderExprIds.push_back(Profile(orderItem.Expression, &nestedReferenceProvider, &orderExprFragments));
+            orderColumnTypes.push_back(orderItem.Expression->GetWireType());
+            isDesc.push_back(orderItem.Descending);
+            id.AddInteger(orderExprIds.back());
+            id.AddBoolean(orderItem.Descending);
+        }
+
+        auto orderFragmentInfos = orderExprFragments.ToFragmentInfos("nestedOrder");
+        orderExprFragments.DumpArgs(orderExprIds);
+
+        auto schemaTypes = GetTypesFromSchema(*nestedSchema);
+        for (auto type : schemaTypes) {
+            Fold(static_cast<ui8>(type));
+        }
+
+        currentSlot = MakeCodegenNestedOrderOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            orderFragmentInfos,
+            std::move(orderExprIds),
+            std::move(orderColumnTypes),
+            std::move(schemaTypes),
+            std::move(isDesc),
+            ComparerManager_,
+            offsetId,
+            limitId);
+
+        MakeCodegenFragmentBodies(&codegenSource, orderFragmentInfos);
+    }
+
     if (auto projectClause = subqueryExpr->ProjectClause.Get()) {
         Fold(EFoldingObjectType::ProjectOp);
 
@@ -1636,6 +1687,10 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenFragmentBodies(&codegenSource, projectExprInfos);
 
         nestedSchema = projectClause->GetTableSchema();
+    }
+
+    if (considerLimit) {
+        currentSlot = MakeCodegenOffsetLimiterOp(&codegenSource, &slotCount, currentSlot, offsetId, limitId);
     }
 
     auto boundExprIds = std::vector<size_t>();

@@ -1235,6 +1235,19 @@ TGroupClausePtr BuildGroupClause(
 
 TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
 {
+    if (Context_.Options.SyntaxVersion >= 3) {
+        THROW_ERROR_EXCEPTION(
+            "Scalar subqueries are not implemented for syntax version %v",
+            Context_.Options.SyntaxVersion);
+    }
+
+    // COMPAT(dtorilov): Remove after 26.2.
+    if (!Context_.Options.EnableScalarSubqueryOrderByAndLimit &&
+        (!queryExpr->Query.OrderExpressions.empty() || queryExpr->Query.Offset || queryExpr->Query.Limit))
+    {
+        THROW_ERROR_EXCEPTION("ORDER BY, OFFSET and LIMIT are disabled in scalar subqueries");
+    }
+
     NAst::TExpressionList fromExpressions;
 
     Visit(queryExpr->Query.FromClause,
@@ -1257,18 +1270,6 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
 
     if (queryExpr->Query.HavingPredicate) {
         THROW_ERROR_EXCEPTION("HAVING clause is not supported in subqueries");
-    }
-
-    if (!queryExpr->Query.OrderExpressions.empty()) {
-        THROW_ERROR_EXCEPTION("ORDER BY clause is not supported in subqueries");
-    }
-
-    if (queryExpr->Query.Offset) {
-        THROW_ERROR_EXCEPTION("OFFSET clause is not supported in subqueries");
-    }
-
-    if (queryExpr->Query.Limit) {
-        THROW_ERROR_EXCEPTION("LIMIT clause is not supported in subqueries");
     }
 
     TNamedItemList typedFromExpressions;
@@ -1345,6 +1346,17 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
         groupClause = BuildGroupClause(*queryExpr->Query.GroupExprs, queryExpr->Query.TotalsMode, this);
     }
 
+    TOrderClausePtr orderClause;
+    if (!queryExpr->Query.OrderExpressions.empty()) {
+        orderClause = New<TOrderClause>();
+        for (const auto& orderExpression : queryExpr->Query.OrderExpressions) {
+            for (const auto& expressionAst : orderExpression.Expressions) {
+                auto typedExpression = ApplyRewriters(BuildTypedExpression(expressionAst, {}));
+                orderClause->OrderItems.push_back({typedExpression, orderExpression.Descending});
+            }
+        }
+    }
+
     TProjectClausePtr projectClause;
     if (queryExpr->Query.SelectExprs) {
         projectClause = New<TProjectClause>();
@@ -1381,6 +1393,9 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
     result->WhereClause = whereClause;
     result->GroupClause = groupClause;
     result->ProjectClause = projectClause;
+    result->OrderClause = orderClause;
+    result->Offset = queryExpr->Query.Offset.value_or(0);
+    result->Limit = queryExpr->Query.Limit.value_or(UnorderedReadHint);
 
     return result;
 }

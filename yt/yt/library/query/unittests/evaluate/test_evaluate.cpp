@@ -598,7 +598,16 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
         return {};
     }
 
-    auto primaryQuery = Prepare(query, dataSplits, evaluateOptions.PlaceholderValues, TPreparePlanFragmentOptions{.SyntaxVersion = evaluateOptions.SyntaxVersion, .BuilderVersion = DefaultExpressionBuilderVersion});
+    auto primaryQuery = Prepare(
+        query,
+        dataSplits,
+        evaluateOptions.PlaceholderValues,
+        TPreparePlanFragmentOptions{
+            .SyntaxVersion = evaluateOptions.SyntaxVersion,
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            // COMPAT(dtorilov): Remove after 26.2.
+            .EnableScalarSubqueryOrderByAndLimit = evaluateOptions.EnableScalarSubqueryOrderByAndLimit,
+        });
 
     TQueryOptions options;
     options.InputRowLimit = evaluateOptions.InputRowLimit;
