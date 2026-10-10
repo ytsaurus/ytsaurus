@@ -133,6 +133,35 @@ void AddAllocationToAbort(NProto::NNode::TRspHeartbeat* response, const TAllocat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void MergeAllocationUpdates(
+    NStrategy::TAllocationUpdate* update,
+    const NStrategy::TAllocationUpdate& otherUpdate)
+{
+    YT_VERIFY(update->AllocationId == otherUpdate.AllocationId);
+    YT_VERIFY(update->OperationId == otherUpdate.OperationId);
+    YT_VERIFY(update->ControllerEpoch == otherUpdate.ControllerEpoch);
+    YT_VERIFY(!update->AllocationResources || update->ResourcesUpdateTime > 0);
+    YT_VERIFY(!otherUpdate.AllocationResources || otherUpdate.ResourcesUpdateTime > 0);
+
+    update->Finished |= otherUpdate.Finished;
+
+    if (otherUpdate.PreemptibleProgressStartTime &&
+        (!update->PreemptibleProgressStartTime ||
+            *update->PreemptibleProgressStartTime < *otherUpdate.PreemptibleProgressStartTime))
+    {
+        update->PreemptibleProgressStartTime = otherUpdate.PreemptibleProgressStartTime;
+    }
+
+    if (otherUpdate.AllocationResources &&
+        (!update->AllocationResources || update->ResourcesUpdateTime < otherUpdate.ResourcesUpdateTime))
+    {
+        update->AllocationResources = otherUpdate.AllocationResources;
+        update->ResourcesUpdateTime = otherUpdate.ResourcesUpdateTime;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeShardGlobalSensors::TNodeShardGlobalSensors(TNodeShard* nodeShard)
     : NodeShard_(nodeShard)
 {
@@ -1583,6 +1612,8 @@ NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
         operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
     }
 
+    allocationToSubmitToStrategy.ControllerEpoch = operationState->ControllerEpoch;
+
     return allocationToSubmitToStrategy;
 }
 
@@ -2315,6 +2346,7 @@ void TNodeShard::OnAllocationRunning(const TAllocationPtr& allocation, NProto::T
             operationState);
 
         allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
+        allocationToSubmitToStrategy.ResourcesUpdateTime = now;
     }
 }
 
@@ -2387,20 +2419,39 @@ void TNodeShard::SubmitAllocationsToStrategy()
             for (const auto& allocationId : allocationsToPostpone) {
                 auto& allocationUpdate = GetOrCrash(allocationsToSubmit, allocationId);
 
-                // An allocation present in the global submit map but no longer tracked by its
-                // operation's per-op index is an orphan left by a revival that interleaved while the
-                // map was swapped out; re-adding it would resurrect a stale update that can never be
-                // purged. Only re-add updates the operation still tracks; drop the rest.
+                // An update produced before a revival must not be replayed after it: revival recreates
+                // an allocation state for every allocation of the controller agent's snapshot, so a
+                // stale finish would retire a live allocation.
                 auto* operationState = FindOperationState(allocationUpdate.OperationId);
-                if (!operationState || !operationState->AllocationsToSubmitToStrategy.contains(allocationId)) {
+                if (!operationState || operationState->ControllerEpoch != allocationUpdate.ControllerEpoch) {
                     continue;
                 }
 
-                AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationUpdate));
+                // The submit map was swapped out while the batch was in flight, so it may already hold
+                // another update for this allocation, produced by a heartbeat or re-added by another
+                // parked batch. Folding the two together is what keeps a finish from being dropped.
+                // NB: try_emplace does not touch |allocationUpdate| when the key is already present.
+                auto [it, inserted] = AllocationsToSubmitToStrategy_.try_emplace(allocationId, std::move(allocationUpdate));
+                if (!inserted) {
+                    auto& submittedUpdate = it->second;
+                    MergeAllocationUpdates(&submittedUpdate, allocationUpdate);
+                }
+
+                // NB: A concurrent batch's erase loop below may have dropped this allocation from the
+                // per-operation index while this batch was in flight, and an entry missing from the
+                // index survives every purge.
+                operationState->AllocationsToSubmitToStrategy.insert(allocationId);
             }
 
             for (const auto& allocation : allocationUpdates) {
                 if (allocationsToPostpone.contains(allocation.AllocationId)) {
+                    continue;
+                }
+
+                // A newer update for this allocation may have been produced while the batch was in
+                // flight. The per-operation index must keep mirroring the global submit map, otherwise
+                // that update is dropped by the guard above and its entry outlives every purge.
+                if (AllocationsToSubmitToStrategy_.contains(allocation.AllocationId)) {
                     continue;
                 }
 

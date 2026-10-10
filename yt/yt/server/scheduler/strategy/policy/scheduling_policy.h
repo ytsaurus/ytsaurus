@@ -121,8 +121,9 @@ struct ISchedulingPolicy
     //! Processes a batch of allocation updates that all belong to this tree. The returned future is set to
     //! a result per update, index-aligned with |allocationUpdates|. The classic policy applies the batch
     //! synchronously and returns an already-set future; the GPU policy dispatches it to the control invoker
-    //! and returns a pending future. Per-allocation update ordering is guaranteed by the caller draining
-    //! each batch before submitting the next one (see TStrategy::ProcessAllocationUpdates).
+    //! and returns a pending future. Batches are applied in dispatch order, but the caller does not drain
+    //! one before submitting the next: under the GPU policy several batches can be in flight at once
+    //! (see TStrategy::ProcessAllocationUpdates).
     //! Thread affinity: Any.
     virtual TFuture<std::vector<TProcessAllocationUpdateResult>> ProcessAllocationUpdates(
         const TPoolTreeSnapshotPtr& treeSnapshot,
