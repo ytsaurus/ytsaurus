@@ -6,133 +6,211 @@
 
 from .common.sensors import (
     ExeNode, ExeNodeCpu, ExeNodeMemory, ExeNodePorto,
-    CA, NodeMonitor,
-    yt_host,
 )
 
+try:
+    from .constants import EXE_NODES_DASHBOARD_DEFAULT_CLUSTER
+except ImportError:
+    from .yandex_constants import EXE_NODES_DASHBOARD_DEFAULT_CLUSTER
+
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.sensor import Sensor
+from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.taggable import NotEquals
 
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr
 
 
 def _build_versions(d):
     d.add(Rowset()
         .stack(True)
-        .aggr(yt_host)
+        .aggr("container")
         .row()
             .cell("Versions", ExeNode("yt.build.version"))
+            .cell("Kernel Versions", ExeNode("yt.host.kernel_version")
+                .all("kernel_version").legend_format("{{kernel_version}}")
+                .unit("UNIT_COUNT"),
+                yaxis_label="Exe nodes", display_legend=True)
     )
 
 
 def _build_cpu(d):
-    def exe_node_thread_cpu(thread):
-        return ExeNodeCpu("yt.resource_tracker.user_cpu").value("thread", thread)
+    def thread_cpu(sensor):
+        return MultiSensor(*(
+            (MonitoringExpr(ExeNodeCpu(sensor).value("thread", thread)) / 100).alias(thread)
+            for thread in ("Job", "Control", "JobEnvironment")
+        ))
 
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
+        .unit("UNIT_COUNT")
         .min(0)
         .row()
-            .cell("Job CPU Wait", exe_node_thread_cpu("Job"))
-            .cell("Control", exe_node_thread_cpu("Control"))
-        .row()
-            .cell("JobEnvironment CPU Wait", exe_node_thread_cpu("JobEnvironment"))
+            .cell("CPU Usage by Thread", thread_cpu("yt.resource_tracker.total_cpu"),
+                yaxis_label="CPU cores", display_legend=True)
+            .cell("CPU Wait by Thread", thread_cpu("yt.resource_tracker.cpu_wait"),
+                yaxis_label="CPU cores", display_legend=True)
     )
 
 
 def _build_memory(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
+        .unit("UNIT_BYTES_SI")
         .min(0)
         .row()
-            .cell("Nodes Used Memory", ExeNodeMemory("yt.memory.generic.bytes_in_use_by_app"))
-            .cell("Total Nodes User Job Memory Limit", ExeNode("yt.job_controller.resource_limits.user_memory"))
+            .cell("Node Process Memory", MultiSensor(
+                ExeNodeMemory("yt.memory.generic.bytes_in_use_by_app").legend_format("allocator usage"),
+                ExeNodeMemory("yt.resource_tracker.memory_usage.rss").legend_format("RSS")),
+                display_legend=True)
+            .cell("Daemon Container Memory", MultiSensor(
+                ExeNodePorto("yt.porto.memory.memory_usage").legend_format("usage"),
+                ExeNodePorto("yt.porto.memory.memory_limit").legend_format("limit"))
+                .value("container_category", "daemon"),
+                display_legend=True)
     )
 
-def _build_jobs(d):
-    def CA_jobs(finished_state):
-        return CA("yt.controller_agent.jobs.{}_job_count.rate".format(finished_state)).aggr("job_type").aggr("tree")
 
-    def node_jobs(finished_state):
-        return ExeNode("yt.job_controller.job_final_state.rate").value("state", finished_state)
+def _build_resources(d):
+    occupied_slots = MonitoringExpr(ExeNode("yt.job_controller.resource_usage.user_slots")
+        .value("state", "acquired|releasing")).series_sum("cluster", "host")
 
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
         .min(0)
         .row()
-            .cell(
-                "Controller Started And Completed Jobs",
-                CA("yt.controller_agent.jobs.started_job_count.rate|yt.controller_agent.jobs.completed_job_count.rate")
-                    .aggr("interruption_reason")
-                    .aggr("job_type")
-                    .aggr("tree"))
-            .cell(
-                "Node Completed Jobs",
-                node_jobs("completed").aggr("origin"))
+            .cell("User Slots", MultiSensor(
+                ExeNode("yt.job_controller.resource_limits.user_slots").legend_format("limit"),
+                occupied_slots.alias("occupied (acquired + releasing)")),
+                yaxis_label="Slots", display_legend=True)
+            .cell("User Job Memory Limit", ExeNode("yt.job_controller.resource_limits.user_memory")
+                .unit("UNIT_BYTES_SI"))
         .row()
-            .cell("Controller Failed Jobs", CA_jobs("failed"))
-            .cell("Node Failed Jobs", node_jobs("failed").aggr("origin"))
+            .cell("Pending User Slots", ExeNode("yt.job_controller.resource_usage.user_slots")
+                .value("state", "pending").unit("UNIT_COUNT"),
+                yaxis_label="Slots",
+                description="Slots requested by allocations waiting for resource acquisition. "
+                    "Pending slots are not included in occupied slots.")
+    )
+
+
+def _build_jobs(d, backend):
+    def node_jobs(finished_state):
+        return (ExeNode("yt.job_controller.job_final_state.rate")
+            .value("origin", "scheduler").value("state", finished_state))
+
+    total_finished = (MonitoringExpr(node_jobs("completed|failed|aborted"))
+        .series_sum("cluster", "host").moving_avg("5m"))
+
+    def finished_fraction(state):
+        finished = MonitoringExpr(node_jobs(state)).series_sum("cluster", "host").moving_avg("5m")
+        # Final-state counters are registered lazily; a missing numerator is zero
+        # only where the denominator provides evidence of finished jobs.
+        if backend == "monitoring":
+            finished = finished.flatten(total_finished * 0)
+        else:
+            finished = finished | (total_finished * 0)
+        finished = finished.series_sum("cluster", "host")
+        return (100 * finished / total_finished.drop_below(1e-6)).alias(state)
+
+    fractions = MultiSensor(*(
+        finished_fraction(state)
+        for state in ("failed", "aborted")
+    )).unit("UNIT_PERCENT").range(0, 100)
+
+    d.add(Rowset()
+        .stack(False)
+        .aggr("container")
+        .min(0)
         .row()
-            .cell("Controller Aborted Jobs", CA_jobs("aborted").aggr("abort_reason"))
-            .cell("Node Aborted Jobs", node_jobs("aborted").aggr("origin"))
+            .cell("Node Completed Jobs", node_jobs("completed"))
+            .cell("Node Failed Jobs", node_jobs("failed"))
         .row()
-            .cell("Job Proxy Aborts", ExeNode("yt.job_controller.job_proxy_process_exit.count.rate").value("terminated_by_signal", "aborted"))
+            .cell("Node Aborted Jobs", node_jobs("aborted"))
+            .cell("Finished Job Fractions (5m Moving Average)", fractions, display_legend=True,
+                description="Fractions of completed, failed, and aborted jobs over the last 5 minutes. "
+                    "Aborted jobs include normal cancellations and preemption.")
         .row()
-            .cell("Active Job Count", ExeNode("yt.job_controller.active_job_count").aggr("origin"))
+            .cell("Active and Running Jobs", MultiSensor(
+                ExeNode("yt.job_controller.active_job_count").legend_format("active"),
+                ExeNode("yt.job_controller.running_job_count").legend_format("running state"))
+                .value("origin", "scheduler"),
+                display_legend=True,
+                description="The Running state includes job preparation. Active jobs also include finished jobs "
+                    "awaiting removal; the difference does not measure preparation backlog.")
+            .cell("Allocations Waiting for Resources", ExeNode("yt.job_controller.waiting_allocation_count")
+                .value("origin", "scheduler"))
+        .row()
+            .cell("Job Proxy Signal Exits", ExeNode("yt.job_controller.job_proxy_process_exit.count.rate")
+                .all("terminated_by_signal").aggr("non_zero_exit_code")
+                .legend_format("{{terminated_by_signal}}"),
+                display_legend=True,
+                description="SIGKILL may accompany normal job abortion and does not by itself indicate a node failure.")
+            .cell("Job Proxy Nonzero Exit Codes", ExeNode("yt.job_controller.job_proxy_process_exit.count.rate")
+                .all("non_zero_exit_code").aggr("terminated_by_signal")
+                .legend_format("exit {{non_zero_exit_code}}"),
+                display_legend=True)
+    )
+
+
+def _build_slow_jobs(d):
+    def slow_fraction(sensor, threshold):
+        histogram = MonitoringExpr(ExeNode(sensor).all("bin")).moving_avg("5m")
+        samples = MonitoringExpr.func("histogram_count", '"bin"', histogram)
+        fast_fraction = MonitoringExpr.func("histogram_cdfp",
+            MonitoringExpr.func("as_vector", 0),
+            MonitoringExpr.func("as_vector", threshold),
+            '"bin"', histogram)
+        return ((100 - fast_fraction) * (samples / samples.drop_below(1e-6))).alias(f"> {threshold}s")
+
+    d.add(Rowset()
+        .stack(False)
+        .aggr("container")
+        .unit("UNIT_PERCENT")
+        .range(0, 100)
+        .row()
+            .cell("Slow SettleJob Fraction (5m Moving Average)",
+                slow_fraction("yt.job_controller.allocations.settle_job_duration", 1),
+                display_legend=True,
+                description="Fraction of SettleJob requests taking over 1 second over the last 5 minutes. "
+                    "This measures job settlement, not the full job preparation time.")
+            .cell("Slow Cleanup Fractions (5m Moving Average)", MultiSensor(
+                slow_fraction("yt.job_controller.job_cleanup_duration", 5),
+                slow_fraction("yt.job_controller.job_cleanup_duration", 30)),
+                display_legend=True,
+                description="Fractions of job cleanups taking over 5 and 30 seconds over the last 5 minutes. "
+                    "Intervals without recorded events are omitted.")
     )
 
 
 def _build_network(d):
-    rowset = Rowset().stack(False)
-    for metric_name, service_name in (
-        (f"yt_{{{{cluster}}}}_*exe_nodes|yt_{{{{cluster}}}}_cloud_nodes|yt_{{{{cluster}}}}_*gpu_nodes", "Nodes"), (f"yt_{{{{cluster}}}}_controller_agents", "Controller Agent")
-    ):
-        row = rowset.row()
-        for sensor, sensor_name_suffix in (("RxBytes", "RX"), ("TxBytes", "TX")):
-            row.cell(
-                f"{service_name} Network {sensor_name_suffix}",
-                Sensor(f"/Porto/Containers/Ifs/{sensor}", sensor_tag_name="path")
-                    .value("service", "porto_iss")
-                    .value("intf", "veth")
-                    .value("host", "cluster")
-                    .value("name", metric_name)
-            )
-    d.add(rowset)
-
-
-def _build_heartbeat_info(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
+        .value("container_category", "pod")
         .row()
-            .cell("Controller Agent Heartbeats Throttled", CA("yt.controller_agent.job_tracker.node_heartbeat.throttled_heartbeat_count.rate"))
+            .cell("Nodes Network RX", ExeNodePorto("yt.porto.network.rx_bytes"))
+            .cell("Nodes Network TX", ExeNodePorto("yt.porto.network.tx_bytes"))
     )
 
 
-def _build_alerts_and_slots(d):
+def _build_alerts(d):
     d.add(Rowset()
         .stack(True)
+        .aggr("container")
         .row()
-            .cell("Node Alerts", ExeNode("yt.cluster_node.alerts").aggr(yt_host).all("error_code"))
-            .cell("Node Disabled Slots", MonitoringExpr(NodeMonitor("node.resources.exec.cpu"))
-                .value("presented_in_yp", "true")
-                .value("host", "none")
-                .value("flavor", NotEquals("*tablet*|*dat*|*gpu*|*journal*"))
-                .value("state", "online")
-                .value("disabled_slots_reason", NotEquals("none"))
-                .series_sum("disabled_slots_reason")
-                .replace_nan(0))
+            .cell("Node Alerts", ExeNode("yt.cluster_node.alerts").all("error_code"))
     )
 
 
 def _build_porto_info(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
         .row()
             .cell("Volume Surplus", ExeNode("yt.exec_node.*orto.volume_surplus").aggr("location_id"))
             .cell("Layer Surplus", ExeNode("yt.exec_node.*porto.layer_surplus").aggr("location_id"))
@@ -152,7 +230,7 @@ def _build_porto_info(d):
 def _build_volume_errors(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
         .row()
             .cell("Volume Creation Errors", ExeNode("yt.volumes.create_errors.rate"))
             .cell("Volume Removal Errors", ExeNode("yt.volumes.remove_errors.rate"))
@@ -162,7 +240,7 @@ def _build_volume_errors(d):
 def _build_cache_miss_info(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
         .row()
             .cell("Cache Miss Artifacts Size", ExeNode("yt.job_controller.chunk_cache.cache_miss_artifacts_size.rate"))
     )
@@ -170,23 +248,25 @@ def _build_cache_miss_info(d):
 def _build_page_faults(d):
     d.add(Rowset()
         .stack(False)
-        .aggr(yt_host)
+        .aggr("container")
         .row()
             .cell("Page Faults", ExeNodePorto("yt.porto.memory.major_page_faults").all("container_category"))
     )
 
 
-def build_exe_nodes():
+def build_exe_nodes(backend="monitoring"):
     d = Dashboard()
     d.set_cell_per_row(2)
 
     _build_versions(d)
     _build_cpu(d)
     _build_memory(d)
-    _build_jobs(d)
+    _build_resources(d)
+    _build_jobs(d, backend)
+    if backend == "monitoring":
+        _build_slow_jobs(d)
     _build_network(d)
-    _build_heartbeat_info(d)
-    _build_alerts_and_slots(d)
+    _build_alerts(d)
 
     _build_porto_info(d)
 
@@ -206,7 +286,28 @@ def build_exe_nodes():
         MonitoringLabelDashboardParameter(
             "yt",
             "cluster",
-            "-")
+            EXE_NODES_DASHBOARD_DEFAULT_CLUSTER,
+            selectors='{project="yt", service="exe_node", cluster!="-"}'),
+        backends=["monitoring"],
     )
+    d.add_parameter(
+        "cluster", "Cluster",
+        GrafanaTextboxDashboardParameter(EXE_NODES_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
+    )
+
+    d.add_parameter(
+        "host", "Host",
+        MonitoringLabelDashboardParameter(
+            "yt", "host", "Aggr",
+            selectors='{project="yt", cluster="{{cluster}}", service="exe_node"}'),
+        backends=["monitoring"],
+    )
+    d.add_parameter(
+        "host", "Host",
+        GrafanaTextboxDashboardParameter(".*"),
+        backends=["grafana"],
+    )
+    d.value("host", TemplateTag("host"))
 
     return d

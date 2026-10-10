@@ -276,7 +276,9 @@ dashboards = {
     "exe-nodes": {
         "func": build_exe_nodes,
         "monitoring": {},
-        "grafana": {},
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "data-nodes-common": {
         "func": build_data_nodes_common,
