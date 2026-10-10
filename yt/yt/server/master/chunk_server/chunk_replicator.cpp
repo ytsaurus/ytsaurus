@@ -2408,11 +2408,12 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
         !unsucceededJob->Error().FindMatching(NChunkClient::EErrorCode::NoSuchChunk))
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        auto* node = nodeTracker->GetNodeByAddress(unsucceededJob->NodeAddress());
-        // If job was aborted due to node unregistration, do not reschedule job.
-        if (!node->ReportedDataNodeHeartbeat()) {
+        auto* node = nodeTracker->FindNodeByAddress(unsucceededJob->NodeAddress());
+        // Do not reschedule the job if the node is dead or unregistered.
+        if (!IsObjectAlive(node) || !node->ReportedDataNodeHeartbeat()) {
             return;
         }
+
         const auto& replica = unsucceededJob->GetChunkIdWithIndexes();
         auto* removalJob = static_cast<TRemovalJob*>(unsucceededJob.Get());
         auto locationUuid = removalJob->ChunkLocationUuid();
@@ -2563,7 +2564,11 @@ void TChunkReplicator::MaybeUpdateChunkRemovalLock(const TJobPtr& job)
     }
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    auto* node = nodeTracker->GetNodeByAddress(job->NodeAddress());
+    auto* node = nodeTracker->FindNodeByAddress(job->NodeAddress());
+    if (!IsObjectAlive(node)) {
+        return;
+    }
+
     auto& jobScheduledChunkIds = node->RemovalJobScheduledChunkIds();
     auto& awaitingChunkIds = node->AwaitingHeartbeatChunkIds();
 
