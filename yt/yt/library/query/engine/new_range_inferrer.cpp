@@ -8,6 +8,8 @@
 #include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
 
+#include <yt/yt/client/table_client/comparator.h>
+
 #include <yt/yt/core/misc/heap.h>
 
 namespace NYT::NQueryClient {
@@ -1078,6 +1080,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
 TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
+    const TComparator& comparator,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider)
@@ -1092,11 +1095,12 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
         .With("Predicate", InferName(predicate))
         .With("Constraints", ToString(constraints, constraintRef));
 
-    TRowRanges resultRanges;
+    TRowRanges ranges;
 
     TReadRangesGenerator rangesGenerator(constraints);
 
     auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, options.RangeExpansionLimit);
+    ranges.reserve(expansion);
     YT_TLOG_DEBUG("Estimate range expansion depth")
         .With("KeyWidth", keyWidth)
         .With("Expansion", expansion)
@@ -1129,14 +1133,28 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
 
             TRowRange rowRange;
             if (prefixSize < keyColumnCount) {
+                bool ascending = comparator.SortOrders()[prefixSize] == ESortOrder::Ascending;
+                auto getBound = [&] (bool isUpper) {
+                    auto bound = isUpper == ascending
+                        ? constraintRow[prefixSize].Upper
+                        : constraintRow[prefixSize].Lower;
+                    if (!ascending) {
+                        // Lower and upper bounds encode inclusiveness with opposite flags.
+                        bound.Flag = !bound.Flag;
+                        if (bound.Value.Type == EValueType::Min || bound.Value.Type == EValueType::Max) {
+                            bound = isUpper ? MaxBound : MinBound;
+                        }
+                    }
+                    return bound;
+                };
                 auto lowerBound = MakeLowerBound(
                     buffer.Get(),
                     TRange(boundRow.Begin(), prefixSize),
-                    constraintRow[prefixSize].Lower);
+                    getBound(/*isUpper*/ false));
                 auto upperBound = MakeUpperBound(
                     buffer.Get(),
                     TRange(boundRow.Begin(), prefixSize),
-                    constraintRow[prefixSize].Upper);
+                    getBound(/*isUpper*/ true));
 
                 rowRange = std::pair(lowerBound, upperBound);
             } else {
@@ -1144,26 +1162,48 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
             }
 
             VerifyIdsInRange(rowRange);
-
-            if (resultRanges.empty()) {
-                resultRanges.push_back(rowRange);
-                return;
-            }
-
-            if (resultRanges.back().second == rowRange.first) {
-                resultRanges.back().second = rowRange.second;
-            } else if (resultRanges.back() == rowRange) {
-                // Skip.
-            } else if (resultRanges.back().second == rowRange.second) {
-                YT_VERIFY(resultRanges.back().first <= rowRange.first);
-            } else {
-                YT_VERIFY(resultRanges.back().second < rowRange.first);
-                resultRanges.push_back(rowRange);
-            }
+            ranges.push_back(rowRange);
         },
         keyWidth);
 
-    return MakeSharedRange(resultRanges, buffer);
+    auto toKeyBound = [&] (TUnversionedRow row, bool isUpper) {
+        return ToKeyBoundRef(row, isUpper, comparator.GetLength());
+    };
+
+    if (comparator.HasDescendingSortOrder()) {
+        // Constraints are traversed in ascending order, not the table's key order.
+        std::sort(ranges.begin(), ranges.end(), [&] (const auto& lhs, const auto& rhs) {
+            return comparator.CompareKeyBounds(
+                toKeyBound(lhs.first, /*isUpper*/ false),
+                toKeyBound(rhs.first, /*isUpper*/ false)) < 0;
+        });
+    }
+
+    TRowRanges resultRanges;
+    for (const auto& range : ranges) {
+        if (resultRanges.empty()) {
+            resultRanges.push_back(range);
+            continue;
+        }
+
+        int boundaryComparison = comparator.CompareKeyBounds(
+            toKeyBound(resultRanges.back().second, /*isUpper*/ true),
+            toKeyBound(range.first, /*isUpper*/ false));
+        if (boundaryComparison == 0) {
+            resultRanges.back().second = range.second;
+        } else if (resultRanges.back() == range) {
+            continue;
+        } else if (resultRanges.back().second == range.second) {
+            YT_VERIFY(comparator.CompareKeyBounds(
+                toKeyBound(resultRanges.back().first, /*isUpper*/ false),
+                toKeyBound(range.first, /*isUpper*/ false)) <= 0);
+        } else {
+            YT_VERIFY(boundaryComparison < 0);
+            resultRanges.push_back(range);
+        }
+    }
+
+    return MakeSharedRange(std::move(resultRanges), buffer);
 }
 
 TSharedRange<TRowRange> CreateNewRangeInferrer(
@@ -1188,6 +1228,7 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
         : CreateNewLightRangeInferrer(
             predicate,
             keyColumns,
+            schema->ToComparator(),
             constraintExtractors,
             options,
             memoryChunkProvider);
