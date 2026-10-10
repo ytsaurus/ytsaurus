@@ -3,13 +3,12 @@
 #include "conversion.h"
 #include "config.h"
 #include "custom_data_types.h"
-#include "helpers.h"
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
-#include <yt/yt/client/table_client/unversioned_value.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_value.h>
 
 #include <yt/yt/library/query/base/query.h>
 
@@ -118,6 +117,7 @@ NYT::TSharedRange<TUnversionedRow> ConvertConstantSetToSharedRange(
     });
     column = column->permute(permutation, /*limit*/ 0);
 
+    // TODO(buyval01): Handle the different NaN comparison semantics in ClickHouse and YT.
     return NYT::NClickHouseServer::ToRowRange(
         DB::Block(std::move(set)),
         {targetDataType},
@@ -212,9 +212,10 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
             result->DataType = (desiredDataType != nullptr) ? desiredDataType : constantDataType;
             result->ValueType = (desiredValueType.has_value() ? *desiredValueType : constantValueType);
 
+            // TODO(buyval01): Handle the different NaN comparison semantics in ClickHouse and YT.
             result->Expression = New<TLiteralExpression>(
                 result->ValueType,
-                ToUnversionedOwningValue(field,result->DataType, context.ConversionSettings));
+                ToUnversionedOwningValue(field, result->DataType, context.ConversionSettings));
 
             break;
         }
@@ -379,16 +380,12 @@ std::vector<TReadRange> InferReadRange(
     const TTableSchemaPtr& schema,
     const DB::Settings& settings)
 {
-    int keyColumnCount = GetAscendingKeyPrefixLength(*schema);
+    int keyColumnCount = schema->GetKeyColumnCount();
     if (!filterNode || keyColumnCount == 0) {
         return {};
     }
 
     auto keyColumns = schema->GetKeyColumns();
-    keyColumns.resize(keyColumnCount);
-    auto inferenceSchema = keyColumnCount == schema->GetKeyColumnCount()
-        ? schema
-        : schema->ToSorted(keyColumns);
 
     DB::GetSetElementParams setParams{
         .transform_null_in = settings[DB::Setting::transform_null_in],
@@ -396,7 +393,7 @@ std::vector<TReadRange> InferReadRange(
 
     auto predicateExpr = ConvertToConstExpression(
         std::move(filterNode),
-        inferenceSchema,
+        schema,
         TConversionSettings::Create(
             TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)),
         setParams);
@@ -406,7 +403,7 @@ std::vector<TReadRange> InferReadRange(
 
     auto rowRanges = NQueryClient::CreateNewRangeInferrer(
         predicateExpr,
-        inferenceSchema,
+        schema,
         keyColumns,
         /*evaluatorCache*/ nullptr,
         NQueryClient::GetBuiltinConstraintExtractors(),
