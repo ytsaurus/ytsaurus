@@ -1,5 +1,7 @@
 PROGRAM()
 
+STRIP()
+
 SRCS(
     main.cpp
 )
