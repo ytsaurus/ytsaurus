@@ -69,6 +69,7 @@
   "build/ya.conf.json":"devtools/ya/opensource/ya.conf.json",
   "clang.toolchain":"yt/opensource/repos/ytsaurus/github_toplevel/clang.toolchain",
   "connectors":"yt/connectors",
+  "connectors/import.md":"yt/connectors/import.md",
   "connectors/import.py":"yt/connectors/import.py",
   "connectors/pom.xml":"yt/connectors/pom.xml",
   "library/go/blockcodecs/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/blockcodecs/go.mod",
