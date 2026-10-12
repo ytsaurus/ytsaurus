@@ -1,4 +1,5 @@
 import ctypes
+import functools
 import os
 
 PR_SET_PDEATHSIG = 1
@@ -8,12 +9,15 @@ PR_SET_NAME = 15
 PR_GET_NAME = 16
 TASK_NAME_LEN = 15
 
-libc = ctypes.CDLL("libc.so.6", use_errno=True)
+@functools.cache
+def _get_libc() -> ctypes.CDLL:
+    # Loaded lazily so that importing this module does not fail on non-Linux platforms.
+    return ctypes.CDLL("libc.so.6", use_errno=True)
 
 
 def prctl(option: int, *args):
     args += (ctypes.c_ulong(0),) * (4 - len(args))
-    ret = libc.prctl(option, *args)
+    ret = _get_libc().prctl(option, *args)
     if ret < 0:
         errno = ctypes.get_errno()
         raise OSError(errno, os.strerror(errno))
