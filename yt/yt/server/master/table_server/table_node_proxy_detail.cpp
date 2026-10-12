@@ -1118,7 +1118,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             NTabletNode::TTableConfigExperiment::TTableDescriptor descriptor{
                 .TableId = table->GetId(),
                 .TablePath = GetPath(),
-                .TabletCellBundle = table->TabletCellBundle()->GetName(),
+                .TabletCellBundle = trunkTable->TabletCellBundle()->GetName(),
                 .InMemoryMode = table->GetInMemoryMode(),
                 .Sorted = table->IsSorted(),
                 .Replicated = table->IsReplicated(),

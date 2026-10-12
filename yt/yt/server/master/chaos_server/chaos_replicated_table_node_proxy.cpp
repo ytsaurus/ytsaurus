@@ -176,6 +176,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* impl = GetThisImpl();
+        const auto* trunkImpl = impl->GetTrunkNode();
 
         bool isSorted = impl->IsSorted();
         bool isQueue = impl->IsQueue();
@@ -186,9 +187,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(trunkImpl->ChaosCellBundle())));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundleId)
-            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
+            .SetPresent(IsObjectAlive(trunkImpl->ChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
