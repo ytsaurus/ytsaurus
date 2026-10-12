@@ -6,6 +6,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/heap.h>
 
+#include <algorithm>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,6 +639,69 @@ i64 TMultiInflightTracker::GetTotalByteSize() const
         byteSize += tracker->GetByteSize();
     }
     return byteSize;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildBatchInflights(
+    const THashSet<TStreamId>& streams,
+    const std::vector<TOutputMessageConstPtr>& messages,
+    const TWatermarkPercentileSpecPtr& percentile)
+{
+    struct TStreamBatch
+    {
+        TInflightStreamTraverseDataPtr Inflight = New<TInflightStreamTraverseData>();
+        std::vector<TSystemTimestamp> EventTimestamps;
+    };
+
+    THashMap<TStreamId, TStreamBatch> batches;
+    for (const auto& streamId : streams) {
+        batches.emplace(streamId, TStreamBatch{});
+    }
+    for (const auto& message : messages) {
+        auto& batch = batches.at(message->StreamId);
+        auto& inflight = batch.Inflight;
+        inflight->MinSystemTimestamp = inflight->MinSystemTimestamp
+            ? std::min(*inflight->MinSystemTimestamp, message->SystemTimestamp)
+            : message->SystemTimestamp;
+        inflight->MinEventTimestamp = inflight->MinEventTimestamp
+            ? std::min(*inflight->MinEventTimestamp, message->EventTimestamp)
+            : message->EventTimestamp;
+        ++inflight->InflightMetrics->Count;
+        inflight->InflightMetrics->ByteSize = inflight->InflightMetrics->ByteSize.value_or(0) + message->ByteSize;
+        batch.EventTimestamps.push_back(message->EventTimestamp);
+    }
+
+    THashMap<TStreamId, TInflightStreamTraverseDataPtr> result;
+    for (auto& [streamId, batch] : batches) {
+        auto& inflight = batch.Inflight;
+        const auto count = inflight->InflightMetrics->Count;
+        inflight->Empty = count == 0;
+        inflight->Suspended = false;
+        inflight->InflightMetrics->ReadyCount = 0;
+        inflight->InflightMetrics->ReadyByteSize = 0;
+        if (count == 0) {
+            inflight->InflightMetrics->ByteSize = 0;
+        } else if (percentile->Value.Underlying() == 0) {
+            inflight->MinEventTimestamp.reset();
+        } else if (percentile->Value != PreciseWatermarkPercentile) {
+            const size_t lowerSize = batch.EventTimestamps.size() *
+                (PreciseWatermarkPercentile.Underlying() - percentile->Value.Underlying()) /
+                PreciseWatermarkPercentile.Underlying();
+            YT_VERIFY(lowerSize < batch.EventTimestamps.size());
+            std::nth_element(
+                batch.EventTimestamps.begin(),
+                batch.EventTimestamps.begin() + lowerSize,
+                batch.EventTimestamps.end());
+            const auto rawPercentileTimestamp = batch.EventTimestamps[lowerSize];
+            const auto delay = percentile->Delay.Seconds();
+            const auto percentileTimestamp = TSystemTimestamp(
+                std::max<ui64>(rawPercentileTimestamp.Underlying(), delay) - delay);
+            inflight->MinEventTimestamp = std::max(*inflight->MinEventTimestamp, percentileTimestamp);
+        }
+        result.emplace(streamId, std::move(inflight));
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

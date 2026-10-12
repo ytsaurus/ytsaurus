@@ -156,7 +156,8 @@ TStreamTraverseDataPtr ApplyInflightTraverseData(
     const TInflightStreamTraverseDataPtr& inflight);
 
 TInflightStreamTraverseDataPtr MergeInflightTraverseData(
-    const std::vector<TInflightStreamTraverseDataPtr>& inflights);
+    const std::vector<TInflightStreamTraverseDataPtr>& inflights,
+    bool allowPartial = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
