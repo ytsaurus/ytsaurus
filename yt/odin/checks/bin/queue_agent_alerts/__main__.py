@@ -47,7 +47,7 @@ def run_check(secrets, yt_client, logger, options, states):
         config["batch_requests_retries"] = {"count": 1, "enable": False}
         queue_agent_stage_client = YtClient(proxy=queue_agent_stage_proxy, config=config)
 
-        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME]),
+        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME, MAINTENANCE_ATTRIBUTE_NAME]),
                                            null_value=[])
 
         queue_agent_instances_count = len(queue_agent_instances)
