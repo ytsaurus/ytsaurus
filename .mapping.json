@@ -118,6 +118,7 @@
   "cmake/shared_libs.cmake":"",
   "conanfile.py":"",
   "connectors":"yt/connectors",
+  "connectors/import.md":"yt/connectors/import.md",
   "connectors/import.py":"yt/connectors/import.py",
   "connectors/pom.xml":"yt/connectors/pom.xml",
   "contrib/CMakeLists.darwin-arm64.txt":"",
