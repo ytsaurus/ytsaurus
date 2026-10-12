@@ -4,11 +4,16 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPendingDownloadsTracker::TPendingDownloadsTracker(std::function<TFuture<i64>()> getRemainingSpace, i64 remainingSpace)
+TPendingDownloadsTracker::TPendingDownloadsTracker(std::function<TFuture<i64>()> getRemainingSpace)
     : GetRemainingSpace_(std::move(getRemainingSpace))
-    , RemainingSpaceLastObserved_(remainingSpace)
-    , LastObservedAt_(TInstant::Now())
 { }
+
+void TPendingDownloadsTracker::InitializeStats(i64 remainingSpace)
+{
+    YT_VERIFY(!LastObservedAt_);
+    LastObservedAt_ = TInstant::Now();
+    RemainingSpaceLastObserved_ = remainingSpace;
+}
 
 TFuture<std::optional<TPendingDownloadsTracker::TPendingModification>> TPendingDownloadsTracker::TryBeginModification(i64 size)
 {
@@ -22,7 +27,7 @@ TFuture<std::optional<TPendingDownloadsTracker::TPendingModification>> TPendingD
             YT_VERIFY(BytesFreeing_ == 0);
 
             auto promise = NewPromise<i64>();
-            RemainingSpace_ = promise.ToFuture().ToUncancelable();
+            RemainingSpaceFuture_ = promise.ToFuture().ToUncancelable();
 
             YT_VERIFY(!ObservationInProgress_);
             ObservationInProgress_ = true;
@@ -32,24 +37,30 @@ TFuture<std::optional<TPendingDownloadsTracker::TPendingModification>> TPendingD
         }
     }
 
-    // Since we increased UnconfirmedModifications_ previously, RemainingSpace_ won't be modified
+    // Since we increased UnconfirmedModifications_ previously, RemainingSpaceFuture_ won't be modified
     // by another thread. Hence there is no need for guarding this access with a spinlock.
-    return RemainingSpace_.Apply(BIND([
+    auto remainingSpaceFuture = RemainingSpaceFuture_;
+
+    return remainingSpaceFuture.Apply(BIND([
         this,
         this_ = MakeStrong(this),
         size
-    ] (i64 remainingSpace) -> std::optional<TPendingModification> {
+    ] (const TErrorOr<i64>& remainingSpaceOrError) -> std::optional<TPendingModification> {
         auto guard = Guard(SpinLock_);
-        if (ObservationInProgress_) {
+
+        UnconfirmedModifications_ -= 1;
+        bool isFirstObserver = std::exchange(ObservationInProgress_, false);
+
+        auto remainingSpace = remainingSpaceOrError.ValueOrThrow();
+
+        if (isFirstObserver) {
             LastObservedAt_ = TInstant::Now();
             RemainingSpaceLastObserved_ = remainingSpace;
             AccumulatedDelta_ = 0;
-            ObservationInProgress_ = false;
         }
-        UnconfirmedModifications_ -= 1;
 
         if (size > 0) {
-            if (size > remainingSpace - AccumulatedDelta_ - BytesDownloading_) {
+            if (size > RemainingSpaceLastObserved_ - AccumulatedDelta_ - BytesDownloading_) {
                 return std::nullopt;
             }
             BytesDownloading_ += size;
@@ -63,13 +74,13 @@ TFuture<std::optional<TPendingDownloadsTracker::TPendingModification>> TPendingD
 
 TFuture<std::optional<TPendingDownloadsTracker::TPendingModification>> TPendingDownloadsTracker::TryBeginDownload(i64 size)
 {
-    YT_VERIFY(size > 0);
+    YT_VERIFY(size >= 0);
     return TryBeginModification(size);
 }
 
 TFuture<TPendingDownloadsTracker::TPendingModification> TPendingDownloadsTracker::BeginFree(i64 size)
 {
-    YT_VERIFY(size > 0);
+    YT_VERIFY(size >= 0);
     return TryBeginModification(-size)
         .AsUnique()
         .Apply(BIND([] (std::optional<TPendingModification>&& download) {
@@ -97,12 +108,12 @@ TPendingDownloadsTracker::TPendingModification::TPendingModification(TPendingDow
     , Size_(size)
 { }
 
-void TPendingDownloadsTracker::TPendingModification::Finish() &&
+void TPendingDownloadsTracker::TPendingModification::Finish(std::optional<i64> actualSizeDelta) &&
 {
     YT_VERIFY(Parent_);
     {
         auto guard = Guard(Parent_->SpinLock_);
-        Parent_->AccumulatedDelta_ += Size_;
+        Parent_->AccumulatedDelta_ += actualSizeDelta.value_or(Size_);
         Parent_->ModificationsInProgress_ -= 1;
         if (Size_ > 0) {
             Parent_->BytesDownloading_ -= Size_;
