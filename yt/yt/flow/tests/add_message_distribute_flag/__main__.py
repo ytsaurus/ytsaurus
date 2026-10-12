@@ -1,5 +1,5 @@
 from yt.yt.flow.library.python.companion import Pipeline
-from yt.yt.flow.library.python.companion.computation import RowFunction
+from yt.yt.flow.library.python.companion.computation import AddMessageOptions, MessageIdSuffix, RowFunction
 
 
 class DistributeReader(RowFunction):
@@ -17,10 +17,12 @@ class DistributeReader(RowFunction):
             output.add_message(duplicate.finish(), distribute=False)
             return
 
-        original = ctx.message_builder("data")
-        original.set("data", data)
-        original.set("event_ts", event_ts)
-        output.add_message(original.finish(), distribute=True)
+        for suffix in ("b", "a"):
+            original = ctx.message_builder("data")
+            original.set("data", data + "_" + suffix)
+            original.set("event_ts", event_ts)
+            options = AddMessageOptions(distribute=True, message_id_suffix=MessageIdSuffix.user_defined(suffix))
+            output.add_message(original.finish(), options)
 
         duplicate = ctx.message_builder("data")
         duplicate.set("data", "dup_" + data)

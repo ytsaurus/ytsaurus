@@ -107,9 +107,9 @@ class Test(FlowTestPythonBase):
             self.wait_pipeline_state("completed", timeout=240)
 
         rows = self.client.select_rows(
-            f"* from [{output_queue}]",
+            f"* from [{output_queue}] order by [$tablet_index], [$row_index] limit 100",
             format=yt.wrapper.format.YsonFormat(encoding=None),
         )
-        values = sorted(row[b"data"].decode() for row in rows)
-        # Only the distributed originals are published; the "dup_" copies are dropped.
-        assert values == ["row_0", "row_1", "row_2"]
+        values = [row[b"data"].decode() for row in rows]
+        # Custom suffixes are published in ID order; the "dup_" copies are dropped.
+        assert values == [f"row_{index}_{suffix}" for index in range(3) for suffix in ("a", "b")]

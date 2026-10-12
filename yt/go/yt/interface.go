@@ -2022,6 +2022,7 @@ type Client interface {
 	FileClient
 	TableClient
 	DistributedWriteClient
+	DistributedWriteFileClient
 
 	// BeginTx creates new tx.
 	//
@@ -2198,4 +2199,100 @@ type DistributedWriteClient interface {
 		cookie WriteFragmentCookie,
 		options *TableFragmentWriterOptions,
 	) (w TableFragmentWriter, err error)
+}
+
+// Distributed file write session API.
+//
+// Works like the distributed table write API; FinishDistributedWriteFileSession concatenates
+// the fragments in the order of the passed results. See
+// https://ytsaurus.tech/docs/en/api/commands#start_distributed_write_file_session
+
+// DistributedWriteFileSession is an opaque signed descriptor of a distributed file write session.
+type DistributedWriteFileSession struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// WriteFileFragmentCookie is an opaque signed token that authorizes a participant to
+// write file fragments within a session. One cookie may be used for several fragments.
+type WriteFileFragmentCookie struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// WriteFileFragmentResult is an opaque signed result of a single WriteFileFragment call.
+type WriteFileFragmentResult struct {
+	Header    string `yson:"header"`
+	Signature []byte `yson:"signature"`
+	Payload   []byte `yson:"payload"`
+}
+
+// DistributedWriteFileSessionWithCookies is the result of StartDistributedWriteFileSession.
+type DistributedWriteFileSessionWithCookies struct {
+	Session DistributedWriteFileSession `yson:"session"`
+	Cookies []WriteFileFragmentCookie   `yson:"cookies"`
+}
+
+type StartDistributedWriteFileSessionOptions struct {
+	// CookieCount is the number of participant cookies to generate.
+	CookieCount *int `http:"cookie_count,omitnil"`
+	// SessionTimeout is how long the session lives without a ping (akin to a transaction timeout).
+	SessionTimeout *yson.Duration `http:"session_timeout,omitnil"`
+
+	*TransactionOptions
+}
+
+type PingDistributedWriteFileSessionOptions struct{}
+
+type FinishDistributedWriteFileSessionOptions struct{}
+
+type FileFragmentWriterOptions struct{}
+
+// FileFragmentWriter writes a single file fragment within a distributed write session.
+//
+// After a successful Close, Result returns the signed fragment result that must be
+// handed back to the coordinator for FinishDistributedWriteFileSession.
+type FileFragmentWriter interface {
+	io.WriteCloser
+
+	// Result returns the signed write fragment result. It is valid only after Close returns successfully.
+	Result() WriteFileFragmentResult
+}
+
+// DistributedWriteFileClient provides the distributed file write API.
+type DistributedWriteFileClient interface {
+	// http:verb:"start_distributed_write_file_session"
+	// http:params:"path"
+	StartDistributedWriteFileSession(
+		ctx context.Context,
+		path ypath.YPath,
+		options *StartDistributedWriteFileSessionOptions,
+	) (result DistributedWriteFileSessionWithCookies, err error)
+
+	// http:verb:"ping_distributed_write_file_session"
+	// http:params:"session"
+	PingDistributedWriteFileSession(
+		ctx context.Context,
+		session DistributedWriteFileSession,
+		options *PingDistributedWriteFileSessionOptions,
+	) (err error)
+
+	// http:verb:"finish_distributed_write_file_session"
+	// http:params:"session","results"
+	FinishDistributedWriteFileSession(
+		ctx context.Context,
+		session DistributedWriteFileSession,
+		results []WriteFileFragmentResult,
+		options *FinishDistributedWriteFileSessionOptions,
+	) (err error)
+
+	// http:verb:"write_file_fragment"
+	// http:params:"cookie"
+	WriteFileFragment(
+		ctx context.Context,
+		cookie WriteFileFragmentCookie,
+		options *FileFragmentWriterOptions,
+	) (w FileFragmentWriter, err error)
 }
