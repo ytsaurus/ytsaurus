@@ -3192,6 +3192,78 @@ func logTableFragmentWriterOptions(o *yt.TableFragmentWriterOptions) []log.Field
 	return fields
 }
 
+func writeStartDistributedWriteFileSessionOptions(w *yson.Writer, o *yt.StartDistributedWriteFileSessionOptions) {
+	if o == nil {
+		return
+	}
+	if o.CookieCount != nil {
+		w.MapKeyString("cookie_count")
+		w.Any(o.CookieCount)
+	}
+	if o.SessionTimeout != nil {
+		w.MapKeyString("session_timeout")
+		w.Any(o.SessionTimeout)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logStartDistributedWriteFileSessionOptions(o *yt.StartDistributedWriteFileSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.CookieCount != nil {
+		fields = append(fields, log.Any("cookie_count", o.CookieCount))
+	}
+	if o.SessionTimeout != nil {
+		fields = append(fields, log.Any("session_timeout", o.SessionTimeout))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
+func writePingDistributedWriteFileSessionOptions(w *yson.Writer, o *yt.PingDistributedWriteFileSessionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logPingDistributedWriteFileSessionOptions(o *yt.PingDistributedWriteFileSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
+func writeFinishDistributedWriteFileSessionOptions(w *yson.Writer, o *yt.FinishDistributedWriteFileSessionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logFinishDistributedWriteFileSessionOptions(o *yt.FinishDistributedWriteFileSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
+func writeFileFragmentWriterOptions(w *yson.Writer, o *yt.FileFragmentWriterOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logFileFragmentWriterOptions(o *yt.FileFragmentWriterOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 type CreateNodeParams struct {
 	verb    Verb
 	path    ypath.YPath
@@ -7867,6 +7939,173 @@ func (p *WriteTableFragmentParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("cookie")
 	w.Any(p.cookie)
 	writeTableFragmentWriterOptions(w, p.options)
+}
+
+type StartDistributedWriteFileSessionParams struct {
+	verb    Verb
+	path    ypath.YPath
+	options *yt.StartDistributedWriteFileSessionOptions
+}
+
+func NewStartDistributedWriteFileSessionParams(
+	path ypath.YPath,
+	options *yt.StartDistributedWriteFileSessionOptions,
+) *StartDistributedWriteFileSessionParams {
+	if options == nil {
+		options = &yt.StartDistributedWriteFileSessionOptions{}
+	}
+	optionsCopy := *options
+	return &StartDistributedWriteFileSessionParams{
+		Verb("start_distributed_write_file_session"),
+		path,
+		&optionsCopy,
+	}
+}
+
+func (p *StartDistributedWriteFileSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *StartDistributedWriteFileSessionParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *StartDistributedWriteFileSessionParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("path", p.path),
+	}
+	fields = append(fields, logStartDistributedWriteFileSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *StartDistributedWriteFileSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeStartDistributedWriteFileSessionOptions(w, p.options)
+}
+
+func (p *StartDistributedWriteFileSessionParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type PingDistributedWriteFileSessionParams struct {
+	verb    Verb
+	session yt.DistributedWriteFileSession
+	options *yt.PingDistributedWriteFileSessionOptions
+}
+
+func NewPingDistributedWriteFileSessionParams(
+	session yt.DistributedWriteFileSession,
+	options *yt.PingDistributedWriteFileSessionOptions,
+) *PingDistributedWriteFileSessionParams {
+	if options == nil {
+		options = &yt.PingDistributedWriteFileSessionOptions{}
+	}
+	optionsCopy := *options
+	return &PingDistributedWriteFileSessionParams{
+		Verb("ping_distributed_write_file_session"),
+		session,
+		&optionsCopy,
+	}
+}
+
+func (p *PingDistributedWriteFileSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *PingDistributedWriteFileSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *PingDistributedWriteFileSessionParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logPingDistributedWriteFileSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *PingDistributedWriteFileSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("session")
+	w.Any(p.session)
+	writePingDistributedWriteFileSessionOptions(w, p.options)
+}
+
+type FinishDistributedWriteFileSessionParams struct {
+	verb    Verb
+	session yt.DistributedWriteFileSession
+	results []yt.WriteFileFragmentResult
+	options *yt.FinishDistributedWriteFileSessionOptions
+}
+
+func NewFinishDistributedWriteFileSessionParams(
+	session yt.DistributedWriteFileSession,
+	results []yt.WriteFileFragmentResult,
+	options *yt.FinishDistributedWriteFileSessionOptions,
+) *FinishDistributedWriteFileSessionParams {
+	if options == nil {
+		options = &yt.FinishDistributedWriteFileSessionOptions{}
+	}
+	optionsCopy := *options
+	return &FinishDistributedWriteFileSessionParams{
+		Verb("finish_distributed_write_file_session"),
+		session,
+		results,
+		&optionsCopy,
+	}
+}
+
+func (p *FinishDistributedWriteFileSessionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *FinishDistributedWriteFileSessionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *FinishDistributedWriteFileSessionParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logFinishDistributedWriteFileSessionOptions(p.options)...)
+	return fields
+}
+
+func (p *FinishDistributedWriteFileSessionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("session")
+	w.Any(p.session)
+	w.MapKeyString("results")
+	w.Any(p.results)
+	writeFinishDistributedWriteFileSessionOptions(w, p.options)
+}
+
+type WriteFileFragmentParams struct {
+	verb    Verb
+	cookie  yt.WriteFileFragmentCookie
+	options *yt.FileFragmentWriterOptions
+}
+
+func NewWriteFileFragmentParams(
+	cookie yt.WriteFileFragmentCookie,
+	options *yt.FileFragmentWriterOptions,
+) *WriteFileFragmentParams {
+	if options == nil {
+		options = &yt.FileFragmentWriterOptions{}
+	}
+	optionsCopy := *options
+	return &WriteFileFragmentParams{
+		Verb("write_file_fragment"),
+		cookie,
+		&optionsCopy,
+	}
+}
+
+func (p *WriteFileFragmentParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *WriteFileFragmentParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *WriteFileFragmentParams) Log() []log.Field {
+	fields := []log.Field{}
+	fields = append(fields, logFileFragmentWriterOptions(p.options)...)
+	return fields
+}
+
+func (p *WriteFileFragmentParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("cookie")
+	w.Any(p.cookie)
+	writeFileFragmentWriterOptions(w, p.options)
 }
 
 func writeExecuteBatchOptions(w *yson.Writer, o *ExecuteBatchOptions) {

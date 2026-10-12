@@ -85,4 +85,7 @@ var (
 
 	StartDistributedWriteSessionResultDecoder AnyValueResultDecoder = newValueResultDecoder()
 	WriteTableFragmentResultDecoder           AnyValueResultDecoder = newValueResultDecoder()
+
+	StartDistributedWriteFileSessionResultDecoder AnyValueResultDecoder = newValueResultDecoder()
+	WriteFileFragmentResultDecoder                AnyValueResultDecoder = newValueResultDecoder()
 )

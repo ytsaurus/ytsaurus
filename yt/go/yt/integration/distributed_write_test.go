@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"io"
+	"slices"
 	"testing"
 	"time"
 
@@ -151,4 +153,52 @@ func TestDistributedWriteUnderTransaction(t *testing.T) {
 	require.NoError(t, tx.Commit())
 
 	require.ElementsMatch(t, expected, readValues(env.YT))
+}
+
+func TestDistributedWriteFile(t *testing.T) {
+	t.Parallel()
+
+	env := yttest.New(t)
+	ctx := env.Ctx
+
+	waitSignatureKeyPublished(t, env)
+
+	path := env.TmpPath()
+	_, err := env.YT.CreateNode(ctx, path, yt.NodeFile, nil)
+	require.NoError(t, err)
+
+	tx, err := env.YT.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Abort() }()
+
+	cookieCount := 2
+	session, err := env.YT.StartDistributedWriteFileSession(ctx, path, &yt.StartDistributedWriteFileSessionOptions{
+		CookieCount:        &cookieCount,
+		TransactionOptions: &yt.TransactionOptions{TransactionID: tx.ID()},
+	})
+	require.NoError(t, err)
+	require.Len(t, session.Cookies, cookieCount)
+	require.NoError(t, env.YT.PingDistributedWriteFileSession(ctx, session.Session, nil))
+
+	fragments := []string{"first;", "second;", "third;"}
+	results := make([]yt.WriteFileFragmentResult, 0, len(fragments))
+	for i, fragment := range fragments {
+		w, err := env.YT.WriteFileFragment(ctx, session.Cookies[i%cookieCount], nil)
+		require.NoError(t, err)
+		_, err = w.Write([]byte(fragment))
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+		results = append(results, w.Result())
+	}
+
+	slices.Reverse(results)
+	require.NoError(t, env.YT.FinishDistributedWriteFileSession(ctx, session.Session, results, nil))
+	require.NoError(t, tx.Commit())
+
+	r, err := env.YT.ReadFile(ctx, path, nil)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+	content, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, "third;second;first;", string(content))
 }

@@ -8,6 +8,7 @@
 #include <yt/yt/flow/library/cpp/tables/input_messages.h>
 
 #include <library/cpp/iterator/iterate_values.h>
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/hash.h>
 
@@ -52,53 +53,46 @@ public:
     TFilterResult Filter(const std::vector<TInputMessageConstPtr>& messages, bool checkState) override
     {
         CheckedCounter_.Increment(std::ssize(messages));
-        if (!checkState) {
-            const auto systemWatermark = GetSystemWatermark();
-            TFilterResult result;
-            result.Unprocessed.reserve(messages.size());
-            for (const auto& message : messages) {
-                if (message->SystemTimestamp < systemWatermark) {
-                    YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp")
+        const auto systemWatermark = GetSystemWatermark();
+        TFilterResult result;
+        std::vector<TInputMessageConstPtr> messagesToCheck;
+        messagesToCheck.reserve(messages.size());
+        for (const auto& message : messages) {
+            if (message->SystemTimestamp < systemWatermark) {
+                YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp")
+                    .With("MessageId", message->MessageId)
+                    .With("StreamId", message->StreamId)
+                    .With("SystemTimestamp", message->SystemTimestamp)
+                    .With("InputSystemWatermark", systemWatermark);
+                result.Processed.push_back(message);
+            } else {
+                messagesToCheck.push_back(message);
+            }
+        }
+
+        if (checkState && !messagesToCheck.empty()) {
+            std::vector<NTables::TInputMessages::TMessage> messageKeys;
+            messageKeys.reserve(messagesToCheck.size());
+            for (const auto& message : messagesToCheck) {
+                messageKeys.push_back({.Key = message->Key, .MessageId = message->MessageId, .SystemTimestamp = message->SystemTimestamp});
+            }
+            auto isProcessed = WaitFor(Table_->Contains(Context_->Partition->ComputationId, messageKeys))
+                .ValueOrThrow();
+            YT_VERIFY(std::ssize(isProcessed) == std::ssize(messagesToCheck));
+
+            result.Unprocessed.reserve(messagesToCheck.size());
+            for (auto&& [message, alreadyProcessed] : Zip(messagesToCheck, isProcessed)) {
+                if (alreadyProcessed) {
+                    YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by InputMessages")
                         .With("MessageId", message->MessageId)
-                        .With("StreamId", message->StreamId)
-                        .With("SystemTimestamp", message->SystemTimestamp)
-                        .With("InputSystemWatermark", systemWatermark);
-                    result.Processed.push_back(message);
+                        .With("StreamId", message->StreamId);
+                    result.Processed.push_back(std::move(message));
                 } else {
-                    result.Unprocessed.push_back(message);
+                    result.Unprocessed.push_back(std::move(message));
                 }
             }
-            FilteredCounter_.Increment(std::ssize(result.Processed));
-            return result;
-        }
-
-        std::vector<NTables::TInputMessages::TMessage> messageKeys;
-        messageKeys.reserve(messages.size());
-        for (const auto& message : messages) {
-            messageKeys.push_back({.Key = message->Key, .MessageId = message->MessageId, .SystemTimestamp = message->SystemTimestamp});
-        }
-        auto isProcessed = WaitFor(Table_->Contains(Context_->Partition->ComputationId, messageKeys)).ValueOrThrow();
-
-        const auto systemWatermark = GetSystemWatermark();
-        YT_VERIFY(std::ssize(isProcessed) == std::ssize(messages));
-
-        TFilterResult result;
-        for (int i = 0; i < std::ssize(messages); ++i) {
-            if (isProcessed[i]) {
-                YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by InputMessages")
-                    .With("MessageId", messages[i]->MessageId)
-                    .With("StreamId", messages[i]->StreamId);
-                result.Processed.push_back(messages[i]);
-            } else if (messages[i]->SystemTimestamp < systemWatermark) {
-                YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp")
-                    .With("MessageId", messages[i]->MessageId)
-                    .With("StreamId", messages[i]->StreamId)
-                    .With("SystemTimestamp", messages[i]->SystemTimestamp)
-                    .With("InputSystemWatermark", systemWatermark);
-                result.Processed.push_back(messages[i]);
-            } else {
-                result.Unprocessed.push_back(messages[i]);
-            }
+        } else {
+            result.Unprocessed = std::move(messagesToCheck);
         }
 
         YT_VERIFY(std::ssize(result.Processed) + std::ssize(result.Unprocessed) == std::ssize(messages));
