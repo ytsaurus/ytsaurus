@@ -14,7 +14,7 @@ class TPendingDownloadsTracker
     : public TRefCounted
 {
 public:
-    TPendingDownloadsTracker(std::function<TFuture<i64>()> getRemainingSpace, i64 remainingSpace);
+    explicit TPendingDownloadsTracker(std::function<TFuture<i64>()> getRemainingSpace);
 
     class TPendingModification
     {
@@ -22,7 +22,7 @@ public:
         TPendingModification(TPendingModification&&) noexcept = default;
         TPendingModification& operator=(const TPendingModification&) = delete;
 
-        void Finish() &&;
+        void Finish(std::optional<i64> actualSizeDelta = {}) &&;
         void Cancel() &&;
 
         ~TPendingModification()
@@ -49,6 +49,7 @@ public:
         TInstant LastObservedAt;
     };
 
+    void InitializeStats(i64 remainingSpace);
     TStats GetStats() const;
 
     TFuture<std::optional<TPendingModification>> TryBeginDownload(i64 size);
@@ -58,8 +59,8 @@ private:
     const std::function<TFuture<i64>()> GetRemainingSpace_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SpinLock_);
-    TFuture<i64> RemainingSpace_;
-    i64 RemainingSpaceLastObserved_;
+    TFuture<i64> RemainingSpaceFuture_;
+    i64 RemainingSpaceLastObserved_ = 0;
     TInstant LastObservedAt_;
     bool ObservationInProgress_ = false;
 
