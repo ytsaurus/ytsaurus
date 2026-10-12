@@ -3581,10 +3581,12 @@ private:
                     }
                     auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
                     if (!cellLeaseTransactionIds) {
-                        THROW_ERROR_EXCEPTION("Requested to revoke leases from missing cell")
-                            .With("transaction_id", transaction->GetId())
-                            .With("cell_id", cellId)
-                            .With("cell_type", cellType);
+                        if (!GetDynamicConfig()->IgnoreMissingLeaseCellsOnForcedTransactionAbort) {
+                            THROW_ERROR_EXCEPTION("Requested to revoke leases from missing cell")
+                                .With("transaction_id", transaction->GetId())
+                                .With("cell_id", cellId)
+                                .With("cell_type", cellType);
+                        }
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
@@ -3995,13 +3997,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
-        YT_VERIFY(cellLeaseTransactionIds);
 
         if (!transaction->LeaseCellIds().erase(cellId)) {
             return false;
         }
 
-        EraseOrCrash(*cellLeaseTransactionIds, transaction->GetId());
+        if (cellLeaseTransactionIds) {
+            EraseOrCrash(*cellLeaseTransactionIds, transaction->GetId());
+        } else {
+            YT_LOG_ALERT("Unregistering transaction lease for a missing cell (TransactionId: %v, MissingCellId: %v)",
+                GetObjectId(transaction),
+                cellId);
+        }
 
         auto discountTransactionLease = [&] (TTransaction* transaction) {
             transaction->SetSuccessorTransactionLeaseCount(
