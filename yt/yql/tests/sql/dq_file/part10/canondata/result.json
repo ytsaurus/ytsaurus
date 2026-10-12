@@ -685,6 +685,13 @@
             "uri": "https://{canondata_backend}/1946324/855d27ef0fdb26ca00b5715089e80c8d76f5c440/resource.tar.gz#test.test_window-win_func_with_struct_access_full_access-default.txt-Plan_/plan.txt"
         }
     ],
+    "test.test[ypath-multi_range_map-default.txt-Plan]": [
+        {
+            "checksum": "f195daa0332f326a49d3606aa59caf5b",
+            "size": 3671,
+            "uri": "https://{canondata_backend}/1899731/98c488332b90e5e12edb8f0805ceda4af7f0f79f/resource.tar.gz#test.test_ypath-multi_range_map-default.txt-Plan_/plan.txt"
+        }
+    ],
     "test.test[yql-tpcds-q15-default.txt-Plan]": [
         {
             "checksum": "212be881133a20b5b73ef1250dbeda51",
