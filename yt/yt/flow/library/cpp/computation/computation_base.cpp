@@ -1241,6 +1241,18 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
         }
     }
 
+    for (const auto& [_, sink] : Sinks_) {
+        for (const auto& [streamId, sinkInflight] : sink->BuildInflight()) {
+            auto it = inflights.find(streamId);
+            if (it == inflights.end()) {
+                inflights[streamId] = sinkInflight;
+            } else {
+                // Sink snapshots may omit historical rates reported by the output store.
+                it->second = MergeInflightTraverseData({it->second, sinkInflight}, /*allowPartial*/ true);
+            }
+        }
+    }
+
     if (!GetSpec()->InputStreamIds.empty()) {
         const auto inputInflightMetrics = WaitFor(context->GetInputInflightMetrics())
             .ValueOrThrow();
@@ -1533,6 +1545,13 @@ void TUniversalComputationBase::Commit(
     });
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
     {
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("PreSyncFlush"));
+        for (const auto& [_, sink] : Sinks_) {
+            sink->PreSyncFlush();
+        }
+        DrainDistributedOutputs(context);
+    }
+    {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("FinalizeTransaction"));
         if (ActiveSource_) {
             ActiveSource_->Sync();
@@ -1801,6 +1820,7 @@ void TUniversalComputationBase::InitSinks()
         context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
         context->Logger = context->Logger.WithTag("SinkId", sinkId);
         context->SinkSpec = sinkSpec;
+        context->JobGeneration = GetContext()->Job->Generation;
 
         auto dynamicSinkContext = New<TDynamicSinkContext>();
         dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
@@ -1816,6 +1836,18 @@ void TUniversalComputationBase::InitSinks()
         }
         EmplaceOrCrash(Sinks_, sinkId, std::move(sink));
     }
+}
+
+bool TUniversalComputationBase::HasSinkInflight() const
+{
+    for (const auto& [_, sink] : Sinks_) {
+        for (const auto& [_, inflight] : sink->BuildInflight()) {
+            if (!inflight->Empty) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void TUniversalComputationBase::InitBufferWarmupState()
@@ -1906,10 +1938,8 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
         .With("FinishedPartitionState", ConvertToYsonString(GetPartitionState(), NYson::EYsonFormat::Text));
 }
 
-void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
+void TUniversalComputationBase::DrainOutputMessages(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_TLOG_INFO("Started DoInterrupt");
-
     bool isFinished = true;
     {
         auto iterGuard = StartRunIteration(context);
@@ -1932,12 +1962,16 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
         FinishRunIteration();
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.InterruptedPartitionOutputMessages", EEpochPartKind::Waiting));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.DrainingPartitionOutputMessages", EEpochPartKind::Waiting));
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
+}
 
+void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
+{
+    YT_TLOG_INFO("Started DoInterrupt");
+    DrainOutputMessages(context, std::move(initTraceContextGuard));
     DoCleanup(context, /*eraseOwnedState*/ false);
-
     YT_TLOG_INFO("Completed DoInterrupt");
 }
 
@@ -1949,36 +1983,11 @@ bool TUniversalComputationBase::HasPersistedKeyedOutput() const
 void TUniversalComputationBase::DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
 {
     YT_TLOG_INFO("Started DoComplete");
-
-    if (HasPersistedKeyedOutput()) {
-        bool isFinished = true;
-        {
-            auto iterGuard = StartRunIteration(context);
-            const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-            isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
-            FinishRunIteration();
-        }
-
-        initTraceContextGuard.Release();
-
-        while (!isFinished) {
-            auto iterGuard = StartRunIteration(context);
-            auto dynamicSpec = GetDynamicSpec();
-
-            const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-
-            auto tx = PrepareTransaction(context);
-            Commit(context, tx);
-
-            isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
-            FinishRunIteration();
-            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages", EEpochPartKind::Waiting));
-            TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
-        }
+    if (HasPersistedKeyedOutput() || HasSinkInflight()) {
+        DrainOutputMessages(context, std::move(initTraceContextGuard));
     } else {
         initTraceContextGuard.Release();
     }
-
     DoCleanup(context, /*eraseOwnedState*/ true);
     YT_TLOG_INFO("Completed DoComplete");
 }

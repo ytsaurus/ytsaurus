@@ -79,11 +79,77 @@ TEST(TTraverseTest, MergeInflightLifecycleMetrics)
     second->InflightMetrics->OfferedCountPerSec = 7;
     second->InflightMetrics->OfferedBytesPerSec = 70;
 
-    const auto merged = MergeInflightTraverseData({first, second});
-    EXPECT_EQ(merged->InflightMetrics->ReadyCount, 7);
-    EXPECT_EQ(merged->InflightMetrics->ReadyByteSize, 70);
-    EXPECT_EQ(merged->InflightMetrics->OfferedCountPerSec, 10);
-    EXPECT_EQ(merged->InflightMetrics->OfferedBytesPerSec, 100);
+    for (bool allowPartial : {false, true}) {
+        const auto merged = MergeInflightTraverseData({first, second}, allowPartial);
+        EXPECT_EQ(merged->InflightMetrics->ReadyCount, 7);
+        EXPECT_EQ(merged->InflightMetrics->ReadyByteSize, 70);
+        EXPECT_EQ(merged->InflightMetrics->OfferedCountPerSec, 10);
+        EXPECT_EQ(merged->InflightMetrics->OfferedBytesPerSec, 100);
+        EXPECT_FALSE(merged->InflightMetrics->NewCountPerSec);
+        EXPECT_FALSE(merged->InflightMetrics->NewBytesPerSec);
+        EXPECT_FALSE(merged->InflightMetrics->ProcessedCountPerSec);
+        EXPECT_FALSE(merged->InflightMetrics->ProcessedBytesPerSec);
+    }
+}
+
+TEST(TTraverseTest, PartialInflightMergePreservesRatesWithSinkSnapshot)
+{
+    const auto rateFields = {
+        &TInflightMetrics::NewCountPerSec,
+        &TInflightMetrics::NewBytesPerSec,
+        &TInflightMetrics::OfferedCountPerSec,
+        &TInflightMetrics::OfferedBytesPerSec,
+        &TInflightMetrics::ProcessedCountPerSec,
+        &TInflightMetrics::ProcessedBytesPerSec,
+    };
+    for (int sinkCount : {0, 2}) {
+        auto output = New<TInflightStreamTraverseData>();
+        output->Empty = false;
+        output->Suspended = true;
+        output->MinSystemTimestamp = TSystemTimestamp(80);
+        output->MinEventTimestamp = TSystemTimestamp(100);
+        output->InflightMetrics->Count = 3;
+        output->InflightMetrics->ByteSize = 30;
+        output->InflightMetrics->ReadyCount = 1;
+        output->InflightMetrics->ReadyByteSize = 10;
+        for (auto field : rateFields) {
+            output->InflightMetrics.Get()->*field = 100;
+        }
+
+        auto sink = New<TInflightStreamTraverseData>();
+        sink->Empty = sinkCount == 0;
+        sink->Suspended = false;
+        sink->InflightMetrics->Count = sinkCount;
+        sink->InflightMetrics->ByteSize = 10 * sinkCount;
+        sink->InflightMetrics->ReadyCount = 0;
+        sink->InflightMetrics->ReadyByteSize = 0;
+        if (sinkCount > 0) {
+            sink->MinSystemTimestamp = TSystemTimestamp(60);
+            sink->MinEventTimestamp = TSystemTimestamp(120);
+        }
+
+        for (const auto& inflights : {std::vector{output, sink}, std::vector{sink, output}}) {
+            const auto merged = MergeInflightTraverseData(inflights, /*allowPartial*/ true);
+            const auto strict = MergeInflightTraverseData(inflights);
+            for (auto field : rateFields) {
+                EXPECT_EQ(merged->InflightMetrics.Get()->*field, 100);
+                EXPECT_FALSE(strict->InflightMetrics.Get()->*field);
+                EXPECT_EQ(output->InflightMetrics.Get()->*field, 100);
+                EXPECT_FALSE(sink->InflightMetrics.Get()->*field);
+            }
+            EXPECT_EQ(merged->InflightMetrics->Count, 3 + sinkCount);
+            EXPECT_EQ(merged->InflightMetrics->ByteSize, 30 + 10 * sinkCount);
+            EXPECT_EQ(merged->InflightMetrics->ReadyCount, 1);
+            EXPECT_EQ(merged->InflightMetrics->ReadyByteSize, 10);
+            EXPECT_EQ(merged->MinSystemTimestamp, TSystemTimestamp(sinkCount ? 60 : 80));
+            EXPECT_EQ(merged->MinEventTimestamp, TSystemTimestamp(100));
+            EXPECT_FALSE(merged->Empty);
+            EXPECT_FALSE(merged->Suspended);
+            EXPECT_EQ(output->InflightMetrics->Count, 3);
+            EXPECT_EQ(sink->InflightMetrics->Count, sinkCount);
+            EXPECT_EQ(output->MinSystemTimestamp, TSystemTimestamp(80));
+        }
+    }
 }
 
 TEST(TTraverseTest, MergeInflightFlagsAreOrderIndependent)

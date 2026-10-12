@@ -235,4 +235,11 @@ DEFINE_REFCOUNTED_TYPE(TMultiInflightTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildBatchInflights(
+    const THashSet<TStreamId>& streams,
+    const std::vector<TOutputMessageConstPtr>& messages,
+    const TWatermarkPercentileSpecPtr& percentile);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow
