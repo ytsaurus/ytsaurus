@@ -116,6 +116,9 @@ struct TDynamicTransactionManagerConfig
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;
 
+    // COMPAT(shakurov)
+    bool IgnoreMissingLeaseCellsOnForcedTransactionAbort;
+
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 
     static void Register(TRegistrar registrar);

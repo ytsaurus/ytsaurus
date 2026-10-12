@@ -123,6 +123,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("transaction_finisher", &TThis::TransactionFinisher)
         .DefaultNew();
+
+    registrar.Parameter("ignore_missing_lease_cells_on_forced_transaction_abort", &TThis::IgnoreMissingLeaseCellsOnForcedTransactionAbort)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
