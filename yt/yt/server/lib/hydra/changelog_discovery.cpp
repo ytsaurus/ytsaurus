@@ -141,155 +141,6 @@ TFuture<TChangelogInfo> DiscoverChangelog(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputeQuorumInfoSession
-    : public TRefCounted
-{
-public:
-    TComputeQuorumInfoSession(
-        TDistributedHydraManagerConfigPtr config,
-        TCellManagerPtr cellManager,
-        int changelogId,
-        int localRecordCount)
-        : Config_(config)
-        , CellManager_(cellManager)
-        , ChangelogId_(changelogId)
-        , Logger(HydraLogger().WithTag("ChangelogId: %v, CellId: %v",
-            ChangelogId_,
-            CellManager_->GetCellId()))
-    {
-        YT_VERIFY(Config_);
-        YT_VERIFY(CellManager_);
-
-        RegisterSuccess(localRecordCount);
-    }
-
-    TFuture<TChangelogQuorumInfo> Run()
-    {
-        YT_UNUSED_FUTURE(BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run());
-        return Promise_;
-    }
-
-private:
-    const TDistributedHydraManagerConfigPtr Config_;
-    const NElection::TCellManagerPtr CellManager_;
-    const int ChangelogId_;
-
-    const NLogging::TLogger Logger;
-
-    std::vector<int> RecordCountsLo_;
-    std::vector<int> RecordCountsHi_;
-    // TODO(aleksandra-zh): Consider actually using this.
-    std::vector<TError> InnerErrors_;
-    const TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
-
-
-    void RegisterSuccess(int recordCount)
-    {
-        RecordCountsLo_.push_back(recordCount);
-        RecordCountsHi_.push_back(recordCount);
-    }
-
-    void RegisterFailure(const TError& error)
-    {
-        InnerErrors_.push_back(error);
-        RecordCountsLo_.push_back(std::numeric_limits<int>::min());
-        RecordCountsHi_.push_back(std::numeric_limits<int>::max());
-    }
-
-    void DoRun()
-    {
-        YT_LOG_INFO("Computing changelog quorum record count");
-
-        std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
-            if (peerId == CellManager_->GetSelfPeerId()) {
-                continue;
-            }
-
-            const auto& config = CellManager_->GetPeerConfig(peerId);
-            if (!config->Voting) {
-                continue;
-            }
-
-            auto channel = CellManager_->GetPeerChannel(peerId);
-            if (!channel) {
-                continue;
-            }
-
-            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
-                peerId);
-
-            TInternalHydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
-
-            auto req = proxy.LookupChangelog();
-            req->set_changelog_id(ChangelogId_);
-            asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), peerId)));
-        }
-
-        AllSucceeded(asyncResults).Subscribe(
-            BIND(&TComputeQuorumInfoSession::OnComplete, MakeStrong(this)));
-    }
-
-    void OnResponse(
-        int peerId,
-        const TInternalHydraServiceProxy::TErrorOrRspLookupChangelogPtr& rspOrError)
-    {
-        if (rspOrError.IsOK()) {
-            const auto& rsp = rspOrError.Value();
-            int recordCount = rsp->record_count();
-            RegisterSuccess(recordCount);
-
-            YT_LOG_DEBUG("Changelog info received (PeerId: %v, RecordCount: %v)",
-                peerId,
-                recordCount);
-        } else {
-            RegisterFailure(rspOrError);
-
-            YT_LOG_WARNING(rspOrError, "Error requesting changelog info (PeerId: %v)",
-                peerId);
-        }
-    }
-
-    void OnComplete(const TError&)
-    {
-        std::sort(RecordCountsLo_.begin(), RecordCountsLo_.end());
-        std::sort(RecordCountsHi_.begin(), RecordCountsHi_.end());
-
-        int quorum = CellManager_->GetQuorumPeerCount();
-        TChangelogQuorumInfo result{
-            RecordCountsLo_[quorum - 1],
-            RecordCountsHi_[quorum - 1]
-        };
-
-        YT_LOG_INFO("Changelog quorum info count computed successfully (RecordCountLo: %v, RecordCountHi: %v)",
-            result.RecordCountLo,
-            result.RecordCountHi);
-
-        Promise_.Set(result);
-    }
-};
-
-TFuture<TChangelogQuorumInfo> ComputeChangelogQuorumInfo(
-    TDistributedHydraManagerConfigPtr config,
-    TCellManagerPtr cellManager,
-    int changelogId,
-    int localRecordCount)
-{
-    auto session = New<TComputeQuorumInfoSession>(
-        std::move(config),
-        std::move(cellManager),
-        changelogId,
-        localRecordCount);
-    return session->Run();
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TComputeQuorumLatestChangelogIdSession
     : public TRefCounted
 {
@@ -306,7 +157,7 @@ public:
         YT_VERIFY(CellManager_);
 
         YT_VERIFY(CellManager_->GetSelfConfig()->Voting);
-        RegisterSuccess(localChangelogId, localTerm);
+        RegisterSuccess(CellManager_->GetSelfPeerId(), localChangelogId, localTerm);
     }
 
     TFuture<std::pair<int, int>> Run()
@@ -326,14 +177,14 @@ private:
 
     int ChangelogId_ = 0;
     int Term_ = 0;
-    int SuccessCount_ = 0;
+    int SuccessWeight_ = 0;
 
     std::vector<TError> InnerErrors_;
 
 
-    void RegisterSuccess(int changelogId, int term)
+    void RegisterSuccess(int peerId, int changelogId, int term)
     {
-        ++SuccessCount_;
+        SuccessWeight_ += CellManager_->GetPeerWeight(peerId);
         ChangelogId_ = std::max(ChangelogId_, changelogId);
         Term_ = std::max(Term_, term);
     }
@@ -387,7 +238,7 @@ private:
             const auto& rsp = rspOrError.Value();
             int changelogId = rsp->changelog_id();
             int term = rsp->term();
-            RegisterSuccess(changelogId, term);
+            RegisterSuccess(peerId, changelogId, term);
 
             YT_LOG_DEBUG("Changelog id received (PeerId: %v, ChangelogId: %v, Term: %v)",
                 peerId,
@@ -403,11 +254,11 @@ private:
 
     void OnComplete(const TError&)
     {
-        int quorum = CellManager_->GetQuorumPeerCount();
-        if (SuccessCount_ < quorum) {
-            Promise_.TrySet(TError("Not enough answers to compute quorum changelog id: %v out of %v",
-                SuccessCount_,
-                quorum));
+        auto quorumWeight = CellManager_->GetQuorumWeight();
+        if (SuccessWeight_ < quorumWeight) {
+            Promise_.TrySet(TError("Not enough answers to compute quorum changelog id: weight %v out of %v",
+                SuccessWeight_,
+                quorumWeight));
             return;
         }
 
