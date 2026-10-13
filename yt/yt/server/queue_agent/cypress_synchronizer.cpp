@@ -83,7 +83,11 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , AlertCollector_(std::move(alertCollector))
         , Logger(logger)
-    { }
+    {
+        for (const auto& path : DynamicConfigSnapshot_->IgnoredObjectList) {
+            IgnoredObjects_.insert(TTablePath::FromRichYPath(path));
+        }
+    }
 
     void Build()
     {
@@ -106,6 +110,9 @@ private:
     const TClientDirectoryPtr ClientDirectory_;
     const IAlertCollectorPtr AlertCollector_;
     const NLogging::TLogger Logger;
+
+    //! Objects from #TCypressSynchronizerDynamicConfig::IgnoredObjectList.
+    THashSet<TTablePath> IgnoredObjects_;
 
     using TClusterToObjectListMapping = THashMap<std::string, std::vector<TObject>>;
 
@@ -675,6 +682,10 @@ private:
 
         for (const auto& kind : TCypressWatchlist::ObjectKinds) {
             for (const auto& [objectPath, revision] : cypressWatchlist.ObjectsByKind(kind)) {
+                if (IgnoredObjects_.contains(TTablePath(objectPath, *MakeAttributesWithCluster(cluster)))) {
+                    continue;
+                }
+
                 auto watchedObjectsIt = watchedObjects.find(objectPath);
 
                 bool isNewDynamicStateObject = (watchedObjectsIt == watchedObjects.end());
@@ -737,6 +748,9 @@ private:
             .ThrowOnError();
 
         for (const auto& queue : asyncQueues.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(queue.Path)) {
+                continue;
+            }
             ClusterToDynamicStateObjects_[queue.Path.GetCluster().value()].push_back({
                 queue.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Queue,
@@ -746,6 +760,9 @@ private:
         }
 
         for (const auto& consumer : asyncConsumers.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(consumer.Path)) {
+                continue;
+            }
             ClusterToDynamicStateObjects_[consumer.Path.GetCluster().value()].push_back({
                 consumer.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Consumer,
@@ -759,6 +776,9 @@ private:
         }
 
         for (const auto& replicatedObject : asyncReplicatedTableMapping.GetOrCrash().Value()) {
+            if (IgnoredObjects_.contains(replicatedObject.Path)) {
+                continue;
+            }
             ClusterToReplicatedTableMappingObjects_[replicatedObject.Path.GetCluster().value()].push_back({
                 replicatedObject.Path.GetPath(),
                 /*kind*/ ECypressSyncObjectKind::Unknown,
