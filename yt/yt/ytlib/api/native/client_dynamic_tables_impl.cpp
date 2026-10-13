@@ -232,6 +232,26 @@ TColumnFilter RemapColumnFilter(
     return TColumnFilter(std::move(remappedFilterIndexes));
 }
 
+void ValidateVersionedLookupColumnFilter(
+    const TColumnFilter& columnFilter,
+    int keyColumnCount)
+{
+    if (columnFilter.IsUniversal()) {
+        return;
+    }
+
+    bool valueColumnSeen = false;
+    for (int index : columnFilter.GetIndexes()) {
+        if (index >= keyColumnCount) {
+            valueColumnSeen = true;
+        } else if (valueColumnSeen) {
+            THROW_ERROR_EXCEPTION("Key columns must precede value columns in versioned lookup column filter")
+                .With("column_filter", columnFilter.GetIndexes())
+                .With("key_column_id", index);
+        }
+    }
+}
+
 std::vector<std::string> GetLookupColumns(const TColumnFilter& columnFilter, const TTableSchema& schema)
 {
     std::vector<std::string> columns;
@@ -1119,6 +1139,12 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     auto idMapping = BuildColumnIdMapping(*schema, nameTable, options.AllowMissingKeyColumns);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
+    if constexpr (std::same_as<TRow, TVersionedRow>) {
+        ValidateVersionedLookupColumnFilter(
+            remappedColumnFilter,
+            schema->GetKeyColumnCount());
+    }
+
     auto resultSchema = schema->Filter(remappedColumnFilter, true);
     auto resultSchemaData = IWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
 
