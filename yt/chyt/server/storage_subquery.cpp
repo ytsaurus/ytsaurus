@@ -47,6 +47,31 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+// Core vanilla CH logic from IStorage::read(queryPlan, ...).
+void ParallelizePipeIfNeeded(
+    DB::Pipe& pipe,
+    const DB::ContextPtr& context,
+    DB::QueryProcessingStage::Enum processedStage,
+    size_t maxStreamCount)
+{
+    const size_t outputPorts = pipe.numOutputPorts();
+    const bool parallelizeOutput = context->getSettingsRef()[DB::Setting::parallelize_output_from_storages];
+
+    // For distributed_aggregation_memory_efficient with Two-Level-Hash aggregation, the `GroupingAggregatedTransform`
+    // need to receive buckets from Remote in order of bucket number, while resize here will break the buckets order
+    // return from `RemoteSource`. See https://github.com/ClickHouse/ClickHouse/issues/76934.
+    const bool shouldNotResize = context->getSettingsRef()[DB::Setting::distributed_aggregation_memory_efficient]
+        && processedStage == DB::QueryProcessingStage::Enum::WithMergeableState;
+
+    if (!shouldNotResize && parallelizeOutput && outputPorts > 0 && outputPorts < maxStreamCount) {
+        pipe.resize(maxStreamCount);
+    }
+}
+
+} // namespace
+
 std::vector<TColumnSchema> GetColumnSchemas(
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames)
@@ -155,27 +180,6 @@ public:
     bool supportsFiltersAnalysis() const override
     {
         return true;
-    }
-
-    // Core vanilla CH logic from IStorage::read(queryPlan, ...).
-    void ParallelizePipeIfNeeded(
-        DB::Pipe& pipe,
-        const DB::ContextPtr& context,
-        DB::QueryProcessingStage::Enum processedStage,
-        size_t maxStreamCount)
-    {
-        const size_t outputPorts = pipe.numOutputPorts();
-        const bool parallelizeOutput = context->getSettingsRef()[DB::Setting::parallelize_output_from_storages];
-
-        // For distributed_aggregation_memory_efficient with Two-Level-Hash aggregation, the `GroupingAggregatedTransform`
-        // need to receive buckets from Remote in order of bucket number, while resize here will break the buckets order
-        // return from `RemoteSource`. See https://github.com/ClickHouse/ClickHouse/issues/76934.
-        const bool shouldNotResize = context->getSettingsRef()[DB::Setting::distributed_aggregation_memory_efficient]
-            && processedStage == DB::QueryProcessingStage::Enum::WithMergeableState;
-
-        if (!shouldNotResize && parallelizeOutput && outputPorts > 0 && outputPorts < maxStreamCount) {
-            pipe.resize(maxStreamCount);
-        }
     }
 
     void read(

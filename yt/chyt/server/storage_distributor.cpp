@@ -30,7 +30,6 @@
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
-#include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 
@@ -494,42 +493,6 @@ private:
         return StorageContext_->Settings->Execution->EnableInputSpecsPulling && !QueryAnalyzer_->HasRightOrFullJoin();
     }
 
-    void ConstructSortDescriptions()
-    {
-        // Imagine a query such as
-        // ```
-        // SELECT a, d
-        // FROM t -- CREATE TABLE t (a UInt8, b UInt8, c UInt8, d UInt8) ENGINE=YtTable() ORDER BY (a, b, c)
-        // ORDER BY a, b, c
-        // ```
-        // This query will be executed on two different levels:
-        // - First on worker nodes, where data will be read from YT tables raw and all data transformations will be
-        //   performed by the CH's query engine. Therefore in order for CH to better optimize query execution (e.g. LIMIT)
-        //   we would, on worker nodes, return a sort description as verbose as possible. In this case {a, b, c}.
-        //   More than that, even though columns b and c are not physically read, data read on a particular host is still
-        //   physically sorted in that way, because it was stored as such by the YT storage layer. Therefore by returning
-        //   sort description {a, b, c} we're not technically lying.
-        if (QueryAnalysisResult_->ReadInOrderMode == EReadInOrderMode::Forward) {
-            // In the Backward case data has to be explicitly sorted on a secondary node anyway.
-            SpecTemplate_.SubqueryOptions.SortDescription = QueryAnalysisResult_->SortDescription;
-        }
-        // - Then on a coordinator node, when all data is already transformed on worker nodes and CH only needs to
-        //   aggregate it from all remote hosts. However, since part of data is already 'lost' (columns b and c are not selected),
-        //   there's no way for a CH engine to merge sorted streams from remote hosts so that the resulting stream still
-        //   complies to {a, b, c} sorting, only to {a}. Therefore we drop {b, c} from the coordinator's sort description.
-        //   Simply put, we keep the longest prefix of sort columns that are selected:
-        DB::SortDescription coordinatorSortDescription;
-        const auto& selectColumns = QueryInfo_.query_tree->as<const DB::QueryNode&>().getProjectionColumns();
-        for (const auto& sortColumn : QueryAnalysisResult_->SortDescription) {
-            auto isSortColumn = [&] (const auto& selectColumn) { return selectColumn.name == sortColumn.column_name; };
-            if (std::ranges::none_of(selectColumns, isSortColumn)) {
-                break;
-            }
-            coordinatorSortDescription.push_back(sortColumn);
-        }
-        CoordinatorSortDescription_ = std::move(coordinatorSortDescription);
-    }
-
     void PrepareInput()
     {
         QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger, false, !VirtualColumnNames_.empty());
@@ -560,7 +523,8 @@ private:
         SpecTemplate_.SubqueryOptions.UseDistinctReadOptimization = QueryAnalyzer_->NeedOnlyDistinct();
         SpecTemplate_.SubqueryOptions.UseMinMaxOptimization =
             QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
-        ConstructSortDescriptions();
+        SpecTemplate_.SubqueryOptions.SortDescription = QueryAnalysisResult_->SubquerySortDescription;
+        CoordinatorSortDescription_ = QueryAnalysisResult_->CoordinatorSortDescription;
 
         auto& tableStatistics = SpecTemplate_.TableStatistics;
         if (tableStatistics.has_value()) {

@@ -106,6 +106,7 @@ class Clique(object):
                  remove_storage_artifacts_on_exit=True,
                  disable_chunk_spec_cache=False,
                  chunk_spec_cache_capacity=None,
+                 disable_logging=False,
                  **kwargs):
         """
         alias: str
@@ -113,6 +114,11 @@ class Clique(object):
             It will be stored in self.alias with all asterisks discarded.
 
             Is generated randomly if not provided.
+
+        disable_logging: bool
+            Disable instance log files, only errors are written to stderr.
+            Useful for tests with lots of queries, which may otherwise run out of disk space.
+            System log tables (e.g. query log) are not affected.
         """
 
         self.yt_client = YtClient(config={
@@ -176,6 +182,13 @@ class Clique(object):
 
         if config_patch is not None:
             config = update(config, config_patch)
+
+        if disable_logging:
+            # Replaced as a whole, since update() cannot remove rules and writers.
+            config["logging"] = {
+                "rules": [{"min_level": "error", "writers": ["stderr"]}],
+                "writers": {"stderr": {"type": "stderr"}},
+            }
 
         self.orchid_root = config["yt"]["orchid_root"]
         self.discovery_version = config["yt"]["discovery"]["version"]
