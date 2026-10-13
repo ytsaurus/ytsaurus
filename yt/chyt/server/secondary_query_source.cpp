@@ -139,7 +139,7 @@ private:
     const NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
     const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClientChunkReadOptions ChunkReadOptions_;
-    bool IsReadInOrder_;
+    const bool IsReadInOrder_;
     const TTableReaderConfigPtr TableReaderConfig_;
     const TNameTablePtr NameTable_;
     const NChunkClient::IMultiReaderMemoryManagerPtr RootReaderMemoryManager_;

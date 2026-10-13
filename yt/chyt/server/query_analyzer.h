@@ -39,7 +39,8 @@ struct TQueryAnalysisResult
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
-    DB::SortDescription SortDescription;
+    DB::SortDescription SubquerySortDescription;
+    DB::SortDescription CoordinatorSortDescription;
     bool EnableMinMaxOptimization = false;
     NYTree::IAttributeDictionaryPtr AnalysisVariables = NYTree::CreateEphemeralAttributes();
 };
@@ -168,7 +169,8 @@ private:
 
     EReadInOrderMode ReadInOrderMode_ = EReadInOrderMode::None;
 
-    DB::SortDescription SortDescription_;
+    DB::SortDescription SubquerySortDescription_;
+    DB::SortDescription CoordinatorSortDescription_;
 
     std::vector<DB::QueryTreeNodePtr> JoinKeyRightExpressions_;
 
