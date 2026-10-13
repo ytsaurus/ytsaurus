@@ -877,6 +877,5 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		config:  config,
 	}
 	c.prepareTvmSecret()
-	c.initDiscoveryClient(context.Background())
 	return c
 }
