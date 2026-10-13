@@ -14,7 +14,6 @@ namespace NYT::NChunkClient {
 TFuture<void> RepairErasedPartsStriped(
     TErasureReaderConfigPtr config,
     const NErasure::ICodec* codec,
-    NErasure::TPartIndexList erasedPartIndices,
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,

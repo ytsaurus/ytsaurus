@@ -12,10 +12,6 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-#include <util/generic/size_literals.h>
-
-#include <limits>
-
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,9 +24,7 @@ struct TChunkReadOptions
     bool PopulateCache = false;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
-    EReadIORequestsMode ReadIORequestsMode = EReadIORequestsMode::Sequential;
-    int MaxInFlightReadRequestCount = std::numeric_limits<int>::max();
-    i64 MaxInFlightReadDataSize = 16_MB;
+    bool EnableSequentialIORequests = true;
 
     bool ReturnBlocksIfSessionFails = false;
     bool FailSessionAtReadBlocksDeadline = false;

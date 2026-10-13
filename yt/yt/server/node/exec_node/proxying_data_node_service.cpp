@@ -18,8 +18,6 @@
 
 #include <yt/yt/core/bus/bus.h>
 
-#include <yt/yt/core/concurrency/prioritized_invoker.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NExecNode {
@@ -311,9 +309,7 @@ private:
                 // ReplicationReader doesn't use this field, other scenarios (such as reading journal chunks) do not require proxying.
                 ToProto(response->mutable_location_uuid(), EmptyChunkLocationUuid);
             })
-            .AsyncVia(CreateFixedPriorityInvoker(
-                Bootstrap_->GetStorageHeavyInvoker(),
-                workloadDescriptor.GetPriority())));
+            .AsyncVia(Bootstrap_->GetStorageHeavyInvoker()));
         context->ReplyFrom(responseFuture);
     }
 };

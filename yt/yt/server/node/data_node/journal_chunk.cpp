@@ -16,7 +16,6 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/ref_counted_proto.h>
 
-#include <yt/yt/core/concurrency/prioritized_invoker.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -151,9 +150,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
             MakeStrong(this),
             blockIndexes,
             options)
-            .AsyncVia(CreateFixedPriorityInvoker(
-                Context_->StorageHeavyInvoker,
-                options.WorkloadDescriptor.GetPriority()))
+            .AsyncVia(Context_->StorageHeavyInvoker)
             .Run();
     }
 
@@ -329,9 +326,6 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
     int indexInRequest = 0;
     int cachedBlockCount = 0;
     std::vector<TFuture<std::vector<TBlock>>> futures;
-    auto invoker = CreateFixedPriorityInvoker(
-        Context_->StorageHeavyInvoker,
-        options.WorkloadDescriptor.GetPriority());
 
     while (indexInRequest < std::ssize(blockIndexes)) {
         if (!blockCookies.empty() && !blockCookies[indexInRequest]->IsActive()) {
@@ -382,7 +376,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
                 blockIndexes[firstIndexInRequest],
                 blockCount,
                 /*alreadyReadBlocks*/ std::vector<TBlock>{})
-            .AsyncVia(invoker));
+            .AsyncVia(Context_->StorageHeavyInvoker));
 
         if (!blockCookies.empty()) {
             uncachedBlocksFuture = uncachedBlocksFuture
@@ -401,7 +395,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadCompleteBlockSetAndCache(
             &TJournalChunk::OnBlockReadFromDiskForPrecache,
             MakeStrong(this),
             Passed(std::move(precachedBlockInfo)))
-            .Via(invoker));
+            .Via(Context_->StorageHeavyInvoker));
     }
 
     YT_LOG_DEBUG("Started reading block set of journal chunk "

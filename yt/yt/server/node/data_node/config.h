@@ -741,10 +741,6 @@ struct TRepairChunkJobDynamicConfig
 
     i64 WindowSize;
 
-    //! Enables retries with a different set of source parts when striped erasure repair
-    //! encounters a failed or slow reader.
-    bool EnableAdaptiveRepairForStripedErasureChunks;
-
     REGISTER_YSON_STRUCT(TRepairChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -977,19 +973,8 @@ struct TDataNodeConfig
     //! If |true| then write throttling locations on StartChunk won't be chosen.
     bool SkipWriteThrottlingLocations;
 
-    //! If |true| then IO requests in one session are processed sequentially.
-    // TODO(vvshlyaga): Drop EnableSequentialIORequests after ReadIORequestsMode is fully rolled out.
+    //! If |true| then IO requests in one session are proccessed sequentially.
     bool EnableSequentialIORequests;
-
-    //! Explicit mode for processing IO requests in one read session.
-    std::optional<EReadIORequestsMode> ReadIORequestsMode;
-
-    //! These limits apply only in Batched mode and are ignored in Sequential and Parallel modes.
-    //! Maximum number of simultaneously running IO requests in one read session.
-    int MaxInFlightReadRequestCount;
-
-    //! Maximum amount of data simultaneously read by IO requests in one read session.
-    i64 MaxInFlightReadDataSize;
 
     //! If |true| then if error occuried during chunk's blocks reading, already read blocks are returned.
     bool ReturnBlocksIfSessionFails;
@@ -1169,21 +1154,7 @@ struct TDataNodeDynamicConfig
 
     std::optional<bool> SkipWriteThrottlingLocations;
 
-    //! If |true|, write throttling is reflected in CheckWritable / GetIOWeight.
-    std::optional<bool> EnableWriteThrottlingWritableCheck;
-
-    //! If |true|, network in_throttler queue size is checked on StartChunk and ProbePutBlocks.
-    std::optional<bool> EnableInThrottlerQueueWritableCheck;
-
-    // TODO(vvshlyaga): Drop EnableSequentialIORequests after ReadIORequestsMode is fully rolled out.
     std::optional<bool> EnableSequentialIORequests;
-
-    std::optional<EReadIORequestsMode> ReadIORequestsMode;
-
-    //! These limits apply only in Batched mode and are ignored in Sequential and Parallel modes.
-    std::optional<int> MaxInFlightReadRequestCount;
-
-    std::optional<i64> MaxInFlightReadDataSize;
 
     std::optional<bool> ReturnBlocksIfSessionFails;
 
@@ -1207,12 +1178,6 @@ struct TDataNodeDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataNodeDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-EReadIORequestsMode GetReadIORequestsMode(
-    const TDataNodeConfigPtr& config,
-    const TDataNodeDynamicConfigPtr& dynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

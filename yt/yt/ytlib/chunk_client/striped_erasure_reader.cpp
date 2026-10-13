@@ -415,7 +415,6 @@ public:
     TErasureRepairSession(
         TErasureReaderConfigPtr config,
         const NErasure::ICodec* codec,
-        NErasure::TPartIndexList erasedIndices,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
         TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
@@ -429,9 +428,10 @@ public:
             std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
-        , ErasedIndices_(std::move(erasedIndices))
     {
-        YT_VERIFY(ErasedIndices_.size() == PartWriters_.size());
+        for (const auto& writer : PartWriters_) {
+            ErasedIndices_.push_back(ReplicaIndexFromErasurePartId(writer->GetChunkId()));
+        }
     }
 
     TFuture<void> Run()
@@ -444,7 +444,7 @@ public:
 private:
     const std::vector<IChunkWriterPtr> PartWriters_;
     const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
-    const NErasure::TPartIndexList ErasedIndices_;
+    NErasure::TPartIndexList ErasedIndices_;
 
     void DoRun()
     {
@@ -544,7 +544,6 @@ private:
 TFuture<void> RepairErasedPartsStriped(
     TErasureReaderConfigPtr config,
     const NErasure::ICodec* codec,
-    NErasure::TPartIndexList erasedPartIndices,
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
@@ -554,7 +553,6 @@ TFuture<void> RepairErasedPartsStriped(
     auto repairSession = New<TErasureRepairSession>(
         std::move(config),
         codec,
-        std::move(erasedPartIndices),
         std::move(partReaders),
         std::move(partWriters),
         std::move(memoryManagerHolder),
