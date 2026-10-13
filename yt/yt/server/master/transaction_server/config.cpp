@@ -136,6 +136,10 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enforce_active_transaction_count_limit", &TThis::EnforceActiveTransactionCountLimit)
         .Default(false);
+
+    registrar.Parameter("ignore_missing_lease_cells_on_forced_transaction_abort", &TThis::IgnoreMissingLeaseCellsOnForcedTransactionAbort)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
