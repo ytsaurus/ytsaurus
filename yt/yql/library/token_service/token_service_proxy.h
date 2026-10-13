@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/yql_client/proto/token_service.pb.h>
+#include <yt/yql/library/token_service/proto/token_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

@@ -1,8 +1,8 @@
 #include <yt/yql/agent/query_identity.h>
 
-#include <yt/yt/ytlib/yql_client/proto/token_service.pb.h>
-
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yql/library/token_service/proto/token_service.pb.h>
 
 namespace NYT::NYqlAgent {
 namespace {

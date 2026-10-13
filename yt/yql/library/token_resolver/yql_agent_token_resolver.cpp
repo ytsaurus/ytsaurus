@@ -1,5 +1,7 @@
 #include "yql_agent_token_resolver.h"
 
+#include <yt/yql/library/token_service/token_service_proxy.h>
+
 #include <yql/essentials/core/credentials/yql_credentials.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/yql_panic.h>
@@ -7,8 +9,6 @@
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/rpc/bus/channel.h>
-
-#include <yt/yt/ytlib/yql_client/token_service_proxy.h>
 
 #include <util/datetime/base.h>
 

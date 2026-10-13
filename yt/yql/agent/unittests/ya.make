@@ -11,6 +11,7 @@ SRCS(
 
 PEERDIR(
     yt/yql/agent
+    yt/yql/library/token_service
 
     yt/yt/library/named_value
 )
