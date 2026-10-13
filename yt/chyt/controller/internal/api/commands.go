@@ -618,10 +618,9 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 		apiCfg.AgentInfo = clusterInfo
 		apiCfg.Deprecated = cf.Deprecated
 
-		locDefaultSpeclet := cfg.LocationControllerDefaultSpeclet[proxy][family]
-		ctlCfg, err := strawberry.AddDefaultSpecletToConfig(cf.Config, locDefaultSpeclet)
-		if err != nil {
-			l.Fatal("failed to add location default speclet", log.Error(err))
+		ctlCfg, ok := cfg.LocationControllerConfigs[proxy][family]
+		if !ok {
+			ctlCfg = cf.Config
 		}
 
 		ctl := cf.Ctor(l, ytc, clusterInfo.StrawberryRoot, proxy, ctlCfg)
