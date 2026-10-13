@@ -11,8 +11,10 @@
 #include <yt/yt/server/node/data_node/chunk_reader_sweeper.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/chunk_meta_manager.h>
+#include <yt/yt/server/node/data_node/journal_chunk.h>
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/journal_manager.h>
+#include <yt/yt/server/node/data_node/private.h>
 
 #include <yt/yt/server/lib/hydra/file_changelog.h>
 
@@ -24,6 +26,8 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/testing/common/env.h>
+
+#include <util/system/file.h>
 
 namespace NYT::NDataNode {
 namespace {
@@ -211,6 +215,35 @@ TEST_F(TJournalTest, Write)
         WaitForFast(changelog->Close())
             .ThrowOnError();
     }
+}
+
+TEST_F(TJournalTest, SealReplicaAfterRecoveringOrphanedSeal)
+{
+    auto location = ChunkStore_->Locations().front();
+    NNode::TChunkDescriptor descriptor;
+    descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
+
+    // An interrupted replica deletion left only the seal on disk.
+    TFile(TString(location->GetChunkPath(descriptor.Id) + "." + SealedFlagExtension), CreateNew).Close();
+    WaitFor(BIND([&] {
+        ChunkStore_->Shutdown();
+        ChunkStore_->Initialize();
+    })
+        .AsyncVia(ActionQueue_->GetInvoker())
+        .Run())
+        .ThrowOnError();
+
+    location = ChunkStore_->Locations().front();
+    auto journalManager = location->GetJournalManager();
+    auto changelog = WaitFor(journalManager->CreateChangelog(descriptor.Id, /*enableMultiplexing*/ false, {}))
+        .ValueOrThrow();
+    WaitFor(changelog->Close())
+        .ThrowOnError();
+
+    auto chunk = New<TJournalChunk>(ChunkContext_, location, descriptor);
+    auto sealResult = WaitFor(journalManager->SealChangelog(chunk));
+    EXPECT_TRUE(location->IsEnabled());
+    EXPECT_TRUE(sealResult.IsOK()) << ToString(sealResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

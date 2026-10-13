@@ -73,7 +73,7 @@ IInvokerPtr TTabletContextMock::GetAutomatonInvoker() const
     return GetSyncInvoker();
 }
 
-IInvokerPtr TTabletContextMock::GetStorageHeavyInvoker() const
+IPrioritizedInvokerPtr TTabletContextMock::GetStorageHeavyInvoker() const
 {
     return nullptr;
 }

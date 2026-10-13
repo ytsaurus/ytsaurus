@@ -465,6 +465,9 @@ private:
         WaitFor(FlushPromise_.ToFuture())
             .ThrowOnError();
 
+        WaitFor(AllSucceeded(WriterReadyEvents_))
+            .ThrowOnError();
+
         FillChunkMeta(chunkMeta);
 
         ReadyEvent_.GetOrCrash().ThrowOnError();
