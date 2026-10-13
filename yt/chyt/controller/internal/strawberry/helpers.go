@@ -131,6 +131,41 @@ func getYSONTimePointerOrNil(t yson.Time) *yson.Time {
 	}
 }
 
+func ApplyControllerConfigOverrides(ctlCfgYson, overridesYson yson.RawValue) (yson.RawValue, error) {
+	if len(overridesYson) == 0 {
+		return ctlCfgYson, nil
+	}
+
+	var ctlCfg map[string]any
+	if len(ctlCfgYson) > 0 {
+		if err := yson.Unmarshal(ctlCfgYson, &ctlCfg); err != nil {
+			return nil, fmt.Errorf("failed to parse controller config: %w", err)
+		}
+	}
+	if ctlCfg == nil {
+		ctlCfg = make(map[string]any)
+	}
+
+	var overrides map[string]any
+	if err := yson.Unmarshal(overridesYson, &overrides); err != nil {
+		return nil, fmt.Errorf("failed to parse controller overrides: %w", err)
+	}
+	mergeConfigMaps(ctlCfg, overrides)
+	return yson.Marshal(ctlCfg)
+}
+
+func mergeConfigMaps(config, overrides map[string]any) {
+	for key, value := range overrides {
+		configMap, configIsMap := config[key].(map[string]any)
+		overridesMap, overridesIsMap := value.(map[string]any)
+		if configIsMap && overridesIsMap {
+			mergeConfigMaps(configMap, overridesMap)
+		} else {
+			config[key] = value
+		}
+	}
+}
+
 func AddDefaultSpecletToConfig(ctlCfgYson, defaultSpecletYson yson.RawValue) (yson.RawValue, error) {
 	if len(defaultSpecletYson) == 0 {
 		return ctlCfgYson, nil
