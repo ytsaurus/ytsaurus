@@ -70,6 +70,7 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -1045,7 +1046,11 @@ private:
         options.BlockCache = Bootstrap_->GetBlockCache();
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
-        options.EnableSequentialIORequests = GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+        options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+        options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+            Config_->MaxInFlightReadRequestCount);
+        options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+            Config_->MaxInFlightReadDataSize);
         options.ReturnBlocksIfSessionFails = GetDynamicConfig()->ReturnBlocksIfSessionFails.value_or(Config_->ReturnBlocksIfSessionFails);
         options.FailSessionAtReadBlocksDeadline = GetDynamicConfig()->FailSessionAtReadBlocksDeadline.value_or(Config_->FailSessionAtReadBlocksDeadline);
         options.ChunkReaderStatistics = chunkReaderStatistics;
@@ -1500,8 +1505,11 @@ private:
             options.FetchFromCache = true;
             options.FetchFromDisk = true;
             options.BlockCache = Bootstrap_->GetBlockCache();
-            options.EnableSequentialIORequests =
-                GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+            options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+            options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+                Config_->MaxInFlightReadRequestCount);
+            options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+                Config_->MaxInFlightReadDataSize);
             options.ChunkReaderStatistics = chunkReaderStatistics;
             options.ReadSessionId = readSessionId;
             options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
@@ -2178,7 +2186,9 @@ private:
 
             ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
             ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
-        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+        }).AsyncVia(CreateFixedPriorityInvoker(
+            Bootstrap_->GetStorageHeavyInvoker(),
+            options.WorkloadDescriptor.GetPriority()))));
     }
 
     template <class TContext, class TRequests>
@@ -2258,7 +2268,9 @@ private:
                 }
 
                 context->Reply();
-        }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+            }).Via(CreateFixedPriorityInvoker(
+                Bootstrap_->GetStorageHeavyInvoker(),
+                workloadDescriptor.GetPriority())));
     }
 
     void ProcessSliceSize(
@@ -2341,7 +2353,9 @@ private:
                 response->Attachments().push_back(keysWriter->Finish());
                 response->Attachments().push_back(keyBoundsWriter->Finish());
                 context->Reply();
-            }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+            }).Via(CreateFixedPriorityInvoker(
+                Bootstrap_->GetStorageHeavyInvoker(),
+                workloadDescriptor.GetPriority())));
     }
 
     void ProcessSlice(
@@ -2430,7 +2444,9 @@ private:
 
                 response->Attachments().push_back(keySetWriter->Finish());
                 context->Reply();
-            }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+            }).Via(CreateFixedPriorityInvoker(
+                Bootstrap_->GetStorageHeavyInvoker(),
+                workloadDescriptor.GetPriority())));
     }
 
     void ProcessChunkSamples(
@@ -2670,7 +2686,9 @@ private:
             response->add_subresponses();
         }
 
-        const auto& heavyInvoker = Bootstrap_->GetStorageHeavyInvoker();
+        auto heavyInvoker = CreateFixedPriorityInvoker(
+            Bootstrap_->GetStorageHeavyInvoker(),
+            workloadDescriptor.GetPriority());
         for (int index = 0; index < request->subrequests_size(); ++index) {
             const auto& subrequest = request->subrequests(index);
             auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
