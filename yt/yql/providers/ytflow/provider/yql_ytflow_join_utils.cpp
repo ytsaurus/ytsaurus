@@ -259,16 +259,6 @@ TMaybe<TJoinInput> BuildJoinNodeFromEquiJoinTupleImpl(
         syncList.size());
 
     const ui32 outputIndex = 0;
-    auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-        .Name()
-            .Value("")
-            .Build()
-        .OutputIndex()
-            .Value(outputIndex)
-            .Build()
-        .RowType(ExpandType(TPositionHandle{}, *joinResultType, ctx))
-        .Done();
-
     TVector<TString> columns;
     for (const auto& item : joinResultType->GetItems()) {
         columns.push_back(TString(item->GetName()));
@@ -318,9 +308,6 @@ TMaybe<TJoinInput> BuildJoinNodeFromEquiJoinTupleImpl(
         .World(MakeSyncNodeFromSyncList(syncList, position, ctx))
         .Sources()
             .Add(std::move(source))
-            .Build()
-        .Sinks()
-            .Add(std::move(sink))
             .Build()
         .Settings()
             .Build()

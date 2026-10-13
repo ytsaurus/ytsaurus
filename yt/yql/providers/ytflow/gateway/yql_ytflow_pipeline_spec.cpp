@@ -320,159 +320,201 @@ TString GetToken(const TString& tokenName, const THashMap<TString, TString>& sec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString& GetStreamName(const TExprNode& node, TBuildPipelineSpecContext& ctx)
+{
+    TString streamName(node.Content());
+    std::pair<const TExprNode*, ui32> streamKey{&node, 0};
+    if (auto maybeOutput = TMaybeNode<TYtflowOutput>(&node)) {
+        streamName = "YtflowIntermediateSink";
+
+        const auto output = maybeOutput.Cast();
+        streamKey = {output.Operation().Raw(), FromString<ui32>(output.OutputIndex().Value())};
+    }
+
+    if (const auto iterator = ctx.StreamNames.find(streamKey); iterator != ctx.StreamNames.end()) {
+        return iterator->second;
+    }
+
+    const auto [iterator, emplaced] = ctx.StreamNames.emplace(
+        streamKey,
+        TStringBuilder()
+            << "stream_"
+            << streamName
+            << "_"
+            << ctx.StreamCounters[node.Content()]++);
+    YQL_ENSURE(emplaced,
+        "Stream name already exists for key (" << streamKey.first->Content()
+            << ", " << streamKey.second << ")");
+    return iterator->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ProcessSource(
-    TExprBase source,
+    TYtflowPersistentSource source,
     TString /*computationName*/,
     NYT::NFlow::TComputationSpecPtr computationSpec,
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
     TRequestedCredentials& requestedCredentials,
     TBuildPipelineSpecContext& ctx)
 {
-    if (auto maybeOutput = source.Maybe<TYtflowOutput>()) {
-        auto outputIndex = FromString<ui32>(maybeOutput.Cast().OutputIndex().Value());
+    const auto& streamName = GetStreamName(source.Ref(), ctx);
 
-        auto streamName = maybeOutput
-            .Operation().Sinks().Item(outputIndex)
-            .Cast<TYtflowSinkBase>().Name().StringValue();
+    auto sourceSpec = NYT::New<NYT::NFlow::TSourceSpec>();
 
-        YQL_ENSURE(streamName, "Unnamed source");
+    auto input = source.Input();
+    auto providerInput = input.Cast<TYtflowReadWrap>().Input();
 
-        computationSpec->InputStreamIds.insert(NYT::NFlow::TStreamId(std::move(streamName)));
-    } else if (auto maybePersistentSource = source.Maybe<TYtflowPersistentSource>()) {
-        auto streamName = maybePersistentSource.Cast().Name().StringValue();
-        YQL_ENSURE(streamName, "Unnamed source");
+    auto* ytflowIntegration = GetYtflowIntegration(
+        providerInput.Ref(),
+        *ctx.RunOptions.Types());
 
-        auto sourceSpec = NYT::New<NYT::NFlow::TSourceSpec>();
+    YQL_ENSURE(ytflowIntegration);
 
-        auto input = maybePersistentSource.Cast().Input();
-        auto providerInput = input.Cast<TYtflowReadWrap>().Input();
+    ::google::protobuf::Any settings;
+    ytflowIntegration->FillSourceSettings(providerInput.Ref(), settings, ctx.ExprContext);
+    YQL_ENSURE(settings.Is<NProto::TYtQueueSourceMessage>() || settings.Is<NProto::TPQSourceMessage>());
 
-        auto* ytflowIntegration = GetYtflowIntegration(
-            providerInput.Ref(),
-            *ctx.RunOptions.Types());
+    auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
+    resourceDescription->Controller = true;
+    resourceDescription->Worker = true;
 
-        YQL_ENSURE(ytflowIntegration);
+    computationSpec->RequiredResourceIds[NYT::NFlow::YTClientFactoryDefaultResourceId] =
+        resourceDescription;
 
-        ::google::protobuf::Any settings;
-        ytflowIntegration->FillSourceSettings(providerInput.Ref(), settings, ctx.ExprContext);
-        YQL_ENSURE(settings.Is<NProto::TYtQueueSourceMessage>() || settings.Is<NProto::TPQSourceMessage>());
+    const auto& config = ctx.RunOptions.Config();
+    auto finiteStreams = config->_FiniteStreams.Get();
+    YQL_ENSURE(finiteStreams, "Ytflow._FiniteStreams system setting is not set");
 
-        auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
-        resourceDescription->Controller = true;
-        resourceDescription->Worker = true;
+    auto& parameters = sourceSpec->Parameters;
+    parameters->AddChild(
+        "finite", NYT::NYTree::ConvertToNode(*finiteStreams));
 
-        computationSpec->RequiredResourceIds[NYT::NFlow::YTClientFactoryDefaultResourceId] =
-            resourceDescription;
+    if (settings.Is<NProto::TYtQueueSourceMessage>()) {
+        sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
 
-        const auto& config = ctx.RunOptions.Config();
-        auto finiteStreams = config->_FiniteStreams.Get();
-        YQL_ENSURE(finiteStreams, "Ytflow._FiniteStreams system setting is not set");
+        auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
+        YQL_ENSURE(
+            useSourceWatermark,
+            "Ytflow._YtUseSourceWatermark system setting is not set");
 
-        auto& parameters = sourceSpec->Parameters;
-        parameters->AddChild(
-            "finite", NYT::NYTree::ConvertToNode(*finiteStreams));
-
-        if (settings.Is<NProto::TYtQueueSourceMessage>()) {
-            sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
-
-            auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
-            YQL_ENSURE(
-                useSourceWatermark,
-                "Ytflow._YtUseSourceWatermark system setting is not set");
-
-            if (*useSourceWatermark) {
-                if (!computationSpec->WatermarkStrategy->WatermarkGenerator) {
-                    computationSpec->WatermarkStrategy->WatermarkGenerator =
-                        NYT::New<NYT::NFlow::TWatermarkGeneratorSpec>();
-                }
-
-                computationSpec
-                    ->WatermarkStrategy
-                    ->WatermarkGenerator
-                    ->UseSourceWatermark = true;
+        if (*useSourceWatermark) {
+            if (!computationSpec->WatermarkStrategy->WatermarkGenerator) {
+                computationSpec->WatermarkStrategy->WatermarkGenerator =
+                    NYT::New<NYT::NFlow::TWatermarkGeneratorSpec>();
             }
 
-            NProto::TYtQueueSourceMessage ytQueueSourceSettings;
-            settings.UnpackTo(&ytQueueSourceSettings);
-
-            YQL_ENSURE(
-                ctx.ConfigClusters,
-                "Ytflow cluster mapping is not configured");
-            const auto& configClusters = *ctx.ConfigClusters;
-
-            auto queueRichPath = NYT::NYPath::TRichYPath(
-                CanonizeYtPath(ytQueueSourceSettings.GetPath(), *config));
-            queueRichPath.SetCluster(configClusters.GetRealName(
-                ytQueueSourceSettings.GetCluster()));
-
-            parameters->AddChild(
-                "queue_path", NYT::NYTree::ConvertToNode(queueRichPath));
-
-            auto consumerRichPath = MakeYtConsumerRichPath(
-                *config,
-                configClusters);
-
-            parameters->AddChild(
-                "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
-
-            computationSpec->Parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
-        } else if (settings.Is<NProto::TPQSourceMessage>()) {
-            sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
-
-            auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
-            resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
-            pipelineSpec->Resources[YdbDriverDefaultResourceId] = std::move(resourceSpec);
-
-            computationSpec->RequiredResourceIds[YdbDriverDefaultResourceId] =
-                resourceDescription;
-
-            NProto::TPQSourceMessage pqSourceMessage;
-            settings.UnpackTo(&pqSourceMessage);
-
-            auto maybeConsumerPath = config->LogbrokerConsumerPath.Get();
-            YQL_ENSURE(maybeConsumerPath, "Ytflow.LogbrokerConsumerPath pragma is not set");
-
-            auto& parameters = sourceSpec->Parameters;
-
-            parameters->AddChild(
-                "endpoints", NYT::NYTree::ConvertToNode(pqSourceMessage.GetEndpoints()));
-
-            if (pqSourceMessage.GetClusterType() != TPqClusterConfig::CT_PERS_QUEUE || pqSourceMessage.GetDatabase() != "/Root") {
-                parameters->AddChild(
-                    "database", NYT::NYTree::ConvertToNode(pqSourceMessage.GetDatabase()));
-            }
-
-            parameters->AddChild(
-                "topic", NYT::NYTree::ConvertToNode(pqSourceMessage.GetTopicPath()));
-
-            parameters->AddChild(
-                "consumer", NYT::NYTree::ConvertToNode(maybeConsumerPath.GetRef()));
-
-            computationSpec->Parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Logbroker)));
-
-            if (auto maybeToken = input.Cast<TYtflowReadWrap>().Token()) {
-                auto tokenName = maybeToken.Cast().Name().StringValue();
-                auto token = GetToken(tokenName, ctx.SecureParams);
-                YQL_ENSURE(requestedCredentials.YdbToken.empty() || requestedCredentials.YdbToken == token);
-                requestedCredentials.YdbToken = token;
-            }
-        } else {
-            ythrow yexception() << "Unknown message type: " << settings.GetTypeName();
+            computationSpec
+                ->WatermarkStrategy
+                ->WatermarkGenerator
+                ->UseSourceWatermark = true;
         }
 
-        auto [iterator, emplaced] = computationSpec->SourceStreams.emplace(
-            streamName, std::move(sourceSpec));
+        NProto::TYtQueueSourceMessage ytQueueSourceSettings;
+        settings.UnpackTo(&ytQueueSourceSettings);
 
-        YQL_ENSURE(emplaced, "Duplicate source stream: " << streamName);
+        YQL_ENSURE(
+            ctx.ConfigClusters,
+            "Ytflow cluster mapping is not configured");
+        const auto& configClusters = *ctx.ConfigClusters;
+
+        auto queueRichPath = NYT::NYPath::TRichYPath(
+            CanonizeYtPath(ytQueueSourceSettings.GetPath(), *config));
+        queueRichPath.SetCluster(configClusters.GetRealName(
+            ytQueueSourceSettings.GetCluster()));
+
+        parameters->AddChild(
+            "queue_path", NYT::NYTree::ConvertToNode(queueRichPath));
+
+        auto consumerRichPath = MakeYtConsumerRichPath(
+            *config,
+            configClusters);
+
+        parameters->AddChild(
+            "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
+
+        computationSpec->Parameters->AddChild(
+            "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
+    } else if (settings.Is<NProto::TPQSourceMessage>()) {
+        sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
+
+        auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
+        resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
+        pipelineSpec->Resources[YdbDriverDefaultResourceId] = std::move(resourceSpec);
+
+        computationSpec->RequiredResourceIds[YdbDriverDefaultResourceId] =
+            resourceDescription;
+
+        NProto::TPQSourceMessage pqSourceMessage;
+        settings.UnpackTo(&pqSourceMessage);
+
+        auto maybeConsumerPath = config->LogbrokerConsumerPath.Get();
+        YQL_ENSURE(maybeConsumerPath, "Ytflow.LogbrokerConsumerPath pragma is not set");
+
+        auto& parameters = sourceSpec->Parameters;
+
+        parameters->AddChild(
+            "endpoints", NYT::NYTree::ConvertToNode(pqSourceMessage.GetEndpoints()));
+
+        if (pqSourceMessage.GetClusterType() != TPqClusterConfig::CT_PERS_QUEUE || pqSourceMessage.GetDatabase() != "/Root") {
+            parameters->AddChild(
+                "database", NYT::NYTree::ConvertToNode(pqSourceMessage.GetDatabase()));
+        }
+
+        parameters->AddChild(
+            "topic", NYT::NYTree::ConvertToNode(pqSourceMessage.GetTopicPath()));
+
+        parameters->AddChild(
+            "consumer", NYT::NYTree::ConvertToNode(maybeConsumerPath.GetRef()));
+
+        computationSpec->Parameters->AddChild(
+            "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Logbroker)));
+
+        if (auto maybeToken = input.Cast<TYtflowReadWrap>().Token()) {
+            auto tokenName = maybeToken.Cast().Name().StringValue();
+            auto token = GetToken(tokenName, ctx.SecureParams);
+            YQL_ENSURE(requestedCredentials.YdbToken.empty() || requestedCredentials.YdbToken == token);
+            requestedCredentials.YdbToken = token;
+        }
     } else {
-        ythrow yexception() << "Unsupported source callable: " << source.Ref().Content();
+        ythrow yexception() << "Unknown message type: " << settings.GetTypeName();
     }
+
+    auto [_, emplaced] = computationSpec->SourceStreams.emplace(
+        streamName, std::move(sourceSpec));
+
+    YQL_ENSURE(emplaced, "Duplicate source stream: " << streamName);
+}
+
+void ProcessIntermediateInput(
+    TYtflowOutput output,
+    NYT::NFlow::TComputationSpecPtr computationSpec,
+    TBuildPipelineSpecContext& ctx)
+{
+    const auto& streamName = GetStreamName(output.Ref(), ctx);
+
+    computationSpec->InputStreamIds.insert(NYT::NFlow::TStreamId(streamName));
+}
+
+void AddOutputStream(
+    const TString& streamName,
+    const TString& outputIndex,
+    NYT::NFlow::TStreamSpecPtr streamSpec,
+    NYT::NFlow::TComputationSpecPtr computationSpec,
+    NYT::NFlow::TPipelineSpecPtr pipelineSpec,
+    THashMap<TString, TString>& outputIndicesByOutputStreamId)
+{
+    auto [iterator, emplaced] = pipelineSpec->Streams.emplace(
+        NYT::NFlow::TStreamId(streamName), std::move(streamSpec));
+
+    YQL_ENSURE(emplaced, "Duplicate stream: " << streamName);
+
+    computationSpec->OutputStreamIds.insert(NYT::NFlow::TStreamId(streamName));
+    outputIndicesByOutputStreamId.emplace(streamName, outputIndex);
 }
 
 void ProcessSink(
-    TExprBase sink,
+    TYtflowPersistentSink sink,
     TString /*computationName*/,
     NYT::NFlow::TComputationSpecPtr computationSpec,
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
@@ -481,321 +523,331 @@ void ProcessSink(
     std::optional<TString>& asyncQueueCluster,
     TBuildPipelineSpecContext& ctx)
 {
-    auto sinkBase = sink.Cast<TYtflowSinkBase>();
+    const auto& streamName = GetStreamName(sink.Ref(), ctx);
 
-    auto streamName = sinkBase.Name().StringValue();
-    YQL_ENSURE(streamName, "Unnamed sink");
-
-    const TTypeAnnotationNode* rowType = nullptr;
+    const auto* rowType = sink.Output().Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
 
     auto streamSpec = NYT::New<NYT::NFlow::TStreamSpec>();
-    if (auto maybeIntermediateSink = sinkBase.Maybe<TYtflowIntermediateSink>()) {
-        rowType = maybeIntermediateSink.Cast().RowType().Ref()
-            .GetTypeAnn()->Cast<TTypeExprType>()->GetType();
-        streamSpec->Schema = BuildTableSchema(rowType);
-    } else if (auto maybePersistentSink = sinkBase.Maybe<TYtflowPersistentSink>()) {
-        auto sinkSpec = NYT::New<NYT::NFlow::TSinkSpec>();
+    auto sinkSpec = NYT::New<NYT::NFlow::TSinkSpec>();
 
-        sinkSpec->InputStreamIds.emplace(NYT::NFlow::TStreamId(streamName));
+    sinkSpec->InputStreamIds.emplace(NYT::NFlow::TStreamId(streamName));
+
+    auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
+    resourceDescription->Controller = true;
+    resourceDescription->Worker = true;
+
+    computationSpec->RequiredResourceIds[NYT::NFlow::YTClientFactoryDefaultResourceId] =
+        std::move(resourceDescription);
+
+    auto providerInput = sink.Write().Cast<TYtflowWriteWrap>().Input();
+
+    auto* ytflowIntegration = GetYtflowIntegration(
+        providerInput.Ref(),
+        *ctx.RunOptions.Types());
+
+    YQL_ENSURE(ytflowIntegration);
+
+    ::google::protobuf::Any settings;
+    ytflowIntegration->FillSinkSettings(providerInput.Ref(), settings, ctx.ExprContext);
+
+    YQL_ENSURE(settings.Is<NProto::TYtQueueSinkMessage>() ||
+        settings.Is<NProto::TYtSortedTableSinkMessage>() ||
+        settings.Is<NProto::TPQSinkMessage>() ||
+        settings.Is<NProto::TSolomonSinkMessage>());
+    const auto& config = ctx.RunOptions.Config();
+
+    if (settings.Is<NProto::TYtQueueSinkMessage>() ||
+        settings.Is<NProto::TYtSortedTableSinkMessage>())
+    {
+        bool isSortedTable = settings.Is<NProto::TYtSortedTableSinkMessage>();
+
+        TString clusterAlias;
+        TString path;
+
+        if (isSortedTable) {
+            NProto::TYtSortedTableSinkMessage sortedSettings;
+            settings.UnpackTo(&sortedSettings);
+
+            clusterAlias = sortedSettings.GetCluster();
+            path = sortedSettings.GetPath();
+        } else {
+            NProto::TYtQueueSinkMessage queueSettings;
+            settings.UnpackTo(&queueSettings);
+
+            clusterAlias = queueSettings.GetCluster();
+            path = queueSettings.GetPath();
+        }
+
+        YQL_ENSURE(
+            ctx.ConfigClusters,
+            "Ytflow cluster mapping is not configured");
+        const auto& configClusters = *ctx.ConfigClusters;
+
+        auto tableRichPath = NYT::NYPath::TRichYPath(
+            CanonizeYtPath(path, *config));
+
+        auto cluster = configClusters.GetRealName(clusterAlias);
+        tableRichPath.SetCluster(cluster);
+
+        auto& parameters = sinkSpec->Parameters;
+        bool isRemoteTable =
+            cluster != ResolvePipelineClusterName(*config, configClusters);
+
+        if (isSortedTable) {
+            if (isRemoteTable) {
+                sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TAsyncSink";
+            } else {
+                sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TSyncSink";
+            }
+
+            parameters->AddChild(
+                "table_path", NYT::NYTree::ConvertToNode(tableRichPath));
+        } else {
+            if (isRemoteTable) {
+                YQL_ENSURE(
+                    !asyncQueueCluster || *asyncQueueCluster == cluster,
+                    "Writing into several remote YT queues "
+                    "on separate clusters is not supported yet");
+
+                asyncQueueCluster = cluster;
+
+                auto producerRichPath = CanonizeYtRichPath(
+                    config->GetYtProducerPath(), *config);
+
+                if (auto producerCluster = producerRichPath.GetCluster()) {
+                    producerRichPath.SetCluster(
+                        configClusters.GetRealName(TString(*producerCluster)));
+                } else {
+                    producerRichPath.SetCluster(cluster);
+                }
+
+                YQL_ENSURE(producerRichPath.GetCluster() == cluster,
+                    "YT queue producer and YT queue must be on the same cluster: " << cluster);
+
+                sinkSpec->SinkClassName = "NYT::NFlow::TAsyncQueueSink";
+
+                parameters->AddChild(
+                    "producer_path", NYT::NYTree::ConvertToNode(producerRichPath));
+            } else {
+                sinkSpec->SinkClassName = "NYT::NFlow::TSyncQueueSink";
+            }
+
+            parameters->AddChild(
+                "queue_path", NYT::NYTree::ConvertToNode(tableRichPath));
+        }
+
+        auto tableSchema = BuildTableSchema(rowType);
+
+        streamSpec->Schema = isSortedTable
+            ? tableSchema
+            : ConvertToQueueWriteSchema(std::move(tableSchema));
+    } else if (settings.Is<NProto::TPQSinkMessage>()) {
+        sinkSpec->SinkClassName = "NYT::NFlow::TLogbrokerSink";
 
         auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
         resourceDescription->Controller = true;
         resourceDescription->Worker = true;
 
-        computationSpec->RequiredResourceIds[NYT::NFlow::YTClientFactoryDefaultResourceId] =
-            std::move(resourceDescription);
+        auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
+        resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
+        pipelineSpec->Resources[YdbDriverDefaultResourceId] = std::move(resourceSpec);
 
-        auto input = maybePersistentSink.Cast().Input();
-        auto providerInput = input.Cast<TYtflowWriteWrap>().Input();
+        computationSpec->RequiredResourceIds[YdbDriverDefaultResourceId] =
+            resourceDescription;
 
-        auto* ytflowIntegration = GetYtflowIntegration(
-            providerInput.Ref(),
-            *ctx.RunOptions.Types());
+        NProto::TPQSinkMessage pqSinkMessage;
+        settings.UnpackTo(&pqSinkMessage);
 
-        YQL_ENSURE(ytflowIntegration);
+        auto& parameters = sinkSpec->Parameters;
 
-        ::google::protobuf::Any settings;
-        ytflowIntegration->FillSinkSettings(providerInput.Ref(), settings, ctx.ExprContext);
+        parameters->AddChild(
+            "logbroker", NYT::NYTree::ConvertToNode(pqSinkMessage.GetEndpoint()));
 
-        YQL_ENSURE(settings.Is<NProto::TYtQueueSinkMessage>() ||
-            settings.Is<NProto::TYtSortedTableSinkMessage>() ||
-            settings.Is<NProto::TPQSinkMessage>() ||
-            settings.Is<NProto::TSolomonSinkMessage>());
-        const auto& config = ctx.RunOptions.Config();
-
-        if (settings.Is<NProto::TYtQueueSinkMessage>() ||
-            settings.Is<NProto::TYtSortedTableSinkMessage>())
-        {
-            bool isSortedTable = settings.Is<NProto::TYtSortedTableSinkMessage>();
-
-            TString clusterAlias;
-            TString path;
-
-            if (isSortedTable) {
-                NProto::TYtSortedTableSinkMessage sortedSettings;
-                settings.UnpackTo(&sortedSettings);
-
-                clusterAlias = sortedSettings.GetCluster();
-                path = sortedSettings.GetPath();
-            } else {
-                NProto::TYtQueueSinkMessage queueSettings;
-                settings.UnpackTo(&queueSettings);
-
-                clusterAlias = queueSettings.GetCluster();
-                path = queueSettings.GetPath();
-            }
-
-            YQL_ENSURE(
-                ctx.ConfigClusters,
-                "Ytflow cluster mapping is not configured");
-            const auto& configClusters = *ctx.ConfigClusters;
-
-            auto tableRichPath = NYT::NYPath::TRichYPath(
-                CanonizeYtPath(path, *config));
-
-            auto cluster = configClusters.GetRealName(clusterAlias);
-            tableRichPath.SetCluster(cluster);
-
-            auto& parameters = sinkSpec->Parameters;
-            bool isRemoteTable =
-                cluster != ResolvePipelineClusterName(*config, configClusters);
-
-            if (isSortedTable) {
-                if (isRemoteTable) {
-                    sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TAsyncSink";
-                } else {
-                    sinkSpec->SinkClassName = "NYT::NFlow::NSortedDynamicTable::TSyncSink";
-                }
-
-                parameters->AddChild(
-                    "table_path", NYT::NYTree::ConvertToNode(tableRichPath));
-            } else {
-                if (isRemoteTable) {
-                    YQL_ENSURE(
-                        !asyncQueueCluster || *asyncQueueCluster == cluster,
-                        "Writing into several remote YT queues "
-                        "on separate clusters is not supported yet");
-
-                    asyncQueueCluster = cluster;
-
-                    auto producerRichPath = CanonizeYtRichPath(
-                        config->GetYtProducerPath(), *config);
-
-                    if (auto producerCluster = producerRichPath.GetCluster()) {
-                        producerRichPath.SetCluster(
-                            configClusters.GetRealName(TString(*producerCluster)));
-                    } else {
-                        producerRichPath.SetCluster(cluster);
-                    }
-
-                    YQL_ENSURE(producerRichPath.GetCluster() == cluster,
-                        "YT queue producer and YT queue must be on the same cluster: " << cluster);
-
-                    sinkSpec->SinkClassName = "NYT::NFlow::TAsyncQueueSink";
-
-                    parameters->AddChild(
-                        "producer_path", NYT::NYTree::ConvertToNode(producerRichPath));
-                } else {
-                    sinkSpec->SinkClassName = "NYT::NFlow::TSyncQueueSink";
-                }
-
-                parameters->AddChild(
-                    "queue_path", NYT::NYTree::ConvertToNode(tableRichPath));
-            }
-
-            computationSpec->Sinks.emplace(NYT::NFlow::TSinkId(streamName), std::move(sinkSpec));
-
-            rowType = sink.Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-            auto tableSchema = BuildTableSchema(rowType);
-
-            streamSpec->Schema = isSortedTable
-                ? tableSchema
-                : ConvertToQueueWriteSchema(std::move(tableSchema));
-        } else if (settings.Is<NProto::TPQSinkMessage>()) {
-            sinkSpec->SinkClassName = "NYT::NFlow::TLogbrokerSink";
-
-            auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
-            resourceDescription->Controller = true;
-            resourceDescription->Worker = true;
-
-            auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
-            resourceSpec->ResourceClassName = "NYT::NFlow::TYdbDriver";
-            pipelineSpec->Resources[YdbDriverDefaultResourceId] = std::move(resourceSpec);
-
-            computationSpec->RequiredResourceIds[YdbDriverDefaultResourceId] =
-                resourceDescription;
-
-            NProto::TPQSinkMessage pqSinkMessage;
-            settings.UnpackTo(&pqSinkMessage);
-
-            auto& parameters = sinkSpec->Parameters;
-
+        if (pqSinkMessage.GetClusterType() != TPqClusterConfig::CT_PERS_QUEUE || pqSinkMessage.GetDatabase() != "/Root") {
             parameters->AddChild(
-                "logbroker", NYT::NYTree::ConvertToNode(pqSinkMessage.GetEndpoint()));
-
-            if (pqSinkMessage.GetClusterType() != TPqClusterConfig::CT_PERS_QUEUE || pqSinkMessage.GetDatabase() != "/Root") {
-                parameters->AddChild(
-                    "database", NYT::NYTree::ConvertToNode(pqSinkMessage.GetDatabase()));
-            }
-
-            parameters->AddChild(
-                "topic", NYT::NYTree::ConvertToNode(pqSinkMessage.GetTopicPath()));
-
-            rowType = sink.Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-            auto schema = ConvertToQueueWriteSchema(BuildTableSchema(rowType));
-            YQL_ENSURE(schema->GetColumnCount() == 1);
-
-            parameters->AddChild(
-                "payload_column", NYT::NYTree::ConvertToNode(schema->Columns()[0].Name()));
-
-            if (auto codec = config->LogbrokerWriteCompressionCodec.Get()) {
-                parameters->AddChild(
-                    "codec", NYT::NYTree::ConvertToNode(codec.GetRef()));
-            }
-
-            if (auto compressionLevel = config->LogbrokerWriteCompressionLevel.Get()) {
-                parameters->AddChild("compression_level", NYT::NYTree::ConvertToNode(compressionLevel.GetRef()));
-            }
-
-            streamSpec->Schema = std::move(schema);
-
-            if (auto maybeToken = input.Cast<TYtflowWriteWrap>().Token()) {
-                auto tokenName = maybeToken.Cast().Name().StringValue();
-                auto token = GetToken(tokenName, ctx.SecureParams);
-                YQL_ENSURE(requestedCredentials.YdbToken.empty() || requestedCredentials.YdbToken == token);
-                requestedCredentials.YdbToken = token;
-            }
-        } else if (settings.Is<NProto::TSolomonSinkMessage>()) {
-            // Wire the legacy `TSolomonSinkMessage` to the new gRPC monium sink
-            // class.  Unpack the proto first so we can read Endpoint below.
-            NProto::TSolomonSinkMessage solomonSinkMessage;
-            settings.UnpackTo(&solomonSinkMessage);
-
-            sinkSpec->SinkClassName = "NYT::NFlow::TMoniumSink";
-
-            auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
-            resourceSpec->ResourceClassName = "NYT::NFlow::TMoniumDriver";
-
-            // TODO: drop this workaround after upstream fix in solomon ytflow integration
-            auto endpoint = solomonSinkMessage.GetEndpoint();
-            if (endpoint.StartsWith("http://")) {
-                endpoint = endpoint.substr(7);
-            } else if (endpoint.StartsWith("https://")) {
-                endpoint = endpoint.substr(8);
-            }
-
-            auto& resourceParameters = resourceSpec->Parameters;
-
-            resourceParameters->AddChild(
-                "endpoint", NYT::NYTree::ConvertToNode(endpoint));
-
-            auto moniumDriverSecure = config->_MoniumDriverSecure.Get();
-            YQL_ENSURE(moniumDriverSecure, "Ytflow._MoniumDriverSecure system setting is not set");
-
-            resourceParameters->AddChild(
-                "secure", NYT::NYTree::ConvertToNode(moniumDriverSecure.GetRef()));
-
-            resourceParameters->AddChild(
-                "auth_mode", NYT::NYTree::ConvertToNode("OAuthEnv"));
-
-            if (auto codec = config->SolomonWriteCompressionCodec.Get()) {
-                resourceParameters->AddChild(
-                    "compression_algorithm", NYT::NYTree::ConvertToNode(codec.GetRef()));
-            }
-
-            pipelineSpec->Resources[MoniumDriverDefaultResourceId] = std::move(resourceSpec);
-
-            auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
-            resourceDescription->Controller = true;
-            resourceDescription->Worker = true;
-
-            computationSpec->RequiredResourceIds[MoniumDriverDefaultResourceId] = resourceDescription;
-
-            auto& parameters = sinkSpec->Parameters;
-
-            parameters->AddChild(
-                "project", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetProject()));
-
-            parameters->AddChild(
-                "cluster", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetCluster()));
-
-            parameters->AddChild(
-                "service", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetService()));
-
-            parameters->AddChild(
-                "timestamp_column", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetMetricTimestampColumn()));
-
-            auto metrics = NYT::NYTree::GetEphemeralNodeFactory()->CreateList();
-            for (const auto& metricParameters : solomonSinkMessage.GetMetrics()) {
-                auto metric = NYT::NYTree::GetEphemeralNodeFactory()->CreateMap();
-                metric->AddChild(
-                    "metric_value_column", NYT::NYTree::ConvertToNode(metricParameters.GetMetricValueColumn()));
-
-                metric->AddChild(
-                    "metric_type", NYT::NYTree::ConvertToNode(metricParameters.GetMetricType()));
-
-                metric->AddChild(
-                    "labels", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetLabelColumns()));
-
-                metrics->AddChild(metric);
-            }
-
-            parameters->AddChild("metrics", metrics);
-
-            auto metricNameLabel = config->MoniumMetricNameLabel.Get();
-            if (!metricNameLabel) {
-                metricNameLabel = config->SolomonMetricNameLabel.Get();
-            }
-
-            if (metricNameLabel) {
-                parameters->AddChild(
-                    "metric_name_label", NYT::NYTree::ConvertToNode(metricNameLabel.GetRef()));
-            }
-
-            auto skipMetricsWithNullTimestamp = config->MoniumSkipMetricsWithNullTimestamp.Get();
-            if (!skipMetricsWithNullTimestamp) {
-                skipMetricsWithNullTimestamp = config->SolomonSkipMetricsWithNullTimestamp.Get();
-            }
-
-            if (skipMetricsWithNullTimestamp) {
-                parameters->AddChild(
-                    "skip_metrics_with_null_timestamp",
-                    NYT::NYTree::ConvertToNode(skipMetricsWithNullTimestamp.GetRef()));
-            }
-
-            parameters->AddChild("skip_null_labels", NYT::NYTree::ConvertToNode(false));
-
-            if (auto rpcTimeout = config->_RpcTimeout.Get()) {
-                parameters->AddChild(
-                    "write_timeout", NYT::NYTree::ConvertToNode(rpcTimeout.GetRef()));
-            }
-
-            rowType = sink.Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
-            auto schema = ConvertToQueueWriteSchema(BuildTableSchema(rowType));
-            streamSpec->Schema = std::move(schema);
-
-            if (auto maybeToken = input.Cast<TYtflowWriteWrap>().Token()) {
-                auto tokenName = maybeToken.Cast().Name().StringValue();
-                auto token = GetToken(tokenName, ctx.SecureParams);
-                YQL_ENSURE(requestedCredentials.MoniumToken.empty() || requestedCredentials.MoniumToken == token);
-                requestedCredentials.MoniumToken = token;
-            }
-        } else {
-            ythrow yexception() << "Unknown message type: " << settings.GetTypeName();
+                "database", NYT::NYTree::ConvertToNode(pqSinkMessage.GetDatabase()));
         }
-        computationSpec->Sinks.emplace(NYT::NFlow::TSinkId(streamName), std::move(sinkSpec));
+
+        parameters->AddChild(
+            "topic", NYT::NYTree::ConvertToNode(pqSinkMessage.GetTopicPath()));
+
+        auto schema = ConvertToQueueWriteSchema(BuildTableSchema(rowType));
+        YQL_ENSURE(schema->GetColumnCount() == 1);
+
+        parameters->AddChild(
+            "payload_column", NYT::NYTree::ConvertToNode(schema->Columns()[0].Name()));
+
+        if (auto codec = config->LogbrokerWriteCompressionCodec.Get()) {
+            parameters->AddChild(
+                "codec", NYT::NYTree::ConvertToNode(codec.GetRef()));
+        }
+
+        if (auto compressionLevel = config->LogbrokerWriteCompressionLevel.Get()) {
+            parameters->AddChild("compression_level", NYT::NYTree::ConvertToNode(compressionLevel.GetRef()));
+        }
+
+        streamSpec->Schema = std::move(schema);
+
+        if (auto maybeToken = sink.Write().Cast<TYtflowWriteWrap>().Token()) {
+            auto tokenName = maybeToken.Cast().Name().StringValue();
+            auto token = GetToken(tokenName, ctx.SecureParams);
+            YQL_ENSURE(requestedCredentials.YdbToken.empty() || requestedCredentials.YdbToken == token);
+            requestedCredentials.YdbToken = token;
+        }
+    } else if (settings.Is<NProto::TSolomonSinkMessage>()) {
+        // Wire the legacy `TSolomonSinkMessage` to the new gRPC monium sink
+        // class.  Unpack the proto first so we can read Endpoint below.
+        NProto::TSolomonSinkMessage solomonSinkMessage;
+        settings.UnpackTo(&solomonSinkMessage);
+
+        sinkSpec->SinkClassName = "NYT::NFlow::TMoniumSink";
+
+        auto resourceSpec = NYT::New<NYT::NFlow::TResourceSpec>();
+        resourceSpec->ResourceClassName = "NYT::NFlow::TMoniumDriver";
+
+        // TODO: drop this workaround after upstream fix in solomon ytflow integration
+        auto endpoint = solomonSinkMessage.GetEndpoint();
+        if (endpoint.StartsWith("http://")) {
+            endpoint = endpoint.substr(7);
+        } else if (endpoint.StartsWith("https://")) {
+            endpoint = endpoint.substr(8);
+        }
+
+        auto& resourceParameters = resourceSpec->Parameters;
+
+        resourceParameters->AddChild(
+            "endpoint", NYT::NYTree::ConvertToNode(endpoint));
+
+        auto moniumDriverSecure = config->_MoniumDriverSecure.Get();
+        YQL_ENSURE(moniumDriverSecure, "Ytflow._MoniumDriverSecure system setting is not set");
+
+        resourceParameters->AddChild(
+            "secure", NYT::NYTree::ConvertToNode(moniumDriverSecure.GetRef()));
+
+        resourceParameters->AddChild(
+            "auth_mode", NYT::NYTree::ConvertToNode("OAuthEnv"));
+
+        if (auto codec = config->SolomonWriteCompressionCodec.Get()) {
+            resourceParameters->AddChild(
+                "compression_algorithm", NYT::NYTree::ConvertToNode(codec.GetRef()));
+        }
+
+        pipelineSpec->Resources[MoniumDriverDefaultResourceId] = std::move(resourceSpec);
+
+        auto resourceDescription = NYT::New<NYT::NFlow::TResourceDescription>();
+        resourceDescription->Controller = true;
+        resourceDescription->Worker = true;
+
+        computationSpec->RequiredResourceIds[MoniumDriverDefaultResourceId] = resourceDescription;
+
+        auto& parameters = sinkSpec->Parameters;
+
+        parameters->AddChild(
+            "project", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetProject()));
+
+        parameters->AddChild(
+            "cluster", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetCluster()));
+
+        parameters->AddChild(
+            "service", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetService()));
+
+        parameters->AddChild(
+            "timestamp_column", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetMetricTimestampColumn()));
+
+        auto metrics = NYT::NYTree::GetEphemeralNodeFactory()->CreateList();
+        for (const auto& metricParameters : solomonSinkMessage.GetMetrics()) {
+            auto metric = NYT::NYTree::GetEphemeralNodeFactory()->CreateMap();
+            metric->AddChild(
+                "metric_value_column", NYT::NYTree::ConvertToNode(metricParameters.GetMetricValueColumn()));
+
+            metric->AddChild(
+                "metric_type", NYT::NYTree::ConvertToNode(metricParameters.GetMetricType()));
+
+            metric->AddChild(
+                "labels", NYT::NYTree::ConvertToNode(solomonSinkMessage.GetLabelColumns()));
+
+            metrics->AddChild(metric);
+        }
+
+        parameters->AddChild("metrics", metrics);
+
+        auto metricNameLabel = config->MoniumMetricNameLabel.Get();
+        if (!metricNameLabel) {
+            metricNameLabel = config->SolomonMetricNameLabel.Get();
+        }
+
+        if (metricNameLabel) {
+            parameters->AddChild(
+                "metric_name_label", NYT::NYTree::ConvertToNode(metricNameLabel.GetRef()));
+        }
+
+        auto skipMetricsWithNullTimestamp = config->MoniumSkipMetricsWithNullTimestamp.Get();
+        if (!skipMetricsWithNullTimestamp) {
+            skipMetricsWithNullTimestamp = config->SolomonSkipMetricsWithNullTimestamp.Get();
+        }
+
+        if (skipMetricsWithNullTimestamp) {
+            parameters->AddChild(
+                "skip_metrics_with_null_timestamp",
+                NYT::NYTree::ConvertToNode(skipMetricsWithNullTimestamp.GetRef()));
+        }
+
+        parameters->AddChild("skip_null_labels", NYT::NYTree::ConvertToNode(false));
+
+        if (auto rpcTimeout = config->_RpcTimeout.Get()) {
+            parameters->AddChild(
+                "write_timeout", NYT::NYTree::ConvertToNode(rpcTimeout.GetRef()));
+        }
+
+        auto schema = ConvertToQueueWriteSchema(BuildTableSchema(rowType));
+        streamSpec->Schema = std::move(schema);
+
+        if (auto maybeToken = sink.Write().Cast<TYtflowWriteWrap>().Token()) {
+            auto tokenName = maybeToken.Cast().Name().StringValue();
+            auto token = GetToken(tokenName, ctx.SecureParams);
+            YQL_ENSURE(requestedCredentials.MoniumToken.empty() || requestedCredentials.MoniumToken == token);
+            requestedCredentials.MoniumToken = token;
+        }
     } else {
-        ythrow yexception() << "Unsupported sink callable: " << sink.Ref().Content();
+        ythrow yexception() << "Unknown message type: " << settings.GetTypeName();
+    }
+    computationSpec->Sinks.emplace(NYT::NFlow::TSinkId(streamName), std::move(sinkSpec));
+
+    AddOutputStream(
+        streamName,
+        sink.Output().OutputIndex().StringValue(),
+        std::move(streamSpec),
+        computationSpec,
+        pipelineSpec,
+        outputIndicesByOutputStreamId);
+}
+
+void ProcessIntermediateOutput(
+    TYtflowOutput output,
+    NYT::NFlow::TComputationSpecPtr computationSpec,
+    NYT::NFlow::TPipelineSpecPtr pipelineSpec,
+    THashMap<TString, TString>& outputIndicesByOutputStreamId,
+    TBuildPipelineSpecContext& ctx)
+{
+    const auto& streamName = GetStreamName(output.Ref(), ctx);
+
+    const auto streamId = NYT::NFlow::TStreamId(streamName);
+    if (computationSpec->OutputStreamIds.contains(streamId)) {
+        return;
     }
 
-    auto [iterator, emplaced] = pipelineSpec->Streams.emplace(
-        NYT::NFlow::TStreamId(streamName), std::move(streamSpec)
-    );
+    const auto* rowType = output.Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
 
-    YQL_ENSURE(emplaced, "Duplicate stream: " << streamName);
+    auto streamSpec = NYT::New<NYT::NFlow::TStreamSpec>();
+    streamSpec->Schema = BuildTableSchema(rowType);
 
-    computationSpec->OutputStreamIds.insert(NYT::NFlow::TStreamId(streamName));
-    outputIndicesByOutputStreamId.emplace(std::move(streamName), sinkBase.OutputIndex());
+    AddOutputStream(
+        streamName,
+        output.OutputIndex().StringValue(),
+        std::move(streamSpec),
+        computationSpec,
+        pipelineSpec,
+        outputIndicesByOutputStreamId);
 }
 
 NYT::NTableClient::TTableSchemaPtr AppendInputMessageIdColumn(
@@ -1223,10 +1275,20 @@ TBuildPipelineSpecResult BuildPipelineSpec(
     TExprNode::TPtr node, TBuildPipelineSpecContext& ctx)
 {
     TVector<TYtflowOpBase> operations;
-
-    NPrivate::VisitExprCurrentEpoch(node, [&](const TExprNode::TPtr& child) {
-        if (auto operation = TMaybeNode<TYtflowOpBase>(child)) {
+    THashMap<const TExprNode*, TVector<TYtflowPersistentSink>> persistentSinksByOperation;
+    THashMap<const TExprNode*, TVector<TYtflowOutput>> intermediateOutputsByOperation;
+    NPrivate::VisitExprCurrentEpoch(node, [&] (const TExprNode::TPtr& child) {
+        if (auto sink = TMaybeNode<TYtflowPersistentSink>(child)) {
+            persistentSinksByOperation[sink.Cast().Output().Operation().Raw()]
+                .push_back(sink.Cast());
+        } else if (auto operation = TMaybeNode<TYtflowOpBase>(child)) {
             operations.push_back(operation.Cast());
+            for (const auto& source : operation.Cast().Sources()) {
+                if (auto maybeOutput = source.Maybe<TYtflowOutput>()) {
+                    const auto output = maybeOutput.Cast();
+                    intermediateOutputsByOperation[output.Operation().Raw()].push_back(output);
+                }
+            }
         }
 
         return true;
@@ -1241,7 +1303,28 @@ TBuildPipelineSpecResult BuildPipelineSpec(
     TRequestedCredentials requestedCredentials;
     std::optional<TString> asyncQueueCluster;
 
-    for (const auto& operation: operations) {
+    for (const auto& operation : operations) {
+        TVector<TYtflowPersistentSource> persistentSources;
+        TVector<TYtflowPersistentSink> persistentSinks;
+        TVector<TYtflowOutput> intermediateInputs;
+        TVector<TYtflowOutput> intermediateOutputs;
+
+        for (const auto& source : operation.Sources()) {
+            if (auto persistentSource = source.Maybe<TYtflowPersistentSource>()) {
+                persistentSources.push_back(persistentSource.Cast());
+            } else if (auto output = source.Maybe<TYtflowOutput>()) {
+                intermediateInputs.push_back(output.Cast());
+            } else {
+                ythrow yexception() << "Unsupported source callable: " << source.Ref().Content();
+            }
+        }
+        if (const auto* sinks = persistentSinksByOperation.FindPtr(operation.Raw())) {
+            persistentSinks = *sinks;
+        }
+        if (const auto* outputs = intermediateOutputsByOperation.FindPtr(operation.Raw())) {
+            intermediateOutputs = *outputs;
+        }
+
         auto operationType = operation.Ref().Content();
         operationType.ChopSuffix("!");
 
@@ -1250,14 +1333,19 @@ TBuildPipelineSpecResult BuildPipelineSpec(
             << "computation_" << operationType
             << "_" << ctx.ComputationCounters[operationType]++;
 
-        for (const auto& source: operation.Sources()) {
+        for (const auto& source : persistentSources) {
             NPrivate::ProcessSource(
                 source, computationName, computationSpec,
                 pipelineSpec, requestedCredentials, ctx);
         }
 
+        for (const auto& input : intermediateInputs) {
+            NPrivate::ProcessIntermediateInput(
+                input, computationSpec, ctx);
+        }
+
         THashMap<TString, TString> outputIndicesByOutputStreamId;
-        for (const auto& sink: operation.Sinks()) {
+        for (const auto& sink : persistentSinks) {
             NPrivate::ProcessSink(
                 sink,
                 computationName,
@@ -1266,6 +1354,15 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 outputIndicesByOutputStreamId,
                 requestedCredentials,
                 asyncQueueCluster,
+                ctx);
+        }
+
+        for (const auto& output : intermediateOutputs) {
+            NPrivate::ProcessIntermediateOutput(
+                output,
+                computationSpec,
+                pipelineSpec,
+                outputIndicesByOutputStreamId,
                 ctx);
         }
 

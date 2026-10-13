@@ -14,15 +14,6 @@
 #include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_optimization.h>
 #include <yt/yql/providers/ytflow/integration/proto/yt.pb.h>
 
-#include <library/cpp/iterator/enumerate.h>
-#include <library/cpp/yt/string/format.h>
-
-#include <util/generic/adaptor.h>
-#include <util/generic/algorithm.h>
-#include <util/generic/map.h>
-#include <util/generic/set.h>
-#include <util/string/cast.h>
-
 #include <google/protobuf/any.pb.h>
 
 #include <utility>
@@ -50,18 +41,11 @@ public:
         AddHandler(1, &TYtflowTransformMap::Match, HNDL(TransformCombineMapOverSourceMap));
         AddHandler(1, &TCoExtractMembers::Match, HNDL(ExtractMembersOverOutput));
         AddHandler(1, &TCoNth::Match, HNDL(NthOverOutput));
-        AddHandler(1, &TYtflowOpBase::Match, HNDL(OpBaseWithSortedYtPersistentSinks));
+        AddHandler(1, &TYtflowPersistentSink::Match, HNDL(PersistentSinkWithSortedYtSink));
 #undef HNDL
 
         SetGlobal(1);
     }
-
-private:
-    struct TSortedYtSinkInfo {
-        TExprNode::TPtr Sink;
-        TVector<TString> KeyColumns;
-        ui32 OutputIndex;
-    };
 
 private:
     TMaybeNode<TExprBase> TransformCombineMapOverSourceMap(
@@ -97,19 +81,20 @@ private:
             return node;
         }
 
-        if (innerSourceMap.Sinks().Size() != 1) {
+        const auto& parents = *getParents();
+        const auto consumers = GetConsumersUnordered(innerSourceMap, parents);
+        if (!consumers || consumers->size() != 1) {
             return node;
         }
 
-        const auto& parents = *getParents();
         if (parents.at(innerSourceMap.Raw()).size() != 1 ||
             parents.at(output.Raw()).size() != 1
         ) {
             return node;
         }
 
-        auto maybeSink = innerSourceMap.Sinks().Item(0).Maybe<TYtflowIntermediateSink>();
-        if (!maybeSink || maybeSink.Cast().OutputIndex().Value() != "0") {
+        const auto& [consumer, consumerOutput] = consumers->front();
+        if (consumerOutput.OutputIndex().Value() != "0") {
             return node;
         }
 
@@ -128,9 +113,9 @@ private:
         }
 
         for (const auto& settings : {innerSourceMap.Settings(), outerTransformMap.Settings()}) {
-            auto filteredSettings = RemoveSetting(
+            auto filteredSettings = RemoveSettings(
                 settings.Ref(),
-                INJECT_INPUT_MESSAGE_ID_SETTING,
+                {INJECT_INPUT_MESSAGE_ID_SETTING, HAS_PERSISTENT_SINK_SETTING},
                 ctx);
 
             if (!filteredSettings->Children().empty()) {
@@ -143,7 +128,6 @@ private:
                 .Add({outerTransformMap.World(), innerSourceMap.World()})
                 .Build()
             .Sources(innerSourceMap.Sources())
-            .Sinks(outerTransformMap.Sinks())
             .Settings(outerTransformMap.Settings())
             .Lambda<TCoLambda>()
                 .Args({"stream"})
@@ -305,7 +289,7 @@ private:
             return node;
         }
 
-        if (outerMap.Sinks().Size() != 1) {
+        if (!IsSingleOutput(outerMap)) {
             return node;
         }
 
@@ -319,12 +303,13 @@ private:
 
         auto innerHoppingAggregate = maybeInnerHoppingAggregate.Cast();
 
-        if (innerHoppingAggregate.Sinks().Size() != 1) {
+        const auto* parents = getParents();
+        if (parents->at(innerHoppingAggregate.Raw()).size() != 1) {
             return node;
         }
 
-        const auto* parents = getParents();
-        if (parents->at(innerHoppingAggregate.Raw()).size() != 1) {
+        const auto consumers = GetConsumersUnordered(innerHoppingAggregate, *parents);
+        if (!consumers || consumers->size() != 1) {
             return node;
         }
 
@@ -361,7 +346,6 @@ private:
                 .Add({outerMap.World(), innerHoppingAggregate.World()})
                 .Build()
             .Sources(innerHoppingAggregate.Sources())
-            .Sinks(outerMap.Sinks())
             .Settings()
                 .Add(MergeSettings(
                         innerHoppingAggregate.Settings().Ref(),
@@ -383,153 +367,68 @@ private:
             .Done().Ptr();
     }
 
-    TMaybeNode<TExprBase> OpBaseWithSortedYtPersistentSinks(
-        TExprBase node, TExprContext& ctx, IOptimizationContext& optCtx, const TGetParents& getParents
-    ) {
-        auto opBase = node.Cast<TYtflowOpBase>();
+    TMaybeNode<TExprBase> PersistentSinkWithSortedYtSink(TExprBase node, TExprContext& ctx) {
+        auto persistentSink = node.Cast<TYtflowPersistentSink>();
 
-        TVector<TSortedYtSinkInfo> sortedYtSinks;
-        TVector<TExprNode::TPtr> resultSinks;
-        for (auto [index, sink] : Enumerate(opBase.Sinks())) {
-            ::google::protobuf::Any settings;
-            if (!TryGetYtSinkSettings(sink.Ref(), ctx, *State_->Types, settings) ||
-                !settings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>())
-            {
-                resultSinks.push_back(sink.Ptr());
-                continue;
-            }
-
-            NYtflow::NProto::TYtSortedTableSinkMessage sinkSettings;
-            settings.UnpackTo(&sinkSettings);
-
-            TVector<TString> keyColumns(
-                sinkSettings.GetKeyColumns().begin(), sinkSettings.GetKeyColumns().end());
-
-            auto outputIndex = ::FromString<ui32>(sink.Cast<TYtflowSinkBase>().OutputIndex());
-            sortedYtSinks.push_back(TSortedYtSinkInfo{
-                .Sink = sink.Ptr(),
-                .KeyColumns = std::move(keyColumns),
-                .OutputIndex = outputIndex,
-            });
-
-            resultSinks.push_back(Build<TYtflowIntermediateSink>(ctx, opBase.Sinks().Pos())
-                .Name()
-                    .Value("")
-                    .Build()
-                .OutputIndex()
-                    .Value(outputIndex)
-                    .Build()
-                .RowType(
-                    ExpandType(node.Pos(), GetSeqItemType(*sink.Ref().GetTypeAnn()), ctx))
-                .Done().Ptr());
-        }
-
-        if (sortedYtSinks.empty()) {
+        ::google::protobuf::Any settings;
+        if (!TryGetYtSinkSettings(persistentSink.Ref(), ctx, *State_->Types, settings) ||
+            !settings.Is<NYtflow::NProto::TYtSortedTableSinkMessage>())
+        {
             return node;
         }
 
-        if (auto maybeTransformMap = node.Maybe<TYtflowTransformMap>()) {
-            auto transformMap = maybeTransformMap.Cast();
+        NYtflow::NProto::TYtSortedTableSinkMessage sinkSettings;
+        settings.UnpackTo(&sinkSettings);
 
+        TVector<TString> keyColumns(
+            sinkSettings.GetKeyColumns().begin(),
+            sinkSettings.GetKeyColumns().end());
+
+        if (keyColumns.empty()) {
+            return node;
+        }
+
+        if (auto maybeTransformMap = persistentSink.Output().Operation().Maybe<TYtflowTransformMap>()) {
+            auto transformMap = maybeTransformMap.Cast();
             TVector<TString> groupByColumns;
             for (const auto& column : transformMap.GroupByColumns()) {
                 groupByColumns.push_back(column.StringValue());
             }
 
-            const bool groupByAndKeyColumnsAreSame = AllOf(sortedYtSinks,
-                [&groupByColumns](const auto& sortedSinkInfo) {
-                    return sortedSinkInfo.KeyColumns == groupByColumns;
-                });
-
-            if (groupByAndKeyColumnsAreSame && IsIdentityLambda(transformMap.Lambda().Ref())) {
+            if (groupByColumns == keyColumns && IsIdentityLambda(transformMap.Lambda().Ref())) {
                 return node;
             }
         }
 
-        auto newOpBase = ctx.ChangeChild(
-            opBase.Ref(),
-            TYtflowOpBase::idx_Sinks,
-            Build<TExprList>(ctx, opBase.Sinks().Pos())
-                .Add(resultSinks)
-                .Done().Ptr());
-
-        TVector<TExprBase> transformMapWorlds;
-        for (const auto& sortedYtSinkInfo : sortedYtSinks) {
-            TSyncMap syncList;
-            auto source = BuildOperationSource(Build<TYtflowOutput>(ctx, node.Pos())
-                .Operation(newOpBase)
-                .OutputIndex()
-                    .Value(sortedYtSinkInfo.OutputIndex)
-                    .Build()
-                .Done().Ptr(),
-                syncList, ctx, *State_->Types);
-
-            const auto& sink = sortedYtSinkInfo.Sink;
-            TVector<TExprNode::TPtr> transformMapSinks{ctx.ChangeChild(
-                    *sink, TYtflowSinkBase::idx_OutputIndex, ctx.NewAtom(sink->Pos(), 0U))};
-
-            auto transformMap = Build<TYtflowTransformMap>(ctx, node.Pos())
-                .World(ApplySyncListToWorld(ctx.NewWorld(node.Pos()), syncList, ctx))
-                .Sources()
-                    .Add(std::move(source))
-                    .Build()
-                .Sinks()
-                    .Add(std::move(transformMapSinks))
-                    .Build()
-                .Settings()
-                    .Build()
-                .Lambda()
-                    .Args({"stream"})
-                    .Body("stream")
-                    .Build()
-                .GroupByColumns(
-                    MakeAtomList(node.Pos(), sortedYtSinkInfo.KeyColumns, ctx))
-                .Done();
-
-            transformMapWorlds.push_back(
-                Build<TCoLeft>(ctx, node.Pos())
-                    .Input(std::move(transformMap))
-                    .Done());
-        }
-
-        const auto* parents = getParents();
-        auto parentsIterator = parents->find(opBase.Raw());
-        YQL_ENSURE(parentsIterator != parents->end(),
-            "Unknown parent of " << opBase.Ref().Content());
-
-        TVector<TExprBase> leftNodes;
-        for (const auto* parent : parentsIterator->second) {
-            if (TMaybeNode<TCoLeft>(parent)) {
-                leftNodes.push_back(TExprBase(parent));
-                continue;
-            }
-
-            YQL_ENSURE(TMaybeNode<TYtflowOutput>(parent),
-                "Unexpected parent of " << opBase.Ref().Content() << ": " << parent->Content());
-        }
-
-        bool allResultSinksAreIntermediate = AllOf(resultSinks,
-            [](const auto& sink) {
-                return TMaybeNode<TYtflowIntermediateSink>(sink);
-            });
-
-        if (!allResultSinksAreIntermediate) {
-            for (const auto& left : leftNodes) {
-                transformMapWorlds.push_back(Build<TCoLeft>(ctx, left.Pos())
-                    .InitFrom(left.Cast<TCoLeft>())
-                    .Done());
-            }
-        }
-
-        auto sync = Build<TCoSync>(ctx, node.Pos())
-            .Add(std::move(transformMapWorlds))
+        TSyncMap syncList;
+        auto source = BuildOperationSource(
+            persistentSink.Output().Ptr(), syncList, ctx, *State_->Types);
+        auto transformMap = Build<TYtflowTransformMap>(ctx, node.Pos())
+            .World(ApplySyncListToWorld(ctx.NewWorld(node.Pos()), syncList, ctx))
+            .Sources()
+                .Add(std::move(source))
+                .Build()
+            .Settings()
+                .Build()
+            .Lambda()
+                .Args({"stream"})
+                .Body("stream")
+                .Build()
+            .GroupByColumns(MakeAtomList(node.Pos(), keyColumns, ctx))
             .Done();
 
-        for (const auto& left : leftNodes) {
-            optCtx.RemapNode(left.Ref(), sync.Ptr());
-        }
-
-        return TExprBase(newOpBase);
+        return Build<TYtflowPersistentSink>(ctx, node.Pos())
+            .InitFrom(persistentSink)
+            .World<TCoSync>()
+                .Add({transformMap.World(), persistentSink.Write()})
+                .Build()
+            .Output<TYtflowOutput>()
+                .Operation(std::move(transformMap))
+                .OutputIndex()
+                    .Value(0)
+                    .Build()
+                .Build()
+            .Done();
     }
 
     template <typename TCallable>
@@ -569,25 +468,10 @@ private:
         auto source = BuildOperationSource(
             output.Ptr(), syncList, ctx, *State_->Types);
 
-        auto extractMembersItemType = GetSeqItemType(extractMembers.Ref().GetTypeAnn());
-        YQL_ENSURE(extractMembersItemType->GetKind() == ETypeAnnotationKind::Struct,
-            "Unexpected " << extractMembers.Ref().Content() << " item type: " << *extractMembersItemType);
-
         auto extractMembersMap = Build<TYtflowMap>(ctx, node.Pos())
             .World(ApplySyncListToWorld(ctx.NewWorld(node.Pos()), syncList, ctx))
             .Sources()
                 .Add(std::move(source))
-                .Build()
-            .Sinks()
-                .Add<TYtflowIntermediateSink>()
-                    .Name()
-                        .Value("")
-                        .Build()
-                    .OutputIndex()
-                        .Value(0)
-                        .Build()
-                    .RowType(ExpandType(TPositionHandle{}, *extractMembersItemType, ctx))
-                    .Build()
                 .Build()
             .Settings()
                 .Build()

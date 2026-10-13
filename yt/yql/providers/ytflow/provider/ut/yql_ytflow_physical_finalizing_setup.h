@@ -24,19 +24,20 @@ public:
         TExprNode::TPtr readWrap,
         TExprNode::TPtr world,
         NNodes::TCoNameValueTupleList settings,
-        TStringBuf sourceName = "source",
-        std::initializer_list<ui32> sinkOutputIndices = {0});
+        ui32 outputCount = 1);
     TExprNode::TPtr MakeOutput(TExprNode::TPtr operation, ui32 outputIndex = 0);
+    TExprNode::TPtr MakeLeft(TExprNode::TPtr operation);
+    TExprNode::TPtr MakePersistentSink(TExprNode::TPtr world, TExprNode::TPtr output);
     TExprNode::TPtr MakeMap(
         TExprNode::TPtr source,
         TExprNode::TPtr world,
-        std::initializer_list<ui32> sinkOutputIndices = {0});
+        ui32 outputCount = 1);
     TExprNode::TPtr MakeExtend(
         std::initializer_list<TExprNode::TPtr> sources,
         TExprNode::TPtr world);
-    TExprNode::TPtr MakeRoot(std::initializer_list<TExprNode::TPtr> sourceMaps);
-    TExprNode::TPtr MakeRootFromOutputs(TExprNode::TListType outputs);
+    TExprNode::TPtr MakeRoot(TExprNode::TListType children);
 
+    void AnnotateTypes(TExprNode::TPtr& root);
     virtual void Transform(TExprNode::TPtr& root);
 
     size_t CountSourceMaps(const TExprNode::TPtr& root) const;
@@ -51,8 +52,7 @@ protected:
     TPositionHandle Position_;
 
 private:
-    TVector<NNodes::TExprBase> MakeIntermediateSinks(std::initializer_list<ui32> outputIndices);
-    NNodes::TCoLambda MakePassthroughLambda(std::initializer_list<ui32> outputIndices);
+    NNodes::TCoLambda MakePassthroughLambda(ui32 outputCount);
 };
 
 } // namespace NYql::NYtflow::NTest

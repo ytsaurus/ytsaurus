@@ -13,11 +13,7 @@
 
 #include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
 
-#include <util/generic/hash.h>
-#include <util/generic/vector.h>
-
 #include <memory>
-
 
 namespace NYql {
 
@@ -73,6 +69,10 @@ public:
 
         AddHandler({TYtflowOutput::CallableName()}, RequireFirst(), Pass());
         AddHandler(
+            {TYtflowPersistentSink::CallableName()},
+            RequireAllOf({TYtflowPersistentSink::idx_Output}),
+            Pass());
+        AddHandler(
             {
                 TYtflowSourceMap::CallableName(),
                 TYtflowTransformSourceMap::CallableName(),
@@ -91,70 +91,6 @@ public:
     }
 
 private:
-    TStatus EnsureNamedSourcesAndSinks(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        output = input;
-
-        auto operation = TYtflowOpBase(output);
-
-        TVector<size_t> unnamedSourceIndices;
-        for (size_t index = 0; index < operation.Sources().Size(); ++index) {
-            auto source = operation.Sources().Item(index);
-            auto maybeName = source.Maybe<TYtflowPersistentSource>().Name();
-            if (maybeName && !maybeName.Cast().Value()) {
-                unnamedSourceIndices.push_back(index);
-            }
-        }
-
-        TVector<size_t> unnamedSinkIndices;
-        for (size_t index = 0; index < operation.Sinks().Size(); ++index) {
-            auto sink = operation.Sinks().Item(index);
-            auto maybeName = sink.Maybe<TYtflowSinkBase>().Name();
-            if (maybeName && !maybeName.Cast().Value()) {
-                unnamedSinkIndices.push_back(index);
-            }
-        }
-
-        if (!unnamedSourceIndices && !unnamedSinkIndices) {
-            return TStatus::Ok;
-        }
-
-        auto children = output->ChildrenList();
-
-        if (unnamedSourceIndices) {
-            auto& sourcesNode = children[TYtflowOpBase::idx_Sources];
-            auto sourceChildren = sourcesNode->ChildrenList();
-
-            for (auto index: unnamedSourceIndices) {
-                RenameNode(sourceChildren[index], TYtflowPersistentSource::idx_Name, ctx);
-            }
-
-            sourcesNode = ctx.ChangeChildren(*sourcesNode, std::move(sourceChildren));
-        }
-
-        if (unnamedSinkIndices) {
-            auto& sinksNode = children[TYtflowOpBase::idx_Sinks];
-            auto sinkChildren = sinksNode->ChildrenList();
-
-            for (auto index: unnamedSinkIndices) {
-                RenameNode(sinkChildren[index], TYtflowSinkBase::idx_Name, ctx);
-            }
-
-            sinksNode = ctx.ChangeChildren(*sinksNode, std::move(sinkChildren));
-        }
-
-        output = ctx.ChangeChildren(*output, std::move(children));
-
-        return TStatus(TStatus::Repeat, true);
-    }
-
-    void RenameNode(TExprNode::TPtr& node, size_t nameIndex, TExprContext& ctx) {
-        auto name = TStringBuilder() <<
-            "stream_" << node->Content()
-            << "_" << StreamCounters[node->Content()]++;
-
-        node = ctx.ChangeChild(*node, nameIndex, ctx.NewAtom(TPositionHandle{}, name));
-    }
-
     TStatus DoPeepHoleOptimization(
         const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx
     ) {
@@ -203,17 +139,7 @@ private:
     TStatusCallbackPair HandleOpBase(
         const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx
     ) {
-        output = input;
-
-        if (auto status = EnsureNamedSourcesAndSinks(output, output, ctx);
-            status != TStatus::Ok
-        ) {
-            return SyncStatus(status);
-        }
-
-        auto peepHoleStatus = DoPeepHoleOptimization(output, output, ctx);
-
-        return SyncStatus(peepHoleStatus);
+        return SyncStatus(DoPeepHoleOptimization(input, output, ctx));
     }
 
     TStatusCallbackPair HandlePublish(const TExprNode::TPtr& node, TExprContext& ctx) {
@@ -255,14 +181,12 @@ private:
     void Rewind() final {
         TExecTransformerBase::Rewind();
 
-        StreamCounters.clear();
         PeepHoleProcessedNodes.clear();
     }
 
 private:
     TYtflowState::TPtr State;
 
-    THashMap<TStringBuf, ui32> StreamCounters;
     TNodeSet PeepHoleProcessedNodes;
 };
 

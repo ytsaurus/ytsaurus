@@ -21,7 +21,6 @@
 
 #include <library/cpp/iterator/enumerate.h>
 
-#include <util/generic/algorithm.h>
 #include <util/generic/vector.h>
 
 #include <util/string/cast.h>
@@ -73,6 +72,7 @@ public:
         AddHandler(0, &TCoExtend::Match, HNDL(Extend));
         AddHandler(0, &TCoEquiJoin::Match, HNDL(EquiJoin));
         AddHandler(0, &TYtflowWriteWrap::Match, HNDL(WriteWrapWithReadWrap));
+        AddHandler(1, &TYtflowWriteWrap::Match, HNDL(WriteWrapOverOutput));
         AddHandler(0, &TCoAggregate::Match, HNDL(Aggregate));
 #undef HNDL
     }
@@ -112,28 +112,8 @@ private:
             return node;
         }
 
-        TTypeAnnotationNode::TListType resultTypes;
         auto* itemType = type->Cast<TListExprType>()->GetItemType();
-        if (itemType->GetKind() == ETypeAnnotationKind::Variant) {
-            auto underlyingType = itemType->Cast<TVariantExprType>()->GetUnderlyingType();
-            if (!EnsureTupleType(node.Pos(), *underlyingType, ctx)) {
-                return node;
-            }
-
-            auto& tupleTypes = underlyingType->Cast<TTupleExprType>()->GetItems();
-            for (auto* type : tupleTypes) {
-                if (!EnsureStructType(node.Pos(), *type, ctx)) {
-                    return node;
-                }
-            }
-
-            resultTypes = tupleTypes;
-        } else if (itemType->GetKind() == ETypeAnnotationKind::Struct) {
-            resultTypes.push_back(itemType);
-        } else {
-            ctx.AddError(TIssue(ctx.GetPosition(node.Pos()),
-                TStringBuilder()
-                    << "Expected struct or variant type, but got: " << *itemType));
+        if (!EnsureYtflowOutputItemType(node.Pos(), *itemType, ctx)) {
             return node;
         }
 
@@ -143,20 +123,6 @@ private:
         auto callableName = TMaybeNode<TYtflowPersistentSource>(source)
             ? TYtflowSourceMap::CallableName()
             : TYtflowMap::CallableName();
-
-        TVector<TExprBase> sinks;
-        sinks.reserve(resultTypes.size());
-        for (auto [index, resultType] : Enumerate(resultTypes)) {
-            sinks.push_back(Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-                .Name()
-                    .Value("")
-                    .Build()
-                .OutputIndex()
-                    .Value(index)
-                    .Build()
-                .RowType(ExpandType(node.Pos(), *resultType, ctx))
-                .Done());
-        }
 
         auto streamArg = Build<TCoArgument>(ctx, node.Pos())
             .Name("stream")
@@ -195,9 +161,6 @@ private:
             .Sources()
                 .Add(std::move(source))
                 .Build()
-            .Sinks()
-                .Add(std::move(sinks))
-                .Build()
             .Settings()
                 .Build()
             .Lambda(std::move(lambda))
@@ -224,21 +187,10 @@ private:
         TPositionHandle position,
         TExprContext& ctx
     ) {
-        auto type = readWrap.Ref().GetTypeAnn();
+        const auto type = readWrap.Ref().GetTypeAnn();
         YQL_ENSURE(type);
 
-        if (!EnsureListType(readWrap.Ref(), ctx)) {
-            ctx.AddError(TIssue(ctx.GetPosition(position),
-                TStringBuilder()
-                    << "Expected list type, but got: " << *type));
-            return {};
-        }
-
-        auto* itemType = type->Cast<TListExprType>()->GetItemType();
-        if (itemType->GetKind() != ETypeAnnotationKind::Struct) {
-            ctx.AddError(TIssue(ctx.GetPosition(position),
-                TStringBuilder()
-                    << "Expected struct type, but got: " << *type));
+        if (!EnsureListOfStructs(position, *type, ctx)) {
             return {};
         }
 
@@ -246,23 +198,10 @@ private:
         auto source = BuildOperationSource(
             readWrap.Ptr(), syncList, ctx, *State_->Types);
 
-        auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(0)
-                .Build()
-            .RowType(ExpandType(position, *itemType, ctx))
-            .Done();
-
         auto sourceMap = Build<TYtflowSourceMap>(ctx, position)
             .World(MakeSyncNodeFromSyncList(syncList, position, ctx))
             .Sources()
                 .Add(std::move(source))
-                .Build()
-            .Sinks()
-                .Add(std::move(sink))
                 .Build()
             .Settings()
                 .Build()
@@ -289,19 +228,12 @@ private:
             }
         }
 
-        auto type = node.Ref().GetTypeAnn();
+        const auto type = node.Ref().GetTypeAnn();
         if (!type) {
             return node;
         }
 
-        if (!EnsureListType(node.Ref(), ctx)) {
-            return {};
-        }
-
-        auto* itemType = type
-            ->Cast<TListExprType>()
-            ->GetItemType();
-        if (!EnsureStructType(node.Pos(), *itemType, ctx)) {
+        if (!EnsureListOfStructs(node.Pos(), *type, ctx)) {
             return {};
         }
 
@@ -322,23 +254,10 @@ private:
                 sourceInput, syncList, ctx, *State_->Types));
         }
 
-        auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(0)
-                .Build()
-            .RowType(ExpandType(node.Pos(), *itemType, ctx))
-            .Done();
-
         auto operation = Build<TYtflowExtend>(ctx, node.Pos())
             .World(MakeSyncNodeFromSyncList(syncList, node.Pos(), ctx))
             .Sources()
                 .Add(std::move(sources))
-                .Build()
-            .Sinks()
-                .Add(std::move(sink))
                 .Build()
             .Settings()
                 .Build()
@@ -498,16 +417,6 @@ private:
             joinResultNode, syncList, ctx, *State_->Types);
 
         const ui32 outputIndex = 0;
-        auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(outputIndex)
-                .Build()
-            .RowType(ExpandType(node.Pos(), *itemType, ctx))
-            .Done();
-
         auto joinRenameLambda = BuildJoinRenameLambda(
             node.Pos(), joinRenameMap, *itemType->Cast<TStructExprType>(), ctx);
 
@@ -515,9 +424,6 @@ private:
             .World(MakeSyncNodeFromSyncList(syncList, node.Pos(), ctx))
             .Sources()
                 .Add(std::move(source))
-                .Build()
-            .Sinks()
-                .Add(std::move(sink))
                 .Build()
             .Settings()
                 .Build()
@@ -574,6 +480,42 @@ private:
             .Done();
     }
 
+    TMaybeNode<TExprBase> WriteWrapOverOutput(TExprBase node, TExprContext& ctx) {
+        auto writeWrap = node.Cast<TYtflowWriteWrap>();
+        auto providerWrite = writeWrap.Input();
+
+        auto* ytflowIntegration = GetYtflowIntegration(providerWrite.Ref(), *State_->Types);
+        YQL_ENSURE(ytflowIntegration, "Unknown provider write: " << providerWrite.Ref().Content());
+
+        auto content = ytflowIntegration->GetWriteContent(providerWrite.Ref(), ctx);
+        auto maybeOutput = TMaybeNode<TYtflowOutput>(content);
+        if (!maybeOutput) {
+            return node;
+        }
+
+        auto* ytflowOptimization = GetYtflowOptimization(providerWrite.Ref(), *State_->Types);
+        YQL_ENSURE(ytflowOptimization, "Unknown provider write: " << providerWrite.Ref().Content());
+
+        auto trimmedWrite = ytflowOptimization->TrimWriteContent(providerWrite.Ptr(), ctx);
+        if (!trimmedWrite) {
+            return {};
+        }
+
+        auto trimmedWriteWrap = Build<TYtflowWriteWrap>(ctx, writeWrap.Pos())
+            .InitFrom(writeWrap)
+            .Input(std::move(trimmedWrite))
+            .Done();
+
+        auto output = maybeOutput.Cast();
+        return Build<TYtflowPersistentSink>(ctx, node.Pos())
+            .World<TCoSync>()
+                .Add({output.Operation().World(), trimmedWriteWrap})
+                .Build()
+            .Output(output)
+            .Write(std::move(trimmedWriteWrap))
+            .Done();
+    }
+
     TMaybeNode<TExprBase> Aggregate(TExprBase node, TExprContext& ctx) {
         auto aggregate = node.Cast<TCoAggregate>();
         auto input = aggregate.Input();
@@ -592,18 +534,13 @@ private:
             return node;
         }
 
-        auto outputType = aggregate.Ref().GetTypeAnn();
+        const auto outputType = aggregate.Ref().GetTypeAnn();
         if (!outputType) {
             return node;
         }
 
-        if (outputType->GetKind() != ETypeAnnotationKind::List) {
-            return node;
-        }
-
-        auto* outputItemType = outputType->Cast<TListExprType>()->GetItemType();
-        if (outputItemType->GetKind() != ETypeAnnotationKind::Struct) {
-            return node;
+        if (!EnsureListOfStructs(aggregate.Pos(), *outputType, ctx)) {
+            return {};
         }
 
         if (!IsYtflowProviderInput(input.Ref())) {
@@ -768,7 +705,6 @@ private:
             }
 
             TVector<const TItemExprType*> combineItemTypes;
-
             for (const auto& key : keysDescription.MemberKeys) {
                 combineItemTypes.push_back(ctx.MakeType<TItemExprType>(
                     key,
@@ -1018,30 +954,6 @@ private:
             auto timeExtractorMapSource = BuildOperationSource(
                 input.Ptr(), timeExtractorMapSyncList, ctx, *State_->Types);
 
-            auto structItems = inputStructItemType->GetItems();
-
-            auto columnType = hopTraits.Traits.TimeExtractor().Ref().GetTypeAnn();
-            const TTypeAnnotationNode* unwrappedColumnType = columnType->IsOptionalOrNull()
-                ? columnType->Cast<TOptionalExprType>()->GetItemType()
-                : columnType;
-
-            structItems.push_back(ctx.MakeType<TItemExprType>(
-                hopTraits.Column,
-                unwrappedColumnType));
-
-            auto* extendedItemType = ctx.MakeType<TStructExprType>(
-                std::move(structItems));
-
-            auto timeExtractorMapSink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-                .Name()
-                    .Value("")
-                    .Build()
-                .OutputIndex()
-                    .Value(0)
-                    .Build()
-                .RowType(ExpandType(node.Pos(), *extendedItemType, ctx))
-                .Done().Ptr();
-
             auto timeExtractorMap = ctx.Builder(node.Pos())
                 .Callable(
                     TMaybeNode<TYtflowPersistentSource>(timeExtractorMapSource)
@@ -1053,15 +965,12 @@ private:
                         .Add(0, std::move(timeExtractorMapSource))
                         .Seal()
                     .List(2)
-                        .Add(0, std::move(timeExtractorMapSink))
-                        .Seal()
-                    .List(3)
                         .List(0)
                             .Atom(0, "inject_input_message_id")
                             .Atom(1, "")
                             .Seal()
                         .Seal()
-                    .Lambda(4)
+                    .Lambda(3)
                         .Param("stream")
                         .Callable(0, TCoOrderedFlatMap::CallableName())
                             .Arg(0, "stream")
@@ -1095,23 +1004,10 @@ private:
             auto combineMapSource = BuildOperationSource(
                 timeExtractorMapOutput, combineMapSyncList, ctx, *State_->Types);
 
-            auto combineMapSink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-                .Name()
-                    .Value("")
-                    .Build()
-                .OutputIndex()
-                    .Value(0)
-                    .Build()
-                .RowType(ExpandType(node.Pos(), *combineItemType, ctx))
-                .Done().Ptr();
-
             auto combineMap = Build<TYtflowTransformMap>(ctx, node.Pos())
                 .World(MakeSyncNodeFromSyncList(combineMapSyncList, node.Pos(), ctx))
                 .Sources()
                     .Add(std::move(combineMapSource))
-                    .Build()
-                .Sinks()
-                    .Add(std::move(combineMapSink))
                     .Build()
                 .Settings()
                     .Add<TCoNameValueTuple>()
@@ -1146,23 +1042,10 @@ private:
             auto combineStatesMapSource = BuildOperationSource(
                 combineMapOutput, combineStatesMapSyncList, ctx, *State_->Types);
 
-            auto combineStatesMapSink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-                .Name()
-                    .Value("")
-                    .Build()
-                .OutputIndex()
-                    .Value(0)
-                    .Build()
-                .RowType(ExpandType(node.Pos(), *combineItemType, ctx))
-                .Done().Ptr();
-
             auto combineStatesMap = Build<TYtflowTransformMap>(ctx, node.Pos())
                 .World(MakeSyncNodeFromSyncList(combineStatesMapSyncList, node.Pos(), ctx))
                 .Sources()
                     .Add(std::move(combineStatesMapSource))
-                    .Build()
-                .Sinks()
-                    .Add(std::move(combineStatesMapSink))
                     .Build()
                 .Settings()
                     .Build()
@@ -1326,23 +1209,10 @@ private:
         auto source = BuildOperationSource(
             combineStatesMapOutput, syncList, ctx, *State_->Types);
 
-        auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
-            .Name()
-                .Value("")
-                .Build()
-            .OutputIndex()
-                .Value(0)
-                .Build()
-            .RowType(ExpandType(node.Pos(), *outputItemType, ctx))
-            .Done();
-
         auto hoppingAggregate = Build<TYtflowHoppingAggregate>(ctx, node.Pos())
             .World(MakeSyncNodeFromSyncList(syncList, node.Pos(), ctx))
             .Sources()
                 .Add(std::move(source))
-                .Build()
-            .Sinks()
-                .Add(std::move(sink))
                 .Build()
             .Settings()
                 .Build()

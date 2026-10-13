@@ -118,6 +118,11 @@ public:
     }
 
     void GetRequiredChildren(const TExprNode& node, TExprNode::TListType& children) override {
+        if (auto persistentSink = TMaybeNode<TYtflowPersistentSink>(&node)) {
+            children.push_back(persistentSink.Cast().Output().Ptr());
+            return;
+        }
+
         if (CanExecute(node)) {
             children.push_back(node.ChildPtr(0));
         }
@@ -128,7 +133,8 @@ public:
     }
 
     bool HasCustomPlan(const TExprNode& node) override {
-        return TMaybeNode<TYtflowOpBase>(&node) || TMaybeNode<TYtflowPublish>(&node);
+        return TMaybeNode<TYtflowOpBase>(&node) || TMaybeNode<TYtflowPublish>(&node) ||
+            TMaybeNode<TYtflowPersistentSink>(&node);
     }
 
     void WriteDetails(const TExprNode& node, NYson::TYsonWriter& writer) override {
@@ -148,6 +154,8 @@ public:
                         children.push_back(maybeYtflowOutput.Cast().Operation().Ptr());
                     }
                 }
+            } else if (auto persistentSink = TMaybeNode<TYtflowPersistentSink>(&node)) {
+                children.push_back(persistentSink.Cast().Output().Operation().Ptr());
             }
         }
 
@@ -191,34 +199,23 @@ public:
     }
 
     ui32 GetOutputs(const TExprNode& node, TVector<TPinInfo>& outputs, bool withLimits) override {
-        auto maybeYtflowOpBase = TMaybeNode<TYtflowOpBase>(&node);
-        if (!maybeYtflowOpBase) {
+        auto maybePersistentSink = TMaybeNode<TYtflowPersistentSink>(&node);
+        if (!maybePersistentSink) {
             return 0;
         }
 
-        ui32 outputCount = 0;
-        for (auto sink: maybeYtflowOpBase.Cast().Sinks()) {
-            if (auto maybePersistentSink = sink.Maybe<TYtflowPersistentSink>()) {
-                auto writeWrap = maybePersistentSink.Cast().Input();
-                auto providerInput = writeWrap.Cast<TYtflowWriteWrap>().Input();
+        auto writeWrap = maybePersistentSink.Cast().Write();
+        auto providerInput = writeWrap.Cast<TYtflowWriteWrap>().Input();
 
-                auto dataProvider = GetDataProvider(providerInput.Ref(), *State_->Types);
-                YQL_ENSURE(dataProvider);
+        auto dataProvider = GetDataProvider(providerInput.Ref(), *State_->Types);
+        YQL_ENSURE(dataProvider);
 
-                ui32 providerOutputCount = dataProvider->GetPlanFormatter()
-                    .GetOutputs(providerInput.Ref(), outputs, withLimits);
+        auto outputCount = dataProvider->GetPlanFormatter()
+            .GetOutputs(providerInput.Ref(), outputs, withLimits);
 
-                // TODO(ngc224): drop fixup
-                for (
-                    ui32 outputIndex = outputCount;
-                    outputIndex < outputCount + providerOutputCount;
-                    ++outputIndex
-                ) {
-                    outputs[outputIndex].HideInBasicPlan = false;
-                }
-
-                outputCount += providerOutputCount;
-            }
+        // TODO(ngc224): drop fixup
+        for (ui32 outputIndex = 0; outputIndex < outputCount; ++outputIndex) {
+            outputs[outputIndex].HideInBasicPlan = false;
         }
 
         return outputCount;
