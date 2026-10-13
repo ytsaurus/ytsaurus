@@ -1,8 +1,8 @@
 {
-    cluster=arnold;
-    pool="yt-integration-tests";
+    cluster=kolmogorov;
+    pool="yt-integration-test";
     pool_trees=[
-        "yt_integration_tests";
+        "physical";
     ];
     cypress_root="//home/yt-integration-tests";
     operation_spec={
