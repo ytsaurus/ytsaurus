@@ -2110,8 +2110,10 @@ void TTablet::UpdateTotalRowCount()
 {
     if (StoreRowIndexMap_.empty()) {
         // COMPAT(ifsmirnov)
+        auto reign = GetCurrentMutationEffectiveReign();
         RuntimeData_->TotalRowCount =
-            GetCurrentMutationEffectiveReign() >= ETabletReign::FixTotalRowCountAfterFullTrim
+            reign >= ETabletReign::FixTotalRowCountAfterFullTrim ||
+            (reign >= ETabletReign::FixTotalRowCountAfterFullTrim_26_1 && reign < ETabletReign::Start_26_2)
                 ? GetTrimmedRowCount()
                 : 0;
     } else {
