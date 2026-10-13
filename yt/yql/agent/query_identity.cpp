@@ -1,10 +1,10 @@
 #include "query_identity.h"
 
-#include <yt/yt/ytlib/yql_client/proto/token_service.pb.h>
-
 #include <yt/yt/core/crypto/crypto.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yql/library/token_service/proto/token_service.pb.h>
 
 namespace NYT::NYqlAgent {
 

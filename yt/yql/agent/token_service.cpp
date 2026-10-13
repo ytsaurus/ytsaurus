@@ -3,9 +3,9 @@
 #include "private.h"
 #include "token_manager.h"
 
-#include <yt/yt/ytlib/yql_client/token_service_proxy.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yql/library/token_service/token_service_proxy.h>
 
 namespace NYT::NYqlAgent {
 

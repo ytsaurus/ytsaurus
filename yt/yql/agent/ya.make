@@ -48,6 +48,7 @@ PEERDIR(
     yt/yt/server/lib/misc
     yt/yt/server/lib/component_state_checker
 
+    yt/yql/library/token_service
     yt/yql/plugin
     yt/yql/plugin/native
     yt/yql/plugin/qtworker
