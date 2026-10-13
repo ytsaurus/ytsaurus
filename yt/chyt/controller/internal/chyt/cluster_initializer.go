@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	DefaultDiscoveryV1Path = ypath.Path("//sys/clickhouse/cliques")
-	YTClickHouseUser       = "yt-clickhouse"
-	CHYTSQLObjectsUser     = "chyt-sql-objects"
+	YTClickHouseUser   = "yt-clickhouse"
+	CHYTSQLObjectsUser = "chyt-sql-objects"
 )
 
 type ClusterInitializer struct {
@@ -22,7 +21,7 @@ type ClusterInitializer struct {
 }
 
 func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context) error {
-	_, err := initializer.ytc.CreateNode(ctx, DefaultDiscoveryV1Path, yt.NodeMap, &yt.CreateNodeOptions{
+	_, err := initializer.ytc.CreateNode(ctx, ypath.Path("//sys/clickhouse"), yt.NodeMap, &yt.CreateNodeOptions{
 		Recursive:      true,
 		IgnoreExisting: true,
 	})
