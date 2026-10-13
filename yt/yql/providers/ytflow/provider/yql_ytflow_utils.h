@@ -1,9 +1,13 @@
 #pragma once
 
 #include <yql/essentials/ast/yql_expr.h>
+#include <yql/essentials/core/yql_expr_optimize.h>
 #include <yql/essentials/core/yql_type_annotation.h>
 
+#include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
+
 #include <util/generic/hash_set.h>
+#include <util/generic/maybe.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 
@@ -49,6 +53,16 @@ bool EnsureSpecificDataSink(
     const THashSet<TStringBuf>& expectedCategories,
     TExprContext& ctx);
 
+bool EnsureYtflowOutputItemType(
+    TPositionHandle position,
+    const TTypeAnnotationNode& type,
+    TExprContext& ctx);
+
+bool EnsureListOfStructs(
+    TPositionHandle position,
+    const TTypeAnnotationNode& type,
+    TExprContext& ctx);
+
 bool IsYtPersistentSink(
     const TExprNode& node,
     TExprContext& ctx,
@@ -61,6 +75,37 @@ bool TryGetYtSinkSettings(
     ::google::protobuf::Any& settings);
 
 bool IsYtflowProviderInput(const TExprNode& node);
+
+bool IsSingleOutput(const NNodes::TYtflowMapBase& map);
+
+TExprNode::TPtr RemoveSettings(
+    const TExprNode& settings,
+    const THashSet<TStringBuf>& settingNames,
+    TExprContext& ctx);
+
+using TYtflowConsumer = std::pair<const TExprNode*, NNodes::TYtflowOutput>;
+
+TMaybe<TVector<TYtflowConsumer>> GetConsumersUnordered(
+    const NNodes::TYtflowOpBase& operation,
+    const TParentsMap& parentsMap);
+
+TVector<TYtflowConsumer> GetConsumersUnorderedStrict(
+    const NNodes::TYtflowOpBase& operation,
+    const TParentsMap& parentsMap);
+
+// Must be used only after CSEE or UpdateCompletness.
+TMaybe<TVector<TYtflowConsumer>> GetConsumersOrdered(
+    const NNodes::TYtflowOpBase& operation,
+    const TParentsMap& parentsMap);
+
+// Must be used only after CSEE or UpdateCompletness.
+TVector<TYtflowConsumer> GetConsumersOrderedStrict(
+    const NNodes::TYtflowOpBase& operation,
+    const TParentsMap& parentsMap);
+
+TVector<NNodes::TCoLeft> GetLeftNodesFromParents(
+    const NNodes::TYtflowOpBase& operation,
+    const TParentsMap& parentsMap);
 
 TExprNode::TPtr BuildOperationSource(
     const TExprNode::TPtr& input,

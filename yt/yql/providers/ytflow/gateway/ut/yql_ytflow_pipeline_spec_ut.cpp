@@ -2,8 +2,20 @@
 
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_configuration.h>
 
+#include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
+
+#include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
+
+#include <yt/yql/providers/ytflow/integration/proto/pq.pb.h>
+
+#include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+
 #include <yql/essentials/minikql/mkql_function_registry.h>
 #include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
+
+#include <yql/essentials/providers/common/provider/yql_data_provider_impl.h>
+
+#include <google/protobuf/any.pb.h>
 
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/gtest.h>
@@ -16,6 +28,167 @@
 
 namespace NYql::NYtflow::NPrivate {
 namespace {
+
+using namespace NNodes;
+
+class TStreamTestIntegration : public TEmptyYtflowIntegration {
+public:
+    void FillSourceSettings(
+        const TExprNode& /*source*/,
+        ::google::protobuf::Any& settings,
+        TExprContext& /*ctx*/) override
+    {
+        NProto::TPQSourceMessage source;
+        source.SetTopicPath("input");
+        settings.PackFrom(source);
+    }
+
+    void FillSinkSettings(
+        const TExprNode& /*sink*/,
+        ::google::protobuf::Any& settings,
+        TExprContext& /*ctx*/) override
+    {
+        NProto::TPQSinkMessage sink;
+        sink.SetTopicPath("output");
+        settings.PackFrom(sink);
+    }
+};
+
+class TStreamTestProvider : public TDataProviderBase {
+public:
+    TStringBuf GetName() const override
+    {
+        return "test";
+    }
+
+    IYtflowIntegration* GetYtflowIntegration() override
+    {
+        return &Integration_;
+    }
+
+private:
+    TStreamTestIntegration Integration_;
+};
+
+class TPipelineStreamsTest : public testing::Test {
+protected:
+    TExprContext Ctx_;
+    const TPositionHandle Pos_ = Ctx_.AppendPosition(TPosition());
+    const TStructExprType* RowType_ = Ctx_.MakeType<TStructExprType>(TVector<const TItemExprType*>{
+        Ctx_.MakeType<TItemExprType>("payload", Ctx_.MakeType<TDataExprType>(NUdf::EDataSlot::String)),
+    });
+
+    TCoLambda MakeLambda()
+    {
+        auto lambda = Build<TCoLambda>(Ctx_, Pos_).Args({"stream"}).Body("stream").Done();
+        const auto* streamType = Ctx_.MakeType<TStreamExprType>(RowType_);
+        lambda.Args().Ref().ChildPtr(0)->SetTypeAnn(streamType);
+        lambda.Ptr()->SetTypeAnn(streamType);
+        return lambda;
+    }
+
+    TExprNode::TPtr MakeSourceMap()
+    {
+        auto dataSource = Build<TCoDataSource>(Ctx_, Pos_).Category().Value("test").Build().Done();
+        auto read = Ctx_.NewCallable(Pos_, "TestRead", {Ctx_.NewWorld(Pos_), dataSource.Ptr()});
+        auto source = Build<TYtflowPersistentSource>(Ctx_, Pos_)
+            .Input<TYtflowReadWrap>().Input(read).Build()
+            .Done();
+        source.Ptr()->SetTypeAnn(Ctx_.MakeType<TListExprType>(RowType_));
+        return Build<TYtflowSourceMap>(Ctx_, Pos_)
+            .World(Ctx_.NewWorld(Pos_))
+            .Sources().Add(source).Build()
+            .Settings().Build()
+            .Lambda(MakeLambda())
+            .Done().Ptr();
+    }
+
+    TExprNode::TPtr MakeOutput(const TExprNode::TPtr& operation)
+    {
+        auto output = Build<TYtflowOutput>(Ctx_, Pos_)
+            .Operation(operation)
+            .OutputIndex().Value(0).Build()
+            .Done().Ptr();
+        output->SetTypeAnn(Ctx_.MakeType<TListExprType>(RowType_));
+        return output;
+    }
+
+    TExprNode::TPtr MakeMap(const TExprNode::TPtr& output)
+    {
+        return Build<TYtflowSwiftMap>(Ctx_, Pos_)
+            .World(Ctx_.NewWorld(Pos_))
+            .Sources().Add(TExprBase(output)).Build()
+            .Settings().Build()
+            .Lambda(MakeLambda())
+            .GroupByColumns().Add<TCoAtom>().Value("payload").Build().Build()
+            .Done().Ptr();
+    }
+
+    TExprNode::TPtr MakeSink(const TExprNode::TPtr& output)
+    {
+        auto dataSink = Build<TCoDataSink>(Ctx_, Pos_).Category().Value("test").Build().Done();
+        auto write = Ctx_.NewCallable(Pos_, "TestWrite", {Ctx_.NewWorld(Pos_), dataSink.Ptr()});
+        return Build<TYtflowPersistentSink>(Ctx_, Pos_)
+            .World(Ctx_.NewWorld(Pos_))
+            .Output(output)
+            .Write<TYtflowWriteWrap>().Input(write).Build()
+            .Done().Ptr();
+    }
+
+    NYT::NFlow::TPipelineSpecPtr BuildSpec(TExprNode::TListType roots)
+    {
+        TTypeAnnotationContext types;
+        types.RuntimeSettings = MakeRuntimeSettings();
+        auto provider = MakeIntrusive<TStreamTestProvider>();
+        types.AddDataSource("test", provider);
+        types.AddDataSink("test", provider);
+
+        auto onError = [] (const TString& message, bool) {
+            ADD_FAILURE() << message;
+            return false;
+        };
+
+        auto config = MakeIntrusive<TYtflowConfiguration>();
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "LogbrokerConsumerPath", TString("consumer"),
+            NCommon::TSettingDispatcher::EStage::STATIC, onError));
+        YQL_ENSURE(config->Dispatch(
+            NCommon::ALL_CLUSTERS, "_FiniteStreams", TString("false"),
+            NCommon::TSettingDispatcher::EStage::STATIC, onError));
+
+        IYtflowGateway::TRunOptions runOptions;
+        runOptions.Config(std::make_shared<const TYtflowSettings>(*config)).Types(&types);
+
+        NPrepare::TContext prepareCtx{Ctx_, runOptions, nullptr};
+        auto registry = NKikimr::NMiniKQL::CreateFunctionRegistry(NKikimr::NMiniKQL::CreateBuiltinRegistry());
+        THashMap<TStringBuf, ui32> computationCounters;
+        TUserDataTable userDataBlocks;
+        TBuildPipelineSpecContext buildCtx(prepareCtx, computationCounters, registry.Get(), userDataBlocks, {});
+
+        return BuildPipelineSpec(Ctx_.NewList(Pos_, std::move(roots)), buildCtx).PipelineSpec;
+    }
+
+    void AssertSharedStream(const NYT::NFlow::TPipelineSpecPtr& spec)
+    {
+        ASSERT_EQ(spec->Streams.size(), 1);
+        ASSERT_EQ(spec->Computations.size(), 3);
+        const auto& streamId = spec->Streams.begin()->first;
+        for (const auto& [_, computation] : spec->Computations) {
+            if (computation->ComputationClassName == "NYql::NYtflow::TSourceMap") {
+                ASSERT_EQ(computation->OutputStreamIds.size(), 1);
+                EXPECT_TRUE(computation->OutputStreamIds.contains(streamId));
+                const auto indices = computation->Parameters->GetChildValueOrThrow<THashMap<TString, TString>>(
+                    "output_indices_by_output_stream_id");
+                ASSERT_EQ(indices.size(), 1);
+                EXPECT_EQ(indices.begin()->second, "0");
+            } else {
+                EXPECT_EQ(computation->ComputationClassName, "NYql::NYtflow::TSwiftMap");
+                ASSERT_EQ(computation->InputStreamIds.size(), 1);
+                EXPECT_TRUE(computation->InputStreamIds.contains(streamId));
+            }
+        }
+    }
+};
 
 TUserDataBlock MakeUserDataBlock(std::initializer_list<EUserDataBlockUsage> usages)
 {
@@ -248,6 +421,72 @@ void PrepareTransformForPipelineValidation(
 }
 
 } // anonymous namespace
+
+TEST_F(TPipelineStreamsTest, SharedOutputCreatesOneStreamForTwoConsumers)
+{
+    auto operation = MakeSourceMap();
+    auto output = MakeOutput(operation);
+    auto first = MakeMap(output);
+    auto second = MakeMap(output);
+
+    AssertSharedStream(BuildSpec({first, second}));
+}
+
+TEST_F(TPipelineStreamsTest, DistinctOutputsWithSameOperationAndIndexShareStream)
+{
+    auto operation = MakeSourceMap();
+    auto firstOutput = MakeOutput(operation);
+    auto secondOutput = MakeOutput(operation);
+    ASSERT_NE(firstOutput.Get(), secondOutput.Get());
+    auto first = MakeMap(firstOutput);
+    auto second = MakeMap(secondOutput);
+
+    AssertSharedStream(BuildSpec({first, second}));
+}
+
+TEST_F(TPipelineStreamsTest, LambdaOutputHasPersistentAndIntermediateConsumers)
+{
+    auto operation = MakeSourceMap();
+    auto output = MakeOutput(operation);
+    auto sink = MakeSink(output);
+    auto map = MakeMap(output);
+
+    const auto spec = BuildSpec({sink, map});
+    ASSERT_EQ(spec->Streams.size(), 2);
+    ASSERT_EQ(spec->Computations.size(), 2);
+
+    NYT::NFlow::TComputationSpecPtr producer;
+    NYT::NFlow::TComputationSpecPtr consumer;
+    for (const auto& [_, computation] : spec->Computations) {
+        if (computation->ComputationClassName == "NYql::NYtflow::TSourceMap") {
+            producer = computation;
+        } else {
+            consumer = computation;
+        }
+    }
+    ASSERT_TRUE(producer);
+    ASSERT_TRUE(consumer);
+    ASSERT_EQ(producer->OutputStreamIds.size(), 2);
+    ASSERT_EQ(producer->Sinks.size(), 1);
+    ASSERT_EQ(consumer->InputStreamIds.size(), 1);
+    const auto& intermediateId = *consumer->InputStreamIds.begin();
+    EXPECT_TRUE(producer->OutputStreamIds.contains(intermediateId));
+    EXPECT_TRUE(spec->Streams.contains(intermediateId));
+
+    const auto& sinkSpec = producer->Sinks.begin()->second;
+    ASSERT_EQ(sinkSpec->InputStreamIds.size(), 1);
+    const auto& persistentId = *sinkSpec->InputStreamIds.begin();
+    EXPECT_NE(persistentId, intermediateId);
+    EXPECT_TRUE(producer->OutputStreamIds.contains(persistentId));
+    EXPECT_TRUE(spec->Streams.contains(persistentId));
+
+    const auto indices = producer->Parameters->GetChildValueOrThrow<THashMap<TString, TString>>(
+        "output_indices_by_output_stream_id");
+    ASSERT_EQ(indices.size(), 2);
+    for (const auto& [_, index] : indices) {
+        EXPECT_EQ(index, "0");
+    }
+}
 
 TEST(TEnableComputationPatternResources, DispatcherParsesExplicitValues)
 {

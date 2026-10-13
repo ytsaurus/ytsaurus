@@ -28,7 +28,7 @@ TExprNode::TPtr MakeLambda(TExprContext& ctx, TExprNode::TPtr body = {})
 TExprNode::TPtr MakeExtend(
     TExprContext& ctx,
     TStringBuf sourceName = TYtflowOutput::CallableName(),
-    TStringBuf sinkName = TYtflowIntermediateSink::CallableName(),
+    bool hasPersistentSinkSetting = false,
     TExprNode::TPtr lambda = {})
 {
     TPositionHandle position;
@@ -36,17 +36,27 @@ TExprNode::TPtr MakeExtend(
     if (!lambda) {
         lambda = MakeLambda(ctx);
     }
-    return ctx.NewCallable(
+    auto operation = ctx.NewCallable(
         position,
         TYtflowExtend::CallableName(),
         {
             ctx.NewWorld(position),
             ctx.NewList(position, {ctx.NewCallable(position, sourceName, {})}),
-            ctx.NewList(position, {ctx.NewCallable(position, sinkName, {})}),
             emptyList,
             std::move(lambda),
             emptyList,
         });
+
+    if (hasPersistentSinkSetting) {
+        auto settings = AddSetting(
+            *operation->Child(TYtflowMapBase::idx_Settings),
+            position,
+            TString(HAS_PERSISTENT_SINK_SETTING),
+            nullptr,
+            ctx);
+        operation = ctx.ChangeChild(*operation, TYtflowMapBase::idx_Settings, std::move(settings));
+    }
+    return operation;
 }
 
 bool HasExtendSetting(const TExprNode& operation)
@@ -141,7 +151,7 @@ TEST(TSwiftMapSelection, SelectsTransformMapForNonDeterministicExpression)
     auto operation = MakeExtend(
         ctx,
         TYtflowOutput::CallableName(),
-        TYtflowIntermediateSink::CallableName(),
+        /*hasPersistentSinkSetting=*/ false,
         MakeLambda(ctx, std::move(random)));
 
     operation = SelectExtendImplementation(operation, false, ctx);
@@ -159,7 +169,7 @@ TEST(TSwiftMapSelection, SelectsTransformMapForSideEffects)
         auto operation = MakeExtend(
             ctx,
             TYtflowOutput::CallableName(),
-            TYtflowIntermediateSink::CallableName(),
+            /*hasPersistentSinkSetting=*/ false,
             std::move(lambda));
 
         operation = SelectExtendImplementation(operation, false, ctx);
@@ -180,7 +190,7 @@ TEST(TSwiftMapSelection, SelectsTransformMapForDependsOn)
     auto operation = MakeExtend(
         ctx,
         TYtflowOutput::CallableName(),
-        TYtflowIntermediateSink::CallableName(),
+        /*hasPersistentSinkSetting=*/ false,
         MakeLambda(ctx, std::move(dependsOn)));
 
     operation = SelectExtendImplementation(operation, false, ctx);
@@ -204,7 +214,7 @@ TEST(TSwiftMapSelection, SelectsTransformMapForNestedInnerDependsOn)
     auto operation = MakeExtend(
         ctx,
         TYtflowOutput::CallableName(),
-        TYtflowIntermediateSink::CallableName(),
+        /*hasPersistentSinkSetting=*/ false,
         MakeLambda(ctx, std::move(body)));
 
     operation = SelectExtendImplementation(operation, false, ctx);
@@ -230,7 +240,7 @@ TEST(TSwiftMapSelection, SelectsTransformMapForPersistentSink)
     auto operation = MakeExtend(
         ctx,
         TYtflowOutput::CallableName(),
-        TYtflowPersistentSink::CallableName());
+        /*hasPersistentSinkSetting=*/ true);
 
     operation = SelectExtendImplementation(operation, false, ctx);
 

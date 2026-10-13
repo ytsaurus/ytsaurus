@@ -56,32 +56,25 @@ void VisitPersistentSinkSettings(
     const TSettingsVisitor& visitor
 ) {
     auto extractSinkSettings = [&prepareCtx, &visitor](const TExprNode::TPtr& child) {
-        auto maybeOp = TMaybeNode<TYtflowOpBase>(child);
-        if (!maybeOp) {
+        auto maybePersistentSink = TMaybeNode<TYtflowPersistentSink>(child);
+        if (!maybePersistentSink) {
             return true;
         }
 
-        for (const auto& sink : maybeOp.Cast().Sinks()) {
-            auto maybePersistentSink = sink.Maybe<TYtflowPersistentSink>();
-            if (!maybePersistentSink) {
-                continue;
-            }
+        auto write = maybePersistentSink.Cast().Write();
+        auto providerInput = write.Cast<TYtflowWriteWrap>().Input();
 
-            auto input = maybePersistentSink.Cast().Input();
-            auto providerInput = input.Cast<TYtflowWriteWrap>().Input();
+        auto* ytflowIntegration = GetYtflowIntegration(
+            providerInput.Ref(),
+            *prepareCtx.RunOptions.Types());
 
-            auto* ytflowIntegration = GetYtflowIntegration(
-                providerInput.Ref(),
-                *prepareCtx.RunOptions.Types());
+        YQL_ENSURE(ytflowIntegration);
 
-            YQL_ENSURE(ytflowIntegration);
+        ::google::protobuf::Any sinkSettings;
+        ytflowIntegration->FillSinkSettings(
+            providerInput.Ref(), sinkSettings, prepareCtx.ExprContext);
 
-            ::google::protobuf::Any sinkSettings;
-            ytflowIntegration->FillSinkSettings(
-                providerInput.Ref(), sinkSettings, prepareCtx.ExprContext);
-
-            visitor(sinkSettings);
-        }
+        visitor(sinkSettings);
 
         return true;
     };
