@@ -86,6 +86,7 @@ DEFINE_ENUM(ETabletReign,
     ((SendTableTabletBalancerConfigToTablet)       (101504)) // navasardianna
     ((ExpectedPrepareSignature)                    (101505)) // atalmenev
     ((SmoothMovementReignValidation)               (101506)) // ifsmirnov
+    ((FixTotalRowCountAfterFullTrim_26_1)          (101507)) // ifsmirnov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
