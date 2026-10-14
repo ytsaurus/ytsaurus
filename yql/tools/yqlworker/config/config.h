@@ -24,6 +24,7 @@ struct TMainConfig: private NLastGetopt::TOpts
     TFileStorageConfig FileStorage;
     TString StdErrFile;
     bool Daemonize = false;
+    bool CoreBindAll = false;
     TMaybe<EQtWorkerRole> QtRole;
 
     explicit TMainConfig(bool forQt = false);

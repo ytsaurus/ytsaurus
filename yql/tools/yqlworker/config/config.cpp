@@ -158,6 +158,8 @@ TMainConfig::TMainConfig(bool forQt)
     if (ForQt_) {
         AddLongOption("role", "worker role")
             .Required().RequiredArgument("master|core|forker|dq");
+        AddLongOption("core-bind-all", "bind the core command port to all network interfaces")
+            .NoArgument();
     } else {
         AddLongOption("daemonize", "daemonize worker").NoArgument();
     }
@@ -217,9 +219,11 @@ void TMainConfig::ParseAgain()
         }
         if (ForQt_) {
             QtRole = r.Get<EQtWorkerRole>("role");
+            CoreBindAll = r.Has("core-bind-all");
             Daemonize = false;
         } else {
             QtRole = {};
+            CoreBindAll = false;
             Daemonize = r.Has("daemonize");
         }
         if (!Daemonize) {
