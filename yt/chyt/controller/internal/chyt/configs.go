@@ -519,6 +519,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
+			"window_size": 72,
 		},
 		"logging": map[string]any{
 			"rotation_check_period": 60000,
