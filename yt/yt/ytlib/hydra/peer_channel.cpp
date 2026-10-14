@@ -57,10 +57,12 @@ IChannelPtr CreatePeerChannel(
     IChannelFactoryPtr channelFactory,
     EPeerKind kind)
 {
-    // NB: If there's just a single Hydra peer configured then there will be no actual followers
-    // and all read requests must be routed to the leader.
-    if (kind == EPeerKind::Follower && config->Addresses && config->Addresses->size() == 1) {
-        kind = EPeerKind::Leader;
+    // NB: A single Hydra peer has no followers. Allow reads from the leader in this case
+    // or when explicitly configured.
+    if (kind == EPeerKind::Follower &&
+        ((config->Addresses && config->Addresses->size() == 1) || config->AlwaysReadFromLeader))
+    {
+        kind = EPeerKind::LeaderOrFollower;
     }
 
     auto endpointDescription = Format("%v", kind);
