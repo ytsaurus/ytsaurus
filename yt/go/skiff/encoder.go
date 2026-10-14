@@ -20,6 +20,7 @@ type Encoder struct {
 }
 
 // RawRow is a row already encoded in skiff according to the encoder schema, without the leading table index.
+// Decoder.Scan fills it with the current row without system columns.
 type RawRow []byte
 
 // NewEncoder creates encoder for writing rows into w.
