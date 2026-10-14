@@ -12,6 +12,7 @@ IF (NOT OPENSOURCE)
         i_want_to_dryrun_tamed_cell
         gradual_remount
         migrate_dynamic_tables
+        pack_tablet_nodes
         remount_old_tablets
         run_dyntable_remote_copy
         suspend_resume_tablet_cells
