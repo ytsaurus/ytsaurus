@@ -779,6 +779,8 @@ message TReferenceOption
         optional int32 field_number = 2;
     }
 
+    message TPluginKeyStorageOption { }
+
     message TReferenceViewOption
     {
         // If omitted, a default path will be generated from the reference.
@@ -876,6 +878,7 @@ message TReferenceOption
         TProtoKeyStorageOption proto_key_storage = 4;
         TTabularKeyStorageOption tabular_key_storage = 5;
         TCountingKeyStorageOption counting_key_storage = 9;
+        TPluginKeyStorageOption plugin_key_storage = 19;
     }
 
     optional TReferenceViewOption view = 7;
@@ -924,6 +927,7 @@ message TReferencesOption
         {
             TReferenceOption.TTabularKeyStorageOption tabular_key_storage = 12;
             TReferenceOption.TCountingKeyStorageOption counting_key_storage = 13;
+            TReferenceOption.TPluginKeyStorageOption plugin_key_storage = 15;
             // One-sided reference: this side is not materialized.
             bool dummy = 14;
         }
