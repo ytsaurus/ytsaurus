@@ -3,7 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_commands import (
     authors, create, wait, get, set, remove, remount_table,
     sync_create_cells, sync_mount_table, raises_yt_error,
-    create_tablet_cell_bundle,
+    create_tablet_cell_bundle, start_transaction, abort_transaction, lock,
 )
 
 import yt.yson as yson
@@ -460,6 +460,29 @@ class TestMountConfig(DynamicTablesBase):
         wait(min_compaction_store_count_checker(included_tablet_id, 4))
         wait(min_compaction_store_count_checker(excluded_by_path_tablet_id, 3))
         wait(min_compaction_store_count_checker(excluded_by_bundle_tablet_id, 3))
+
+    @authors("babenko")
+    def test_mount_config_experiments_under_tx(self):
+        create_tablet_cell_bundle("b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+
+        set("//sys/@config/tablet_manager/table_config_experiments/foo", {
+            "fraction": 1.0,
+            "tablet_cell_bundle": "b",
+            "patch": {
+                "mount_config_patch": {
+                    "min_compaction_store_count": 4,
+                },
+            },
+        })
+        wait(lambda: "foo" in get("//tmp/t/@assigned_mount_config_experiments"))
+
+        # Branched nodes do not carry a tablet cell bundle; it must be taken from trunk.
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        assert get("//tmp/t/@tablet_cell_bundle", tx=tx) == "b"
+        assert "foo" in get("//tmp/t/@assigned_mount_config_experiments", tx=tx)
+        abort_transaction(tx)
 
     @authors("ifsmirnov")
     def test_common_key_in_attributes_and_mount_config(self):

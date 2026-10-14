@@ -24,7 +24,7 @@ from yt_commands import (
     create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
-    execute_batch, make_batch_request, ping_chaos_lease, get_safe_trim_row_count)
+    execute_batch, make_batch_request, ping_chaos_lease, get_safe_trim_row_count, remove_tablet_cell_bundle)
 
 from yt_helpers import profiler_factory
 
@@ -1549,6 +1549,24 @@ class TestChaos(ChaosTestBase):
 
         remove("//tmp/crt")
         wait(lambda: not exists("#{0}".format(card_id)))
+
+    @authors("babenko")
+    def test_chaos_replicated_table_bundle_under_transaction(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        bundle_id = get("//sys/chaos_cell_bundles/chaos_bundle/@id")
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
+
+        # Branched nodes do not carry a chaos cell bundle; it must be taken from trunk.
+        tx = start_transaction()
+        lock("//tmp/crt", mode="snapshot", tx=tx)
+        attribute_keys = ls("//tmp/crt/@", tx=tx)
+        assert "chaos_cell_bundle" in attribute_keys
+        assert "chaos_cell_bundle_id" in attribute_keys
+        assert get("//tmp/crt/@chaos_cell_bundle", tx=tx) == "chaos_bundle"
+        assert get("//tmp/crt/@chaos_cell_bundle_id", tx=tx) == bundle_id
+        abort_transaction(tx)
 
     @authors("babenko")
     def test_create_chaos_table_replica_for_chaos_replicated_table(self):
@@ -7469,3 +7487,47 @@ class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
             [{"key": 10 * i + 1} for i in range(self.cell_count)],
             replica_consistency="sync",
             driver=self._get_data_driver()) == rows
+
+
+##################################################################
+
+
+class TestCellBundleRefCountersWithBranchedNodes(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_REMOTE_CLUSTERS = 0
+
+    # Check master invariants (in particular, cell bundle ref counters) after each mutation.
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "invariants_check_probability": 1.0,
+        },
+    }
+
+    @authors("babenko")
+    def test_tablet_cell_bundle(self):
+        create_tablet_cell_bundle("b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        assert get("//tmp/t/@tablet_cell_bundle", tx=tx) == "b"
+        # Run more mutations while the table is branched.
+        set("//tmp/t/@foo", "bar")
+        abort_transaction(tx)
+
+        remove("//tmp/t")
+        remove_tablet_cell_bundle("b")
+        wait(lambda: not exists("//sys/tablet_cell_bundles/b"))
+
+    @authors("babenko")
+    def test_chaos_cell_bundle(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle"})
+
+        tx = start_transaction()
+        lock("//tmp/crt", mode="snapshot", tx=tx)
+        assert get("//tmp/crt/@chaos_cell_bundle", tx=tx) == "chaos_bundle"
+        # Run more mutations while the table is branched.
+        set("//tmp/crt/@foo", "bar")
+        abort_transaction(tx)

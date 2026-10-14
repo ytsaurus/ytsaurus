@@ -130,7 +130,7 @@ public:
         auto size = GetTabletBalancingSize(tablet);
         auto bounds = GetTabletSizeConfig(tablet->GetTable());
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-            auto bundleId = tablet->GetTable()->TabletCellBundle()->GetId();
+            auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             QueueSizeGauge_.Update(++TotalQueueSize_);
@@ -336,7 +336,7 @@ private:
             .With("TabletId", tablet->GetId())
             .With("SrcCellId", srcCell->GetId())
             .With("DstCellId", targetCellId)
-            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("Bundle", table->GetTabletCellBundle()->GetName())
             .With("TabletBalancerCorrelationId", correlationId);
 
         TReqCreateTabletAction request;
@@ -366,7 +366,7 @@ private:
             .With("TabletIds", tabletIds)
             .With("NewTabletCount", newTabletCount)
             .With("TotalSize", size)
-            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("Bundle", table->GetTabletCellBundle()->GetName())
             .With("TabletBalancerCorrelationId", correlationId);
 
         TReqCreateTabletAction request;

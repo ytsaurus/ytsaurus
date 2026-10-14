@@ -261,7 +261,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, NYTree::EPermission::Use);
 
-        node->ChaosCellBundle().Assign(cellBundle);
+        node->SetChaosCellBundle(cellBundle);
     }
 
 private:
