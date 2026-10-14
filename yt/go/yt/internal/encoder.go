@@ -755,6 +755,16 @@ func (e *Encoder) WriteTableFragment(
 	options *yt.TableFragmentWriterOptions,
 ) (w yt.TableFragmentWriter, err error) {
 	call := e.newCall(NewWriteTableFragmentParams(cookie, options))
+	if options != nil && options.Format != nil {
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected format: %+v", options.Format)
+		}
+		if _, err := skiff.SingleSchema(&skiffFormat); err != nil {
+			return nil, err
+		}
+		call.Format = options.Format
+	}
 	call.WriteRspChan = make(chan *CallResult, 1)
 
 	rowWriter, err := e.InvokeWriteRow(ctx, call)
