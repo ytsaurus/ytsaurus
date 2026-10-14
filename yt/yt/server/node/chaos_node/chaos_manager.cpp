@@ -2708,16 +2708,20 @@ private:
         newCells = std::vector<TCellId>(newCellsSet.begin(), newCellsSet.end());
         std::sort(newCells.begin(), newCells.end());
 
-        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-        for (auto* chaosObject : GetSortedChaosObjects()) {
-            // COMPAT(shamteev)
-            const bool isReplicationCard = IsReplicationCardType(TypeFromId(chaosObject->GetId()));
-            if (reign < EChaosReign::GrantChaosLeaseShortcutsToNewCells_26_1 && !isReplicationCard) {
-                continue;
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            if (replicationCard->IsNormalState()) {
+                GrantShortcuts(replicationCard, newCells, /*strict*/ false);
             }
+        }
 
-            if (chaosObject->IsNormalState()) {
-                GrantShortcuts(chaosObject, newCells, /*strict*/ false);
+        // COMPAT(shamteev)
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+        if (reign >= EChaosReign::GrantChaosLeaseShortcutsToNewCells_26_1) {
+            const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+            for (auto* chaosLease : GetValuesSortedByKey(chaosLeaseManager->ChaosLeases())) {
+                if (chaosLease->IsNormalState()) {
+                    GrantShortcuts(chaosLease, newCells, /*strict*/ false);
+                }
             }
         }
 
