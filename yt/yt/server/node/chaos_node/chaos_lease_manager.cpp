@@ -25,6 +25,7 @@ using namespace NYTree;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NChaosClient;
+using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NConcurrency;
@@ -288,7 +289,7 @@ public:
             if (auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
                 reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration)
             {
-                chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
+                chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds(), NullTimestamp);
             }
 
             YT_LOG_DEBUG("Chaos lease migrated (ChaosLeaseId: %v)",
@@ -791,7 +792,7 @@ private:
             chaosLeaseId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
-        chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
+        chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds(), NullTimestamp);
 
         ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 

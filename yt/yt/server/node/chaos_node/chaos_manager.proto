@@ -9,6 +9,7 @@ message TShortcut
 {
     required NYT.NProto.TGuid chaos_object_id = 1; // NChaosClient::TChaosObjectId
     required uint64 era = 2; // TReplicationEra
+    optional uint64 era_start_timestamp = 3; // NTransactionClient::TTimestamp
 }
 
 message TReqGrantShortcuts
@@ -34,6 +35,7 @@ message TRspRevokeShortcuts
 {
     required NYT.NProto.TGuid coordinator_cell_id = 1;
     repeated TShortcut shortcuts = 2;
+    optional uint64 max_commit_timestamp = 3; // NTransactionClient::TTimestamp
 }
 
 message TReqPropagateCurrentTimestamp
