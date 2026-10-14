@@ -1041,7 +1041,7 @@ public:
         counters->UpdateTabletStoresHunkChunkCount.Increment(hunkChunksToAttach.size() + hunkChunksToDetach.size());
 
         if (request->throttle_at_master() && IsLeader()) {
-            const auto& bundle = table->TabletCellBundle();
+            auto bundle = table->GetTabletCellBundle();
             BIND(&IStoresUpdateThrottler::Acquire, StoresUpdateThrottler_)
                 .Via(StoresUpdateThrottlerInvoker_)
                 .Run(
@@ -1551,7 +1551,7 @@ private:
         }
 
         auto* table = owner->As<TTableNode>();
-        const auto& cellBundle = table->TabletCellBundle();
+        auto cellBundle = table->GetTabletCellBundle();
         if (!cellBundle) {
             return &nullCounters;
         }

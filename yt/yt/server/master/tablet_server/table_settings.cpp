@@ -229,7 +229,7 @@ TTableSettings GetTableSettings(
                 ConvertToNode(mediumConfig->PreferLocalHostForDynamicTables));
         }
         if (dynamicConfig->IncreaseUploadReplicationFactor ||
-            table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
+            table->GetTabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
         {
             config->AddChild(
                 "upload_replication_factor",

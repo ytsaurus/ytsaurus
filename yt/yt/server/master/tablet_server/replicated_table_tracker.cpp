@@ -1173,7 +1173,7 @@ private:
             if (it == Tables_.end()) {
                 table = New<TTable>(
                     id,
-                    object->TabletCellBundle()->ProfilingCounters().ReplicaModeSwitch,
+                    object->GetTabletCellBundle()->ProfilingCounters().ReplicaModeSwitch,
                     config,
                     collocationId);
                 Tables_.emplace(id, table);

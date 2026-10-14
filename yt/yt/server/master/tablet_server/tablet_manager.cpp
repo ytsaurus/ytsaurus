@@ -817,13 +817,13 @@ public:
         }
 
         auto validateCellBundle = [table] (const TTabletCell* cell) {
-            if (cell->CellBundle() != table->TabletCellBundle()) {
+            if (cell->CellBundle() != table->GetTabletCellBundle()) {
                 THROW_ERROR_EXCEPTION("Cannot mount tablets into cell %v since it belongs to bundle %Qv while the %v "
                     "is configured to use bundle %Qv",
                     cell->GetId(),
                     cell->CellBundle()->GetName(),
                     table->GetLowercaseObjectName(),
-                    table->TabletCellBundle()->GetName());
+                    table->GetTabletCellBundle()->GetName());
             }
         };
 
@@ -857,7 +857,7 @@ public:
                 }
             }
         } else {
-            ValidateHasHealthyCells(table->TabletCellBundle().Get()); // may throw
+            ValidateHasHealthyCells(table->GetTabletCellBundle()); // may throw
         }
 
         const auto& allTablets = table->Tablets();
@@ -916,7 +916,7 @@ public:
                 }
             }
 
-            const auto& bundle = table->TabletCellBundle();
+            auto bundle = table->GetTabletCellBundle();
 
             if (dynamicConfig->EnableClockCellTagValidationOnChaosReplicaMount && bundle->GetOptions()->ClockClusterTag == InvalidCellTag) {
                 THROW_ERROR_EXCEPTION("Chaos replicas should be part of tablet cell bundle configured with relevant clock cell tag;"
@@ -1615,7 +1615,7 @@ public:
 
             YT_VERIFY(!table->IsExternal());
 
-            const auto& bundle = table->TabletCellBundle();
+            auto bundle = table->GetTabletCellBundle();
             bundle->UpdateResourceUsage(-table->GetTabletResourceUsage());
 
             table->MutableTablets().clear();
@@ -1842,7 +1842,7 @@ public:
             .With("TabletIds", tabletIds)
             .With("NewTabletCount", descriptor.TabletCount)
             .With("TotalSize", descriptor.DataSize)
-            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("Bundle", table->GetTabletCellBundle()->GetName())
             .With("TabletBalancerCorrelationId", correlationId)
             .With("Sync", true);
 
@@ -1882,7 +1882,7 @@ public:
             .With("TabletId", descriptor.Tablet->GetId())
             .With("SrcCellId", descriptor.Tablet->GetCell()->GetId())
             .With("DstCellId", descriptor.TabletCellId)
-            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("Bundle", table->GetTabletCellBundle()->GetName())
             .With("TabletBalancerCorrelationId", correlationId)
             .With("Sync", true);
 
@@ -2003,7 +2003,7 @@ public:
 
         ValidateNodeCloneMode(trunkSourceNode, mode);
 
-        if (const auto& cellBundle = trunkSourceNode->TabletCellBundle()) {
+        if (auto cellBundle = trunkSourceNode->GetTabletCellBundle()) {
             ValidateObjectActive(cellBundle.Get());
         }
 
@@ -2021,7 +2021,7 @@ public:
         YT_VERIFY(sourceNode->IsNative());
 
         auto* trunkSourceNode = sourceNode->GetTrunkNode();
-        if (const auto& cellBundle = trunkSourceNode->TabletCellBundle()) {
+        if (auto cellBundle = trunkSourceNode->GetTabletCellBundle()) {
             ValidateObjectActive(cellBundle.Get());
         }
 
@@ -2067,7 +2067,7 @@ public:
         auto* trunkClonedTable = clonedTable; // sic!
         bool isBackupAction = mode == ENodeCloneMode::Backup || mode == ENodeCloneMode::Restore;
 
-        SetTabletCellBundle(clonedTable, trunkSourceTable->TabletCellBundle().Get());
+        SetTabletCellBundle(clonedTable, trunkSourceTable->GetTabletCellBundle());
 
         if (!sourceTable->IsDynamic()) {
             return;
@@ -2631,7 +2631,7 @@ public:
     {
         YT_VERIFY(table->IsTrunk());
 
-        auto oldBundle = table->TabletCellBundle().Get();
+        auto* oldBundle = table->GetTabletCellBundle().Get();
         if (oldBundle == newBundle) {
             return;
         }
@@ -2650,7 +2650,7 @@ public:
             YT_ABORT();
         }
 
-        table->TabletCellBundle().Assign(newBundle);
+        table->SetTabletCellBundle(newBundle);
     }
 
     void DoSetTabletCellBundle(
@@ -3353,7 +3353,7 @@ private:
         }
 
         auto* owner = tablet->GetOwner();
-        const auto& bundle = owner->TabletCellBundle();
+        auto bundle = owner->GetTabletCellBundle();
         if (auto* yson = bundle->FindAttribute("use_avenues")) {
             try {
                 return ConvertTo<bool>(*yson);
@@ -6445,7 +6445,7 @@ private:
 
         // Brand-new bundle validation.
         if (GetDynamicConfig()->EnableTabletResourceValidation) {
-            const auto& bundle = table->TabletCellBundle();
+            auto bundle = table->GetTabletCellBundle();
             if (!bundle) {
                 YT_TLOG_ALERT("Failed to validate tablet resource usage increase since table lacks tablet cell bundle")
                     .With("TableId", table->GetId())
@@ -6468,7 +6468,7 @@ private:
             ConvertToClusterResources(delta));
 
         // Brand-new bundle accounting.
-        const auto& bundle = table->TabletCellBundle();
+        auto bundle = table->GetTabletCellBundle();
         if (!bundle) {
             YT_TLOG_ALERT("Failed to update tablet resource usage since table lacks tablet cell bundle")
                 .With("TableId", table->GetId())

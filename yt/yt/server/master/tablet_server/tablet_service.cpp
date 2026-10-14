@@ -147,7 +147,7 @@ private:
     void ValidateUsePermissionOnCellBundle(TTabletOwnerBase* table)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto& cellBundle = table->TabletCellBundle();
+        auto cellBundle = table->GetTabletCellBundle();
         securityManager->ValidatePermission(cellBundle.Get(), EPermission::Use);
     }
 
@@ -342,7 +342,7 @@ private:
         ValidateUsePermissionOnCellBundle(table);
 
         if (force) {
-            const auto& cellBundle = table->TabletCellBundle();
+            auto cellBundle = table->GetTabletCellBundle();
             securityManager->ValidatePermission(cellBundle.Get(), EPermission::Administer);
         }
 

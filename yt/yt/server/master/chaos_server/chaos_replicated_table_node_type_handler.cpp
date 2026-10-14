@@ -255,7 +255,7 @@ private:
         TBase::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
 
         const auto& chaosManager = GetBootstrap()->GetChaosManager();
-        chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->GetTrunkNode()->ChaosCellBundle().Get());
+        chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->GetChaosCellBundle());
 
         clonedTrunkNode->SetReplicationCardId(sourceNode->GetReplicationCardId());
         // NB: Cannot share ownership.
@@ -273,8 +273,7 @@ private:
         TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
-        const auto& chaosCellBundle = node->GetTrunkNode()->ChaosCellBundle();
-        Save(*context, chaosCellBundle);
+        Save(*context, node->GetChaosCellBundle());
         Save(*context, node->GetReplicationCardId());
         Save(*context, node->GetOwnsReplicationCard());
     }
