@@ -34,6 +34,53 @@ func TestReadTablePartitionPassesSkiffSchema(t *testing.T) {
 	require.True(t, called)
 }
 
+func TestWriteTableFragmentPassesSkiffFormat(t *testing.T) {
+	format := skiff.Format{Name: "skiff", TableSchemas: []any{&skiff.Schema{Type: skiff.TypeTuple}}}
+	called := false
+	encoder := &Encoder{
+		StartCall: func() *Call { return &Call{} },
+		InvokeWriteRow: func(_ context.Context, call *Call) (yt.TableWriter, error) {
+			called = true
+			require.Equal(t, format, call.Format)
+			return nil, nil
+		},
+	}
+
+	_, err := encoder.WriteTableFragment(context.Background(), yt.WriteFragmentCookie{}, &yt.TableFragmentWriterOptions{
+		Format: format,
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func TestWriteTableFragmentRejectsUnsupportedFormat(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		format   any
+		errorMsg string
+	}{
+		{name: "YSON", format: "yson", errorMsg: "unexpected format"},
+		{name: "skiff schema by value", format: skiff.Format{Name: "skiff", TableSchemas: []any{skiff.Schema{Type: skiff.TypeTuple}}}, errorMsg: "*skiff.Schema"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			encoder := &Encoder{
+				StartCall: func() *Call { return &Call{} },
+				InvokeWriteRow: func(_ context.Context, _ *Call) (yt.TableWriter, error) {
+					t.Fatal("writer must not be invoked for an unsupported format")
+					return nil, nil
+				},
+			}
+
+			_, err := encoder.WriteTableFragment(context.Background(), yt.WriteFragmentCookie{}, &yt.TableFragmentWriterOptions{
+				Format: tc.format,
+			})
+
+			require.ErrorContains(t, err, tc.errorMsg)
+		})
+	}
+}
+
 func TestReadTablePartitionRejectsSchemaWithoutSkiff(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

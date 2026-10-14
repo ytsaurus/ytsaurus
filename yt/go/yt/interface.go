@@ -2150,6 +2150,12 @@ type FinishDistributedWriteSessionOptions struct{}
 type TableFragmentWriterOptions struct {
 	TableWriter any `http:"table_writer"`
 
+	// Format is YSON-serializable input format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - skiff.Format with a single *skiff.Schema (see skiff.FromTableSchema).
+	Format any `http:"input_format,omitnil"`
+
 	MaxRowBufferSize *int64 `http:"max_row_buffer_size,omitnil"`
 }
 

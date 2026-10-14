@@ -3172,6 +3172,10 @@ func writeTableFragmentWriterOptions(w *yson.Writer, o *yt.TableFragmentWriterOp
 	}
 	w.MapKeyString("table_writer")
 	w.Any(o.TableWriter)
+	if o.Format != nil {
+		w.MapKeyString("input_format")
+		w.Any(o.Format)
+	}
 	if o.MaxRowBufferSize != nil {
 		w.MapKeyString("max_row_buffer_size")
 		w.Any(o.MaxRowBufferSize)
@@ -3185,6 +3189,9 @@ func logTableFragmentWriterOptions(o *yt.TableFragmentWriterOptions) []log.Field
 	fields := []log.Field{}
 	if o.TableWriter != nil {
 		fields = append(fields, log.Any("table_writer", o.TableWriter))
+	}
+	if o.Format != nil {
+		fields = append(fields, log.Any("input_format", o.Format))
 	}
 	if o.MaxRowBufferSize != nil {
 		fields = append(fields, log.Any("max_row_buffer_size", o.MaxRowBufferSize))
