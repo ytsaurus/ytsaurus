@@ -117,7 +117,7 @@ public:
     virtual void PopulateAllColumns() = 0;
     virtual void Finish() = 0;
 
-    virtual void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) = 0;
+    virtual void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems, ETotalsMode totalsMode) = 0;
 
     virtual std::string InferGroupItemName(
         const TConstExpressionPtr& typedExpression,
