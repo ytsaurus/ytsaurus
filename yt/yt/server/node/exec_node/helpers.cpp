@@ -217,7 +217,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     // Create artifact key.
     auto layerKey = TArtifactKey(
         EDataSourceType::File,
-        chunkSpecs);
+        std::move(chunkSpecs));
     layerKey.mutable_data_source()->set_path(path);
     layerKey.set_access_method(ToProto(accessMethod));
     layerKey.set_filesystem(ToProto(filesystem));
