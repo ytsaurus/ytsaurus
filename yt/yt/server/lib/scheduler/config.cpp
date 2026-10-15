@@ -988,6 +988,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
         .Default();
+    registrar.Parameter("operation_scheduling_suspension_delay", &TThis::OperationSchedulingSuspensionDelay)
+        .Default();
     registrar.Parameter("handle_nodes_attributes_delay", &TThis::HandleNodesAttributesDelay)
         .Default();
     registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)

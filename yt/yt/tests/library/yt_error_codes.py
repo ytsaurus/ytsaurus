@@ -8,6 +8,7 @@ TooManyOperations = 202
 MaxFailedJobsLimitExceeded = 215
 OperationFailedToPrepare = 216
 WatcherHandlerFailed = 217
+MasterDisconnected = 218
 NoSuchJobShell = 219
 SortOrderViolation = 301
 UniqueKeyViolation = 306
