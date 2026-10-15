@@ -2389,6 +2389,7 @@ public:
         UnregisterMedium(medium);
 
         MediumMap_.Release(medium->GetId());
+        ChunkPlacement_->OnMediumChanged();
     }
 
     void RenameMedium(TMedium* medium, const std::string& newName) override
@@ -2429,11 +2430,19 @@ public:
         TDomesticMedium* medium,
         TDomesticMediumConfigPtr newConfig) override
     {
-        auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
+        auto oldConfig = medium->Config();
 
         medium->Config() = std::move(newConfig);
-        if (medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
+        auto maxReplicationFactorChanged = medium->Config()->MaxReplicationFactor != oldConfig->MaxReplicationFactor;
+        auto dataCentersChanged =
+            medium->Config()->StorageDataCenters != oldConfig->StorageDataCenters ||
+            medium->Config()->BannedStorageDataCenters != oldConfig->BannedStorageDataCenters;
+
+        if (maxReplicationFactorChanged || dataCentersChanged) {
             ScheduleGlobalChunkRefresh();
+        }
+        if (dataCentersChanged) {
+            ChunkPlacement_->OnMediumChanged();
         }
     }
 
@@ -7648,6 +7657,7 @@ private:
 
         // Make the fake reference.
         YT_VERIFY(medium->RefObject() == 1);
+        ChunkPlacement_->OnMediumChanged();
 
         return medium;
     }
@@ -7709,8 +7719,16 @@ private:
 
     void InitializeMediumConfig(TDomesticMedium* medium)
     {
+        InitializeMediumDataCenters(medium);
         InitializeMediumMaxReplicasPerRack(medium);
         InitializeMediumMaxReplicationFactor(medium);
+    }
+
+    void InitializeMediumDataCenters(TDomesticMedium* medium)
+    {
+        const auto& dynamicConfig = GetDynamicConfig();
+        medium->Config()->StorageDataCenters = dynamicConfig->StorageDataCenters;
+        medium->Config()->BannedStorageDataCenters = dynamicConfig->BannedStorageDataCenters;
     }
 
     void InitializeMediumMaxReplicasPerRack(TDomesticMedium* medium)

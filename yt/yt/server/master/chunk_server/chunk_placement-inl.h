@@ -361,6 +361,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     {
         if (!IsValidWriteTargetToAllocate(
             node,
+            medium,
             &collector,
             enableRackAwareness,
             enableDataCenterAwareness,
@@ -507,6 +508,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 template <typename TGenericChunk>
 bool TChunkPlacement::IsValidWriteTargetToAllocate(
     TNode* node,
+    const TDomesticMedium* medium,
     TTargetCollector<TGenericChunk>* collector,
     bool enableRackAwareness,
     bool enableDataCenterAwareness,
@@ -514,7 +516,7 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
     bool enableHostAwareness)
 {
     // Check node first.
-    if (!IsValidWriteTargetCore(node)) {
+    if (!IsValidWriteTargetCore(node, medium)) {
         return false;
     }
 
@@ -593,7 +595,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
         return Max<int>();
     }
 
-    if (!IsDataCenterFeasible(dataCenter)) {
+    if (!IsDataCenterFeasible(dataCenter, mediumIndex)) {
         return 0;
     }
 
@@ -604,7 +606,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
     auto replicaCount = replicationFactorOverride.value_or(
         chunk->GetPhysicalReplicationFactor(mediumIndex, chunkRequisitionRegistry));
     replicaCount = CapTotalReplicationFactor(replicaCount, chunk, medium);
-    auto aliveStorageDataCenterCount = std::ssize(AliveStorageDataCenters_);
+    auto aliveStorageDataCenterCount = std::ssize(PerMediumAliveStorageDataCenters_[mediumIndex]);
     if (aliveStorageDataCenterCount == 0) {
         // Dividing by zero is bad, so case of zero alive data centers is handled separately.
         // Actually, in this case replica allocation is impossible, so we can return any possible value.
@@ -623,7 +625,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
     // Consider a cluster with 3 data centers and chunk with erasure codec RS(6, 3). When one data center
     // is lost, at least one data center will store at least 5 of its replicas which is too much to repair
     // chunk from the rest parts.
-    if (BannedStorageDataCenters_.empty()) {
+    if (BannedStorageDataCenters_.empty() && medium->AsDomestic()->Config()->BannedStorageDataCenters.empty()) {
         maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
     }
 

@@ -2,6 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
+    create_domestic_medium, get_account_disk_space_limit, set_account_disk_space_limit,
     remove_data_center, write_file, wait, sync_control_chunk_replicator,
     read_journal, write_journal, write_table, wait_until_sealed,
     get_nodes, set_nodes_banned, get_racks, get_data_centers, get_singular_chunk_id)
@@ -366,8 +367,13 @@ class TestDataCenters(TestDataCentersBase):
 
     @authors("gritukan")
     @pytest.mark.parametrize("erasure", [False, True])
-    def test_ban_data_center(self, erasure):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_data_center(self, erasure, per_medium):
         self._init_data_center_aware_replicator()
+
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
 
         def check_no_ban(chunk_id):
             expected_counters = [2, 2, 2] if erasure else [1, 1, 1]
@@ -385,13 +391,13 @@ class TestDataCenters(TestDataCentersBase):
             chunk_id = self._create_chunk(replication_factor=3)
         assert check_no_ban(chunk_id)
 
-        self._ban_data_centers(["d0"])
+        ban_data_centers(["d0"])
         wait(lambda: check_ban(chunk_id, "d0"))
 
-        self._ban_data_centers([])
+        ban_data_centers([])
         wait(lambda: check_no_ban(chunk_id))
 
-        self._ban_data_centers(["d2"])
+        ban_data_centers(["d2"])
         wait(lambda: check_ban(chunk_id, "d2"))
 
         if erasure:
@@ -401,20 +407,30 @@ class TestDataCenters(TestDataCentersBase):
         assert check_ban(chunk_id, "d2")
 
     @authors("gritukan")
-    def test_ban_too_many_data_centers(self):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_too_many_data_centers(self, per_medium):
         self._init_data_center_aware_replicator()
 
-        self._ban_data_centers(["d0", "d1"])
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
+
+        ban_data_centers(["d0", "d1"])
         chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
         assert self._get_replica_data_centers(chunk_id) == ["d2"] * 6
 
         assert not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id))
 
     @authors("gritukan")
-    def test_ban_all_data_centers(self):
+    @pytest.mark.parametrize("per_medium", [False, True])
+    def test_ban_all_data_centers(self, per_medium):
         self._init_data_center_aware_replicator()
 
-        self._ban_data_centers(["d0", "d1", "d2"])
+        def ban_data_centers(data_centers):
+            path = "//sys/media/default/@config" if per_medium else "//sys/@config/chunk_manager"
+            set(path + "/banned_storage_data_centers", data_centers)
+
+        ban_data_centers(["d0", "d1", "d2"])
         with pytest.raises(YtError):
             self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
 
@@ -714,3 +730,139 @@ class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestPerMediumDataCenterBans(TestDataCentersBase):
+    STORE_LOCATION_COUNT = 2
+    MEDIUM_CONFIG = {"default": {}, "ssd": {}}
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = "ssd"
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium("ssd")
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_independent_bans(self, erasure):
+        self._init_data_center_aware_replicator()
+        set_account_disk_space_limit("tmp", get_account_disk_space_limit("tmp", "default"), "ssd")
+
+        chunks = {}
+        for medium in self.MEDIUM_CONFIG:
+            path = "//tmp/" + medium
+            attributes = {"primary_medium": medium}
+            if erasure:
+                attributes["erasure_codec"] = "isa_reed_solomon_3_3"
+            else:
+                attributes["replication_factor"] = 3
+            create("table", path, attributes=attributes)
+            write_table(path, [{"x": 42}])
+            chunks[medium] = get_singular_chunk_id(path)
+
+        def check(medium, data_centers):
+            replicas = self._get_replica_data_centers(chunks[medium])
+            return len(replicas) == (6 if erasure else 3) and builtins.set(replicas) == builtins.set(data_centers)
+
+        for medium in chunks:
+            wait(lambda: check(medium, ["d0", "d1", "d2"]))
+
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d0"])
+        wait(lambda: check("ssd", ["d1", "d2"]))
+        assert check("default", ["d0", "d1", "d2"])
+
+        # Global and medium-specific bans are additive, including an overlapping ban.
+        self._ban_data_centers(["d0", "d1"])
+        for medium in chunks:
+            wait(lambda: check(medium, ["d2"]))
+        self._ban_data_centers([])
+        wait(lambda: check("default", ["d0", "d1", "d2"]))
+        wait(lambda: check("ssd", ["d1", "d2"]))
+
+        # Moving a medium ban must also make the previously banned targets available again.
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d1"])
+        wait(lambda: check("ssd", ["d0", "d2"]))
+        assert check("default", ["d0", "d1", "d2"])
+
+        set("//sys/media/ssd/@config/banned_storage_data_centers", [])
+        wait(lambda: check("ssd", ["d0", "d1", "d2"]))
+
+    @authors("aleksandra-zh")
+    def test_storage_data_centers_on_creation(self):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d0"])
+        create_domestic_medium("copied")
+        assert_items_equal(get("//sys/media/copied/@config/storage_data_centers"), ["d0", "d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/banned_storage_data_centers"), ["d0"])
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d1"])
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/storage_data_centers"), ["d0", "d1", "d2"])
+        assert_items_equal(get("//sys/media/copied/@config/banned_storage_data_centers"), ["d0"])
+        create_domestic_medium("copied_later")
+        assert_items_equal(get("//sys/media/copied_later/@config/storage_data_centers"), ["d1", "d2"])
+        assert_items_equal(get("//sys/media/copied_later/@config/banned_storage_data_centers"), ["d1"])
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", [])
+        set("//sys/@config/chunk_manager/storage_data_centers", [])
+        create_domestic_medium("empty")
+        config = get("//sys/media/empty/@config")
+        assert "storage_data_centers" not in config
+        assert "banned_storage_data_centers" not in config
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("erasure", [False, True])
+    @pytest.mark.parametrize("two_random_choices", [False, True])
+    def test_storage_data_centers_override_and_fallback(self, erasure, two_random_choices):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/chunk_manager/enable_two_random_choices_write_target_allocation", two_random_choices)
+        set_account_disk_space_limit("tmp", get_account_disk_space_limit("tmp", "default"), "ssd")
+        chunks = {}
+
+        def write_chunk(medium):
+            path = "//tmp/" + medium
+            attributes = {"primary_medium": medium}
+            if erasure:
+                attributes["erasure_codec"] = "isa_reed_solomon_3_3"
+            else:
+                attributes["replication_factor"] = 3
+            if exists(path):
+                remove(path)
+            create("table", path, attributes=attributes)
+            write_table(path, [{"x": 42}])
+            chunks[medium] = get_singular_chunk_id(path)
+            wait(lambda: len(self._get_replica_nodes(chunks[medium])) == (6 if erasure else 3))
+
+        def check(medium, data_centers):
+            replicas = self._get_replica_data_centers(chunks[medium])
+            return len(replicas) == (6 if erasure else 3) and builtins.set(replicas) == builtins.set(data_centers)
+
+        for medium in self.MEDIUM_CONFIG:
+            set("//sys/media/{}/@config/storage_data_centers".format(medium), [])
+            write_chunk(medium)
+            wait(lambda: check(medium, ["d0", "d1", "d2"]))
+
+        set("//sys/media/ssd/@config/storage_data_centers", ["d0", "d1"])
+        wait(lambda: check("ssd", ["d0", "d1"]))
+        assert check("default", ["d0", "d1", "d2"])
+        write_chunk("ssd")
+        assert check("ssd", ["d0", "d1"])
+
+        # The union stays unchanged, but the fallback medium must refresh its targets.
+        # The explicit medium still uses d0, now outside the common config.
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d1", "d2"])
+        wait(lambda: check("default", ["d1", "d2"]))
+        assert check("ssd", ["d0", "d1"])
+        write_chunk("default")
+        assert check("default", ["d1", "d2"])
+
+        set("//sys/media/ssd/@config/storage_data_centers", [])
+        wait(lambda: check("ssd", ["d1", "d2"]))
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d0", "d2"])
+        for medium in self.MEDIUM_CONFIG:
+            wait(lambda: check(medium, ["d0", "d2"]))
+        set("//sys/media/ssd/@config/banned_storage_data_centers", ["d0"])
+        wait(lambda: check("ssd", ["d2"]))
+        assert check("default", ["d0", "d2"])

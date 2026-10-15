@@ -203,13 +203,17 @@ void TChunkPlacement::Clear()
     StorageDataCenters_.clear();
     BannedStorageDataCenters_.clear();
     FaultyStorageDataCenters_.clear();
-    AliveStorageDataCenters_.clear();
+    for (auto& dataCenters : PerMediumAliveStorageDataCenters_) {
+        dataCenters.clear();
+    }
     DataCenterSetErrors_.clear();
     DataCenterFaultErrors_.clear();
 }
 
 void TChunkPlacement::Initialize()
 {
+    RecomputeDataCenterSets();
+
     const auto& nodes = Bootstrap_->GetNodeTracker()->Nodes();
     for (auto [nodeId, node] : nodes) {
         if (!IsObjectAlive(node)) {
@@ -220,7 +224,7 @@ void TChunkPlacement::Initialize()
     }
 }
 
-void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig)
 {
     IsDataCenterAware_ = GetDynamicConfig()->UseDataCenterAwareReplicator;
     IsDataCenterFailureDetectorEnabled_ = GetDynamicConfig()->DataCenterFailureDetector->Enable;
@@ -234,7 +238,13 @@ void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfi
         FaultyStorageDataCenters_.clear();
         DataCenterFaultErrors_.clear();
     }
-    RecomputeDataCenterSets();
+    if (oldConfig->ChunkManager->UseDataCenterAwareReplicator != IsDataCenterAware_) {
+        // Changing awareness also affects nodes without a configured data center.
+        Initialize();
+        Bootstrap_->GetChunkManager()->ScheduleGlobalChunkRefresh();
+    } else {
+        RecomputeDataCenterSets();
+    }
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
@@ -285,9 +295,44 @@ void TChunkPlacement::OnDataCenterChanged(TDataCenter* /*dataCenter*/)
     RecomputeDataCenterSets();
 }
 
-bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
+void TChunkPlacement::OnMediumChanged()
 {
-    return AliveStorageDataCenters_.contains(dataCenter);
+    RecomputeDataCenterSets();
+}
+
+bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter, int mediumIndex) const
+{
+    return PerMediumAliveStorageDataCenters_[mediumIndex].contains(dataCenter);
+}
+
+const THashSet<std::string>& TChunkPlacement::GetStorageDataCenterNames(int mediumIndex) const
+{
+    const auto* medium = Bootstrap_->GetChunkManager()->GetMediumByIndex(mediumIndex);
+    if (medium->IsDomestic() && !medium->AsDomestic()->Config()->StorageDataCenters.empty()) {
+        return medium->AsDomestic()->Config()->StorageDataCenters;
+    }
+    return GetDynamicConfig()->StorageDataCenters;
+}
+
+const THashSet<std::string>& TChunkPlacement::GetBannedStorageDataCenterNames(int mediumIndex) const
+{
+    const auto* medium = Bootstrap_->GetChunkManager()->GetMediumByIndex(mediumIndex);
+    if (medium->IsDomestic() && !medium->AsDomestic()->Config()->BannedStorageDataCenters.empty()) {
+        return medium->AsDomestic()->Config()->BannedStorageDataCenters;
+    }
+    return GetDynamicConfig()->BannedStorageDataCenters;
+}
+
+THashSet<std::string> TChunkPlacement::GetAllStorageDataCenterNames() const
+{
+    auto result = GetDynamicConfig()->StorageDataCenters;
+    for (auto [_, medium] : Bootstrap_->GetChunkManager()->Media()) {
+        if (IsObjectAlive(medium) && medium->IsDomestic()) {
+            const auto& dataCenters = medium->AsDomestic()->Config()->StorageDataCenters;
+            result.insert(dataCenters.begin(), dataCenters.end());
+        }
+    }
+    return result;
 }
 
 THashSet<std::string> TChunkPlacement::GetFaultyStorageDataCenterNames() const
@@ -310,7 +355,7 @@ void TChunkPlacement::CheckFaultyDataCentersOnPrimaryMaster()
     auto oldFaultyStorageDataCenters = std::exchange(FaultyStorageDataCenters_, {});
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& dataCenterName : GetDynamicConfig()->StorageDataCenters) {
+    for (const auto& dataCenterName : GetAllStorageDataCenterNames()) {
         auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
         if (!IsObjectAlive(dataCenter)) {
             auto error = TError("Storage data center %Qv not found",
@@ -810,7 +855,7 @@ bool TChunkPlacement::IsValidWriteTargetToInsert(TDomesticMedium* medium, TNode*
         return false;
     }
 
-    return IsValidWriteTargetCore(node);
+    return IsValidWriteTargetCore(node, medium);
 }
 
 bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TDomesticMedium* medium)
@@ -819,10 +864,10 @@ bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TDomest
         return false;
     }
 
-    return true;
+    return IsValidWriteTargetCore(node, medium);
 }
 
-bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
+bool TChunkPlacement::IsValidWriteTargetCore(TNode* node, const TDomesticMedium* medium)
 {
     if (!node->IsValidWriteTarget()) {
         return false;
@@ -835,7 +880,7 @@ bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
 
     if (IsDataCenterAware_) {
         const auto* dataCenter = node->GetDataCenter();
-        if (!dataCenter || !IsDataCenterFeasible(dataCenter)) {
+        if (!dataCenter || !IsDataCenterFeasible(dataCenter, medium->GetIndex())) {
             return false;
         }
     }
@@ -883,13 +928,13 @@ void TChunkPlacement::RecomputeDataCenterSets()
     // At first, clear everything.
     auto oldStorageDataCenters = std::exchange(StorageDataCenters_, {});
     auto oldBannedStorageDataCenters = std::exchange(BannedStorageDataCenters_, {});
-    auto oldAliveStorageDataCenters = std::exchange(AliveStorageDataCenters_, {});
+    auto oldPerMediumAliveStorageDataCenters = std::exchange(PerMediumAliveStorageDataCenters_, {});
     DataCenterSetErrors_.clear();
 
     auto refreshGuard = Finally([&] () noexcept {
         if (StorageDataCenters_ != oldStorageDataCenters ||
             BannedStorageDataCenters_ != oldBannedStorageDataCenters ||
-            AliveStorageDataCenters_ != oldAliveStorageDataCenters)
+            PerMediumAliveStorageDataCenters_ != oldPerMediumAliveStorageDataCenters)
         {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             chunkManager->ScheduleGlobalChunkRefresh();
@@ -902,7 +947,7 @@ void TChunkPlacement::RecomputeDataCenterSets()
     }
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& storageDataCenter : GetDynamicConfig()->StorageDataCenters) {
+    for (const auto& storageDataCenter : GetAllStorageDataCenterNames()) {
         if (auto* dataCenter = nodeTracker->FindDataCenterByName(storageDataCenter); IsObjectAlive(dataCenter)) {
             InsertOrCrash(StorageDataCenters_, dataCenter);
         } else {
@@ -932,24 +977,39 @@ void TChunkPlacement::RecomputeDataCenterSets()
         DataCenterSetErrors_.push_back(error);
     }
 
-    auto isStorageDataCenterAlive = [this] (const TDataCenter* dataCenter) {
-        auto isBanned = BannedStorageDataCenters_.contains(dataCenter);
-        auto isFaulty = FaultyStorageDataCenters_.contains(dataCenter);
-        return !isBanned && !isFaulty;
-    };
-    for (auto* aliveDataCenter : StorageDataCenters_ | std::views::filter(isStorageDataCenterAlive)) {
-        InsertOrCrash(AliveStorageDataCenters_, aliveDataCenter);
+    for (auto [_, medium] : Bootstrap_->GetChunkManager()->Media()) {
+        if (!IsObjectAlive(medium) || !medium->IsDomestic()) {
+            continue;
+        }
+
+        auto mediumIndex = medium->GetIndex();
+        const auto& storageDataCenterNames = GetStorageDataCenterNames(mediumIndex);
+        const auto& bannedDataCenterNames = GetBannedStorageDataCenterNames(mediumIndex);
+        auto& aliveDataCenters = PerMediumAliveStorageDataCenters_[mediumIndex];
+        for (auto dataCenterName : storageDataCenterNames) {
+            auto* dataCenter = nodeTracker->FindDataCenterByName(dataCenterName);
+            if (!BannedStorageDataCenters_.contains(dataCenter) &&
+                !bannedDataCenterNames.contains(dataCenterName) &&
+                !FaultyStorageDataCenters_.contains(dataCenter))
+            {
+                aliveDataCenters.insert(dataCenter);
+            }
+        }
     }
 
     THashSet<const TDataCenter*> livenessChangedDataCenters;
-    for (auto* dataCenter : AliveStorageDataCenters_) {
-        if (!oldAliveStorageDataCenters.contains(dataCenter)) {
-            livenessChangedDataCenters.insert(dataCenter);
+    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        const auto& oldDataCenters = oldPerMediumAliveStorageDataCenters[mediumIndex];
+        const auto& newDataCenters = PerMediumAliveStorageDataCenters_[mediumIndex];
+        for (auto* dataCenter : newDataCenters) {
+            if (!oldDataCenters.contains(dataCenter)) {
+                livenessChangedDataCenters.insert(dataCenter);
+            }
         }
-    }
-    for (auto* dataCenter : oldAliveStorageDataCenters) {
-        if (!AliveStorageDataCenters_.contains(dataCenter)) {
-            livenessChangedDataCenters.insert(dataCenter);
+        for (auto* dataCenter : oldDataCenters) {
+            if (!newDataCenters.contains(dataCenter)) {
+                livenessChangedDataCenters.insert(dataCenter);
+            }
         }
     }
     for (auto* dataCenter : livenessChangedDataCenters) {

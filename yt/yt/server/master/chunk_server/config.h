@@ -78,6 +78,14 @@ struct TDomesticMediumConfig
     //! Same as #MaxReplicasPerRack but only applies to erasure journal chunks.
     int MaxErasureJournalReplicasPerRack;
 
+    //! Storage data centers for this medium. An empty set uses the common chunk manager config.
+    //! New media copy the common set at creation time.
+    THashSet<std::string> StorageDataCenters;
+
+    //! Additional storage data centers on which replica placement is forbidden for this medium.
+    //! New media copy the common set at creation time. Global bans still apply.
+    THashSet<std::string> BannedStorageDataCenters;
+
     //! Default behavior for dynamic tables, living on this medium.
     bool PreferLocalHostForDynamicTables;
 

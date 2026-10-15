@@ -77,6 +77,12 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_erasure_journal_replicas_per_rack", &TThis::MaxErasureJournalReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
+    registrar.Parameter("storage_data_centers", &TThis::StorageDataCenters)
+        .Default()
+        .DontSerializeDefault();
+    registrar.Parameter("banned_storage_data_centers", &TThis::BannedStorageDataCenters)
+        .Default()
+        .DontSerializeDefault();
     registrar.Parameter("prefer_local_host_for_dynamic_tables", &TThis::PreferLocalHostForDynamicTables)
         .Default(true);
 
