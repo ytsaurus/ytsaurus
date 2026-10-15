@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/generic/string.h>
+#include <util/system/types.h>
 #include <yt/cpp/roren/library/timers/timer/proto/timers.pb.h>
 
 namespace NRoren::NPrivate {
@@ -10,7 +11,7 @@ namespace NRoren::NPrivate {
 struct TTimer:
     public TTimerProto
 {
-    using TShardId = uint64_t;
+    using TShardId = ::ui64;
     using TRawKey = TString;
     using TTimerId = TString;
     using TCallbackId = TString;
