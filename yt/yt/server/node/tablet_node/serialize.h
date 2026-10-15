@@ -86,6 +86,7 @@ DEFINE_ENUM(ETabletReign,
     ((ExpectedPrepareSignature)                    (101505)) // atalmenev
     ((SmoothMovementReignValidation)               (101506)) // ifsmirnov
     ((FixTotalRowCountAfterFullTrim_26_1)          (101507)) // ifsmirnov
+    ((FixSharedWriteLockPrepareTimestamp_26_1)     (101508)) // savrus
     // 26.2 starts here.
     ((Start_26_2)                                  (101600)) // akozhikhov
     ((NewHunkDataWeightComputation)                (101601)) // akozhikhov
