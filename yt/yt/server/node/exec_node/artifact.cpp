@@ -22,11 +22,11 @@ using namespace NChunkClient::NProto;
 
 TArtifactKey::TArtifactKey(
     EDataSourceType dataSource,
-    const std::vector<TChunkSpec>& specs)
+    std::vector<TChunkSpec> specs)
 {
     mutable_data_source()->set_type(ToProto(dataSource));
-    for (const auto& spec : specs) {
-        add_chunk_specs()->CopyFrom(spec);
+    for (auto& spec : specs) {
+        *add_chunk_specs() = std::move(spec);
     }
 }
 

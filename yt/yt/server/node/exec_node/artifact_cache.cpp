@@ -884,18 +884,19 @@ private:
             YT_VERIFY(registration);
             return registration.Apply(BIND([=, this, this_ = MakeStrong(this)] () -> std::optional<TRegisteredChunkDescriptor> {
                 auto guard = Guard(UnvalidatedChunkMapsLock_);
-                if (!RegisteredChunkMap_.contains(key)) {
+                auto it = RegisteredChunkMap_.find(key);
+                if (it == RegisteredChunkMap_.end()) {
                     return std::nullopt;
                 }
-                auto descriptor = std::move(GetOrCrash(RegisteredChunkMap_, key));
-                EraseOrCrash(RegisteredChunkMap_, key);
+                auto descriptor = std::move(it->second);
+                RegisteredChunkMap_.erase(it);
                 return std::move(descriptor);
             }));
         }
         if (auto it = RegisteredChunkMap_.find(key); it != RegisteredChunkMap_.end()) {
             auto descriptor = std::move(it->second);
             RegisteredChunkMap_.erase(it);
-            return MakeFuture(std::optional(descriptor));
+            return MakeFuture(std::optional(std::move(descriptor)));
         }
         return MakeFuture<std::optional<TRegisteredChunkDescriptor>>(std::nullopt);
     }
@@ -2149,7 +2150,7 @@ private:
                 /*artifactDownloadOptions*/ {},
                 /*bypassArtifactCache*/ false);
 
-            auto metaOrError = WaitFor(chunkReader->GetMeta(options, {}));
+            auto metaOrError = WaitFor(chunkReader->GetMeta(options));
             if (!metaOrError.IsOK()) {
                 YT_TLOG_WARNING("Failed to read cached chunk meta")
                     .With(metaOrError);

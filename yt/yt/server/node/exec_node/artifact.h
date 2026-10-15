@@ -35,7 +35,7 @@ struct TArtifactKey
 {
     TArtifactKey(
         NChunkClient::EDataSourceType dataSource,
-        const std::vector<NChunkClient::NProto::TChunkSpec>& specs);
+        std::vector<NChunkClient::NProto::TChunkSpec> specs);
 
     explicit TArtifactKey(const NProto::TArtifactKey& key);
     explicit TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor);
