@@ -1005,6 +1005,21 @@ public:
         }
 
         AttachChunksToTablet(tablet, hunkChunksToAttach);
+
+        // Hunk chunks may have been detached from the tablet concurrently (e.g. by bulk insert overwrite).
+        std::erase_if(hunkChunksToDetach, [&] (TChunkTreeRawPtr chunk) {
+            if (HasParent(chunk, GetTabletChildParent(tablet, chunk))) {
+                return false;
+            }
+            YT_LOG_ALERT("Hunk chunk to detach does not belong to tablet; skipped "
+                "(TableId: %v, TabletId: %v, ChunkId: %v, UpdateReason: %v)",
+                table->GetId(),
+                tablet->GetId(),
+                chunk->GetId(),
+                updateReason);
+            return true;
+        });
+
         DetachChunksFromTablet(
             tablet,
             hunkChunksToDetach,
