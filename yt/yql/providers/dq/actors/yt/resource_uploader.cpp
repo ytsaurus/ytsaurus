@@ -31,7 +31,6 @@ public:
         : TRichActor<TYtResourceUploader>(&TYtResourceUploader::Follower)
         , Options(options)
         , Coordinator(coordinator)
-        , Config(Coordinator->GetConfig())
         , ClusterName(Options.YtBackend.GetClusterName())
     {
         YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
@@ -240,7 +239,6 @@ private:
 
     const ICoordinationHelper::TPtr Coordinator;
 
-    const NProto::TDqConfig::TYtCoordinator Config;
     const TString ClusterName;
 
     TActorId YtWrapper;
@@ -262,6 +260,7 @@ IActor* CreateYtResourceUploader(
     const TResourceManagerOptions& options,
     const ICoordinationHelper::TPtr& coordinator)
 {
+    Y_ABORT_UNLESS(coordinator);
     Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
     Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
     Y_ABORT_UNLESS(options.YtBackend.HasPrefix());

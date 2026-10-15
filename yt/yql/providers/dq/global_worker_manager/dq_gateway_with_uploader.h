@@ -26,6 +26,8 @@ using TUploadClusterResolver = std::function<bool(TResourceManagerOptions* opts,
 //
 // uploadOptions.Files is ignored; files are collected from task metas automatically.
 // uploadOptions.UploadPrefix must be set to the YT path prefix for uploads.
+// Clique-only clients use CreateUploadCoordinationHelper for backend clients
+// and file locks without a worker node ID.
 TIntrusivePtr<IDqGateway> CreateDqGatewayWithUploader(
     TIntrusivePtr<IDqGateway> underlying,
     NActors::TActorSystem* actorSystem,
