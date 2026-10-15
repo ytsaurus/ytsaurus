@@ -1,6 +1,6 @@
 {
     cluster=kolmogorov;
-    pool="yt-integration-test";
+    pool="yt-integration-tests";
     pool_trees=[
         "physical";
     ];
