@@ -154,8 +154,6 @@ def build_yql_agent_config(cls):
             raise YtError("YQL_QTWORKER and YQL_SUBPROCESS_COUNT cannot be set together")
         config["enable_qtworker"] = True
         config["qtworker_path"] = yatest.common.binary_path("yt/yql/tools/qtworker/qtworker")
-        config["qtworker_worker_conf"] = yatest.common.source_path("yt/yql/cfg/tests/worker.conf")
-        config["qtworker_fs_conf"] = yatest.common.source_path("yt/yql/cfg/tests/fs.conf")
         config["qtworker_gateways_conf"] = yatest.common.source_path(
             "yt/yql/cfg/tests/gateways.conf")
         config["qtworker_udf_resolver_path"] = yatest.common.binary_path(
