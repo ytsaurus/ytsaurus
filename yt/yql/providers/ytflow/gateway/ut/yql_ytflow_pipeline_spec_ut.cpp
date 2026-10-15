@@ -151,10 +151,10 @@ protected:
         auto config = MakeIntrusive<TYtflowConfiguration>();
         YQL_ENSURE(config->Dispatch(
             NCommon::ALL_CLUSTERS, "LogbrokerConsumerPath", TString("consumer"),
-            NCommon::TSettingDispatcher::EStage::STATIC, onError));
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
         YQL_ENSURE(config->Dispatch(
             NCommon::ALL_CLUSTERS, "_FiniteStreams", TString("false"),
-            NCommon::TSettingDispatcher::EStage::STATIC, onError));
+            NCommon::ISettingDispatcher::EStage::STATIC, onError));
 
         IYtflowGateway::TRunOptions runOptions;
         runOptions.Config(std::make_shared<const TYtflowSettings>(*config)).Types(&types);
@@ -221,7 +221,7 @@ TYtflowSettings::TConstPtr MakeConfig(TMaybe<TString> value = Nothing())
             NCommon::ALL_CLUSTERS,
             "EnableComputationPatternResources",
             value,
-            NCommon::TSettingDispatcher::EStage::STATIC,
+            NCommon::ISettingDispatcher::EStage::STATIC,
             [&error](const TString& message, bool) {
                 error = message;
                 return false;
