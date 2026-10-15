@@ -1125,6 +1125,8 @@ void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
     if (auto* operationState = FindOperationState(operationId)) {
         operationState->ForbidNewAllocations = true;
     }
+
+    MaybeDelay(Config_->TestingOptions->OperationSchedulingSuspensionDelay);
 }
 
 void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
