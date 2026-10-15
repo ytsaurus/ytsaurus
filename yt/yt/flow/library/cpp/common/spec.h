@@ -1137,6 +1137,8 @@ struct TDynamicJobBalancerSpec
     //! ratios matter. Note that rebalance_target_deviation thresholds apply to the normalized
     //! weighted mix: weighting a second resource in proportionally shrinks the first one's
     //! contribution, making the balancer correspondingly more tolerant to its imbalance.
+    //! The memory of a partition is its measured job memory plus the input buffer bytes its
+    //! streams hold or want.
     THashMap<EBalanceResource, double> BalanceWeights;
     // TODO(thenewone): Temporary switch, remove after the metrics-history balancer rollout.
     EBalancerMetricsSource BalancerMetricsSource{};

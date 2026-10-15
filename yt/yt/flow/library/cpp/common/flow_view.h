@@ -285,6 +285,9 @@ struct TJobEntityLimitStatus
     i64 Limit{};
     i64 Used{};
     std::optional<i64> Pending;
+    //! Demand-backed buffer reservation before pool scaling, in the units of #Used.
+    //! Excludes speculative output probes. Absent for an override, in v1 mode and before the
+    //! first manage tick of a job.
     std::optional<i64> Demand;
     //! Share of the time the job spent with this buffer blocking the epoch loop,
     //! averaged over the window from the spec. Normalized by the job lifetime, so
