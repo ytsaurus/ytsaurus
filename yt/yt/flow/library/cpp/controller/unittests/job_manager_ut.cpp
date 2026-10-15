@@ -19,9 +19,12 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <util/system/type_name.h>
 
 #include <cmath>
+#include <functional>
 
 namespace NYT::NFlow::NController {
 namespace {
@@ -880,6 +883,74 @@ public:
         }
     }
 
+    void PrepareEvenPlacement()
+    {
+        PrepareBalancerTest(/*workerCount*/ 2, {TComputationDescription{/*PartitionCount*/ 4, {}}});
+        DistributeJobs();
+        SetCpuLoadUniform();
+        DistributeJobs();
+        auto jobCountByWorker = GetJobCountOnWorker();
+        ASSERT_EQ(jobCountByWorker[GetWorkerAddress(0)], 2);
+        ASSERT_EQ(jobCountByWorker[GetWorkerAddress(1)], 2);
+    }
+
+    THashMap<TPartitionId, std::string> GetWorkerByPartition()
+    {
+        THashMap<TPartitionId, std::string> result;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            result[job->PartitionId] = job->WorkerAddress;
+        }
+        return result;
+    }
+
+    THashMap<TPartitionId, i64> SplitByWorker(i64 onWorker0, i64 elsewhere)
+    {
+        THashMap<TPartitionId, i64> result;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            result[job->PartitionId] = job->WorkerAddress == GetWorkerAddress(0) ? onWorker0 : elsewhere;
+        }
+        return result;
+    }
+
+    i64 GetWorkerSpread(const THashMap<TPartitionId, i64>& valueByPartition)
+    {
+        THashMap<std::string, i64> valueByWorker;
+        for (const auto& [workerAddress, worker] : FlowView->State->Workers) {
+            valueByWorker[workerAddress] = 0;
+        }
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            valueByWorker[job->WorkerAddress] += GetOrCrash(valueByPartition, job->PartitionId);
+        }
+        const auto& range = valueByWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    }
+
+    static TJobEntityLimitStatus& GetInputBufferLimit(const TJobStatusPtr& status, TStringBuf streamId)
+    {
+        return status->InputLimits[std::string(InputBufferBytesLimitType)][TStreamId(streamId)];
+    }
+
+    void BalanceWithMemoryWeight(const std::function<void(const TJobPtr&, const TJobStatusPtr&)>& fill)
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;
+        JobManager->Reconfigure(dynamicSpec);
+
+        for (int iteration = 0; iteration < 30; ++iteration) {
+            for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+                auto status = New<TPartitionJobStatus>();
+                status->CurrentJobStatus = New<TJobStatus>();
+                status->CurrentJobStatus->JobId = jobId;
+                status->CurrentJobStatus->PerformanceMetrics->CpuUsage10m = BaseCpuLoad;
+                status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+                fill(job, status->CurrentJobStatus);
+                FlowView->Feedback->PartitionJobStatuses[job->PartitionId] = status;
+            }
+            DistributeJobs();
+        }
+    }
+
     void CheckUniformLoad()
     {
         for (const auto& [computationId, computationDescription] : ComputationDescriptions) {
@@ -1609,6 +1680,166 @@ TEST_F(TJobBalancerTest, MemoryWeightedBalancingSpreadsMemoryHeavyPartitions)
 
     EXPECT_LE(memoryDiff(), HeavyMemory - LightMemory)
         << "Memory-weighted balancing must split the memory-heavy partitions across workers";
+}
+
+TEST_F(TJobBalancerTest, WorkerSpreadIncludesIdleWorkers)
+{
+    PrepareEvenPlacement();
+    auto bytesByPartition = SplitByWorker(/*onWorker0*/ 1_GB, /*elsewhere*/ 1_GB);
+
+    FlowView->State->StartMutation();
+    for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+        job->WorkerAddress = GetWorkerAddress(0);
+        job->WorkerIncarnationId = GetOrCrash(FlowView->State->Workers, job->WorkerAddress)->IncarnationId;
+    }
+    FlowView->State->CommitMutation();
+
+    EXPECT_EQ(GetWorkerSpread(bytesByPartition), 4_GB);
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingCountsBufferDemand)
+{
+    constexpr i64 UniformMemory = 1_GB;
+    constexpr i64 HeavyDemand = 10_GB;
+    constexpr i64 LightDemand = 1_GB;
+
+    PrepareEvenPlacement();
+    auto demandByPartition = SplitByWorker(/*onWorker0*/ HeavyDemand, /*elsewhere*/ LightDemand);
+
+    // The measured memory is even everywhere, so only the demand can open the even-load gate.
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        status->PerformanceMetrics->MemoryUsage30s = UniformMemory;
+        GetInputBufferLimit(status, "input").Demand = GetOrCrash(demandByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 0) << "The workers must still hold two partitions each";
+    EXPECT_EQ(GetWorkerSpread(demandByPartition), 0)
+        << "Buffer demand must count as memory and split the buffer-hungry partitions across workers";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingAddsBufferDemandToMeasuredMemory)
+{
+    constexpr i64 HalfMemory = 5_GB;
+    constexpr i64 FullMemory = 10_GB;
+
+    PrepareEvenPlacement();
+    auto initialWorkerByPartition = GetWorkerByPartition();
+    auto memoryByPartition = SplitByWorker(/*onWorker0*/ HalfMemory, /*elsewhere*/ FullMemory);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        i64 memory = GetOrCrash(memoryByPartition, job->PartitionId);
+        status->PerformanceMetrics->MemoryUsage30s = memory;
+        GetInputBufferLimit(status, "input").Demand = FullMemory - memory;
+    });
+
+    EXPECT_EQ(GetWorkerByPartition(), initialWorkerByPartition)
+        << "Measured memory and buffer demand must add up to the same total on both workers";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingSumsOnlyInputBufferDemand)
+{
+    constexpr i64 UniformMemory = 1_GB;
+    constexpr i64 HeavyDemand = 10_GB;
+    constexpr i64 LightDemand = 1_GB;
+
+    PrepareEvenPlacement();
+    auto initialWorkerByPartition = GetWorkerByPartition();
+    auto firstDemandByPartition = SplitByWorker(/*onWorker0*/ HeavyDemand, /*elsewhere*/ 4_GB);
+    auto secondDemandByPartition = SplitByWorker(/*onWorker0*/ LightDemand, /*elsewhere*/ 7_GB);
+    auto residentByPartition = SplitByWorker(/*onWorker0*/ 9_GB, /*elsewhere*/ LightDemand);
+    auto outputByPartition = SplitByWorker(/*onWorker0*/ HeavyDemand, /*elsewhere*/ LightDemand);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        status->PerformanceMetrics->MemoryUsage30s = UniformMemory;
+        auto& first = GetInputBufferLimit(status, "first");
+        first.Demand = GetOrCrash(firstDemandByPartition, job->PartitionId);
+        first.Used = GetOrCrash(residentByPartition, job->PartitionId);
+        auto& second = GetInputBufferLimit(status, "second");
+        second.Demand = GetOrCrash(secondDemandByPartition, job->PartitionId);
+        second.Used = LightDemand;
+        auto& output = status->OutputLimits[std::string(OutputBufferBytesLimitType)][TStreamId("output")];
+        output.Demand = GetOrCrash(outputByPartition, job->PartitionId);
+        output.Used = GetOrCrash(outputByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetWorkerByPartition(), initialWorkerByPartition)
+        << "Equal total input demand must preserve placement regardless of resident and output bytes";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingChargesOverriddenStreamsWhatTheyHold)
+{
+    constexpr i64 UniformMemory = 1_GB;
+    constexpr i64 HeavyUsed = 10_GB;
+    constexpr i64 LightUsed = 1_GB;
+
+    PrepareEvenPlacement();
+    auto usedByPartition = SplitByWorker(/*onWorker0*/ HeavyUsed, /*elsewhere*/ LightUsed);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        status->PerformanceMetrics->MemoryUsage30s = UniformMemory;
+        GetInputBufferLimit(status, "input").Used = GetOrCrash(usedByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 0) << "The workers must still hold two partitions each";
+    EXPECT_EQ(GetWorkerSpread(usedByPartition), 0)
+        << "An overridden stream must be charged its resident bytes and split across the workers";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingChargesResidentBytesAboveDemand)
+{
+    constexpr i64 UniformMemory = 1_GB;
+    constexpr i64 UniformDemand = 1_GB;
+    constexpr i64 HeavyUsed = 10_GB;
+    constexpr i64 LightUsed = 1_GB;
+
+    PrepareEvenPlacement();
+    auto usedByPartition = SplitByWorker(/*onWorker0*/ HeavyUsed, /*elsewhere*/ LightUsed);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        status->PerformanceMetrics->MemoryUsage30s = UniformMemory;
+        auto& input = GetInputBufferLimit(status, "input");
+        input.Demand = UniformDemand;
+        input.Used = GetOrCrash(usedByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 0) << "The workers must still hold two partitions each";
+    EXPECT_EQ(GetWorkerSpread(usedByPartition), 0)
+        << "Resident bytes above the demand must be charged and split across the workers";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingIgnoresBufferLimitWithoutDemand)
+{
+    constexpr i64 UniformMemory = 1_GB;
+    constexpr i64 HeavyLimit = 10_GB;
+    constexpr i64 LightLimit = 1_GB;
+
+    PrepareEvenPlacement();
+    auto limitByPartition = SplitByWorker(/*onWorker0*/ HeavyLimit, /*elsewhere*/ LightLimit);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        status->PerformanceMetrics->MemoryUsage30s = UniformMemory;
+        GetInputBufferLimit(status, "input").Limit = GetOrCrash(limitByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 0) << "The workers must still hold two partitions each";
+    EXPECT_GE(GetWorkerSpread(limitByPartition), HeavyLimit) << "A buffer limit with no demand behind it must not move jobs";
+}
+
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingIgnoresBufferDemandWithoutMemoryMetrics)
+{
+    constexpr i64 HeavyDemand = 10_GB;
+    constexpr i64 LightDemand = 1_GB;
+
+    PrepareEvenPlacement();
+    auto demandByPartition = SplitByWorker(/*onWorker0*/ HeavyDemand, /*elsewhere*/ LightDemand);
+
+    BalanceWithMemoryWeight([&] (const TJobPtr& job, const TJobStatusPtr& status) {
+        GetInputBufferLimit(status, "input").Demand = GetOrCrash(demandByPartition, job->PartitionId);
+    });
+
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 0) << "The workers must still hold two partitions each";
+    EXPECT_GE(GetWorkerSpread(demandByPartition), HeavyDemand)
+        << "Demand alone must not make a partition with no memory metric look measured";
 }
 
 //! A CPU-unweighted config ({cpu: 0, memory: 1}) is allowed by the spec and must balance by memory

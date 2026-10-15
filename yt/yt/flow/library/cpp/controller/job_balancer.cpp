@@ -111,13 +111,13 @@ struct TPartitionDistributionInfo
     bool Movable = true;
     //! CPU usage divided by the coefficient of the worker it was measured on, blended across the switch.
     std::optional<double> NormalizedInputCpuUsage;
-    //! Memory usage in bytes from the status of an active job, if there's one.
+    //! Measured job memory plus the input buffer bytes its streams hold or want, if memory metrics exist.
     std::optional<double> InputMemoryUsage;
     //! Calculated complexity (Cp from the formula above).
     double Complexity{};
     //! Calculated normalized CPU usage (Kc *  Wp * Cp).
     double NormalizedCpuUsage{};
-    //! Calculated normalized memory usage: the raw usage when known, otherwise the computation
+    //! Calculated normalized memory usage: #InputMemoryUsage when known, otherwise the computation
     //! average per weight unit times the weight. The memory worker coefficient is always 1.
     double NormalizedMemoryUsage{};
     //! Time a job has been active.
@@ -156,6 +156,25 @@ EBalanceResource PickBottleneckResource(const TResourceVector& weights, const TR
             resultShare = share;
             result = resource;
         }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Inflated input buffer bytes the job's streams hold or want, summed over the streams.
+i64 ComputeJobInputBufferBytes(const TJobStatusPtr& jobStatus)
+{
+    // Input payloads are allocated outside the job's allocation tag; output buffers are already measured.
+    const auto* streams = jobStatus->InputLimits.FindPtr(InputBufferBytesLimitType);
+    if (!streams) {
+        return 0;
+    }
+    i64 result = 0;
+    for (const auto& [streamId, limitStatus] : *streams) {
+        // Resident bytes floor the demand: a stream over its shrunken limit, or one reporting no
+        // demand (v1 buffer manager, an override, a job before its first manage tick), still holds them.
+        result += std::max(limitStatus.Demand.value_or(0), limitStatus.Used);
     }
     return result;
 }
@@ -1563,6 +1582,10 @@ void TPartitionDistributionData::CollectPartitions(
                 info.InputMemoryUsage = *currentJobStatus->PerformanceMetrics->MemoryUsage30s;
             } else {
                 info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsageCurrent;
+            }
+            // Preserve computation-average estimation for partitions without memory metrics.
+            if (info.InputMemoryUsage) {
+                *info.InputMemoryUsage += ComputeJobInputBufferBytes(currentJobStatus);
             }
             info.TimeSinceStart = TInstant::Now() - currentJobStatus->StartTime;
 
