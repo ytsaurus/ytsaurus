@@ -566,6 +566,32 @@ where string_field = "foo" or int64_field >= 100;
             {"string_field": "foobar_ytflow", "int64_field": 10000, "bool_field": True},
         ])
 
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("output_table_exists", [True, False])
+    def test_select_star(self, query_tracker, yql_agent, run_query, output_table_exists):
+        schema = self._make_queue_schema([
+            {"name": "value", "type": "int64"},
+        ])
+        input_table_path = self._create_yt_table(dict(schema=schema))
+        input_data = [
+            {"value": 1},
+            {"value": 2}
+        ]
+        self._write_yt_table(input_table_path, input_data)
+
+        if output_table_exists:
+            out_table_path = self._create_yt_table(dict(schema=schema))
+        else:
+            out_table_path = self._allocate_yt_table_path()
+
+        run_query(f"""
+insert into `{out_table_path}`
+select * from `{input_table_path}`;
+""")
+
+        self._assert_yt_table_content(out_table_path, input_data)
+
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @with_ytflow_default_settings(
