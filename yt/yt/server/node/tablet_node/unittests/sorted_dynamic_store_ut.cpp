@@ -1874,6 +1874,41 @@ TEST_F(TMultiLockSortedDynamicStoreTest, DeleteWriteConflict2)
     EXPECT_EQ(NullTimestamp, WriteRow(BuildRow("key=1;a=1", false), LockMask1));
 }
 
+TEST_F(TMultiLockSortedDynamicStoreTest, UnpreparedSharedWriterDoesNotBlockReads)
+{
+    auto key = BuildKey("1");
+    WriteRow(BuildRow("key=1;a=1", false));
+
+    TLockMask sharedWriteMask;
+    sharedWriteMask.Set(1, ELockType::SharedWrite);
+    auto sharedWriter = StartTransaction();
+    auto sharedRow = LockRow(sharedWriter.get(), key, false, sharedWriteMask);
+
+    EXPECT_NO_THROW({
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), "key=1;a=1"));
+    });
+
+    auto otherWriter = StartTransaction();
+    auto otherRow = WriteRow(otherWriter.get(), BuildRow("key=1;b=2.0", false), false, LockMask2);
+    PrepareTransaction(otherWriter.get());
+
+    // Preparing another lock recalculates prepare timestamps for the whole row.
+    PrepareRow(otherWriter.get(), otherRow);
+
+    EXPECT_EQ(NullTimestamp, sharedWriter->GetPrepareTimestamp());
+    EXPECT_EQ(NotPreparedTimestamp, GetLock(sharedRow, 1).PrepareTimestamp.load());
+
+    AbortTransaction(otherWriter.get());
+    AbortRow(otherWriter.get(), otherRow);
+
+    EXPECT_NO_THROW({
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), "key=1;a=1"));
+    });
+
+    AbortTransaction(sharedWriter.get());
+    AbortRow(sharedWriter.get(), sharedRow);
+}
+
 TEST_F(TMultiLockSortedDynamicStoreTest, WriteNotBlocked)
 {
     auto transaction1 = StartTransaction();

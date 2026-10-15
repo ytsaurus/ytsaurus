@@ -116,16 +116,31 @@ void RecalculatePrepareTimestamp(TLockDescriptor* lock)
         ? nullptr
         : lock->SharedWriteTransactions.front().Transaction;
 
+    auto sharedWritePrepareTimestamp = sharedWritePrepareTransaction
+        ? sharedWritePrepareTransaction->GetPrepareTimestamp()
+        : NotPreparedTimestamp;
+
+    // COMPAT(savrus): An active transaction has NullTimestamp while its lock entry has NotPreparedTimestamp.
+    if (!HasMutationContext() ||
+        GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp ||
+        (GetCurrentMutationEffectiveReign() >= ETabletReign::FixSharedWriteLockPrepareTimestamp_26_1 &&
+         GetCurrentMutationEffectiveReign() < ETabletReign::Start_26_2))
+    {
+        sharedWritePrepareTimestamp = lock->SharedWriteTransactions.empty()
+            ? NotPreparedTimestamp
+            : lock->SharedWriteTransactions.front().PrepareTimestamp;
+    }
+
     YT_ASSERT(writePrepareTimestamp <= NotPreparedTimestamp);
-    YT_ASSERT(sharedWritePrepareTransaction == nullptr || sharedWritePrepareTransaction->GetPrepareTimestamp() <= NotPreparedTimestamp);
+    YT_ASSERT(sharedWritePrepareTimestamp <= NotPreparedTimestamp);
     YT_ASSERT(writePrepareTimestamp == NotPreparedTimestamp || sharedWritePrepareTransaction == nullptr);
 
-    if (sharedWritePrepareTransaction == nullptr || writePrepareTimestamp <= sharedWritePrepareTransaction->GetPrepareTimestamp()) {
+    if (writePrepareTimestamp <= sharedWritePrepareTimestamp) {
         lock->PreparedTransaction = lock->WriteTransaction;
         lock->PrepareTimestamp.store(writePrepareTimestamp);
     } else {
         lock->PreparedTransaction = sharedWritePrepareTransaction;
-        lock->PrepareTimestamp.store(sharedWritePrepareTransaction->GetPrepareTimestamp());
+        lock->PrepareTimestamp.store(sharedWritePrepareTimestamp);
     }
 }
 
