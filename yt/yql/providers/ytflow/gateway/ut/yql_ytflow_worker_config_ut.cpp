@@ -63,7 +63,7 @@ void SetConfigSetting(
         NCommon::ALL_CLUSTERS,
         name,
         value,
-        NCommon::TSettingDispatcher::EStage::STATIC,
+        NCommon::ISettingDispatcher::EStage::STATIC,
         [&] (const TString& message, bool) {
             error = message;
             return false;
