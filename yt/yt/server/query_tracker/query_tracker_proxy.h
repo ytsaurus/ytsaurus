@@ -27,7 +27,7 @@ public:
         const TQueryTrackerProxyConfigPtr& config,
         const TDuration notIndexedQueriesTTL);
 
-    void StartQuery(
+    TQueryId StartQuery(
         const TQueryId queryId,
         const EQueryEngine engine,
         const TString& query,

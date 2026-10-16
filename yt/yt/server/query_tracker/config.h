@@ -139,6 +139,7 @@ struct TQueryTrackerProxyConfig
     i64 MaxQueryFileCount;
     i64 MaxQueryFileNameSizeBytes;
     i64 MaxQueryFileContentSizeBytes;
+    TDuration QueriesByMutationIdTtl;
 
     REGISTER_YSON_STRUCT(TQueryTrackerProxyConfig);
 
