@@ -512,9 +512,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("private_bus_server", &TThis::PrivateBusServer)
         .DefaultNew();
@@ -626,9 +626,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("job_proxy_peak_memory_profiler", &TThis::JobProxyPeakMemoryProfiler)
         .DefaultNew();
