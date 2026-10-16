@@ -78,6 +78,7 @@ var (
 	LocateSkynetShareResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
 	GenerateTimestampResultDecoder          AnyValueResultDecoder       = newSingleValueResultDecoder("timestamp")
 	GetInSyncReplicasResultDecoder          AnyValueResultDecoder       = newValueResultDecoder()
+	GetTableColumnarStatisticsResultDecoder AnyValueResultDecoder       = newValueResultDecoder()
 	StartQueryResultDecoder                 AnyValueResultDecoder       = newSingleValueResultDecoder("query_id")
 	GetQueryResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
 	ListQueriesResultDecoder                AnyValueResultDecoder       = newValueResultDecoder()
