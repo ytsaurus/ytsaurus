@@ -239,4 +239,26 @@ void Serialize(const THunkChunkTreeStatistics& statistics, NYson::IYsonConsumer*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TChunkReplicationStatistics& statistics, TStringBuf spec)
+{
+    FormatValue(builder, ConvertToYsonString(statistics, EYsonFormat::Text), spec);
+}
+
+void Serialize(const TChunkReplicationStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total").Value(statistics.Total)
+            .Item("available").Value(statistics.Available)
+            .Item("lost").Value(statistics.Lost)
+            .Item("data_missing").Value(statistics.DataMissing)
+            .Item("parity_missing").Value(statistics.ParityMissing)
+            .Item("quorum_missing").Value(statistics.QuorumMissing)
+            .Item("medium_wise_lost").Value(statistics.MediumWiseLost)
+            .Item("dead").Value(statistics.Dead)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer

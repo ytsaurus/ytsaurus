@@ -43,6 +43,7 @@
 #include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -318,6 +319,90 @@ void BuildDynamicStoreSpec(
         ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
     }
     chunkSpec->set_row_index_is_absolute(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetMulticellChunkReplicationStatuses(
+    TBootstrap* bootstrap,
+    const TChunkLists& chunkLists,
+    bool onlyLocal)
+{
+    std::vector<TChunkRawPtr> chunks;
+    for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+        if (auto* chunkList = chunkLists[contentType]) {
+            EnumerateChunksInChunkTree(chunkList, &chunks);
+        }
+    }
+
+    std::vector<TChunkRawPtr> nativeChunks;
+    THashMap<TCellTag, std::vector<TChunkId>> cellTagToForeignChunkIds;
+
+    for (auto chunk : chunks) {
+        if (!chunk->IsForeign()) {
+            nativeChunks.push_back(chunk);
+        } else if (!onlyLocal) {
+            auto cellTag = chunk->GetNativeCellTag();
+            cellTagToForeignChunkIds[cellTag].push_back(chunk->GetId());
+        }
+    }
+
+    const auto& chunkManager = bootstrap->GetChunkManager();
+
+    if (cellTagToForeignChunkIds.empty() || onlyLocal) {
+        return chunkManager->GetChunksReplicationStatuses(nativeChunks);
+    }
+
+    std::vector<TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>>> futures;
+    futures.push_back(chunkManager->GetChunksReplicationStatuses(nativeChunks));
+
+    const auto& multicellManager = bootstrap->GetMulticellManager();
+    const auto& securityManager = bootstrap->GetSecurityManager();
+    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
+    for (auto& [cellTag, chunkIds] : cellTagToForeignChunkIds) {
+        auto channel = multicellManager->GetMasterChannelOrThrow(
+            cellTag,
+            NHydra::EPeerKind::Follower);
+        TChunkServiceProxy proxy(std::move(channel));
+
+        auto req = proxy.ComputeChunksReplicationStatuses();
+        req->SetUser(userNameToForward);
+        ToProto(req->mutable_chunk_ids(), chunkIds);
+        futures.push_back(req->Invoke()
+            .Apply(BIND([
+                cellTag,
+                chunkIds = std::move(chunkIds)
+            ] (const TChunkServiceProxy::TRspComputeChunksReplicationStatusesPtr& statuses) {
+                if (statuses->chunk_replication_statuses_size() != std::ssize(chunkIds)) {
+                    YT_LOG_ALERT_AND_THROW("Received incorrect chunk replication statuses (CellTag: %v, Expected: %v, Received: %v)",
+                        cellTag,
+                        chunkIds.size(),
+                        statuses->chunk_replication_statuses_size());
+                }
+                THashMap<TChunkId, ECrossMediumChunkStatus> result;
+
+                for (int index = 0; index < std::ssize(chunkIds); ++index) {
+                    result[chunkIds[index]] = static_cast<ECrossMediumChunkStatus>(statuses->chunk_replication_statuses()[index]);
+                }
+                return result;
+            })
+            .AsyncViaGuarded(
+                NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                TError("Error computing chunk replication statuses"))));
+    }
+
+    return AllSucceeded(std::move(futures)).Apply(
+        BIND([] (const std::vector<THashMap<TChunkId, ECrossMediumChunkStatus>>& statuses) {
+            THashMap<TChunkId, ECrossMediumChunkStatus> result;
+            for (const auto& status : statuses) {
+                result.insert(status.begin(), status.end());
+            }
+            return result;
+        })
+        .AsyncViaGuarded(
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            TError("Error computing chunk replication statuses")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -633,6 +718,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     auto isExternal = node->IsExternal();
     auto isTrunk = node->IsTrunk();
 
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto isSuperuser = securityManager->IsSuperuser(user);
+
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkListId)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -724,6 +813,22 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(!isExternal)
         .SetPresent(false);
     descriptors->emplace_back(EInternedAttributeKey::TableBackupEnabled);
+    descriptors->emplace_back(EInternedAttributeKey::LocalDetailedChunkReplicationStatistics)
+        .SetExternal(isExternal)
+        .SetOpaque(true)
+        .SetPresent(isSuperuser);
+    descriptors->emplace_back(EInternedAttributeKey::DetailedChunkReplicationStatistics)
+        .SetExternal(isExternal)
+        .SetOpaque(true)
+        .SetPresent(isSuperuser);
+    descriptors->emplace_back(EInternedAttributeKey::LocalLostChunkIds)
+        .SetExternal(isExternal)
+        .SetOpaque(true)
+        .SetPresent(isSuperuser);
+    descriptors->emplace_back(EInternedAttributeKey::LostChunkIds)
+        .SetExternal(isExternal)
+        .SetOpaque(true)
+        .SetPresent(isSuperuser);
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -1023,6 +1128,8 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
     auto chunkLists = node->GetChunkLists();
     auto isExternal = node->IsExternal();
 
+    const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+
     switch (key) {
         case EInternedAttributeKey::ChunkIds: {
             if (isExternal) {
@@ -1135,6 +1242,91 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }).AsyncViaGuarded(
                 Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
                 TError("Error computing chunk statistics")));
+        }
+
+        case EInternedAttributeKey::DetailedChunkReplicationStatistics:
+        case EInternedAttributeKey::LocalDetailedChunkReplicationStatistics: {
+            if (isExternal) {
+                break;
+            }
+
+            ValidateSuperuserOnAttributeAccess(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+            return GetMulticellChunkReplicationStatuses(
+                Bootstrap_,
+                chunkLists,
+                /*onlyLocal*/ key == EInternedAttributeKey::LocalDetailedChunkReplicationStatistics)
+                .Apply(BIND([] (const THashMap<TChunkId, ECrossMediumChunkStatus>& statuses) {
+                    TChunkReplicationStatistics statistics;
+                    for (auto [chunkId, status] : statuses) {
+                        ++statistics.Total;
+                        if (Any(status & ECrossMediumChunkStatus::Lost)) {
+                            ++statistics.Lost;
+                        } else if (Any(status & ECrossMediumChunkStatus::Dead)) {
+                            ++statistics.Dead;
+                        } else {
+                            ++statistics.Available;
+                        }
+
+                        if (Any(status & ECrossMediumChunkStatus::DataMissing)) {
+                            ++statistics.DataMissing;
+                        }
+
+                        if (Any(status & ECrossMediumChunkStatus::ParityMissing)) {
+                            ++statistics.ParityMissing;
+                        }
+
+                        if (Any(status & ECrossMediumChunkStatus::QuorumMissing)) {
+                            ++statistics.QuorumMissing;
+                        }
+
+                        if (Any(status & ECrossMediumChunkStatus::MediumWiseLost)) {
+                            ++statistics.MediumWiseLost;
+                        }
+                    }
+
+                    return ConvertToYsonString(statistics);
+                })
+                .AsyncViaGuarded(
+                    NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                    TError("Error computing chunk replication statuses")));
+        }
+
+        case EInternedAttributeKey::LostChunkIds:
+        case EInternedAttributeKey::LocalLostChunkIds: {
+            if (isExternal) {
+                break;
+            }
+
+            ValidateSuperuserOnAttributeAccess(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+            return GetMulticellChunkReplicationStatuses(
+                Bootstrap_,
+                chunkLists,
+                /*onlyLocal*/ key == EInternedAttributeKey::LocalLostChunkIds)
+                .Apply(BIND([
+                    maxChunksToReport = chunkManagerConfig->MaxLostChunksToReportInDetailedReplicationStatistics
+                ] (const THashMap<TChunkId, ECrossMediumChunkStatus>& statuses) {
+                    std::vector<TChunkId> lostChunkIds;
+                    for (const auto& [chunkId, status] : statuses) {
+                        if (Any(status & ECrossMediumChunkStatus::Lost)) {
+                            lostChunkIds.push_back(chunkId);
+                        }
+                    }
+                    std::ranges::sort(lostChunkIds);
+                    auto incomplete = std::ssize(lostChunkIds) > maxChunksToReport;
+                    lostChunkIds.resize(std::min<int>(std::ssize(lostChunkIds), maxChunksToReport));
+
+                    return BuildYsonStringFluently(EYsonFormat::Text)
+                        .DoAttributesIf(incomplete, [] (auto fluent) {
+                            fluent
+                                .Item("incomplete").Value(true);
+                        })
+                        .Value(lostChunkIds);
+                })
+                .AsyncViaGuarded(
+                    NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                    TError("Error computing chunk replication statuses")));
         }
 
         default:

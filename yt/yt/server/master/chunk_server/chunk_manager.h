@@ -410,6 +410,9 @@ struct IChunkManager
 
     virtual bool IsChunkRecentlyConfirmed(TChunkId chunkId) = 0;
 
+    virtual TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetChunksReplicationStatuses(
+        const std::vector<TChunkRawPtr>& chunks) = 0;
+
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, LastSequoiaReplicasCommitTimestamp, NTransactionClient::NullTimestamp);
 
 private:

@@ -110,4 +110,22 @@ void Serialize(const THunkChunkTreeStatistics& statistics, NYson::IYsonConsumer*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkReplicationStatistics
+{
+    int Total = 0;
+    int Available = 0;
+    int Lost = 0;
+    int DataMissing = 0;
+    int ParityMissing = 0;
+    int QuorumMissing = 0;
+    int MediumWiseLost = 0;
+    int Dead = 0;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TChunkReplicationStatistics& statistics, TStringBuf spec);
+
+void Serialize(const TChunkReplicationStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer

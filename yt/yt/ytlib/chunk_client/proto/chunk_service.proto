@@ -379,3 +379,13 @@ message TRspExecuteBatch
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqComputeChunksReplicationStatuses
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+message TRspComputeChunksReplicationStatuses
+{
+    repeated uint32 chunk_replication_statuses = 1; // ECrossMediumChunkStatus
+}

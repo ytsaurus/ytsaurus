@@ -59,6 +59,11 @@ void ValidateSuperuserOnAttributeModification(
     const ISecurityManagerPtr& securityManager,
     TStringBuf attribute);
 
+//! Validates access to those attributes which can be read only by superusers.
+void ValidateSuperuserOnAttributeAccess(
+    const ISecurityManagerPtr& securityManager,
+    TStringBuf attribute);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetAccountShardIndex(TAccountId accountId);

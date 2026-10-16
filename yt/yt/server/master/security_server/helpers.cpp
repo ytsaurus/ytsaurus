@@ -136,6 +136,19 @@ void ValidateSuperuserOnAttributeModification(
     }
 }
 
+void ValidateSuperuserOnAttributeAccess(
+    const ISecurityManagerPtr& securityManager,
+    TStringBuf attribute)
+{
+    auto* user = securityManager->GetAuthenticatedUser();
+    if (!securityManager->IsSuperuser(user)) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::AuthorizationError,
+            "Access denied: only superusers can access %Qv",
+            attribute);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetAccountShardIndex(TAccountId accountId)

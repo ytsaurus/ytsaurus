@@ -144,6 +144,8 @@ public:
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(ExecuteBatchRequestQueueProvider_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ComputeChunksReplicationStatuses)
+            .SetHeavy(true));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkService::OnDynamicConfigChanged, MakeWeak(this)));
@@ -1085,6 +1087,59 @@ private:
         if (confirmError) {
             confirmError->ThrowOnError();
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ComputeChunksReplicationStatuses)
+    {
+        auto chunkIds = FromProto<std::vector<TChunkId>>(request->chunk_ids());
+        context->SetRequestInfo(
+            "ChunkCount: %v",
+            chunkIds.size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+        if (!securityManager->IsSuperuser(userGuard.GetUser())) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Access denied: only superusers can compute chunk replication statuses");
+        }
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        std::vector<TChunkRawPtr> aliveNativeChunks;
+        for (const auto& chunkId : chunkIds) {
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (IsObjectAlive(chunk)) {
+                if (chunk->IsForeign()) {
+                    YT_LOG_ALERT("Received non native chunk for chunk replication status calculation (ChunkId: %v)",
+                        chunkId);
+                    continue;
+                }
+                aliveNativeChunks.push_back(chunk);
+            }
+        }
+
+        WaitFor(chunkManager->GetChunksReplicationStatuses(aliveNativeChunks)
+            .Apply(BIND([
+                context,
+                chunkIds = std::move(chunkIds)
+            ] (const THashMap<TChunkId, ECrossMediumChunkStatus>& statuses) {
+                for (auto chunkId : chunkIds) {
+                    if (auto it = statuses.find(chunkId); it != statuses.end()) {
+                        context->Response().add_chunk_replication_statuses(
+                            static_cast<ui32>(it->second));
+                    } else {
+                        context->Response().add_chunk_replication_statuses(
+                            static_cast<ui32>(ECrossMediumChunkStatus::Dead));
+                    }
+                }
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())))
+            .ThrowOnError();
+        context->Reply();
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

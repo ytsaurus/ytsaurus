@@ -158,6 +158,7 @@
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
     XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
+    XX(DetailedChunkReplicationStatistics, detailed_chunk_replication_statistics) \
     XX(DetailedMasterMemoryUsage, detailed_master_memory_usage) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
     XX(DisableTabletBalancer, disable_tablet_balancer) \
@@ -315,9 +316,11 @@
     XX(LeaseTransactionIds, lease_transaction_ids) \
     XX(LeasesState, leases_state) \
     XX(LifeStage, life_stage) \
+    XX(LocalDetailedChunkReplicationStatistics, local_detailed_chunk_replication_statistics) \
     XX(LocalExportedObjectCount, local_exported_object_count) \
     XX(LocalHealth, local_health) \
     XX(LocalJobs, local_jobs) \
+    XX(LocalLostChunkIds, local_lost_chunk_ids) \
     XX(LocalPartLossTime, local_part_loss_time) \
     XX(LocalReplicationStatus, local_replication_status) \
     XX(LocalRequisition, local_requisition) \
@@ -328,6 +331,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LostChunkIds, lost_chunk_ids) \
     XX(LostVitalChunkCount, lost_vital_chunk_count) \
     XX(LowerLimit, lower_limit) \
     XX(MaintenanceRequests, maintenance_requests) \

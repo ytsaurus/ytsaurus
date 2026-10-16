@@ -4101,6 +4101,51 @@ private:
         return RecentlyConfirmedChunks_.contains(chunkId);
     }
 
+    TFuture<THashMap<TChunkId, ECrossMediumChunkStatus>> GetChunksReplicationStatuses(const std::vector<TChunkRawPtr>& chunks) override
+    {
+        std::vector<TEphemeralObjectPtr<TChunk>> chunksToFetchReplicas;
+        std::vector<TEphemeralObjectPtr<TChunk>> chunksToCalculateStatuses;
+
+        chunksToFetchReplicas.reserve(chunks.size());
+        chunksToCalculateStatuses.reserve(chunks.size());
+
+        for (const auto& chunk : chunks) {
+            chunksToFetchReplicas.emplace_back(chunk);
+            chunksToCalculateStatuses.emplace_back(chunk);
+        }
+
+        return ChunkReplicaFetcher_->GetChunkReplicasAsync(std::move(chunksToFetchReplicas), /*includeUnapproved*/ true)
+            .Apply(BIND([
+                this,
+                this_ = MakeStrong(this),
+                chunks = std::move(chunksToCalculateStatuses)
+            ] (const THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>& chunkIdToReplicas) {
+                THashMap<TChunkId, ECrossMediumChunkStatus> result;
+                for (const auto& chunk : chunks) {
+                    if (!IsObjectAlive(chunk)) {
+                        result[chunk->GetId()] = ECrossMediumChunkStatus::Dead;
+                        continue;
+                    }
+
+                    auto it = chunkIdToReplicas.find(chunk->GetId());
+                    if (it == chunkIdToReplicas.end()) {
+                        YT_LOG_ALERT_AND_THROW("Chunk has no records in chunk replica fetch result (ChunkId: %v)",
+                            chunk->GetId());
+                    }
+
+                    const auto& allReplicas = it->second
+                        .ValueOrThrow();
+
+                    auto replicas = ChunkReplicaFetcher_->FilterAliveReplicas(allReplicas);
+                    result[chunk->GetId()] = ChunkReplicator_->ComputeCrossMediumChunkStatus(chunk.Get(), replicas);
+                }
+                return result;
+            })
+            .AsyncViaGuarded(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                TError("Error computing chunk replication statuses")));
+    }
+
     void MarkChunkRecentlyConfirmed(TChunkId chunkId)
     {
         const auto& config = GetDynamicConfig();

@@ -1897,6 +1897,65 @@ class TestChunkServerMulticell(TestChunkServer):
         assert get("//sys/@lost_vital_chunk_count") == 0
         assert chunk_id not in get("//sys/lost_vital_chunks")
 
+    @authors("grphil")
+    def test_detailed_replication_statistics(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        write_table("//tmp/t1", {"a": "b"})
+
+        def check_replication_statistics(chunks, local_chunks, available):
+            def check_response(statistics, lost_chunks, local):
+                if local:
+                    chunk_count = len(local_chunks)
+                    chunks_list = local_chunks
+                else:
+                    chunk_count = len(chunks)
+                    chunks_list = chunks
+                if statistics["dead"] != 0:
+                    return False
+                if statistics["available"] + statistics["lost"] != chunk_count:
+                    return False
+                if available:
+                    return statistics["lost"] == 0 and len(lost_chunks) == 0
+                else:
+                    if statistics["available"] != 0:
+                        return False
+                    if len(lost_chunks) != chunk_count:
+                        return False
+                    for chunk in lost_chunks:
+                        if chunk not in chunks_list:
+                            return False
+                    return True
+
+            return \
+                check_response(
+                    get("//tmp/t1/@local_detailed_chunk_replication_statistics"),
+                    get("//tmp/t1/@local_lost_chunk_ids"),
+                    True) and \
+                check_response(
+                    get("//tmp/t1/@detailed_chunk_replication_statistics"),
+                    get("//tmp/t1/@lost_chunk_ids"),
+                    False)
+
+        local_chunks = get("//tmp/t1/@chunk_ids")
+        wait(lambda: check_replication_statistics(local_chunks, local_chunks, True))
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t2", {"a": "b"})
+        concatenate(["//tmp/t2"], "<append=true>//tmp/t1")
+
+        chunks = get("//tmp/t1/@chunk_ids")
+        assert len(chunks) == 2
+        wait(lambda: check_replication_statistics(chunks, local_chunks, True))
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: check_replication_statistics(chunks, local_chunks, False))
+            set("//sys/@config/chunk_manager/max_lost_chunks_to_report_in_detailed_replication_statistics", 1)
+            lost_chunks = get("//tmp/t1/@lost_chunk_ids")
+            assert len(lost_chunks) == 1
+            assert lost_chunks.attributes["incomplete"]
+
+        wait(lambda: check_replication_statistics(chunks, local_chunks, True))
+
 
 class TestChunkServerPortal(TestChunkServerMulticell):
     ENABLE_TMP_PORTAL = True
