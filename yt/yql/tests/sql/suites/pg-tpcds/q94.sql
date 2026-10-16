@@ -13,7 +13,7 @@ from
   ,plato.web_site
 where
     d_date between '1999-5-01'::date and 
-           (cast('1999-5-01' as date) + interval '60' day)::date
+           cast('1999-5-01' as date) + interval '60' day
 and ws1.ws_ship_date_sk = d_date_sk
 and ws1.ws_ship_addr_sk = ca_address_sk
 and ca_state = 'TX'
