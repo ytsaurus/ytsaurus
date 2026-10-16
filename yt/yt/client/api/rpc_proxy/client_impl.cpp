@@ -2685,6 +2685,9 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
             protoAccessControlObjects->add_items(aco);
         }
     }
+    if (options.MutationId) {
+        ToProto(req->mutable_mutating_options(), options);
+    }
 
     for (const auto& file : options.Files) {
         auto* protoFile = req->add_files();
