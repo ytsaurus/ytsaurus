@@ -493,7 +493,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
 
@@ -600,7 +600,7 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
-        .Default()
+        .Default(800)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
 
