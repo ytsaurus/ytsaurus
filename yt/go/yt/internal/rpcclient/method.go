@@ -67,4 +67,6 @@ const (
 	MethodAdvanceQueueConsumer       Method = "AdvanceQueueConsumer"
 	MethodRegisterQueueConsumer      Method = "RegisterQueueConsumer"
 	MethodUnregisterQueueConsumer    Method = "UnregisterQueueConsumer"
+	MethodReadFile                   Method = "ReadFile"
+	MethodWriteFile                  Method = "WriteFile"
 )

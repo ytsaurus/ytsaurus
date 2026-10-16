@@ -62,6 +62,25 @@ func (c CallInvoker) Wrap(interceptor CallInterceptor) CallInvoker {
 
 type CallInterceptor func(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error)
 
+// ClientStream is a streaming call, see bus.ClientStream.
+type ClientStream interface {
+	Write(data []byte) error
+	CloseSend() error
+	Read() ([]byte, error)
+	Wait() error
+	Abort(err error)
+}
+
+type StreamInvoker func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (stream ClientStream, err error)
+
+func (c StreamInvoker) Wrap(interceptor StreamInterceptor) StreamInvoker {
+	return func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (stream ClientStream, err error) {
+		return interceptor(ctx, call, c, rsp, opts...)
+	}
+}
+
+type StreamInterceptor func(ctx context.Context, call *Call, invoke StreamInvoker, rsp proto.Message, opts ...bus.SendOption) (stream ClientStream, err error)
+
 type ReadRowInvoker func(ctx context.Context, call *Call, rsp ProtoRowset) (r yt.TableReader, err error)
 
 func (c ReadRowInvoker) Wrap(interceptor ReadRowInterceptor) ReadRowInvoker {

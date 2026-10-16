@@ -6,6 +6,7 @@ SRCS(
     conn_pool.go
     encoder.go
     error_wrapper.go
+    file.go
     helpers.go
     logging.go
     method.go
@@ -14,6 +15,7 @@ SRCS(
     request.go
     retrier.go
     rpc_proxy.go
+    stream.go
     table_reader.go
     tablet_tx.go
     testing.go
@@ -37,11 +39,13 @@ ENDIF()
 GO_TEST_SRCS(
     client_test.go
     conn_pool_test.go
+    file_test.go
     helpers_test.go
     lock_rows_test.go
     mutation_retrier_test.go
     object_type_test.go
     retrier_test.go
+    stream_test.go
     tablet_tx_test.go
     timestamp_test.go
 )

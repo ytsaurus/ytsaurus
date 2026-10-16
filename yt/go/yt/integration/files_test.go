@@ -1,8 +1,10 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"testing"
@@ -10,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"go.ytsaurus.tech/library/go/core/log"
-	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 	"go.ytsaurus.tech/yt/go/yttest"
@@ -20,62 +22,205 @@ import (
 func TestFiles(t *testing.T) {
 	t.Parallel()
 
-	env := yttest.New(t)
+	suite := NewSuite(t)
 
-	t.Run("P", func(t *testing.T) {
-		t.Run("WriteReadFile", func(t *testing.T) {
-			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-			defer cancel()
-
-			name := tmpPath()
-
-			_, err := env.YT.CreateNode(ctx, name, yt.NodeFile, nil)
-			require.NoError(t, err)
-
-			w, err := env.YT.WriteFile(ctx, name, nil)
-			require.NoError(t, err)
-
-			_, err = w.Write([]byte("test"))
-			require.NoError(t, err)
-			require.NoError(t, w.Close())
-
-			r, err := env.YT.ReadFile(ctx, name, nil)
-			require.NoError(t, err)
-			defer func() { _ = r.Close() }()
-
-			file, err := io.ReadAll(r)
-			require.NoError(t, err)
-			require.Equal(t, file, []byte("test"))
-		})
-
-		t.Run("ReadFileError", func(t *testing.T) {
-			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-			defer cancel()
-
-			name := tmpPath()
-
-			_, err := env.YT.ReadFile(ctx, name, nil)
-			require.Error(t, err)
-			require.True(t, yterrors.ContainsErrorCode(err, 500))
-		})
-
-		t.Run("WriteFileError", func(t *testing.T) {
-			ctx := ctxlog.WithFields(context.Background(), log.String("subtest_name", t.Name()))
-			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-			defer cancel()
-
-			name := tmpPath()
-
-			w, err := env.YT.WriteFile(ctx, name, nil)
-			if err == nil {
-				err = w.Close()
-			}
-			require.Error(t, err)
-			require.True(t, yterrors.ContainsErrorCode(err, 500))
-		})
+	suite.RunClientTests(t, []ClientTest{
+		{Name: "WriteReadFile", Test: suite.TestWriteReadFile},
+		{Name: "ReadFileError", Test: suite.TestReadFileError},
+		{Name: "WriteFileError", Test: suite.TestWriteFileError},
+		{Name: "ReadFileOffsetLength", Test: suite.TestReadFileOffsetLength},
+		{Name: "WriteLargeFile", Test: suite.TestWriteLargeFile},
+		{Name: "AppendFile", Test: suite.TestAppendFile},
+		{Name: "ReadFileInTx", Test: suite.TestReadFileInTx},
+		{Name: "CloseFileReaderBeforeEnd", Test: suite.TestCloseFileReaderBeforeEnd},
 	})
+}
+
+func writeFile(ctx context.Context, t *testing.T, yc yt.CypressClient, fc yt.FileClient, path ypath.YPath, content []byte) {
+	t.Helper()
+
+	_, err := yc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{IgnoreExisting: true})
+	require.NoError(t, err)
+
+	w, err := fc.WriteFile(ctx, path, nil)
+	require.NoError(t, err)
+
+	_, err = w.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+}
+
+func readFile(ctx context.Context, t *testing.T, fc yt.FileClient, path ypath.YPath, opts *yt.ReadFileOptions) []byte {
+	t.Helper()
+
+	r, err := fc.ReadFile(ctx, path, opts)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+
+	file, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return file
+}
+
+func (s *Suite) TestWriteReadFile(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+
+	_, err := yc.CreateNode(ctx, name, yt.NodeFile, nil)
+	require.NoError(t, err)
+
+	w, err := yc.WriteFile(ctx, name, nil)
+	require.NoError(t, err)
+
+	_, err = w.Write([]byte("test"))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	r, err := yc.ReadFile(ctx, name, nil)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+
+	file, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, file, []byte("test"))
+}
+
+func (s *Suite) TestReadFileError(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+
+	_, err := yc.ReadFile(ctx, name, nil)
+	require.Error(t, err)
+	require.True(t, yterrors.ContainsErrorCode(err, 500))
+}
+
+func (s *Suite) TestWriteFileError(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+
+	w, err := yc.WriteFile(ctx, name, nil)
+	if err == nil {
+		err = w.Close()
+	}
+	require.Error(t, err)
+	require.True(t, yterrors.ContainsErrorCode(err, 500))
+}
+
+func (s *Suite) TestReadFileOffsetLength(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+
+	content := make([]byte, 100)
+	for i := range content {
+		content[i] = byte(i)
+	}
+	writeFile(ctx, t, yc, yc, name, content)
+
+	file := readFile(ctx, t, yc, name, &yt.ReadFileOptions{Offset: ptr.Int64(10), Length: ptr.Int64(20)})
+	require.Equal(t, content[10:30], file)
+}
+
+func (s *Suite) TestWriteLargeFile(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
+	defer cancel()
+
+	name := tmpPath()
+
+	// Larger than the default streaming window of the RPC client.
+	content := make([]byte, 40*1024*1024)
+	_, err := rand.Read(content)
+	require.NoError(t, err)
+
+	writeFile(ctx, t, yc, yc, name, content)
+
+	file := readFile(ctx, t, yc, name, nil)
+	require.True(t, bytes.Equal(content, file), "file content differs")
+}
+
+func (s *Suite) TestAppendFile(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+	writeFile(ctx, t, yc, yc, name, []byte("abacaba"))
+
+	w, err := yc.WriteFile(ctx, ypath.NewRich(name.String()).SetAppend(), nil)
+	require.NoError(t, err)
+	_, err = w.Write([]byte("new"))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	require.Equal(t, []byte("abacabanew"), readFile(ctx, t, yc, name, nil))
+}
+
+func (s *Suite) TestReadFileInTx(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	name := tmpPath()
+
+	tx, err := yc.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Abort() }()
+
+	writeFile(ctx, t, tx, tx, name, []byte("written in tx"))
+
+	require.Equal(t, []byte("written in tx"), readFile(ctx, t, tx, name, nil))
+
+	exists, err := yc.NodeExists(ctx, name, nil)
+	require.NoError(t, err)
+	require.False(t, exists, "file must not be visible outside of the transaction")
+}
+
+func (s *Suite) TestCloseFileReaderBeforeEnd(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	name := tmpPath()
+	writeFile(ctx, t, yc, yc, name, make([]byte, 64*1024*1024))
+
+	r, err := yc.ReadFile(ctx, name, nil)
+	require.NoError(t, err)
+
+	_, err = io.ReadFull(r, make([]byte, 1024))
+	require.NoError(t, err)
+
+	closed := make(chan error, 1)
+	go func() { closed <- r.Close() }()
+
+	select {
+	case err := <-closed:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close must not wait for the rest of the file")
+	}
+
+	// The client stays usable after an aborted read.
+	require.Equal(t, []byte{0, 0, 0}, readFile(ctx, t, yc, name, &yt.ReadFileOptions{Length: ptr.Int64(3)}))
 }
 
 func TestHighLevelFileWriter(t *testing.T) {

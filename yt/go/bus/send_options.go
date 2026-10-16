@@ -113,6 +113,22 @@ func WithRequestTimeout(timeout time.Duration) *sendOption {
 	}
 }
 
+// WithStreamingTimeouts sets read and write stall timeouts of the server side of a streaming call.
+//
+// The timeouts are sent in server_attachments_streaming_parameters and have no effect on unary calls.
+func WithStreamingTimeouts(readTimeout, writeTimeout time.Duration) *sendOption {
+	return &sendOption{
+		Before: func(req *clientReq) {
+			if req.reqHeader.ServerAttachmentsStreamingParameters == nil {
+				req.reqHeader.ServerAttachmentsStreamingParameters = &rpc.TStreamingParameters{}
+			}
+			req.reqHeader.ServerAttachmentsStreamingParameters.ReadTimeout = ptr.Int64(durationToMicroseconds(readTimeout))
+			req.reqHeader.ServerAttachmentsStreamingParameters.WriteTimeout = ptr.Int64(durationToMicroseconds(writeTimeout))
+		},
+		After: func(req *clientReq) {},
+	}
+}
+
 func WithAckTimeout(timeout time.Duration) *sendOption {
 	return &sendOption{
 		Before: func(req *clientReq) {
