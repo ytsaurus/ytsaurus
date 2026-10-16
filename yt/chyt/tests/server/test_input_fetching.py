@@ -2742,6 +2742,38 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                     check_simple(lower_limit, upper_limit)
                     check_simple(upper_limit, lower_limit)
 
+    @authors("buyval01")
+    @pytest.mark.parametrize("dynamic_ranges", [False, True], ids=["explicit", "dynamic"])
+    def test_ypath_group_by_unordered_ranges(self, dynamic_ranges):
+        self._create_table()
+
+        if dynamic_ranges:
+            source = """
+                ytTables(view(
+                    select concat(
+                        '//tmp/t[',
+                        arrayStringConcat(
+                            arrayMap(
+                                key -> concat('(', toString(key), ')'),
+                                arrayReverseSort(groupUniqArray(ki))
+                            ),
+                            ','
+                        ),
+                        ']'
+                    )
+                    from `//tmp/t`
+                    where ki in (1, 6)
+                ))
+            """
+        else:
+            source = "`//tmp/t[(6),(1)]`"
+
+        with Clique(1) as clique:
+            assert_items_equal(
+                clique.make_query(f"select ki, count() as count from {source} group by ki"),
+                [{"ki": 1, "count": 3}, {"ki": 6, "count": 3}],
+            )
+
     @authors("max42", "dakovalkov")
     @pytest.mark.timeout(500)
     def test_ypath_complex(self):
