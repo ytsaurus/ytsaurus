@@ -12088,6 +12088,60 @@ TEST_F(TQueryEvaluateTest, ReverseScanOrderByDescOnFixedKeyPrefix)
     EXPECT_EQ(result.TabletsScanned, 1);
 }
 
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsRequiredStringKey)
+{
+    auto split = MakeSplit({
+        TColumnSchema("wizard_name", EValueType::String).SetRequired(true),
+        TColumnSchema("time_bucket", EValueType::Int64),
+        TColumnSchema("value", EValueType::Int64),
+    });
+
+    auto source = TSource{
+        "wizard_name=\"\";time_bucket=100;value=10",
+        "wizard_name=\"\";time_bucket=200;value=20",
+        "wizard_name=\"\";time_bucket=100;value=30",
+        "wizard_name=\"\";time_bucket=200;value=40",
+    };
+
+    // Two grouped rows + one totals row (null keys, sum of all values).
+    auto expectedResult = YsonToRows({
+        "time_bucket=100;wizard_name=\"\";total=40",
+        "time_bucket=200;wizard_name=\"\";total=60",
+        "total=100",
+    }, MakeSplit({
+        {"time_bucket", EValueType::Int64},
+        {"wizard_name", EValueType::String},
+        {"total", EValueType::Int64},
+    }));
+
+    Evaluate(
+        "time_bucket, wizard_name, sum(value) as total"
+        " FROM [//t]"
+        " GROUP BY time_bucket, wizard_name WITH TOTALS",
+        split,
+        source,
+        ResultMatcher(expectedResult));
+
+    expectedResult = YsonToRows({
+        "time_bucket=100;wizard_name=\"\"",
+        "time_bucket=200;wizard_name=\"\"",
+        "",
+    }, MakeSplit({
+        {"time_bucket", EValueType::Int64},
+        {"wizard_name", EValueType::String},
+    }));
+
+    Evaluate(
+        "*"
+        " FROM [//t]"
+        " GROUP BY time_bucket, wizard_name WITH TOTALS",
+        split,
+        source,
+        ResultMatcher(expectedResult));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryPrepareTest, ReverseScanNotAppliedWhenNonFixedSuffixIsAsc)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))

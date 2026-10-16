@@ -554,13 +554,14 @@ public:
         ColumnResolver_.Finish();
     }
 
-    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
+    void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems, ETotalsMode totalsMode) override
     {
         YT_VERIFY(!GroupItems_ && !AggregateItems_);
 
         GroupItems_ = groupItems;
         AggregateItems_ = aggregateItems;
         AfterGroupBy_ = true;
+        TotalsMode_ = totalsMode;
     }
 
     std::string InferGroupItemName(
@@ -592,6 +593,7 @@ private:
     TAggregateItemList* AggregateItems_ = nullptr;
 
     bool AfterGroupBy_ = false;
+    ETotalsMode TotalsMode_ = ETotalsMode::None;
 
     ResolveNestedTypesResult ResolveNestedTypes(
         const TLogicalTypePtr& type,
@@ -922,6 +924,9 @@ TUntypedExpression TExpressionBuilderV1::OnReference(const NAst::TReference& ref
         }
 
         if (type) {
+            if (TotalsMode_ != ETotalsMode::None) {
+                type = MakeOptionalIfNot(type);
+            }
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }

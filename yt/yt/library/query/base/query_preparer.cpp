@@ -219,7 +219,8 @@ TGroupClausePtr BuildGroupClause(
 
     builder->SetGroupData(
         &groupClause->GroupItems,
-        &groupClause->AggregateItems);
+        &groupClause->AggregateItems,
+        totalsMode);
 
     return groupClause;
 }
