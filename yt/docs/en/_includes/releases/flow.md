@@ -12,19 +12,10 @@ all at the same version.
 
 {% cut "**0.3.0**" %}
 
-**Release date:** 2026-09-28
+**Release date:** 2026-09-26
 
 
 **Release page:** [0.3.0](https://github.com/ytsaurus/ytsaurus/releases/tag/flow/0.3.0)
-
-
-**Docker image:** [ghcr.io/ytsaurus/flow:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow/1301893105?tag=0.3.0)
-
-
-**Docker image with JRE 17:** [ghcr.io/ytsaurus/flow-java:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow-java/1301893505?tag=0.3.0)
-
-
-**Docker image with Python 3:** [ghcr.io/ytsaurus/flow-python:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow-python/1301893891?tag=0.3.0)
 
 
 **Java SDK in Maven Central:** [0.3.0](https://central.sonatype.com/artifact/tech.ytsaurus/flow-core/0.3.0)
@@ -33,15 +24,28 @@ all at the same version.
 **Python SDK in PyPI:** [0.3.0](https://pypi.org/project/ytsaurus-flow-companion/0.3.0/)
 
 
-**yt_sync_mini in PyPI:** [0.3.0](https://pypi.org/project/ytsaurus-flow-yt-sync-mini/0.3.0/)
-
-
 **Go SDK module:** [0.3.0](https://pkg.go.dev/go.ytsaurus.tech/yt/go/flow@v0.3.0)
 
 
 YTsaurus Flow is a framework for streaming cross-DC event processing with exactly-once guarantees within the YTsaurus ecosystem, with APIs for C++, Java and Kotlin, Python, and Go. Its closest external counterparts are Google Cloud Dataflow and Apache Flink.
 
 This is the first Flow release with published artifacts. It includes the server, the SDKs, and the tools, all versioned 0.3.0 and built from a single commit.
+
+**Release date:** 2026-09-28
+
+**Docker image:** [ghcr.io/ytsaurus/flow:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow/1301893105?tag=0.3.0)
+
+**Docker image with JRE 17:** [ghcr.io/ytsaurus/flow-java:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow-java/1301893505?tag=0.3.0)
+
+**Docker image with Python 3:** [ghcr.io/ytsaurus/flow-python:0.3.0](https://github.com/orgs/ytsaurus/packages/container/flow-python/1301893891?tag=0.3.0)
+
+**Java SDK in Maven Central:** [0.3.0](https://central.sonatype.com/artifact/tech.ytsaurus/flow-core/0.3.0)
+
+**Python SDK in PyPI:** [0.3.0](https://pypi.org/project/ytsaurus-flow-companion/0.3.0/)
+
+**yt_sync_mini in PyPI:** [0.3.0](https://pypi.org/project/ytsaurus-flow-yt-sync-mini/0.3.0/)
+
+**Go SDK module:** [0.3.0](https://pkg.go.dev/go.ytsaurus.tech/yt/go/flow@v0.3.0)
 
 #### Artifacts
 

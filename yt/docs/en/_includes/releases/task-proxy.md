@@ -8,6 +8,28 @@ Release notes for this component.
 
 **Releases:**
 
+{% cut "**0.5.0**" %}
+
+**Release date:** 2026-09-23
+
+
+**Release page:** [0.5.0](https://github.com/ytsaurus/ytsaurus-task-proxy/releases/tag/release/0.5.0)
+
+
+**Helm chart:** [0.5.0](https://github.com/orgs/ytsaurus/packages/container/task-proxy-chart/1286202965?tag=0.5.0)
+
+
+#### What's Changed
+* Add explicit websocket protocol for task services by @wo1f in https://github.com/ytsaurus/ytsaurus-task-proxy/pull/14
+
+#### New Contributors
+* @wo1f made their first contribution in https://github.com/ytsaurus/ytsaurus-task-proxy/pull/14
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-task-proxy/compare/release/0.4.1...release/0.5.0
+
+{% endcut %}
+
+
 {% cut "**0.4.1**" %}
 
 **Release date:** 2026-08-10

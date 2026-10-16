@@ -8,6 +8,25 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.11.2**" %}
+
+**Release date:** 2026-10-02
+
+
+**Release page:** [2.11.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.2)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.2](https://github.com/orgs/ytsaurus/packages/container/spyt/1326099664?tag=2.11.2)
+
+
+Maintenance release with a bug fix
+
+- Fixed job submission to an inner standalone cluster: the master resolved job dependencies (jars, files, pyFiles, archives) with the YTsaurus credentials of the first submitter instead of the current one
+
+
+{% endcut %}
+
+
 {% cut "**2.11.1**" %}
 
 **Release date:** 2026-08-25
